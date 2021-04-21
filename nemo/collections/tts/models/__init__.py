@@ -26,6 +26,7 @@ from nemo.collections.tts.models.two_stages import GriffinLimModel, MelPsuedoInv
 from nemo.collections.tts.models.uniglow import UniGlowModel
 from nemo.collections.tts.models.waveglow import WaveGlowModel
 from nemo.collections.tts.models.fastpitch_hifigan_e2e import FastPitchHifiGanE2EModel
+from nemo.collections.tts.models.fastspeech2_hifigan_e2e import FastSpeech2HifiGanE2EModel
 
 __all__ = [
     "GlowTTSModel",
@@ -46,4 +47,5 @@ __all__ = [
     "FastPitchModel",
     "FastSpeech2Model",
     "FastPitchHifiGanE2EModel",
+    "FastSpeech2HifiGanE2EModel",
 ]

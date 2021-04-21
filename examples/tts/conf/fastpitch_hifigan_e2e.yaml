@@ -1,4 +1,4 @@
-name: "HiFiFastPitch"
+name: "FastPitch_HiFiGAN_E2E"
 sample_rate: 22050
 
 labels: [' ', '!', "'", '(', ')', ',', '-', '.', ':', ';', '?', 'a', 'b', 'c', 'd', 'e', 'f', 'g',

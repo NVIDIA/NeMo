@@ -75,7 +75,7 @@ class FastSpeech2Encoder(NeuralModule):
             dropatt=attn_dropout,  # Not in the FS2 paper
             embed_input=True,  # For the encoder, need to do embedding lookup
             n_embed=n_embed,
-            padding_idx=padding_idx
+            padding_idx=padding_idx,
         )
 
     @property
@@ -102,7 +102,6 @@ class VarianceAdaptor(NeuralModule):
         dropout=0.2,
         dur_d_hidden=256,
         dur_kernel_size=3,
-        va_hidden=256,
         pitch=True,
         log_pitch=True,
         n_f0_bins=256,
@@ -124,8 +123,6 @@ class VarianceAdaptor(NeuralModule):
             dropout: Variance adaptor dropout. Defaults to 0.2.
             dur_d_hidden: Hidden dim of the duration predictor. Defaults to 256.
             dur_kernel_size: Kernel size for the duration predictor. Defaults to 3.
-            va_hidden: Hidden dimension of the variance adaptor, i.e. the output of the pitch predictor and
-                energy predictor. Defaults to 256.
             pitch (bool): Whether or not to use the pitch predictor.
             log_pitch (bool): If True, uses log pitch. Defaults to True.
             n_f0_bins: Number of F0 bins for the pitch predictor. Defaults to 256.

@@ -62,7 +62,7 @@ class FastPitchHifiGanE2EConfig:
 
 
 class FastPitchHifiGanE2EModel(TextToWaveform):
-    """FastPitch Model that is used to generate mel spectrograms from text"""
+    """TODO"""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         if isinstance(cfg, dict):

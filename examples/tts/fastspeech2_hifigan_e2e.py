@@ -15,16 +15,16 @@
 import pytorch_lightning as pl
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
-from nemo.collections.tts.models.fastspeech2s import FastSpeech2SModel
+from nemo.collections.tts.models.fastspeech2_hifigan_e2e import FastSpeech2HifiGanE2EModel
 from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="conf", config_name="fastspeech2s")
+@hydra_runner(config_path="conf", config_name="fastspeech2_hifigan_e2e")
 def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-    model = FastSpeech2SModel(cfg=cfg.model, trainer=trainer)
+    model = FastSpeech2HifiGanE2EModel(cfg=cfg.model, trainer=trainer)
     lr_logger = pl.callbacks.LearningRateMonitor()
     epoch_time_logger = LogEpochTimeCallback()
     trainer.callbacks.extend([lr_logger, epoch_time_logger])
