@@ -14,7 +14,7 @@
 from nemo.collections.asr.data import feature_to_label
 
 
-def get_feature_seq_speakerlabel_dataset(featurizer, config: dict) -> audio_to_label.AudioToSpeechLabelDataset:
+def get_feature_seq_speakerlabel_dataset(feature_loader, config: dict) -> audio_to_label.AudioToSpeechLabelDataset:
     """
     Instantiates a FeatureSeqSpeakerLabelDataset.
     Args:
@@ -23,7 +23,7 @@ def get_feature_seq_speakerlabel_dataset(featurizer, config: dict) -> audio_to_l
     Returns:
         An instance of FeatureToSeqSpeakerLabelDataset.
     """
-    dataset = audio_to_label.FeatureToSeqSpeakerLabelDataset(
+    dataset = feature_to_label.FeatureToSeqSpeakerLabelDataset(
         manifest_filepath=config['manifest_filepath'], labels=config['labels'], feature_loader=feature_loader,
     )
     return dataset
