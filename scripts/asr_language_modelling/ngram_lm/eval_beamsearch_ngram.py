@@ -44,7 +44,7 @@
 # candidate is selected from the candidates is also reported as the best WER/CER. It can show how good the predicted
 # candidates are.
 #
-# Hyperparameter grid search:
+# Hyperparameter Grid Search:
 # Beam search decoding with N-gram LM has three main hyperparameters: beam_width, beam_alpha, and beam_beta.
 # The accuracy of the model is dependent to the values of these parameters, specially beam_alpha and beam_beta.
 # You may specify a single or list of values for each of these parameters to perform grid search. It would perform the
@@ -56,6 +56,7 @@
 #                     --beam_alpha 1.0 \
 #                     --beam_beta 1.0 0.5 \
 #
+# The following is the list of the arguments for this script:
 #
 # Args:
 #   --nemo_model_file: The path of the '.nemo' file of the ASR model to get evaluated
@@ -82,7 +83,7 @@
 #       You may use the largest batch size feasible to speed up the step of calculating the log probabilities
 #
 #    --use_amp: Whether to use AMP if available to calculate log probabilities
-#       Using AMP to calculate the log probabilities can speed up this step and make it possible to use
+#       Using AMP to calculate the log probabilities can speed up this step and also makes it possible to use
 #       larger batch sizes for '--acoustic_batch_size'
 #
 #    --device: The device to load the model onto to calculate log probabilities, defaults to 'cuda'
