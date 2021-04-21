@@ -131,6 +131,7 @@ def main():
 
     del model
 
+    arpa_file = f"{args.kenlm_model_file}.tmp.arpa"
     """ LMPLZ ARGUMENT SETUP """
     kenlm_args = [
         os.path.join(args.kenlm_bin_path, 'lmplz'),
@@ -139,24 +140,30 @@ def main():
         "--text",
         encoded_train_file,
         "--arpa",
-        f"{args.kenlm_model_file}.tmp.arpa",
+        arpa_file,
         discount_arg,
     ]
 
-    subprocess.run(kenlm_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr)
-
+    ret = subprocess.run(kenlm_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr)
+    if ret.returncode != 0:
+        raise RuntimeError("Training KenLM was not successful!")
     """ BINARY BUILD """
     logging.info(f"Running binary_build command \n\n{' '.join(kenlm_args)}\n\n")
     kenlm_args = [
         os.path.join(args.kenlm_bin_path, "build_binary"),
         "trie",
-        f"{args.kenlm_model_file}.tmp.arpa",
+        arpa_file,
         args.kenlm_model_file,
     ]
-    subprocess.run(kenlm_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr)
+    ret = subprocess.run(kenlm_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr)
+
+    if ret.returncode != 0:
+        raise RuntimeError("Training KenLM was not successful!")
 
     os.remove(encoded_train_file)
-    logging.info(f"Deleted the temporary file '{encoded_train_file}'.")
+    logging.info(f"Deleted the temporary encoded training file '{encoded_train_file}'.")
+    os.remove(arpa_file)
+    logging.info(f"Deleted the arpa file '{arpa_file}'.")
 
 
 if __name__ == '__main__':
