@@ -16,7 +16,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
-
 from nemo.collections.tts.modules.transformer import PositionalEmbedding, TransformerLayer
 from nemo.utils import logging
 
