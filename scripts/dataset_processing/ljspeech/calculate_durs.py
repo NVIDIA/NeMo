@@ -17,10 +17,11 @@ Calculates durations for LJSpeech based on MFA TextGrid alignments.
 import argparse
 import glob
 import json
-from math import ceil
-import numpy as np
 import os
 import pickle
+from math import ceil
+
+import numpy as np
 import tgt
 import torch
 from tqdm import tqdm

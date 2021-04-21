@@ -15,6 +15,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
 from nemo.collections.tts.modules.fastspeech2_submodules import (
     FFTransformer,
     LengthRegulator,
@@ -22,7 +23,6 @@ from nemo.collections.tts.modules.fastspeech2_submodules import (
     WaveformDiscriminator,
     WaveformGenerator,
 )
-from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import *
 from nemo.utils import logging

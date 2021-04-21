@@ -19,9 +19,9 @@ creating the relevant directories if necessary.
 
 USAGE: python extract_ljspeech_energy_pitch.py --ljspeech_dir=<LJSpeech_base_path>
 """
+import argparse
 from pathlib import Path
 
-import argparse
 import librosa
 import numpy as np
 
