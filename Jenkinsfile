@@ -58,6 +58,12 @@ pipeline {
       }
     }
 
+    stage('PyTorch Lightning DDP Checks') {
+      steps {
+        sh 'python "tests/core_ptl/check_for_ranks.py"'
+      }
+    }
+
     stage('L0: Unit Tests GPU') {
       steps {
         sh 'pytest -m "not pleasefixme" --with_downloads'
