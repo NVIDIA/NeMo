@@ -14,10 +14,10 @@
 
 import json
 import re
+from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 import torch
-from dataclasses import dataclass
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
