@@ -19,7 +19,6 @@ import shutil
 import tarfile
 import tempfile
 from abc import abstractmethod
-from dataclasses import is_dataclass
 from os import path
 from typing import Callable, Dict, List, Optional, Union
 
@@ -202,7 +201,7 @@ class ModelPT(LightningModule, Model):
                     try:
                         # Step into the nemo archive to try and find the file
                         with tempfile.TemporaryDirectory() as tmpdir:
-                            self.__unpack_nemo_file(path2file=_MODEL_RESTORE_PATH, out_folder=tmpdir)
+                            self._unpack_nemo_file(path2file=_MODEL_RESTORE_PATH, out_folder=tmpdir)
                             os.chdir(tmpdir)
                             if os.path.exists(basename_src):
                                 logging.warning(f"Using {os.path.abspath(basename_src)} instead of {src}.")
@@ -250,6 +249,7 @@ class ModelPT(LightningModule, Model):
 
         Args:
             save_path: Path to .nemo file where model instance should be saved
+
         """
         with tempfile.TemporaryDirectory() as tmpdir:
             config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
@@ -268,7 +268,7 @@ class ModelPT(LightningModule, Model):
                             try:
                                 # Step into the nemo archive to try and find the file
                                 with tempfile.TemporaryDirectory() as archive_dir:
-                                    self.__unpack_nemo_file(path2file=_MODEL_RESTORE_PATH, out_folder=archive_dir)
+                                    self._unpack_nemo_file(path2file=_MODEL_RESTORE_PATH, out_folder=archive_dir)
                                     os.chdir(archive_dir)
                                     shutil.copy2(src.path, tmpdir)
                             finally:
@@ -281,7 +281,7 @@ class ModelPT(LightningModule, Model):
 
             self.to_config_file(path2yaml_file=config_yaml)
             torch.save(self.state_dict(), model_weights)
-            self.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
+            self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
     @rank_zero_only
     def save_to(self, save_path: str):
@@ -346,7 +346,7 @@ class ModelPT(LightningModule, Model):
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
                 cls._set_model_restore_state(is_being_restored=True)
-                cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+                cls._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
                 os.chdir(tmpdir)
                 if override_config_path is None:
                     config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
@@ -368,7 +368,13 @@ class ModelPT(LightningModule, Model):
                 if return_config:
                     instance = conf
                 else:
-                    model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
+                    app_state = AppState()
+                    if app_state.model_parallel_rank is not None:
+                        model_weights = path.join(
+                            tmpdir, f'mp_rank_{app_state.model_parallel_rank:02}', _MODEL_WEIGHTS
+                        )
+                    else:
+                        model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
                     OmegaConf.set_struct(conf, True)
                     instance = cls.from_config_dict(config=conf)
                     instance = instance.to(map_location)
@@ -1049,7 +1055,7 @@ class ModelPT(LightningModule, Model):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
-                cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+                cls._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
                 os.chdir(tmpdir)
                 model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
                 state_dict = torch.load(model_weights)
@@ -1205,13 +1211,12 @@ class ModelPT(LightningModule, Model):
         self._hparams_initial = copy.deepcopy(self._hparams)
 
     @staticmethod
-    def __make_nemo_file_from_folder(filename, source_dir):
+    def _make_nemo_file_from_folder(filename, source_dir):
         with tarfile.open(filename, "w:gz") as tar:
-            # tar.add(source_dir, arcname=path.basename(source_dir))
             tar.add(source_dir, arcname=".")
 
     @staticmethod
-    def __unpack_nemo_file(path2file: str, out_folder: str) -> str:
+    def _unpack_nemo_file(path2file: str, out_folder: str) -> str:
         if not path.exists(path2file):
             raise FileNotFoundError(f"{path2file} does not exist")
         tar = tarfile.open(path2file, "r:gz")
@@ -1237,11 +1242,17 @@ class ModelPT(LightningModule, Model):
         """
         global _MODEL_RESTORE_PATH
 
-        if _MODEL_RESTORE_PATH is None:
+        app_state = AppState()
+
+        if _MODEL_RESTORE_PATH is None and app_state.model_restore_path is None:
             return False
         else:
-            if tarfile.is_tarfile(_MODEL_RESTORE_PATH):
-                return True
+            if _MODEL_RESTORE_PATH:
+                if tarfile.is_tarfile(_MODEL_RESTORE_PATH):
+                    return True
+            elif app_state.model_restore_path:
+                if tarfile.is_tarfile(app_state.model_restore_path):
+                    return True
             else:
                 return False
 
