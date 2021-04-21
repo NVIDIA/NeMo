@@ -18,7 +18,7 @@ The beam search decoders in NeMo supports language models trained by KenLM libra
 The beam search decoders and KenLM library are not installed by default in NeMo.
 You may need to install them first by the script at 'scripts/asr_language_modelling/ngram_lm/install_beamsearch_decoders.py'.
 
-The script to train a KenLM model can be found at 'scripts/asr_language_modelling/ngram_lm/train_kenlm.py'.
+NeMo supports both character-based and BPE-based models for N-gram LMs. The script to train a KenLM model can be found at 'scripts/asr_language_modelling/ngram_lm/train_kenlm.py'.
 The trained N-gram model can be used with beam search decoders on top of the ASR models to produce more accurate candidates.
 The beam search decoder would incorporate the scores produced by the N-gram LM into its score calculations as the following:
 

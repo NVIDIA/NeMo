@@ -66,11 +66,8 @@ from nemo.utils import logging
 """
 NeMo's beam search decoders only support char-level encodings. In order to make it work with BPE-level encodings, we
 use a trick to encode the sub-word tokens of the training data as unicode characters and train a char-level KenLM. 
-TOKEN_OFFSET is the offset in the unicode table to be used to encode the BPE sub-words.
-
-This encoding scheme reduces the required memory significantly, and the LM and its binary blob format require 
-less storage space. The only drawback is that there is a symmetric decoding by this offset value required when 
-performing actual beam search, but it is negligible in compute cost and the storage space benefits are more useful.
+TOKEN_OFFSET is the offset in the unicode table to be used to encode the BPE sub-words. This encoding scheme reduces 
+the required memory significantly, and the LM and its binary blob format require less storage space.
 """
 TOKEN_OFFSET = 100
 
