@@ -55,20 +55,31 @@
 #       a prediction file would have 25*4=100 lines if beam_width is 25 and there are 4 samples in the manifest file.
 #
 #   --probs_cache_file: The cache file for storing the outputs of the model
+#       The log probabilities produced from the model's encoder can get stored in a pickle file so that next time, the
+#       first step which ic calculating the log probabilities can get skipped.
 #
 #    --acoustic_batch_size: The batch size to calculate log probabilities
+#       You may use the largest batch size feasible to speed up the step of calculating the log probabilities
 #
 #    --use_amp: Whether to use AMP if available to calculate log probabilities
+#       Using AMP to calculate the log probabilities can speed up this step and make it possible to use
+#       larger batch sizes for '--acoustic_batch_size'
 #
-#    --device: The device to load the model onto and perform the inference
+#    --device: The device to load the model onto to calculate log probabilities, defaults to 'cuda'
+#       It can 'cpu', 'cuda', 'cuda:0', 'cuda:1', ...
+#       Currently multi-GPU is not supported but '--probs_cache_file' can help to avoid repeated calculations
 #
-#    --decoding_mode: The decoding scheme to be used for evaluation
+#    --decoding_mode: The decoding scheme to be used for evaluation, defaults to 'beamsearch_ngram'
+#       "greedy": Just greedy decoding is done, and no beam search decoding is performed
+#       "beamsearch": The beam search decoding is done but without using the N-gram language model, final results
+#           would be equivalent to setting the weight of LM (beam_beta) to zero
+#       "beamsearch_ngram": The beam search decoding is done with N-gram LM
 #
-#    --beam_width: Whether to apply lower case conversion on the training text
+#    --beam_width: The width or list of the widths of the beam search decoding
 #
-#    --beam_alpha: Whether to apply lower case conversion on the training text
+#    --beam_alpha: The alpha parameter or list of the alphas of the beam search decoding
 #
-#    --beam_beta: Whether to apply lower case conversion on the training text
+#    --beam_beta: The beta parameter or list of the betas of the beam search decoding
 #
 #    --beam_batch_size: The batch size to be used for beam search decoding
 #
@@ -215,7 +226,7 @@ def main():
         "--acoustic_batch_size", default=16, type=int, help="The batch size to calculate log probabilities"
     )
     parser.add_argument(
-        "--device", default="cuda:0", type=str, help="The device to load the model onto and perform the inference"
+        "--device", default="cuda", type=str, help="The device to load the model onto to calculate log probabilities"
     )
     parser.add_argument(
         "--use_amp", action="store_true", help="Whether to use AMP if available to calculate log probabilities"
