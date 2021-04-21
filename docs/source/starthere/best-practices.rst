@@ -115,8 +115,8 @@ the numbers from digit representation to word representation using a simple libr
 and punctuation back using the NLP punctuation model. Here is an example of how this is incorporated: `NeMo voice swap demo <https://github.com/NVIDIA/NeMo/blob/main/tutorials/VoiceSwapSample.ipynb>`_.
 
 **Q: What languages are supported in NeMo currently?**
-A: Along with English, Mandarin Chinese is supported. A pre-trained model for Mandarin, QuartzNet15x5Base-Zh, is provided that works 
-for that language. For more information, see `NeMo Speech Models <https://ngc.nvidia.com/catalog/models/nvidia:nemospeechmodels>`_.
+A: Along with English, we provide pre-trained models for Zh, Es, Fr, De, Ru, It, Ca and Pl languages.
+For more information, see `NeMo Speech Models <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_asr>`_.
 
 Data Augmentation
 -----------------
@@ -238,35 +238,6 @@ up for inter-node communication. Multi-GPU training will then be launched on eac
 the underlying inter-node network topology and type to achieve full performance, such as HPC-style hardware such as NVLink, InfiniBand 
 networking, or Ethernet.          
 
-Exporting Models
-----------------
-
-Deep learning model development for Conversational AI is complex. It involves defining, building, and training several models in 
-specific domains; experimenting several times to get high accuracy, fine tuning on multiple tasks and domain specific data, ensuring 
-training performance and making sure the models are ready for deployment to inference applications.
-
-Modules fine-tuned or trained in NeMo can be exported for efficient deployment in a variety of formats. The 
-``nemo.core.neural_factory.NeuralModuleFactory`` contains the API
-``deployment_export(module, output: str, d_format: nemo.core.neural_factory.DeploymentFormat, input_example=None, output_example=None)`` which handles the export.
-
-Currently, the ``nemo.core.neural_factory.NeuralModuleFactory`` API provides several deployment format targets:
-
-- ``ONNX``
-- ``TORCHSCRIPT``
-- ``TRTONNX``
-- ``PYTORCH``
-- ``JARVIS``
-
-The recommended format to export your modules is ``ONNX``. However, not all modules may support export to all formats. ``PYTORCH`` target 
-will work for all modules and will simply save the module's weights in a PyTorch checkpoint.
-
-For core ASR models such as Jasper and QuartzNet, all 4 formats will work. Example scripts for export to NVIDIA Jarvis ASR service can 
-be found under the ``scripts`` folder in the NeMo repository.
-
-`QuartzNetModel.ipynb <https://github.com/NVIDIA/NeMo/blob/v0.11.0/examples/asr/QuartzNetModel.ipynb>`_ is an example of a NeMo model. For ASR, specifically, a NeMo model is a kind of neural module which contains other 
-neural modules inside it. The NeMo model can have other neural modules inside and their mode, and topology of connections can depend 
-on the mode in which the NeMo model is used (training or evaluation). Exporting to ``.nemo`` file greatly simplifies the experience of 
-deployment with Jarvis.
 
 Recommendations For Optimization And FAQs
 -----------------------------------------
