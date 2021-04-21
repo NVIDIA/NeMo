@@ -104,7 +104,7 @@ if $SKIP_ENV_SETUP; then
   echo "Skipping environment setup. Assuming env name "aligner" exists."
 else
   echo "Setting up conda environment for MFA (env name \"aligner\")..."
-  conda create -n $ENV_NAME -c conda-forge openblas python=3.8 openfst pynini ngram baumwelch
+  conda create -n $ENV_NAME -c conda-forge openblas python=3.8 openfst pynini ngram baumwelch tgt
   conda activate $ENV_NAME
   pip install montreal-forced-aligner
   mfa thirdparty download
@@ -137,5 +137,5 @@ python calculate_durs.py \
   --ljspeech_dir=$LJSPEECH_BASE \
   --mappings=$LJSPEECH_BASE/mappings.json \
   --sr=$SAMPLE_RATE \
-  --window_stride=$WINDOW_STRIDE
-echo "Phoneme durations and tokens written to .npz files."
+  --hop_length=$WINDOW_STRIDE
+echo "Phoneme durations and tokens written."

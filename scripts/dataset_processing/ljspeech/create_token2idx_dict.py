@@ -39,18 +39,19 @@ def main():
             phonemes.update(tokens)
 
     # Small list of additional punctuation
-    word2phones[','] = ['sp']
-    word2phones[';'] = ['sp']
-    word2phones['.'] = ['sp']
-    word2phones['!'] = ['sp']
-    word2phones['?'] = ['sp']
-    word2phones['"'] = ['sp']
-    word2phones['-'] = ['sp']
+    word2phones[','] = [' ']
+    word2phones[';'] = [' ']
+    word2phones['.'] = [' ']
+    word2phones['!'] = [' ']
+    word2phones['?'] = [' ']
+    word2phones['"'] = [' ']
+    word2phones['-'] = [' ']
 
     phone2idx = {k: i for i, k in enumerate(phonemes)}
-    phone2idx['sil'] = len(phone2idx)   # Silence
-    phone2idx['sp'] = len(phone2idx)    # Space
-    phone2idx['spn'] = len(phone2idx)   # OOV/unknown
+    phone2idx[' '] = len(phone2idx)
+    phone2idx['sil'] = phone2idx[' ']   # Silence
+    phone2idx['sp'] = phone2idx[' ']    # Space
+    phone2idx['spn'] = phone2idx[' ']   # OOV/unk
 
     dicts = {
         'phone2idx': phone2idx,
