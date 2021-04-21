@@ -19,6 +19,7 @@ The full documentation tree is as follows:
    :maxdepth: 8
 
    models
+   asr_language_models
    datasets
    results
    configs
