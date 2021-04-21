@@ -94,7 +94,10 @@ read -r -d '' CONDA_MESSAGE << EOM
 This script requires either Anaconda or Miniconda to be active, as it installs the Montreal Forced Aligner via a conda environment.
 See their documentation (https://montreal-forced-aligner.readthedocs.io/en/latest/installation.html) for more details.
 EOM
-conda -h > /dev/null || echo $CONDA_MESSAGE
+if [ -z "$(which conda)" ]; then
+  echo $CONDA_MESSAGE
+  exit
+fi
 
 CONDA_PREFIX=$(conda info --base)
 source $CONDA_PREFIX/etc/profile.d/conda.sh
@@ -104,19 +107,28 @@ if $SKIP_ENV_SETUP; then
   echo "Skipping environment setup. Assuming env name "aligner" exists."
 else
   echo "Setting up conda environment for MFA (env name \"aligner\")..."
-  conda create -n $ENV_NAME -c conda-forge openblas python=3.8 openfst pynini ngram baumwelch tgt
+  conda create -n $ENV_NAME -c conda-forge openblas python=3.8 openfst pynini ngram baumwelch
   conda activate $ENV_NAME
-  pip install montreal-forced-aligner
+  pip install montreal-forced-aligner tgt torch
   mfa thirdparty download
   echo "Conda environment \"$ENV_NAME\" set up."
 fi
-conda activate $ENV_NAME
+
+if ! conda activate $ENV_NAME; then
+  echo "Could not activate environment, see Conda output above."
+  exit
+fi
 
 # Download CMU word-to-phoneme dict and clean out comments so they're not mistaken for tokens
 if [ -z $G2P_DICT ]; then
-  echo "Downloading CMU dict..."
-  wget -P $LJSPEECH_BASE $CMUDICT_URL
-  sed 's/\ \#.*//' $LJSPEECH_BASE/cmudict.dict > $LJSPEECH_BASE/uncommented_cmudict.dict
+  if [ ! -f $LJSPEECH_BASE/cmudict.dict ]; then
+    echo "Downloading CMU dict."
+    wget -P $LJSPEECH_BASE $CMUDICT_URL
+  fi
+  if [ ! -f $LJSPEECH_BASE/uncommented_cmudict.dict ]; then
+    echo "Creating uncommented version of CMUdict."
+    sed 's/\ \#.*//' $LJSPEECH_BASE/cmudict.dict > $LJSPEECH_BASE/uncommented_cmudict.dict
+  fi
   G2P_DICT=$LJSPEECH_BASE/uncommented_cmudict.dict
 fi
 
