@@ -420,20 +420,12 @@ class NLPModel(ModelPT, Exportable):
 
             app_state.world_size = trainer.num_gpus * trainer.num_nodes
 
-            # try to get local rank from global
-            local_rank = None
-            try:
-                local_rank = int(os.environ['LOCAL_RANK'])
-            except:
-                logging.info('Global variable LOCAL_RANK not yet specified. Assuming LOCAL_RANK is 0.')
-
-            if local_rank is not None:
-                app_state.local_rank = local_rank
+            if trainer.local_rank is not None:
+                app_state.local_rank = trainer.local_rank
             else:
-                # if local is None then we are on the main process
-                local_rank = 0
+                raise ValueError("trainer.local_rank is None. local_rank needed to restore model parallel models.")
 
-            model_parallel_rank = compute_model_parallel_rank(local_rank, app_state.model_parallel_size)
+            model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
             app_state.model_parallel_rank = model_parallel_rank
 
             restored_model = cls._default_restore_from(
