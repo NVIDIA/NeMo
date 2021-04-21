@@ -20,7 +20,7 @@
 # 'scripts/ngram_lm/eval_beamsearch_ngram.py' to evaluate it on an ASR model.
 #
 # You need to install the KenLM library and also the beam search decoders to use this feature. Please refer
-# to 'scripts/ngram_lm/install_ctc_decoders.sh' on how to install them.
+# to 'scripts/ngram_lm/install_beamsearch_decoders.sh' on how to install them.
 #
 # USAGE: python train_kenlm.py --nemo_model_file <path to the .nemo file of the model> \
 #                              --train_file <path to the training text or json manifest file \
