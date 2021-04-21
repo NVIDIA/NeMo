@@ -305,7 +305,6 @@ class NLPModel(ModelPT, Exportable):
                 # extract all tar files
                 for mp_rank in range(app_state.model_parallel_size):
                     mp_tar_path = f'{base_path}_mp_rank_{mp_rank:02d}.nemo'
-                    logging.info(f'mp_tar_path: {mp_tar_path}')
                     mp_tar = tarfile.open(mp_tar_path, 'r:gz')
                     mp_tar.extractall(path=os.path.join(base_dir, f'mp_rank_{mp_rank:02d}'))
                     mp_tar.close()
