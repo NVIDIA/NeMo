@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-
 import pytest
 import torch
 
@@ -20,6 +19,7 @@ from nemo.collections.asr.data.audio_to_label import TarredAudioToClassification
 from nemo.collections.asr.data.feature_to_label import FeatureToSeqSpeakerLabelDataset
 from nemo.collections.asr.parts.feature_loader import ExternalFeatureLoader
 from nemo.collections.asr.parts.features import WaveformFeaturizer
+from nemo.collections.asr.parts.feature_loader import ExternalFeatureLoader
 from nemo.collections.common import tokenizers
 
 

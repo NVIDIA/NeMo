@@ -41,7 +41,6 @@ def _feature_collate_fn(batch):
 
     return feat_signal, feat_lengths, tokens, tokens_lengths
 
-
 class _FeatureSeqSpeakerLabelDataset(Dataset):
     """
     Dataset that loads tensors via a json file containing paths to feature files, sequences of labels. 
