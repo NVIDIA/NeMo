@@ -136,7 +136,8 @@ from nemo.utils import logging
 def beam_search_eval(
     all_probs,
     target_transcripts,
-    model_tokenizer,
+    vocab,
+    ids_to_text_func=None,
     preds_output_file=None,
     lm_path=None,
     beam_alpha=1.0,
@@ -145,10 +146,9 @@ def beam_search_eval(
     beam_batch_size=128,
     progress_bar=True,
 ):
-    vocabs = list(model_tokenizer.tokenizer.get_vocab().keys())
     # creating the beam search decoder
     beam_search_lm = nemo_asr.modules.BeamSearchDecoderWithLM(
-        vocab=[chr(idx + TOKEN_OFFSET) for idx in range(len(vocabs))],
+        vocab=vocab,
         beam_width=beam_width,
         alpha=beam_alpha,
         beta=beam_beta,
@@ -159,10 +159,8 @@ def beam_search_eval(
 
     wer_dist_first = cer_dist_first = 0
     wer_dist_best = cer_dist_best = 0
-
     words_count = 0
     chars_count = 0
-
     sample_idx = 0
     if preds_output_file:
         out_file = open(preds_output_file, 'w')
@@ -189,8 +187,11 @@ def beam_search_eval(
             chars_count += len(target_split_c)
             wer_dist_min = cer_dist_min = 10000
             for candidate_idx, candidate in enumerate(beams):
-                # Need to shift by TOKEN_OFFSET to retrieve the original sub-word ids
-                pred_text = model_tokenizer.ids_to_text([ord(c) - TOKEN_OFFSET for c in candidate[1]])
+                if ids_to_text_func is not None:
+                    # For BPE encodings, need to shift by TOKEN_OFFSET to retrieve the original sub-word ids
+                    pred_text = ids_to_text_func([ord(c) - TOKEN_OFFSET for c in candidate[1]])
+                else:
+                    pred_text = candidate[1]
                 pred_split_w = pred_text.split()
                 wer_dist = editdistance.eval(target_split_w, pred_split_w)
                 pred_split_c = list(pred_text)
@@ -295,7 +296,6 @@ def main():
     asr_model = nemo_asr.models.EncDecCTCModelBPE.restore_from(
         args.nemo_model_file, map_location=torch.device(args.device)
     )
-    model_tokenizer = asr_model.tokenizer
 
     target_transcripts = []
     with open(args.input_manifest, 'r') as manifest_file:
@@ -363,6 +363,18 @@ def main():
 
     logging.info('Greedy WER/CER = {:.2%}/{:.2%}'.format(wer_dist_greedy / words_count, cer_dist_greedy / chars_count))
 
+    encoding_level = kenlm_utils.SUPPORTED_MODELS.get(type(asr_model).__name__, None)
+    if not encoding_level:
+        logging.warning(
+            f"Model type '{type(asr_model).__name__}' may not be supported. Would try to train a char-level LM."
+        )
+        encoding_level = 'char'
+
+    vocab = asr_model.decoder.vocabulary
+    ids_to_text_func = None
+    if encoding_level == "subword":
+        vocab = [chr(idx + TOKEN_OFFSET) for idx in range(len(vocab))]
+        ids_to_text_func = asr_model.tokenizer.ids_to_text
     # delete the model to free the memory
     del asr_model
 
@@ -375,6 +387,7 @@ def main():
 
     # 'greedy' decoding_mode would skip the beam search decoding
     if args.decoding_mode in ["beamsearch_ngram", "beamsearch"]:
+
         params = {'beam_width': args.beam_width, 'beam_alpha': args.beam_alpha, 'beam_beta': args.beam_beta}
         hp_grid = ParameterGrid(params)
         hp_grid = list(hp_grid)
@@ -394,10 +407,12 @@ def main():
                 )
             else:
                 preds_output_file = None
+
             beam_search_eval(
                 all_probs=all_probs,
                 target_transcripts=target_transcripts,
-                model_tokenizer=model_tokenizer,
+                vocab=vocab,
+                ids_to_text_func=ids_to_text_func,
                 preds_output_file=preds_output_file,
                 lm_path=lm_path,
                 beam_width=hp["beam_width"],

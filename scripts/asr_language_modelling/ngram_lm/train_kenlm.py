@@ -104,7 +104,9 @@ def main():
 
     encoding_level = kenlm_utils.SUPPORTED_MODELS.get(type(model).__name__, None)
     if not encoding_level:
-        logging.warning(f"Model type '{type(model).__name__}' may not be supported. Would try to train a char-level LM.")
+        logging.warning(
+            f"Model type '{type(model).__name__}' may not be supported. Would try to train a char-level LM."
+        )
         encoding_level = 'char'
 
     """ DATASET SETUP """

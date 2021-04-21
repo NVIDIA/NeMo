@@ -24,7 +24,6 @@ import numpy as np
 from joblib import Parallel, delayed
 from tqdm.auto import tqdm
 
-
 # List of the supported models to be used with N-gram LM and beam search decoding
 SUPPORTED_MODELS = {
     'EncDecCTCModelBPE': 'subword',
