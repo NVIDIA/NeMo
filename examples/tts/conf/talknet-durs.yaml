@@ -1,33 +1,36 @@
-name: &name TalkNetDurs
-sample_rate: &sr 22050
+name: TalkNetDurs
+sample_rate: 22050
 
 train_dataset: ???
 validation_datasets: ???
-durs_path: ???
+durs_file: ???
+f0_file: ???
 
 model:
-  d_char: &d_char 128
-  dropout: &dropout 0.1
-  separable: &separable true
+  d_char: 128
+  dropout: 0.1
+  separable: true
 
   train_ds:
     dataset:
-      _target_: "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursDataset"
+      _target_: "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursF0Dataset"
       manifest_filepath: ${train_dataset}
       max_duration: null
       min_duration: 0.1
       int_values: false
       load_audio: false
       normalize: false
-      sample_rate: *sr
+      sample_rate: ${sample_rate}
       trim: false
-      durs_path: ${durs_path}
-      rep: false
+      durs_file: ${durs_file}
+      f0_file: ${f0_file}
+      blanking: true
       vocab:
         notation: phonemes
         punct: true
         spaces: true
         stresses: false
+        add_blank_at: last
     dataloader_params:
       drop_last: false
       shuffle: true
@@ -36,31 +39,33 @@ model:
 
   validation_ds:
     dataset:
-      _target_: "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursDataset"
+      _target_: "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursF0Dataset"
       manifest_filepath: ${validation_datasets}
       max_duration: null
       min_duration: 0.1
       int_values: false
       load_audio: false
       normalize: false
-      sample_rate: *sr
+      sample_rate: ${sample_rate}
       trim: false
-      durs_path: ${durs_path}
-      rep: false
+      durs_file: ${durs_file}
+      f0_file: ${f0_file}
+      blanking: true
       vocab:
         notation: phonemes
         punct: true
         spaces: true
         stresses: false
+        add_blank_at: last
     dataloader_params:
       drop_last: false
       shuffle: false
       batch_size: 64
-      num_workers: 8
+      num_workers: 1
 
   model:
     _target_: "nemo.collections.asr.modules.ConvASREncoder"
-    feat_in: *d_char
+    feat_in: ${model.d_char}
     activation: relu
     conv_mask: true
 
@@ -70,61 +75,71 @@ model:
       kernel: [3]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
 
     - filters: 256
       repeat: 5
       kernel: [5]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
+      se: True
+      se_reduction_ratio: 8
 
     - filters: 256
       repeat: 5
       kernel: [7]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
+      se: True
+      se_reduction_ratio: 8
 
     - filters: 256
       repeat: 5
       kernel: [9]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
+      se: True
+      se_reduction_ratio: 8
 
     - filters: 256
       repeat: 5
       kernel: [11]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
+      se: True
+      se_reduction_ratio: 8
 
     - filters: 256
       repeat: 5
       kernel: [13]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
+      se: True
+      se_reduction_ratio: 8
 
     - filters: 512
       repeat: 1
       kernel: [1]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
 
   optim:
@@ -135,6 +150,7 @@ model:
     sched:
       name: CosineAnnealing
       min_lr: 1e-5
+      warmup_ratio: 0.02
 
 trainer:
   gpus: 1
@@ -151,6 +167,9 @@ trainer:
 
 exp_manager:
   exp_dir: null
-  name: *name
+  name: ${name}
   create_tensorboard_logger: True
   create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: "val_acc"
+    mode: "max"

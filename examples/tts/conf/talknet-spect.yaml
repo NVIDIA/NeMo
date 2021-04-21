@@ -1,34 +1,37 @@
-name: &name TalkNetSpect
-sample_rate: &sr 22050
+name: TalkNetSpect
+sample_rate: 22050
 
 train_dataset: ???
 validation_datasets: ???
-durs_path: ???
+durs_file: ???
+f0_file: ???
 
 model:
-  d_char: &d_char 128
-  n_mels: &n_mels 80
-  dropout: &dropout 0.1
-  separable: &separable true
+  d_char: 128
+  n_mels: 80
+  dropout: 0.1
+  separable: true
 
   train_ds:
     dataset:
-      _target_: "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursDataset"
+      _target_: "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursF0Dataset"
       manifest_filepath: ${train_dataset}
       max_duration: null
       min_duration: 0.1
       int_values: false
       load_audio: true
       normalize: false
-      sample_rate: *sr
+      sample_rate: ${sample_rate}
       trim: false
-      durs_path: ${durs_path}
-      rep: true
+      durs_file: ${durs_file}
+      f0_file: ${f0_file}
+      blanking: true
       vocab:
         notation: phonemes
         punct: true
         spaces: true
         stresses: false
+        add_blank_at: last
     dataloader_params:
       drop_last: false
       shuffle: true
@@ -37,32 +40,34 @@ model:
 
   validation_ds:
     dataset:
-      _target_: "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursDataset"
+      _target_: "nemo.collections.asr.data.audio_to_text.AudioToCharWithDursF0Dataset"
       manifest_filepath: ${validation_datasets}
       max_duration: null
       min_duration: 0.1
       int_values: false
       load_audio: true
       normalize: false
-      sample_rate: *sr
+      sample_rate: ${sample_rate}
       trim: false
-      durs_path: ${durs_path}
-      rep: true
+      durs_file: ${durs_file}
+      f0_file: ${f0_file}
+      blanking: true
       vocab:
         notation: phonemes
         punct: true
         spaces: true
         stresses: false
+        add_blank_at: last
     dataloader_params:
       drop_last: false
       shuffle: false
       batch_size: 64
-      num_workers: 8
+      num_workers: 1
 
   preprocessor:
-    _target_: "nemo.collections.asr.parts.features.FilterbankFeatures"
+    _target_: "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor"
     dither: 0.0
-    nfilt: *n_mels
+    features: ${model.n_mels}
     frame_splicing: 1
     highfreq: 8000
     log: true
@@ -72,18 +77,20 @@ model:
     mag_power: 1.0
     n_fft: 1024
     n_window_size: 1024
+    window_size: False
     n_window_stride: 256
+    window_stride: False
     normalize: null
     pad_to: 1
     pad_value: -11.52
     preemph: null
-    sample_rate: *sr
-    stft_conv: true
+    sample_rate: ${sample_rate}
+    stft_conv: false
     window: hann
 
   model:
     _target_: "nemo.collections.asr.modules.ConvASREncoder"
-    feat_in: *d_char
+    feat_in: ${model.d_char}
     activation: relu
     conv_mask: true
 
@@ -93,18 +100,18 @@ model:
       kernel: [3]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
 
     - filters: 256
       repeat: 5
       kernel: [5]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
       se: true
       se_reduction_ratio: 8
 
@@ -113,9 +120,9 @@ model:
       kernel: [7]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
       se: true
       se_reduction_ratio: 8
 
@@ -124,9 +131,9 @@ model:
       kernel: [9]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
       se: true
       se_reduction_ratio: 8
 
@@ -135,9 +142,9 @@ model:
       kernel: [13]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
       se: true
       se_reduction_ratio: 8
 
@@ -146,9 +153,9 @@ model:
       kernel: [15]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
       se: true
       se_reduction_ratio: 8
 
@@ -157,9 +164,9 @@ model:
       kernel: [17]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
       se: true
       se_reduction_ratio: 8
 
@@ -168,9 +175,9 @@ model:
       kernel: [21]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
       se: true
       se_reduction_ratio: 8
 
@@ -179,9 +186,9 @@ model:
       kernel: [23]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
       se: true
       se_reduction_ratio: 8
 
@@ -190,9 +197,9 @@ model:
       kernel: [25]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
-      separable: *separable
+      separable: ${model.separable}
       se: true
       se_reduction_ratio: 8
 
@@ -201,7 +208,7 @@ model:
       kernel: [1]
       stride: [1]
       dilation: [1]
-      dropout: *dropout
+      dropout: ${model.dropout}
       residual: true
 
   optim:
@@ -212,6 +219,7 @@ model:
     sched:
       name: CosineAnnealing
       min_lr: 1e-5
+      warmup_ratio: 0.02
 
 trainer:
   gpus: 1
@@ -228,6 +236,9 @@ trainer:
 
 exp_manager:
   exp_dir: null
-  name: *name
+  name: ${name}
   create_tensorboard_logger: True
   create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: "val_loss"
+    mode: "min"

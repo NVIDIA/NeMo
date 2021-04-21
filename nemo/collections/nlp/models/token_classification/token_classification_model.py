@@ -181,6 +181,8 @@ class TokenClassificationModel(NLPModel):
         self.log('f1', f1)
         self.log('recall', recall)
 
+        self.classification_report.reset()
+
     def test_step(self, batch, batch_idx):
         input_ids, input_type_ids, input_mask, subtokens_mask, loss_mask, labels = batch
         logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
@@ -512,12 +514,9 @@ class TokenClassificationModel(NLPModel):
         """
         result = []
         model = PretrainedModelInfo(
-            pretrained_model_name="NERModel",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemonlpmodels/versions/1.0.0a5/files/NERModel.nemo",
+            pretrained_model_name="ner_en_bert",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/ner_en_bert/versions/1.0.0rc1/files/ner_en_bert.nemo",
             description="The model was trained on GMB (Groningen Meaning Bank) corpus for entity recognition and achieves 74.61 F1 Macro score.",
         )
         result.append(model)
         return result
-
-    def _prepare_for_export(self):
-        return self.bert_model._prepare_for_export()

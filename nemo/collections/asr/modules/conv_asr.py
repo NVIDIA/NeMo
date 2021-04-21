@@ -52,12 +52,13 @@ class ConvASREncoder(NeuralModule, Exportable):
         https://arxiv.org/pdf/1910.10261.pdf
     """
 
-    def _prepare_for_export(self):
+    def _prepare_for_export(self, **kwargs):
         m_count = 0
         for m in self.modules():
             if isinstance(m, MaskedConv1d):
                 m.use_mask = False
                 m_count += 1
+        Exportable._prepare_for_export(self, **kwargs)
         logging.warning(f"Turned off {m_count} masked convolutions")
 
     def input_example(self):
@@ -149,6 +150,7 @@ class ConvASREncoder(NeuralModule, Exportable):
             se_interpolation_mode = lcfg.get('se_interpolation_mode', 'nearest')
             kernel_size_factor = lcfg.get('kernel_size_factor', 1.0)
             stride_last = lcfg.get('stride_last', False)
+            future_context = lcfg.get('future_context', -1)
             encoder_layers.append(
                 JasperBlock(
                     feat_in,
@@ -174,6 +176,7 @@ class ConvASREncoder(NeuralModule, Exportable):
                     se_interpolation_mode=se_interpolation_mode,
                     kernel_size_factor=kernel_size_factor,
                     stride_last=stride_last,
+                    future_context=future_context,
                     quantize=quantize,
                 )
             )
@@ -250,7 +253,7 @@ class ConvASRDecoder(NeuralModule, Exportable):
         input_example = torch.randn(bs, self._feat_in, seq).to(next(self.parameters()).device)
         return tuple([input_example])
 
-    def _prepare_for_export(self):
+    def _prepare_for_export(self, **kwargs):
         m_count = 0
         for m in self.modules():
             if type(m).__name__ == "MaskedConv1d":
@@ -258,7 +261,7 @@ class ConvASRDecoder(NeuralModule, Exportable):
                 m_count += 1
         if m_count > 0:
             logging.warning(f"Turned off {m_count} masked convolutions")
-        Exportable._prepare_for_export(self)
+        Exportable._prepare_for_export(self, **kwargs)
 
     @property
     def vocabulary(self):

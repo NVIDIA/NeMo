@@ -20,30 +20,16 @@
 import codecs
 import os
 import subprocess
-import sys
 from distutils import cmd as distutils_cmd
 from distutils import log as distutils_log
 from itertools import chain
+import imp
 
 import setuptools
 
 
-def is_build_action():
-    if len(sys.argv) <= 1:
-        return False
-
-    BUILD_TOKENS = ["egg_info", "dist", "bdist", "sdist", "install", "build", "develop", "style", "clean"]
-
-    if any([sys.argv[1].startswith(x) for x in BUILD_TOKENS]):
-        return True
-    else:
-        return False
-
-
-if is_build_action():
-    os.environ['NEMO_PACKAGE_BUILDING'] = 'True'
-
-from nemo.package_info import (
+package_info = imp.load_source('package_info', 'nemo/package_info.py')
+from package_info import (
     __contact_emails__,
     __contact_names__,
     __description__,
@@ -95,6 +81,7 @@ extras_require = {
     'cv': req_file("requirements_cv.txt"),
     'nlp': req_file("requirements_nlp.txt"),
     'tts': req_file("requirements_tts.txt"),
+    'text_processing': req_file("requirements_text_processing.txt"),
 }
 
 extras_require['all'] = list(chain(extras_require.values()))
@@ -241,6 +228,8 @@ setuptools.setup(
     extras_require=extras_require,
     # Add in any packaged data.
     include_package_data=True,
+    exclude=['tools', 'tests'],
+    package_data={'': ['*.tsv', '*.txt']},
     zip_safe=False,
     # PyPI package information.
     keywords=__keywords__,

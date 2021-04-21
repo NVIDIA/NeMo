@@ -57,16 +57,23 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         """
         result = []
         model = PretrainedModelInfo(
-            pretrained_model_name="SpeakerNet_recognition",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/SpeakerNet_recognition.nemo",
-            description="SpeakerNet_recognition model trained end-to-end for speaker recognition purposes with cross_entropy loss. It was trained on voxceleb 1, voxceleb 2 dev datasets and augmented with musan music and noise. Speaker Recognition model achieves 2.65% EER on voxceleb-O cleaned trial file",
+            pretrained_model_name="speakerrecognition_speakernet",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/speakerrecognition_speakernet/versions/1.0.0rc1/files/speakerrecognition_speakernet.nemo",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerrecognition_speakernet",
         )
         result.append(model)
 
         model = PretrainedModelInfo(
-            pretrained_model_name="SpeakerNet_verification",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/SpeakerNet_verification.nemo",
-            description="SpeakerNet_verification model trained end-to-end for speaker verification purposes with arcface angular softmax loss. It was trained on voxceleb 1, voxceleb 2 dev datasets and augmented with musan music and noise. Speaker Verification model achieves 2.12% EER on voxceleb-O cleaned trial file",
+            pretrained_model_name="speakerverification_speakernet",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/speakerverification_speakernet/versions/1.0.0rc1/files/speakerverification_speakernet.nemo",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerverification_speakernet",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="speakerdiarization_speakernet",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/speakerdiarization_speakernet/versions/1.0.0rc1/files/speakerdiarization_speakernet.nemo",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerdiarization_speakernet",
         )
         result.append(model)
 
@@ -104,7 +111,6 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             max_duration=config.get('max_duration', None),
             min_duration=config.get('min_duration', None),
             trim=False,
-            load_audio=config.get('load_audio', True),
             time_length=config.get('time_length', 8),
             shift_length=config.get('shift_length', 0.75),
         )

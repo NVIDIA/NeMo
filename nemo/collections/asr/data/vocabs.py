@@ -17,10 +17,24 @@ import itertools
 import string
 from typing import List
 
+import nltk
+
 from nemo.collections.asr.parts import parsers
 
 try:
-    import g2p_en
+    nltk.data.find('taggers/averaged_perceptron_tagger.zip')
+except LookupError:
+    nltk.download('averaged_perceptron_tagger', quiet=True)
+try:
+    nltk.data.find('corpora/cmudict.zip')
+except LookupError:
+    nltk.download('cmudict', quiet=True)
+
+try:
+    import g2p_en  # noqa
+
+    _g2p = g2p_en.G2p()
+    _g2p.variables = None
 
     HAVE_G2P = True
 except (FileNotFoundError, LookupError):
@@ -38,20 +52,34 @@ class Base(abc.ABC):
     )
     # fmt: on
     PAD, BLANK, OOV = '<pad>', '<blank>', '<oov>'
-    SEP = ''
 
-    def __init__(self, labels, *, pad=PAD, blank=BLANK, oov=OOV):
+    def __init__(self, labels, *, pad=PAD, blank=BLANK, oov=OOV, sep='', add_blank_at="last_but_one"):
         super().__init__()
 
         labels = list(labels)
         self.pad, labels = len(labels), labels + [pad]  # Padding
-        self.blank, labels = len(labels), labels + [blank]  # Reserved for blank from QN
+
+        if add_blank_at is not None:
+            self.blank, labels = len(labels), labels + [blank]  # Reserved for blank from QN
+        else:
+            # use add_blank_at=None only for ASR where blank is added automatically
+            self.blank = -1
+
         self.oov, labels = len(labels), labels + [oov]  # Out Of Vocabulary
+
+        if add_blank_at == "last":
+            labels[-1], labels[-2] = labels[-2], labels[-1]
+            self.oov, self.blank = self.blank, self.oov
+
         self.labels = labels
+        self.sep = sep
 
         self._util_ids = {self.pad, self.blank, self.oov}
         self._label2id = {l: i for i, l in enumerate(labels)}
         self._id2label = labels
+
+    def __call__(self, text: str) -> List[int]:
+        return self.encode(text)
 
     @abc.abstractmethod
     def encode(self, text: str) -> List[int]:
@@ -60,21 +88,25 @@ class Base(abc.ABC):
 
     def decode(self, tokens: List[int]) -> str:
         """Turns ints tokens into str text."""
-        return self.SEP.join(self._id2label[t] for t in tokens if t not in self._util_ids)
+        return self.sep.join(self._id2label[t] for t in tokens if t not in self._util_ids)
 
 
 class Chars(Base):
     """Chars vocabulary."""
 
-    def __init__(self, punct=True, spaces=False):
+    def __init__(
+        self, punct=True, spaces=False, apostrophe=True, add_blank_at="last_but_one",
+    ):
         labels = []
         self.space, labels = len(labels), labels + [' ']  # Space
-        labels.extend(string.ascii_lowercase + "'")  # Apostrophe for saving "don't" and "Joe's"
+        labels.extend(string.ascii_lowercase)
+        if apostrophe:
+            labels.append("'")  # Apostrophe for saving "don't" and "Joe's"
 
         if punct:
             labels.extend(self.PUNCT)
 
-        super().__init__(labels)
+        super().__init__(labels, add_blank_at=add_blank_at)
 
         self.punct = punct
         self.spaces = spaces
@@ -96,9 +128,6 @@ class Chars(Base):
 class Phonemes(Base):
     """Phonemes vocabulary."""
 
-    _G2P = None
-
-    SEP = '|'  # To be able to distinguish between 2/3 letters codes.
     # fmt: off
     VOWELS = (
         'AA', 'AE', 'AH', 'AO', 'AW',
@@ -114,31 +143,34 @@ class Phonemes(Base):
     # fmt: on
 
     def __init__(
-        self, punct=True, stresses=False, spaces=True, *, space=' ', silence=None, oov=Base.OOV,
+        self,
+        punct=True,
+        stresses=False,
+        spaces=True,
+        *,
+        space=' ',
+        silence=None,
+        apostrophe=True,
+        oov=Base.OOV,
+        sep='|',  # To be able to distinguish between 2/3 letters codes.
+        add_blank_at="last_but_one",
     ):
-        if HAVE_G2P:
-            Phonemes._G2P = g2p_en.G2p()
-        else:
-            raise ImportError(
-                f"G2P could not be imported properly. Please attempt to import `g2p_py` "
-                f"before using {self.__class__.__name__}."
-            )
-
         labels = []
         self.space, labels = len(labels), labels + [space]  # Space
-        if silence:
+        if silence is not None:
             self.silence, labels = len(labels), labels + [silence]  # Silence
         labels.extend(self.CONSONANTS)
         vowels = list(self.VOWELS)
         if stresses:
             vowels = [f'{p}{s}' for p, s in itertools.product(vowels, (0, 1, 2))]
         labels.extend(vowels)
-        labels.append("'")  # Apostrophe
+        if apostrophe:
+            labels.append("'")  # Apostrophe
 
         if punct:
             labels.extend(self.PUNCT)
 
-        super().__init__(labels, oov=oov)
+        super().__init__(labels, oov=oov, sep=sep, add_blank_at=add_blank_at)
 
         self.punct = punct
         self.stresses = stresses
@@ -146,38 +178,29 @@ class Phonemes(Base):
 
     def encode(self, text):
         """See base class."""
-        ps, space = [], self.labels[self.space]
+        ps, space, labels = [], self.labels[self.space], set(self.labels)
 
-        for p in self._G2P(text):
-            if len(p) == 3 and not self.stresses:
+        for p in _g2p(text):  # noqa
+            # Remove stress
+            if p.isalnum() and len(p) == 3 and not self.stresses:
                 p = p[:2]
 
-            if p == space and ps[-1] != space:
+            # Add space if last one isn't one.
+            if p == space and len(ps) > 0 and ps[-1] != space:
                 ps.append(p)
 
-            if p.isalnum() or p == "'":
+            # Add next phoneme
+            if (p.isalnum() or p == "'") and p in labels:
                 ps.append(p)
 
-            if p in self.PUNCT and self.punct:
-                if not self.spaces and len(ps) and ps[-1] == space:
+            # Add punct and remove space if needed
+            if (p in self.PUNCT) and self.punct:
+                if not self.spaces and len(ps) > 0 and ps[-1] == space:
                     ps.pop()
-
                 ps.append(p)
 
-        if ps[-1] == space:
+        # Remove trailing spaces
+        while ps[-1] == space:
             ps.pop()
 
         return [self._label2id[p] for p in ps]
-
-
-class MFA(Phonemes):
-    """Montreal Forced Aligner set of phonemes."""
-
-    SPACE, SILENCE, OOV = 'sp', 'sil', 'spn'
-
-    def __init__(self):
-        super().__init__(stresses=True, space=self.SPACE, silence=self.SILENCE, oov=self.OOV)
-
-    def encode(self, text):
-        """Split already parsed string of space delim phonemes codes into list of tokens."""
-        return [self._label2id[p] for p in text.strip().split()]

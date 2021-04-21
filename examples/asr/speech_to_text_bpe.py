@@ -14,10 +14,10 @@
 
 """
 # Preparing the Tokenizer for the dataset
-Use the `process_asr_text_tokenizer.py` script under <NEMO_ROOT>/scripts in order to prepare the tokenizer.
+Use the `process_asr_text_tokenizer.py` script under <NEMO_ROOT>/scripts/tokenizers/ in order to prepare the tokenizer.
 
 ```sh
-python <NEMO_ROOT>/scripts/process_asr_text_tokenizer.py \
+python <NEMO_ROOT>/scripts/tokenizers/process_asr_text_tokenizer.py \
         --manifest=<path to train manifest files, seperated by commas>
         OR
         --data_file=<path to text data, seperated by commas> \
@@ -74,10 +74,13 @@ def main(cfg):
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
         gpu = 1 if cfg.trainer.gpus != 0 else 0
         test_trainer = pl.Trainer(
-            gpus=gpu, precision=trainer.precision, amp_level=trainer.amp_level, amp_backend=trainer.amp_backend,
+            gpus=gpu,
+            precision=trainer.precision,
+            amp_level=trainer.accelerator_connector.amp_level,
+            amp_backend=cfg.trainer.get("amp_backend", "native"),
         )
         if asr_model.prepare_test(test_trainer):
-            trainer.test(asr_model)
+            test_trainer.test(asr_model)
 
 
 if __name__ == '__main__':

@@ -29,7 +29,7 @@ from nemo.utils import logging
 
 __all__ = [
     'AudioToCharDataset',
-    'AudioToCharWithDursDataset',
+    'AudioToCharWithDursF0Dataset',
     'AudioToBPEDataset',
     'TarredAudioToCharDataset',
     'TarredAudioToBPEDataset',
@@ -99,8 +99,6 @@ class _AudioTextDataset(Dataset):
         normalize: whether to normalize transcript text (default): True
         bos_id: Id of beginning of sequence symbol to append if not None
         eos_id: Id of end of sequence symbol to append if not None
-        load_audio: Boolean flag indicate whether do or not load audio
-        add_misc: True if add additional info dict.
     """
 
     @property
@@ -108,12 +106,7 @@ class _AudioTextDataset(Dataset):
         """Returns definitions of module output ports.
                """
         return {
-            'audio_signal': NeuralType(
-                ('B', 'T'),
-                AudioSignal(freq=self._sample_rate)  # TODO: self._sample_rate is not defined anywhere
-                if self is not None and hasattr(self, '_sample_rate')
-                else AudioSignal(),
-            ),
+            'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
@@ -133,8 +126,6 @@ class _AudioTextDataset(Dataset):
         bos_id: Optional[int] = None,
         eos_id: Optional[int] = None,
         pad_id: int = 0,
-        load_audio: bool = True,
-        add_misc: bool = False,
     ):
         self.parser = parser
 
@@ -151,23 +142,18 @@ class _AudioTextDataset(Dataset):
         self.eos_id = eos_id
         self.bos_id = bos_id
         self.pad_id = pad_id
-        self.load_audio = load_audio
-        self._add_misc = add_misc
 
     def __getitem__(self, index):
         sample = self.collection[index]
-        if self.load_audio:
-            offset = sample.offset
+        offset = sample.offset
 
-            if offset is None:
-                offset = 0
+        if offset is None:
+            offset = 0
 
-            features = self.featurizer.process(
-                sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim, orig_sr=sample.orig_sr
-            )
-            f, fl = features, torch.tensor(features.shape[0]).long()
-        else:
-            f, fl = None, None
+        features = self.featurizer.process(
+            sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim, orig_sr=sample.orig_sr
+        )
+        f, fl = features, torch.tensor(features.shape[0]).long()
 
         t, tl = sample.text_tokens, len(sample.text_tokens)
         if self.bos_id is not None:
@@ -178,13 +164,6 @@ class _AudioTextDataset(Dataset):
             tl += 1
 
         output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
-
-        if self._add_misc:
-            misc = dict()
-            misc['id'] = sample.id
-            misc['text_raw'] = sample.text_raw
-            misc['speaker'] = sample.speaker
-            output = (output, misc)
 
         return output
 
@@ -223,8 +202,6 @@ class AudioToCharDataset(_AudioTextDataset):
         normalize: whether to normalize transcript text (default): True
         bos_id: Id of beginning of sequence symbol to append if not None
         eos_id: Id of end of sequence symbol to append if not None
-        load_audio: Boolean flag indicate whether do or not load audio
-        add_misc: True if add additional info dict.
     """
 
     @property
@@ -232,12 +209,7 @@ class AudioToCharDataset(_AudioTextDataset):
         """Returns definitions of module output ports.
                """
         return {
-            'audio_signal': NeuralType(
-                ('B', 'T'),
-                AudioSignal(freq=self._sample_rate)
-                if self is not None and hasattr(self, '_sample_rate')
-                else AudioSignal(),
-            ),
+            'audio_signal': NeuralType(('B', 'T')),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
@@ -260,9 +232,7 @@ class AudioToCharDataset(_AudioTextDataset):
         bos_id: Optional[int] = None,
         eos_id: Optional[int] = None,
         pad_id: int = 0,
-        load_audio: bool = True,
         parser: Union[str, Callable] = 'en',
-        add_misc: bool = False,
     ):
         self.labels = labels
 
@@ -283,34 +253,40 @@ class AudioToCharDataset(_AudioTextDataset):
             bos_id=bos_id,
             eos_id=eos_id,
             pad_id=pad_id,
-            load_audio=load_audio,
-            add_misc=add_misc,
         )
 
 
-class AudioToCharWithDursDataset(AudioToCharDataset):
+class AudioToCharWithDursF0Dataset(AudioToCharDataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
-    files, transcripts, and durations (in seconds). Each new line is a
-    different sample. Example below:
-    {"audio_filepath": "/path/to/audio.wav", "text_filepath":
-    "/path/to/audio.txt", "duration": 23.147}
+    files, transcripts, and durations (in seconds) and F0 along mel length.
+    Each new line is a different sample. Example below:
+    {"audio_filepath": "/path/to/audio_1.wav", "text": "the
+    transcription", "offset": 301.75, "duration": 0.82}
     ...
-    {"audio_filepath": "/path/to/audio.wav", "text": "the
-    transcription", "offset": 301.75, "duration": 0.82, "utt":
-    "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+    {"audio_filepath": "/path/to/audio_n.wav", "text": "the
+    transcription", "offset": 301.75, "duration": 0.82}
 
-    Additionally, user provides path to precomputed durations, which is a pickled python dict with 'tags' and 'durs'
-    keys, both of which are list of examples values. Tag is a unique example identifier, which is a wav filename
-    without suffix. Durations are an additional tuple of two tensors: graphemes durations and blanks durations.
+    Additionally, user provides path to precomputed durations via "durs_file" arg, which is a pickled python dict,
+    mapping example tag to it's durations tensor. Tag is a unique example identifier, which is a wav filename
+    without suffix. Durations are an additional dict of two tensors: graphemes durations and blanks durations with
+    "blanks" and "tokens" keys respectively.
     Example below:
-    {'tags': ['LJ050-0234', 'LJ019-0373'],
-     'durs': [(graphemes_durs0, blanks_durs0), (graphemes_durs1, blanks_durs1)]}
+    {'LJ050-0234': {'blanks': `blanks_durs_tensor`, 'tokens': `tokens_durs_tensor`},
+    ...}
+
+    Additionally, F0 statistics is passed precomputed along mel length via "f0_file" arg, which is a pickled python
+    dict, mapping example tag to it's f0 tensor.
+    Example below:
+    {'LJ050-0234': `f0_tensor`,
+    ...}
 
     Args:
         **kwargs: Passed to AudioToCharDataset constructor.
-        durs_path (str): String path to pickled list of '[(tag, durs)]' durations location.
-        rep (bool): True if repeat text graphemes according to durs.
+        durs_file (str): String path to pickled durations location.
+        f0_file (str): String path to pickled f0 statistics location.
+        blanking (bool): Boolean flag indicate whether add or not blanks between text graphemes.
+        load_audio(bool): Boolean flag indicate whether do or not load audio.
         vocab: Vocabulary config (parser + set of graphemes to use). Constructor propagates these to
             `self.make_vocab` function call to build a complete vocabulary.
     """
@@ -319,20 +295,17 @@ class AudioToCharWithDursDataset(AudioToCharDataset):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports."""
         return {
-            'audio': NeuralType(
-                ('B', 'T'),
-                AudioSignal(freq=self._sample_rate)
-                if self is not None and hasattr(self, '_sample_rate')
-                else AudioSignal(),
-            ),
+            'audio': NeuralType(('B', 'T'), AudioSignal()),
             'audio_len': NeuralType(('B',), LengthsType()),
             'text': NeuralType(('B', 'T'), LabelsType()),
             'text_len': NeuralType(('B',), LengthsType()),
             'durs': NeuralType(('B', 'T'), LengthsType()),
+            'f0': NeuralType(('B', 'T'), FloatType()),
+            'f0_mask': NeuralType(('B', 'T'), MaskType()),
         }
 
     @staticmethod
-    def make_vocab(notation='chars', punct=True, spaces=False, stresses=False):
+    def make_vocab(notation='chars', punct=True, spaces=False, stresses=False, add_blank_at="last_but_one"):
         """Constructs vocabulary from given parameters.
 
         Args:
@@ -340,53 +313,68 @@ class AudioToCharWithDursDataset(AudioToCharDataset):
             punct (bool): True if reserve grapheme for basic punctuation.
             spaces (bool): True if prepend spaces to every punctuation symbol.
             stresses (bool): True if use phonemes codes with stresses (0-2).
+            add_blank_at: add blank to labels in the specified order ("last" or "last_but_one"),
+             if None then no blank in labels.
 
         Returns:
             (vocabs.Base) Vocabulary
         """
         if notation == 'chars':
-            vocab = vocabs.Chars(punct=punct, spaces=spaces)
+            vocab = vocabs.Chars(punct=punct, spaces=spaces, add_blank_at=add_blank_at)
         elif notation == 'phonemes':
-            vocab = vocabs.Phonemes(punct=punct, stresses=stresses, spaces=spaces)
+            vocab = vocabs.Phonemes(punct=punct, stresses=stresses, spaces=spaces, add_blank_at=add_blank_at,)
         else:
             raise ValueError("Unsupported vocab type.")
         return vocab
 
     def __init__(self, **kwargs):
-        durs_path = kwargs.pop('durs_path')
-        rep = kwargs.pop('rep', False)
+        durs_file = kwargs.pop('durs_file', None)
+        f0_file = kwargs.pop('f0_file', None)
+        blanking = kwargs.pop('blanking', False)
+        self.load_audio = kwargs.pop('load_audio', True)
         self.vocab = self.make_vocab(**kwargs.pop('vocab', {}))
-        kwargs.setdefault('labels', [])
-
+        kwargs.setdefault('labels', [])  # For compatibility.
         super().__init__(**kwargs)
 
-        pth = torch.load(durs_path)
-        tag2d = dict(zip(pth['tags'], pth['durs']))
-        durs = []
+        tags = []
+        self.id2enc_text = {}
         for i, e in enumerate(self.collection):
             tag = os.path.splitext(os.path.basename(e.audio_file))[0]
-            durs.append(tag2d[tag])
-        self.durs = durs
-        self.rep = rep
+            tags.append(tag)
+            # cache vocab encoding
+            self.id2enc_text[i] = self.vocab.encode(e.text_raw)
+
+        if durs_file:
+            tag2durs = torch.load(durs_file)
+            durs = []
+            for tag in tags:
+                tag_durs = tag2durs[tag]
+                durs.append(self.interleave(tag_durs['blanks'], tag_durs['tokens']))
+            self.durs = durs
+        if f0_file:
+            tag2f0 = torch.load(f0_file)
+            self.f0 = [tag2f0[tag] for tag in tags]
+        self.blanking = blanking
 
     def __getitem__(self, item):
-        sample = self.collection[item]
-        audio, audio_len, _, _ = super().__getitem__(item)  # noqa
-        text = self.vocab.encode(sample.text_raw)
-        text, text_len = torch.tensor(text).long(), torch.tensor(len(text)).long()
-        blanks_durs, graphemes_durs = self.durs[item]
+        audio, audio_len = None, None
+        if self.load_audio:
+            audio, audio_len, _, _ = super().__getitem__(item)  # noqa
 
+        text = self.id2enc_text[item]
+        text, text_len = torch.tensor(text).long(), torch.tensor(len(text)).long()
+        durs, f0 = self.durs[item], self.f0[item]
         return (
             audio,
             audio_len,
             text,
             text_len,
-            blanks_durs,
-            graphemes_durs,
+            durs,
+            f0,
         )
 
     @staticmethod
-    def _merge(tensors, dim=0, value=0, dtype=None):
+    def merge(tensors, dim=0, value=0, dtype=None):
         """Merges list of tensors into one."""
         tensors = [tensor if isinstance(tensor, torch.Tensor) else torch.tensor(tensor) for tensor in tensors]
         dim = dim if dim != -1 else len(tensors[0].shape) - 1
@@ -399,8 +387,27 @@ class AudioToCharWithDursDataset(AudioToCharDataset):
             new_tensors.append(F.pad(tensor, pad=pad, value=value))
         return torch.stack(new_tensors).to(dtype=dtype)
 
+    @classmethod
+    def repeat_merge(cls, x, reps, pad):
+        """Repeats `x` values according to `reps` tensor and merges."""
+        return cls.merge(
+            tensors=[torch.repeat_interleave(text1, durs1) for text1, durs1 in zip(x, reps)], value=pad, dtype=x.dtype,
+        )
+
     @staticmethod
-    def _interleave(x, y):
+    def make_mask(lengths, max_length=None):
+        """Makes mask from list of lengths."""
+        device = lengths.device if torch.is_tensor(lengths) else 'cpu'
+        lengths = lengths if torch.is_tensor(lengths) else torch.tensor(lengths)
+        max_length = max_length or torch.max(lengths)
+        start = torch.tensor(0).int()
+        indices = torch.arange(start=start, end=max_length, device=device)  # noqa
+        mask = indices.lt(lengths.view(-1, 1))
+
+        return mask
+
+    @staticmethod
+    def interleave(x, y):
         """Interleave two tensors."""
         xy = torch.stack([x[:-1], y], dim=1).view(-1)
         xy = F.pad(xy, pad=[0, 1], value=x[-1])
@@ -412,24 +419,20 @@ class AudioToCharWithDursDataset(AudioToCharDataset):
         asr_batch = _speech_collate_fn(list(zip(*batch[:4])), pad_id=self.vocab.pad)
         audio, audio_len, text, text_len = asr_batch
 
-        text = [
-            self._interleave(
-                x=torch.empty(len(t) + 1, dtype=torch.long, device=t.device,).fill_(self.vocab.blank), y=t,
-            )
-            for t in text
-        ]
-        text = self._merge(text, value=self.vocab.pad, dtype=torch.long)
-        text_len = text_len * 2 + 1
+        if self.blanking:
+            text = [
+                self.interleave(
+                    x=torch.empty(len(t) + 1, dtype=torch.long, device=t.device).fill_(self.vocab.blank), y=t,
+                )
+                for t in text
+            ]
+            text = self.merge(text, value=self.vocab.pad, dtype=torch.long)
+            text_len = text_len * 2 + 1
 
-        blanks_durs, graphemes_durs = batch[4:]
-        durs = [self._interleave(b, c) for b, c in zip(blanks_durs, graphemes_durs)]
-        durs = self._merge(durs, dtype=torch.long).to(text.device)
-
-        if self.rep:
-            text = self._merge(
-                tensors=[torch.repeat_interleave(text1, durs1) for text1, durs1 in zip(text, durs)], dtype=torch.long,
-            )
-            text_len = durs.sum(-1)
+        durs, f0 = batch[4:]
+        durs = self.merge(durs, dtype=torch.long)
+        f0_mask = self.make_mask([f.shape[-1] for f in f0])  # noqa
+        f0 = self.merge(f0, dtype=torch.float)
 
         return (
             audio,
@@ -437,6 +440,65 @@ class AudioToCharWithDursDataset(AudioToCharDataset):
             text,
             text_len,
             durs,
+            f0,
+            f0_mask,
+        )
+
+
+class FastPitchDataset(_AudioTextDataset):
+    """
+    Dataset used for FastPitch that has both duration and pitch information per input char.
+    See https://github.com/NVIDIA/NeMo/pull/1799 for information on how to extract duration and pitch information.
+    """
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports."""
+        return {
+            'audio': NeuralType(('B', 'T'), AudioSignal()),
+            'audio_len': NeuralType(('B',), LengthsType()),
+            'text': NeuralType(('B', 'T'), LabelsType()),
+            'text_len': NeuralType(('B',), LengthsType()),
+            'durs': NeuralType(('B', 'T'), TokenDurationType()),
+            'pitch': NeuralType(('B', 'T'), RegressionValuesType()),
+            'speakers': NeuralType(('B',), Index()),
+        }
+
+    def __getitem__(self, item):
+        audio, audio_len, text, text_len = super().__getitem__(item)  # noqa
+
+        audio_path = self.collection[item].audio_file
+        durs_path = audio_path.replace('/wavs/', '/fastpitch/durations/').replace('.wav', '.pt')
+        pitch_path = audio_path.replace('/wavs/', '/fastpitch/pitch_char/').replace('.wav', '.pt')
+        speaker = None
+        if self.collection[item].speaker is not None:
+            speaker = torch.zeros_like(text_len).fill_(self.collection[item].speaker)
+
+        return (audio, audio_len, text, text_len, torch.load(durs_path), torch.load(pitch_path), speaker, audio_path)
+
+    def _collate_fn(self, batch):
+        asr_batch = list(zip(*batch))[:4]
+        asr_batch = _speech_collate_fn(list(zip(*asr_batch)), pad_id=self.pad_id)
+        audio, audio_len, text, text_len = asr_batch
+
+        max_tokens_len = text.size(1)
+        durs, pitch, speakers = [], [], []
+        for _, _, _, tokens_i_len, durs_i, pitch_i, speaker_i, path_i in batch:
+            pad = (0, max_tokens_len - tokens_i_len.item())
+            assert len(durs_i) == len(pitch_i), f"{len(durs_i)}, {len(pitch_i)}: {path_i}"
+            assert len(durs_i) == tokens_i_len, f"{len(durs_i)}, {tokens_i_len}:  {path_i}"
+            durs.append(F.pad(durs_i, pad, value=self.pad_id))
+            pitch.append(F.pad(pitch_i, pad, value=self.pad_id))
+            speakers.append(speaker_i)
+
+        return (
+            audio,
+            audio_len,
+            text,
+            text_len,
+            torch.stack(durs).to(audio.dtype),
+            torch.stack(pitch).to(audio.dtype),
+            torch.stack(speakers).to(audio.dtype) if speakers[0] is not None else None,
         )
 
 
@@ -471,8 +533,6 @@ class AudioToBPEDataset(_AudioTextDataset):
             in dataset
         max_utts: Limit number of utterances
         trim: Whether to trim silence segments
-        load_audio: Boolean flag indicate whether do or not load audio
-        add_misc: True if add additional info dict.
         use_start_end_token: Boolean which dictates whether to add [BOS] and [EOS]
             tokens to beginning and ending of speech respectively.
     """
@@ -482,12 +542,7 @@ class AudioToBPEDataset(_AudioTextDataset):
         """Returns definitions of module output ports.
                """
         return {
-            'audio_signal': NeuralType(
-                ('B', 'T'),
-                AudioSignal(freq=self._sample_rate)
-                if self is not None and hasattr(self, '_sample_rate')
-                else AudioSignal(),
-            ),
+            'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
@@ -504,8 +559,6 @@ class AudioToBPEDataset(_AudioTextDataset):
         min_duration: Optional[int] = None,
         max_utts: int = 0,
         trim: bool = False,
-        load_audio: bool = True,
-        add_misc: bool = False,
         use_start_end_token: bool = True,
     ):
         if use_start_end_token and hasattr(tokenizer, 'bos_token'):
@@ -544,8 +597,6 @@ class AudioToBPEDataset(_AudioTextDataset):
             eos_id=eos_id,
             pad_id=pad_id,
             trim=trim,
-            load_audio=load_audio,
-            add_misc=add_misc,
         )
 
 
@@ -570,7 +621,7 @@ class _TarredAudioToTextDataset(IterableDataset):
 
     See the WebDataset documentation for more information about accepted data and input formats.
 
-    If using multiple processes the number of shards should be divisible by the number of workers to ensure an
+    If using multiple workers the number of shards should be divisible by world_size to ensure an
     even split among workers. If it is not divisible, logging will give a warning but training will proceed.
     In addition, if using mutiprocessing, each shard MUST HAVE THE SAME NUMBER OF ENTRIES after filtering
     is applied. We currently do not check for this, but your program may hang if the shards are uneven!
@@ -651,7 +702,6 @@ class _TarredAudioToTextDataset(IterableDataset):
         trim: bool = False,
         bos_id: Optional[int] = None,
         eos_id: Optional[int] = None,
-        add_misc: bool = False,
         pad_id: int = 0,
         shard_strategy: str = "scatter",
         global_rank: int = 0,
@@ -671,7 +721,6 @@ class _TarredAudioToTextDataset(IterableDataset):
         self.eos_id = eos_id
         self.bos_id = bos_id
         self.pad_id = pad_id
-        self._add_misc = add_misc
 
         valid_shard_strategies = ['scatter', 'replicate']
         if shard_strategy not in valid_shard_strategies:
@@ -822,7 +871,7 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
 
     See the WebDataset documentation for more information about accepted data and input formats.
 
-    If using multiple processes the number of shards should be divisible by the number of workers to ensure an
+    If using multiple workers the number of shards should be divisible by world_size to ensure an
     even split among workers. If it is not divisible, logging will give a warning but training will proceed.
     In addition, if using mutiprocessing, each shard MUST HAVE THE SAME NUMBER OF ENTRIES after filtering
     is applied. We currently do not check for this, but your program may hang if the shards are uneven!
@@ -909,7 +958,6 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
         bos_id: Optional[int] = None,
         eos_id: Optional[int] = None,
         parser: Optional[str] = 'en',
-        add_misc: bool = False,
         pad_id: int = 0,
         shard_strategy: str = "scatter",
         global_rank: int = 0,
@@ -935,7 +983,6 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
             trim=trim,
             bos_id=bos_id,
             eos_id=eos_id,
-            add_misc=add_misc,
             pad_id=pad_id,
             shard_strategy=shard_strategy,
             global_rank=global_rank,
@@ -958,7 +1005,7 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
 
     See the WebDataset documentation for more information about accepted data and input formats.
 
-    If using multiple processes the number of shards should be divisible by the number of workers to ensure an
+    If using multiple workers the number of shards should be divisible by world_size to ensure an
     even split among workers. If it is not divisible, logging will give a warning but training will proceed.
     In addition, if using mutiprocessing, each shard MUST HAVE THE SAME NUMBER OF ENTRIES after filtering
     is applied. We currently do not check for this, but your program may hang if the shards are uneven!
@@ -1027,7 +1074,6 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
         max_duration: Optional[float] = None,
         max_utts: int = 0,
         trim: bool = False,
-        add_misc: bool = False,
         use_start_end_token: bool = True,
         shard_strategy: str = "scatter",
         global_rank: int = 0,
@@ -1070,7 +1116,6 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
             trim=trim,
             bos_id=bos_id,
             eos_id=eos_id,
-            add_misc=add_misc,
             pad_id=pad_id,
             shard_strategy=shard_strategy,
             global_rank=global_rank,
