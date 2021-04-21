@@ -181,6 +181,8 @@ class TokenClassificationModel(NLPModel):
         self.log('f1', f1)
         self.log('recall', recall)
 
+        self.classification_report.reset()
+
     def test_step(self, batch, batch_idx):
         input_ids, input_type_ids, input_mask, subtokens_mask, loss_mask, labels = batch
         logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
