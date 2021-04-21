@@ -328,7 +328,7 @@ class NLPModel(ModelPT, Exportable):
                     shutil.rmtree(os.path.join(base_dir, f'mp_rank_{mp_rank:02d}'))
 
                 # create tar file from base_path
-                self.__make_nemo_file_from_folder(save_path, base_path)
+                self._make_nemo_file_from_folder(save_path, base_path)
 
                 # clean up base_path
                 shutil.rmtree(base_path)
@@ -381,7 +381,8 @@ class NLPModel(ModelPT, Exportable):
         with tempfile.TemporaryDirectory() as tmpdir:
             cwd = os.getcwd()
             os.chdir(tmpdir)
-            cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+            # TODO: get mp_ranks from tarfile without unpacking it
+            cls._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
             mp_ranks = glob.glob(os.path.join(tmpdir, 'mp_rank*'))
             if mp_ranks:
                 app_state.model_parallel_size = len(mp_ranks)
@@ -456,18 +457,12 @@ class NLPModel(ModelPT, Exportable):
                     self.register_artifact(checkpoint_version_path, checkpoint_version_src)
 
     @staticmethod
-    def __unpack_nemo_file(path2file: str, out_folder: str) -> str:
-        if not os.path.exists(path2file):
-            raise FileNotFoundError(f"{path2file} does not exist")
-        tar = tarfile.open(path2file, "r:gz")
-        tar.extractall(path=out_folder)
-        tar.close()
-        return out_folder
+    def _unpack_nemo_file(path2file: str, out_folder: str) -> str:
+        return super(NLPModel, NLPModel)._unpack_nemo_file(path2file, out_folder)
 
     @staticmethod
-    def __make_nemo_file_from_folder(filename, source_dir):
-        with tarfile.open(filename, "w:gz") as tar:
-            tar.add(source_dir, arcname=".")
+    def _make_nemo_file_from_folder(filename, source_dir):
+        return super(NLPModel, NLPModel)._make_nemo_file_from_folder(filename, source_dir)
 
     @property
     def input_module(self):
