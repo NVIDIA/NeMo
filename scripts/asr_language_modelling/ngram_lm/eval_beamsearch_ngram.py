@@ -26,6 +26,7 @@
 #                                         --beam_alpha <list of the beam alphas> \
 #                                         --beam_width <list of the beam betas> \
 #                                         --preds_output_folder <optional folder to store the predictions> \
+#                                         --decoding_mode beam_search_ngram
 #                                         ...
 #
 # The script would initially load the ASR model and predict the outputs of the model's encoder as log probabilities.
