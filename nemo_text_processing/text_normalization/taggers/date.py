@@ -44,8 +44,8 @@ def _get_ties_graph():
     graph = (
         graph_teen
         | ties_graph + pynutil.delete("0")
-        | ties_graph + pynutil.insert(" ") + graph_digit
-        | pynini.cross("0", "o") + pynutil.insert(" ") + graph_digit
+        | ties_graph + insert_space + graph_digit
+        | pynini.cross("0", "o") + insert_space + graph_digit
     )
     return graph.optimize()
 
@@ -53,15 +53,19 @@ def _get_ties_graph():
 def _get_year_graph():
     """
     1290-> twelve nineteen, only from 1000 - 2999
+    2000 - 2009 will be verbalized as two thousand *
+
     """
 
     graph_ties = _get_ties_graph()
     graph = (
-        graph_ties + pynutil.insert(" ") + graph_ties
-        | graph_ties + pynutil.insert(" ") + pynini.cross("00", "hundred")
-        | pynini.cross("2", "two") + pynutil.insert(" ") + pynini.cross("000", "thousand")
-        | (graph_teen + pynutil.insert(" ") + ties_graph + pynutil.delete("0s"))
+        graph_ties + insert_space + graph_ties
+        | graph_teen + insert_space + pynini.cross("00", "hundred")
+        | (graph_teen + insert_space + ties_graph + pynutil.delete("0s"))
         @ pynini.cdrewrite(pynini.cross("y", "ies"), "", "[EOS]", NEMO_SIGMA)
+        | pynutil.add_weight(
+            pynini.cross("200", "two thousand") + (pynutil.delete("0") | insert_space + graph_digit), weight=-0.001
+        )
     )
     graph = (pynini.union("1", "2") + NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT + pynini.closure("s", 0, 1)) @ graph
     return graph
