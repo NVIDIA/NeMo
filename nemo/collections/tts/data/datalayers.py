@@ -523,12 +523,6 @@ def preprocess_linear_specs_dataset(valid_filelist, train_filelist, n_fft, hop_l
 
 
 class FastSpeech2Dataset(Dataset):
-    """
-    (Assumes supp data is in energies/ and phoneme_durations/, etc.)
-    """
-
-    # TODO: docstring
-
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports."""
@@ -547,13 +541,46 @@ class FastSpeech2Dataset(Dataset):
         manifest_filepath: str,
         mappings_filepath: str,
         sample_rate: int,
-        max_duration: Optional[int] = None,
-        min_duration: Optional[int] = None,
+        max_duration: Optional[float] = None,
+        min_duration: Optional[float] = None,
         ignore_file: Optional[str] = None,
-        max_utts: int = 0,
         trim: bool = False,
-        load_supplementary_values=True,  # Val LJSpeech files missing some supp. data
+        load_supplementary_values=True,  # Set to False for validation
     ):
+        """
+        Dataset that loads audio, phonemes and their durations, pitches per frame, and energies per frame
+        for FastSpeech 2 from paths described in a JSON manifest (see the AudioDataset documentation for details
+        on the manifest format), as well as a mappings file for word to phones and phones to indices.
+        The text in the manifest is ignored; instead, the phoneme indices for prediction come from the
+        duration files.
+
+        For each sample, paths for duration, energy, and pitch files are inferred from the manifest's audio
+        filepaths by replacing '/wavs' with '/phoneme_durations', '/pitches', and '/energies', and swapping out
+        the file extension to '.pt', '.npy', and '.npy' respectively.
+        For example, given manifest audio path `/data/LJSpeech/wavs/LJ001-0001.wav`, the inferred duration and
+        phonemes file path would be `/data/LJSpeech/phoneme_durations/LJ001-0001.pt`.
+
+        Note that validation datasets only need the audio files and phoneme & duration files, set
+        `load_supplementary_values` to False for validation sets.
+
+        Args:
+            manifest_filepath (str): Path to the JSON manifest file that lists audio files.
+            mappings_filepath (str): Path to a JSON mappings file that contains mappings "word2phones" and
+                "phone2idx". The latter is used to determine the padding index.
+            sample_rate (int): Target sample rate of the audio.
+            max_duration (float): If audio exceeds this length in seconds, it is filtered from the dataset.
+                Defaults to None, which does not filter any audio.
+            min_duration (float): If audio is shorter than this length in seconds, it is filtered from the dataset.
+                Defaults to None, which does not filter any audio.
+            ignore_file (str): Optional pickled file which contains a list of files to ignore (e.g. files that
+                contain OOV words).
+                Defaults to None.
+            trim (bool): Whether to use librosa.effects.trim on the audio clip.
+                Defaults to False.
+            load_supplementary_values (bool): Whether or not to load pitch and energy files. Set this to False for
+                validation datasets.
+                Defaults to True.
+        """
         super().__init__()
 
         # Retrieve mappings from file
@@ -691,7 +718,6 @@ class FastSpeech2Dataset(Dataset):
                 sig, sig_len, tokens_i, tokens_i_len, duration, pitch, energy = sample_tuple
             else:
                 sig, sig_len, tokens_i, tokens_i_len, duration, _, _ = sample_tuple
-            # TODO: Refactoring -- write general padding utility function for cleanliness
             sig_len = sig_len.item()
             if sig_len < max_audio_len:
                 pad = (0, max_audio_len - sig_len)
@@ -719,15 +745,16 @@ class FastSpeech2Dataset(Dataset):
                     energy = torch.nn.functional.pad(energy, pad)
                 energies_batched.append(energy)
 
-        # TODO: Need to make sure that the mel spec, duration, pitches, and energy all have the same length
         audio_signal = torch.stack(audio_signal)
         audio_lengths = torch.stack(audio_lengths)
         tokens = torch.stack(tokens)
         tokens_lengths = torch.stack(tokens_lengths)
         duration_batched = torch.stack(duration_batched)
+
         if self.load_supplementary_values:
             pitches_batched = torch.stack(pitches_batched)
             energies_batched = torch.stack(energies_batched)
+            assert pitches_batched.shape == energies_batched.shape
 
             return (
                 audio_signal,

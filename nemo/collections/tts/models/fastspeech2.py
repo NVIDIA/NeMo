@@ -43,7 +43,7 @@ class FastSpeech2Config:
 
 
 class FastSpeech2Model(SpectrogramGenerator):
-    """FastSpeech 2 model used to convert between text (phonemes) and mel-spectrograms."""
+    """FastSpeech 2 model used to convert from text (phonemes) to mel-spectrograms."""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         if isinstance(cfg, dict):
