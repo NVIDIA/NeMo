@@ -148,7 +148,7 @@ pipeline {
           changeRequest target: 'main'
         }
       }
-      failFast true   
+      failFast true
       parallel {
         stage('L2: TN') {
           steps {
@@ -157,9 +157,7 @@ pipeline {
             sh 'rm -rf /home/TestData/nlp/text_norm/output/*'
           }
         }
-      }
 
-      parallel {
         stage('L2: ITN export') {
           steps {
             sh 'cd tools/inverse_text_normalization_deployment && python pynini_export.py /home/TestData/nlp/text_denorm/output/ && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
