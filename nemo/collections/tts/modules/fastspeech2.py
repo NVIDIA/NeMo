@@ -20,8 +20,6 @@ from nemo.collections.tts.modules.fastspeech2_submodules import (
     FFTransformer,
     LengthRegulator,
     VariancePredictor,
-    WaveformDiscriminator,
-    WaveformGenerator,
 )
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types.elements import (
@@ -35,10 +33,8 @@ from nemo.core.neural_types.elements import (
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 
-@experimental
 class FastSpeech2Encoder(NeuralModule):
     def __init__(
         self,
@@ -103,7 +99,6 @@ class FastSpeech2Encoder(NeuralModule):
         return self.encoder(text, seq_lens=text_length)
 
 
-@experimental
 class VarianceAdaptor(NeuralModule):
     def __init__(
         self,
@@ -262,7 +257,6 @@ class VarianceAdaptor(NeuralModule):
         return out, log_dur_preds, pitch_preds, energy_preds, spec_len
 
 
-@experimental
 class MelSpecDecoder(NeuralModule):
     def __init__(
         self,
@@ -322,90 +316,3 @@ class MelSpecDecoder(NeuralModule):
         decoder_out, _ = self.decoder(decoder_input, lengths)
         mel_out = self.linear(decoder_out)
         return mel_out
-
-
-# NOTE: The WaveformDecoder is not used right now, it is for FastSpeech 2s in the future.
-@experimental
-class WaveformDecoder(NeuralModule):
-    def __init__(
-        self,
-        in_channels=256,
-        gen_out_channels=1,
-        gen_trans_kernel_size=64,
-        gen_hop_size=256,
-        gen_n_layers=30,
-        gen_dilation_cycle=3,
-        gen_dilated_kernel_size=3,
-        gen_residual_channels=64,
-        gen_skip_channels=64,
-        dis_out_channels=1,
-        dis_n_layers=10,
-        dis_kernel_size=3,
-        dis_conv_channels=64,
-        dis_conv_stride=1,
-        dis_relu_alpha=0.2,
-    ):
-        """
-        FastSpeech 2s waveform decoder. Converts adapted hidden sequence to a waveform sequence.
-        Consists of one transposed conv1d layer, and 30 layers of dilated residual conv blocks.
-
-        Args:
-            in_channels (int): Number of input channels to the waveform decoder. Defaults to 256.
-            gen_out_channels (int): Number of output channels of the waveform decoder generator. Defaults to 1.
-            gen_trans_kernel_size (int): Filter size of the upsampling transposed 1D convolution in the generator.
-                Defaults to 64.
-            gen_hop_size (int): Hop size for input upsampling in the waveform generator. Defaults to 256.
-            gen_n_layers (int): Number of layers of dilated residual convolutional blocks in the generator.
-                Defaults to 30.
-            gen_dilation_cycle (int): The number of layers with a given dilation before moving up by a power of two.
-                `gen_n_layers` should be divisible by `dilation_cycle`. Defaults to 3.
-            gen_dilated_kernel_size (int): Kernel size for the dilated conv1Ds in the generator. Defaults to 3.
-            gen_residual_channels (int): Number of residual channels in the waveform generator. Defaults to 64.
-            gen_skip_channels (int): Number of skip channels in the waveform generator. Defaults to 64.
-            dis_out_channels (int): Number of output channels for the discriminator. Defaults to 1.
-            dis_n_layers (int): Number of layers in the discriminator. Defaults to 10.
-            dis_kernel_size (int): Kernel size for the 1D convolutions in the discriminator. Defaults to 3.
-            dis_conv_channels (int): Number of conv channels for the discriminator. Defaults to 64.
-            dis_conv_stride (int): Convolution stride for the 1D convs in the discriminator. Defaults to 1.
-            dis_relu_alpha (float): Leaky ReLU alpha (or "negative slope") for the discriminator. Defaults to 0.2.
-        """
-        super().__init__()
-
-        # WaveNet-based waveform generator
-        self.generator = WaveformGenerator(
-            in_channels=in_channels,
-            out_channels=gen_out_channels,
-            trans_kernel_size=gen_trans_kernel_size,
-            hop_size=gen_hop_size,
-            n_layers=gen_n_layers,
-            dilation_cycle=gen_dilation_cycle,
-            dilated_kernel_size=gen_dilated_kernel_size,
-            residual_channels=gen_residual_channels,
-            skip_channels=gen_skip_channels,
-        )
-
-        # Parallel WaveGAN-based discriminator
-        self.discriminator = WaveformDiscriminator(
-            in_channels=gen_out_channels,
-            out_channels=dis_out_channels,
-            n_layers=dis_n_layers,
-            kernel_size=dis_kernel_size,
-            conv_channels=dis_conv_channels,
-            conv_stride=dis_conv_stride,
-            relu_alpha=dis_relu_alpha,
-        )
-
-    @property
-    def input_types(self):
-        # TODO
-        pass
-
-    @property
-    def output_types(self):
-        # TODO
-        pass
-
-    @typecheck()
-    def forward(self, *, decoder_input):
-        generator_output = self.generator(decoder_input)
-        return generator_output

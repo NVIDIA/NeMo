@@ -37,8 +37,6 @@ model:
       manifest_filepath: ${validation_datasets}
       mappings_filepath: ${mappings_file}
       sample_rate: ${sample_rate}
-      max_duration: null
-      min_duration: 0.1
       ignore_file: ${ignore_file}
       trim: false
       load_supplementary_values: false
