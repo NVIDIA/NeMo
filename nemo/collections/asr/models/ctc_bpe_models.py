@@ -28,7 +28,7 @@ from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
 
-__all__ = ['EncDecCTCModelBPE', 'JasperNetBPE', 'QuartzNetBPE']
+__all__ = ['EncDecCTCModelBPE']
 
 
 class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
@@ -62,6 +62,28 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             pretrained_model_name="stt_en_citrinet_1024",
             description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_citrinet_1024",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_citrinet_1024/versions/1.0.0rc1/files/stt_en_citrinet_1024.nemo",
+        )
+
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_conformer_ctc_small",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_ctc_small",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_conformer_ctc_small/versions/1.0.0rc1/files/stt_en_conformer_ctc_small.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_conformer_ctc_medium",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_ctc_medium",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_conformer_ctc_medium/versions/1.0.0rc1/files/stt_en_conformer_ctc_medium.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_conformer_ctc_large",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_ctc_large",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_conformer_ctc_large/versions/1.0.0rc1/files/stt_en_conformer_ctc_large.nemo",
         )
         results.append(model)
 

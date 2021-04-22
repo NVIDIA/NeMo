@@ -28,6 +28,7 @@ import sphinx_rtd_theme
 
 sys.path.insert(0, os.path.abspath("../.."))
 sys.path.insert(0, os.path.abspath("../../nemo"))
+sys.path.insert(0, os.path.abspath("../../nemo_text_processing"))
 
 from package_info import __version__
 
@@ -103,7 +104,13 @@ extensions = [
     "sphinx_rtd_theme",
 ]
 
-bibtex_bibfiles = ['asr/asr_all.bib', 'nlp/nlp_all.bib', 'tools/tools_all.bib', 'tts_all.bib']
+bibtex_bibfiles = [
+    'asr/asr_all.bib',
+    'nlp/nlp_all.bib',
+    'tools/tools_all.bib',
+    'nemo_text_processing/textprocessing_all.bib',
+    'tts_all.bib',
+]
 
 intersphinx_mapping = {
     'pytorch': ('https://pytorch.org/docs/stable', None),
@@ -127,7 +134,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "NVIDIA NeMo"
-copyright = "2018-, NVIDIA CORPORATION"
+copyright = "2021-, NVIDIA CORPORATION"
 author = "NVIDIA CORPORATION"
 
 # The version info for the project you're documenting, acts as replacement for

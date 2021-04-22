@@ -70,7 +70,7 @@
 #       train_extremely_large_corpus=true". If your machine has large amounts of RAM, it might still be possible
 #       to build the tokenizer using the above flag. Will silently fail if it runs out of RAM.
 #
-#   --spe_max_sentencepiece_length: Limits the maximum length that any any SentencePiecesubword can be.
+#   --spe_max_sentencepiece_length: Limits the maximum length that any any SentencePiece subword can be.
 #       Using this will change the subword tokens generated.
 #
 #   --log: Whether the script should display log messages
@@ -196,7 +196,14 @@ def __process_data(
     Returns:
     """
     if tokenizer_type == 'spe':
-        tokenizer_dir = os.path.join(dst_folder, 'tokenizer_{}_{}_v{}').format(tokenizer_type, spe_type, vocab_size)
+        if spe_max_sentencepiece_length > 0:
+            tokenizer_dir = os.path.join(dst_folder, 'tokenizer_{}_{}_v{}_max{}').format(
+                tokenizer_type, spe_type, vocab_size, spe_max_sentencepiece_length
+            )
+        else:
+            tokenizer_dir = os.path.join(dst_folder, 'tokenizer_{}_{}_v{}').format(
+                tokenizer_type, spe_type, vocab_size
+            )
 
         if not os.path.exists(tokenizer_dir):
             os.makedirs(tokenizer_dir)

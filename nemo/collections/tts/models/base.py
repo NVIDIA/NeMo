@@ -15,13 +15,16 @@ from abc import ABC, abstractmethod
 from contextlib import ExitStack, contextmanager
 
 import torch
+from torch_stft import STFT
 
+from nemo.collections.common.parts.patch_utils import istft_patch, stft_patch
 from nemo.collections.tts.helpers.helpers import OperationMode
 from nemo.collections.tts.models import *  # Avoid circular imports
 from nemo.core.classes import ModelPT
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.common import typecheck
 from nemo.core.neural_types.elements import AudioSignal
 from nemo.core.neural_types.neural_type import NeuralType
+from nemo.utils import logging
 
 
 class SpectrogramGenerator(ModelPT, ABC):
@@ -93,14 +96,17 @@ class Vocoder(ModelPT, ABC):
 
 
 class GlowVocoder(Vocoder):
-    """ Base class for all Vocoders that use a Glow or reversible Flow-based setup. """
+    """ Base class for all Vocoders that use a Glow or reversible Flow-based setup. All child class are expected
+    to have a parameter called audio_to_melspec_precessor that is an instance of
+    nemo.collections.asr.parts.FilterbankFeatures"""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._mode = OperationMode.infer
+        self.stft = None
+        self.istft = None
+        self.n_mel = None
         self.bias_spect = None
-        self.stft = None  # Required to be defined in children classes
-        self.n_mel = None  # Required to be defined in children classes
 
     @property
     def mode(self):
@@ -123,24 +129,62 @@ class GlowVocoder(Vocoder):
             yield
 
     def check_children_attributes(self):
-        if self.stft is None or self.n_mel is None:
-            try:
-                self.stft = self.audio_to_melspec_precessor.stft
-                self.n_mel = self.audio_to_melspec_precessor.nfilt
-            except AttributeError:
-                raise AttributeError(
-                    f"{self} did not have stft and n_mel defined. These two parameters are required for GlowVocoder's "
-                    "methods to work"
+        if self.stft is None:
+            if isinstance(self.audio_to_melspec_precessor.stft, STFT):
+                logging.warning(
+                    "torch_stft is deprecated. Please change your model to use torch.stft and torch.istft instead."
+                )
+                self.stft = self.audio_to_melspec_precessor.stft.transform
+                self.istft = self.audio_to_melspec_precessor.stft.inverse
+            else:
+                try:
+                    n_fft = self.audio_to_melspec_precessor.n_fft
+                    hop_length = self.audio_to_melspec_precessor.hop_length
+                    win_length = self.audio_to_melspec_precessor.win_length
+                    window = self.audio_to_melspec_precessor.window.to(self.device)
+                except AttributeError as e:
+                    raise AttributeError(
+                        f"{self} could not find a valid audio_to_melspec_precessor. GlowVocoder requires child class "
+                        "to have audio_to_melspec_precessor defined to obtain stft parameters. "
+                        "audio_to_melspec_precessor requires n_fft, hop_length, win_length, window, and nfilt to be "
+                        "defined."
+                    ) from e
+
+                def yet_another_patch(audio, n_fft, hop_length, win_length, window):
+                    spec = stft_patch(audio, n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window)
+                    if spec.dtype in [torch.cfloat, torch.cdouble]:
+                        spec = torch.view_as_real(spec)
+                    return torch.sqrt(spec.pow(2).sum(-1)), torch.atan2(spec[..., -1], spec[..., 0])
+
+                self.stft = lambda x: yet_another_patch(
+                    x, n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window,
+                )
+                self.istft = lambda x, y: istft_patch(
+                    torch.complex(x * torch.cos(y), x * torch.sin(y)),
+                    n_fft=n_fft,
+                    hop_length=hop_length,
+                    win_length=win_length,
+                    window=window,
                 )
 
+        if self.n_mel is None:
+            try:
+                self.n_mel = self.audio_to_melspec_precessor.nfilt
+            except AttributeError as e:
+                raise AttributeError(
+                    f"{self} could not find a valid audio_to_melspec_precessor. GlowVocoder requires child class to "
+                    "have audio_to_melspec_precessor defined to obtain stft parameters. audio_to_melspec_precessor "
+                    "requires nfilt to be defined."
+                ) from e
+
     def update_bias_spect(self):
-        self.check_children_attributes()  # Ensure self.n_mel and self.stft are defined
+        self.check_children_attributes()  # Ensure stft parameters are defined
 
         with self.nemo_infer():
             spect = torch.zeros((1, self.n_mel, 88)).to(self.device)
             bias_audio = self.convert_spectrogram_to_audio(spec=spect, sigma=0.0, denoise=False)
-            bias_spect, _ = self.stft.transform(bias_audio)
-            self.bias_spect = bias_spect[:, :, 0][:, :, None]
+            bias_spect, _ = self.stft(bias_audio)
+            self.bias_spect = bias_spect[..., 0][..., None]
 
     @typecheck(
         input_types={"audio": NeuralType(('B', 'T'), AudioSignal()), "strength": NeuralType(optional=True)},
@@ -151,10 +195,10 @@ class GlowVocoder(Vocoder):
 
         if self.bias_spect is None:
             self.update_bias_spect()
-        audio_spect, audio_angles = self.stft.transform(audio)
+        audio_spect, audio_angles = self.stft(audio)
         audio_spect_denoised = audio_spect - self.bias_spect.to(audio.device) * strength
         audio_spect_denoised = torch.clamp(audio_spect_denoised, 0.0)
-        audio_denoised = self.stft.inverse(audio_spect_denoised, audio_angles)
+        audio_denoised = self.istft(audio_spect_denoised, audio_angles)
         return audio_denoised
 
 

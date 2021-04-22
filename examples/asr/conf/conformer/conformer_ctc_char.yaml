@@ -1,7 +1,20 @@
 # It contains the default values for training a Conformer-CTC ASR model, large size (~120M) with CTC loss and char-based vocabulary.
-# Char-based encoding may give worse results than word-piece encoding (conformer_ctc_bpe.yaml) due to the 4x sub-sampling.
+# Char-based encoding may give worse results than sub-word encoding (conformer_ctc_bpe.yaml) due to the 4x sub-sampling.
 # Default learning parameters in this config are set for effective batch size of 2K.
 # To train it with smaller effective batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
+
+# Here are the recommended configs for different variants of Conformer-CTC, other parameters are the same as in this config file.
+# One extra layer (compared to original paper) is added to the medium and large variants to compensate for replacing the LSTM decoder with a linear one.
+
+#  +-------------+---------+---------+----------+------------+
+#  | Model       | d_model | n_heads | n_layers | time_masks |
+#  +=============+=========+========+===========+============+
+#  | Small  (13M)|   176   |    4   |    16     |     5      |
+#  +-------------+---------+--------+-----------+------------+
+#  | Medium (30M)|   256   |    4   |    17     |     10     |
+#  +-------------+---------+--------+-----------+------------+
+#  | Large (121M)|   512   |    8   |    18     |     10     |
+#  +----------------------------------------------------------
 
 name: "Conformer-CTC-Char"
 
@@ -55,14 +68,12 @@ model:
     frame_splicing: 1
     dither: 0.00001
     pad_to: 0
-    stft_conv: false
     pad_value: 0.0
-    stft_exact_pad: false
 
   spec_augment:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
     freq_masks: 2 # set to zero to disable it
-    # you may use lower time_masks for smaller datasets or to have faster convergence
+    # you may use lower time_masks for smaller models to have a faster convergence
     time_masks: 10 # set to zero to disable it
     freq_width: 27
     time_width: 0.05

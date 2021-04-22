@@ -25,6 +25,7 @@
   :target: https://github.com/psf/black
   :alt: Code style: black
 
+.. _main-readme:
 **NVIDIA NeMo**
 ===============
 
@@ -37,8 +38,11 @@ NeMo is a toolkit for creating `Conversational AI <https://developer.nvidia.com/
 
 `Introductory video. <https://www.youtube.com/embed/wBgpMf_KQVw>`_
 
-The toolkit comes with extendable collections of pre-built modules and ready-to-use models for Automatic Speech Recognition (ASR),
-Natual Language Processing (NLP) and Text-to-Speech (TTS).
+The toolkit comes with extendable collections of pre-built modules and ready-to-use models for:
+
+* `Automatic Speech Recognition (ASR) <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_asr>`_
+* `Natual Language Processing (NLP) <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_nlp>`_
+* `Text-to-Speech (TTS) <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_tts>`_.
 
 Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training to multiple GPUs and multiple nodes.
 
@@ -46,7 +50,7 @@ Requirements
 ------------
 
 1) Python 3.6, 3.7 or 3.8
-2) Pytorch 1.7.1.  WARNING: This version currently does not support Pytorch 1.8.0
+2) Pytorch 1.8.0 or above
 3) NVIDIA GPU for training
 
 Documentation
@@ -62,19 +66,19 @@ Documentation
   :scale: 100%
   :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/r1.0.0rc1/
 
-.. |v1.0.0b1| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=v1.0.0b1
+.. |stable| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=stable
   :alt: Documentation Status
   :scale: 100%
-  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.0b1/
+  :target:  https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/
 
 +---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
 | Version | Status      | Description                                                                                                                      |
 +=========+=============+==================================================================================================================================+
 | Latest  | |main|      | `Documentation of the latest (i.e. main) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/>`_          |
 +---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
-| Next    | |r1.0.0rc1| | `Documentation of the next release (i.e. r1.0.0rc1). <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/r1.0.0rc1/>`_ |
+| Next    | |r1.0.0rc1| | `Documentation of the most recent release: r1.0.0rc1 <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/r1.0.0rc1/>`_ |
 +---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
-| Stable  | |v1.0.0b1|  | `Documentation of the stable (i.e. v1.0.0b1) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.0b1/>`_  |
+| Stable  | |stable|    | `Documentation of the stable (i.e. stable) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/>`_      |
 +---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
 
 Tutorials
@@ -97,7 +101,7 @@ Use this installation mode if you want the latest released version.
 
     apt-get update && apt-get install -y libsndfile1 ffmpeg
     pip install Cython
-    pip install nemo_toolkit[all]==1.0.0b3
+    pip install nemo_toolkit['all']==1.0.0rc1
 
 Pip from source
 ~~~~~~~~~~~~~~~
@@ -124,22 +128,22 @@ Use this installation mode if you are contributing to NeMo.
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
 The easiest way to start training with NeMo is by using `NeMo's container <https://ngc.nvidia.com/catalog/containers/nvidia:nemo>`_.
-It has all requirements and NeMo 1.0.0b3 already installed.
+It has all requirements and NeMo 1.0.0rc1 already installed.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/nemo:1.0.0b3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/nemo:1.0.0rc1
 
 
-If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 20.11-py3 and then installing from GitHub.
+If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 21.03-py3 and then installing from GitHub.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:20.11-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:21.03-py3
 
 Examples
 --------
