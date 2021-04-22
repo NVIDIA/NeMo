@@ -61,7 +61,6 @@ class FastSpeech2Model(SpectrogramGenerator):
 
         self.pitch = cfg.add_pitch_predictor
         self.energy = cfg.add_energy_predictor
-        self.duration = True
         self.duration_coeff = cfg.duration_coeff
 
         self.audio_to_melspec_preprocessor = instantiate(self._cfg.preprocessor)
@@ -119,22 +118,28 @@ class FastSpeech2Model(SpectrogramGenerator):
         )
         total_loss = self.loss(spec_pred=mel, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
         self.log(name="train_mel_loss", value=total_loss.clone().detach())
-        if self.duration:
-            dur_loss = self.durationloss(
-                log_duration_pred=log_dur_preds, duration_target=durations.float(), mask=encoded_text_mask
-            )
-            dur_loss *= self.duration_coeff
-            self.log(name="train_dur_loss", value=dur_loss)
-            total_loss += dur_loss
+
+        # Duration prediction loss
+        dur_loss = self.durationloss(
+            log_duration_pred=log_dur_preds, duration_target=durations.float(), mask=encoded_text_mask
+        )
+        dur_loss *= self.duration_coeff
+        self.log(name="train_dur_loss", value=dur_loss)
+        total_loss += dur_loss
+
+        # Pitch prediction loss
         if self.pitch:
             pitch_loss = self.mseloss(pitch_preds, pitch)
             total_loss += pitch_loss
             self.log(name="train_pitch_loss", value=pitch_loss)
+
+        # Energy prediction loss
         if self.energy:
             energy_loss = self.mseloss(energy_preds, energies)
             total_loss += energy_loss
             self.log(name="train_energy_loss", value=energy_loss)
         self.log(name="train_loss", value=total_loss)
+
         return {"loss": total_loss, "outputs": [spec, mel]}
 
     def training_epoch_end(self, training_step_outputs):
@@ -199,7 +204,14 @@ class FastSpeech2Model(SpectrogramGenerator):
 
         # Convert text -> normalized text -> list of phones per word -> indices
         norm_text = re.findall("""[\w']+|[.,!?;"]""", self.parser._normalize(str_input))
-        phones = [self.word2phones[t] for t in norm_text]
+        try:
+            phones = [self.word2phones[t] for t in norm_text]
+        except KeyError as error:
+            logging.error(
+                f"ERROR: The following word in the input is not in the dictionary and could not be converted"
+                f" to phonemes: {error}"
+            )
+            raise
         tokens = []
         for phone_list in phones:
             inds = [self.phone2idx[p] for p in phone_list]
