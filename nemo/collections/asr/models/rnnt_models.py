@@ -159,11 +159,7 @@ class EncDecRNNTModel(ASRModel):
 
     @torch.no_grad()
     def transcribe(
-        self,
-        paths2audio_files: List[str],
-        batch_size: int = 4,
-        logprobs: bool = False,
-        return_hypotheses: bool = False,
+        self, paths2audio_files: List[str], batch_size: int = 4, return_hypotheses: bool = False
     ) -> List[str]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
@@ -175,22 +171,14 @@ class EncDecRNNTModel(ASRModel):
         But it is possible to pass a few hours long file if enough GPU memory is available.
             batch_size: (int) batch size to use during inference. \
         Bigger will result in better throughput performance but would use more memory.
-            logprobs: (bool) pass True to get log probabilities instead of transcripts.
             return_hypotheses: (bool) Either return hypotheses or text
         With hypotheses can do some postprocessing like getting timestamp or rescoring
         Returns:
 
-            A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
+            A list of transcriptions in the same order as paths2audio_files
         """
         if paths2audio_files is None or len(paths2audio_files) == 0:
             return {}
-
-        if return_hypotheses and logprobs:
-            raise ValueError(
-                "Either `return_hypotheses` or `logprobs` can be True at any given time."
-                "Returned hypotheses will contain the logprobs."
-            )
-
         # We will store transcriptions here
         hypotheses = []
         # Model's mode and device
@@ -216,25 +204,13 @@ class EncDecRNNTModel(ASRModel):
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
                 for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
-                    logits, logits_len = self.forward(
+                    encoded, encoded_len = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
-                    if logprobs:
-                        # dump log probs per file
-                        for idx in range(logits.shape[0]):
-                            lg = logits[idx][: logits_len[idx]]
-                            hypotheses.append(lg.cpu().numpy())
-                    else:
-                        current_hypotheses = self.decoding.rnnt_decoder_predictions_tensor(
-                            logits, logits_len, return_hypotheses=return_hypotheses
-                        )
-                        if return_hypotheses:
-                            # dump log probs per file
-                            for idx in range(logits.shape[0]):
-                                current_hypotheses[idx].y_sequence = logits[idx][: logits_len[idx]]
-
-                        hypotheses += current_hypotheses
-                    del logits
+                    hypotheses += self.decoding.rnnt_decoder_predictions_tensor(
+                        encoded, encoded_len, return_hypotheses=return_hypotheses
+                    )
+                    del encoded
                     del test_batch
         finally:
             # set mode back to its original value
