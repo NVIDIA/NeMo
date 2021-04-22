@@ -58,6 +58,8 @@ class FastSpeech2HifiGanE2EModel(ModelPT):
         self.energy = cfg.add_energy_predictor
         self.pitch = cfg.add_pitch_predictor
         self.mel_loss_coeff = self._cfg.mel_loss_coeff
+        self.pitch_loss_coeff = self._cfg.pitch_loss_coeff
+        self.energy_loss_coeff = self._cfg.energy_loss_coeff
         self.splice_length = self._cfg.splice_length
 
         self.use_energy_pred = False
@@ -216,11 +218,11 @@ class FastSpeech2HifiGanE2EModel(ModelPT):
             self.log(name="loss_gen_duration", value=dur_loss)
             total_loss += dur_loss
             if self.pitch:
-                pitch_loss = self.mseloss(pitch_preds, pitch.float())
+                pitch_loss = self.mseloss(pitch_preds, pitch.float()) * self.pitch_loss_coeff
                 total_loss += pitch_loss
                 self.log(name="loss_gen_pitch", value=pitch_loss)
             if self.energy:
-                energy_loss = self.mseloss(energy_preds, energies)
+                energy_loss = self.mseloss(energy_preds, energies) * self.energy_loss_coeff
                 total_loss += energy_loss
                 self.log(name="loss_gen_energy", value=energy_loss)
 

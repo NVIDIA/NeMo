@@ -13,6 +13,8 @@ model:
   lr: 0.5
   splice_length: 64  # Length in frames
   mel_loss_coeff: 45.
+  pitch_loss_coeff: 0.003
+  energy_loss_coeff: 0.03
   add_energy_predictor: True
   add_pitch_predictor: True
   mappings_filepath: ${mappings_file}
