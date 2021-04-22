@@ -315,6 +315,7 @@ class Tacotron2Model(SpectrogramGenerator):
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_tacotron2/versions/1.0.0rc1/files/tts_en_tacotron2.nemo",
             description="This model is trained on LJSpeech sampled at 22050Hz, and can be used to generate female English voices with an American accent.",
             class_=cls,
+            aliases=["Tacotron2-22050Hz"],
         )
         list_of_models.append(model)
         return list_of_models
