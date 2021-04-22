@@ -249,7 +249,6 @@ class MTEncDecModel(EncDecNLPModel):
             logging.info(f"    Ground Truth: {ground_truths[ind]}")
 
         ans = {f"{mode}_loss": eval_loss, f"{mode}_sacreBLEU": sacre_bleu.score}
-        ans['log'] = dict(ans)
         return ans
 
     def validation_epoch_end(self, outputs):
