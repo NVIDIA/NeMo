@@ -94,7 +94,7 @@ class DateFst(GraphFst):
         ) + pynini.closure(pynutil.delete("."), 0, 1)
         month_graph |= month_abbr_graph
 
-        month_numbers_graph = pynini.string_file(get_abs_path("data/numbers.tsv")).optimize()
+        month_numbers_graph = pynini.string_file(get_abs_path("data/months/numbers.tsv")).optimize()
 
         cardinal_graph = cardinal.graph_hundred_component_at_least_one_none_zero_digit
 

@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.data_loader_utils import load_labels
-from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_SPACE, GraphFst, convert_space
+from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_SPACE, GraphFst
 
 try:
     import pynini
@@ -35,17 +34,6 @@ class WordFst(GraphFst):
 
     def __init__(self, input_case: str):
         super().__init__(name="word", kind="classify")
-        exceptions = load_labels("data/sentence_boundary_exceptions.txt")
-        if input_case == "lower_cased":
-            exceptions = [x.lower() for x, in exceptions]
-        else:
-            exceptions = [x for x, in exceptions]
 
-        exceptions = pynini.string_map(exceptions)
-
-        word = (
-            pynutil.insert("name: \"")
-            + (pynini.closure(pynutil.add_weight(NEMO_NOT_SPACE, weight=0.1), 1) | convert_space(exceptions))
-            + pynutil.insert("\"")
-        )
+        word = pynutil.insert("name: \"") + pynini.closure(NEMO_NOT_SPACE, 1) + pynutil.insert("\"")
         self.fst = word.optimize()
