@@ -16,11 +16,7 @@ import torch
 import torch.nn as nn
 
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
-from nemo.collections.tts.modules.fastspeech2_submodules import (
-    FFTransformer,
-    LengthRegulator,
-    VariancePredictor,
-)
+from nemo.collections.tts.modules.fastspeech2_submodules import FFTransformer, LengthRegulator, VariancePredictor
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types.elements import (
     EncodedRepresentation,
@@ -207,11 +203,13 @@ class VarianceAdaptor(NeuralModule):
     def forward(self, *, x, x_len, dur_target=None, pitch_target=None, energy_target=None, spec_len=None):
         """
         Args:
-            dur_target: Needs to be passed in during training. Duration targets for the duration predictor.
+            x: Input from the encoder.
+            x_len: Length of the input.
+            dur_target:  Duration targets for the duration predictor. Needs to be passed in during training.
+            pitch_target: Pitch targets for the pitch predictor. Needs to be passed in during training.
+            energy_target: Energy targets for the energy predictor. Needs to be passed in during training.
+            spec_len: Target spectrogram length. Needs to be passed in during training.
         """
-        # TODO: no_grad instead of self.training?
-        # TODO: or maybe condition on a new parameter like is_inference?
-
         # Duration predictions (or ground truth) fed into Length Regulator to
         # expand the hidden states of the encoder embedding
         log_dur_preds = self.duration_predictor(x)
@@ -230,10 +228,11 @@ class VarianceAdaptor(NeuralModule):
         out *= get_mask_from_lengths(spec_len).unsqueeze(-1)
 
         # Pitch
-        # TODO: Add pitch spectrogram prediction & conversion back to pitch contour using iCWT
-        #       (see Appendix C of the FastSpeech 2/2s paper).
         pitch_preds = None
         if self.pitch:
+            # Possible future work:
+            #   Add pitch spectrogram prediction & conversion back to pitch contour using iCWT
+            #   (see Appendix C of the FastSpeech 2/2s paper).
             pitch_preds = self.pitch_predictor(dur_out)
             pitch_preds.masked_fill_(~get_mask_from_lengths(spec_len), 0)
             if pitch_target is not None:
@@ -272,7 +271,7 @@ class MelSpecDecoder(NeuralModule):
     ):
         """
         FastSpeech 2 mel-spectrogram decoder. Converts adapted hidden sequence to a mel-spectrogram sequence.
-        Consists of four feed-forward Transformer blocks.
+        Consists of four feed-forward Transformer blocks by default.
 
         Args:
             d_model: Input dimension. Defaults to 256.

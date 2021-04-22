@@ -17,7 +17,6 @@ import torch.nn.functional as F
 
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
 from nemo.collections.tts.modules.transformer import PositionalEmbedding, TransformerLayer
-from nemo.utils import logging
 
 
 class FFTransformer(nn.Module):
@@ -37,6 +36,9 @@ class FFTransformer(nn.Module):
         n_embed=84,
         padding_idx=83,
     ):
+        """
+        Feed-Forward Transformer submodule for FastSpeech 2 that consists of multiple TransformerLayers.
+        """
         super(FFTransformer, self).__init__()
         self.d_model = d_model
         self.n_head = n_head
@@ -88,7 +90,7 @@ class Transpose(nn.Module):
 class VariancePredictor(nn.Module):
     def __init__(self, d_model, d_inner, kernel_size, dropout):
         """
-        Variance predictor submodule for FastSpeech 2/2s, used for pitch and energy prediction.
+        Variance predictor submodule for FastSpeech 2/, used for pitch and energy prediction.
 
         Args:
             d_model: Input dimension.
