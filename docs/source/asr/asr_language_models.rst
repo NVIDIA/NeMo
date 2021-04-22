@@ -18,8 +18,8 @@ The beam search decoders in NeMo support language models trained by KenLM librar
 The beam search decoders and KenLM library are not installed by default in NeMo.
 You may need to install them first by the script at 'scripts/asr_language_modelling/ngram_lm/install_beamsearch_decoders.py'.
 
-NeMo supports both character-based and BPE-based models for N-gram LMs. The script to train a KenLM model can be found at `scripts/asr_language_modelling/ngram_lm/train_kenlm.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/asr_language_modelling/ngram_lm/train_kenlm.py>`__.
-The trained N-gram model can be used with beam search decoders on top of the ASR models to produce more accurate candidates.
+NeMo supports both character-based and BPE-based models for N-gram LMs.
+An N-gram LM can be used with beam search decoders on top of the ASR models to produce more accurate candidates.
 The beam search decoder would incorporate the scores produced by the N-gram LM into its score calculations as the following:
 
 .. code::
@@ -27,10 +27,12 @@ The beam search decoder would incorporate the scores produced by the N-gram LM i
     final_score = acoustic_score + beam_alpha*lm_score - beam_beta*seq_length
 
 where acoustic_score is the score predicted by the acoustic encoder and lm_score is the one estimated by the LM.
-Parameter beam_alpha specifies amount of importance to place on the N-gram language model, and beam_beta is a penalty term given to longer word sequences.
+Parameter 'beam_alpha' specifies amount of importance to place on the N-gram language model, and 'beam_beta' is a penalty term given to longer word sequences.
 
 Train N-gram LM
 ---------------
+The script to train a KenLM model can be found at
+`scripts/asr_language_modelling/ngram_lm/train_kenlm.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/asr_language_modelling/ngram_lm/train_kenlm.py>`__.
 
 You may train the N-gram LM as the following:
 
@@ -42,13 +44,14 @@ You may train the N-gram LM as the following:
                               --kenlm_model_file <path to store the binary KenLM model> \
                               --ngram_length <order of N-gram model>
 
+You may find more detail on how to use it inside the script.
 
 Evaluate by Beam Search Decoding and N-gram LM
 ----------------------------------------------
 
-An script to evaluate an ASR model with N-gram models can be found at
+The script to evaluate an ASR model with N-gram models can be found at
 `scripts/asr_language_modelling/ngram_lm/eval_beamsearch_ngram.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/asr_language_modelling/ngram_lm/eval_beamsearch_ngram.py>`__.
-It can evaluate a model in three modes of 'greedy', 'beamsearch', 'beamsearch_ngram' by setting the '--decoding_mode'.
+It can evaluate a model in three modes of 'greedy', 'beamsearch', and 'beamsearch_ngram' by setting the argument '--decoding_mode'.
 The mode of 'beamsearch' would evaluate by beam search decoding without any language model.
 
 You may evaluate an ASR model as the following:
@@ -58,6 +61,7 @@ You may evaluate an ASR model as the following:
     python eval_beamsearch_ngram.py --nemo_model_file <path to the .nemo file of the model> \
                                          --input_manifest <path to the evaluation Json manifest file \
                                          --kenlm_model_file <path to the binary KenLM model> \
+                                         --acoustic_batch_size <batch size for calculating log probabilities> \
                                          --beam_width <list of the beam widths> \
                                          --beam_alpha <list of the beam alphas> \
                                          --beam_width <list of the beam betas> \
@@ -65,10 +69,27 @@ You may evaluate an ASR model as the following:
                                          --decoding_mode beam_search_ngram
 
 It would report the performances in terms of Word Error Rate (WER) and Character Error Rate (CER).
-The script can perform grid search on the three hyperparameters of ``beam_width``, ``beam_alpha``, and ``beam_beta`` when a list of values are given.
+You may use '--use_amp' to speed up the calculation of log probabilities.
+You may find more detail on the arguments and how to use it inside the script.
 
 There is also a tutorial to learn more about evaluating the ASR models with N-gram LM here:
 `Offline ASR Inference with Beam Search and External Language Model Rescoring <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/Offline_ASR.ipynb>`_
+
+Hyperparameter Grid Search
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Beam search decoding with N-gram LM has three main hyperparameters: 'beam_width', 'beam_alpha', and 'beam_beta'.
+The accuracy of the model is dependent to the values of these parameters, specially beam_alpha and beam_beta.
+You may specify a single or list of values for each of these parameters to perform grid search. It would perform the
+beam search decoding on all the combinations of the these three hyperparameters.
+For instance, the following set of parameters would results in 2*1*2=4 beam search decodings:
+
+.. code::
+    python eval_beamsearch_ngram.py ... \
+                        --beam_width 64 128 \
+                        --beam_alpha 1.0 \
+                        --beam_beta 1.0 0.5
+
 
 
 .. _neural_rescoring:

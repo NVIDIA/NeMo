@@ -42,8 +42,8 @@
 #               Larger alpha means more importance on the LM and less importance on the acoustic model.
 #   beam_beta: A penalty term given to longer word sequences. Larger beta will result in shorter sequences.
 #
-# The results would be reported in Word Error Rate (WER) and Character Error Rate (CER). The results if the best
-# candidate is selected from the candidates is also reported as the best WER/CER. It can show how good the predicted
+# The results would be reported in Word Error Rate (WER) and Character Error Rate (CER). Also, the results if the best
+# candidate is selected from the candidates are reported as the best WER/CER. It can show how good the predicted
 # candidates are.
 #
 # Hyperparameter Grid Search:
