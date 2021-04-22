@@ -14,16 +14,17 @@
 
 import itertools
 import json
+from multiprocessing import Value
 import pickle
 import random
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 import torch
 import torch.distributed as dist
 import torch.utils.data as pt_data
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, ListConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
@@ -319,8 +320,12 @@ class MTEncDecModel(EncDecNLPModel):
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
+    def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict]):
+        self.setup_validation_data(self._cfg.get('validation_ds'))
+
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
+        # self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
+        self._validation_dl = self._setup_val_dataloader_from_config(cfg=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
@@ -398,6 +403,64 @@ class MTEncDecModel(EncDecNLPModel):
             pin_memory=cfg.get("pin_memory", False),
             drop_last=cfg.get("drop_last", False),
         )
+
+    def _setup_val_dataloader_from_config(self, cfg: DictConfig):
+        src_file_name = cfg.get('src_file_name')
+        tgt_file_name = cfg.get('tgt_file_name')
+
+        if src_file_name is None or tgt_file_name is None:
+            raise ValueError(
+                'Validation dataloader needs both cfg.src_file_name and cfg.tgt_file_name to not be None.'
+            )
+        else:
+            # convert src_file_name and tgt_file_name to list of strings
+            if isinstance(src_file_name, str):
+                src_file_list = [src_file_name]
+            elif isinstance(src_file_name, ListConfig):
+                src_file_list = src_file_name
+            else:
+                raise ValueError("cfg.src_file_name must be string or list of strings")
+            if isinstance(tgt_file_name, str):
+                tgt_file_list = [tgt_file_name]
+            elif isinstance(tgt_file_name, ListConfig):
+                tgt_file_list = tgt_file_name
+            else:
+                raise ValueError("cfg.tgt_file_name must be string or list of strings")
+        if len(src_file_list) != len(tgt_file_list):
+            raise ValueError('The same number of filepaths must be passed in for source and target validation.')
+
+        dataloaders = []
+        for src_file, tgt_file in zip(src_file_list, tgt_file_list):
+            dataset = TranslationDataset(
+                dataset_src=str(Path(src_file).expanduser()),
+                dataset_tgt=str(Path(tgt_file).expanduser()),
+                tokens_in_batch=cfg.tokens_in_batch,
+                clean=cfg.get("clean", False),
+                max_seq_length=cfg.get("max_seq_length", 512),
+                min_seq_length=cfg.get("min_seq_length", 1),
+                max_seq_length_diff=cfg.get("max_seq_length_diff", 512),
+                max_seq_length_ratio=cfg.get("max_seq_length_ratio", 512),
+                cache_ids=cfg.get("cache_ids", False),
+                cache_data_per_node=cfg.get("cache_data_per_node", False),
+                use_cache=cfg.get("use_cache", False),
+                reverse_lang_direction=cfg.get("reverse_lang_direction", False),
+            )
+            dataset.batchify(self.encoder_tokenizer, self.decoder_tokenizer)
+            if cfg.shuffle:
+                sampler = pt_data.RandomSampler(dataset)
+            else:
+                sampler = pt_data.SequentialSampler(dataset)
+            dataloader = torch.utils.data.DataLoader(
+                dataset=dataset,
+                batch_size=1,
+                sampler=sampler,
+                num_workers=cfg.get("num_workers", 2),
+                pin_memory=cfg.get("pin_memory", False),
+                drop_last=cfg.get("drop_last", False),
+            )
+            dataloaders.append(dataloader)
+
+        return dataloaders
 
     def setup_pre_and_post_processing_utils(self, source_lang, target_lang):
         """
