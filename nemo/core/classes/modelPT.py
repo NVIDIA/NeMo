@@ -232,6 +232,7 @@ class ModelPT(LightningModule, Model):
         return_config: bool = False,
         trainer: Optional[Trainer] = None,
         save_restore_connector: SaveRestoreConnector = None,
+        trainer: Optional['Trainer'] = None,
     ):
         """
         Restores model instance (weights and configuration) from .nemo file.
@@ -248,6 +249,8 @@ class ModelPT(LightningModule, Model):
             trainer: Optional, a pytorch lightning Trainer object that will be forwarded to the
                 instantiated model's constructor.
             save_restore_connector (SaveRestoreConnector): Can be overrided to add custom save and restore logic.
+            trainer: Optional, a pytorch lightning Trainer object that will be forwarded to the
+                instantiated model's constructor.
 
             Example:
                 ```
