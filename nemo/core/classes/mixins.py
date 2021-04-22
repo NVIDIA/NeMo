@@ -12,10 +12,48 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABC, abstractmethod
+from abc import ABC
+from enum import Enum
+from typing import Optional
+
+import torch
+
+
+class TeacherStudentType(Enum):
+    STUDENT = 1
+    TEACHER = 2
 
 
 class TeacherStudentMixin(ABC):
-    @abstractmethod
-    def get_logits(self, batch, batch_nb) -> 'Tensor':
-        pass
+    def __init__(self):
+        super().__init__()
+        self._TEACHER_STUDENT_TYPE: Optional[TeacherStudentType] = None
+        self._distillation_primary_registry = {}
+
+    def is_being_distilled(self):
+        return self._TEACHER_STUDENT_TYPE is not None
+
+    def is_student_model(self) -> Optional[bool]:
+        """
+        Check whether the current instance of the model is undergoing teacher-student distillation,
+        and if so, whether this instance is the teacher of the student.
+
+        Returns: A bool if the current instance is a student model, or None stating that the model
+            is not undergoing teacher-student distillation.
+        """
+        if self.is_being_distilled():
+            return self._TEACHER_STUDENT_TYPE == TeacherStudentType.STUDENT
+        else:
+            return None
+
+    def register_distillation_tensor(self, loss_key: str, tensor: torch.Tensor):
+        if not self.is_being_distilled():
+            raise RuntimeError("Model is not being distilled, yet tensors are being registered for distillation")
+
+        if loss_key in self._distillation_primary_registry:
+            raise ValueError(f"Distillation key '{loss_key}' already exists in distillation registry!")
+
+        self._distillation_primary_registry[loss_key] = tensor
+
+    def reset_distillation_registry(self):
+        self._distillation_primary_registry.clear()
