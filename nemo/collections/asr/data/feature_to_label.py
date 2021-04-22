@@ -113,7 +113,7 @@ class _FeatureSeqSpeakerLabelDataset(Dataset):
         f, fl = features, torch.tensor(features.shape[0]).long()
 
         t = torch.tensor(sample.seq_label).float()
-        tl = torch.tensor(1).long()
+        tl = torch.tensor(len(sample.seq_label)).long()
 
         return f, fl, t, tl
 

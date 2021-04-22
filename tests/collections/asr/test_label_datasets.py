@@ -93,7 +93,7 @@ class TestASRDatasets:
             manifest_filepath=manifest_path, labels=self.unique_labels_in_seq, feature_loader=feature_loader
         )
 
-        correct = torch.tensor(
+        correct_label = torch.tensor(
             [
                 0.0,
                 1.0,
@@ -147,9 +147,12 @@ class TestASRDatasets:
                 1.0,
             ]
         )
-
-        assert torch.equal(ds_braceexpand[0][2], correct)
+        correct_label_length = torch.tensor(50)
+        
         assert ds_braceexpand[0][0].shape == (50, 32)
+        assert torch.equal(ds_braceexpand[0][2], correct_label)
+        assert torch.equal(ds_braceexpand[0][3], correct_label_length)
+
         count = 0
         for _ in ds_braceexpand:
             count += 1
