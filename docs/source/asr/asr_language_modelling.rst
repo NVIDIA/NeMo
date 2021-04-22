@@ -14,8 +14,8 @@ N-gram Language Modelling
 -------------------------
 
 In this approach, an N-gram LM is trained on text data, then it is used in fusion with beam search decoding to find the
-best candidates. The beam search decoders in NeMo support language models trained by KenLM library
-`https://github.com/kpu/kenlm <https://github.com/kpu/kenlm>`__.
+best candidates. The beam search decoders in NeMo support language models trained by KenLM library (
+`https://github.com/kpu/kenlm <https://github.com/kpu/kenlm>`__).
 The beam search decoders and KenLM library are not installed by default in NeMo, and you need to install them to be
 able to use beam search decoding and N-gram LM. Please refer to 'scripts/ngram_lm/install_beamsearch_decoders.sh'
 on how to install them.
@@ -40,9 +40,9 @@ Train N-gram LM
 The script to train an N-gram language model with KenLM can be found at
 `scripts/asr_language_modelling/ngram_lm/train_kenlm.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/asr_language_modelling/ngram_lm/train_kenlm.py>`__.
 
-This script would train an N-gram language model with KenLM library (https://github.com/kpu/kenlm) which can be used
-with the beam search decoders on top of the ASR models. This script supports both character level and BPE level
-encodings and models which is detected automatically from the type of the model.
+This script would train an N-gram language model with KenLM library which can be used with the beam search decoders
+on top of the ASR models. This script supports both character level and BPE level encodings and models which is
+detected automatically from the type of the model.
 
 
 You may train the N-gram model as the following:
@@ -80,7 +80,7 @@ The following is the list of the arguments for the training script:
 +------------------+----------+-------------+------------------------------------------------------------------------------------------------+
 | ngram_length**   | int      | Required    | Specifies order of N-gram LM.                                                                  |
 +------------------+----------+-------------+------------------------------------------------------------------------------------------------+
-| do_lower_case    | bool     | ``False``   | Whether to share the tokenizer between the encoder and decoder.                                |
+| do_lower_case    | bool     | ``False``   | Whether to make the training text all lower case.                                              |
 +------------------+----------+-------------+------------------------------------------------------------------------------------------------+
 
 ** Note: Recommend to use 6 as the order of the N-gram model for BPE-based models. Higher orders may need the re-compilation of KenLM to support it.
@@ -110,12 +110,11 @@ You may evaluate an ASR model as the following:
 It can evaluate a model in the three following modes by setting the argument '--decoding_mode':
 
 * greedy: Just greedy decoding is done, and no beam search decoding is performed.
-* beamsearch: The beam search decoding is done but without using the N-gram language model, final results would be
-equivalent to setting the weight of LM (beam_beta) to zero.
+* beamsearch: The beam search decoding is done but without using the N-gram language model, final results would be equivalent to setting the weight of LM (beam_beta) to zero.
 * beamsearch_ngram: The beam search decoding is done with N-gram LM.
 
 
-The mode of 'beamsearch' would evaluate by beam search decoding without any language model.
+The 'beamsearch' mode would evaluate by beam search decoding without any language model.
 It would report the performances in terms of Word Error Rate (WER) and Character Error Rate (CER). Moreover,
 the WER/CER of the model when the best candidate is selected among the candidates is also reported as the best WER/CER.
 It can be an indicator of how good the predicted candidates are.
@@ -144,7 +143,7 @@ The following is the list of the arguments for the evaluation script:
 +---------------------+--------+------------------+-------------------------------------------------------------------------+
 | probs_cache_file    | str    | None             | The cache file for storing the outputs of the model.                    |
 +---------------------+--------+------------------+-------------------------------------------------------------------------+
-| acoustic_batch_size | int    | 16               | The batch size to calculate log probabilities.                           |
+| acoustic_batch_size | int    | 16               | The batch size to calculate log probabilities.                          |
 +---------------------+--------+------------------+-------------------------------------------------------------------------+
 | use_amp             | bool   | ``False``        | Whether to use AMP if available to calculate log probabilities.         |
 +---------------------+--------+------------------+-------------------------------------------------------------------------+
