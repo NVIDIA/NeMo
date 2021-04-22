@@ -60,8 +60,10 @@ def _get_year_graph():
         graph_ties + pynutil.insert(" ") + graph_ties
         | graph_ties + pynutil.insert(" ") + pynini.cross("00", "hundred")
         | pynini.cross("2", "two") + pynutil.insert(" ") + pynini.cross("000", "thousand")
+        | (graph_teen + pynutil.insert(" ") + ties_graph + pynutil.delete("0s"))
+        @ pynini.cdrewrite(pynini.cross("y", "ies"), "", "[EOS]", NEMO_SIGMA)
     )
-    graph = (pynini.union("1", "2") + NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT) @ graph
+    graph = (pynini.union("1", "2") + NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT + pynini.closure("s", 0, 1)) @ graph
     return graph
 
 
@@ -107,19 +109,19 @@ class DateFst(GraphFst):
             + optional_graph_year
         )
         graph_dmy = day_graph + delete_extra_space + month_graph + optional_graph_year
-        delete_dash = pynutil.delete("-")
+        delete_sep = pynutil.delete(pynini.union("-", "/"))
         graph_ymd = (
             year_graph
-            + delete_dash
+            + delete_sep
             + insert_space
             + month_numbers_graph
-            + delete_dash
+            + delete_sep
             + insert_space
             + pynini.closure(pynutil.delete("0"), 0, 1)
             + day_graph
         )
 
-        final_graph = graph_mdy | graph_dmy | graph_ymd | year_graph_standalone
-        final_graph += pynutil.insert(" preserve_order: true")
+        final_graph = (graph_mdy | graph_dmy) + pynutil.insert(" preserve_order: true")
+        final_graph |= graph_ymd | year_graph_standalone
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
