@@ -26,12 +26,13 @@ the scores produced by the N-gram LM into its score calculations as the followin
 
 .. code::
 
-    final_score = acoustic_score + beam_alpha*lm_score - beam_beta*seq_length
+    final_score = acoustic_score + beam_alpha*lm_score + beam_beta*seq_length
 
 where acoustic_score is the score predicted by the acoustic encoder and lm_score is the one estimated by the LM.
 Parameter 'beam_alpha' specifies amount of importance to place on the N-gram language model, and 'beam_beta' is a
-penalty term given to longer word sequences. Larger alpha means more importance on the LM and less importance on
-the acoustic model. Larger beta will result in shorter sequences.
+penalty term for the sequence length. Larger alpha means more importance on the LM and less importance on
+the acoustic model. Negative value for beta will give penalty to longer sequences, while positive values would result
+in longer candidates.
 
 
 Train N-gram LM
