@@ -1,17 +1,20 @@
+#####################
 ASR Language Modeling
-=====================
+#####################
 
 Language models have shown to help the accuracy of ASR models. NeMo support the following two approaches to incorporate language models into the ASR models:
-    + N-gram Language Modelling
-    + Neural Rescoring
+
+* N-gram Language Modelling
+* Neural Rescoring
 
 It is possible to use both approaches on the same ASR model.
 
 
 .. _ngram_modelling:
 
+*************************
 N-gram Language Modelling
--------------------------
+*************************
 
 In this approach, an N-gram LM is trained on text data, then it is used in fusion with beam search decoding to find the
 best candidates. The beam search decoders in NeMo support language models trained by KenLM library (
@@ -36,7 +39,8 @@ to prefer shorter predictions, while positive values would result in longer cand
 
 
 Train N-gram LM
----------------
+===============
+
 The script to train an N-gram language model with KenLM can be found at
 `scripts/asr_language_modelling/ngram_lm/train_kenlm.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/asr_language_modelling/ngram_lm/train_kenlm.py>`__.
 
@@ -85,9 +89,8 @@ The following is the list of the arguments for the training script:
 
 ** Note: Recommend to use 6 as the order of the N-gram model for BPE-based models. Higher orders may need the re-compilation of KenLM to support it.
 
-
 Evaluate by Beam Search Decoding and N-gram LM
-----------------------------------------------
+==============================================
 
 NeMo's beam search decoders are capable of using the KenLM's N-gram models to find the best candidates.
 The script to evaluate an ASR model with beam search decoding and N-gram models can be found at
@@ -169,7 +172,7 @@ There is also a tutorial to learn more about evaluating the ASR models with N-gr
 `Offline ASR Inference with Beam Search and External Language Model Rescoring <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/Offline_ASR.ipynb>`_
 
 Hyperparameter Grid Search
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+--------------------------
 
 Beam search decoding with N-gram LM has three main hyperparameters: 'beam_width', 'beam_alpha', and 'beam_beta'.
 The accuracy of the model is dependent to the values of these parameters, specially beam_alpha and beam_beta.
@@ -185,8 +188,9 @@ For instance, the following set of parameters would results in 2*1*2=4 beam sear
 
 
 .. _neural_rescoring:
+****************
 Neural Rescoring
-----------------
+****************
 
 In this approach a neural network is used which can gives scores to a candidate. A candidate is the text transcript predicted by the decoder of the ASR model.
 The top K candidates produced by the beam search decoding (beam width of K) are given to a neural language model to rank them.
