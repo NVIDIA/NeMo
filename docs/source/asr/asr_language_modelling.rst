@@ -64,6 +64,7 @@ other than '.json', it assumes that data format is plain text. For plain text fo
 sample. For JSON manifest file, the file need to contain json formatted samples per each line like this:
 
 .. code::
+
     {"audio_filepath": "/data_path/file1.wav", "text": "The transcript of the audio file."}
 
 It just extracts the 'text' field from each line to create the training text file. After the N-gram model is trained,
