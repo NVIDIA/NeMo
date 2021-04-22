@@ -571,6 +571,19 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, TeacherStu
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
 
+        # Distillation support
+        if self.is_being_distilled():
+            if self.is_student_model():
+                loss_key = 'input'
+            else:
+                loss_key = 'target'
+
+            # Register the tensor for the loss function
+            self.register_distillation_tensor(loss_key=loss_key, tensor=log_probs)
+            # No need for further steps, return immediately since later elements are not available on
+            # both the student and the teacher models
+            return
+
         tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
 
         if hasattr(self, '_trainer') and self._trainer is not None:
@@ -624,18 +637,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, TeacherStu
             'test_wer': logs['val_wer'],
         }
         return test_logs
-
-    # student teacher training
-    def get_logits(self, batch, batch_nb) -> 'Tensor':
-        signal, signal_len, transcript, transcript_len = batch
-        if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
-            log_probs, encoded_len, predictions = self.forward(
-                processed_signal=signal, processed_signal_length=signal_len
-            )
-        else:
-            log_probs, encoded_len, predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
-
-        return log_probs
 
     def test_dataloader(self):
         if self._test_dl is not None:

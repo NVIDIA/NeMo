@@ -429,7 +429,7 @@ class Typing(ABC):
 
 class Serialization(ABC):
     @classmethod
-    def from_config_dict(cls, config: 'DictConfig'):
+    def from_config_dict(cls, config: 'DictConfig', trainer: Optional['Trainer'] = None):
         """Instantiates object using DictConfig-based configuration"""
         # Resolve the config dict
         if _HAS_HYDRA:
@@ -470,7 +470,7 @@ class Serialization(ABC):
                         imported_cls = cls
 
                     try:
-                        instance = imported_cls(cfg=config)
+                        instance = imported_cls(cfg=config, trainer=trainer)
                     except Exception as e:
                         imported_cls_tb = traceback.format_exc()
                         instance_init_error = str(e)
@@ -485,7 +485,7 @@ class Serialization(ABC):
                         f"{imported_cls_tb}"
                     )
                 try:
-                    instance = cls(cfg=config)
+                    instance = cls(cfg=config, trainer=trainer)
                 except Exception as e:
                     if imported_cls_tb is not None:
                         logging.error(f"Instance failed restore_from due to: {instance_init_error}")
@@ -529,6 +529,8 @@ class FileIO(ABC):
         map_location: Optional['torch.device'] = None,
         strict: bool = True,
         return_config: bool = False,
+        trainer: Optional['Trainer'] = None,
+            save_restore_connector: SaveRestoreConnector = None,
     ):
         """Restores module/model with weights"""
         raise NotImplementedError()
@@ -644,6 +646,7 @@ class Model(Typing, Serialization, FileIO):
         map_location: Optional['torch.device'] = None,
         strict: bool = True,
         return_config: bool = False,
+        trainer: Optional['Trainer'] = None,
         save_restore_connector: SaveRestoreConnector = None,
     ):
         """
@@ -708,6 +711,7 @@ class Model(Typing, Serialization, FileIO):
             map_location=map_location,
             strict=strict,
             return_config=return_config,
+            trainer=trainer,
             save_restore_connector=save_restore_connector,
         )
         return instance

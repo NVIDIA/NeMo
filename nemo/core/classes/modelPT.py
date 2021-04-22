@@ -230,6 +230,7 @@ class ModelPT(LightningModule, Model):
         map_location: Optional[torch.device] = None,
         strict: bool = True,
         return_config: bool = False,
+        trainer: Optional[Trainer] = None,
         save_restore_connector: SaveRestoreConnector = None,
     ):
         """
@@ -244,6 +245,8 @@ class ModelPT(LightningModule, Model):
             strict: Passed to load_state_dict. By default True.
             return_config: If set to true, will return just the underlying config of the restored
                 model as an OmegaConf DictConfig object without instantiating the model.
+            trainer: Optional, a pytorch lightning Trainer object that will be forwarded to the
+                instantiated model's constructor.
             save_restore_connector (SaveRestoreConnector): Can be overrided to add custom save and restore logic.
 
             Example:
