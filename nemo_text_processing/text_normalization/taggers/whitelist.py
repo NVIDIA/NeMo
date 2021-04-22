@@ -27,15 +27,21 @@ except (ModuleNotFoundError, ImportError):
 class WhiteListFst(GraphFst):
     """
     Finite state transducer for classifying whitelist
-        e.g. misses -> tokens { name: "mrs." }
+        e.g. mrs. -> tokens { name: "misses" }
     This class has highest priority among all classifiers and loads lookup table from "data/whitelist.tsv"
+
+    Args:
+        input_case: accepting either "lower_cased" or "cased" input.
     """
 
-    def __init__(self):
+    def __init__(self, input_case: str):
         super().__init__(name="whitelist", kind="classify")
 
         whitelist = load_labels("data/whitelist.tsv")
-        whitelist = [(x.lower(), y.lower()) for x, y in whitelist]
+        if input_case == "lower_cased":
+            whitelist = [(x.lower(), y) for x, y in whitelist]
+        else:
+            whitelist = [(x, y) for x, y in whitelist]
 
         graph = pynini.string_map(whitelist)
 

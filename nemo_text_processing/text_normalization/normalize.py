@@ -22,10 +22,11 @@ from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_
 from nemo_text_processing.text_normalization.verbalizers.verbalize_final import VerbalizeFinalFst
 from tqdm import tqdm
 
+INPUT_CASE="lower_cased" # cased 
 try:
     import pynini
 
-    tagger = ClassifyFinalFst()
+    tagger = ClassifyFinalFst(input_case=INPUT_CASE)
     verbalizer = VerbalizeFinalFst()
     parser = TokenParser()
 

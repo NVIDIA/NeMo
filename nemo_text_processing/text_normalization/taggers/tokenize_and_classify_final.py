@@ -29,12 +29,15 @@ class ClassifyFinalFst(GraphFst):
     """
     Final FST that tokenizes an entire sentence
         e.g. its twelve thirty now. -> tokens { name: "its" } tokens { time { hours: "12" minutes: "30" } } tokens { name: "now" } tokens { name: "." pause_length: "PAUSE_LONG phrase_break: true type: PUNCT" }
+   
+    Args:
+        input_case: accepting either "lower_cased" or "cased" input.
     """
 
-    def __init__(self):
+    def __init__(self, input_case: str):
         super().__init__(name="tokenize_and_classify_final", kind="classify")
 
-        classify = ClassifyFst().fst
+        classify = ClassifyFst(input_case=input_case).fst
         punct = pynutil.add_weight(PunctuationFst().fst, weight=1.1)
         token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")
         token_plus_punct = (

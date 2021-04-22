@@ -20,6 +20,8 @@ from nemo_text_processing.text_normalization.graph_utils import (
     delete_extra_space,
     delete_space,
     insert_space,
+    TO_LOWER,
+    NEMO_CHAR
 )
 
 try:
@@ -78,8 +80,15 @@ class DateFst(GraphFst):
     def __init__(self, cardinal: GraphFst):
         super().__init__(name="date", kind="classify")
 
-        month_graph = pynini.string_file(get_abs_path("data/months.tsv")).optimize()
-        month_numbers_graph = pynini.string_file(get_abs_path("data/months_numbers.tsv")).optimize()
+        month_graph = pynini.string_file(get_abs_path("data/months/names.tsv")).optimize()
+        month_graph |=  (TO_LOWER + pynini.closure(NEMO_CHAR)) @ month_graph
+        month_abbr_graph = pynini.string_file(get_abs_path("data/months/abbr.tsv")).optimize() 
+        month_abbr_graph = (month_abbr_graph | (TO_LOWER + pynini.closure(NEMO_CHAR)) @ month_abbr_graph ) + pynini.closure(pynutil.delete("."), 0, 1)
+        month_graph |= month_abbr_graph
+
+
+
+        month_numbers_graph = pynini.string_file(get_abs_path("data/numbers.tsv")).optimize()
 
         cardinal_graph = cardinal.graph_hundred_component_at_least_one_none_zero_digit
 
