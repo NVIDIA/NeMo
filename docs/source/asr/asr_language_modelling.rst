@@ -20,8 +20,8 @@ In this approach, an N-gram LM is trained on text data, then it is used in fusio
 best candidates. The beam search decoders in NeMo support language models trained by KenLM library (
 `https://github.com/kpu/kenlm <https://github.com/kpu/kenlm>`__).
 The beam search decoders and KenLM library are not installed by default in NeMo, and you need to install them to be
-able to use beam search decoding and N-gram LM. Please refer to 'scripts/ngram_lm/install_beamsearch_decoders.sh'
-on how to install them.
+able to use beam search decoding and N-gram LM.
+Please refer to 'scripts/ngram_lm/install_beamsearch_decoders.sh' on how to install them.
 
 NeMo supports both character-based and BPE-based models for N-gram LMs. An N-gram LM can be used with beam search
 decoders on top of the ASR models to produce more accurate candidates. The beam search decoder would incorporate
