@@ -15,12 +15,13 @@ N-gram Language Modelling
 
 In this approach, an N-gram LM is trained on text data, then it is used in fusion with beam search decoding to find the best candidates.
 The beam search decoders in NeMo support language models trained by KenLM library `https://github.com/kpu/kenlm <https://github.com/kpu/kenlm>`__.
-The beam search decoders and KenLM library are not installed by default in NeMo.
-You may need to install them first by the script at 'scripts/asr_language_modelling/ngram_lm/install_beamsearch_decoders.py'.
+The beam search decoders and KenLM library are not installed by default in NeMo, and you need to install them to be
+able to use beam search decoding and N-gram LM. Please refer to 'scripts/ngram_lm/install_beamsearch_decoders.sh'
+on how to install them.
 
-NeMo supports both character-based and BPE-based models for N-gram LMs.
-An N-gram LM can be used with beam search decoders on top of the ASR models to produce more accurate candidates.
-The beam search decoder would incorporate the scores produced by the N-gram LM into its score calculations as the following:
+NeMo supports both character-based and BPE-based models for N-gram LMs. An N-gram LM can be used with beam search
+decoders on top of the ASR models to produce more accurate candidates. The beam search decoder would incorporate
+the scores produced by the N-gram LM into its score calculations as the following:
 
 .. code::
 
@@ -31,20 +32,49 @@ Parameter 'beam_alpha' specifies amount of importance to place on the N-gram lan
 
 Train N-gram LM
 ---------------
-The script to train a KenLM model can be found at
+The script to train an N-gram language model with KenLM can be found at
 `scripts/asr_language_modelling/ngram_lm/train_kenlm.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/asr_language_modelling/ngram_lm/train_kenlm.py>`__.
 
-You may train the N-gram LM as the following:
+This script would train an N-gram language model with KenLM library (https://github.com/kpu/kenlm) which can be used
+with the beam search decoders on top of the ASR models. This script supports both character level and BPE level
+encodings and models which is detected automatically from the type of the model.
+
+
+You may train the N-gram model as the following:
 
 .. code::
 
     python train_kenlm.py --nemo_model_file <path to the .nemo file of the model> \
-                              --train_file <path to the training text or json manifest file \
+                              --train_file <path to the training text or JSON manifest file \
                               --kenlm_bin_path <path to the bin folder of KenLM library> \
                               --kenlm_model_file <path to store the binary KenLM model> \
                               --ngram_length <order of N-gram model>
 
-You may find more detail on how to use it inside the script.
+The train file specified by '--trainf_file' can be a text file or JSON manifest. If the file's extension is anything
+other than '.json', it assumes that data format is plain text. For plain text format, each line should contain one
+sample. For JSON manifest file, the file need to contain JSON formatted samples per each line. It extracts the 'text'
+field of each line.
+
+After the N-gram model is trained, it is stored at the path specified by '--kenlm_model_file'.
+
++------------------+---------------+-------------+------------------------------------------------------------------------------------------------+
+| **Parameter**    | **Data Type** | **Default** | **Description**                                                                                |
++------------------+---------------+-------------+------------------------------------------------------------------------------------------------+
+| nemo_model_file  | str           | Required    | The path of the '.nemo' file of the ASR model. It is needed to extract the tokenizer.          |
++------------------+---------------+-------------+------------------------------------------------------------------------------------------------+
+| train_file       | str           | Required    | Path to the training file, it can be a text file or JSON manifest.                             |
++------------------+---------------+-------------+------------------------------------------------------------------------------------------------+
+| kenlm_model_file | str           | Required    | The path to store the KenLM binary model file.                                                 |
++------------------+---------------+-------------+------------------------------------------------------------------------------------------------+
+| kenlm_bin_path   | str           | Required    | The path to the bin folder of KenLM. It is a folder named 'bin' under where KenLM is installed.|
++------------------+---------------+-------------+------------------------------------------------------------------------------------------------+
+| ngram_length     | int           | Required    | Specifies order of N-gram LM.                                                                  |
++------------------+---------------+-------------+------------------------------------------------------------------------------------------------+
+| do_lower_case    | bool          | ``False``   | Whether to share the tokenizer between the encoder and decoder.                                |
++------------------+---------------+-------------+------------------------------------------------------------------------------------------------+
+
+Recommend to use 6 as the order of the N-gram model for BPE-based models. Higher orders may need the re-compilation of KenLM to support it.
+
 
 Evaluate by Beam Search Decoding and N-gram LM
 ----------------------------------------------
@@ -59,7 +89,7 @@ You may evaluate an ASR model as the following:
 .. code::
 
     python eval_beamsearch_ngram.py --nemo_model_file <path to the .nemo file of the model> \
-                                         --input_manifest <path to the evaluation Json manifest file \
+                                         --input_manifest <path to the evaluation JSON manifest file \
                                          --kenlm_model_file <path to the binary KenLM model> \
                                          --acoustic_batch_size <batch size for calculating log probabilities> \
                                          --beam_width <list of the beam widths> \

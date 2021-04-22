@@ -24,32 +24,14 @@
 # to 'scripts/ngram_lm/install_beamsearch_decoders.sh' on how to install them.
 #
 # USAGE: python train_kenlm.py --nemo_model_file <path to the .nemo file of the model> \
-#                              --train_file <path to the training text or json manifest file \
+#                              --train_file <path to the training text or JSON manifest file \
 #                              --kenlm_bin_path <path to the bin folder of KenLM library> \
 #                              --kenlm_model_file <path to store the binary KenLM model> \
 #                              --ngram_length <order of N-gram model>
 #
-# After training is done, the binary LM model is stored at the path specified by '--kenlm_model_file'
-#
-# Args:
-#   --nemo_model_file: The path of the '.nemo' file of the ASR model. It is needed to extract the tokenizer.
-#
-#   --train_file: Path to the training file, it can be a text file or Json manifest.
-#       If the file's extension is anything other than '.json', it assumes that data format is plain text. Each line
-#       should contain one samples.
-#       For json manifest file, the file need to contain json formatted samples per each line. It extracts the 'text'
-#       field of each line.
-#
-#   --kenlm_model_file: The path to store the KenLM binary model file.
-#       This would be LM model to be used by the beam search decoders.
-#
-#   --kenlm_bin_path: The path to the bin folder of KenLM. It is a folder named 'bin' under where KenLM is installed.
-#
-#   --ngram_length: Specifies order of N-gram LM. Recommend to use 6 for BPE-based models.
-#       Higher orders may need the compilation of KenLM to support it.
-#
-#    --do_lower_case: Whether to apply lower case conversion on the training text
-#
+# After training is done, the binary LM model is stored at the path specified by '--kenlm_model_file'.
+# You may find more info on how to use this script at:
+# https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_language_modelling.html
 
 import argparse
 import logging
@@ -83,7 +65,7 @@ def main():
         "--train_file",
         required=True,
         type=str,
-        help="Path to the training file, it can be a text file or Json manifest",
+        help="Path to the training file, it can be a text file or JSON manifest",
     )
     parser.add_argument(
         "--nemo_model_file", required=True, type=str, help="The path of the '.nemo' file of the ASR model"
