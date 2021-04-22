@@ -22,7 +22,7 @@ from nemo_text_processing.text_normalization.data_loader_utils import (
     training_data_to_sentences,
     training_data_to_tokens,
 )
-from nemo_text_processing.text_normalization.normalize import NORMALIZERS
+from nemo_text_processing.text_normalization.normalize import Normalizer
 
 
 '''
@@ -35,7 +35,7 @@ def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--input", help="input file path", type=str)
     parser.add_argument(
-        "--normalizer", default='nemo', help="normalizer to use (" + ", ".join(NORMALIZERS.keys()) + ")", type=str,
+        "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="lower_cased", type=str
     )
     parser.add_argument(
         "--cat",
@@ -45,7 +45,7 @@ def parse_args():
         default=None,
         choices=known_types,
     )
-    parser.add_argument("--filter", action='store_true', help="clean data for denormalization purposes")
+    parser.add_argument("--filter", action='store_true', help="clean data for normalization purposes")
     return parser.parse_args()
 
 
@@ -54,7 +54,7 @@ if __name__ == "__main__":
     # python run_evaluate.py --input=<INPUT> --cat=<CATEGORY> --filter
     args = parse_args()
     file_path = args.input
-    normalizer = NORMALIZERS[args.normalizer]
+    normalizer = Normalizer(input_case=args.input_case)
 
     print("Loading training data: " + file_path)
     training_data = load_files([file_path])
@@ -66,7 +66,7 @@ if __name__ == "__main__":
         print("Sentence level evaluation...")
         sentences_un_normalized, sentences_normalized, _ = training_data_to_sentences(training_data)
         print("- Data: " + str(len(sentences_normalized)) + " sentences")
-        sentences_prediction = normalizer(sentences_un_normalized)
+        sentences_prediction = normalizer.normalize_list(sentences_un_normalized)
         print("- Normalized. Evaluating...")
         sentences_accuracy = evaluate(
             preds=sentences_prediction, labels=sentences_normalized, input=sentences_un_normalized
@@ -80,7 +80,7 @@ if __name__ == "__main__":
         print("- Token type: " + token_type)
         tokens_un_normalized, tokens_normalized = tokens_per_type[token_type]
         print("  - Data: " + str(len(tokens_normalized)) + " tokens")
-        tokens_prediction = normalizer(tokens_un_normalized)
+        tokens_prediction = normalizer.normalize_list(tokens_un_normalized)
         print("  - Denormalized. Evaluating...")
         token_accuracy[token_type] = evaluate(
             preds=tokens_prediction, labels=tokens_normalized, input=tokens_un_normalized
@@ -105,7 +105,7 @@ if __name__ == "__main__":
         c2 = ['Num Tokens', len(sentences_normalized)] + [
             token_count_per_type[known_type] if known_type in tokens_per_type else '0' for known_type in known_types
         ]
-        c3 = [args.normalizer, sentences_accuracy] + [
+        c3 = ['Normalization', sentences_accuracy] + [
             token_accuracy[known_type] if known_type in token_accuracy else '0' for known_type in known_types
         ]
 

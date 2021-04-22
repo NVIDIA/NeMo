@@ -15,7 +15,7 @@
 
 import pytest
 from nemo_text_processing.inverse_text_normalization.inverse_normalize import inverse_normalize
-from nemo_text_processing.text_normalization.normalize import normalize
+from nemo_text_processing.text_normalization.normalize import Normalizer
 from parameterized import parameterized
 from utils import PYNINI_AVAILABLE, parse_test_case_file
 
@@ -31,6 +31,8 @@ class TestWhitelist:
         pred = inverse_normalize(test_input, verbose=False)
         assert pred == expected
 
+    normalizer = Normalizer(input_case='lower_cased')
+
     @parameterized.expand(parse_test_case_file('data_text_normalization/test_cases_whitelist.txt'))
     @pytest.mark.skipif(
         not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
@@ -38,5 +40,18 @@ class TestWhitelist:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_norm(self, test_input, expected):
-        pred = normalize(test_input, verbose=False)
+        pred = self.normalizer.normalize(test_input, verbose=False)
+        assert pred == expected
+
+    normalizer_uppercased = Normalizer(input_case='cased')
+    cases_uppercased = {"Dr. Evil": "doctor Evil", "No. 4": "number four", "dr. Evil": "dr. Evil", "no. 4": "no. four"}
+
+    @parameterized.expand(cases_uppercased.items())
+    @pytest.mark.skipif(
+        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
+    )
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_norm_cased(self, test_input, expected):
+        pred = self.normalizer_uppercased.normalize(test_input, verbose=False)
         assert pred == expected

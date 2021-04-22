@@ -15,11 +15,11 @@
 from argparse import ArgumentParser
 from typing import List
 
-from nemo_text_processing.text_normalization.normalize import NORMALIZERS
+from nemo_text_processing.text_normalization.normalize import Normalizer
 
 
 '''
-Runs denormalization prediction on text data
+Runs normalization prediction on text data
 '''
 
 
@@ -58,20 +58,22 @@ def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--input", help="input file path", required=True, type=str)
     parser.add_argument("--output", help="output file path", required=True, type=str)
-    parser.add_argument("--verbose", help="print denormalization info. For debugging", action='store_true')
-    parser.add_argument("--normalizer", default='nemo', type=str)
+    parser.add_argument(
+        "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="lower_cased", type=str
+    )
+    parser.add_argument("--verbose", help="print meta info for debugging", action='store_true')
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
     file_path = args.input
-    normalizer = NORMALIZERS[args.normalizer]
+    normalizer = Normalizer(input_case=args.input_case)
 
     print("Loading data: " + file_path)
     data = load_file(file_path)
 
     print("- Data: " + str(len(data)) + " sentences")
-    normalizer_prediction = normalizer(data, verbose=args.verbose)
+    normalizer_prediction = normalizer.normalize_list(data, verbose=args.verbose)
     write_file(args.output, normalizer_prediction)
     print(f"- Normalized. Writing out to {args.output}")

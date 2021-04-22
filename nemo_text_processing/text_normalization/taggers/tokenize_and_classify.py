@@ -34,9 +34,12 @@ except (ModuleNotFoundError, ImportError):
 class ClassifyFst(GraphFst):
     """
     Composes other classfier grammars. This class will be compiled and exported to thrax FAR. 
+    
+    Args:
+        input_case: accepting either "lower_cased" or "cased" input.
     """
 
-    def __init__(self):
+    def __init__(self, input_case: str):
         super().__init__(name="tokenize_and_classify", kind="classify")
 
         cardinal_graph_fst = CardinalFst()
@@ -50,10 +53,10 @@ class ClassifyFst(GraphFst):
 
         measure = MeasureFst(cardinal_graph_fst, decimal_graph_fst).fst
         date = DateFst(cardinal_graph_fst).fst
-        word = WordFst().fst
+        word = WordFst(input_case=input_case).fst
         time = TimeFst().fst
         money = MoneyFst(cardinal_graph_fst, decimal_graph_fst).fst
-        whitelist = WhiteListFst().fst
+        whitelist = WhiteListFst(input_case=input_case).fst
 
         graph = (
             pynutil.add_weight(whitelist, 1.01)
