@@ -12,33 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
-import inspect
-import os
-import shutil
-import tarfile
-import tempfile
-from abc import abstractmethod
-from contextlib import contextmanager
-from dataclasses import is_dataclass
-from os import path
-from typing import Callable, Dict, List, Optional, Union
+from typing import Dict, List, Union
 
-import hydra
-import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
-from pytorch_lightning import LightningModule, Trainer
-from pytorch_lightning.utilities import rank_zero_only
+from pytorch_lightning import Trainer
 
-from nemo.collections.common import losses
-from nemo.core import optim
-from nemo.core.classes.common import Model
 from nemo.core.classes.mixins import TeacherStudentMixin, TeacherStudentType
 from nemo.core.classes.modelPT import ModelPT
-from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import logging, model_utils
-from nemo.utils.app_state import AppState
-from nemo.utils.get_rank import is_global_rank_zero
 
 
 class TeacherStudentModelPT(ModelPT):
@@ -225,6 +206,7 @@ class TeacherStudentModelPT(ModelPT):
         """ Delegate save_to to student model """
         self.student.save_to(save_path=save_path)
 
+    @classmethod
     def restore_from(
         cls, **kwargs,
     ):
