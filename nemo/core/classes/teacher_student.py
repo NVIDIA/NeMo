@@ -19,6 +19,7 @@ import shutil
 import tarfile
 import tempfile
 from abc import abstractmethod
+from contextlib import contextmanager
 from dataclasses import is_dataclass
 from os import path
 from typing import Callable, Dict, List, Optional, Union
@@ -29,15 +30,15 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.utilities import rank_zero_only
 
+from nemo.collections.common import losses
 from nemo.core import optim
 from nemo.core.classes.common import Model
+from nemo.core.classes.mixins import TeacherStudentMixin, TeacherStudentType
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.optim import prepare_lr_scheduler
-from nemo.collections.common import losses
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.core.classes.mixins import TeacherStudentMixin
 
 
 class TeacherStudentModelPT(ModelPT):
@@ -45,13 +46,27 @@ class TeacherStudentModelPT(ModelPT):
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
 
-        # Extract teacher model file
-        if 'teacher_model_path' not in cfg:
-            raise ValueError("Provided config must have a string path to a .nemo file which represents the model.")
+        # Extract teacher config
+        if 'teacher' not in cfg:
+            raise ValueError(
+                "Provided config must have a `teacher` subconfig, with at least one member,"
+                "`model_path` or `model_name`."
+            )
 
-        # extract teacher model path
+        # Perform checks teacher model file
+        if 'model_path' not in cfg.teacher and 'model_name' not in cfg.teacher:
+            raise ValueError(
+                "Provided teacher config must have a string path to a .nemo file "
+                "which represents the model (via `model_path`) or a name of a pretrained model"
+                "which will be used as the teacher (via `model_name`)."
+            )
+
+        if 'model_path' in cfg.teacher and 'model_name' in cfg.teacher:
+            raise ValueError("Only one of `model_path` or `model_name` should be passed to the teacher config !")
+
+        # Extract teacher config completely from student config
         with open_dict(cfg):
-            teacher_model_path = cfg.pop('teacher_model_path')
+            self.teacher_cfg = cfg.pop('teacher')
 
         # prevent data loaders from being loaded for either student of teacher model
         original_state_value = ModelPT._is_model_being_restored()
@@ -62,7 +77,15 @@ class TeacherStudentModelPT(ModelPT):
         super().__init__(cfg=cfg, trainer=trainer)
 
         # Initialize teacher model and freeze it
-        self.teacher = ModelPT.restore_from(teacher_model_path, map_location='cpu', strict=True)  # type: ModelPT
+        if 'model_path' in self.teacher_cfg and self.teacher_cfg.model_path is not None:
+            self.teacher = ModelPT.restore_from(
+                self.teacher_cfg.model_path, map_location='cpu', strict=True
+            )  # type: ModelPT
+        else:
+            # Assume pretrained model name
+            raise NotImplementedError("model_name is not supported yet as a teacher value.")
+
+        # Freeze the
         self.teacher.set_trainer(self._trainer)
         self.teacher.freeze()
 
@@ -78,11 +101,15 @@ class TeacherStudentModelPT(ModelPT):
             raise TypeError(
                 f"Teacher model ({self.teacher.__class__.__name__}) must inherit {TeacherStudentMixin.__name__}"
             )
+        else:
+            self.teacher._TEACHER_STUDENT_TYPE = TeacherStudentType.TEACHER
 
         if not isinstance(self.student, TeacherStudentMixin):
             raise TypeError(
                 f"Student model ({self.student.__class__.__name__}) must inherit {TeacherStudentMixin.__name__}"
             )
+        else:
+            self.student._TEACHER_STUDENT_TYPE = TeacherStudentType.STUDENT
 
         # setup up delegation of TeacherStudentModelPT to self.student
         self._setup_delegates()
@@ -109,81 +136,88 @@ class TeacherStudentModelPT(ModelPT):
         self.training_step = model_utils.wrap_training_step(self.training_step)
 
     def _setup_loss_function(self):
-        # self.loss = losses.SmoothedCrossEntropyLoss(
-        #     pad_id=0, label_smoothing=self.cfg.get('teacher_student_label_smoothing', 0.0),
-        # )
-        with open_dict(self.cfg):
-            self.loss_reduction = self.cfg.pop('teacher_student_loss_reduction', 'batchmean')
+        default_loss = OmegaConf.create(dict(_target_='torch.nn.KLDivLoss', log_target=True, reduction='batchmean',))
+        loss_config = self.teacher_cfg.get('loss', default_loss)
+        self.transfer_loss_primary = self.from_config_dict(loss_config)
 
-        if 'mean' in self.loss_reduction:  # always force batchmean for both `mean` and `batchmean`
-            reduction = 'batchmean'
-        else:
-            reduction = self.loss_reduction
+        # TODO: use config to setup secondary loss(es)
 
-        self.loss = torch.nn.KLDivLoss(reduction=reduction, log_target=True)
+    def forward_delegate(self, fn):
+        fn_name = fn.__name__
+        # preserve original self function
+        setattr(self, fn_name + "_base", getattr(self, fn_name))
+
+        # override self func
+        setattr(self, fn_name, getattr(self.student, fn_name))
+        delegated_fn = getattr(self, fn_name)
+        return delegated_fn
 
     def _setup_delegates(self):
-        # setup up delegation of TeacherStudentModelPT methods to self.student
-        self.setup_multiple_validation_data = self.student.setup_multiple_validation_data
-        self.setup_multiple_test_data = self.student.setup_multiple_test_data
-        self.setup_optimization = self.student.setup_optimization
+        # ModelPT Data loader methods
+        self.setup_multiple_validation_data = self.forward_delegate(self.student.setup_multiple_validation_data)
+        self.setup_multiple_test_data = self.forward_delegate(self.student.setup_multiple_test_data)
+        self.setup_optimization = self.forward_delegate(self.student.setup_optimization)
 
         # Misc methods
-        self.extract_state_dict_from = self.student.extract_state_dict_from
-        self.prepare_test = self.student.prepare_test
-        self.set_trainer = self.student.set_trainer
-        self.set_world_size = self.student.set_world_size
-        self.get_validation_dataloader_prefix = self.student.get_validation_dataloader_prefix
-        self.get_test_dataloader_prefix = self.student.get_test_dataloader_prefix
+        self.extract_state_dict_from = self.forward_delegate(self.student.extract_state_dict_from)
+        self.prepare_test = self.forward_delegate(self.student.prepare_test)
+        self.set_trainer = self.forward_delegate(self.student.set_trainer)
+        self.set_world_size = self.forward_delegate(self.student.set_world_size)
+        self.get_validation_dataloader_prefix = self.forward_delegate(self.student.get_validation_dataloader_prefix)
+        self.get_test_dataloader_prefix = self.forward_delegate(self.student.get_test_dataloader_prefix)
 
         # PTL dataloader delegates
-        self.train_dataloader = self.student.train_dataloader
-        self.val_dataloader = self.student.val_dataloader
-        self.test_dataloader = self.student.test_dataloader
+        self.train_dataloader = self.forward_delegate(self.student.train_dataloader)
+        self.val_dataloader = self.forward_delegate(self.student.val_dataloader)
+        self.test_dataloader = self.forward_delegate(self.student.test_dataloader)
 
         # PTL step delegates
-        self.validation_step = self.student.validation_step
-        self.validation_step_end = self.student.validation_step_end
-        self.validation_epoch_end = self.student.validation_epoch_end
-        self.test_step = self.student.test_step
-        self.test_step_end = self.student.test_step_end
-        self.test_epoch_end = self.student.test_epoch_end
-        self.multi_validation_epoch_end = self.student.multi_validation_epoch_end
-        self.multi_test_epoch_end = self.student.multi_test_epoch_end
-
-        # Forward all student PTL logging calls to self
-        self.student.log = self.log
-        self.student.log_dict = self.log_dict
+        self.validation_step = self.forward_delegate(self.student.validation_step)
+        self.validation_step_end = self.forward_delegate(self.student.validation_step_end)
+        self.validation_epoch_end = self.forward_delegate(self.student.validation_epoch_end)
+        self.test_step = self.forward_delegate(self.student.test_step)
+        self.test_step_end = self.forward_delegate(self.student.test_step_end)
+        self.test_epoch_end = self.forward_delegate(self.student.test_epoch_end)
+        self.multi_validation_epoch_end = self.forward_delegate(self.student.multi_validation_epoch_end)
+        self.multi_test_epoch_end = self.forward_delegate(self.student.multi_test_epoch_end)
 
         # Misc PTL delegates
-        self.teardown = self.student.teardown
-        self.configure_optimizers = self.student.configure_optimizers
+        self.configure_optimizers = self.forward_delegate(self.student.configure_optimizers)
 
-    # Abstract methods must be explicitly overridden, even if just delegates
-    def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
-        return self.student.setup_training_data(train_data_config)
-
-    def setup_validation_data(self, val_data_config: Union[DictConfig, Dict]):
-        return self.student.setup_validation_data(val_data_config)
-
-    def setup_test_data(self, test_data_config: Union[DictConfig, Dict]):
-        return self.student.setup_test_data(test_data_config)
+        # Backward delegate all student PTL logging calls to self
+        self.student.log = self.log
+        self.student.log_dict = self.log_dict
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
         self.teacher.eval()
-        teacher_logprobs = self.teacher.get_logits(batch=batch, batch_nb=batch_nb)
-        student_logprobs = self.student.get_logits(batch=batch, batch_nb=batch_nb)
+        self.teacher.reset_distillation_registry()
+        self.student.reset_distillation_registry()
 
-        if teacher_logprobs.shape != student_logprobs.shape:
-            raise TypeError(f"Teacher model provided logprobs of shape {teacher_logprobs.shape}\n"
-                            f"Student model provided logprobs of shape {student_logprobs.shape}\n"
-                            f"As the two shapes do not match, the student and teacher model are incompatible.")
+        # Delegate train steps, dynamically replacing self with self.student / self.teacher to maintain model
+        # level unawareness.
+        self.teacher.__class__.training_step(self.teacher, batch=batch, batch_nb=batch_nb)
+        self.student.__class__.training_step(self.student, batch=batch, batch_nb=batch_nb)
 
-        loss_value = self.loss(
-            input=student_logprobs, target=teacher_logprobs
-        )
-        tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self.student._optimizer.param_groups[0]['lr']}
+        # TODO: Maybe add hooks for student model to override
+        # if teacher_logprobs.shape != student_logprobs.shape:
+        #     raise TypeError(f"Teacher model provided logprobs of shape {teacher_logprobs.shape}\n"
+        #                     f"Student model provided logprobs of shape {student_logprobs.shape}\n"
+        #                     f"As the two shapes do not match, the student and teacher model are incompatible.")
+
+        # Update the registry from both student and teacher models
+        primary_loss_dict = self.teacher._distillation_primary_registry  # type: dict
+        primary_loss_dict.update(self.student._distillation_primary_registry)  # type: dict
+
+        # Compute primary distillation loss
+        loss_value = self.transfer_loss_primary(**primary_loss_dict)
+        tensorboard_logs = {'distillation_train_loss': loss_value}
+
+        # TODO: Maybe add support for intermediate activation matching
+
+        # Reset references to tensors which were registered
+        self.teacher.reset_distillation_registry()
+        self.student.reset_distillation_registry()
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
@@ -209,3 +243,18 @@ class TeacherStudentModelPT(ModelPT):
         """
         # No pretrained models of TeacherStudent model are possible.
         return []
+
+    # Abstract methods must be explicitly overridden, even if just delegates
+    # setup up delegation of TeacherStudentModelPT methods to self.student
+    def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
+        return self.student.setup_training_data(train_data_config)
+
+    def setup_validation_data(self, val_data_config: Union[DictConfig, Dict]):
+        return self.student.setup_validation_data(val_data_config)
+
+    def setup_test_data(self, test_data_config: Union[DictConfig, Dict]):
+        return self.student.setup_test_data(test_data_config)
+
+    def teardown(self, stage: str):
+        self.teacher.teardown(stage)
+        return self.student.teardown(stage)
