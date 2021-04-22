@@ -148,7 +148,7 @@ class TestASRDatasets:
             ]
         )
         correct_label_length = torch.tensor(50)
-        
+
         assert ds_braceexpand[0][0].shape == (50, 32)
         assert torch.equal(ds_braceexpand[0][2], correct_label)
         assert torch.equal(ds_braceexpand[0][3], correct_label_length)
