@@ -13,16 +13,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
-from nemo_text_processing.text_normalization.graph_utils import (
-    NEMO_ALPHA,
-    NEMO_DIGIT,
-    NEMO_SIGMA,
-    NEMO_SPACE,
-    GraphFst,
-    delete_extra_space,
-    delete_space,
-)
+from nemo_text_processing.text_normalization.graph_utils import NEMO_CHAR, NEMO_SIGMA, GraphFst
 
 try:
     import pynini
@@ -43,18 +34,16 @@ class EmailFst(GraphFst):
     def __init__(self):
         super().__init__(name="email", kind="classify")
 
-        graph = (
-                pynutil.insert("username: \"") + pynini.accep('@gmail') + pynutil.insert("\"")
+        username = (
+            pynutil.insert("username: \"") + pynini.closure(NEMO_SIGMA) + pynutil.insert("\"") + pynini.cross('@', ' ')
         )
-        #
-        #
-        #
-        # self.graph = pynini.invert(graph) @ delete_extra_spaces
-        # self.graph = self.graph.optimize()
-        #
-        # optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
-        #
-        # final_graph = optional_minus_graph + pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
-        #
-        # final_graph = self.add_tokens(final_graph)
-        # self.fst = final_graph.optimize()
+        server_graph = (
+            pynutil.insert("servername: \"") + pynini.closure(NEMO_CHAR + pynutil.insert(' ')) + pynutil.insert("\"")
+        )
+        domain_graph = pynutil.insert("domain: \"") + pynini.closure(NEMO_SIGMA) + pynutil.insert("\"")
+        graph = username + server_graph + pynini.cross('.', ' ') + domain_graph
+
+        self.graph = graph.optimize()
+
+        final_graph = self.add_tokens(self.graph)
+        self.fst = final_graph.optimize()
