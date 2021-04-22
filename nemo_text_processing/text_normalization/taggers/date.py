@@ -14,14 +14,14 @@
 
 from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
 from nemo_text_processing.text_normalization.graph_utils import (
+    NEMO_CHAR,
     NEMO_DIGIT,
     NEMO_SIGMA,
+    TO_LOWER,
     GraphFst,
     delete_extra_space,
     delete_space,
     insert_space,
-    TO_LOWER,
-    NEMO_CHAR
 )
 
 try:
@@ -81,12 +81,12 @@ class DateFst(GraphFst):
         super().__init__(name="date", kind="classify")
 
         month_graph = pynini.string_file(get_abs_path("data/months/names.tsv")).optimize()
-        month_graph |=  (TO_LOWER + pynini.closure(NEMO_CHAR)) @ month_graph
-        month_abbr_graph = pynini.string_file(get_abs_path("data/months/abbr.tsv")).optimize() 
-        month_abbr_graph = (month_abbr_graph | (TO_LOWER + pynini.closure(NEMO_CHAR)) @ month_abbr_graph ) + pynini.closure(pynutil.delete("."), 0, 1)
+        month_graph |= (TO_LOWER + pynini.closure(NEMO_CHAR)) @ month_graph
+        month_abbr_graph = pynini.string_file(get_abs_path("data/months/abbr.tsv")).optimize()
+        month_abbr_graph = (
+            month_abbr_graph | (TO_LOWER + pynini.closure(NEMO_CHAR)) @ month_abbr_graph
+        ) + pynini.closure(pynutil.delete("."), 0, 1)
         month_graph |= month_abbr_graph
-
-
 
         month_numbers_graph = pynini.string_file(get_abs_path("data/numbers.tsv")).optimize()
 

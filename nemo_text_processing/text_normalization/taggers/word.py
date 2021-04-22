@@ -41,7 +41,6 @@ class WordFst(GraphFst):
         else:
             exceptions = [x for x, in exceptions]
 
-            
         exceptions = pynini.string_map(exceptions)
 
         word = (

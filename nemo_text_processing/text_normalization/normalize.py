@@ -22,7 +22,7 @@ from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_
 from nemo_text_processing.text_normalization.verbalizers.verbalize_final import VerbalizeFinalFst
 from tqdm import tqdm
 
-INPUT_CASE="lower_cased" # cased 
+INPUT_CASE = "lower_cased"  # cased
 try:
     import pynini
 
