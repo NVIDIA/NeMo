@@ -64,8 +64,7 @@ class BeamSearchDecoderWithLM(NeuralModule):
             from ctc_decoders import Scorer, ctc_beam_search_decoder_batch
         except ModuleNotFoundError:
             raise ModuleNotFoundError(
-                "BeamSearchDecoderWithLM requires the "
-                "installation of ctc_decoders "
+                "BeamSearchDecoderWithLM requires the installation of ctc_decoders "
                 "from scripts/asr_language_modelling/ngram_lm/install_beamsearch_decoders.sh"
             )
 
