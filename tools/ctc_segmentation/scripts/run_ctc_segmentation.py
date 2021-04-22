@@ -116,10 +116,9 @@ if __name__ == '__main__':
 
         original_duration = len(signal) / sample_rate
         logging.debug(f'Duration: {original_duration}s, file_name: {path_audio}')
-        log_probs = asr_model.transcribe(paths2audio_files=[str(path_audio)], batch_size=1, logprobs=True)[0].cpu()
+        log_probs = asr_model.transcribe(paths2audio_files=[str(path_audio)], batch_size=1, logprobs=True)[0]
 
         # move blank values to the first column
-        log_probs = np.squeeze(log_probs, axis=0)
         blank_col = log_probs[:, -1].reshape((log_probs.shape[0], 1))
         log_probs = np.concatenate((blank_col, log_probs[:, :-1]), axis=1)
 
