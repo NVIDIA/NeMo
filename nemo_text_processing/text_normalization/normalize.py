@@ -14,6 +14,7 @@
 
 import itertools
 import sys
+from argparse import ArgumentParser
 from collections import OrderedDict
 from typing import List
 
@@ -25,203 +26,185 @@ from tqdm import tqdm
 try:
     import pynini
 
-    tagger = ClassifyFinalFst()
-    verbalizer = VerbalizeFinalFst()
-    parser = TokenParser()
-
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
-    # Add placeholders
-    tagger = None
-    verbalizer = None
-    parser = None
-
     PYNINI_AVAILABLE = False
 
 
-def _permute(d: OrderedDict) -> List[str]:
-    """
-    Creates reorderings of dictionary elements and serializes as strings
+class Normalizer:
+    def __init__(self, input_case: str):
+        assert input_case in ["lower_cased", "cased"]
+        self.tagger = ClassifyFinalFst(input_case=input_case)
+        self.verbalizer = VerbalizeFinalFst()
+        self.parser = TokenParser()
 
-    Args:
-        d: (nested) dictionary of key value pairs
-
-    Return permutations of different string serializations of key value pairs
-    """
-    l = []
-    if PRESERVE_ORDER_KEY in d.keys():
-        d_permutations = [d.items()]
-    else:
-        d_permutations = itertools.permutations(d.items())
-    for perm in d_permutations:
-        subl = [""]
-        for k, v in perm:
-            if isinstance(v, str):
-                subl = ["".join(x) for x in itertools.product(subl, [f"{k}: \"{v}\" "])]
-            elif isinstance(v, OrderedDict):
-                rec = _permute(v)
-                subl = ["".join(x) for x in itertools.product(subl, [f" {k} {{ "], rec, [f" }} "])]
-            elif isinstance(v, bool):
-                subl = ["".join(x) for x in itertools.product(subl, [f"{k}: true "])]
-            else:
-                raise ValueError()
-        l.extend(subl)
-    return l
-
-
-def generate_permutations(tokens: List[dict]):
-    """
-    Generates permutations of string serializations of list of dictionaries
-
-    Args:
-        tokens: list of dictionaries
-
-    Returns string serialization of list of dictionaries
-    """
-
-    def _helper(prefix: str, tokens: List[dict], idx: int):
+    def normalize_list(self, texts: List[str], verbose=False) -> List[str]:
         """
-        Generates permutations of string serializations of given dictionary
+        NeMo text normalizer 
+
+        Args:
+            texts: input strings
+
+        Returns converted input strings
+        """
+        res = []
+        for input in tqdm(texts):
+            try:
+                text = self.normalize(input, verbose=verbose)
+            except:
+                print(input)
+                raise Exception
+            res.append(text)
+        return res
+
+    def normalize(self, text: str, verbose: bool) -> str:
+        """
+        main function. normalizes spoken tokens in given text to its written form
+            e.g. twelve kilograms -> 12 kg
+
+        Args:
+            text: string that may include semiotic classes.
+
+        Returns: written form
+        """
+
+        text = pynini.escape(text)
+        tagged_lattice = self.find_tags(text)
+        tagged_text = self.select_tag(tagged_lattice)
+        self.parser(tagged_text)
+        tokens = self.parser.parse()
+        tags_reordered = self.generate_permutations(tokens)
+        for tagged_text in tags_reordered:
+            if verbose:
+                print(tagged_text)
+            tagged_text = pynini.escape(tagged_text)
+            verbalizer_lattice = self.find_verbalizer(tagged_text)
+            if verbalizer_lattice.num_states() == 0:
+                continue
+            output = self.select_verbalizer(verbalizer_lattice)
+            return output
+        raise ValueError()
+
+    def _permute(self, d: OrderedDict) -> List[str]:
+        """
+        Creates reorderings of dictionary elements and serializes as strings
+
+        Args:
+            d: (nested) dictionary of key value pairs
+
+        Return permutations of different string serializations of key value pairs
+        """
+        l = []
+        if PRESERVE_ORDER_KEY in d.keys():
+            d_permutations = [d.items()]
+        else:
+            d_permutations = itertools.permutations(d.items())
+        for perm in d_permutations:
+            subl = [""]
+            for k, v in perm:
+                if isinstance(v, str):
+                    subl = ["".join(x) for x in itertools.product(subl, [f"{k}: \"{v}\" "])]
+                elif isinstance(v, OrderedDict):
+                    rec = self._permute(v)
+                    subl = ["".join(x) for x in itertools.product(subl, [f" {k} {{ "], rec, [f" }} "])]
+                elif isinstance(v, bool):
+                    subl = ["".join(x) for x in itertools.product(subl, [f"{k}: true "])]
+                else:
+                    raise ValueError()
+            l.extend(subl)
+        return l
+
+    def generate_permutations(self, tokens: List[dict]):
+        """
+        Generates permutations of string serializations of list of dictionaries
 
         Args:
             tokens: list of dictionaries
-            prefix: prefix string
-            idx:    index of next dictionary
 
-        Returns string serialization of dictionary
+        Returns string serialization of list of dictionaries
         """
-        if idx == len(tokens):
-            yield prefix
-            return
-        token_options = _permute(tokens[idx])
-        for token_option in token_options:
-            yield from _helper(prefix + token_option, tokens, idx + 1)
 
-    return _helper("", tokens, 0)
+        def _helper(prefix: str, tokens: List[dict], idx: int):
+            """
+            Generates permutations of string serializations of given dictionary
 
+            Args:
+                tokens: list of dictionaries
+                prefix: prefix string
+                idx:    index of next dictionary
 
-def find_tags(text: str) -> 'pynini.FstLike':
-    """
-    Given text use tagger Fst to tag text
+            Returns string serialization of dictionary
+            """
+            if idx == len(tokens):
+                yield prefix
+                return
+            token_options = self._permute(tokens[idx])
+            for token_option in token_options:
+                yield from _helper(prefix + token_option, tokens, idx + 1)
 
-    Args:
-        text: sentence
+        return _helper("", tokens, 0)
 
-    Returns: tagged lattice
-    """
-    lattice = text @ tagger.fst
-    return lattice
+    def find_tags(self, text: str) -> 'pynini.FstLike':
+        """
+        Given text use tagger Fst to tag text
 
+        Args:
+            text: sentence
 
-def select_tag(lattice: 'pynini.FstLike') -> str:
-    """
-    Given tagged lattice return shortest path
+        Returns: tagged lattice
+        """
+        lattice = text @ self.tagger.fst
+        return lattice
 
-    Args:
-        tagged_text: tagged text
+    def select_tag(self, lattice: 'pynini.FstLike') -> str:
+        """
+        Given tagged lattice return shortest path
 
-    Returns: shortest path
-    """
-    tagged_text = pynini.shortestpath(lattice, nshortest=1, unique=True).string()
-    print(tagged_text)
-    return tagged_text
+        Args:
+            tagged_text: tagged text
 
+        Returns: shortest path
+        """
+        tagged_text = pynini.shortestpath(lattice, nshortest=1, unique=True).string()
+        return tagged_text
 
-def find_verbalizer(tagged_text: str) -> 'pynini.FstLike':
-    """
-    Given tagged text, e.g. token {name: ""} token {money {fractional: ""}}, creates verbalization lattice
-    This is context-independent.
+    def find_verbalizer(self, tagged_text: str) -> 'pynini.FstLike':
+        """
+        Given tagged text, e.g. token {name: ""} token {money {fractional: ""}}, creates verbalization lattice
+        This is context-independent.
 
-    Args:
-        tagged_text: input text
+        Args:
+            tagged_text: input text
 
-    Returns: verbalized lattice
-    """
-    lattice = tagged_text @ verbalizer.fst
-    return lattice
+        Returns: verbalized lattice
+        """
+        lattice = tagged_text @ self.verbalizer.fst
+        return lattice
 
+    def select_verbalizer(self, lattice: 'pynini.FstLike') -> str:
+        """
+        Given verbalized lattice return shortest path
 
-def select_verbalizer(lattice: 'pynini.FstLike') -> str:
-    """
-    Given verbalized lattice return shortest path
+        Args:
+            lattice: verbalization lattice
 
-    Args:
-        lattice: verbalization lattice
-
-    Returns: shortest path
-    """
-    output = pynini.shortestpath(lattice, nshortest=1, unique=True).string()
-    return output
-
-
-def normalize(text: str, verbose: bool) -> str:
-    """
-    main function. normalizes spoken tokens in given text to its written form
-        e.g. twelve kilograms -> 12 kg
-
-    Args:
-        text: string that may include semiotic classes.
-
-    Returns: written form
-    """
-
-    text = pynini.escape(text)
-    tagged_lattice = find_tags(text)
-    tagged_text = select_tag(tagged_lattice)
-    parser(tagged_text)
-    print(tagged_text)
-    tokens = parser.parse()
-    tags_reordered = generate_permutations(tokens)
-    for tagged_text in tags_reordered:
-        tagged_text = pynini.escape(tagged_text)
-        verbalizer_lattice = find_verbalizer(tagged_text)
-        if verbalizer_lattice.num_states() == 0:
-            continue
-        output = select_verbalizer(verbalizer_lattice)
-        if verbose:
-            print(output)
+        Returns: shortest path
+        """
+        output = pynini.shortestpath(lattice, nshortest=1, unique=True).string()
         return output
-    raise ValueError()
 
 
-def normalize_identity(texts: List[str], verbose=False) -> List[str]:
-    """
-    Identity function. Returns input unchanged
-
-    Args:
-        texts: input strings
-
-    Returns input strings
-    """
-    return texts
-
-
-def normalize_nemo(texts: List[str], verbose=False) -> List[str]:
-    """
-    NeMo text normalizer 
-
-    Args:
-        texts: input strings
-
-    Returns converted input strings
-    """
-    res = []
-    for input in tqdm(texts):
-        try:
-            text = normalize(input, verbose=verbose)
-        except:
-            print(input)
-            raise Exception
-        res.append(text)
-    return res
-
-
-NORMALIZERS = {
-    "identity": normalize_identity,
-    "nemo": normalize_nemo,
-}
+def parse_args():
+    parser = ArgumentParser()
+    parser.add_argument("input_string", help="input string", type=str)
+    parser.add_argument(
+        "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="lower_cased", type=str
+    )
+    parser.add_argument("--verbose", help="print info for debugging", action='store_true')
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
-    s = sys.argv[1]  # input string
-    normalize(s, verbose=True)
+    args = parse_args()
+    normalizer = Normalizer(input_case=args.input_case)
+    print(normalizer.normalize(args.input_string, verbose=args.verbose))

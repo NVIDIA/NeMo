@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
-from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_SPACE, GraphFst, convert_space
+from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_SPACE, GraphFst
 
 try:
     import pynini
@@ -26,17 +25,15 @@ except (ModuleNotFoundError, ImportError):
 
 class WordFst(GraphFst):
     """
-    Finite state transducer for classifying word
+    Finite state transducer for classifying word. Considers sentence boundary exceptions.
         e.g. sleep -> tokens { name: "sleep" }
+
+    Args:
+        input_case: accepting either "lower_cased" or "cased" input.
     """
 
-    def __init__(self):
+    def __init__(self, input_case: str):
         super().__init__(name="word", kind="classify")
 
-        exceptions = pynini.string_file(get_abs_path("data/sentence_boundary_exceptions.txt"))
-        word = (
-            pynutil.insert("name: \"")
-            + (pynini.closure(pynutil.add_weight(NEMO_NOT_SPACE, weight=0.1), 1) | convert_space(exceptions))
-            + pynutil.insert("\"")
-        )
+        word = pynutil.insert("name: \"") + pynini.closure(NEMO_NOT_SPACE, 1) + pynutil.insert("\"")
         self.fst = word.optimize()
