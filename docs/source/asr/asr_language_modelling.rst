@@ -4,8 +4,8 @@ ASR Language Modeling
 
 Language models have shown to help the accuracy of ASR models. NeMo support the following two approaches to incorporate language models into the ASR models:
 
-* N-gram Language Modelling
-* Neural Rescoring
+* :ref:`ngram_modelling`
+* :ref:`neural_rescoring`
 
 It is possible to use both approaches on the same ASR model.
 
@@ -188,6 +188,7 @@ For instance, the following set of parameters would results in 2*1*2=4 beam sear
 
 
 .. _neural_rescoring:
+
 ****************
 Neural Rescoring
 ****************
