@@ -70,7 +70,7 @@
 #       train_extremely_large_corpus=true". If your machine has large amounts of RAM, it might still be possible
 #       to build the tokenizer using the above flag. Will silently fail if it runs out of RAM.
 #
-#   --spe_max_sentencepiece_length: Limits the maximum length that any any SentencePiecesubword can be.
+#   --spe_max_sentencepiece_length: Limits the maximum length that any any SentencePiece subword can be.
 #       Using this will change the subword tokens generated.
 #
 #   --log: Whether the script should display log messages
