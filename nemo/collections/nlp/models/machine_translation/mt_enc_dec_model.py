@@ -234,13 +234,14 @@ class MTEncDecModel(EncDecNLPModel):
 
         # Gather translations and ground truths from all workers
         tr_and_gt = [None for _ in range(self.world_size)]
-        dist.all_gather_object(tr_and_gt, [translations, ground_truths])
+        # we also need to drop pairs where ground truth is an empty string
+        dist.all_gather_object(tr_and_gt, [(t, g) for (t, g) in zip(translations, ground_truths) if g.strip() != ''])
         if self.global_rank == 0:
             _translations = []
             _ground_truths = []
             for rank in range(0, self.world_size):
-                _translations += tr_and_gt[rank][0]
-                _ground_truths += tr_and_gt[rank][1]
+                _translations += [t for (t, g) in tr_and_gt[rank]]
+                _ground_truths += [g for (t, g) in tr_and_gt[rank]]
 
             if self.tgt_language in ['ja']:
                 sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="ja-mecab")
