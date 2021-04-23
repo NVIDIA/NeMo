@@ -4,20 +4,20 @@ ASR Language Modeling
 
 Language models have shown to help the accuracy of ASR models. NeMo support the following two approaches to incorporate language models into the ASR models:
 
-* :ref:`ngram_modelling`
+* :ref:`ngram_modeling`
 * :ref:`neural_rescoring`
 
 It is possible to use both approaches on the same ASR model.
 
 
-.. _ngram_modelling:
+.. _ngram_modeling:
 
-*************************
-N-gram Language Modelling
-*************************
+************************
+N-gram Language Modeling
+************************
 
 In this approach, an N-gram LM is trained on text data, then it is used in fusion with beam search decoding to find the
-best candidates. The beam search decoders in NeMo support language models trained by KenLM library (
+best candidates. The beam search decoders in NeMo support language models trained with KenLM library (
 `https://github.com/kpu/kenlm <https://github.com/kpu/kenlm>`__).
 The beam search decoders and KenLM library are not installed by default in NeMo, and you need to install them to be
 able to use beam search decoding and N-gram LM.
@@ -42,7 +42,7 @@ Train N-gram LM
 ===============
 
 The script to train an N-gram language model with KenLM can be found at
-`scripts/asr_language_modelling/ngram_lm/train_kenlm.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/asr_language_modelling/ngram_lm/train_kenlm.py>`__.
+`scripts/asr_language_modeling/ngram_lm/train_kenlm.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/asr_language_modeling/ngram_lm/train_kenlm.py>`__.
 
 This script would train an N-gram language model with KenLM library which can be used with the beam search decoders
 on top of the ASR models. This script supports both character level and BPE level encodings and models which is
@@ -95,7 +95,7 @@ Evaluate by Beam Search Decoding and N-gram LM
 
 NeMo's beam search decoders are capable of using the KenLM's N-gram models to find the best candidates.
 The script to evaluate an ASR model with beam search decoding and N-gram models can be found at
-`scripts/asr_language_modelling/ngram_lm/eval_beamsearch_ngram.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/asr_language_modelling/ngram_lm/eval_beamsearch_ngram.py>`__.
+`scripts/asr_language_modeling/ngram_lm/eval_beamsearch_ngram.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/asr_language_modeling/ngram_lm/eval_beamsearch_ngram.py>`__.
 
 You may evaluate an ASR model as the following:
 
@@ -199,4 +199,4 @@ In this approach a neural network is used which can gives scores to a candidate.
 The top K candidates produced by the beam search decoding (beam width of K) are given to a neural language model to rank them.
 Ranking can be done by a language model which gives a score to each candidate.
 This score is usually combined with the scores from the beam search decoding to produce the final scores and rankings.
-An example script to train such a language model with Transformer can be found at `examples/nlp/language_modelling/transformer_lm.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modelling/transformer_lm.py>`__.
+An example script to train such a language model with Transformer can be found at `examples/nlp/language_modeling/transformer_lm.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/transformer_lm.py>`__.
