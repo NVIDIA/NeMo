@@ -32,8 +32,6 @@ model:
 
   validation_ds:
     manifest_filepath: ${validation_datasets}
-    max_duration: null
-    min_duration: 0.1
     sample_rate: ${sample_rate}
     trim: false
     parser: null

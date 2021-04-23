@@ -59,7 +59,7 @@ from nemo.core.neural_types.neural_type import NeuralType
 
 
 class BaseFastPitchLoss(Loss):
-    """ A base loss that computes duration and pitch loss. Used in both HiFiFastPitchModel and FastPitchModel.
+    """ A base loss that computes duration and pitch loss. Used in both FastPitchHifiGanE2EModel and FastPitchModel.
     """
 
     def __init__(self, dur_predictor_loss_scale=0.1, pitch_predictor_loss_scale=0.1):

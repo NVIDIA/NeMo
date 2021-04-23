@@ -32,6 +32,4 @@ fi
 echo 'Installing additional nemo_text_processing conda dependency'
 bash nemo_text_processing/setup.sh
 
-${PIP} install --editable ".[all]"
-
 echo 'All done!'
