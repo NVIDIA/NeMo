@@ -184,7 +184,7 @@ class MTEncDecModel(EncDecNLPModel):
         }
         return {'loss': train_loss, 'log': tensorboard_logs}
 
-    def eval_step(self, batch, batch_idx, mode):
+    def eval_step(self, batch, batch_idx, mode, dataloader_idx):
         for i in range(len(batch)):
             if batch[i].ndim == 3:
                 # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
@@ -201,6 +201,7 @@ class MTEncDecModel(EncDecNLPModel):
         ground_truths = [self.target_processor.detokenize(tgt.split(' ')) for tgt in ground_truths]
         num_non_pad_tokens = np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
         return {
+            'dataloader_idx': dataloader_idx,
             'translations': translations,
             'ground_truths': ground_truths,
             'num_non_pad_tokens': num_non_pad_tokens,
@@ -220,60 +221,72 @@ class MTEncDecModel(EncDecNLPModel):
                     global_step=self.global_step,
                 )
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx, dataloader_idx):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        return self.eval_step(batch, batch_idx, 'val')
+        return self.eval_step(batch, batch_idx, 'val', dataloader_idx)
 
     def eval_epoch_end(self, outputs, mode):
         eval_loss = self.eval_loss.compute()
-        translations = list(itertools.chain(*[x['translations'] for x in outputs]))
-        ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
-        assert len(translations) == len(ground_truths)
+        for dataloader_idx, output in enumerate(outputs):
+            translations = list(itertools.chain(*[x['translations'] for x in output]))
+            ground_truths = list(itertools.chain(*[x['ground_truths'] for x in output]))
+            assert len(translations) == len(ground_truths)
 
-        # Gather translations and ground truths from all workers
-        tr_and_gt = [None for _ in range(self.world_size)]
-        # we also need to drop pairs where ground truth is an empty string
-        dist.all_gather_object(tr_and_gt, [(t, g) for (t, g) in zip(translations, ground_truths) if g.strip() != ''])
-        if self.global_rank == 0:
-            _translations = []
-            _ground_truths = []
-            for rank in range(0, self.world_size):
-                _translations += [t for (t, g) in tr_and_gt[rank]]
-                _ground_truths += [g for (t, g) in tr_and_gt[rank]]
+            # Gather translations and ground truths from all workers
+            tr_and_gt = [None for _ in range(self.world_size)]
+            # we also need to drop pairs where ground truth is an empty string
+            dist.all_gather_object(
+                tr_and_gt, [(t, g) for (t, g) in zip(translations, ground_truths) if g.strip() != '']
+            )
+            if self.global_rank == 0:
+                _translations = []
+                _ground_truths = []
+                for rank in range(0, self.world_size):
+                    _translations += [t for (t, g) in tr_and_gt[rank]]
+                    _ground_truths += [g for (t, g) in tr_and_gt[rank]]
 
-            if self.tgt_language in ['ja']:
-                sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="ja-mecab")
-            elif self.tgt_language in ['zh']:
-                sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="zh")
+                if self.tgt_language in ['ja']:
+                    sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="ja-mecab")
+                elif self.tgt_language in ['zh']:
+                    sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="zh")
+                else:
+                    sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="13a")
+
+                dataset_name = "Validation" if mode == 'val' else "Test"
+                logging.info(
+                    f"Dataset name: {dataset_name}, Dataloader index: {dataloader_idx}, Set size: {len(translations)}"
+                )
+                logging.info(
+                    f"Dataset name: {dataset_name}, Dataloader index: {dataloader_idx}, Sacre BLEU = {sacre_bleu.score}"
+                )
+                logging.info(
+                    f"Dataset name: {dataset_name}, Dataloader index: {dataloader_idx}, Translation Examples:"
+                )
+                logging.info(f"\n\n\n\n{dataset_name} set size: {len(_translations)}")
+                logging.info(f"{dataset_name} Sacre BLEU = {sacre_bleu.score}")
+                logging.info(f"{dataset_name} Translation Examples:")
+                for i in range(0, 3):
+                    ind = random.randint(0, len(translations) - 1)
+                    logging.info("    " + '\u0332'.join(f"Example {i}:"))
+                    logging.info(f"    Prediction:   {translations[ind]}")
+                    logging.info(f"    Ground Truth: {ground_truths[ind]}")
+                # because the reduction op later is average (over word_size)
+                sb_score = sacre_bleu.score * self.world_size
             else:
-                sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="13a")
+                sb_score = 0.0
 
-            dataset_name = "Validation" if mode == 'val' else "Test"
-            logging.info(f"\n\n\n\n{dataset_name} set size: {len(_translations)}")
-            logging.info(f"{dataset_name} Sacre BLEU = {sacre_bleu.score}")
-            logging.info(f"{dataset_name} TRANSLATION EXAMPLES:".upper())
-            for i in range(0, 3):
-                ind = random.randint(0, len(translations) - 1)
-                logging.info("    " + '\u0332'.join(f"EXAMPLE {i}:"))
-                logging.info(f"    Prediction:   {translations[ind]}")
-                logging.info(f"    Ground Truth: {ground_truths[ind]}")
-            # because the reduction op later is average (over word_size)
-            sb_score = sacre_bleu.score * self.world_size
-        else:
-            sb_score = 0.0
-
-        ans = {f"{mode}_loss": eval_loss, f"{mode}_sacreBLEU": sb_score}
-        return ans
+            ans = {f"{mode}_loss": eval_loss, f"{mode}_sacreBLEU": sb_score}
+            self.log(f"dataloader_index_{dataloader_idx}_{ans}", ans, sync_dist=True)
 
     def validation_epoch_end(self, outputs):
         """
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
-        self.log_dict(self.eval_epoch_end(outputs, 'val'), sync_dist=True)
+        self.eval_epoch_end(outputs, 'val')
         self.eval_loss.reset()
 
     def test_epoch_end(self, outputs):
@@ -446,10 +459,12 @@ class MTEncDecModel(EncDecNLPModel):
                 reverse_lang_direction=cfg.get("reverse_lang_direction", False),
             )
             dataset.batchify(self.encoder_tokenizer, self.decoder_tokenizer)
+
             if cfg.shuffle:
                 sampler = pt_data.RandomSampler(dataset)
             else:
                 sampler = pt_data.SequentialSampler(dataset)
+
             dataloader = torch.utils.data.DataLoader(
                 dataset=dataset,
                 batch_size=1,
