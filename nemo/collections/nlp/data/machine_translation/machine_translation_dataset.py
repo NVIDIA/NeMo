@@ -46,6 +46,7 @@ class TranslationDataConfig:
     tokens_in_batch: int = 512
     clean: bool = False
     max_seq_length: int = 512
+    min_seq_length: int = 1
     cache_ids: bool = False
     cache_data_per_node: bool = False
     use_cache: bool = False
