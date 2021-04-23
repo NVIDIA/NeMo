@@ -35,7 +35,7 @@ The full documentation tree is as follows:
 
    models
    datasets
-   asr_language_modelling
+   asr_language_modeling
    results
    configs
    api
