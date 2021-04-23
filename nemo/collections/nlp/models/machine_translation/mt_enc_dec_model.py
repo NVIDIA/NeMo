@@ -27,7 +27,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
 
-from nemo.collections.common.losses import SmoothedCrossEntropyLoss
+from nemo.collections.common.losses import SmoothedCrossEntropyLoss, NLLLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.tokenizers.chinese_tokenizers import ChineseProcessor
@@ -146,6 +146,7 @@ class MTEncDecModel(EncDecNLPModel):
         self.loss_fn = SmoothedCrossEntropyLoss(
             pad_id=self.decoder_tokenizer.pad_id, label_smoothing=cfg.label_smoothing
         )
+        self.eval_loss_fn = NLLLoss(ignore_index=self.decoder_tokenizer.pad_id)
         self.eval_loss = GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True)
 
     def filter_predicted_ids(self, ids):
@@ -189,10 +190,9 @@ class MTEncDecModel(EncDecNLPModel):
                 batch[i] = batch[i].squeeze(dim=0)
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
         log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
-
+        eval_loss = self.eval_loss_fn(log_probs=log_probs, labels=labels)
         # this will run encoder twice -- TODO: potentially fix
         _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
-        eval_loss = self.loss_fn(log_probs=log_probs, labels=labels)
         self.eval_loss(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
         np_tgt = tgt_ids.detach().cpu().numpy()
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
@@ -417,7 +417,6 @@ class MTEncDecModel(EncDecNLPModel):
         mode = self.training
         try:
             self.eval()
-
             src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
             beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
             beam_results = self.filter_predicted_ids(beam_results)
@@ -431,7 +430,6 @@ class MTEncDecModel(EncDecNLPModel):
 
             if self.source_processor is not None:
                 inputs = [self.source_processor.detokenize(item.split(' ')) for item in inputs]
-
         finally:
             self.train(mode=mode)
         return inputs, translations
