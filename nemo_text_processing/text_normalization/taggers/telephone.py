@@ -36,6 +36,7 @@ class TelephoneFst(GraphFst):
         # number part ***-***-****, or (***) ***-****
         # extension  1-9999 optional
 
+        add_separator = pynutil.insert(", ")  # between components
         digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv"))).optimize() | pynini.cross(
             "0", "o"
         )
@@ -62,9 +63,13 @@ class TelephoneFst(GraphFst):
                     + delete_space
                 )
             )
-            + pynini.closure(insert_space + digit, 3, 3)
+            + add_separator
+            + pynini.closure(digit + insert_space, 2, 2)
+            + digit
             + pynutil.delete("-")
-            + pynini.closure(insert_space + digit, 4, 4)
+            + add_separator
+            + pynini.closure(digit + insert_space, 3, 3)
+            + digit
         )
         number_part = pynutil.insert("number_part: \"") + number_part + pynutil.insert("\"")
         extension = (
@@ -74,7 +79,6 @@ class TelephoneFst(GraphFst):
             + pynutil.insert("\"")
         )
         optional_extension = pynini.closure(insert_space + pynutil.delete("-") + extension, 0, 1)
-        # import ipdb; ipdb.set_trace()
 
         graph = optional_country_code + number_part + optional_extension
         final_graph = self.add_tokens(graph)

@@ -35,11 +35,15 @@ class TelephoneFst(GraphFst):
 
     def __init__(self):
         super().__init__(name="telephone", kind="verbalize")
+
+        add_separator = pynutil.insert(",")  # between components
+
         optional_country_code = pynini.closure(
             pynutil.delete("country_code: \"")
             + pynini.closure(NEMO_NOT_QUOTE, 1)
             + pynutil.delete("\"")
             + delete_space
+            + add_separator
             + insert_space,
             0,
             1,
@@ -49,6 +53,7 @@ class TelephoneFst(GraphFst):
 
         optional_extension = pynini.closure(
             delete_space
+            + add_separator
             + insert_space
             + pynutil.delete("extension: \"")
             + pynini.closure(NEMO_NOT_QUOTE, 1)
