@@ -113,4 +113,4 @@ if __name__ == "__main__":
             print(f'{str(c1[i]):10s} | {str(c2[i]):10s} | {str(c3[i]):5s}')
     else:
         print(f'numbers\t{token_count_per_type[args.category]}')
-        print(f'{args.normalizer}\t{token_accuracy[args.category]}')
+        print(f'Normalization\t{token_accuracy[args.category]}')
