@@ -163,7 +163,11 @@ def inverse_normalize(text: str, verbose: bool) -> str:
 
     Returns: written form
     """
-
+    text = text.strip()
+    if not text:
+        if verbose:
+            print(text)
+        return text
     text = pynini.escape(text)
     tagged_lattice = find_tags(text)
     tagged_text = select_tag(tagged_lattice)
