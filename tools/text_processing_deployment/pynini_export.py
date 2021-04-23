@@ -16,7 +16,9 @@
 
 import os
 import sys
+import time
 from argparse import ArgumentParser
+from typing import Dict
 
 import pynini
 from nemo_text_processing.inverse_text_normalization.taggers.tokenize_and_classify import ClassifyFst as ITNClassifyFst
@@ -28,7 +30,7 @@ from pynini.export import export
 # This script exports OpenFst finite state archive files tokenize_and_classify_tmp.far and verbalize_tmp.far from compiled grammars inside NeMo inverse text normalization for  production purposes
 
 
-def _generator_main(file_name: str, graph: pynini.FstLike, rule_name: str):
+def _generator_main(file_name: str, graphs: Dict[str, pynini.FstLike]):
     """
     Exports graph as OpenFst finite state archive (FAR) file with given file name and rule name. 
 
@@ -39,22 +41,23 @@ def _generator_main(file_name: str, graph: pynini.FstLike, rule_name: str):
 
     """
     exporter = export.Exporter(file_name)
-    exporter[rule_name] = graph.optimize()
+    for rule, graph in graphs.items():
+        exporter[rule] = graph.optimize()
     exporter.close()
     print(f'Created {file_name}')
 
 
 def itn_grammars(**kwargs):
     d = {}
-    d['tokenize_and_classify'] = {'classify': ITNClassifyFst().fst}
-    d['verbalize'] = {'verbalize': ITNVerbalizeFst().fst}
+    d['classify'] = {'TOKENIZE_AND_CLASSIFY': ITNClassifyFst().fst}
+    d['verbalize'] = {'ALL': ITNVerbalizeFst().fst, 'REDUP': pynini.accep("REDUP")}
     return d
 
 
 def tn_grammars(**kwargs):
     d = {}
-    d['tokenize_and_classify'] = {'classify': TNClassifyFst(input_case=kwargs["input_case"]).fst}
-    d['verbalize'] = {'verbalize': TNVerbalizeFst().fst}
+    d['classify'] = {'TOKENIZE_AND_CLASSIFY': TNClassifyFst(input_case=kwargs["input_case"]).fst}
+    d['verbalize'] = {'ALL': TNVerbalizeFst().fst, 'REDUP': pynini.accep("REDUP")}
     return d
 
 
@@ -67,10 +70,13 @@ def export_grammars(output_dir, grammars):
     """
 
     for category, graphs in grammars.items():
-        for stage, fst in graphs.items():
-            out_dir = os.path.join(output_dir, stage)
-            os.makedirs(out_dir, exist_ok=True)
-            _generator_main(f"{out_dir}/{category}_tmp.far", fst, category.upper())
+        out_dir = os.path.join(output_dir, category)
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+            time.sleep(1)
+        if category == "classify":
+            category = "tokenize_and_classify"
+        _generator_main(f"{out_dir}/{category}.far", graphs)
 
 
 def parse_args():

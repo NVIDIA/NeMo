@@ -18,7 +18,7 @@ from argparse import ArgumentParser
 from collections import OrderedDict
 from typing import List
 
-from nemo_text_processing.text_normalization.taggers.tokenize_and_classify_final import ClassifyFinalFst
+from nemo_text_processing.text_normalization.taggers.tokenize_and_classify import ClassifyFst
 from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
 from nemo_text_processing.text_normalization.verbalizers.verbalize_final import VerbalizeFinalFst
 from tqdm import tqdm
@@ -34,7 +34,7 @@ except (ModuleNotFoundError, ImportError):
 class Normalizer:
     def __init__(self, input_case: str):
         assert input_case in ["lower_cased", "cased"]
-        self.tagger = ClassifyFinalFst(input_case=input_case)
+        self.tagger = ClassifyFst(input_case=input_case)
         self.verbalizer = VerbalizeFinalFst()
         self.parser = TokenParser()
 
