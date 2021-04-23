@@ -31,7 +31,7 @@
 #
 # After training is done, the binary LM model is stored at the path specified by '--kenlm_model_file'.
 # You may find more info on how to use this script at:
-# https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_language_modelling.html
+# https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_language_modeling.html
 
 import argparse
 import logging

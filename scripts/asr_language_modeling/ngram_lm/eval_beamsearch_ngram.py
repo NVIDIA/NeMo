@@ -30,7 +30,7 @@
 #                                         ...
 #
 # You may find more info on how to use this script at:
-# https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_language_modelling.html
+# https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_language_modeling.html
 
 
 # Please check train_kenlm.py to find out why we need TOKEN_OFFSET for BPE-based models
