@@ -582,7 +582,6 @@ class AudioToMelSpectrogramPreprocessorConfig:
     stft_conv: bool = False
     pad_value: int = 0
     mag_power: float = 2.0
-    use_grads: bool = False
 
 
 @dataclass
