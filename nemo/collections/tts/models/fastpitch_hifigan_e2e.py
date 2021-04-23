@@ -16,26 +16,22 @@ from dataclasses import dataclass
 from itertools import chain
 from typing import Any, Dict, List
 
-import librosa
 import numpy as np
 import torch
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf
-from omegaconf.errors import ConfigAttributeError
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
 from nemo.collections.asr.data.audio_to_text import FastPitchDataset
 from nemo.collections.asr.parts import parsers
-from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, plot_spectrogram_to_numpy
+from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.models.base import TextToWaveform
-from nemo.collections.tts.modules.fastpitch import FastPitchModule, regulate_len
+from nemo.collections.tts.modules.fastpitch import regulate_len
 from nemo.collections.tts.losses.fastpitchloss import BaseFastPitchLoss
 from nemo.collections.tts.losses.fastspeech2loss import L1MelLoss
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
-from nemo.collections.tts.modules.transformer import mask_from_lens
-from nemo.core.classes import Loss
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     LengthsType,
@@ -46,7 +42,7 @@ from nemo.core.neural_types.elements import (
     TokenIndex,
     TokenLogDurationType,
 )
-from nemo.core.neural_types.neural_type import NeuralType
+from nemo.core.neural_types.neural_type import NeuralType  # TODO: Add neuraltypes for this model
 from nemo.core.optim.lr_scheduler import NoamAnnealing
 from nemo.utils import logging
 
@@ -243,7 +239,6 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
-        mels, mel_lens = self.preprocessor(audio, audio_lens)
 
         # train discriminator
         if optimizer_idx == 0:

@@ -18,7 +18,6 @@ from typing import Any, Dict, List
 import torch
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf
-from omegaconf.errors import ConfigAttributeError
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import FastPitchDataset
