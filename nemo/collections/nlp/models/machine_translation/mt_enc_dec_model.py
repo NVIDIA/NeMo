@@ -27,7 +27,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
 
-from nemo.collections.common.losses import SmoothedCrossEntropyLoss, NLLLoss
+from nemo.collections.common.losses import NLLLoss, SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.tokenizers.chinese_tokenizers import ChineseProcessor
