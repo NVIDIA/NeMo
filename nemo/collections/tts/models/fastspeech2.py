@@ -82,9 +82,9 @@ class FastSpeech2Model(SpectrogramGenerator):
 
     @typecheck(
         input_types={
-            "spec_len": NeuralType(('B'), LengthsType(), optional=True),
             "text": NeuralType(('B', 'T'), TokenIndex()),
             "text_length": NeuralType(('B'), LengthsType()),
+            "spec_len": NeuralType(('B'), LengthsType(), optional=True),
             "durations": NeuralType(('B', 'T'), TokenDurationType(), optional=True),
             "pitch": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
             "energies": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
@@ -97,7 +97,7 @@ class FastSpeech2Model(SpectrogramGenerator):
             "encoded_text_mask": NeuralType(('B', 'T', 'D'), MaskType()),
         },
     )
-    def forward(self, *, spec_len, text, text_length, durations=None, pitch=None, energies=None):
+    def forward(self, *, text, text_length, spec_len=None, durations=None, pitch=None, energies=None):
         encoded_text, encoded_text_mask = self.encoder(text=text, text_length=text_length)
         aligned_text, log_dur_preds, pitch_preds, energy_preds, spec_len = self.variance_adapter(
             x=encoded_text,
@@ -114,7 +114,7 @@ class FastSpeech2Model(SpectrogramGenerator):
         f, fl, t, tl, durations, pitch, energies = batch
         spec, spec_len = self.audio_to_melspec_preprocessor(f, fl)
         mel, log_dur_preds, pitch_preds, energy_preds, encoded_text_mask = self(
-            spec_len=spec_len, text=t, text_length=tl, durations=durations, pitch=pitch, energies=energies
+            text=t, text_length=tl, spec_len=spec_len, durations=durations, pitch=pitch, energies=energies
         )
         total_loss = self.loss(spec_pred=mel, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
         self.log(name="train_mel_loss", value=total_loss.clone().detach())
@@ -166,7 +166,7 @@ class FastSpeech2Model(SpectrogramGenerator):
     def validation_step(self, batch, batch_idx):
         f, fl, t, tl, _, _, _ = batch
         spec, spec_len = self.audio_to_melspec_preprocessor(f, fl)
-        mel, log_dur_preds, _, _, _ = self(spec_len=spec_len, text=t, text_length=tl)
+        mel, log_dur_preds, _, _, _ = self(text=t, text_length=tl, spec_len=spec_len)
         loss = self.loss(spec_pred=mel, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
         return {
             "val_loss": loss,
@@ -198,20 +198,35 @@ class FastSpeech2Model(SpectrogramGenerator):
 
         self.log_train_images = True
 
-    def parse(self, str_input: str) -> torch.tensor:
-        if str_input[-1] not in [".", "!", "?"]:
-            str_input = str_input + "."
+    def parse(self, str_input: str, additional_word2phones=None) -> torch.tensor:
+        """
+        Parses text input and converts them to phoneme indices.
+
+        str_input (str): The input text to be converted.
+        additional_word2phones (dict): Optional dictionary mapping words to phonemes for updating the model's
+            word2phones.  This will not overwrite the existing dictionary, just update it with OOV or new mappings.
+            Defaults to None, which will keep the existing mapping.
+        """
+        # Update model's word2phones if applicable
+        if additional_word2phones is not None:
+            self.word2phones.update(additional_word2phones)
 
         # Convert text -> normalized text -> list of phones per word -> indices
+        if str_input[-1] not in [".", "!", "?"]:
+            str_input = str_input + "."
         norm_text = re.findall("""[\w']+|[.,!?;"]""", self.parser._normalize(str_input))
+
         try:
             phones = [self.word2phones[t] for t in norm_text]
         except KeyError as error:
             logging.error(
-                f"ERROR: The following word in the input is not in the dictionary and could not be converted"
-                f" to phonemes: {error}"
+                f"ERROR: The following word in the input is not in the model's dictionary and could not be converted"
+                f" to phonemes: ({error}).\n"
+                f"You can pass in an `additional_word2phones` dictionary with a conversion for"
+                f" this word, e.g. {{'{error}': \['phone1', 'phone2', ...\]}} to update the model's mapping."
             )
             raise
+
         tokens = []
         for phone_list in phones:
             inds = [self.phone2idx[p] for p in phone_list]
@@ -224,7 +239,7 @@ class FastSpeech2Model(SpectrogramGenerator):
     def generate_spectrogram(self, tokens: torch.Tensor) -> torch.Tensor:
         self.eval()
         token_len = torch.tensor([tokens.shape[1]]).to(self.device)
-        spect, *_ = self(spec_len=None, text=tokens, text_length=token_len, durations=None, pitch=None, energies=None)
+        spect, *_ = self(text=tokens, text_length=token_len)
 
         return spect.transpose(1, 2)
 
