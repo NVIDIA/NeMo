@@ -70,30 +70,28 @@ class _FeatureSeqSpeakerLabelDataset(Dataset):
         if self.is_speaker_emb:
             output_types.update(
                 {
-                    'embs': NeuralType(('B', 'D'), AcousticEncodedRepresentation()),
+                    'embs': NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
                     'embs_length': NeuralType(tuple('B'), LengthsType()),
-                    'label': NeuralType(tuple('B, T'), LabelsType()),
+                    'label': NeuralType(('B', 'T'), LabelsType()),
                     'label_length': NeuralType(tuple('B'), LengthsType()),
                 }
             )
         else:
             output_types.update(
-                {
-                    'label': NeuralType(tuple('B', 'T'), LabelsType()),
-                    'label_length': NeuralType(tuple('B'), LengthsType()),
-                }
+                {'label': NeuralType(('B', 'T'), LabelsType()), 'label_length': NeuralType(tuple('B'), LengthsType()),}
             )
 
         return output_types
 
     def __init__(
-        self, *, manifest_filepath: str, labels: List[str], feature_loader,
+        self, *, manifest_filepath: str, labels: List[str], feature_loader, is_speaker_emb: bool = False,
     ):
         super().__init__()
         self.collection = collections.ASRFeatSeqLabel(manifests_files=manifest_filepath.split(','),)
 
         self.feature_loader = feature_loader
         self.labels = labels if labels else self.collection.uniq_labels
+        self.is_speaker_emb = is_speaker_emb
 
         self.label2id, self.id2label = {}, {}
         for label_id, label in enumerate(self.labels):
@@ -136,4 +134,4 @@ class FeatureToSeqSpeakerLabelDataset(_FeatureSeqSpeakerLabelDataset):
     """
 
     def _collate_fn(self, batch):
-        return _speech_collate_fn(batch, pad_id=0)
+        return _feature_collate_fn(batch, pad_id=0)
