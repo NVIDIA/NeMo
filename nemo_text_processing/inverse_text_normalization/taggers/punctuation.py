@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.graph_utils import GraphFst, convert_space
+from nemo_text_processing.text_normalization.graph_utils import GraphFst
 
 try:
     import pynini
@@ -26,7 +26,7 @@ except (ModuleNotFoundError, ImportError):
 class PunctuationFst(GraphFst):
     """
     Finite state transducer for classifying punctuation
-        e.g. a, -> tokens { name: "a" } tokens { name: "," pause_length: "PAUSE_MEDIUM phrase_break: true type: PUNCT" }
+        e.g. a, -> tokens { name: "a" } tokens { name: "," }
     """
 
     def __init__(self):
