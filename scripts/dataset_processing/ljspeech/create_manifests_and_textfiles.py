@@ -19,8 +19,8 @@ The manifest will be used for training, and the .txt files are for the MFA libra
 import argparse
 import json
 import os
+
 import sox
-import sys
 import wget
 
 from nemo.collections.asr.parts import parsers

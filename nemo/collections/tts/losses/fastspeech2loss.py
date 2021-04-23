@@ -49,7 +49,7 @@ class L1MelLoss(Loss):
     @property
     def input_types(self):
         return {
-            "spec_pred": NeuralType(('B', 'T', 'C'), MelSpectrogramType()), # Transposed from target!
+            "spec_pred": NeuralType(('B', 'T', 'C'), MelSpectrogramType()),  # Transposed from target!
             "spec_target": NeuralType(('B', 'C', 'T'), MelSpectrogramType()),
             "spec_target_len": NeuralType(('B'), LengthsType()),
             "pad_value": NeuralType(),
@@ -62,7 +62,9 @@ class L1MelLoss(Loss):
         }
 
     @typecheck()
-    def forward(self, *, spec_pred, spec_target, spec_target_len, pad_value, transpose=True):
+    def forward(
+        self, *, spec_pred, spec_target, spec_target_len, pad_value, transpose=True
+    ):  # TODO: deal with transpose
         if transpose:
             spec_pred = spec_pred.transpose(1, 2)
         spec_target.requires_grad = False
@@ -93,7 +95,7 @@ class L2MelLoss(Loss):
     @property
     def input_types(self):
         return {
-            "spec_pred": NeuralType(('B', 'T', 'C'), MelSpectrogramType()), # Transposed from target!
+            "spec_pred": NeuralType(('B', 'T', 'C'), MelSpectrogramType()),  # Transposed from target!
             "spec_target": NeuralType(('B', 'C', 'T'), MelSpectrogramType()),
             "spec_target_len": NeuralType(('B'), LengthsType()),
             "pad_value": NeuralType(),

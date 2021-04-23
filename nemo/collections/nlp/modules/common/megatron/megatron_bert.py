@@ -27,7 +27,7 @@ from megatron.mpu import (
     set_pipeline_model_parallel_rank,
     set_pipeline_model_parallel_world_size,
 )
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
@@ -68,6 +68,9 @@ class MegatronBertEncoder(BertModule):
         if not os.path.exists(vocab_file):
             raise ValueError(f'Vocab file not found at {vocab_file}')
 
+        # convert config to dictionary
+        if isinstance(config, DictConfig):
+            config = OmegaConf.to_container(config)
         config["vocab_file"] = vocab_file
         config['tokenizer_type'] = 'BertWordPieceLowerCase'
         config['lazy_mpu_init'] = True
@@ -150,7 +153,9 @@ class MegatronBertEncoder(BertModule):
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):
-        self.complete_lazy_init()
+        app_state = AppState()
+        if app_state.model_parallel_size is None:
+            self.complete_lazy_init()
 
         extended_attention_mask = bert_extended_attention_mask(attention_mask)
         position_ids = bert_position_ids(input_ids)
