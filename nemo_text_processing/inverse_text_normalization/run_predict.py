@@ -35,7 +35,7 @@ def load_file(file_path: str) -> List[str]:
     res = []
     with open(file_path, 'r') as fp:
         for line in fp:
-            if line:
+            if line and line != '\n':
                 res.append(line.strip())
     return res
 
