@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from typing import Optional
 
 import torch
@@ -91,11 +90,14 @@ class PositionwiseConvFF(nn.Module):
         self.d_inner = d_inner
         self.dropout = dropout
 
+        if type(kernel_size) is not tuple:
+            kernel_size = (kernel_size, kernel_size)
+
         self.CoreNet = nn.Sequential(
-            nn.Conv1d(d_model, d_inner, kernel_size, 1, (kernel_size // 2)),
+            nn.Conv1d(d_model, d_inner, kernel_size[0], 1, (kernel_size[0] // 2)),
             nn.ReLU(),
             # nn.Dropout(dropout),  # worse convergence
-            nn.Conv1d(d_inner, d_model, kernel_size, 1, (kernel_size // 2)),
+            nn.Conv1d(d_inner, d_model, kernel_size[1], 1, (kernel_size[1] // 2)),
             nn.Dropout(dropout),
         )
         self.layer_norm = nn.LayerNorm(d_model)

@@ -182,12 +182,13 @@ class Generator(NeuralModule):
         upsample_initial_channel,
         resblock_kernel_sizes,
         resblock_dilation_sizes,
-        input_size=80,
+        initial_input_size=80,
+        apply_weight_init_conv_pre=False,
     ):
         super().__init__()
         self.num_kernels = len(resblock_kernel_sizes)
         self.num_upsamples = len(upsample_rates)
-        self.conv_pre = weight_norm(Conv1d(input_size, upsample_initial_channel, 7, 1, padding=3))
+        self.conv_pre = weight_norm(Conv1d(initial_input_size, upsample_initial_channel, 7, 1, padding=3))
         resblock = ResBlock1 if resblock == 1 else ResBlock2
 
         self.ups = nn.ModuleList()
@@ -213,6 +214,8 @@ class Generator(NeuralModule):
         self.conv_post = weight_norm(Conv1d(ch, 1, 7, 1, padding=3))
         self.ups.apply(init_weights)
         self.conv_post.apply(init_weights)
+        if apply_weight_init_conv_pre:
+            self.conv_pre.apply(init_weights)
 
     @property
     def input_types(self):
