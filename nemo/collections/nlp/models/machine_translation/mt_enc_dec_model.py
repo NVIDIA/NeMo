@@ -235,7 +235,7 @@ class MTEncDecModel(EncDecNLPModel):
         # Gather translations and ground truths from all workers
         tr_and_gt = [None for _ in range(self.world_size)]
         dist.all_gather_object(tr_and_gt, [translations, ground_truths])
-        if self.local_rank == 0:
+        if self.global_rank == 0:
             _translations = []
             _ground_truths = []
             for rank in range(0, self.world_size):
