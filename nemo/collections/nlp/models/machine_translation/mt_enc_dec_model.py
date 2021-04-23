@@ -22,6 +22,7 @@ from typing import Dict, List, Optional
 import numpy as np
 import torch
 import torch.utils.data as pt_data
+import torch.distributed as dist
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
@@ -229,26 +230,40 @@ class MTEncDecModel(EncDecNLPModel):
         eval_loss = self.eval_loss.compute()
         translations = list(itertools.chain(*[x['translations'] for x in outputs]))
         ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
-
         assert len(translations) == len(ground_truths)
-        if self.tgt_language in ['ja']:
-            sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="ja-mecab")
-        elif self.tgt_language in ['zh']:
-            sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="zh")
+
+        # Gather translations and ground truths from all workers
+        tr_and_gt = [None for _ in range(self.world_size)]
+        dist.all_gather_object(tr_and_gt, [translations, ground_truths])
+        if self.local_rank == 0:
+            _translations = []
+            _ground_truths = []
+            for rank in range(0, self.world_size):
+                _translations += tr_and_gt[rank][0]
+                _ground_truths += tr_and_gt[rank][1]
+
+            if self.tgt_language in ['ja']:
+                sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="ja-mecab")
+            elif self.tgt_language in ['zh']:
+                sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="zh")
+            else:
+                sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="13a")
+
+            dataset_name = "Validation" if mode == 'val' else "Test"
+            logging.info(f"\n\n\n\n{dataset_name} set size: {len(_translations)}")
+            logging.info(f"{dataset_name} Sacre BLEU = {sacre_bleu.score}")
+            logging.info(f"{dataset_name} TRANSLATION EXAMPLES:".upper())
+            for i in range(0, 3):
+                ind = random.randint(0, len(translations) - 1)
+                logging.info("    " + '\u0332'.join(f"EXAMPLE {i}:"))
+                logging.info(f"    Prediction:   {translations[ind]}")
+                logging.info(f"    Ground Truth: {ground_truths[ind]}")
+            # because the reduction op later is average (over word_size)
+            sb_score = sacre_bleu.score * self.world_size
         else:
-            sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="13a")
+            sb_score = 0.0
 
-        dataset_name = "Validation" if mode == 'val' else "Test"
-        logging.info(f"\n\n\n\n{dataset_name} set size: {len(translations)}")
-        logging.info(f"{dataset_name} Sacre BLEU = {sacre_bleu.score}")
-        logging.info(f"{dataset_name} TRANSLATION EXAMPLES:".upper())
-        for i in range(0, 3):
-            ind = random.randint(0, len(translations) - 1)
-            logging.info("    " + '\u0332'.join(f"EXAMPLE {i}:"))
-            logging.info(f"    Prediction:   {translations[ind]}")
-            logging.info(f"    Ground Truth: {ground_truths[ind]}")
-
-        ans = {f"{mode}_loss": eval_loss, f"{mode}_sacreBLEU": sacre_bleu.score}
+        ans = {f"{mode}_loss": eval_loss, f"{mode}_sacreBLEU": sb_score}
         return ans
 
     def validation_epoch_end(self, outputs):
