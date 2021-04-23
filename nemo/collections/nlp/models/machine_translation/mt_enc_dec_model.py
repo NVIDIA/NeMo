@@ -21,8 +21,8 @@ from typing import Dict, List, Optional
 
 import numpy as np
 import torch
-import torch.utils.data as pt_data
 import torch.distributed as dist
+import torch.utils.data as pt_data
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
