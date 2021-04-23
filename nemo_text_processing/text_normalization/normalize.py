@@ -67,7 +67,11 @@ class Normalizer:
 
         Returns: written form
         """
-
+        text = text.strip()
+        if not text:
+            if verbose:
+                print(text)
+            return text
         text = pynini.escape(text)
         tagged_lattice = self.find_tags(text)
         tagged_text = self.select_tag(tagged_lattice)
