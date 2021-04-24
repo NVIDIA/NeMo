@@ -15,7 +15,7 @@
 import copy
 from typing import Dict, List, Union
 
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.core.classes.mixins import TeacherStudentMixin, TeacherStudentType
@@ -28,22 +28,22 @@ class TeacherStudentModelPT(ModelPT):
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
 
-        # Extract teacher config
-        if 'teacher' not in cfg:
+        # Extract distillation config
+        if 'distillation' not in cfg:
             raise ValueError(
-                "Provided config must have a `teacher` subconfig, with at least one member,"
+                "Provided config must have a `distillation` subconfig, with at least one member,"
                 "`model_path` or `model_name`."
             )
 
         # Perform checks teacher model file
-        if 'model_path' not in cfg.teacher and 'model_name' not in cfg.teacher:
+        if 'model_path' not in cfg.distillation and 'model_name' not in cfg.distillation:
             raise ValueError(
-                "Provided teacher config must have a string path to a .nemo file "
+                "Provided distillation config must have a string path to a .nemo file "
                 "which represents the model (via `model_path`) or a name of a pretrained model"
                 "which will be used as the teacher (via `model_name`)."
             )
 
-        if 'model_path' in cfg.teacher and 'model_name' in cfg.teacher:
+        if 'model_path' in cfg.distillation and 'model_name' in cfg.distillation:
             raise ValueError("Only one of `model_path` or `model_name` should be passed to the teacher config !")
 
         # Extract teacher config completely from student config
@@ -189,7 +189,7 @@ class TeacherStudentModelPT(ModelPT):
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
-        self.teacher.eval()
+        self.teacher.freeze()
         self.teacher.reset_distillation_registry()
         self.student.reset_distillation_registry()
 
