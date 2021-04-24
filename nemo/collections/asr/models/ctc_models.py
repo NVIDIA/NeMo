@@ -33,7 +33,7 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
 from nemo.utils import logging
 
-__all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
+__all__ = ['EncDecCTCModel']
 
 
 class EncDecCTCModel(ASRModel, ExportableEncDecModel):
@@ -179,7 +179,11 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
 
     @torch.no_grad()
     def transcribe(
-        self, paths2audio_files: List[str], batch_size: int = 4, logprobs=False, return_hypotheses: bool = False
+        self,
+        paths2audio_files: List[str],
+        batch_size: int = 4,
+        logprobs: bool = False,
+        return_hypotheses: bool = False,
     ) -> List[str]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
@@ -241,7 +245,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
                     if logprobs:
                         # dump log probs per file
                         for idx in range(logits.shape[0]):
-                            hypotheses.append(logits[idx][: logits_len[idx]])
+                            lg = logits[idx][: logits_len[idx]]
+                            hypotheses.append(lg.cpu().numpy())
                     else:
                         current_hypotheses = self._wer.ctc_decoder_predictions_tensor(
                             greedy_predictions, predictions_len=logits_len, return_hypotheses=return_hypotheses,

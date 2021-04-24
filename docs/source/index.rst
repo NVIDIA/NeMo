@@ -8,6 +8,7 @@ NVIDIA NeMo User Guide
 
    starthere/intro
    starthere/tutorials
+   starthere/best-practices
 
 
 .. toctree::
@@ -48,6 +49,13 @@ NVIDIA NeMo User Guide
    :name: Common
 
    common/intro
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Text Processing
+   :name: Text Processing
+
+   nemo_text_processing/intro
 
 .. toctree::
    :maxdepth: 2

@@ -40,7 +40,11 @@ def numba_cuda_is_supported(min_version: str) -> bool:
 
         # this method first arrived in 0.53, and that's the minimum version required
         if hasattr(cuda, 'is_supported_version'):
-            return cuda.is_supported_version()
+            try:
+                return cuda.is_available() and cuda.is_supported_version()
+            except OSError:
+                # dlopen(libcudart.dylib) might fail if CUDA was never installed in the first place.
+                return False
         else:
             # assume cuda is supported, but it may fail due to CUDA incompatibility
             return False

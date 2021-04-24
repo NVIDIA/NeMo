@@ -231,6 +231,7 @@ class WaveGlowModel(GlowVocoder, Exportable):
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_waveglow_88m/versions/1.0.0rc1/files/tts_waveglow_88m.nemo",
             description="This model is trained on LJSpeech sampled at 22050Hz, and has been tested on generating female English voices with an American accent and Mandarin voices.",
             class_=cls,
+            aliases=["WaveGlow-22050Hz"],
         )
         list_of_models.append(model)
         return list_of_models

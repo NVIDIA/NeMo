@@ -284,8 +284,8 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
         )
     if trainer.num_nodes > 1 and not check_slurm(trainer):
         logging.error(
-            "You are running multi-node without Slurm. Please note that this is not tested in NeMo and could result in "
-            "errors."
+            "You are running multi-node training without SLURM handling the processes."
+            " Please note that this is not tested in NeMo and could result in errors."
         )
     if trainer.num_gpus > 1 and not trainer.use_ddp:
         logging.error(
@@ -473,7 +473,7 @@ def get_log_dir(
                 logging.warning(
                     "No version folders would be created under the log folder as 'resume_if_exists' is enabled."
                 )
-                version = ""
+                version = None
             elif is_global_rank_zero():
                 if use_datetime_version:
                     version = time.strftime('%Y-%m-%d_%H-%M-%S')
@@ -625,6 +625,11 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     def on_train_end(self, trainer, pl_module):
         if trainer.fast_dev_run:
             return None
+        app_state = AppState()
+        if app_state.model_parallel_size is not None:
+            return None
+
+        # TODO: make this work for model parallel, need to call on data parallel rank 0 and update best_model_path
         # Load the best model and then re-save it
         if self.save_best_model:
             trainer.checkpoint_connector.restore(self.best_model_path, on_gpu=trainer.on_gpu)
@@ -695,6 +700,6 @@ def configure_checkpointing(
 
 def check_slurm(trainer):
     try:
-        return trainer.is_slurm_managing_tasks
+        return trainer.accelerator_connector.is_slurm_managing_tasks
     except AttributeError:
         return False
