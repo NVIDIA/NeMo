@@ -148,7 +148,7 @@ If you chose to work with main branch, we recommend using NVIDIA's PyTorch conta
 Examples
 --------
 
-Many example can be found under `"Examples" folder. <https://github.com/NVIDIA/NeMo/tree/main/examples>`_
+Many example can be found under `"Examples" <https://github.com/NVIDIA/NeMo/tree/main/examples>`_ folder.
 
 
 Contributing
