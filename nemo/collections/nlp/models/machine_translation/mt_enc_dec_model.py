@@ -295,6 +295,8 @@ class MTEncDecModel(EncDecNLPModel):
             self.log(f"{mode}_loss_dl_index_{dataloader_idx}", eval_loss, sync_dist=True)
             self.log(f"{mode}_sacreBLEU_dl_index_{dataloader_idx}", sb_score, sync_dist=True)
 
+            getattr(self, f'eval_loss_{dataloader_idx}').reset()
+
         self.log(f'{mode}_sacreBLEU', sum(sb_scores) / len(sb_scores), sync_dist=True)
         self.log(f'{mode}_loss', sum(eval_losses) / len(eval_losses), sync_dist=True)
 
@@ -304,7 +306,6 @@ class MTEncDecModel(EncDecNLPModel):
         :param outputs: list of individual outputs of each validation step.
         """
         self.eval_epoch_end(outputs, 'val')
-        self.eval_loss.reset()
 
     def test_epoch_end(self, outputs):
         return self.eval_epoch_end(outputs, 'test')
