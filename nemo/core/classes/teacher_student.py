@@ -79,6 +79,8 @@ class TeacherStudentModelPT(ModelPT):
 
         self.student = target_cls(cfg=cfg, trainer=self._trainer)  # type: ModelPT
 
+        # Test that the two classes implement the `TeacherStudentMixin`
+        # If they do implement it, initialize their internal parameters.
         if not isinstance(self.teacher, TeacherStudentMixin):
             raise TypeError(
                 f"Teacher model ({self.teacher.__class__.__name__}) must inherit {TeacherStudentMixin.__name__}"
