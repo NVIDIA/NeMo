@@ -26,15 +26,16 @@ except (ModuleNotFoundError, ImportError):
 
 class TelephoneFst(GraphFst):
     """
-    Finite state transducer for classifying telephone
+    Finite state transducer for classifying telephone, which includes country code, number part and extension 
+    country code optional: +*** 
+    number part: ***-***-****, or (***) ***-****
+    extension optional: 1-9999
+    E.g 
+    +1 123-123-5678-1 -> telephone { country_code: "one" number_part: "one two three, one two three, five six seven eight" extension: "one" }
     """
 
     def __init__(self):
         super().__init__(name="telephone", kind="classify")
-        # country code (excluding '+'), eg. 44 for UK.
-        # +*** -  country code, optional
-        # number part ***-***-****, or (***) ***-****
-        # extension  1-9999 optional
 
         add_separator = pynutil.insert(", ")  # between components
         digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv"))).optimize() | pynini.cross(

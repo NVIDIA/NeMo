@@ -34,18 +34,18 @@ except (ModuleNotFoundError, ImportError):
 
 class MeasureFst(GraphFst):
     """
-    Finite state transducer for classifying measure
-        e.g. minus twelve kilograms -> measure { negative: "true" cardinal { integer: "12" } units: "kg" }
+    Finite state transducer for classifying measure, suppletive aware, e.g. 
+        -12kg -> measure { negative: "true" cardinal { integer: "twelve" } units: "kilograms" }
+        1kg -> measure { cardinal { integer: "one" } units: "kilogram" }
+        .5kg -> measure { decimal { fractional_part: "five" } units: "kilograms" }
 
     Args:
-        cardinal: Cardinal GraphFST
-        decimal: Decimal GraphFST
+        cardinal: CardinalFst
+        decimal: DecimalFst
     """
 
     def __init__(self, cardinal: GraphFst, decimal: GraphFst):
         super().__init__(name="measure", kind="classify")
-        # decimal, fraction, cardinal, units, style(depr)
-
         cardinal_graph = cardinal.graph
 
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))

@@ -128,7 +128,7 @@ def select_tag(lattice: 'pynini.FstLike') -> str:
 
 def find_verbalizer(tagged_text: str) -> 'pynini.FstLike':
     """
-    Given tagged text, e.g. token {name: ""} token {money {fractional: ""}}, creates verbalization lattice
+    Given tagged text creates verbalization lattice
     This is context-independent.
 
     Args:
@@ -171,6 +171,8 @@ def inverse_normalize(text: str, verbose: bool) -> str:
     text = pynini.escape(text)
     tagged_lattice = find_tags(text)
     tagged_text = select_tag(tagged_lattice)
+    if verbose:
+        print(tagged_text)
     parser(tagged_text)
     tokens = parser.parse()
     tags_reordered = generate_permutations(tokens)
@@ -180,8 +182,6 @@ def inverse_normalize(text: str, verbose: bool) -> str:
         if verbalizer_lattice.num_states() == 0:
             continue
         output = select_verbalizer(verbalizer_lattice)
-        if verbose:
-            print(output)
         return output
     raise ValueError()
 

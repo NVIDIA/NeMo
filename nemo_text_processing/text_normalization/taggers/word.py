@@ -27,12 +27,9 @@ class WordFst(GraphFst):
     """
     Finite state transducer for classifying word. Considers sentence boundary exceptions.
         e.g. sleep -> tokens { name: "sleep" }
-
-    Args:
-        input_case: accepting either "lower_cased" or "cased" input.
     """
 
-    def __init__(self, input_case: str):
+    def __init__(self):
         super().__init__(name="word", kind="classify")
 
         word = pynutil.insert("name: \"") + pynini.closure(NEMO_NOT_SPACE, 1) + pynutil.insert("\"")

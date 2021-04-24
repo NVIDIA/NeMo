@@ -35,18 +35,17 @@ except (ModuleNotFoundError, ImportError):
 
 class MoneyFst(GraphFst):
     """
-    Finite state transducer for classifying money
-        e.g. twelve dollars and five cents -> money { integer_part: "12" fractional_part: 05 currency: "$" }
+    Finite state transducer for classifying money, suppletive aware, e.g. 
+        $12.05 -> money { currency: "dollars" integer_part: "twelve" fractional_part: "o five" }
+        $1 -> money { currency: "dollar" integer_part: "one" }
 
     Args:
-        cardinal: Cardinal GraphFST
-        decimal: Decimal GraphFST
+        cardinal: CardinalFst
+        decimal: DecimalFst
     """
 
     def __init__(self, cardinal: GraphFst, decimal: GraphFst):
         super().__init__(name="money", kind="classify")
-        # quantity, integer_part, fractional_part, currency, style(depr)
-
         cardinal_graph = cardinal.graph
         graph_decimal_final = decimal.final_graph_wo_negative
 

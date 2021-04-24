@@ -32,8 +32,8 @@ except (ModuleNotFoundError, ImportError):
 
 class MoneyFst(GraphFst):
     """
-    Finite state transducer for verbalizing money
-        e.g. tokens { money { integer_part: "12" fractional_part: 05 currency: "$" } } -> $12.05
+    Finite state transducer for verbalizing money, e.g.
+        money { integer_part: "twelve" fractional_part: "o five" currency: "dollars" } -> twelve o five dollars
     """
 
     def __init__(self):

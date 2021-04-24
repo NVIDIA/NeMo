@@ -28,7 +28,7 @@ except (ModuleNotFoundError, ImportError):
 class WhiteListFst(GraphFst):
     """
     Finite state transducer for verbalizing whitelist
-        e.g. tokens { tokens { name: "mrs." } } -> mrs.
+        e.g. tokens { name: "misses" } } -> misses
     """
 
     def __init__(self):

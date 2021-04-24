@@ -21,7 +21,6 @@ from nemo_text_processing.text_normalization.graph_utils import (
     NEMO_SPACE,
     GraphFst,
     delete_extra_space,
-    delete_space,
 )
 
 try:
@@ -29,22 +28,20 @@ try:
     from pynini.lib import pynutil
 
     PYNINI_AVAILABLE = True
-    delete_space = pynutil.delete(" ")
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
 class CardinalFst(GraphFst):
     """
-    Finite state transducer for classifying cardinals
-        e.g. minus twenty three -> cardinal { integer: "23" negative: "-" } }
-    Numbers below thirteen are not converted. 
+    Finite state transducer for classifying cardinals, e.g. 
+        -23 -> cardinal { negative: "true"  integer: "twenty three" } }
     """
 
     def __init__(self):
         super().__init__(name="cardinal", kind="classify")
-        # integer, negative
 
+        delete_space = pynutil.delete(" ")
         graph_zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
         graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
         graph_ties = pynini.string_file(get_abs_path("data/numbers/ties.tsv"))

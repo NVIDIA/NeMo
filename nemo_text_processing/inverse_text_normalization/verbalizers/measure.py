@@ -21,25 +21,23 @@ try:
     import pynini
     from pynini.lib import pynutil
 
-    decimal = DecimalFst()
-    cardinal = CardinalFst()
-
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
-    # Add placeholders
-    decimal = None
-    cardinal = None
 
     PYNINI_AVAILABLE = False
 
 
 class MeasureFst(GraphFst):
     """
-    Finite state transducer for verbalizing measure, 
-        e.g. tokens { measure { negative: "true" cardinal { integer: "12" } units: "kg" } } -> -12 kg
+    Finite state transducer for verbalizing measure, e.g.
+        measure { negative: "true" cardinal { integer: "12" } units: "kg" } -> -12 kg
+
+    Args:
+        decimal: DecimalFst
+        cardinal: CardinalFst
     """
 
-    def __init__(self):
+    def __init__(self, decimal: GraphFst, cardinal: GraphFst):
         super().__init__(name="measure", kind="verbalize")
         optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "-"), 0, 1)
         unit = (

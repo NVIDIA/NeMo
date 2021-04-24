@@ -19,7 +19,7 @@ from nemo_text_processing.inverse_text_normalization.inverse_normalize import IN
 
 
 '''
-Runs denormalization prediction on text data
+Runs inverse text normalization on text data
 '''
 
 

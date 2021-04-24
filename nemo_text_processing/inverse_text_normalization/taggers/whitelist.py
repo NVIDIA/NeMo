@@ -26,9 +26,9 @@ except (ModuleNotFoundError, ImportError):
 
 class WhiteListFst(GraphFst):
     """
-    Finite state transducer for classifying whitelist
+    Finite state transducer for classifying whitelisted tokens
         e.g. misses -> tokens { name: "mrs." }
-    This class has highest priority among all classifiers and loads lookup table from "data/whitelist.tsv"
+    This class has highest priority among all classifier grammars. Whitelisted tokens are defined and loaded from "data/whitelist.tsv".
     """
 
     def __init__(self):

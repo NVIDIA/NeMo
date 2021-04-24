@@ -36,7 +36,9 @@ except (ModuleNotFoundError, ImportError):
 
 class ClassifyFst(GraphFst):
     """
-    Composes other classfier grammars. This class will be compiled and exported to thrax FAR. 
+    Final class that composes all other classification grammars. This class can process an entire sentence including punctuation.
+    For deployment, this grammar will be compiled and exported to OpenFst Finate State Archiv (FAR) File. 
+    More details to deployment at NeMo/tools/text_processing_deployment.
     
     Args:
         input_case: accepting either "lower_cased" or "cased" input.
@@ -56,7 +58,7 @@ class ClassifyFst(GraphFst):
 
         measure = MeasureFst(cardinal_graph_fst, decimal_graph_fst).fst
         date = DateFst(cardinal_graph_fst).fst
-        word = WordFst(input_case=input_case).fst
+        word = WordFst().fst
         time = TimeFst().fst
         telephone = TelephoneFst().fst
         money = MoneyFst(cardinal_graph_fst, decimal_graph_fst).fst

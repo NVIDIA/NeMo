@@ -43,6 +43,12 @@ except (ModuleNotFoundError, ImportError):
 
 
 def _get_ties_graph():
+    """
+    Returns two digit transducer, e.g. 
+    03 -> o three
+    12 -> thirteen
+    20 -> twenty
+    """
     graph = (
         graph_teen
         | ties_graph + pynutil.delete("0")
@@ -54,9 +60,9 @@ def _get_ties_graph():
 
 def _get_year_graph():
     """
-    1290-> twelve nineteen, only from 1000 - 2999
-    2000 - 2009 will be verbalized as two thousand *
-
+    Transducer for year, only from 1000 - 2999 e.g.
+    1290-> twelve nineteen
+    2000 - 2009 will be verbalized as two thousand..
     """
 
     graph_ties = _get_ties_graph()
@@ -79,12 +85,17 @@ def _get_year_graph():
 
 class DateFst(GraphFst):
     """
-    Finite state transducer for classifying date, 
-        e.g. january fifth twenty twelve -> date { month: "january" day: "5" year: "2012" preserve_order: true }
-        e.g. the fifth of january twenty twelve -> date { day: "5" month: "january" year: "2012" preserve_order: true }
+    Finite state transducer for classifying date, e.g. 
+        jan. 5, 2012 -> date { month: "january" day: "five" year: "twenty twelve" preserve_order: true }
+        jan. 5 -> date { month: "january" day: "five" preserve_order: true }
+        5 january 2012 -> date { day: "five" month: "january" year: "twenty twelve" preserve_order: true }
+        2012-01-05 -> date { year: "twenty twelve" month: "january" day: "five" }
+        2012.01.05 -> date { year: "twenty twelve" month: "january" day: "five" }
+        2012/01/05 -> date { year: "twenty twelve" month: "january" day: "five" }
+        2012 -> date { year: "twenty twelve" }
 
     Args:
-        ordinal: Ordinal GraphFST
+        ordinal: OrdinalFst
     """
 
     def __init__(self, cardinal: GraphFst):
@@ -102,7 +113,6 @@ class DateFst(GraphFst):
 
         cardinal_graph = cardinal.graph_hundred_component_at_least_one_none_zero_digit
 
-        # weekday, day, month, year, style(depr), text(depr), short_year(depr), era
         year_graph = _get_year_graph()
 
         YEAR_WEIGHT = 0.001

@@ -43,9 +43,9 @@ class Normalizer:
         NeMo text normalizer 
 
         Args:
-            texts: input strings
+            texts: list of input strings
 
-        Returns converted input strings
+        Returns converted list input strings
         """
         res = []
         for input in tqdm(texts):
@@ -59,13 +59,13 @@ class Normalizer:
 
     def normalize(self, text: str, verbose: bool) -> str:
         """
-        main function. normalizes spoken tokens in given text to its written form
-            e.g. twelve kilograms -> 12 kg
+        Main function. Normalizes tokens from written to spoken form
+            e.g. 12 kg -> twelve kilograms
 
         Args:
             text: string that may include semiotic classes.
 
-        Returns: written form
+        Returns: spoken form
         """
         text = text.strip()
         if not text:
@@ -75,12 +75,12 @@ class Normalizer:
         text = pynini.escape(text)
         tagged_lattice = self.find_tags(text)
         tagged_text = self.select_tag(tagged_lattice)
+        if verbose:
+            print(tagged_text)
         self.parser(tagged_text)
         tokens = self.parser.parse()
         tags_reordered = self.generate_permutations(tokens)
         for tagged_text in tags_reordered:
-            if verbose:
-                print(tagged_text)
             tagged_text = pynini.escape(tagged_text)
             verbalizer_lattice = self.find_verbalizer(tagged_text)
             if verbalizer_lattice.num_states() == 0:
@@ -174,7 +174,7 @@ class Normalizer:
 
     def find_verbalizer(self, tagged_text: str) -> 'pynini.FstLike':
         """
-        Given tagged text, e.g. token {name: ""} token {money {fractional: ""}}, creates verbalization lattice
+        Given tagged text creates verbalization lattice
         This is context-independent.
 
         Args:

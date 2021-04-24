@@ -26,8 +26,17 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-def get_quantity(deci, cardinal_graph_hundred_component_at_least_one_none_zero_digit):
-    numbers = cardinal_graph_hundred_component_at_least_one_none_zero_digit
+def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstLike') -> 'pynini.FstLike':
+    """
+    Returns FST that transforms either a cardinal or decimal followed by a quantity into a numeral,
+    e.g. 1 million -> integer_part: "one" quantity: "million"
+    e.g. 1.5 million -> integer_part: "one" fractional_part: "five" quantity: "million"
+
+    Args: 
+        decimal: decimal FST
+        cardinal_up_to_hundred: cardinal FST
+    """
+    numbers = cardinal_up_to_hundred
     suffix = pynini.union("million", "billion", "trillion", "quadrillion", "quintillion", "sextillion")
     res = (
         pynutil.insert("integer_part: \"")
@@ -38,21 +47,21 @@ def get_quantity(deci, cardinal_graph_hundred_component_at_least_one_none_zero_d
         + suffix
         + pynutil.insert("\"")
     )
-    res |= deci + delete_extra_space + pynutil.insert("quantity: \"") + (suffix | "thousand") + pynutil.insert("\"")
+    res |= decimal + delete_extra_space + pynutil.insert("quantity: \"") + (suffix | "thousand") + pynutil.insert("\"")
     return res
 
 
 class DecimalFst(GraphFst):
     """
-    Finite state transducer for classifying decimal, 
-        e.g. minus twelve point five o o six billion -> decimal { negative: "true" integer_part: "12"  fractional_part: "5006" quantity: "billion" }
+    Finite state transducer for classifying decimal, e.g. 
+        -12.5006 billion -> decimal { negative: "true" integer_part: "12"  fractional_part: "five o o six" quantity: "billion" }
+        1 billion -> decimal { integer_part: "one" quantity: "billion" }
 
-    cardinal: Cardinal GraphFst
+    cardinal: CardinalFst
     """
 
     def __init__(self, cardinal: GraphFst):
         super().__init__(name="decimal", kind="classify")
-        # negative, fractional_part, quantity, exponent, style(depre)
 
         cardinal_graph = cardinal.graph
         cardinal_graph_hundred_component_at_least_one_none_zero_digit = (

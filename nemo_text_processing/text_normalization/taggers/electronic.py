@@ -22,4 +22,4 @@ class ElectronicFst(GraphFst):
 
     def __init__(self):
         super().__init__(name="electronic", kind="classify")
-        # protocol, username, password, domain,port, path, query_string, fragment_id     protocol://username:password@domain:port/path?query_string#fragment_id
+        # protocol, username, password, domain,port, path, query_string, fragment_id
