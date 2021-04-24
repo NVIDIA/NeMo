@@ -17,6 +17,7 @@ from enum import Enum
 from typing import Optional
 
 import torch
+from omegaconf import DictConfig
 
 
 class TeacherStudentType(Enum):
@@ -28,6 +29,7 @@ class TeacherStudentMixin(ABC):
     def __init__(self):
         super().__init__()
         self._TEACHER_STUDENT_TYPE: Optional[TeacherStudentType] = None
+        self.distillation_cfg = DictConfig({})
         self._distillation_primary_registry = {}
 
     def is_being_distilled(self):
@@ -45,6 +47,17 @@ class TeacherStudentMixin(ABC):
             return self._TEACHER_STUDENT_TYPE == TeacherStudentType.STUDENT
         else:
             return None
+
+    def default_distillation_loss_config(self) -> Optional[DictConfig]:
+        """
+        If implemented by base class, in case the distillation config does not contain the 'loss' subconfig,
+        the model itself can provide a default loss config which will be instantiated.
+
+        Returns:
+            An optional DictConfig that will be used to instantiate the distillation loss function.
+            If None is returned, the distillation config must have an appropriate loss function defined.
+        """
+        return None
 
     def register_distillation_tensor(self, loss_key: str, tensor: torch.Tensor):
         if not self.is_being_distilled():
