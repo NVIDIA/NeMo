@@ -95,7 +95,6 @@ if __name__ == "__main__":
 
     print(" - Total: " + str(sum(token_count_per_type.values())), '\n')
 
-    # csv output
     for token_type in token_accuracy:
         if token_type not in known_types:
             raise ValueError("Unexpected token type: " + token_type)

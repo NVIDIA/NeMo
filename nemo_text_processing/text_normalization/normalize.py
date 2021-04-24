@@ -33,11 +33,13 @@ except (ModuleNotFoundError, ImportError):
 
 class Normalizer:
     """
-    Normalizer class. 
+    Normalizer class that converts text from written to spoken form. 
+    Useful for TTS preprocessing. 
 
     Args:
         input_case: expected input capitalization
     """
+
     def __init__(self, input_case: str):
         assert input_case in ["lower_cased", "cased"]
         self.tagger = ClassifyFst(input_case=input_case)
