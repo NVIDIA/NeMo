@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 from typing import Dict, List, Union
 
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -47,7 +48,7 @@ class TeacherStudentModelPT(ModelPT):
 
         # Extract teacher config completely from student config
         with open_dict(cfg):
-            self.teacher_cfg = cfg.pop('teacher')
+            self.distillation_cfg = cfg.pop('distillation')
 
         # prevent data loaders from being loaded for either student of teacher model
         original_state_value = ModelPT._is_model_being_restored()
@@ -58,9 +59,9 @@ class TeacherStudentModelPT(ModelPT):
         super().__init__(cfg=cfg, trainer=trainer)
 
         # Initialize teacher model and freeze it
-        if 'model_path' in self.teacher_cfg and self.teacher_cfg.model_path is not None:
+        if 'model_path' in self.distillation_cfg and self.distillation_cfg.model_path is not None:
             self.teacher = ModelPT.restore_from(
-                self.teacher_cfg.model_path, map_location='cpu', strict=True
+                self.distillation_cfg.model_path, map_location='cpu', strict=True
             )  # type: ModelPT
         else:
             # Assume pretrained model name
@@ -84,6 +85,7 @@ class TeacherStudentModelPT(ModelPT):
             )
         else:
             self.teacher._TEACHER_STUDENT_TYPE = TeacherStudentType.TEACHER
+            self.teacher.distillation_cfg = copy.deepcopy(self.distillation_cfg)
 
         if not isinstance(self.student, TeacherStudentMixin):
             raise TypeError(
@@ -91,6 +93,7 @@ class TeacherStudentModelPT(ModelPT):
             )
         else:
             self.student._TEACHER_STUDENT_TYPE = TeacherStudentType.STUDENT
+            self.student.distillation_cfg = copy.deepcopy(self.distillation_cfg)
 
         # setup up delegation of TeacherStudentModelPT to self.student
         self._setup_delegates()
@@ -117,8 +120,23 @@ class TeacherStudentModelPT(ModelPT):
         self.training_step = model_utils.wrap_training_step(self.training_step)
 
     def _setup_loss_function(self):
-        default_loss = OmegaConf.create(dict(_target_='torch.nn.KLDivLoss', log_target=True, reduction='batchmean',))
-        loss_config = self.teacher_cfg.get('loss', default_loss)
+        loss_config = self.distillation_cfg.get('loss', None)
+
+        if loss_config is None:
+            loss_config = self.student.default_distillation_loss_config()
+
+        if loss_config is None:
+            raise ValueError(
+                "`teacher` config should have `loss` subconfig declaring the loss function "
+                "for distillation. For example, KLDiv loss can be expressed as follows :"
+                """
+                 loss:
+                      _target_: 'torch.nn.KLDivLoss'
+                      log_target: true
+                      reduction: 'batchmean'
+                """
+            )
+
         self.transfer_loss_primary = self.from_config_dict(loss_config)
 
         # TODO: use config to setup secondary loss(es)
