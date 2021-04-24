@@ -669,3 +669,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, TeacherStu
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
+
+    def default_distillation_loss_config(self) -> Optional[DictConfig]:
+        return DictConfig(dict(_target_='torch.nn.KLDivLoss', log_target=True, reduction='batchmean'))
