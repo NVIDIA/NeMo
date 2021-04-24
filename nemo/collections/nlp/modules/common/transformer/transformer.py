@@ -220,3 +220,7 @@ class TransformerDecoderNM(DecoderModule, Exportable):
         input_ids = torch.randint(low=0, high=2048, size=(2, 16), device=sample.device)
         encoder_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
         return tuple([input_ids, encoder_mask, self._embedding(input_ids), encoder_mask])
+
+    def _prepare_for_export(self, **kwargs):
+        self._decoder.diagonal = None
+        super()._prepare_for_export(**kwargs)
