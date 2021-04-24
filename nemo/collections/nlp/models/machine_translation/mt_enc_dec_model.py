@@ -284,7 +284,7 @@ class MTEncDecModel(EncDecNLPModel):
             self.log(f"dataloader_index_{dataloader_idx}_{mode}_loss", eval_loss, sync_dist=True)
             self.log(f"dataloader_index_{dataloader_idx}_{mode}_sacreBLEU", sb_score, sync_dist=True)
 
-        self.log(f'{mode}_sacreBLEU', sum(sb_scores) / len(sb_scores))
+        self.log(f'{mode}_sacreBLEU', sum(sb_scores) / len(sb_scores), sync_dist=True)
 
     def validation_epoch_end(self, outputs):
         """
