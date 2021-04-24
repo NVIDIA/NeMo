@@ -348,9 +348,8 @@ class MTEncDecModel(EncDecNLPModel):
                 else:
                     tar_files = cfg.get('tar_files')
                     if metadata.get('tar_files') is not None:
-                        raise ValueError(
-                            'Tar files specified in config and in metadata file. Tar files should only be specified once.'
-                        )
+                        logging.info(f'Tar file paths found in both cfg and metadata using one in cfg by default - {tar_files}')
+
             dataset = TarredTranslationDataset(
                 text_tar_filepaths=tar_files,
                 metadata_path=metadata_file,
