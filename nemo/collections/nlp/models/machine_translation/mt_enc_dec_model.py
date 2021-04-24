@@ -149,10 +149,13 @@ class MTEncDecModel(EncDecNLPModel):
             pad_id=self.decoder_tokenizer.pad_id, label_smoothing=cfg.label_smoothing
         )
         self.eval_loss_fn = NLLLoss(ignore_index=self.decoder_tokenizer.pad_id)
-        self.eval_loss = []
         if self._validation_dl is not None:
-            for _ in range(len(self._validation_dl)):
-                self.eval_loss.append(GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True))
+            for dataloader_idx in range(len(self._validation_dl)):
+                setattr(
+                    self,
+                    f'eval_loss_{dataloader_idx}',
+                    GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True),
+                )
 
     def filter_predicted_ids(self, ids):
         ids[ids >= self.decoder_tokenizer.vocab_size] = self.decoder_tokenizer.unk_id
@@ -198,7 +201,9 @@ class MTEncDecModel(EncDecNLPModel):
         eval_loss = self.eval_loss_fn(log_probs=log_probs, labels=labels)
         # this will run encoder twice -- TODO: potentially fix
         _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
-        self.eval_loss[dataloader_idx](loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
+        getattr(self, f'eval_loss_{dataloader_idx}')(
+            loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1]
+        )
         np_tgt = tgt_ids.detach().cpu().numpy()
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
         ground_truths = [self.target_processor.detokenize(tgt.split(' ')) for tgt in ground_truths]
@@ -235,7 +240,7 @@ class MTEncDecModel(EncDecNLPModel):
         sb_scores = []
         eval_losses = []
         for dataloader_idx, output in enumerate(outputs):
-            eval_loss = self.eval_loss[dataloader_idx].compute()
+            eval_loss = getattr(self, f'eval_loss_{dataloader_idx}').compute()
             eval_losses.append(eval_loss)
 
             translations = list(itertools.chain(*[x['translations'] for x in output]))
