@@ -19,7 +19,7 @@ import json
 import pickle
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Optional, Any
+from typing import Any, Optional
 
 import braceexpand
 import numpy as np
