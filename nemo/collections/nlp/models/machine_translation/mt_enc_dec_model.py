@@ -230,6 +230,7 @@ class MTEncDecModel(EncDecNLPModel):
 
     def eval_epoch_end(self, outputs, mode):
         eval_loss = self.eval_loss.compute()
+        sb_scores = []
         for dataloader_idx, output in enumerate(outputs):
             translations = list(itertools.chain(*[x['translations'] for x in output]))
             ground_truths = list(itertools.chain(*[x['ground_truths'] for x in output]))
@@ -255,31 +256,35 @@ class MTEncDecModel(EncDecNLPModel):
                 else:
                     sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="13a")
 
+                # because the reduction op later is average (over word_size)
+                sb_score = sacre_bleu.score * self.world_size
+
                 dataset_name = "Validation" if mode == 'val' else "Test"
                 logging.info(
                     f"Dataset name: {dataset_name}, Dataloader index: {dataloader_idx}, Set size: {len(translations)}"
                 )
                 logging.info(
-                    f"Dataset name: {dataset_name}, Dataloader index: {dataloader_idx}, Sacre BLEU = {sacre_bleu.score}"
+                    f"Dataset name: {dataset_name}, Dataloader index: {dataloader_idx}, Val Loss = {eval_loss}"
+                )
+                logging.info(
+                    f"Dataset name: {dataset_name}, Dataloader index: {dataloader_idx}, Sacre BLEU = {sb_score}"
                 )
                 logging.info(
                     f"Dataset name: {dataset_name}, Dataloader index: {dataloader_idx}, Translation Examples:"
                 )
-                logging.info(f"\n\n\n\n{dataset_name} set size: {len(_translations)}")
-                logging.info(f"{dataset_name} Sacre BLEU = {sacre_bleu.score}")
-                logging.info(f"{dataset_name} Translation Examples:")
                 for i in range(0, 3):
                     ind = random.randint(0, len(translations) - 1)
                     logging.info("    " + '\u0332'.join(f"Example {i}:"))
                     logging.info(f"    Prediction:   {translations[ind]}")
                     logging.info(f"    Ground Truth: {ground_truths[ind]}")
-                # because the reduction op later is average (over word_size)
-                sb_score = sacre_bleu.score * self.world_size
             else:
                 sb_score = 0.0
 
-            ans = {f"{mode}_loss": eval_loss, f"{mode}_sacreBLEU": sb_score}
-            self.log(f"dataloader_index_{dataloader_idx}_{ans}", ans, sync_dist=True)
+            sb_scores.append(sb_score)
+            self.log(f"dataloader_index_{dataloader_idx}_{mode}_loss", eval_loss, sync_dist=True)
+            self.log(f"dataloader_index_{dataloader_idx}_{mode}_sacreBLEU", sb_score, sync_dist=True)
+
+        self.log(f'{mode}_sacreBLEU', sum(sb_scores) / len(sb_scores))
 
     def validation_epoch_end(self, outputs):
         """
