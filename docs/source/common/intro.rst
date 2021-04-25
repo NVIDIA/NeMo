@@ -1,7 +1,7 @@
 Common Collection
 =================
 
-The common collection contains things that could be used across all collections.
+The common collection contains tokenizers, losses, and metrics that can be used across all collections.
 
 Tokenizers
 ----------

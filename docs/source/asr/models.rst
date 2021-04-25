@@ -44,7 +44,7 @@ ReLU, and dropout:
         :alt: quartznet model
         :scale: 40%
 
-QuartzNet models can be instantiated using the :class:`EncDecCTCModel<nemo.collections.asr.models.EncDecCTCModel>` class.
+QuartzNet models can be instantiated using the :class:``EncDecCTCModel<nemo.collections.asr.models.EncDecCTCModel>`` class.
 
 Citrinet
 --------

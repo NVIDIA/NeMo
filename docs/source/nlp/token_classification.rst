@@ -3,7 +3,7 @@
 Token Classification (Named Entity Recognition) Model
 =====================================================
 
-Token Classification model supports named entity recognition (NER) and other token level classification tasks, as long as the data 
+The Token Classification model supports named entity recognition (NER) and other token level classification tasks, as long as the data 
 follows the format specified below.
 
 We're going to use NER task throughout this section. NER, also referred to as entity chunking, identification or extraction, is the 
@@ -34,11 +34,11 @@ Quick Start Guide
 
     Connect to an instance with a GPU (**Runtime** -> **Change runtime type** -> select **GPU** for the hardware accelerator).
 
-    An example script on how to train the model can be found here: `NeMo/examples/nlp/token_classification/token_classification_train.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/token_classification_train.py>`__.
+    An example script on how to train the model can be found at `NeMo/examples/nlp/token_classification/token_classification_train.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/token_classification_train.py>`__.
 
-    An example script on how to run evaluation and inference can be found here: `NeMo/examples/nlp/token_classification/token_classification_evaluate.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/token_classification_evaluate.py>`__.
+    An example script on how to run evaluation and inference can be found at `NeMo/examples/nlp/token_classification/token_classification_evaluate.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/token_classification_evaluate.py>`__.
 
-    The default configuration file for the model can be found here: `NeMo/examples/nlp/token_classification/conf/token_classification_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/token_classification_config.yaml>`__.
+    The default configuration file for the model can be found at `NeMo/examples/nlp/token_classification/conf/token_classification_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/token_classification_config.yaml>`__.
 
 .. _dataset_token_classification:
 
@@ -52,13 +52,13 @@ For pre-training or fine-tuning of the model, the data should be split into 2 fi
 
 Each line of the ``text.txt`` file contains text sequences, where words are separated with spaces, i.e.: ``[WORD] [SPACE] [WORD] [SPACE] [WORD]``.
 The ``labels.txt`` file contains corresponding labels for each word in ``text.txt``, the labels are separated with spaces, i.e.: ``[LABEL] [SPACE] [LABEL] [SPACE] [LABEL]``.
-Example of a ``text.txt`` file:
+For example, a ``text.txt`` file should look similar to the following:
 
     Jennifer is from New York City .
     She likes ...
     ...
 
-Corresponding ``labels.txt`` file:
+For example, a ``labels.txt`` file should look similar to the following:
 
     B-PER O O B-LOC I-LOC I-LOC O
     O O ...
@@ -93,12 +93,12 @@ The default names for the training and evaluation in the :code:``conf/token_clas
      |-- text_train.txt
 
 
-Training The Token Classification model
+Training the Token Classification Model
 ---------------------------------------
 
 In the Token Classification model, we are jointly training a classifier on top of a pre-trained language model, such as 
 `BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding <https://arxiv.org/abs/1810.04805>`__ :cite:`nlp-ner-devlin2018bert`.
-Unless the user provides a pre-trained checkpoint for the language model, the language model is initialized with the pre-trained model 
+Unless you provide a pre-trained checkpoint for the language model, the language model is initialized with the pre-trained model 
 from `HuggingFace Transformers <https://github.com/huggingface/transformers>`__.
 
 Example of model configuration file for training the model can be found at: `NeMo/examples/nlp/token_classification/conf/token_classification_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/token_classification_config.yaml>`__.
@@ -114,32 +114,32 @@ More details about parameters in the spec file can be found below:
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
 | **Parameter**                             | **Data Type**   | **Description**                                                                                              |
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **model.dataset.data_dir**                    | string      | Path to the data converted to the specified above format.                                                    |
+| **model.dataset.data_dir**                | string          | Path to the data converted to the specified above format.                                                    |
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **model.head.num_fc_layers**                  | integer     | Number of fully connected layers.                                                                            |
+| **model.head.num_fc_layers**              | integer         | Number of fully connected layers.                                                                            |
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **model.head.fc_dropout**                     | float       | Dropout to apply to the input hidden states.                                                                 |
+| **model.head.fc_dropout**                 | float           | Dropout to apply to the input hidden states.                                                                 |
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **model.head.activation**                     | string      | Activation to use between fully connected layers.                                                            |
+| **model.head.activation**                 | string          | Activation to use between fully connected layers.                                                            |
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **model.punct_head.use_transrormer_init**     | bool        | Whether to initialize the weights of the classifier head with the same approach used in Transformer.         |
+| **model.punct_head.use_transrormer_init** | bool            | Whether to initialize the weights of the classifier head with the same approach used in Transformer.         |
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **training_ds.text_file**                     | string      | Name of the text training file located at ``data_dir``.                                                      |
+| **training_ds.text_file**                 | string          | Name of the text training file located at ``data_dir``.                                                      |
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **training_ds.labels_file**                   | string      | Name of the labels training file located at ``data_dir``.                                                    |
+| **training_ds.labels_file**               | string          | Name of the labels training file located at ``data_dir``.                                                    |
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **training_ds.num_samples**                   | integer     | Number of samples to use from the training dataset, ``-1`` - to use all.                                     |
+| **training_ds.num_samples**               | integer         | Number of samples to use from the training dataset, ``-1`` - to use all.                                     |
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **validation_ds.text_file**                   | string      | Name of the text file for evaluation, located at ``data_dir``.                                               |
+| **validation_ds.text_file**               | string          | Name of the text file for evaluation, located at ``data_dir``.                                               |
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **validation_ds.labels_file**                 | string      | Name of the labels dev file located at ``data_dir``.                                                         |
+| **validation_ds.labels_file**             | string          | Name of the labels dev file located at ``data_dir``.                                                         |
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **validation_ds.num_samples**                 | integer     | Number of samples to use from the dev set, ``-1`` - to use all.                                              |
+| **validation_ds.num_samples**             | integer         | Number of samples to use from the dev set, ``-1`` - to use all.                                              |
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
 
 For more information, see :ref:`nlp_model`.
 
-Example of the command for training the model:
+For example, to train the model, run:
 
 .. code::
 
@@ -167,7 +167,7 @@ Inference
 
 An example script on how to run inference can be found at `examples/nlp/token_classification/token_classification_evaluate.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/token_classification_evaluate.py>`_.
 
-To run inference with the pre-trained model, run:
+To start inference with the pre-trained model, run:
 
 .. code::
 
@@ -177,7 +177,7 @@ To run inference with the pre-trained model, run:
 Required Arguments for Inference
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- :code:``pretrained_model``: pretrained Token Classification model from ``list_available_models()`` or path to a ``.nemo`` file. For example, ``ner_en_bert`` or ``your_model.nemo``
+- :code:``pretrained_model``: pretrained Token Classification model from ``list_available_models()`` or path to a ``.nemo`` file. For example, ``ner_en_bert`` or ``your_model.nemo``.
 
 Model Evaluation
 ----------------

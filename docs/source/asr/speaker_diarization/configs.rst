@@ -1,29 +1,25 @@
 NeMo Speaker Diarization Configuration Files
 ============================================
 
-Since speaker diarization model here is not a fully-trainble End-to-End model but an inference pipeline, we use **diarizer** instead of **model** which is used in other tasks.
+Since the speaker diarization model is not a fully-trainable end-to-end model, but an inference pipeline, we use **diarizer** 
+instead of **model** which is used in other tasks.
 
-The diarizer section will generally require information about the dataset(s) being
-used, models used in this pipline, as well as inference related parameters such as postprocessing of each models.
-The sections on this page cover each of these in more detail.
+The diarizer section requires information about the datasets being used, models used in this pipline, as well as inference related 
+parameters such as postprocessing of each models. The sections on this page cover each of these in more detail.
 
-
-Example configuration files for speaker diarization can be found in the
-``<NeMo_git_root>/examples/speaker_recognition/conf/speaker_diarization.yaml>``
+The example configuration files for speaker diarization can be found in ``<NeMo_git_root>/examples/speaker_recognition/conf/speaker_diarization.yaml>``.
 
 .. note::
-  For model details and deep understanding about configs, finetuning, tuning threshold, and evaluation, 
-  please refer to ``<NeMo_git_root>/tutorials/speaker_recognition/Speaker_Diarization_Inference.ipynb``;
-  for other applications such as possible integration with ASR, have a look at ``<NeMo_git_root>/tutorials/speaker_recognition/ASR_with_SpeakerDiarization.ipynb``.
+  For more information about the models, configs, finetuning, tuning threshold, and evaluation, refer to ``<NeMo_git_root>/tutorials/speaker_recognition/Speaker_Diarization_Inference.ipynb``.
+  For other applications such as possible integration with ASR, see ``<NeMo_git_root>/tutorials/speaker_recognition/ASR_with_SpeakerDiarization.ipynb``.
 
 
 Dataset Configuration
------------------------
+---------------------
 
-In contrast to other ASR related tasks or models in NeMo, speaker diarization supported in NeMo is a modular inference pipeline.
-Datasets here denotes the data you would like to perform speaker diarization on. 
-
-An example Speaker Diarization dataset configuration could look like:
+In contrast to other ASR related tasks or models in NeMo, speaker diarization supported in NeMo is a modular inference pipeline. Datasets here 
+denotes the data you would like to perform speaker diarization on. An example Speaker Diarization dataset configuration looks similar
+to the following:
 
 .. code-block:: yaml
 
@@ -35,11 +31,11 @@ An example Speaker Diarization dataset configuration could look like:
     ...
     
 .. note::
-  We expect audio and the corresponding RTTM to have the same base name and the name should be unique.
+  We expect audio and the corresponding RTTM to have the same base name. The name should be unique.
 
 
 Diarizer Architecture Configurations
--------------------------------------
+------------------------------------
 
 .. code-block:: yaml
 
@@ -60,5 +56,3 @@ Diarizer Architecture Configurations
       model_path: ??? #.nemo local model path or pretrained model name
       window_length_in_sec: 1.5
       shift_length_in_sec: 0.75
-
-

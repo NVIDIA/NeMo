@@ -6,7 +6,7 @@ Model NLP
 The config file for NLP models contain three main sections:
 
     - ``trainer``: contains the configs for PTL training. For more information, refer to :doc:`../../introduction/core.html#model-training` and `PTL Trainer class API <https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html#trainer-class-api>'.
-    - ``exp_manager``: the configs of the experiment manager. For more information, refer to :doc:`../../introduction/core.html#experiment-manager`.
+    - ``exp_manager``: the configs of the Experiment Manager. For more information, refer to :doc:`../../introduction/core.html#experiment-manager`.
     - ``model``: contains the configs of the datasets, model architecture, tokenizer, optimizer, scheduler, etc.
 
 The following sub-sections of the model section are shared among most of the NLP models.
@@ -35,7 +35,7 @@ The ``tokenizer`` and ``language_model`` sections have the following parameters:
 | **model.language_model.config**                | dictionary      | Config of the pre-trained language model.                                                                    |
 +------------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
 
-The parameter **model.language_model.pretrained_model_name** can be one of the following:
+The parameter ``model.language_model.pretrained_model_name`` can be one of the following:
 
     - ``megatron-bert-345m-uncased``, ``megatron-bert-345m-cased``, ``biomegatron-bert-345m-uncased``, ``biomegatron-bert-345m-cased``, ``bert-base-uncased``, ``bert-large-uncased``, ``bert-base-cased``, ``bert-large-cased``
     - ``distilbert-base-uncased``, ``distilbert-base-cased``

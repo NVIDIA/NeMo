@@ -47,7 +47,7 @@ model into inference ready format for deployment.
 A key area of development in the toolkit is interoperability with other tools used by speech researchers. Data layer for Kaldi 
 compatibility is one such example.
 
-NeMo, PyTorch Lightning, And Hydra
+NeMo, PyTorch Lightning, and Hydra
 ----------------------------------
 
 Conversational AI architectures are typically very large and require a lot of data and compute for training. NeMo uses 
@@ -72,7 +72,7 @@ Every NeMo model has an example configuration file and a corresponding script th
 to state-of-the-art accuracy. NeMo models have the same look and feel so that it is easy to do conversational AI research across 
 multiple domains.
 
-Using Optimized Pretrained Models With NeMo
+Using Optimized Pretrained Models with NeMo
 -------------------------------------------
 
 `NVIDIA GPU Cloud (NGC) <https://ngc.nvidia.com/catalog>`_ is a software repository that has containers and models optimized 
@@ -160,8 +160,8 @@ To load Kaldi-formatted data, you can simply use ``KaldiFeatureDataLayer`` inste
 takes in the argument ``kaldi_dir`` instead of a ``manifest_filepath``. The ``manifest_filepath`` argument should be set to the directory 
 that contains the files ``feats.scp`` and ``text``.
 
-Using Speech Command Recognition Task For ASR Models
-----------------------------------------------------
+Using Speech Command Recognition for ASR Models
+-----------------------------------------------
 
 Speech Command Recognition is the task of classifying an input audio pattern into a set of discrete classes. It is a subset of ASR, 
 sometimes referred to as Key Word Spotting, in which a model is constantly analyzing speech patterns to detect certain ``action`` classes.
@@ -196,7 +196,7 @@ Answering. Follow these tutorials to learn how to train and fine tune BioMegatro
 - `Relation Extraction BioMegatron <https://github.com/NVIDIA/NeMo/blob/main/tutorials/nlp/Relation_Extraction-BioMegatron.ipynb>`_
 - `Token Classification BioMegatron <https://github.com/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification-BioMegatron.ipynb>`_
 
-Efficient Training With NeMo
+Efficient Training with NeMo
 ----------------------------
 
 Using Mixed Precision
@@ -239,7 +239,7 @@ the underlying inter-node network topology and type to achieve full performance,
 networking, or Ethernet.          
 
 
-Recommendations For Optimization And FAQs
+Recommendations for Optimization and FAQs
 -----------------------------------------
 
 This section is to help guide your decision making by answering our most asked NeMo questions.

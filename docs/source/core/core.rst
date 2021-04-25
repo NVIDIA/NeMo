@@ -233,13 +233,13 @@ YAML
 NeMo provides YAML configuration files for all of our `example <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ training scripts.
 YAML files make it easy to experiment with different model and training configurations.
 
-Every NeMo example YAML has the same underlying configuration structure:
+Every NeMo example, YAML has the same underlying configuration structure:
 
-- trainer
-- exp_manager
-- model
+- ``trainer``
+- ``exp_manager``
+- ``model``
 
-Model configuration always contain ``train_ds``, ``validation_ds``, ``test_ds``, and ``optim``.  Model architectures vary across 
+The model configuration section always contain ``train_ds``, ``validation_ds``, ``test_ds``, and ``optim``.  Model architectures vary across 
 domains, therefore, refer to the ASR, NLP, and TTS Collections documentation for more detailed information on Model architecture configuration.
 
 A NeMo configuration file should look similar to the following:
@@ -287,9 +287,7 @@ A NeMo configuration file should look similar to the following:
         decoder:
             ...
 
-More specific details about configuration files for each collection can be found on the following pages:
-
-:ref:`NeMo ASR Configuration Files`
+For more information about configuration files for each collection, refer to :ref:`NeMo ASR Configuration Files` section.
         
 CLI
 ~~~
@@ -369,7 +367,7 @@ be instantiated and modified like any Python `Dataclass <https://docs.python.org
     # modify the training batch size
     cfg.train_ds.tokens_in_batch = 8192
 
-.. note:: Configuration with Hydra always has the following precedence CLI > YAML > Dataclass
+.. note:: Configuration with Hydra always has the following precedence CLI > YAML > Dataclass.
 
 Optimization
 ------------
@@ -401,8 +399,7 @@ configuration for a Novograd optimizer with Cosine Annealing learning rate sched
         warmup_ratio: null
         min_lr: 1e-9:
 
-.. note:: `NeMo Examples <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ has optimizer and scheduler configurations for 
-every NeMo model. 
+.. note:: `NeMo Examples <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ has optimizer and scheduler configurations for every NeMo model. 
 
 Optimizers can be configured from the CLI as well:
 
@@ -514,7 +511,7 @@ To see the available params for a scheduler, we can look at its corresponding da
 
     CosineAnnealingParams(last_epoch=-1, warmup_steps=None, warmup_ratio=None, min_lr=0.0)
 
-Register scheduler
+Register Scheduler
 ~~~~~~~~~~~~~~~~~~
 
 To register a new scheduler to be used with NeMo, run:
@@ -624,24 +621,24 @@ via YAML or CLI:
 Neural Modules
 ==============
 
-NeMo is built around Neural Modules, conceptual blocks of neural networks that take typed inputs and produce typed outputs. Such 
+NeMo is built around neural modules, conceptual blocks of neural networks that take typed inputs and produce typed outputs. Such 
 modules typically represent data layers, encoders, decoders, language models, loss functions, or methods of combining activations.
 NeMo makes it easy to combine and re-use these building blocks while providing a level of semantic correctness checking via its neural 
 type system.
 
-.. note:: *All Neural Modules inherit from ``torch.nn.Module`` and are therefore compatible with the PyTorch ecosystem.*
+.. note:: All neural modules inherit from ``torch.nn.Module`` and are therefore compatible with the PyTorch ecosystem.
 
-There are 3 types on Neural Modules:
+There are 3 types on neural modules:
 
     - Regular modules
     - Dataset/IterableDataset
     - Losses
 
-Every Neural Module in NeMo must inherit from `nemo.core.classes.module.NeuralModule` class.
+Every neural module in NeMo must inherit from ``nemo.core.classes.module.NeuralModule`` class.
 
 .. autoclass:: nemo.core.classes.module.NeuralModule
 
-Every Neural Modules inherits the ``nemo.core.classes.common.Typing`` interface and needs to define neural types for its inputs and outputs.
+Every neural modules inherits the ``nemo.core.classes.common.Typing`` interface and needs to define neural types for its inputs and outputs.
 This is done by defining two properties: ``input_types`` and ``output_types``. Each property should return an ordered dictionary of 
 "port name"->"port neural type" pairs. Here is the example from :class:``~nemo.collections.asr.modules.ConvASREncoder`` class:
 
@@ -683,7 +680,7 @@ It also means that ``.forward(...)`` and ``__call__(...)`` methods each produce 
 If tensors without types is passed to your module, it will not fail, however the types will not be checked. Thus, it is recommended to define input/output types for all your modules, starting with
 data layers and add ``@typecheck()`` decorator to them.
 
-.. note:: To temporarily disable typechecking, you can enclose your code in ```with typecheck.disable_checks():``` statement.
+.. note:: To temporarily disable typechecking, you can enclose your code in with ``typecheck.disable_checks():`` statement.
 
 Neural Types
 ============
@@ -691,7 +688,7 @@ Neural Types
 Motivation
 ----------
 
-Neural Types describe the semantics, axis order, and dimensions of a tensor. The purpose of this type system is to catch semantic and 
+Neural types describe the semantics, axis order, and dimensions of a tensor. The purpose of this type system is to catch semantic and 
 dimensionality errors during model creation and facilitate module re-use.
 
 .. image:: whyntypes.gif
@@ -701,7 +698,7 @@ dimensionality errors during model creation and facilitate module re-use.
 ``NeuralType`` class
 --------------------
 
-Neural Types perform semantic checks for modules and models inputs/outputs. They contain information about:
+Neural types perform semantic checks for modules and models inputs/outputs. They contain information about:
 
     - Semantics of what is stored in the tensors. For example, logits, logprobs, audiosignal, embeddings, etc.
     - Axes layout, semantic and (optionally) dimensionality. For example: ``[Batch, Time, Channel]``
@@ -721,7 +718,7 @@ When comparing two neural types, the following comparison results are generated.
 Examples
 --------
 
-Long vs short notation
+Long vs Short Notation
 ~~~~~~~~~~~~~~~~~~~~~~
 
 NeMo's ``NeuralType`` class allows you to express axis semantics information in long and short form. Consider these two equivalent types. Both encoder 3 dimensional tensors and both contain elements of type ``AcousticEncodedRepresentation`` (this type is a typical output of ASR encoders).
@@ -735,7 +732,7 @@ NeMo's ``NeuralType`` class allows you to express axis semantics information in 
     short_version = NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())
     assert long_version.compare(short_version) == NeuralTypeComparisonResult.SAME
 
-Transpose same
+Transpose Same
 ~~~~~~~~~~~~~~
 
 Often it is useful to know if a simple transposition will solve type incompatibility. This is the case if the comparison result of two types equals ``nemo.core.neural_types.NeuralTypeComparisonResult.TRANSPOSE_SAME``.
@@ -749,7 +746,7 @@ Often it is useful to know if a simple transposition will solve type incompatibi
 
 Note that in this example, we dropped ``elements_type`` argument of ``NeuralType`` constructor. If not supplied, the element type is ``VoidType``.
 
-``VoidType`` for elements
+``VoidType`` for Elements
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Sometimes it is useful to express that elements' types don't matter but axes layout do. ``VoidType`` for elements can be used to express this.
@@ -773,7 +770,7 @@ Sometimes it is useful to express that elements' types don't matter but axes lay
         # It is one-way compatibility
         assert btc_spctr.compare(btc_void) == NeuralTypeComparisonResult.INCOMPATIBLE
 
-Element type inheritance
+Element Type Inheritance
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 Neural types in NeMo support Python inheritance between element types. Consider an example where you want to develop a Neural Module which performs data augmentation for all kinds of spectrograms.
@@ -793,7 +790,7 @@ element's types: ``SpectrogramType``, ``MelSpectrogramType(SpectrogramType)``, `
         assert input.compare(out1) == NeuralTypeComparisonResult.GREATER
         assert input.compare(out2) == NeuralTypeComparisonResult.GREATER
 
-Custom element types
+Custom Element Types
 ~~~~~~~~~~~~~~~~~~~~
 
 It is possible to create user-defined element types to express the semantics of elements in your tensors. To do so, the user will need to inherit and implement abstract methods of the ``nemo.core.neural_types.elements.ElementType`` class
@@ -810,7 +807,7 @@ Note that element types can be parametrized. Consider this example where it dist
     assert audio8K.compare(audio16K) == NeuralTypeComparisonResult.SAME_TYPE_INCOMPATIBLE_PARAMS
     assert audio16K.compare(audio8K) == NeuralTypeComparisonResult.SAME_TYPE_INCOMPATIBLE_PARAMS
 
-Enforcing dimensions
+Enforcing Dimensions
 ~~~~~~~~~~~~~~~~~~~~
 
 In addition to specifying tensor layout and elements' semantics, neural types also allow you to enforce tensor dimensions.
@@ -830,7 +827,7 @@ arbitrary dimensions.
         # type1 will not accept elements of type2 because it need dimensions to match strictly.
         assert type1.compare(type2), NeuralTypeComparisonResult.DIM_INCOMPATIBLE
 
-Generic Axis kind
+Generic Axis Kind
 ~~~~~~~~~~~~~~~~~
 
 Sometimes (especially in the case of loss modules) it is useful to be able to specify a "generic" axis kind which will make it
@@ -847,7 +844,7 @@ compatible with any other kind of axis. This is easy to express with Neural Type
         assert type1.compare(type2) == NeuralTypeComparisonResult.SAME
         assert type1.compare(type3) == NeuralTypeComparisonResult.INCOMPATIBLE
 
-Container types
+Container Types
 ~~~~~~~~~~~~~~~
 
 The NeMo-type system understands Python containers (lists). If your module returns a nested list of typed tensors, the way to express it is by

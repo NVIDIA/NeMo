@@ -9,7 +9,6 @@ GPT-2 architucture) are swapped, which allows the models to continue to improve 
 scores compared to BERT on a range of Natural Language Processing (NLP) tasks. More details on efficient, model-parallel and multi-node 
 pre-training of GPT and BERT using mixed precision can be found in the `Megatron-LM GitHub repo <https://github.com/NVIDIA/Megatron-LM>`_.
 
-
 Fine-tuning
 -----------
 
@@ -52,7 +51,6 @@ a large biomedical text corpus, which achieves better performance in biomedical 
 
 Examples of using BioMegatron on biomedical downstream tasks can be found at (can be executed with `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_): 
 `NeMo/tutorials/nlp/Relation_Extraction-BioMegatron.ipynb <https://github.com/NVIDIA/NeMo/blob/main/tutorials/nlp/Relation_Extraction-BioMegatron.ipynb>`__ and `NeMo/tutorials/nlp/Token_Classification-BioMegatron.ipynb <https://github.com/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification-BioMegatron.ipynb>`__.
-
 
 References
 ----------

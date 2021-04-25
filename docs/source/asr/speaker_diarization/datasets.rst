@@ -1,35 +1,38 @@
 Datasets
 ========
-Check out page :doc:`Speech Classification Datasets <../speech_classification/datasets>` and :doc:`Speaker Recogniton Datasets <../speaker_recognition/datasets>` 
-for preparing datasets for training and validating VAD and speaker embedding models respectively.
 
-For Speaker Diarization inference, ``diarizer`` expects either list of paths to audio files or a file containing absolute paths to audio files. 
+For steps on how to prepare datasets for training, validating VAD, and speaker embedding models, refer to the 
+:doc:`Speech Classification Datasets <../speech_classification/datasets>` and :doc:`Speaker Recogniton Datasets <../speaker_recognition/datasets>` 
+sections.
 
-For generating a file that contains paths to audio files (which we call as ``scp file``), you can simply use ``find`` bash command as shown below:
+For Speaker Diarization inference, ``diarizer`` expects either list of paths to audio files or a file containing absolute paths to 
+audio files. 
+
+For generating a file that contains paths to audio files (which we call ``scp file``), use the ``find`` bash command as shown below:
 
 .. code-block:: bash
 
   find $PWD/{data_dir} -iname '*.wav' > path_to_audiofiles.scp
 
 
-Preparing Evaluation Dataset
-----------------------------
+Preparing the Evaluation Dataset
+--------------------------------
 
-To score with a diarizer model, we need to provide an scp like file for groundtruth label file.
-Each groundtruth label file should be in NIST Rich Transcription Time Marked (RTTM) format. Take one line from a RTTM file for example:
+To score with a diarizer model, we need to provide an scp like file as the groundtruth label file. Each groundtruth label file should 
+be in NIST Rich Transcription Time Marked (RTTM) format. Take one line from a RTTM file, for example:
 
 .. code-block:: bash
 
   SPEAKER TS3012d.Mix-Headset 1 331.573 0.671 <NA> <NA> MTD046ID <NA> <NA>
 
 
-Prepraing ORACLE manifest
--------------------------
+Prepraing an ORACLE Manifest
+----------------------------
 
-To perform just oracle diarization, that is taking speech activity time stamps from groundtruths instead from VAD output, ``diarizer`` expects 
-an orcale manifest file that contains paths to audio files with offset for start time and duration of segment.
+To perform an ORACLE diarization, that is taking speech activity timestamps from groundtruths instead of VAD output, ``diarizer`` 
+expects an ``oracle_manifest`` file that contains paths to audio files with offsets for start time and duration of segment.
 
-To prepare an oracle manifest file, use the helper function from ``speaker_utils`` as shown below:
+To prepare an ``oracle_manifest`` file, use the helper function from ``speaker_utils`` as shown below:
 
 .. code-block:: python
 

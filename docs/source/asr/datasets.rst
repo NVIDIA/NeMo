@@ -1,19 +1,19 @@
 Datasets
 ========
 
-NeMo has scripts to convert several common ASR datasets into the format expected by the ``nemo_asr`` collection. You can get started 
+NeMo includes scripts to convert several common ASR datasets into the format expected by the ``nemo_asr`` collection. You can get started 
 with those datasets by following the instructions to run those scripts in the section appropriate to each dataset below.
 
-If the user has their own data and want to preprocess it to use with NeMo ASR models, refer to the `Preparing Custom ASR Data`_ section.
+If you have your own data and want to preprocess it to use with NeMo ASR models, refer to the `Preparing Custom ASR Data`_ section.
 
-If the user already has a dataset that you want to convert to a tarred format, refer to the `Tarred Datasets`_ section.
+If you already have a dataset that you want to convert to a tarred format, refer to the `Tarred Datasets`_ section.
 
 .. _LibriSpeech_dataset:
 
 LibriSpeech
 -----------
 
-Run the following scripts to download the LibriSpeech data and convert it into the format expected by `nemo_asr`. At least 250GB free 
+Run the following scripts to download the LibriSpeech data and convert it into the format expected by the ``nemo_asr`` collection. At least 250 GB of free 
 space is required. 
 
 .. code-block:: bash
@@ -23,7 +23,7 @@ space is required.
     mkdir data
     python get_librispeech_data.py --data_root=data --data_set=ALL
 
-After this, the ``data`` folder should contain wav files and ``.json`` manifests for NeMo ASR datalayer.
+After this, the ``data`` folder contains the wav files and ``.json`` manifests for NeMo ASR datalayer.
 
 Each line is a training example. ``audio_filepath`` contains the path to the wav file, ``duration`` is the duration in seconds, and ``text`` is the transcript:
 
@@ -45,8 +45,6 @@ smaller slices with their corresponding transcripts, and splits the resulting au
   - 106 GB of space is required to run the ``.wav`` conversion
   - additional 105 GB is required for the slicing and matching
   - ``sph2pipe`` is required in order to run the ``.wav`` conversion 
-
-**Instructions**
 
 The following scripts assume that you already have the Fisher dataset from the Linguistic Data Consortium, with a directory structure 
 that looks similar to the following:
@@ -91,7 +89,7 @@ are located in the remaining directories in an ``audio`` subdirectory.
        --remove_noises
 
    This script splits the full dataset into train, validation, test sets, and places the audio slices in the corresponding folders 
-   in the destination directory. One manifest is written out per set, which includes each slice's transcript, duration, and path.
+   in the destination directory. One manifest is written per set, which includes each slice's transcript, duration, and path.
 
    This will likely take around 20 minutes to run. Once finished, delete the 10 minute long ``.wav`` files.
 
@@ -118,7 +116,7 @@ Run the following command to process the 2000 HUB5 English Evaluation Speech sam
     --data_root=<path_to_HUB5_data> \
     --dest_root=<target_dir>
 
-You can optionally include ``--min_slice_duration=<num_seconds>`` if you would like to change the minimum audio segment duration.
+You can optionally include ``--min_slice_duration=<num_seconds>`` if you want to change the minimum audio segment duration.
 
 AN4 Dataset
 -----------
@@ -134,12 +132,12 @@ addresses, names, etc. Information about this dataset can be found on the `offic
 
      python process_an4_data.py --data_root=<path_to_extracted_data>
 
-After the script finishes, the ``train_manifest.json`` and ``test_manifest.json`` can be found in the ``<data_root>/an4/`` directory.
+After the script finishes, the ``train_manifest.json`` and ``test_manifest.json`` files can be found in the ``<data_root>/an4/`` directory.
 
 Aishell-1
 ---------
 
-To download the Aishell-1 data and convert it into a format expected by ``nemo_asr``, run:
+Run the following script to download the Aishell-1 data and convert it into a format expected by the ``nemo_asr`` collection.
 
 .. code-block:: bash
 
@@ -148,13 +146,13 @@ To download the Aishell-1 data and convert it into a format expected by ``nemo_a
     mkdir data
     python get_aishell_data.py --data_root=data
 
-After the script finishes, the ``data`` folder should contain a ``data_aishell`` folder which contains a wav file, a transcript folder,  and related ``.json`` and ``vocab.txt`` files.
+After the script finishes, the ``data`` folder should contain a ``data_aishell`` folder which contains a ``.wav`` file, a transcript folder,  and related ``.json`` and ``vocab.txt`` files.
 
 Aishell-2
 ---------
 
 To process the AIShell-2 dataset, in the command below, set the data folder of AIShell-2 using ``--audio_folder`` and where to push 
-these files using ``--dest_folder``. In order to generate files in the supported format of ``nemo_asr``, run: 
+these files using ``--dest_folder``. Run the following script to generate files in the supported format of the ``nemo_asr`` collection.
 
 .. code-block:: bash
 
@@ -168,10 +166,10 @@ Preparing Custom ASR Data
 The ``nemo_asr`` collection expects each dataset to consist of a set of utterances in individual audio files plus
 a manifest that describes the dataset, with information about one utterance per line (``.json``).
 The audio files can be of any format supported by `Pydub <https://github.com/jiaaro/pydub>`_, though we recommend
-WAV files as they are the default and have been most thoroughly tested.
+``.wav`` files as they are the default and have been most thoroughly tested.
 
-There should be one manifest file per dataset that will be passed in, therefore, if the user wants separate training and validation
-datasets, they should also have separate manifests. Otherwise, thay will be loading validation data with their training data and vice 
+There should be one manifest file per dataset that will be passed in, therefore, if you want to separate training and validation
+datasets, you should also have separate manifests. Otherwise, you will be loading validation data with your training data and vice 
 versa.
 
 Each line of the manifest should be in the following format:
@@ -186,34 +184,34 @@ reflect the duration of the utterance in seconds.
 
 Each entry in the manifest (describing one audio file) should be bordered by '{' and '}' and must
 be contained on one line. The fields that describe the file should be separated by commas, and have the form :code:``"field_name": value``,
-as shown above. There should be no extra lines in the manifest, i.e. there should be exactly as many lines in the manifest as
+as shown above. There should be no extra lines in the manifest; there should be exactly as many lines in the manifest as
 there are audio files in the dataset.
 
 Since the manifest specifies the path for each utterance, the audio files do not have to be located
 in the same directory as the manifest, or even in any specific directory structure.
 
 Once there is a manifest that describes each audio file in the dataset, use the dataset by passing
-in the manifest file path in the experiment config file, e.g. as ``training_ds.manifest_filepath=<path/to/manifest,json>``.
+in the manifest file path in the experiment config file, for example, as ``training_ds.manifest_filepath=<path/to/manifest,json>``.
 
 Tarred Datasets
 ---------------
 
-If experiments are run on a cluster with datasets stored on a distributed file system, the user will likely
-want to avoid constantly reading multiple small files and would prefer tarring their audio files.
+If experiments are run on a cluster with datasets stored on a distributed file system, you will likely
+want to avoid constantly reading multiple small files and would prefer tarring your audio files.
 There are tarred versions of some NeMo ASR dataset classes for this case, such as the ``TarredAudioToCharDataset``
 (corresponding to the ``AudioToCharDataset``) and the ``TarredAudioToBPEDataset`` (corresponding to the
 ``AudioToBPEDataset``). The tarred audio dataset classes in NeMo use `WebDataset <https://github.com/tmbdev/webdataset>`_.
 
 To use an existing tarred dataset instead of a non-tarred dataset, set ``is_tarred: true`` in
 the experiment config file. Then, pass in the paths to all of the audio tarballs in ``tarred_audio_filepaths``, either as a list
-of filepaths, e.g. ``['/data/shard1.tar', '/data/shard2.tar']``, or in a single brace-expandable string, e.g.
+of filepaths, for example ``['/data/shard1.tar', '/data/shard2.tar']``, or in a single brace-expandable string, for example
 ``'/data/shard_{1..64}.tar'`` or ``'/data/shard__OP_1..64_CL_'`` (recommended, see note below).
 
 .. note::
   For brace expansion, there may be cases where ``{x..y}`` syntax cannot be used due to shell interference. This occurs most commonly 
   inside SLURM scripts. Therefore, we provide a few equivalent replacements. Supported opening braces (equivalent to ``{``) are ``(``, 
   ``[``, ``<`` and the special tag ``_OP_``. Supported closing braces (equivalent to ``}``) are ``)``, ``]``, ``>`` and the special 
-  tag ``_CL_``. For SLURM based tasks, we suggest the use of the special tags for ease of use.
+  tag ``_CL_``. For SLURM based tasks, we suggest the use of the special tags.
 
 As with non-tarred datasets, the manifest file should be passed in ``manifest_filepath``. The dataloader assumes that the length 
 of the manifest after filtering is the correct size of the dataset for reporting training progress.
@@ -228,7 +226,7 @@ see the corresponding class APIs in the `Datasets <./api.html#Datasets>`__ secti
   If using multiple workers, the number of shards should be divisible by the world size to ensure an even
   split among workers. If it is not divisible, logging will give a warning but training will proceed, but likely hang at the last epoch.
   In addition, if using distributed processing, each shard must have the same number of entries after filtering is
-  applied such that each worker ends up with the same number of files. We currently do not check for this in any dataloader, but the user's 
+  applied such that each worker ends up with the same number of files. We currently do not check for this in any dataloader, but your 
   program may hang if the shards are uneven.
 
 Conversion to Tarred Datasets
@@ -263,6 +261,6 @@ The files in the target directory should look similar to the following:
   └── tarred_audio_manifest.json
 
 Note that file structures are flattened such that all audio files are at the top level in each tarball. This ensures that 
-filenames are unique in the tarred dataset and the filepaths do not contain "-sub" and forward slashes in each ``audio_filepath`` are 
+filenames are unique in the tarred dataset and the filepaths do not contain ``-sub`` and forward slashes in each ``audio_filepath`` are 
 simply converted to underscores. For example, a manifest entry for ``/data/directory1/file.wav`` would be ``_data_directory1_file.wav`` 
 in the tarred dataset manifest, and ``/data/directory2/file.wav`` would be converted to ``_data_directory2_file.wav``.

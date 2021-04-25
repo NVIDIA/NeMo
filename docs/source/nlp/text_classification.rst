@@ -1,6 +1,6 @@
 .. _text_classification:
 
-Text Classification model
+Text Classification Model
 =========================
 
 Text Classification is a sequence classification model based on BERT-based encoders. It can be used for a
@@ -8,24 +8,27 @@ variety of tasks like text classification, sentiment analysis, domain/intent det
 The model takes a text input and predicts a label/class for the whole sequence. Megatron-LM and most of the BERT-based encoders
 supported by HuggingFace including BERT, RoBERTa, and DistilBERT.
 
-An example script on how to train the model can be found here: `NeMo/examples/nlp/text_classification/text_classification_with_bert.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/text_classification/text_classification_with_bert.py>`__.
-The default configuration file for the model can be found at: `NeMo/examples/nlp/text_classification/conf/text_classification_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/text_classification/conf/text_classification_config.yaml>`__.
+An example script on how to train the model can be found at `NeMo/examples/nlp/text_classification/text_classification_with_bert.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/text_classification/text_classification_with_bert.py>`__.
+The default configuration file for the model can be found at `NeMo/examples/nlp/text_classification/conf/text_classification_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/text_classification/conf/text_classification_config.yaml>`__.
 
 There is also a Jupyter notebook which explains how to work with this model. We recommend you try this model in the Jupyter notebook (can run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.):
 `NeMo/tutorials/nlp/Text_Classification_Sentiment_Analysis.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/nlp/Text_Classification_Sentiment_Analysis.ipynb>`__.
-This tutorial shows an example of how run the Text Classification model on a sentiment analysis task. You may connect to an instance with a GPU (**Runtime** -> **Change runtime type** -> select **GPU** for the hardware accelerator) to run the notebook.
+This tutorial shows an example of how run the Text Classification model on a sentiment analysis task. You can connect to an instance 
+with a GPU (**Runtime** -> **Change runtime type** -> select **GPU** for the hardware accelerator) to run the notebook.
 
 Data Format
 -----------
 
 The Text Classification model uses a simple text format as the dataset. It requires the data to be stored in TAB separated files 
-(``.tsv``) with two columns: sentence and label. Each line of the data file contains text sequences, where words are separated with spaces and the label is separated with ``[TAB]``, i.e.:
+(``.tsv``) with two columns: sentence and label. Each line of the data file contains text sequences, where words are separated with 
+spaces and the label is separated with ``[TAB]``, i.e.:
 
 .. code::
 
     [WORD][SPACE][WORD][SPACE][WORD][TAB][LABEL]
 
-Labels need to be integers starting from ``0``. Some examples taken from the SST2 dataset, which is a two-class dataset for sentiment analysis:
+Labels need to be integers starting from ``0``. Some examples taken from the SST2 dataset, which is a two-class dataset for 
+sentiment analysis:
 
 .. code::
 
@@ -46,7 +49,8 @@ scripts available for datasets:
 - ChemProt :cite:`nlp-textclassify-lim2018chemical`
 - THUCnews :cite:`nlp-textclassify-li2007scalable`
 
-You can convert them from their original format to NeMo's format. To convert the original datasets to NeMo's format, use the ``examples/text_classification/data/import_datasets.py`` script:
+You can convert them from their original format to NeMo's format. To convert the original datasets to NeMo's format, use 
+the ``examples/text_classification/data/import_datasets.py`` script:
 
 .. code::
     python import_datasets.py \
@@ -136,9 +140,9 @@ training a model:
 +-----------------------------------------------+-----------------+--------------------------------------------------------+-----------------------------------------------------------------------------------------------------------------------+
 | **{training,validation,test}_ds.drop_last**   | boolean         | ``false``                                              | Specifies if last batch of data needs to get dropped if it is smaller than batch size.                                |
 +-----------------------------------------------+-----------------+--------------------------------------------------------+-----------------------------------------------------------------------------------------------------------------------+
-| **{training,validation,test}_ds.pin_memory**  | boolean         | ``false``                                              | Enables pin_memory of PyTorch's data loader to enhance speed                                                          |
+| **{training,validation,test}_ds.pin_memory**  | boolean         | ``false``                                              | Enables ``pin_memory`` of PyTorch's data loader to enhance speed                                                      |
 +-----------------------------------------------+-----------------+--------------------------------------------------------+-----------------------------------------------------------------------------------------------------------------------+
-| **{training,validation,test}_ds.num_samples** | integer         | ``-1``                                                 | Number of samples to be used from the dataset; -1 means all samples                                                   |
+| **{training,validation,test}_ds.num_samples** | integer         | ``-1``                                                 | Number of samples to be used from the dataset; ``-1`` means all samples                                               |
 +-----------------------------------------------+-----------------+--------------------------------------------------------+-----------------------------------------------------------------------------------------------------------------------+
 
 

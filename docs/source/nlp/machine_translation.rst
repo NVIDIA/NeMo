@@ -1,12 +1,13 @@
 .. _machine_translation:
 
 Machine Translation Models
-=========================
+==========================
+
 Machine translation is the task of translating text from one language to another. For example, from English to Spanish. Models are 
 based on the Transformer sequence-to-sequence architecture :cite:`nlp-machine_translation-vaswani2017attention`.
 
-An example script on how to train the model can be found here: `NeMo/examples/nlp/machine_translation/enc_dec_nmt.py <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/examples/nlp/machine_translation/enc_dec_nmt.py>`__.
-The default configuration file for the model can be found at: `NeMo/examples/nlp/machine_translation/conf/aayn_base.yaml <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/examples/nlp/machine_translation/conf/aayn_base.yaml>`__.
+An example script on how to train the model can be found at `NeMo/examples/nlp/machine_translation/enc_dec_nmt.py <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/examples/nlp/machine_translation/enc_dec_nmt.py>`__.
+The default configuration file for the model can be found at `NeMo/examples/nlp/machine_translation/conf/aayn_base.yaml <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/examples/nlp/machine_translation/conf/aayn_base.yaml>`__.
 
 Quick Start Guide
 -----------------
@@ -78,12 +79,13 @@ It is common practice to apply data cleaning, normalization, and tokenization to
 NeMo expects already cleaned, normalized, and tokenized data. The only data pre-processing NeMo does is subword tokenization with BPE 
 :cite:`nlp-machine_translation-sennrich2015neural`.
 
-Data Cleaning, Normalization & Tokenization
--------------------------------------------
+Data Cleaning, Normalization and Tokenization
+---------------------------------------------
 
-We recommend applying the following steps to clean, normalize, and tokenize your data. All pre-trained models released, apply these data pre-processing steps.
+We recommend applying the following steps to clean, normalize, and tokenize your data. All pre-trained models released, apply these 
+data pre-processing steps.
 
-#. Language ID filtering - This step filters out examples from your training dataset that aren't in the correct language. For example, 
+#. Language ID filtering - this step filters out examples from your training dataset that aren't in the correct language. For example, 
    many datasets contain examples where source and target sentences are in the same language. You can use a pre-trained language ID 
    classifier from `fastText <https://fasttext.cc/docs/en/language-identification.html>`__. You can then run our script using the 
    ``lid.176.bin`` model downloaded from the fastText website.
@@ -101,7 +103,7 @@ We recommend applying the following steps to clean, normalize, and tokenize your
          --removed-tgt train_noise.de \
          --fasttext-model lid.176.bin
 
-#. Length filtering - We filter out sentences from the data that are below a minimum length (1) or exceed a maximum length (250). We 
+#. Length filtering - we filter out sentences from the data that are below a minimum length (1) or exceed a maximum length (250). We 
    also filter out sentences where the ratio between source and target lengths exceeds 1.3 except for English <-> Chinese models.
    `Moses <https://github.com/moses-smt/mosesdecoder>`__ is a statistical machine translation toolkit that contains many useful 
    pre-processing scripts.
@@ -110,12 +112,12 @@ We recommend applying the following steps to clean, normalize, and tokenize your
 
        perl mosesdecoder/scripts/training/clean-corpus-n.perl -ratio 1.3 train en es train.filter 1 250
 
-#. Data cleaning - While language ID filtering can sometimes help with filtering out noisy sentences that contain too many puncutations, 
+#. Data cleaning - while language ID filtering can sometimes help with filtering out noisy sentences that contain too many puncutations, 
    it does not help in cases where the translations are potentially incorrect, disfluent,  or incomplete. We use `bicleaner <https://github.com/bitextor/bicleaner>`__ 
    a tool to identify such sentences. It trains a classifier based on many features included pre-trained language model fluency, word 
    alignment scores from a word-alignment model like `Giza++ <https://github.com/moses-smt/giza-pp>`__ etc. We use their available 
    pre-trained models wherever possible and train models ourselves using their framework for remaining languages. The following script 
-   applies a pre-trained bicleaner model to the data and pick sentences that are clean with probability > 0.5.
+   applies a pre-trained bicleaner model to the data and picks sentences that are clean with probability > 0.5.
 
    .. code ::
 
@@ -123,7 +125,7 @@ We recommend applying the following steps to clean, normalize, and tokenize your
        | paste -d "\t" - train.filter.en train.filter.es \
        | bicleaner-classify - - </path/to/bicleaner.yaml> > train.en-es.bicleaner.score
 
-#. Data deduplication - We use `bifixer <https://github.com/bitextor/bifixer>`__ (which uses xxHash) to hash the source and target 
+#. Data deduplication - we use `bifixer <https://github.com/bitextor/bifixer>`__ (which uses xxHash) to hash the source and target 
    sentences based on which we remove duplicate entries from the file. You may want to do something similar to remove training examples 
    that are in the test dataset.
 
@@ -142,8 +144,8 @@ We recommend applying the following steps to clean, normalize, and tokenize your
        awk -F "\t" '{ if ($5>0.5) {print $3}}' train.en-es.bifixer.dedup.score > train.cleaned.en
        awk -F "\t" '{ if ($5>0.5) {print $4}}' train.en-es.bifixer.dedup.score > train.cleaned.es
 
-#. Punctuation Normalization - Punctuation, especially things like quotes can be written in different ways.
-   It's often useful to normalize the way they appear in text. We use the moses punctuation normalizer on all languages except Chinese.
+#. Punctuation Normalization - punctuation, especially things like quotes can be written in different ways. It's often useful to 
+   normalize the way they appear in text. We use the moses punctuation normalizer on all languages except Chinese.
 
    .. code ::
 
@@ -157,8 +159,8 @@ We recommend applying the following steps to clean, normalize, and tokenize your
        Before - Aquí se encuentran joyerías como Tiffany`s entre negocios tradicionales suizos como la confitería Sprüngli.
        After  - Aquí se encuentran joyerías como Tiffany's entre negocios tradicionales suizos como la confitería Sprüngli.
 
-#. Tokenization and word segmentation for Chinese - Naturally written text often contains punctuation markers like commas, full-stops 
-   and apostrophes that are attached to words. Tokenization by just splitting a string on spaces will result in separate token IDs for 
+#. Tokenization and word segmentation for Chinese - naturally written text often contains punctuation markers like commas, full-stops 
+   and apostrophes that are attached to words. Tokenization by just splitting a string on spaces results in separate token IDs for 
    very similar items like ``NeMo`` and ``NeMo.``. Tokenization splits punctuation from the word to create two separate tokens. In the 
    previous example ``NeMo.`` becomes ``NeMo .`` which when split by space, results in two tokens and adressess the earlier problem. 
    
@@ -189,7 +191,7 @@ Training a BPE Tokenization
 ---------------------------
 
 Byte-pair encoding (BPE) :cite:`nlp-machine_translation-sennrich2015neural` is a sub-word tokenization algorithm that is commonly used 
-to reduce the large vocabulary size of datasets by splitting words into frequently occuring sub-words. Currently, mMachine translation 
+to reduce the large vocabulary size of datasets by splitting words into frequently occuring sub-words. Currently, machine translation 
 only supports the `YouTokenToMe <https://github.com/VKCOM/YouTokenToMe>`__ BPE tokenizer. One can set the tokenization configuration 
 as follows:
 
@@ -209,20 +211,19 @@ as follows:
 | **model.shared_tokenizer**                                      | bool            | ``True``       | Whether to share the tokenizer between the encoder and decoder.                                    |
 +-----------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------+
 
-
 Applying BPE Tokenization, Batching, Bucketing and Padding
 ----------------------------------------------------------
 
 Given BPE tokenizers, and a cleaned parallel corpus, the following steps are applied to create a `TranslationDataset <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/nemo/collections/nlp/data/machine_translation/machine_translation_dataset.py#L64>`__ object.
 
-#. Text to IDs - This performs subword tokenization with the BPE model on an input string and maps it to a sequence of tokens for the 
+#. Text to IDs - this performs subword tokenization with the BPE model on an input string and maps it to a sequence of tokens for the 
    source and target text.
 
-#. Bucketing - Sentences vary in length and when creating minibatches, we'd like sentences in them to have roughly the same length to 
+#. Bucketing - sentences vary in length and when creating minibatches, we'd like sentences in them to have roughly the same length to 
    minimize the number of ``<pad>`` tokens and to maximize computational efficiency. This step groups sentences roughly the same length 
    into buckets.
 
-#. Batching and padding - Creates minibatches with a maximum number of tokens specified by ``model.{train_ds,validation_ds,test_ds}.tokens_in_batch`` 
+#. Batching and padding - creates minibatches with a maximum number of tokens specified by ``model.{train_ds,validation_ds,test_ds}.tokens_in_batch`` 
    from buckets and pads, so they can be packed into a tensor.
 
 Datasets can be configured as follows:
@@ -250,7 +251,6 @@ Datasets can be configured as follows:
 +-------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------------+
 | **model.{train_ds,validation_ds,test_ds}.num_workers**      | int             | ``8``          | Number of workers for the PyTorch DataLoader.                                                                        |
 +-------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------------+
-
 
 Tarred Datasets for Large Corpora
 ---------------------------------

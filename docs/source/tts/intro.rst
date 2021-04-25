@@ -1,10 +1,9 @@
 Speech Synthesis (TTS)
 ======================
+
 Speech Synthesis or Text-to-Speech (TTS) involves turning text into human speech. The NeMo TTS collection currently
 supports a two stage pipeline. First, a model is used to generate a mel spectrogram from text. Second, a model is used
 to generate audio from a mel spectrogram.
-
-Quick Start:
 
 .. code-block:: python
 
@@ -28,11 +27,10 @@ Quick Start:
 
 .. note::
 
-   For an interactive version of the quick start above, refer to the TTS inference notebook that can be found on the
-   github readme.
+   For an interactive version of the code above, refer to the TTS inference notebook that can be found on the GitHub README.
 
 Available Models
-################
+----------------
 
 NeMo supports a variety of models that can be used for TTS.
 
@@ -74,22 +72,22 @@ NeMo supports a variety of models that can be used for TTS.
      - GAN-based vocoder
 
 Base Classes
-############
+------------
 
 The NeMo TTS has two base classes corresponding to the two stage pipeline:
 
-  - :class:`SpectrogramGenerator<nemo.collections.tts.models.base.SpectrogramGenerator>`
-  - :class:`Vocoder<nemo.collections.tts.models.base.Vocoder>`
+  - :class:``SpectrogramGenerator<nemo.collections.tts.models.base.SpectrogramGenerator>``
+  - :class:``Vocoder<nemo.collections.tts.models.base.Vocoder>``
 
-The :class:`SpectrogramGenerator<nemo.collections.tts.models.base.SpectrogramGenerator>` class has two important
-functions: :py:meth:`parse<nemo.collections.tts.models.base.SpectrogramGenerator.parse>` which
-accepts raw python strings and returns a torch.tensor that represents tokenized text ready to pass to
-:py:meth:`generate_spectrogram<nemo.collections.tts.models.base.SpectrogramGenerator.generate_spectrogram>` which
-accepts a batch of tokenized text and returns a torch.tensor that represents a batch of spectrograms
+The :class:``SpectrogramGenerator<nemo.collections.tts.models.base.SpectrogramGenerator>`` class has two important
+functions: :py:meth:``parse<nemo.collections.tts.models.base.SpectrogramGenerator.parse>`` which
+accepts raw Python strings and returns a ``torch.tensor`` that represents tokenized text ready to pass to
+:py:meth:``generate_spectrogram<nemo.collections.tts.models.base.SpectrogramGenerator.generate_spectrogram>`` which
+accepts a batch of tokenized text and returns a ``torch.tensor`` that represents a batch of spectrograms.
 
-The :class:`Vocoder<nemo.collections.tts.models.base.Vocoder>` class has one important functions
-:py:meth:`convert_spectrogram_to_audio<nemo.collections.tts.models.base.Vocoder.convert_spectrogram_to_audio>` which
-accepts a batch of spectrograms and returns a torch.tensor that represents a batch of raw audio.
+The :class:``Vocoder<nemo.collections.tts.models.base.Vocoder>`` class has one important function - 
+:py:meth:``convert_spectrogram_to_audio<nemo.collections.tts.models.base.Vocoder.convert_spectrogram_to_audio>`` which
+accepts a batch of spectrograms and returns a ``torch.tensor`` that represents a batch of raw audio.
 
 .. autoclass:: nemo.collections.tts.models.base.SpectrogramGenerator
     :show-inheritance:
@@ -100,8 +98,8 @@ accepts a batch of spectrograms and returns a torch.tensor that represents a bat
     :members:
 
 Training
-########
-Training of TTS models can be done using the scripts inside the NeMo examples/tts folders. The majority of the TTS
-YAML configurations should work out of the box with the LJSpeech dataset. If you want to train on other data, it is
-recommended that you walk through the Tacotron 2 Training notebook. Please pay special attention to the sample rate and
-FFT parameters for new data.
+--------
+
+Training of TTS models can be done using the scripts inside the NeMo ``examples`` and ``tts`` folders. The majority of the TTS
+YAML configurations should work out-of-the-box with the LJSpeech dataset. If you want to train on other data, it is
+recommended that you walk through the Tacotron 2 Training notebook. Make note of the sample rate and FFT parameters for new data.

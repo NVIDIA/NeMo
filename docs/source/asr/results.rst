@@ -3,8 +3,8 @@ Checkpoints
 
 There are two main ways to load pretrained checkpoints in NeMo:
 
-* Using the :code:``restore_from()`` method to load a local checkpoint file (``.nemo``), or
-* Using the :code:``from_pretrained()`` method to download and set up a checkpoint from NGC.
+- Using the :code:``restore_from()`` method to load a local checkpoint file (``.nemo``), or
+- Using the :code:``from_pretrained()`` method to download and set up a checkpoint from NGC.
 
 Refer to the following sections for instructions and examples for each.
 
@@ -34,14 +34,14 @@ obtainable via NGC `NeMo Automatic Speech Recognition collection <https://ngc.nv
 The model cards on NGC contain more information about each of the checkpoints available.
 
 The tables below list the ASR models available from NGC. The models can be accessed via the :code:``from_pretrained()`` method inside 
-the ASR Model class. In general, you can load any of these models with code in the following format:
+the ASR model class. In general, you can load any of these models with code in the following format:
 
 .. code-block:: python
 
   import nemo.collections.asr as nemo_asr
   model = nemo_asr.models.ASRModel.from_pretrained(model_name="<MODEL_NAME>")
 
-Where the model name is the value under "Model Name" entry in the tables below.
+Where the model name is the value under the ``Model Name`` entry in the tables below.
 
 For example, to load the base English QuartzNet model for speech recognition, run:
 
@@ -69,7 +69,7 @@ To perform inference and transcribe a sample of speech after loading the model, 
     model.transcribe(paths2audio_files=[list of audio files], batch_size=BATCH_SIZE, logprobs=False)
 
 Setting the argument ``logprobs`` to ``True`` returns the log probabilities instead of transcriptions. For more information, see :doc:``./api.html#modules``.
-The audio files should be 16KHz monochannel wav files.
+The audio files should be 16KHz monochannel ``.wav`` files.
 
 Automatic Speech Recognition Models
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

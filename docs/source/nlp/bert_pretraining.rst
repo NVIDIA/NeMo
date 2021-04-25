@@ -9,9 +9,11 @@ BERT is an autoencoding language model with a final loss composed of:
 - next sentence prediction
 
 The model architecture is published in `BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding <https://arxiv.org/abs/1810.04805>`__ :cite:`nlp-bert-devlin2018bert`.
-The model is originally trained on English Wikipedia and BookCorpus. BERT is often used as a language model encoder for downstream tasks, for example, :ref:`token_classification`, :ref:`text_classification`, :ref:`question_answering`, etc.
-Domain-specific BERT models can be advantageous for a wide range of applications. One notable application is the domain-specific BERT in a biomedical setting,
-e.g. BioBERT :cite:`nlp-bert-lee2019biobert` or its improved derivative BioMegatron :cite:`nlp-bert-shin2020biomegatron`. For the latter, refer to :ref:`megatron_finetuning`.
+The model is originally trained on English Wikipedia and BookCorpus. BERT is often used as a language model encoder for downstream 
+tasks, for example, :ref:`token_classification`, :ref:`text_classification`, :ref:`question_answering`, etc. Domain-specific BERT 
+models can be advantageous for a wide range of applications. One notable application is the domain-specific BERT in a biomedical 
+setting, for example, BioBERT :cite:`nlp-bert-lee2019biobert` or its improved derivative BioMegatron :cite:`nlp-bert-shin2020biomegatron`. 
+For the latter, refer to :ref:`megatron_finetuning`.
 
 Quick Start Guide
 -----------------
@@ -42,7 +44,7 @@ Available Models
 
 .. _dataset_bert_pretraining:
 
-Data Input for the BERT model
+Data Input for the BERT Model
 -----------------------------
 
 Data preprocessing can be either done on-the-fly during training or offline before training. The latter is optimized and recommended 
@@ -52,13 +54,13 @@ To use this pipeline in training, use the dedicated configuration file `NeMo/exa
 
 To process data offline in advance, refer to the `BERT Quick Start Guide <https://github.com/NVIDIA/DeepLearningExamples/tree/master/PyTorch/LanguageModeling/BERT#quick-start-guide>`__.
 To recreate the original Wikipedia and BookCorpus datasets, follow steps 1-5 in the Quick Start Guide and run the script ``./data/create_datasets_from_start.sh`` inside the Docker container.
-The ``downloaded`` folder should include two sub folders ``lower_case_[0,1]_seq_len_128_max_pred_20_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5``
-and ``lower_case_[0,1]_seq_len_512_max_pred_80_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5``, containing sequences of length 128 with a maximum of 20 masked tokens
-and sequences of length 512 with a maximum of 80 masked tokens respectively. To use this pipeline in training, use the dedicated configuration file ``NeMo/examples/nlp/language_modeling/conf/bert_pretraining_from_text_config.yaml`` 
+The ``downloaded`` folder includes two sub folders ``lower_case_[0,1]_seq_len_128_max_pred_20_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5``
+and ``lower_case_[0,1]_seq_len_512_max_pred_80_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5``, containing sequences of length 
+128 with a maximum of 20 masked tokens and sequences of length 512 with a maximum of 80 masked tokens respectively. To use this 
+pipeline in training, use the dedicated configuration file ``NeMo/examples/nlp/language_modeling/conf/bert_pretraining_from_text_config.yaml`` 
 and specify the path to the created hd5f files.
 
-
-Training the BERT model
+Training the BERT Model
 -----------------------
 
 Example of model configuration for on-the-fly data preprocessing: `NeMo/examples/nlp/language_modeling/conf/bert_pretraining_from_text_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/bert_pretraining_from_text_config.yaml>`__.
@@ -104,11 +106,11 @@ More details about parameters for online data preprocessing can be found below:
 
 .. note::
 
-    For offline data preprocessing, **model.tokenizer** is null. For downstream task, use the same tokenizer that was used for 
+    For offline data preprocessing, **model.tokenizer** is null. For downstream, use the same tokenizer that was used for 
     offline preprocessing. For online data preprocessing, **model.tokenizer** needs to be specified. See also :ref:`nlp_model` for 
     details.
 
-Example of the command for training the model:
+For example, to train the model, run:
 
 .. code::
 
@@ -121,7 +123,7 @@ Example of the command for training the model:
 Fine-tuning on Downstream Tasks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-To use a trained BERT model checkpoint on a NeMo NLP downstream task, e.g. :ref:`question_answering`, specify 
+To use a trained BERT model checkpoint on a NeMo NLP downstream task, for example, :ref:`question_answering`, specify 
 :code:``model.language_model.lm_checkpoint=<PATH_TO_CHECKPOINT>``.
 
 References

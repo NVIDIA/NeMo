@@ -1,16 +1,15 @@
 NeMo ASR Configuration Files
 ============================
 
-This section describes the NeMo configuration file setup that is specific to models in the ASR collection. For general information 
-about how to set up and run experiments that is common to all NeMo models (e.g. Experiment Manager and PyTorch Lightning trainer 
-parameters), see the :doc:`../core` section.
-
-The model section of the NeMo ASR configuration files generally requires information about the dataset(s) being used, the preprocessor 
+The model section of the NeMo ASR configuration files requires information about the datasets being used, the preprocessor 
 for audio files, parameters for any augmentation being performed, as well as the model architecture specification. The sections on 
 this page cover each of these in more detail.
 
 Example configuration files for all of the NeMo ASR scripts can be found in the
 `config directory of the examples <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples/asr/conf>`_.
+
+For general information about how to set up and run experiments that is common to all NeMo models (for example, Experiment Manager and PyTorch 
+Lightning Trainer parameters), see the :doc:`../core` section.
 
 
 Dataset Configuration
@@ -18,11 +17,11 @@ Dataset Configuration
 
 Training, validation, and test parameters are specified using the ``train_ds``, ``validation_ds``, and
 ``test_ds`` sections in the configuration file, respectively. Depending on the task, there may be arguments specifying the sample rate 
-of the audio files, the vocabulary of the dataset (for character prediction), whether or not to shuffle the dataset, and so on. You may 
+of the audio files, the vocabulary of the dataset (for character prediction), whether or not to shuffle the dataset, and so on. You can 
 also decide to leave fields such as the ``manifest_filepath`` blank, to be specified via the command-line at runtime.
 
-Any initialization parameter that is accepted for the Dataset class used in the experiment can be set in the config file.
-Refer to the `Datasets <./api.html#Datasets>`__ section of the API for a list of Datasets and their respective parameters.
+Any initialization parameter that is accepted for the dataset class used in the experiment can be set in the config file.
+Refer to the `Datasets <./api.html#Datasets>`__ section of the API for a list of datasets and their respective parameters.
 
 An example ASR train and validation configuration should look similar to the following:
 
@@ -61,7 +60,7 @@ Preprocessor Configuration
 --------------------------
 
 If you are loading audio files for your experiment, you will likely want to use a preprocessor to convert from the
-raw audio signal to features (e.g. mel-spectrogram or MFCC). The ``preprocessor`` section of the config specifies the audio 
+raw audio signal to features (for example, mel-spectrogram or MFCC). The ``preprocessor`` section of the config file specifies the audio 
 preprocessor to be used via the ``_target_`` field, as well as any initialization parameters for that preprocessor.
 
 An example of specifying a preprocessor is as follows:
@@ -84,8 +83,8 @@ and defaults.
 Augmentation Configurations
 ---------------------------
 
-There are a few on-the-fly spectrogram augmentation options for NeMo ASR, which can be specified by the
-configuration file using a ``spec_augment`` section.
+There are a few spectrogram augmentation options for NeMo ASR, which can be specified by the
+configuration file using the ``spec_augment`` section.
 
 For example, there are options for `Cutout <https://arxiv.org/abs/1708.04552>`_ and
 `SpecAugment <https://arxiv.org/abs/1904.08779>`_ available via the ``SpectrogramAugmentation`` module.
@@ -113,7 +112,7 @@ You can use any combination of ``Cutout``, frequency/time ``SpecAugment``, or ne
 
 With NeMo ASR, you can also add augmentation pipelines that can be used to simulate various kinds of noise
 added to audio in the channel. Augmentors in a pipeline are applied on the audio data read in the data layer. Online
-augmentors can be specified in the config file using an ``augmentor`` section in ``train_ds``. The following example
+augmentors can be specified in the config file using the ``augmentor`` section in ``train_ds``. The following example
 adds an augmentation pipeline that first adds white noise to an audio sample with a probability of 0.5 and at a level
 randomly picked between -50 dB and -10 dB and then passes the resultant samples through a room impulse response randomly
 picked from the manifest file provided for ``impulse`` augmentation in the config file.
@@ -140,7 +139,7 @@ Tokenizer Configurations
 
 Some models utilize sub-word encoding via an external tokenizer instead of explicitly defining their vocabulary.
 
-For such models, a ``tokenizer`` section is added  to the model config. ASR models currently support two types of
+For such models, a ``tokenizer`` section is added to the model config file. ASR models currently support two types of
 custom tokenizers:
 
 - Google Sentencepiece tokenizers (tokenizer type of ``bpe`` in the config)
@@ -201,7 +200,7 @@ For more information about the ASR models, refer to the :doc:`Models <./models>`
 Jasper and QuartzNet
 ~~~~~~~~~~~~~~~~~~~~
 
-The `Jasper <./models.html#Jasper>`__ and `QuartzNet <./models.html#QuartzNet>`__ models are very similar, and as such the components in their
+The `Jasper <./models.html#Jasper>`__ and `QuartzNet <./models.html#QuartzNet>`__ models are very similar, and as such, the components in their
 configs are very similar as well.
 
 Both architectures use the ``ConvASREncoder`` for the ``encoder``, with parameters detailed in the table below. The encoder parameters 
@@ -331,7 +330,7 @@ For example, a decoder config corresponding to the encoder above should look sim
 Citrinet
 ~~~~~~~~
 
-The `Citrinet <./models.html#Citrinet>`__ and `QuartzNet <./models.html#QuartzNet>`__ models are very similar, and as such the 
+The `Citrinet <./models.html#Citrinet>`__ and `QuartzNet <./models.html#QuartzNet>`__ models are very similar, and as such, the 
 components in their configs are very similar as well. Citrinet utilizes Squeeze and Excitation, as well as sub-word tokenization, in 
 contrast to QuartzNet. Depending on the dataset, we utilize different tokenizers. For Librispeech, we utilize the HuggingFace WordPiece 
 tokenizer, and for all other datasets we utilize the Google Sentencepiece tokenizer - usually the ``unigram`` tokenizer type.
@@ -456,5 +455,5 @@ respectively. Some components of the configs of `Conformer-CTC <./models.html#Co
 These datasets are similar to other ASR models like `QuartzNet <./models.html#QuartzNet>`__. There should be a tokenizer section where you can  
 specify the tokenizer if you want to use sub-word encoding instead of character-based encoding.
 
-The encoder section includes the details about the Conformer-CTC encoder architecture. You may find more information in the 
-config files and also :doc:``nemo.collections.asr.modules.ConformerEncoder<./api.html#nemo.collections.asr.modules.ConformerEncoder>``.
+The encoder section includes the details about the Conformer-CTC encoder architecture. You can find more information in the 
+config files and also in :doc:``nemo.collections.asr.modules.ConformerEncoder<./api.html#nemo.collections.asr.modules.ConformerEncoder>``.

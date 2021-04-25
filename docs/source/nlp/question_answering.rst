@@ -1,6 +1,6 @@
 .. _question_answering:
 
-Question Answering model
+Question Answering Model
 ========================
 
 With Question Answering, or Reading Comprehension, given a question and a passage of content (context) that may contain an answer for 
@@ -9,8 +9,8 @@ datasets like SQuAD 2.0, this model supports cases when the answer is not contai
 
 For every word in the context of a given question, the model is trained to predict:
 
-- The likelihood this word is the start of the span.
-- The likelihood this word is the end of the span.
+- the likelihood this word is the start of the span
+- the likelihood this word is the end of the span
 
 The model chooses the start and end words with maximal probabilities. When the content does not contain the answer, we would like the 
 start and end span to be set for the first token.
@@ -37,18 +37,16 @@ Quick Start Guide
   
 .. note::
 
-    We recommend you try Question Answering model in a Jupyter notebook (can run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.): 
+    We recommend you try the Question Answering model in a Jupyter notebook (can run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.): 
     `NeMo/tutorials/nlp/Question_Answering_Squad.ipynb <https://github.com/NVIDIA/NeMo/blob/main/tutorials/nlp/Question_Answering_Squad.ipynb>`__.
 
     Connect to an instance with a GPU (**Runtime** -> **Change runtime type** -> select **GPU** for the hardware accelerator).
 
-    An example script on how to train and evaluate the model can be found here: `NeMo/examples/nlp/question_answering/question_answering_squad.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/question_answering/question_answering_squad.py>`__.
+    An example script on how to train and evaluate the model can be found at `NeMo/examples/nlp/question_answering/question_answering_squad.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/question_answering/question_answering_squad.py>`__.
 
-    The default configuration file for the model can be found at: `NeMo/examples/nlp/question_answering/conf/question_answering_squad.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/question_answering/conf/question_answering_squad_config.yaml>`__.
+    The default configuration file for the model can be found at `NeMo/examples/nlp/question_answering/conf/question_answering_squad.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/question_answering/conf/question_answering_squad_config.yaml>`__.
 
-
-
-Available models
+Available Models
 ^^^^^^^^^^^^^^^^
 
 .. list-table:: *Pretrained Models*
@@ -169,12 +167,12 @@ evaluation:
 Model Training
 --------------
 
-In the Question Answering Model, we are training a span prediction head on top of a pre-trained language model, such as 
+In the Question Answering model, we are training a span prediction head on top of a pre-trained language model, such as 
 `BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding <https://arxiv.org/abs/1810.04805>`__ :cite:`nlp-qa-devlin2018bert`.
-Unless the user provides a pre-trained checkpoint for the language model, the language model is initialized with the pre-trained model 
+Unless you provide a pre-trained checkpoint for the language model, the language model is initialized with the pre-trained model 
 from `HuggingFace Transformers <https://github.com/huggingface/transformers>`__.
 
-Example of model configuration file for training the model can be found at: `NeMo/examples/nlp/question_answering/conf/question_answering_squad_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/question_answering/conf/question_answering_squad_config.yaml>`__.
+Example of a model configuration file for training the model can be found at `NeMo/examples/nlp/question_answering/conf/question_answering_squad_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/question_answering/conf/question_answering_squad_config.yaml>`__.
 
 The specification can be grouped into three categories:
 
@@ -238,14 +236,14 @@ Fine-tuning Procedure
 ^^^^^^^^^^^^^^^^^^^^^
 
 Fine-tuning procedure and logs look similar to what's described in the Model Training section, with the addition of the model
-that is initially loaded from a previously trained checkpoint, e.g. by specifying :code:``pretrained_model=<PRETRAINED_MODEL_NAME>``.
+that is initially loaded from a previously trained checkpoint, for example, by specifying :code:``pretrained_model=<PRETRAINED_MODEL_NAME>``.
 
 Inference
 ---------
 
 An example script on how to run inference can be found at `examples/nlp/question_answering/question_answering_squad.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/question_answering/question_answering_squad.py>`_.
 
-To run inference with the pre-trained model, run:
+To start inference with the pre-trained model, run:
 
 .. code::
 
@@ -256,17 +254,17 @@ To run inference with the pre-trained model, run:
            do_training=false \
            model.validation_ds.file=<PATH_TO_INFERENCE_DATA_FILE>
 
-Required Arguments for inference:
+Required Arguments for Inference:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- :code:``pretrained_model``: pretrained QA Model model from ``list_available_models()`` or path to a ``.nemo`` file
+- :code:``pretrained_model``: pretrained Question Answering model from ``list_available_models()`` or path to a ``.nemo`` file
 
 Model Evaluation
 ----------------
 
 An example script on how to evaluate the pre-trained model, can be found at `examples/nlp/question_answering/question_answering_squad.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/question_answering/question_answering_squad.py>`_.
 
-To run evaluation of the pre-trained model, run:
+To start evaluation of the pre-trained model, run:
 
 .. code::
 
@@ -278,10 +276,10 @@ To run evaluation of the pre-trained model, run:
            model.test_ds.file=<PATH_TO_TEST_DATA_FILE>
 
 
-Required Arguments:
-^^^^^^^^^^^^^^^^^^^
+Required Arguments
+^^^^^^^^^^^^^^^^^^
 
-- :code:``pretrained_model`: pretrained QA model from ``list_available_models()`` or path to a ``.nemo`` file
+- :code:``pretrained_model`: pretrained Question Answering model from ``list_available_models()`` or path to a ``.nemo`` file
 - :code:``model.test_ds.file``: path to test file
 
 During evaluation of the :code:`test_ds`, the script generates the following metrics:

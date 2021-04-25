@@ -3,8 +3,8 @@
 Punctuation and Capitalization Model
 ====================================
 
-Automatic Speech Recognition (ASR) systems typically generate text with no punctuation and capitalization of the words. 
-There are two issues with non-punctuated ASR output:
+Automatic Speech Recognition (ASR) systems typically generate text with no punctuation and capitalization of the words. There are two 
+issues with non-punctuated ASR output:
 
 - it could be difficult to read and understand
 - models for some downstream tasks, such as named entity recognition, machine translation, or text-to-speech, are usually trained 
@@ -34,8 +34,8 @@ For each word in the input text, the Punctuation and Capitalization model:
 - predicts a punctuation mark that should follow the word (if any). By default, the model supports commas, periods, and question marks.
 - predicts if the word should be capitalized or not
 
-In the Punctuation and Capitalization model, we are jointly training two token-level classifiers on top of a pre-trained 
-language model, such as `BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding <https://arxiv.org/abs/1810.04805>`__ :cite:`nlp-punct-devlin2018bert`.
+In the Punctuation and Capitalization model, we are jointly training two token-level classifiers on top of a pre-trained language 
+model, such as `BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding <https://arxiv.org/abs/1810.04805>`__ :cite:`nlp-punct-devlin2018bert`.
 
 .. note::
 
@@ -43,30 +43,29 @@ language model, such as `BERT: Pre-training of Deep Bidirectional Transformers f
 
     Connect to an instance with a GPU (**Runtime** -> **Change runtime type** -> select **GPU** for the hardware accelerator).
 
-    An example script on how to train the model can be found at: `NeMo/examples/nlp/token_classification/punctuation_capitalization_train.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/punctuation_capitalization_train.py>`__.
+    An example script on how to train the model can be found at `NeMo/examples/nlp/token_classification/punctuation_capitalization_train.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/punctuation_capitalization_train.py>`__.
 
-    An example script on how to run evaluation and inference can be found at: `NeMo/examples/nlp/token_classification/punctuation_capitalization_evaluate.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/punctuation_capitalization_evaluate.py>`__.
+    An example script on how to run evaluation and inference can be found at `NeMo/examples/nlp/token_classification/punctuation_capitalization_evaluate.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/punctuation_capitalization_evaluate.py>`__.
 
-    The default configuration file for the model can be found at: `NeMo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__.
+    The default configuration file for the model can be found at `NeMo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__.
 
 .. _raw_data_format_punct:
 
 Raw Data Format
 ---------------
 
-The Punctuation and Capitalization model can work with any text dataset, although it is recommended to balance the data, especially 
+The Punctuation and Capitalization model can work with any text dataset, although, it is recommended to balance the data, especially 
 for the punctuation task. Before pre-processing the data to the format expected by the model, the data should be split into ``train.txt`` 
 and ``dev.txt`` (and optionally ``test.txt``). Each line in the ``train.txt/dev.txt/test.txt`` should represent one or more full 
 and/or truncated sentences.
 
-Example of the ``train.txt``/``dev.txt`` file:
+For example, the ``train.txt``/``dev.txt`` file should look similar to the following:
 
 .. code::
 
     When is the next flight to New York?
     The next flight is ...
     ....
-
 
 The ``source_data_dir`` structure should look similar to the following:
 
@@ -88,7 +87,7 @@ The training and evaluation data is divided into 2 files:
 
 Each line of the ``text.txt`` file contains text sequences, where words are separated with spaces.
 
-[WORD] [SPACE] [WORD] [SPACE] [WORD], for example:
+``[WORD] [SPACE] [WORD] [SPACE] [WORD]``, for example:
 
     ::
 
@@ -96,8 +95,8 @@ Each line of the ``text.txt`` file contains text sequences, where words are sepa
         the next flight is ...
         ...
 
-The ``labels.txt`` file contains corresponding labels for each word in ``text.txt``, the labels are separated with spaces. 
-Each label in ``labels.txt`` file consists of 2 symbols:
+The ``labels.txt`` file contains corresponding labels for each word in ``text.txt``, the labels are separated with spaces. Each label 
+in ``labels.txt`` file consists of 2 symbols:
 
 - the first symbol of the label indicates what punctuation mark should follow the word (where ``O`` means no punctuation needed)
 - the second symbol determines if a word needs to be capitalized or not (where ``U`` indicates that the word should be upper cased, 
@@ -162,7 +161,8 @@ Training Punctuation and Capitalization Model
 ---------------------------------------------
 
 The language model is initialized with the pre-trained model from `HuggingFace Transformers <https://github.com/huggingface/transformers>`__, 
-unless the user provides a pre-trained checkpoint for the language model. Example of model configuration file for training the model can be found at: `NeMo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__.
+unless you provide a pre-trained checkpoint for the language model. Example of a model configuration file for training the model can 
+be found at `NeMo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__.
 
 The specification is roughly grouped into the following categories:
 
@@ -221,7 +221,7 @@ To train the model from scratch, run:
              optim.lr=0.0001 \
              model.nemo_path=<PATH/TO/SAVE/.nemo>
 
-The above command will start model training on GPUs 0 and 1 with Adam optimizer and learning rate of 0.0001; and the trained model is 
+The above command starts model training on GPUs 0 and 1 with Adam optimizer and learning rate of 0.0001; and the trained model is 
 store under ``<PATH/TO/SAVE/.nemo>``.
 
 To train from the pre-trained model, run:
@@ -236,8 +236,7 @@ To train from the pre-trained model, run:
 Required Arguments for Training
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* :code:`model.dataset.data_dir`: Path to the `data_dir` with the pre-processed data files.
-
+- :code:``model.dataset.data_dir``: path to the ``data_dir`` with the pre-processed data files.
 
 .. note::
 
@@ -262,7 +261,7 @@ To start inference with a pre-trained model on a few examples, run:
 Model Evaluation
 ----------------
 
-An example script on how to evaluate the pre-trained model, can be found at `examples/nlp/token_classification/punctuation_capitalization_evaluate.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/punctuation_capitalization_evaluate.py>`_.
+An example script on how to evaluate the pre-trained model can be found at `examples/nlp/token_classification/punctuation_capitalization_evaluate.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/punctuation_capitalization_evaluate.py>`_.
 
 To start evaluation of the pre-trained model, run:
 
@@ -283,7 +282,7 @@ file. For example: ``punctuation_en_bert`` or ``your_model.nemo``.
 - :code:``model.dataset.data_dir``: path to the directory that containes :code:``model.test_ds.text_file`` and :code:``model.test_ds.labels_file``
 
 During evaluation of the :code:``test_ds``, the script generates two classification reports: one for capitalization task and another 
-one for punctuation task. This classification reports include the following metrics:
+one for punctuation task. This classification report includes the following metrics:
 
 - :code:``Precision``
 - :code:``Recall``
