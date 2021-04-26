@@ -238,6 +238,9 @@ class MTEncDecModel(EncDecNLPModel):
     def eval_epoch_end(self, outputs, mode):
         dl_0_sb_score = 0  # log dl_0 by default to preserve backward compatibility
         dl_0_eval_loss = 0
+        # if user specifies one validation dataloader, then PTL reverts to giving a list of dictionary instead of a list of list of dictionary
+        if isinstance(outputs[0], dict):
+            outputs = [outputs]
         for dataloader_idx, output in enumerate(outputs):
             eval_loss = getattr(self, f'eval_loss_{dataloader_idx}').compute()
             if dataloader_idx == 0:
