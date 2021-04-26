@@ -54,7 +54,7 @@ class Perplexity(Metric):
 
     def update(self, log_probs, labels, mask):
         target_log_probs = log_probs.gather(2, labels.unsqueeze(2)).squeeze(2)
-        avg_neg_ll = - (target_log_probs * mask).sum(dim=-1) / mask.sum(dim=-1)
+        avg_neg_ll = -(target_log_probs * mask).sum(dim=-1) / mask.sum(dim=-1)
         ppl = avg_neg_ll.exp()
         self.num_distributions += ppl.numel()
         self.perplexities_sum += ppl.sum()
