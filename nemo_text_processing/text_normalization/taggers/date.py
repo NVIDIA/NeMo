@@ -63,10 +63,14 @@ def _get_year_graph():
     graph = (
         graph_ties + insert_space + graph_ties
         | graph_teen + insert_space + pynini.cross("00", "hundred")
-        | (graph_teen + insert_space + ties_graph + pynutil.delete("0s"))
-        @ pynini.cdrewrite(pynini.cross("y", "ies"), "", "[EOS]", NEMO_SIGMA)
+        | (graph_teen + insert_space + (ties_graph | pynini.cross("1", "ten")) + pynutil.delete("0s"))
+        @ pynini.cdrewrite(pynini.cross("y", "ies") | pynutil.insert("s"), "", "[EOS]", NEMO_SIGMA)
         | pynutil.add_weight(
-            pynini.cross("200", "two thousand") + (pynutil.delete("0") | insert_space + graph_digit), weight=-0.001
+            graph_digit
+            + insert_space
+            + pynini.cross("00", "thousand")
+            + (pynutil.delete("0") | insert_space + graph_digit),
+            weight=-0.001,
         )
     )
     graph = (pynini.union("1", "2") + NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT + pynini.closure("s", 0, 1)) @ graph
@@ -121,8 +125,20 @@ class DateFst(GraphFst):
             + pynini.closure(pynutil.delete(","), 0, 1)
             + optional_graph_year
         )
+
+        delete_sep = pynutil.delete(pynini.union("-", "/", "."))
+        graph_mdy |= (
+            month_numbers_graph
+            + delete_sep
+            + insert_space
+            + pynini.closure(pynutil.delete("0"), 0, 1)
+            + day_graph
+            + delete_sep
+            + insert_space
+            + year_graph
+        )
+
         graph_dmy = day_graph + delete_extra_space + month_graph + optional_graph_year
-        delete_sep = pynutil.delete(pynini.union("-", "/"))
         graph_ymd = (
             year_graph
             + delete_sep

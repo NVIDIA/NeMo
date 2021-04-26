@@ -17,7 +17,7 @@ import sys
 from collections import OrderedDict
 from typing import List
 
-from nemo_text_processing.inverse_text_normalization.taggers.tokenize_and_classify_final import ClassifyFinalFst
+from nemo_text_processing.inverse_text_normalization.taggers.tokenize_and_classify import ClassifyFst
 from nemo_text_processing.inverse_text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
 from nemo_text_processing.inverse_text_normalization.verbalizers.verbalize_final import VerbalizeFinalFst
 from tqdm import tqdm
@@ -25,7 +25,7 @@ from tqdm import tqdm
 try:
     import pynini
 
-    tagger = ClassifyFinalFst()
+    tagger = ClassifyFst()
     verbalizer = VerbalizeFinalFst()
     parser = TokenParser()
 
@@ -163,7 +163,11 @@ def inverse_normalize(text: str, verbose: bool) -> str:
 
     Returns: written form
     """
-
+    text = text.strip()
+    if not text:
+        if verbose:
+            print(text)
+        return text
     text = pynini.escape(text)
     tagged_lattice = find_tags(text)
     tagged_text = select_tag(tagged_lattice)

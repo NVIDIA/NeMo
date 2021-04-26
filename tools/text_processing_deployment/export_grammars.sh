@@ -19,9 +19,10 @@
 # pluggs grammars into Sparrowhawk and returns prompt inside docker.
 # To run inverse text normalization, run e.g.
 #       echo "two dollars fifty" | ../../src/bin/normalizer_main --config=sparrowhawk_configuration.ascii_proto
-python pynini_export.py .
-cd classify; thraxmakedep tokenize_and_classify.grm ; make; cd ..
-cd verbalize; thraxmakedep verbalize.grm ; make; cd ..
-rm -rf classify/tokenize_and_classify_tmp.far classify/puntuation.far verbalize/verbalize_tmp.far util.far Makefile classify/Makefile verbalize/Makefile
+
+GRAMMARS=${1:-"itn_grammars"} # tn_grammars
+INPUT_CASE=${2:-"lower_cased"}
+python pynini_export.py --output_dir=. --grammars=${GRAMMARS} --input_case=${INPUT_CASE}
+find . -name "Makefile" -type f -delete
 bash docker/build.sh 
 bash docker/launch.sh 
