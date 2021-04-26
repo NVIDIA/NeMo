@@ -36,7 +36,7 @@ class DateFst(GraphFst):
         date { day: "five" month: "february" year: "twenty twelve" preserve_order: true } -> the fifth of february twenty twelve
     """
 
-    def __init__(self, ordinal):
+    def __init__(self, ordinal: GraphFst):
         super().__init__(name="date", kind="verbalize")
 
         month = (

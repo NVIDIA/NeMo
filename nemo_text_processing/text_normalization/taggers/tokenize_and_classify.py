@@ -50,14 +50,14 @@ class ClassifyFst(GraphFst):
         cardinal = CardinalFst()
         cardinal_graph = cardinal.fst
 
-        ordinal = OrdinalFst(cardinal)
+        ordinal = OrdinalFst(cardinal=cardinal)
         ordinal_graph = ordinal.fst
 
-        decimal = DecimalFst(cardinal)
+        decimal = DecimalFst(cardinal=cardinal)
         decimal_graph = decimal.fst
 
         measure_graph = MeasureFst(cardinal=cardinal, decimal=decimal).fst
-        date_graph = DateFst(cardinal).fst
+        date_graph = DateFst(cardinal=cardinal).fst
         word_graph = WordFst().fst
         time_graph = TimeFst().fst
         telephone_graph = TelephoneFst().fst
