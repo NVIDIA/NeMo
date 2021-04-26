@@ -63,6 +63,7 @@ class ClassifyFst(GraphFst):
         telephone_graph = TelephoneFst().fst
         money_graph = MoneyFst(cardinal=cardinal, decimal=decimal).fst
         whitelist_graph = WhiteListFst(input_case=input_case).fst
+        punct_graph = PunctuationFst().fst
 
         classify = (
             pynutil.add_weight(whitelist_graph, 1.01)
@@ -77,9 +78,7 @@ class ClassifyFst(GraphFst):
             | pynutil.add_weight(word_graph, 100)
         ).optimize()
 
-        punct = (
-            pynutil.insert("tokens { ") + pynutil.add_weight(PunctuationFst().fst, weight=1.1) + pynutil.insert(" }")
-        )
+        punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=1.1) + pynutil.insert(" }")
         token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")
         token_plus_punct = (
             pynini.closure(punct + pynutil.insert(" ")) + token + pynini.closure(pynutil.insert(" ") + punct)
