@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 
 from itertools import chain
 
@@ -20,17 +21,29 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
+from nemo.collections.asr.parts import parsers
+
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.losses.fastspeech2loss import DurationLoss, L1MelLoss
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
-from nemo.core.classes import ModelPT
+from nemo.collections.tts.models.base import TextToWaveform
 from nemo.core.classes.common import typecheck
 from nemo.core.optim.lr_scheduler import NoamAnnealing
 from nemo.utils import logging
+from nemo.core.neural_types.elements import (
+    LengthsType,
+    LossType,
+    MelSpectrogramType,
+    RegressionValuesType,
+    TokenDurationType,
+    TokenIndex,
+    TokenLogDurationType,
+)
+from nemo.core.neural_types.neural_type import NeuralType  # TODO: Add neuraltypes for this model
 
 
-class FastSpeech2HifiGanE2EModel(ModelPT):
+class FastSpeech2HifiGanE2EModel(TextToWaveform):
     """TODO"""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -67,7 +80,13 @@ class FastSpeech2HifiGanE2EModel(ModelPT):
         self.logged_real_samples = False
         self._tb_logger = None
         self.sample_rate = cfg.sample_rate
-        typecheck.set_typecheck_enabled(enabled=False)
+
+        # Parser and mappings are used for inference only.
+        self.parser = parsers.make_parser(name='en')
+        with open(cfg.mappings_filepath, 'r') as f:
+            mappings = json.load(f)
+            self.word2phones = mappings['word2phones']
+            self.phone2idx = mappings['phone2idx']
 
     @property
     def tb_logger(self):
@@ -106,7 +125,7 @@ class FastSpeech2HifiGanE2EModel(ModelPT):
         }
         return [opt1, opt2], [sch1_dict, sch2_dict]
 
-    def forward(self, *, spec, spec_len, text, text_length, splice=True, durations=None, pitch=None, energies=None):
+    def forward(self, *, text, text_length, splice=True, durations=None, pitch=None, energies=None, spec_len=None):
         encoded_text, encoded_text_mask = self.encoder(text=text, text_length=text_length)
 
         context, log_dur_preds, pitch_preds, energy_preds, spec_len = self.variance_adapter(
@@ -314,3 +333,55 @@ class FastSpeech2HifiGanE2EModel(ModelPT):
     def setup_validation_data(self, cfg):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
 
+    def parse(self, str_input: str, additional_word2phones=None) -> torch.tensor:
+        """
+        Parses text input and converts them to phoneme indices.
+
+        str_input (str): The input text to be converted.
+        additional_word2phones (dict): Optional dictionary mapping words to phonemes for updating the model's
+            word2phones.  This will not overwrite the existing dictionary, just update it with OOV or new mappings.
+            Defaults to None, which will keep the existing mapping.
+        """
+        # Update model's word2phones if applicable
+        if additional_word2phones is not None:
+            self.word2phones.update(additional_word2phones)
+
+        # Convert text -> normalized text -> list of phones per word -> indices
+        if str_input[-1] not in [".", "!", "?"]:
+            str_input = str_input + "."
+        norm_text = re.findall("""[\w']+|[.,!?;"]""", self.parser._normalize(str_input))
+
+        try:
+            phones = [self.word2phones[t] for t in norm_text]
+        except KeyError as error:
+            logging.error(
+                f"ERROR: The following word in the input is not in the model's dictionary and could not be converted"
+                f" to phonemes: ({error}).\n"
+                f"You can pass in an `additional_word2phones` dictionary with a conversion for"
+                f" this word, e.g. {{'{error}': \['phone1', 'phone2', ...\]}} to update the model's mapping."
+            )
+            raise
+
+        tokens = []
+        for phone_list in phones:
+            inds = [self.phone2idx[p] for p in phone_list]
+            tokens += inds
+
+        x = torch.tensor(tokens).unsqueeze_(0).long().to(self.device)
+        return x
+
+    def convert_text_to_waveform(self, *, tokens):
+        """
+        Accepts tokens returned from self.parse() and returns a list of tensors. Note: The tensors in the list can have
+        different lengths.
+        """
+        self.eval()
+        token_len = torch.tensor([len(i) for i in tokens]).to(self.device)
+        audio, _, log_dur_pred, _, _, _ = self(text=tokens, text_length=token_len, splice=False)
+        audio = audio.squeeze()
+        durations = torch.sum(torch.exp(log_dur_pred) - 1, 1)
+        audio_list = []
+        for i, sample in enumerate(audio):
+            audio_list.append(sample[: durations[i] * 256])
+
+        return audio_list

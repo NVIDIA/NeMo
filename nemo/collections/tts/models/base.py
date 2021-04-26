@@ -279,15 +279,15 @@ class TextToWaveform(ModelPT, ABC):
         """
 
     @abstractmethod
-    def convert_text_to_waveform(self, tokens: 'torch.tensor', **kwargs) -> 'torch.tensor':
+    def convert_text_to_waveform(self, tokens: 'torch.tensor', **kwargs) -> 'List[torch.tensor]':
         """
-        Accepts a batch of text and returns a batch of audio
+        Accepts a batch of text and returns a list containing a batch of audio
 
         Args:
             tokens: A torch tensor representing the text to be converted to speech
 
         Returns:
-            audio: A torch tensor representing the waveform output.
+            audio: A list of length batch_size containing torch tensors representing the waveform output
         """
 
     @classmethod

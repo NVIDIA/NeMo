@@ -123,7 +123,6 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
         self.hann_window = None
         self.splice_length = cfg.splice_length
         self.sample_rate = cfg.sample_rate
-        typecheck.set_typecheck_enabled(enabled=False)  # TODO
 
     @property
     def tb_logger(self):
@@ -411,5 +410,18 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
 
         return list_of_models
 
-    def convert_text_to_waveform(self):
-        pass  # TODO
+    def convert_text_to_waveform(self, *, tokens):
+        """
+        Accepts tokens returned from self.parse() and returns a list of tensors. Note: The tensors in the list can have
+        different lengths.
+        """
+        self.eval()
+        audio, _, log_dur_pred, _ = self(text=tokens, splice=False)
+        audio = audio.squeeze()
+        durations = torch.sum(torch.clamp(torch.exp(log_dur_pred) - 1, 0, self.max_token_duration), 1)
+        audio_list = []
+        for i, sample in enumerate(audio):
+            audio_list.append(sample[: durations[i] * 256])
+
+        return audio_list
+
