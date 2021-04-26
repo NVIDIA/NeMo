@@ -190,7 +190,7 @@ class MTEncDecModel(EncDecNLPModel):
         }
         return {'loss': train_loss, 'log': tensorboard_logs}
 
-    def eval_step(self, batch, batch_idx, mode, dataloader_idx):
+    def eval_step(self, batch, batch_idx, mode, dataloader_idx=0):
         for i in range(len(batch)):
             if batch[i].ndim == 3:
                 # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
@@ -229,7 +229,7 @@ class MTEncDecModel(EncDecNLPModel):
                     global_step=self.global_step,
                 )
 
-    def validation_step(self, batch, batch_idx, dataloader_idx):
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
@@ -277,6 +277,7 @@ class MTEncDecModel(EncDecNLPModel):
                 logging.info(
                     f"Dataset name: {dataset_name}, Dataloader index: {dataloader_idx}, Val Loss = {eval_loss}"
                 )
+                # TODO: log average sb_score
                 logging.info(
                     f"Dataset name: {dataset_name}, Dataloader index: {dataloader_idx}, Sacre BLEU = {sb_score}"
                 )
@@ -297,6 +298,7 @@ class MTEncDecModel(EncDecNLPModel):
 
             getattr(self, f'eval_loss_{dataloader_idx}').reset()
 
+        # TODO: change default to dl index 0 for sacreBLEU and loss
         self.log(f'{mode}_sacreBLEU', sum(sb_scores) / len(sb_scores), sync_dist=True)
         self.log(f'{mode}_loss', sum(eval_losses) / len(eval_losses), sync_dist=True)
 
