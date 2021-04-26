@@ -9,7 +9,7 @@ as few errors as possible?
 Traditional speech recognition takes a generative approach, modeling the full pipeline of how speech sounds are produced in order to 
 evaluate a speech sample. We start from a language model that encapsulates the most likely orderings of words that are generated 
 (for example, an N-gram model), to a pronunciation model for each word in that ordering (for example, a pronunciation table), to an acoustic model that 
-translates those pronunciations to audio waveforms (for example, a Gaussian Mixture model).
+translates those pronunciations to audio waveforms (for example, a Gaussian mixture model).
 
 Then, if we receive some spoken input, our goal would be to find the most likely sequence of text that would result in the given audio 
 according to our generative pipeline of models. Overall, with traditional speech recognition, we try to model ``Pr(audio|transcript)*Pr(transcript)``, 
