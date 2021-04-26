@@ -34,20 +34,19 @@ class FastSpeech2HifiGanE2EModel(ModelPT):
     """TODO"""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
-        torch.backends.cudnn.benchmark = True  # TODO
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
-        self.encoder = instantiate(self._cfg.encoder)
-        self.variance_adapter = instantiate(self._cfg.variance_adaptor)
+        self.audio_to_melspec_precessor = instantiate(cfg.preprocessor)
+        self.encoder = instantiate(cfg.encoder)
+        self.variance_adapter = instantiate(cfg.variance_adaptor)
 
-        self.generator = instantiate(self._cfg.generator)
+        self.generator = instantiate(cfg.generator)
         self.multiperioddisc = MultiPeriodDiscriminator()
         self.multiscaledisc = MultiScaleDiscriminator()
 
-        self.melspec_fn = instantiate(self._cfg.preprocessor, highfreq=None, use_grads=True)
+        self.melspec_fn = instantiate(cfg.preprocessor, highfreq=None, use_grads=True)
         self.mel_val_loss = L1MelLoss()
         self.durationloss = DurationLoss()
         self.feat_matching_loss = FeatureMatchingLoss()
@@ -57,16 +56,17 @@ class FastSpeech2HifiGanE2EModel(ModelPT):
 
         self.energy = cfg.add_energy_predictor
         self.pitch = cfg.add_pitch_predictor
-        self.mel_loss_coeff = self._cfg.mel_loss_coeff
-        self.pitch_loss_coeff = self._cfg.pitch_loss_coeff
-        self.energy_loss_coeff = self._cfg.energy_loss_coeff
-        self.splice_length = self._cfg.splice_length
+        self.mel_loss_coeff = cfg.mel_loss_coeff
+        self.pitch_loss_coeff = cfg.pitch_loss_coeff
+        self.energy_loss_coeff = cfg.energy_loss_coeff
+        self.splice_length = cfg.splice_length
 
         self.use_energy_pred = False
         self.use_pitch_pred = False
         self.log_train_images = False
         self.logged_real_samples = False
         self._tb_logger = None
+        self.sample_rate = cfg.sample_rate
         typecheck.set_typecheck_enabled(enabled=False)
 
     @property
@@ -252,9 +252,7 @@ class FastSpeech2HifiGanE2EModel(ModelPT):
         audio_pred, _, _, _, _, _ = self(spec=spec, spec_len=spec_len, text=t, text_length=tl, splice=False)
         audio_pred.squeeze_()
         pred_spec, _ = self.melspec_fn(audio_pred, seq_len=spec_len)
-        loss = self.mel_val_loss(
-            spec_pred=pred_spec, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52, transpose=False
-        )
+        loss = self.mel_val_loss(spec_pred=pred_spec, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
 
         return {
             "val_loss": loss,
@@ -277,10 +275,10 @@ class FastSpeech2HifiGanE2EModel(ModelPT):
         if self.tb_logger is not None:
             _, audio_target, audio_predict = outputs[0].values()
             if not self.logged_real_samples:
-                self.tb_logger.add_audio("val_target", audio_target[0].data.cpu(), self.global_step, 22050)
+                self.tb_logger.add_audio("val_target", audio_target[0].data.cpu(), self.global_step, self.sample_rate)
                 self.logged_real_samples = True
             audio_predict = audio_predict[0].data.cpu()
-            self.tb_logger.add_audio("val_pred", audio_predict, self.global_step, 22050)
+            self.tb_logger.add_audio("val_pred", audio_predict, self.global_step, self.sample_rate)
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()  # This reduces across batches, not workers!
         self.log('val_loss', avg_loss, sync_dist=True)
 

@@ -1,5 +1,4 @@
 name: "FastPitch_HiFiGAN_E2E"
-sample_rate: 22050
 
 labels: [' ', '!', "'", '(', ')', ',', '-', '.', ':', ';', '?', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
         'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
@@ -8,6 +7,7 @@ validation_datasets: ???
 test_datasets: null
 
 model:
+  sample_rate: 22050
   splice_length: 64
   lr: 3e-2
   labels: ${labels}
@@ -22,7 +22,7 @@ model:
     manifest_filepath: ${train_dataset}
     max_duration: null
     min_duration: 0.1
-    sample_rate: ${sample_rate}
+    sample_rate: ${model.sample_rate}
     trim: false
     parser: null
     drop_last: true
@@ -32,7 +32,7 @@ model:
 
   validation_ds:
     manifest_filepath: ${validation_datasets}
-    sample_rate: ${sample_rate}
+    sample_rate: ${model.sample_rate}
     trim: false
     parser: null
     drop_last: false
@@ -58,7 +58,7 @@ model:
     pad_to: 1
     pad_value: 0
     preemph: null
-    sample_rate: ${sample_rate}
+    sample_rate: ${model.sample_rate}
     window: hann
     exact_pad: true
     use_grads: false

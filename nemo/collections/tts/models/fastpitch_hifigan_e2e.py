@@ -85,15 +85,14 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
         # Ensure passed cfg is compliant with schema
         OmegaConf.merge(cfg, schema)
 
-        # torch.backends.cudnn.benchmark = True  # TODO
-        self.preprocessor = instantiate(self._cfg.preprocessor)
-        self.melspec_fn = instantiate(self._cfg.preprocessor, highfreq=None, use_grads=True)
+        self.preprocessor = instantiate(cfg.preprocessor)
+        self.melspec_fn = instantiate(cfg.preprocessor, highfreq=None, use_grads=True)
 
-        self.encoder = instantiate(self._cfg.input_fft)
-        self.duration_predictor = instantiate(self._cfg.duration_predictor)
-        self.pitch_predictor = instantiate(self._cfg.pitch_predictor)
+        self.encoder = instantiate(cfg.input_fft)
+        self.duration_predictor = instantiate(cfg.duration_predictor)
+        self.pitch_predictor = instantiate(cfg.pitch_predictor)
 
-        self.generator = instantiate(self._cfg.generator)
+        self.generator = instantiate(cfg.generator)
         self.multiperioddisc = MultiPeriodDiscriminator()
         self.multiscaledisc = MultiScaleDiscriminator()
         self.mel_val_loss = L1MelLoss()
@@ -122,7 +121,8 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
         self.logged_real_samples = False
         self._tb_logger = None
         self.hann_window = None
-        self.splice_length = self._cfg.splice_length
+        self.splice_length = cfg.splice_length
+        self.sample_rate = cfg.sample_rate
         typecheck.set_typecheck_enabled(enabled=False)  # TODO
 
     @property
