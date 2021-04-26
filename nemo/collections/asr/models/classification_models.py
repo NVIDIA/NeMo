@@ -316,7 +316,8 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
                     if logprobs:
                         # dump log probs per file
                         for idx in range(logits.shape[0]):
-                            labels.append(logits[idx])
+                            lg = logits[idx]
+                            labels.append(lg.cpu().numpy())
                     else:
                         labels_k = []
                         top_ks = self._accuracy.top_k
