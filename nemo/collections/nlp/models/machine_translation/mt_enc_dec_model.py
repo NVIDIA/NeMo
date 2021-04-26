@@ -237,11 +237,12 @@ class MTEncDecModel(EncDecNLPModel):
         return self.eval_step(batch, batch_idx, 'val', dataloader_idx)
 
     def eval_epoch_end(self, outputs, mode):
-        sb_scores = []
-        eval_losses = []
+        dl_0_sb_score = 0  # log dl_0 by default to preserve backward compatibility
+        dl_0_eval_loss = 0
         for dataloader_idx, output in enumerate(outputs):
             eval_loss = getattr(self, f'eval_loss_{dataloader_idx}').compute()
-            eval_losses.append(eval_loss)
+            if dataloader_idx == 0:
+                dl_0_eval_loss = eval_loss
 
             translations = list(itertools.chain(*[x['translations'] for x in output]))
             ground_truths = list(itertools.chain(*[x['ground_truths'] for x in output]))
@@ -269,6 +270,7 @@ class MTEncDecModel(EncDecNLPModel):
 
                 # because the reduction op later is average (over word_size)
                 sb_score = sacre_bleu.score * self.world_size
+                dl_0_sb_score = sb_score
 
                 dataset_name = "Validation" if mode == 'val' else "Test"
                 logging.info(
@@ -277,9 +279,8 @@ class MTEncDecModel(EncDecNLPModel):
                 logging.info(
                     f"Dataset name: {dataset_name}, Dataloader index: {dataloader_idx}, Val Loss = {eval_loss}"
                 )
-                # TODO: log average sb_score
                 logging.info(
-                    f"Dataset name: {dataset_name}, Dataloader index: {dataloader_idx}, Sacre BLEU = {sb_score}"
+                    f"Dataset name: {dataset_name}, Dataloader index: {dataloader_idx}, Sacre BLEU = {sb_score / self.world_size}"
                 )
                 logging.info(
                     f"Dataset name: {dataset_name}, Dataloader index: {dataloader_idx}, Translation Examples:"
@@ -292,15 +293,14 @@ class MTEncDecModel(EncDecNLPModel):
             else:
                 sb_score = 0.0
 
-            sb_scores.append(sb_score)
             self.log(f"{mode}_loss_dl_index_{dataloader_idx}", eval_loss, sync_dist=True)
             self.log(f"{mode}_sacreBLEU_dl_index_{dataloader_idx}", sb_score, sync_dist=True)
 
             getattr(self, f'eval_loss_{dataloader_idx}').reset()
 
-        # TODO: change default to dl index 0 for sacreBLEU and loss
-        self.log(f'{mode}_sacreBLEU', sum(sb_scores) / len(sb_scores), sync_dist=True)
-        self.log(f'{mode}_loss', sum(eval_losses) / len(eval_losses), sync_dist=True)
+        # log dl index 0 sacreBLEU and loss by default to preserve backwards compatibility
+        self.log(f'{mode}_sacreBLEU', dl_0_sb_score, sync_dist=True)
+        self.log(f'{mode}_loss', dl_0_eval_loss, sync_dist=True)
 
     def validation_epoch_end(self, outputs):
         """
