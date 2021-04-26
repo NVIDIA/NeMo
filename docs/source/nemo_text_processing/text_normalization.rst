@@ -8,7 +8,7 @@ For example,
 `"at 10:00"` -> `"at ten o'clock"` 
 and `"it weighs 10kg"` -> `"it weights ten kilograms"`.
 
-NeMo Text Normalization is based on WFST-grammars :cite `textprocessing-norm-zhang2021nemo`. We also provide a deployment route to C++ using Sparrowhawk -- an open-source version of Google Kestrel :cite:`textprocessing-norm-ebden2015kestrel`.
+NeMo Text Normalization is based on WFST-grammars :cite:`textprocessing-norm-zhang2021nemo`. We also provide a deployment route to C++ using Sparrowhawk -- an open-source version of Google Kestrel :cite:`textprocessing-norm-ebden2015kestrel`.
 See :doc:`Text Procesing Deployment <../tools/text_processing_deployment>` for details.
 
 

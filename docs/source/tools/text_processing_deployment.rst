@@ -1,7 +1,7 @@
 Inverse Text Normalization Deployment
 ===============================================
 
-This tool deploys :doc:`NeMo Inverse Text Normalization (ITN) <../nemo_text_processing/inverse_text_normalization>` and :doc:`NeMo Text Normalization (TN) <../nemo_text_processing/text_normalization>` for production :cite `tools-itn_deploy-zhang2021nemo`.
+This tool deploys :doc:`NeMo Inverse Text Normalization (ITN) <../nemo_text_processing/inverse_text_normalization>` and :doc:`NeMo Text Normalization (TN) <../nemo_text_processing/text_normalization>` for production :cite:`tools-itn_deploy-zhang2021nemo`.
 It uses Sparrowhawk -- an open-source version of Google Kestrel :cite:`tools-itn_deploy-ebden2015kestrel`.
 
 Requirements
@@ -14,7 +14,7 @@ Usage
 ------------
 
 Starts docker container with production backend with plugged in grammars. This is entry point script. 
-Set `GRAMMARS=tn_grammars` or `GRAMMARS=itn_grammars` to export either TN or ITN grammars from :doc:`nemo_text_processing <../nemo_text_processing/intro>`.
+Set ``GRAMMARS=tn_grammars`` or ``GRAMMARS=itn_grammars`` to export either TN or ITN grammars from :doc:`nemo_text_processing <../nemo_text_processing/intro>`.
 
 
 .. code-block:: bash
