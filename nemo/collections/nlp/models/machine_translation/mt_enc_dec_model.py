@@ -21,13 +21,14 @@ from typing import Dict, List, Optional
 
 import numpy as np
 import torch
+import torch.distributed as dist
 import torch.utils.data as pt_data
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
 
-from nemo.collections.common.losses import SmoothedCrossEntropyLoss
+from nemo.collections.common.losses import NLLLoss, SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.tokenizers.chinese_tokenizers import ChineseProcessor
@@ -146,6 +147,7 @@ class MTEncDecModel(EncDecNLPModel):
         self.loss_fn = SmoothedCrossEntropyLoss(
             pad_id=self.decoder_tokenizer.pad_id, label_smoothing=cfg.label_smoothing
         )
+        self.eval_loss_fn = NLLLoss(ignore_index=self.decoder_tokenizer.pad_id)
         self.eval_loss = GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True)
 
     def filter_predicted_ids(self, ids):
@@ -189,10 +191,9 @@ class MTEncDecModel(EncDecNLPModel):
                 batch[i] = batch[i].squeeze(dim=0)
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
         log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
-
+        eval_loss = self.eval_loss_fn(log_probs=log_probs, labels=labels)
         # this will run encoder twice -- TODO: potentially fix
         _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
-        eval_loss = self.loss_fn(log_probs=log_probs, labels=labels)
         self.eval_loss(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
         np_tgt = tgt_ids.detach().cpu().numpy()
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
@@ -229,27 +230,41 @@ class MTEncDecModel(EncDecNLPModel):
         eval_loss = self.eval_loss.compute()
         translations = list(itertools.chain(*[x['translations'] for x in outputs]))
         ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
-
         assert len(translations) == len(ground_truths)
-        if self.tgt_language in ['ja']:
-            sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="ja-mecab")
-        elif self.tgt_language in ['zh']:
-            sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="zh")
+
+        # Gather translations and ground truths from all workers
+        tr_and_gt = [None for _ in range(self.world_size)]
+        # we also need to drop pairs where ground truth is an empty string
+        dist.all_gather_object(tr_and_gt, [(t, g) for (t, g) in zip(translations, ground_truths) if g.strip() != ''])
+        if self.global_rank == 0:
+            _translations = []
+            _ground_truths = []
+            for rank in range(0, self.world_size):
+                _translations += [t for (t, g) in tr_and_gt[rank]]
+                _ground_truths += [g for (t, g) in tr_and_gt[rank]]
+
+            if self.tgt_language in ['ja']:
+                sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="ja-mecab")
+            elif self.tgt_language in ['zh']:
+                sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="zh")
+            else:
+                sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="13a")
+
+            dataset_name = "Validation" if mode == 'val' else "Test"
+            logging.info(f"\n\n\n\n{dataset_name} set size: {len(_translations)}")
+            logging.info(f"{dataset_name} Sacre BLEU = {sacre_bleu.score}")
+            logging.info(f"{dataset_name} TRANSLATION EXAMPLES:".upper())
+            for i in range(0, 3):
+                ind = random.randint(0, len(translations) - 1)
+                logging.info("    " + '\u0332'.join(f"EXAMPLE {i}:"))
+                logging.info(f"    Prediction:   {translations[ind]}")
+                logging.info(f"    Ground Truth: {ground_truths[ind]}")
+            # because the reduction op later is average (over word_size)
+            sb_score = sacre_bleu.score * self.world_size
         else:
-            sacre_bleu = corpus_bleu(translations, [ground_truths], tokenize="13a")
+            sb_score = 0.0
 
-        dataset_name = "Validation" if mode == 'val' else "Test"
-        logging.info(f"\n\n\n\n{dataset_name} set size: {len(translations)}")
-        logging.info(f"{dataset_name} Sacre BLEU = {sacre_bleu.score}")
-        logging.info(f"{dataset_name} TRANSLATION EXAMPLES:".upper())
-        for i in range(0, 3):
-            ind = random.randint(0, len(translations) - 1)
-            logging.info("    " + '\u0332'.join(f"EXAMPLE {i}:"))
-            logging.info(f"    Prediction:   {translations[ind]}")
-            logging.info(f"    Ground Truth: {ground_truths[ind]}")
-
-        ans = {f"{mode}_loss": eval_loss, f"{mode}_sacreBLEU": sacre_bleu.score}
-        ans['log'] = dict(ans)
+        ans = {f"{mode}_loss": eval_loss, f"{mode}_sacreBLEU": sb_score}
         return ans
 
     def validation_epoch_end(self, outputs):
@@ -333,9 +348,10 @@ class MTEncDecModel(EncDecNLPModel):
                 else:
                     tar_files = cfg.get('tar_files')
                     if metadata.get('tar_files') is not None:
-                        raise ValueError(
-                            'Tar files specified in config and in metadata file. Tar files should only be specified once.'
+                        logging.info(
+                            f'Tar file paths found in both cfg and metadata using one in cfg by default - {tar_files}'
                         )
+
             dataset = TarredTranslationDataset(
                 text_tar_filepaths=tar_files,
                 metadata_path=metadata_file,
@@ -417,7 +433,6 @@ class MTEncDecModel(EncDecNLPModel):
         mode = self.training
         try:
             self.eval()
-
             src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
             beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
             beam_results = self.filter_predicted_ids(beam_results)
@@ -431,7 +446,6 @@ class MTEncDecModel(EncDecNLPModel):
 
             if self.source_processor is not None:
                 inputs = [self.source_processor.detokenize(item.split(' ')) for item in inputs]
-
         finally:
             self.train(mode=mode)
         return inputs, translations

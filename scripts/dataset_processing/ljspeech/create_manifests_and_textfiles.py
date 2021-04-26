@@ -29,6 +29,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--ljspeech_base', required=True, default=None, type=str)
 args = parser.parse_args()
 
+
 def main():
     filelist_base = 'https://raw.githubusercontent.com/NVIDIA/tacotron2/master/filelists/'
     filelists = ['train', 'val', 'test']
@@ -64,6 +65,7 @@ def main():
                         'text': text,
                     }
                     f_out.write(json.dumps(entry) + '\n')
+
 
 if __name__ == '__main__':
     main()
