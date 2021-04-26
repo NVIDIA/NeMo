@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
 
+import json
+import re
 from itertools import chain
 
 import numpy as np
@@ -33,14 +34,14 @@ from nemo.core.optim.lr_scheduler import NoamAnnealing
 from nemo.utils import logging
 from nemo.core.neural_types.elements import (
     LengthsType,
-    LossType,
     MelSpectrogramType,
     RegressionValuesType,
     TokenDurationType,
     TokenIndex,
     TokenLogDurationType,
+    MaskType,
 )
-from nemo.core.neural_types.neural_type import NeuralType  # TODO: Add neuraltypes for this model
+from nemo.core.neural_types.neural_type import NeuralType
 
 
 class FastSpeech2HifiGanE2EModel(TextToWaveform):
@@ -125,6 +126,25 @@ class FastSpeech2HifiGanE2EModel(TextToWaveform):
         }
         return [opt1, opt2], [sch1_dict, sch2_dict]
 
+    @typecheck(
+        input_types={
+            "text": NeuralType(('B', 'T'), TokenIndex()),
+            "text_length": NeuralType(('B'), LengthsType()),
+            "splice": NeuralType(optional=True),
+            "spec_len": NeuralType(('B'), LengthsType(), optional=True),
+            "durations": NeuralType(('B', 'T'), TokenDurationType(), optional=True),
+            "pitch": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
+            "energies": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
+        },
+        output_types={
+            "audio": NeuralType(('B', 'T'), MelSpectrogramType()),
+            "splices": NeuralType(),
+            "log_dur_preds": NeuralType(('B', 'T'), TokenLogDurationType()),
+            "pitch_preds": NeuralType(('B', 'T'), RegressionValuesType()),
+            "energy_preds": NeuralType(('B', 'T'), RegressionValuesType()),
+            "encoded_text_mask": NeuralType(('B', 'T', 'D'), MaskType()),
+        },
+    )
     def forward(self, *, text, text_length, splice=True, durations=None, pitch=None, energies=None, spec_len=None):
         encoded_text, encoded_text_mask = self.encoder(text=text, text_length=text_length)
 
@@ -349,7 +369,7 @@ class FastSpeech2HifiGanE2EModel(TextToWaveform):
         # Convert text -> normalized text -> list of phones per word -> indices
         if str_input[-1] not in [".", "!", "?"]:
             str_input = str_input + "."
-        norm_text = re.findall("""[\w']+|[.,!?;"]""", self.parser._normalize(str_input))
+        norm_text = re.findall(r"""[\w']+|[.,!?;"]""", self.parser._normalize(str_input))
 
         try:
             phones = [self.word2phones[t] for t in norm_text]

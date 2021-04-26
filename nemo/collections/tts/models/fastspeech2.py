@@ -165,7 +165,7 @@ class FastSpeech2Model(SpectrogramGenerator):
     def validation_step(self, batch, batch_idx):
         f, fl, t, tl, _, _, _ = batch
         spec, spec_len = self.audio_to_melspec_preprocessor(f, fl)
-        mel, log_dur_preds, _, _, _ = self(text=t, text_length=tl, spec_len=spec_len)
+        mel, _, _, _, _ = self(text=t, text_length=tl, spec_len=spec_len)
         loss = self.loss(spec_pred=mel, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
         return {
             "val_loss": loss,
@@ -213,7 +213,7 @@ class FastSpeech2Model(SpectrogramGenerator):
         # Convert text -> normalized text -> list of phones per word -> indices
         if str_input[-1] not in [".", "!", "?"]:
             str_input = str_input + "."
-        norm_text = re.findall("""[\w']+|[.,!?;"]""", self.parser._normalize(str_input))
+        norm_text = re.findall(r"""[\w']+|[.,!?;"]""", self.parser._normalize(str_input))
 
         try:
             phones = [self.word2phones[t] for t in norm_text]

@@ -14,7 +14,7 @@
 
 from dataclasses import dataclass
 from itertools import chain
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import numpy as np
 import torch
@@ -32,17 +32,15 @@ from nemo.collections.tts.modules.fastpitch import regulate_len
 from nemo.collections.tts.losses.fastpitchloss import BaseFastPitchLoss
 from nemo.collections.tts.losses.fastspeech2loss import L1MelLoss
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.common import typecheck
 from nemo.core.neural_types.elements import (
-    LengthsType,
-    LossType,
     MelSpectrogramType,
     RegressionValuesType,
     TokenDurationType,
     TokenIndex,
     TokenLogDurationType,
 )
-from nemo.core.neural_types.neural_type import NeuralType  # TODO: Add neuraltypes for this model
+from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import NoamAnnealing
 from nemo.utils import logging
 
@@ -192,6 +190,21 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
         }
         return [opt1, opt2], [sch1_dict, sch2_dict]
 
+    @typecheck(
+        input_types={
+            "text": NeuralType(('B', 'T'), TokenIndex()),
+            "durs": NeuralType(('B', 'T'), TokenDurationType(), optional=True),
+            "pitch": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
+            "pace": NeuralType(optional=True),
+            "splice": NeuralType(optional=True),
+        },
+        output_types={
+            "audio": NeuralType(('B', 'T'), MelSpectrogramType()),
+            "splices": NeuralType(),
+            "log_dur_preds": NeuralType(('B', 'T'), TokenLogDurationType()),
+            "pitch_preds": NeuralType(('B', 'T'), RegressionValuesType()),
+        },
+    )
     def forward(self, *, text, durs=None, pitch=None, pace=1.0, splice=True):
         if self.training:
             assert durs is not None
@@ -237,7 +250,7 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
         return output, splices, log_durs_predicted, pitch_predicted
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
+        audio, _, text, text_lens, durs, pitch, _ = batch
 
         # train discriminator
         if optimizer_idx == 0:
@@ -286,8 +299,8 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
             pred_spliced_spec, _ = self.melspec_fn(audio_pred.squeeze(), audio_length)
             loss_mel = torch.nn.functional.l1_loss(real_spliced_spec, pred_spliced_spec)
             loss_mel *= self.mel_loss_coeff
-            _, gen_score_mp, real_feat_mp, gen_feat_mp = self.multiperioddisc(real_audio, audio_pred)
-            _, gen_score_ms, real_feat_ms, gen_feat_ms = self.multiscaledisc(real_audio, audio_pred)
+            _, gen_score_mp, _, _ = self.multiperioddisc(real_audio, audio_pred)
+            _, gen_score_ms, _, _ = self.multiscaledisc(real_audio, audio_pred)
             loss_gen_mp, list_loss_gen_mp = self.gen_loss(gen_score_mp)
             loss_gen_ms, list_loss_gen_ms = self.gen_loss(gen_score_ms)
             loss_gen_mp /= len(list_loss_gen_mp)
@@ -295,12 +308,6 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
             total_loss = loss_gen_mp + loss_gen_ms + loss_mel
             total_loss += dur_loss
             total_loss += pitch_loss
-            # loss_feat_mp = self.feat_matching_loss(real_feat_mp, gen_feat_mp)
-            # loss_feat_ms = self.feat_matching_loss(real_feat_ms, gen_feat_ms)
-            # total_loss += loss_feat_mp + loss_feat_ms
-            # self.log(name="loss_gen_disc_feat", value=loss_feat_mp + loss_feat_ms)
-            # self.log(name="loss_gen_disc_feat_ms", value=loss_feat_ms)
-            # self.log(name="loss_gen_disc_feat_mp", value=loss_feat_mp)
 
             self.log(name="loss_gen_mel", value=loss_mel)
             self.log(name="loss_gen_disc", value=loss_gen_mp + loss_gen_ms)
@@ -331,7 +338,7 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
             return total_loss
 
     def validation_step(self, batch, batch_idx):
-        audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
+        audio, audio_lens, text, _, _, _, _ = batch
         mels, mel_lens = self.preprocessor(audio, audio_lens)
 
         audio_pred, _, log_durs_predicted, _ = self(text=text, durs=None, pitch=None, splice=False)
