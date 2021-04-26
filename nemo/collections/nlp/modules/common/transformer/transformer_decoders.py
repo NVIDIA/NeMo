@@ -177,17 +177,6 @@ class TransformerDecoder(nn.Module):
         else:
             return cached_mems_list[-1]
 
-    def eval(self):
-        self.diagonal = None
-        super().eval()
-
-    def train(self, mode=True):
-        if mode is True:
-            self.diagonal = 0
-        else:
-            self.diagonal = None
-        super().train(mode)
-
     def input_example(self):
         """
         Generates input examples for tracing etc.
