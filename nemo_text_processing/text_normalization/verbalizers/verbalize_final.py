@@ -14,7 +14,6 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.graph_utils import GraphFst, delete_extra_space, delete_space
-from nemo_text_processing.text_normalization.verbalizers.punctuation import PunctuationFst
 from nemo_text_processing.text_normalization.verbalizers.verbalize import VerbalizeFst
 from nemo_text_processing.text_normalization.verbalizers.word import WordFst
 
@@ -37,9 +36,8 @@ class VerbalizeFinalFst(GraphFst):
     def __init__(self):
         super().__init__(name="verbalize_final", kind="verbalize")
         verbalize = VerbalizeFst().fst
-        punct = PunctuationFst().fst
         word = WordFst().fst
-        types = verbalize | word | punct
+        types = verbalize | word
         graph = (
             pynutil.delete("tokens")
             + delete_space
