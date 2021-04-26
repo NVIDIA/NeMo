@@ -23,15 +23,16 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
-from nemo.collections.common.metrics import Perplexity, GlobalAverageLossMetric
+from nemo.collections.common.metrics import GlobalAverageLossMetric, Perplexity
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.nlp.data import TarredOneSideTranslationDataset, TranslationOneSideDataset
 from nemo.collections.nlp.modules.common import TokenClassifier
+from nemo.collections.nlp.modules.common.lm_utils import get_transformer
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.modules.common.transformer import TransformerEmbedding, TransformerEncoder
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 __all__ = ["TransformerLMModel"]
 
@@ -47,68 +48,56 @@ class TransformerLMModel(ModelPT):
         self.world_size = 1
         if trainer is not None:
             self.world_size = trainer.num_nodes * trainer.num_gpus
-            self.real_global_rank = trainer.global_rank
 
-        # shared params for dataset and data loaders
-        self.dataset_cfg = cfg.dataset
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
+        cfg = model_utils.maybe_update_config_version(cfg)
 
-        vocab_file = cfg.language_model.get("vocab_file", None)
-
-        if vocab_file is not None:
-            vocab_file = self.register_artifact("language_model.vocab_file", vocab_file)
-
-        tokenizer_model = cfg.language_model.get("tokenizer_model", None)
-
-        if tokenizer_model is not None:
-            tokenizer_model = self.register_artifact("language_model.tokenizer_model", tokenizer_model)
-
-        if cfg.language_model.special_tokens:
-            special_tokens = OmegaConf.to_container(cfg.language_model.special_tokens, resolve=True)
-        else:
-            special_tokens = None
-
-        self.tokenizer = get_tokenizer(
-            tokenizer_name=cfg.language_model.tokenizer,
-            vocab_file=vocab_file,
-            special_tokens=special_tokens,
-            tokenizer_model=tokenizer_model,
+        # Instantiates tokenizer and register to be saved with NeMo Model archive
+        # After this call, ther will be self.tokenizer which can convert between tokens and token_ids.
+        self.setup_tokenizer(
+            tokenizer_name=cfg.tokenizer.get("tokenizer_name", "yttm"),
+            tokenizer_model=cfg.tokenizer.get("tokenizer_model", None),
+            vocab_file=cfg.tokenizer.get("vocab_file", None),
+            bpe_dropout=cfg.tokenizer.get("bpe_dropout", 0.0),
         )
-
-        # make vocabulary size divisible by 8 for fast fp16 training
-        vocab_size = 8 * math.ceil(self.tokenizer.vocab_size / 8)
 
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.embedding_layer = TransformerEmbedding(
-            vocab_size=vocab_size,
-            hidden_size=cfg.language_model.hidden_size,
-            max_sequence_length=cfg.language_model.max_seq_length,
-            embedding_dropout=cfg.language_model.get("embedding_dropout", 0.0),
-            learn_positional_encodings=False,
-        )
-        self.encoder = TransformerEncoder(
-            num_layers=cfg.language_model.num_layers,
-            hidden_size=cfg.language_model.hidden_size,
-            mask_future=True,
-            num_attention_heads=cfg.language_model.num_attn_heads,
-            inner_size=cfg.language_model.inner_size,
-            ffn_dropout=cfg.language_model.get("ffn_dropout", 0.0),
-            hidden_act=cfg.language_model.get("inner_activation", "relu"),
-            attn_score_dropout=cfg.language_model.get("attn_score_dropout", 0.0),
-            attn_layer_dropout=cfg.language_model.get("attn_layer_dropout", 0.0),
-        )
-        self.log_softmax = TokenClassifier(
-            hidden_size=cfg.language_model.hidden_size, num_classes=vocab_size, log_softmax=True,
+        # make vocabulary size divisible by 8 for fast fp16 training
+        vocab_size = 8 * math.ceil(self.tokenizer.vocab_size / 8)
+
+        # encoder from NeMo, Megatron-LM, or HuggingFace
+        encoder_cfg_dict = OmegaConf.to_container(cfg.get('encoder'))
+        encoder_cfg_dict['vocab_size'] = vocab_size
+        library = encoder_cfg_dict.pop('library', 'nemo')
+        model_name = encoder_cfg_dict.pop('model_name', None)
+        pretrained = encoder_cfg_dict.pop('pretrained', False)
+        self.encoder = get_transformer(
+            library=library, model_name=model_name, pretrained=pretrained, config_dict=encoder_cfg_dict, encoder=True,
         )
 
-        std_init_range = 1 / math.sqrt(cfg.language_model.hidden_size)
-        self.apply(lambda module: transformer_weights_init(module, std_init_range))
+        self.log_softmax = TokenClassifier(
+            hidden_size=self.encoder.hidden_size,
+            num_classes=vocab_size,
+            activation=cfg.head.activation,
+            log_softmax=cfg.head.log_softmax,
+            dropout=cfg.head.dropout,
+            use_transformer_init=cfg.head.use_transformer_init,
+        )
 
         # tie weights of embedding and softmax matrices
-        self.log_softmax.mlp.layer0.weight = self.embedding_layer.token_embedding.weight
+        self.log_softmax.mlp.layer0.weight = self.encoder.embedding.token_embedding.weight
 
-        self.loss_fn = SmoothedCrossEntropyLoss(pad_id=self.tokenizer.pad_id)
+        std_init_range = 1 / self.encoder.hidden_size ** 0.5
+
+        # initialize weights if not using pretrained encoder
+        if not self._cfg.encoder.get('pretrained', False):
+            self.encoder.apply(lambda module: transformer_weights_init(module, std_init_range))
+
+        self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
+
+        self.loss_fn = SmoothedCrossEntropyLoss(pad_id=self.tokenizer.pad_id, label_smoothing=cfg.label_smoothing)
         self.eval_loss = GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True)
         self.eval_ppl = Perplexity()
 
@@ -118,8 +107,8 @@ class TransformerLMModel(ModelPT):
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
         """
-        token_embeddings = self.embedding_layer(input_ids)
-        hidden_states = self.encoder(token_embeddings, attention_mask)
+
+        hidden_states = self.encoder(input_ids=input_ids, encoder_mask=attention_mask)
         log_probs = self.log_softmax(hidden_states=hidden_states)
 
         return log_probs
@@ -166,7 +155,7 @@ class TransformerLMModel(ModelPT):
 
     def test_step(self, batch, batch_idx):
         return self.eval_step(batch, batch_idx, 'test')
-    
+
     def validation_step(self, batch, batch_idx):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
@@ -193,6 +182,23 @@ class TransformerLMModel(ModelPT):
 
     def test_epoch_end(self, outputs):
         return self.eval_epoch_end(outputs, 'test')
+
+    def setup_tokenizer(
+        self, tokenizer_name=None, tokenizer_model=None, vocab_file=None, bpe_dropout=0.0,
+    ):
+
+        supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece', 'word']
+        if tokenizer_name not in supported_tokenizers:
+            raise NotImplementedError(f"Currently we only support tokenizers in {supported_tokenizers}.")
+
+        self.tokenizer = get_tokenizer(
+            tokenizer_name=tokenizer_name,
+            tokenizer_model=self.register_artifact("cfg.tokenizer.tokenizer_model", tokenizer_model),
+            vocab_file=vocab_file,
+            bpe_dropout=bpe_dropout,
+            special_tokens=None,
+            use_fast=False,
+        )
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
@@ -230,7 +236,7 @@ class TransformerLMModel(ModelPT):
                 tokenizer=self.tokenizer,
                 shuffle_n=cfg.get("tar_shuffle_n", 100),
                 shard_strategy=cfg.get("shard_strategy", "scatter"),
-                global_rank=self.real_global_rank,
+                global_rank=self.global_rank,
                 world_size=self.world_size,
             )
             return torch.utils.data.DataLoader(
