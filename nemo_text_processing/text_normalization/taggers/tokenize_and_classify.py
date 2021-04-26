@@ -16,7 +16,7 @@ from nemo_text_processing.text_normalization.graph_utils import GraphFst, delete
 from nemo_text_processing.text_normalization.taggers.cardinal import CardinalFst
 from nemo_text_processing.text_normalization.taggers.date import DateFst
 from nemo_text_processing.text_normalization.taggers.decimal import DecimalFst
-from nemo_text_processing.text_normalization.taggers.email import EmailFst
+from nemo_text_processing.text_normalization.taggers.electronic import ElectronicFst
 from nemo_text_processing.text_normalization.taggers.measure import MeasureFst
 from nemo_text_processing.text_normalization.taggers.money import MoneyFst
 from nemo_text_processing.text_normalization.taggers.ordinal import OrdinalFst
@@ -62,7 +62,7 @@ class ClassifyFst(GraphFst):
         telephone = TelephoneFst().fst
         money = MoneyFst(cardinal_graph_fst, decimal_graph_fst).fst
         whitelist = WhiteListFst(input_case=input_case).fst
-        email = EmailFst().fst
+        electronic = ElectronicFst().fst
 
         classify = (
             pynutil.add_weight(whitelist, 1.01)
@@ -73,7 +73,7 @@ class ClassifyFst(GraphFst):
             | pynutil.add_weight(cardinal, 1.1)
             | pynutil.add_weight(ordinal, 1.1)
             | pynutil.add_weight(money, 1.1)
-            | pynutil.add_weight(email, 1.1)
+            | pynutil.add_weight(electronic, 1.1)
             | pynutil.add_weight(telephone, 1.1)
             | pynutil.add_weight(word, 100)
         ).optimize()

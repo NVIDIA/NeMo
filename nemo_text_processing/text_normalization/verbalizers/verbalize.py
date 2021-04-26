@@ -17,7 +17,7 @@ from nemo_text_processing.text_normalization.graph_utils import GraphFst
 from nemo_text_processing.text_normalization.verbalizers.cardinal import CardinalFst
 from nemo_text_processing.text_normalization.verbalizers.date import DateFst
 from nemo_text_processing.text_normalization.verbalizers.decimal import DecimalFst
-from nemo_text_processing.text_normalization.verbalizers.email import EmailFst
+from nemo_text_processing.text_normalization.verbalizers.electronic import ElectronicFst
 from nemo_text_processing.text_normalization.verbalizers.measure import MeasureFst
 from nemo_text_processing.text_normalization.verbalizers.money import MoneyFst
 from nemo_text_processing.text_normalization.verbalizers.ordinal import OrdinalFst
@@ -47,8 +47,8 @@ class VerbalizeFst(GraphFst):
         date = DateFst(ordinal_graph).fst
         money = MoneyFst().fst
         whitelist = WhiteListFst().fst
-        email = EmailFst().fst
+        electronic = ElectronicFst().fst
 
-        graph = time | date | money | measure | ordinal | decimal | cardinal | email | telephone | whitelist
+        graph = time | date | money | measure | ordinal | decimal | cardinal | electronic | telephone | whitelist
 
         self.fst = graph
