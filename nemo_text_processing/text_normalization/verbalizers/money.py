@@ -20,12 +20,8 @@ try:
     import pynini
     from pynini.lib import pynutil
 
-    decimal = DecimalFst()
-
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
-    # Add placeholders
-    decimal = None
 
     PYNINI_AVAILABLE = False
 
@@ -34,9 +30,12 @@ class MoneyFst(GraphFst):
     """
     Finite state transducer for verbalizing money, e.g.
         money { integer_part: "twelve" fractional_part: "o five" currency: "dollars" } -> twelve o five dollars
+
+    Args:
+        decimal: DecimalFst
     """
 
-    def __init__(self):
+    def __init__(self, decimal: GraphFst):
         super().__init__(name="money", kind="verbalize")
         unit = (
             pynutil.delete("currency:")

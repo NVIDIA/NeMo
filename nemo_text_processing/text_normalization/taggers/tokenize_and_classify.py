@@ -47,34 +47,34 @@ class ClassifyFst(GraphFst):
     def __init__(self, input_case: str):
         super().__init__(name="tokenize_and_classify", kind="classify")
 
-        cardinal_graph_fst = CardinalFst()
-        cardinal = cardinal_graph_fst.fst
+        cardinal = CardinalFst()
+        cardinal_graph = cardinal.fst
 
-        ordinal_graph_fst = OrdinalFst(cardinal_graph_fst)
-        ordinal = ordinal_graph_fst.fst
+        ordinal = OrdinalFst(cardinal)
+        ordinal_graph = ordinal.fst
 
-        decimal_graph_fst = DecimalFst(cardinal_graph_fst)
-        decimal = decimal_graph_fst.fst
+        decimal = DecimalFst(cardinal)
+        decimal_graph = decimal.fst
 
-        measure = MeasureFst(cardinal_graph_fst, decimal_graph_fst).fst
-        date = DateFst(cardinal_graph_fst).fst
-        word = WordFst().fst
-        time = TimeFst().fst
-        telephone = TelephoneFst().fst
-        money = MoneyFst(cardinal_graph_fst, decimal_graph_fst).fst
-        whitelist = WhiteListFst(input_case=input_case).fst
+        measure_graph = MeasureFst(cardinal=cardinal, decimal=decimal).fst
+        date_graph = DateFst(cardinal).fst
+        word_graph = WordFst().fst
+        time_graph = TimeFst().fst
+        telephone_graph = TelephoneFst().fst
+        money_graph = MoneyFst(cardinal=cardinal, decimal=decimal).fst
+        whitelist_graph = WhiteListFst(input_case=input_case).fst
 
         classify = (
-            pynutil.add_weight(whitelist, 1.01)
-            | pynutil.add_weight(time, 1.1)
-            | pynutil.add_weight(date, 1.09)
-            | pynutil.add_weight(decimal, 1.1)
-            | pynutil.add_weight(measure, 1.1)
-            | pynutil.add_weight(cardinal, 1.1)
-            | pynutil.add_weight(ordinal, 1.1)
-            | pynutil.add_weight(money, 1.1)
-            | pynutil.add_weight(telephone, 1.1)
-            | pynutil.add_weight(word, 100)
+            pynutil.add_weight(whitelist_graph, 1.01)
+            | pynutil.add_weight(time_graph, 1.1)
+            | pynutil.add_weight(date_graph, 1.09)
+            | pynutil.add_weight(decimal_graph, 1.1)
+            | pynutil.add_weight(measure_graph, 1.1)
+            | pynutil.add_weight(cardinal_graph, 1.1)
+            | pynutil.add_weight(ordinal_graph, 1.1)
+            | pynutil.add_weight(money_graph, 1.1)
+            | pynutil.add_weight(telephone_graph, 1.1)
+            | pynutil.add_weight(word_graph, 100)
         ).optimize()
 
         punct = (

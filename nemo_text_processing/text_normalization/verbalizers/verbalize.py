@@ -34,19 +34,27 @@ class VerbalizeFst(GraphFst):
 
     def __init__(self):
         super().__init__(name="verbalize", kind="verbalize")
-        decimal_graph = DecimalFst()
-        cardinal_graph = CardinalFst()
-        ordinal_graph = OrdinalFst()
-        telephone_graph = TelephoneFst()
-        measure_graph = MeasureFst(decimal=decimal_graph, cardinal=cardinal_graph)
-        cardinal = cardinal_graph.fst
-        ordinal = ordinal_graph.fst
-        decimal = decimal_graph.fst
-        measure = measure_graph.fst
-        telephone = telephone_graph.fst
-        time = TimeFst().fst
-        date = DateFst(ordinal_graph).fst
-        money = MoneyFst().fst
-        whitelist = WhiteListFst().fst
-        graph = time | date | money | measure | ordinal | decimal | cardinal | telephone | whitelist
+        decimal = DecimalFst()
+        decimal_graph = decimal.fst
+        cardinal = CardinalFst()
+        cardinal_graph = cardinal.fst
+        ordinal = OrdinalFst()
+        ordinal_graph = ordinal.fst
+        telephone_graph = TelephoneFst().fst
+        measure_graph = MeasureFst(decimal=decimal, cardinal=cardinal).fst
+        time_graph = TimeFst().fst
+        date_graph = DateFst(ordinal=ordinal).fst
+        money_graph = MoneyFst(decimal=decimal).fst
+        whitelist_graph = WhiteListFst().fst
+        graph = (
+            time_graph
+            | date_graph
+            | money_graph
+            | measure_graph
+            | ordinal_graph
+            | decimal_graph
+            | cardinal_graph
+            | telephone_graph
+            | whitelist_graph
+        )
         self.fst = graph
