@@ -110,7 +110,8 @@ def main(cfg: MTEncDecConfig) -> None:
 
     # tokenizers will be trained and and tarred training data will be created if needed
     # model config is then updated
-    MTDataPreproc(cfg=cfg.model, trainer=trainer)
+    if cfg.model.preproc_out_dir is not None:
+        MTDataPreproc(cfg=cfg.model, trainer=trainer)
 
     if cfg.do_training:
         # experiment logs, checkpoints, and auto-resume are managed by exp_manager and PyTorch Lightning
