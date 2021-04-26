@@ -239,7 +239,7 @@ Every NeMo example, YAML has the same underlying configuration structure:
 - ``exp_manager``
 - ``model``
 
-The model configuration section always contain ``train_ds``, ``validation_ds``, ``test_ds``, and ``optim``.  Model architectures vary across 
+The model configuration section always contains ``train_ds``, ``validation_ds``, ``test_ds``, and ``optim``.  Model architectures vary across 
 domains, therefore, refer to the ASR, NLP, and TTS Collections documentation for more detailed information on Model architecture configuration.
 
 A NeMo configuration file should look similar to the following:
