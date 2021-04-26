@@ -48,6 +48,7 @@ class TokenizerConfig:
     special_tokens: Optional[Dict[str, str]] = None
     bpe_dropout: Optional[float] = 0.0
     coverage: Optional[float] = 0.999
+    training_sample_size: Optional[int] = None
 
 
 def get_tokenizer(
