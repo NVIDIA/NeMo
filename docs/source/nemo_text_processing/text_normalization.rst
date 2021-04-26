@@ -14,7 +14,7 @@ See :doc:`Text Procesing Deployment <../tools/text_processing_deployment>` for d
 
 .. note::
 
-    For more details, see the tutorial `NeMo/tutorials/text_processing/Text_Normalization_Tutorial.ipynb <https://github.com/NVIDIA/NeMo/blob/main/tutorials/text_processing/Text_Normalization_Tutorial.ipynb>`__ in `Google's Colab <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/text_processing/Text_Normalization_Tutorial.ipynb>`_.
+    For more details, see the tutorial `NeMo/tutorials/text_processing/Text_Normalization.ipynb <https://github.com/NVIDIA/NeMo/blob/main/tutorials/text_processing/Text_Normalization.ipynb>`__ in `Google's Colab <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/text_processing/Text_Normalization.ipynb>`_.
 
 
 
