@@ -28,27 +28,36 @@ from nemo_text_processing.text_normalization.verbalizers.whitelist import WhiteL
 
 class VerbalizeFst(GraphFst):
     """
-    Composes other verbalizer grammars. This class will be compiled and exported to thrax FAR.
+    Composes other verbalizer grammars.
+    For deployment, this grammar will be compiled and exported to OpenFst Finate State Archiv (FAR) File. 
+    More details to deployment at NeMo/tools/text_processing_deployment.
     """
 
     def __init__(self):
         super().__init__(name="verbalize", kind="verbalize")
-        decimal_graph = DecimalFst()
-        cardinal_graph = CardinalFst()
-        ordinal_graph = OrdinalFst()
-        telephone_graph = TelephoneFst()
-        measure_graph = MeasureFst(decimal=decimal_graph, cardinal=cardinal_graph)
-        cardinal = cardinal_graph.fst
-        ordinal = ordinal_graph.fst
-        decimal = decimal_graph.fst
-        measure = measure_graph.fst
-        telephone = telephone_graph.fst
-        time = TimeFst().fst
-        date = DateFst(ordinal_graph).fst
-        money = MoneyFst().fst
-        whitelist = WhiteListFst().fst
-        electronic = ElectronicFst().fst
-
-        graph = time | date | money | measure | ordinal | decimal | cardinal | electronic | telephone | whitelist
-
+        decimal = DecimalFst()
+        decimal_graph = decimal.fst
+        cardinal = CardinalFst()
+        cardinal_graph = cardinal.fst
+        ordinal = OrdinalFst()
+        ordinal_graph = ordinal.fst
+        telephone_graph = TelephoneFst().fst
+        electronic_graph = ElectronicFst().fst
+        measure_graph = MeasureFst(decimal=decimal, cardinal=cardinal).fst
+        time_graph = TimeFst().fst
+        date_graph = DateFst(ordinal=ordinal).fst
+        money_graph = MoneyFst(decimal=decimal).fst
+        whitelist_graph = WhiteListFst().fst
+        graph = (
+            time_graph
+            | date_graph
+            | money_graph
+            | measure_graph
+            | ordinal_graph
+            | decimal_graph
+            | cardinal_graph
+            | telephone_graph
+            | electronic_graph
+            | whitelist_graph
+        )
         self.fst = graph

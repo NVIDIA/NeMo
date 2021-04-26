@@ -11,15 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from nemo_text_processing.inverse_text_normalization.graph_utils import GraphFst
-
-
-class ElectronicFst(GraphFst):
-    """
-    Finite state transducer for classifying electronic
-    """
-
-    def __init__(self):
-        super().__init__(name="electronic", kind="classify")
-        # protocol, username, password, domain, port, path, query_string, fragment_id

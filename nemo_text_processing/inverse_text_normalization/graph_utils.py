@@ -48,7 +48,6 @@ try:
     delete_extra_space = pynini.cross(pynini.closure(NEMO_WHITE_SPACE, 1), " ")
 
     suppletive = pynini.string_file(get_abs_path("data/suppletive.tsv"))
-    # _v = pynini.union("a", "e", "i", "o", "u")
     _c = pynini.union(
         "b", "c", "d", "f", "g", "h", "j", "k", "l", "m", "n", "p", "q", "r", "s", "t", "v", "w", "x", "y", "z"
     )
@@ -62,8 +61,8 @@ try:
 
     SINGULAR_TO_PLURAL = graph_plural
     PLURAL_TO_SINGULAR = pynini.invert(graph_plural)
-
     PYNINI_AVAILABLE = True
+
 except (ModuleNotFoundError, ImportError):
     # Create placeholders
     NEMO_CHAR = None

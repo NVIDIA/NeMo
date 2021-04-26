@@ -26,8 +26,8 @@ except (ModuleNotFoundError, ImportError):
 
 class DecimalFst(GraphFst):
     """
-    Finite state transducer for verbalizing decimal, 
-        e.g. tokens { decimal { negative: "true" integer_part: "12"  fractional_part: "5006" quantity: "billion" } } -> -12.5006 billion
+    Finite state transducer for verbalizing decimal, e.g.
+        decimal { negative: "true" integer_part: "12"  fractional_part: "5006" quantity: "billion" } -> -12.5006 billion
     """
 
     def __init__(self):

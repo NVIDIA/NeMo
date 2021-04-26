@@ -23,20 +23,17 @@ try:
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
-    # Add placeholders
-    decimal = None
-    cardinal = None
-
     PYNINI_AVAILABLE = False
 
 
 class MeasureFst(GraphFst):
     """
-    Finite state transducer for verbalizing measure, 
-        e.g. tokens { measure { negative: "true" cardinal { integer: "12" } units: "kg" } } -> -12 kg
+    Finite state transducer for verbalizing measure, e.g.
+        measure { negative: "true" cardinal { integer: "twelve" } units: "kilograms" } -> minus twelve kilograms
+        measure { decimal { integer_part: "twelve" fractional_part: "five" } units: "kilograms" } -> twelve point five kilograms
     """
 
-    def __init__(self, decimal, cardinal):
+    def __init__(self, decimal: GraphFst, cardinal: GraphFst):
         super().__init__(name="measure", kind="verbalize")
         optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "minus ") + delete_space, 0, 1)
         unit = (

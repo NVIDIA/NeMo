@@ -25,11 +25,11 @@ except (ImportError, ModuleNotFoundError):
 
 class OrdinalFst(GraphFst):
     """
-    Finite state transducer for classifying ordinal
-        e.g. thirteenth -> ordinal { integer: "13" }
-
+    Finite state transducer for classifying ordinal, e.g.
+        13th -> ordinal { integer: "thirteen" }
+        
     Args:
-        cardinal: Cardinal GraphFST
+        cardinal: CardinalFst
     """
 
     def __init__(self, cardinal: GraphFst):

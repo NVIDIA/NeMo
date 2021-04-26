@@ -21,16 +21,14 @@ try:
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
-    # Add placeholders
-    decimal = None
-
     PYNINI_AVAILABLE = False
 
 
 class TelephoneFst(GraphFst):
     """
-    Finite state transducer for verbalizing money
-        e.g. tokens { money { integer_part: "12" fractional_part: 05 currency: "$" } } -> $12.05
+    Finite state transducer for verbalizing money, e.g.
+        telephone { country_code: "one" number_part: "one two three, one two three, five six seven eight" extension: "one"  }
+        -> one, one two three, one two three, five six seven eight, one
     """
 
     def __init__(self):

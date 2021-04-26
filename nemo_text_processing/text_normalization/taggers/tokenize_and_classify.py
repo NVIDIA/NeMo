@@ -37,7 +37,9 @@ except (ModuleNotFoundError, ImportError):
 
 class ClassifyFst(GraphFst):
     """
-    Composes other classfier grammars. This class will be compiled and exported to thrax FAR. 
+    Final class that composes all other classification grammars. This class can process an entire sentence including punctuation.
+    For deployment, this grammar will be compiled and exported to OpenFst Finate State Archiv (FAR) File. 
+    More details to deployment at NeMo/tools/text_processing_deployment.
     
     Args:
         input_case: accepting either "lower_cased" or "cased" input.
@@ -46,41 +48,40 @@ class ClassifyFst(GraphFst):
     def __init__(self, input_case: str):
         super().__init__(name="tokenize_and_classify", kind="classify")
 
-        cardinal_graph_fst = CardinalFst()
-        cardinal = cardinal_graph_fst.fst
+        cardinal = CardinalFst()
+        cardinal_graph = cardinal.fst
 
-        ordinal_graph_fst = OrdinalFst(cardinal_graph_fst)
-        ordinal = ordinal_graph_fst.fst
+        ordinal = OrdinalFst(cardinal=cardinal)
+        ordinal_graph = ordinal.fst
 
-        decimal_graph_fst = DecimalFst(cardinal_graph_fst)
-        decimal = decimal_graph_fst.fst
+        decimal = DecimalFst(cardinal=cardinal)
+        decimal_graph = decimal.fst
 
-        measure = MeasureFst(cardinal_graph_fst, decimal_graph_fst).fst
-        date = DateFst(cardinal_graph_fst).fst
-        word = WordFst(input_case=input_case).fst
-        time = TimeFst().fst
-        telephone = TelephoneFst().fst
-        money = MoneyFst(cardinal_graph_fst, decimal_graph_fst).fst
-        whitelist = WhiteListFst(input_case=input_case).fst
-        electronic = ElectronicFst().fst
+        measure_graph = MeasureFst(cardinal=cardinal, decimal=decimal).fst
+        date_graph = DateFst(cardinal=cardinal).fst
+        word_graph = WordFst().fst
+        time_graph = TimeFst().fst
+        telephone_graph = TelephoneFst().fst
+        electonic_graph = ElectronicFst().fst
+        money_graph = MoneyFst(cardinal=cardinal, decimal=decimal).fst
+        whitelist_graph = WhiteListFst(input_case=input_case).fst
+        punct_graph = PunctuationFst().fst
 
         classify = (
-            pynutil.add_weight(whitelist, 1.01)
-            | pynutil.add_weight(time, 1.1)
-            | pynutil.add_weight(date, 1.09)
-            | pynutil.add_weight(decimal, 1.1)
-            | pynutil.add_weight(measure, 1.1)
-            | pynutil.add_weight(cardinal, 1.1)
-            | pynutil.add_weight(ordinal, 1.1)
-            | pynutil.add_weight(money, 1.1)
-            | pynutil.add_weight(electronic, 1.1)
-            | pynutil.add_weight(telephone, 1.1)
-            | pynutil.add_weight(word, 100)
+            pynutil.add_weight(whitelist_graph, 1.01)
+            | pynutil.add_weight(time_graph, 1.1)
+            | pynutil.add_weight(date_graph, 1.09)
+            | pynutil.add_weight(decimal_graph, 1.1)
+            | pynutil.add_weight(measure_graph, 1.1)
+            | pynutil.add_weight(cardinal_graph, 1.1)
+            | pynutil.add_weight(ordinal_graph, 1.1)
+            | pynutil.add_weight(money_graph, 1.1)
+            | pynutil.add_weight(telephone_graph, 1.1)
+            | pynutil.add_weight(electonic_graph, 1.1)
+            | pynutil.add_weight(word_graph, 100)
         ).optimize()
 
-        punct = (
-            pynutil.insert("tokens { ") + pynutil.add_weight(PunctuationFst().fst, weight=1.1) + pynutil.insert(" }")
-        )
+        punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=1.1) + pynutil.insert(" }")
         token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")
         token_plus_punct = (
             pynini.closure(punct + pynutil.insert(" ")) + token + pynini.closure(pynutil.insert(" ") + punct)

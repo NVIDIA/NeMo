@@ -35,16 +35,18 @@ except (ModuleNotFoundError, ImportError):
 
 class TimeFst(GraphFst):
     """
-    Finite state transducer for classifying time
-        e.g. twelve thirty -> time { hours: "12" minutes: "30" }
-        e.g. twelve past one -> time { minutes: "12" hours: "1" }
-        e.g. two o clock a m -> time { hours: "2" suffix: "a.m." }
+    Finite state transducer for classifying time, e.g.
+        12:30 a.m. est -> time { hours: "twelve" minutes: "thirty" suffix: "a m" zone: "e s t" }
+        2.30 a.m. -> time { hours: "two" minutes: "thirty" suffix: "a m" }
+        02.30 a.m. -> time { hours: "two" minutes: "thirty" suffix: "a m" }
+        2.00 a.m. -> time { hours: "two" suffix: "a m" }
+        2 a.m. -> time { hours: "two" suffix: "a m" }
+        02:00 -> time { hours: "two" }
+        2:00 -> time { hours: "two" }
     """
 
     def __init__(self):
         super().__init__(name="time", kind="classify")
-        # hours, minutes, seconds, suffix, zone, style, speak_period
-
         suffix_graph = pynini.string_file(get_abs_path("data/time_suffix.tsv"))
         time_zone_graph = pynini.string_file(get_abs_path("data/time_zone.tsv"))
 

@@ -31,11 +31,12 @@ except (ModuleNotFoundError, ImportError):
 
 class DateFst(GraphFst):
     """
-    Finite state transducer for verbalizing date
-        e.g. tdate { month: "january" day: "5" year: "2012" preserve_order: true } -> february 5 2012
+    Finite state transducer for verbalizing date, e.g.
+        date { month: "february" day: "five" year: "twenty twelve" preserve_order: true } -> february fifth twenty twelve
+        date { day: "five" month: "february" year: "twenty twelve" preserve_order: true } -> the fifth of february twenty twelve
     """
 
-    def __init__(self, ordinal):
+    def __init__(self, ordinal: GraphFst):
         super().__init__(name="date", kind="verbalize")
 
         month = (

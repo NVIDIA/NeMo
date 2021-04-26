@@ -26,7 +26,7 @@ except (ModuleNotFoundError, ImportError):
 
 class WordFst(GraphFst):
     """
-    Finite state transducer for classifying word
+    Finite state transducer for classifying plain tokens, that do not belong to any special class. This can be considered as the default class.
         e.g. sleep -> tokens { name: "sleep" }
     """
 
@@ -34,9 +34,5 @@ class WordFst(GraphFst):
         super().__init__(name="word", kind="classify")
 
         exceptions = pynini.string_file(get_abs_path("data/sentence_boundary_exceptions.txt"))
-        word = (
-            pynutil.insert("name: \"")
-            + (pynini.closure(pynutil.add_weight(NEMO_NOT_SPACE, weight=0.1), 1) | convert_space(exceptions))
-            + pynutil.insert("\"")
-        )
+        word = pynutil.insert("name: \"") + pynini.closure(NEMO_NOT_SPACE, 1) + pynutil.insert("\"")
         self.fst = word.optimize()
