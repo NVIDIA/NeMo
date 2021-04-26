@@ -83,8 +83,8 @@ and defaults.
 Augmentation Configurations
 ---------------------------
 
-There are a few spectrogram augmentation options for NeMo ASR, which can be specified by the
-configuration file using the ``spec_augment`` section.
+There are a few on-the-fly spectrogram augmentation options for NeMo ASR, which can be specified by the
+configuration file using the optional ``spec_augment`` section.
 
 For example, there are options for `Cutout <https://arxiv.org/abs/1708.04552>`_ and
 `SpecAugment <https://arxiv.org/abs/1904.08779>`_ available via the ``SpectrogramAugmentation`` module.
