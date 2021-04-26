@@ -25,6 +25,7 @@
 
 python convert_to_tarred_audio_dataset.py \
     --manifest_path=<path to the manifest file> \
+    --dataset_dir=<dataset directory path> \
     --target_dir=<path to output directory> \
     --num_shards=<number of tarfiles that will contain the audio>
     --max_duration=<float representing maximum duration of audio samples> \
@@ -75,6 +76,10 @@ parser = argparse.ArgumentParser(
 )
 parser.add_argument(
     "--manifest_path", default=None, type=str, required=False, help="Path to the existing dataset's manifest."
+)
+
+parser.add_argument(
+    "--dataset_dir", default=None, type=str, required=True, help="Path to the dataset's directory."
 )
 
 parser.add_argument(
@@ -473,7 +478,7 @@ class ASRTarredDatasetBuilder:
             base = base.replace('.', '_')
             squashed_filename = f'{base}{ext}'
             if squashed_filename not in count:
-                tar.add(entry['audio_filepath'], arcname=squashed_filename)
+                tar.add(args.dataset_dir+"/"+entry['audio_filepath'], arcname=squashed_filename)
 
             if 'label' in entry:
                 base, ext = os.path.splitext(squashed_filename)
