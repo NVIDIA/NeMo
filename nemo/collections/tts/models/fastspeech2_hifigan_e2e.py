@@ -23,25 +23,24 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
 from nemo.collections.asr.parts import parsers
-
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
-from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.losses.fastspeech2loss import DurationLoss, L1MelLoss
-from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
+from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.models.base import TextToWaveform
+from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
 from nemo.core.classes.common import typecheck
-from nemo.core.optim.lr_scheduler import NoamAnnealing
-from nemo.utils import logging
 from nemo.core.neural_types.elements import (
     LengthsType,
+    MaskType,
     MelSpectrogramType,
     RegressionValuesType,
     TokenDurationType,
     TokenIndex,
     TokenLogDurationType,
-    MaskType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
+from nemo.core.optim.lr_scheduler import NoamAnnealing
+from nemo.utils import logging
 
 
 class FastSpeech2HifiGanE2EModel(TextToWaveform):

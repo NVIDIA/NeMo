@@ -26,11 +26,11 @@ from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 from nemo.collections.asr.data.audio_to_text import FastPitchDataset
 from nemo.collections.asr.parts import parsers
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
+from nemo.collections.tts.losses.fastpitchloss import BaseFastPitchLoss
+from nemo.collections.tts.losses.fastspeech2loss import L1MelLoss
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.modules.fastpitch import regulate_len
-from nemo.collections.tts.losses.fastpitchloss import BaseFastPitchLoss
-from nemo.collections.tts.losses.fastspeech2loss import L1MelLoss
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types.elements import (
@@ -431,4 +431,3 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
             audio_list.append(sample[: durations[i] * 256])
 
         return audio_list
-
