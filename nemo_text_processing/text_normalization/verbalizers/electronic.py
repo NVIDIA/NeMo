@@ -28,8 +28,7 @@ except (ModuleNotFoundError, ImportError):
 class ElectronicFst(GraphFst):
     """
     Finite state transducer for verbalizing electronic
-        e.g. tokens { email { username: "a.bc" servername: "g m a i l " domain: "com" } } -> a.bc et g m a i l dot com
-
+        e.g. tokens { electronic { username: "cdf" domain: "abc.edu" } } -> c d f at a b c dot e d u
     """
 
     def __init__(self):
