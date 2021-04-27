@@ -581,11 +581,11 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, DistillationMixin):
 
             # Register the tensor for the loss function
             self.register_distillation_tensor(loss_key=loss_key, tensor=log_probs)
-            # No need for further steps, return immediately since later elements are not available on
-            # both the student and the teacher models
-            return
 
-        tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
+        tensorboard_logs = {'train_loss': loss_value}
+
+        if hasattr(self, '_optimizer') and self._optimizer is not None:
+            tensorboard_logs['learning_rate'] = self._optimizer.param_groups[0]['lr']
 
         if hasattr(self, '_trainer') and self._trainer is not None:
             log_every_n_steps = self._trainer.log_every_n_steps

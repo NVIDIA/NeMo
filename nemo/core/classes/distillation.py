@@ -206,7 +206,7 @@ class DistillationModelPT(ModelPT):
         # Delegate train steps, dynamically replacing self with self.student / self.teacher to maintain model
         # level unawareness.
         self.teacher.__class__.training_step(self=self.teacher, batch=batch, batch_nb=batch_nb)
-        self.student.__class__.training_step(self=self.student, batch=batch, batch_nb=batch_nb)
+        student_outputs = self.student.__class__.training_step(self=self.student, batch=batch, batch_nb=batch_nb)
 
         # Update the registry from both student and teacher models
         primary_loss_dict = self.teacher._distillation_registry_primary  # type: dict
@@ -231,6 +231,22 @@ class DistillationModelPT(ModelPT):
         # Reset references to tensors which were registered
         self.teacher.reset_distillation_registry()
         self.student.reset_distillation_registry()
+
+        # Optionally, add student train loss along with distillation loss
+        if (
+            'student_train_loss_weight' in self.distillation_cfg
+            and self.distillation_cfg.student_train_loss_weight > 0.0
+        ):
+            if student_outputs is None:
+                raise RuntimeError(
+                    "During distillation, student did not return any loss value for its " "`training_step`"
+                )
+
+            student_train_loss = student_outputs['loss']
+            student_train_loss_weight = self.distillation_cfg.student_train_loss_weight
+
+            distillation_loss_weight = self.distillation_cfg.get('distillation_loss_weight', 1.0)
+            loss_value = distillation_loss_weight * loss_value + student_train_loss_weight * student_train_loss
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
