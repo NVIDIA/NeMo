@@ -12,14 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.graph_utils import GraphFst
+
+from nemo_text_processing.text_normalization.graph_utils import NEMO_CHAR, NEMO_SIGMA, GraphFst
+
+try:
+    import pynini
+    from pynini.lib import pynutil
+
+    PYNINI_AVAILABLE = True
+    delete_space = pynutil.delete(" ")
+except (ModuleNotFoundError, ImportError):
+    PYNINI_AVAILABLE = False
 
 
 class ElectronicFst(GraphFst):
     """
-    Finite state transducer for classifying electronic
+    Finite state transducer for classifying electronic: as URLs, email addresses, etc.
+        e.g. cdf@abc.edu -> tokens { electronic { username: "cdf" domain: "abc.edu" } }
     """
 
     def __init__(self):
         super().__init__(name="electronic", kind="classify")
-        # protocol, username, password, domain,port, path, query_string, fragment_id
+
+        # protocol, username, password, domain,port, path, query_string, fragment_id     protocol://username:password@domain:port/path?query_string#fragment_id
+
+        username = pynutil.insert("username: \"") + NEMO_SIGMA + pynutil.insert("\"") + pynini.cross('@', ' ')
+        domain_graph = pynutil.insert("domain: \"") + NEMO_SIGMA + pynutil.insert("\"")
+        graph = username + domain_graph
+
+        final_graph = self.add_tokens(graph)
+        self.fst = final_graph.optimize()
