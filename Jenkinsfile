@@ -594,8 +594,8 @@ pipeline {
     stage('L2: MegaBERT Token Classification') {
       when {
         anyOf {
-          branch 'v1.0.0b2'
-          changeRequest target: 'v1.0.0b2'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
