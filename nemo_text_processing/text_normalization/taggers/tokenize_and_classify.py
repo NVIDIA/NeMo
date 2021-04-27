@@ -16,6 +16,7 @@ from nemo_text_processing.text_normalization.graph_utils import GraphFst, delete
 from nemo_text_processing.text_normalization.taggers.cardinal import CardinalFst
 from nemo_text_processing.text_normalization.taggers.date import DateFst
 from nemo_text_processing.text_normalization.taggers.decimal import DecimalFst
+from nemo_text_processing.text_normalization.taggers.electronic import ElectronicFst
 from nemo_text_processing.text_normalization.taggers.measure import MeasureFst
 from nemo_text_processing.text_normalization.taggers.money import MoneyFst
 from nemo_text_processing.text_normalization.taggers.ordinal import OrdinalFst
@@ -61,6 +62,7 @@ class ClassifyFst(GraphFst):
         word_graph = WordFst().fst
         time_graph = TimeFst().fst
         telephone_graph = TelephoneFst().fst
+        electonic_graph = ElectronicFst().fst
         money_graph = MoneyFst(cardinal=cardinal, decimal=decimal).fst
         whitelist_graph = WhiteListFst(input_case=input_case).fst
         punct_graph = PunctuationFst().fst
@@ -75,6 +77,7 @@ class ClassifyFst(GraphFst):
             | pynutil.add_weight(ordinal_graph, 1.1)
             | pynutil.add_weight(money_graph, 1.1)
             | pynutil.add_weight(telephone_graph, 1.1)
+            | pynutil.add_weight(electonic_graph, 1.1)
             | pynutil.add_weight(word_graph, 100)
         ).optimize()
 
