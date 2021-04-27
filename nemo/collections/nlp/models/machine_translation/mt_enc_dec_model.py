@@ -358,6 +358,9 @@ class MTEncDecModel(EncDecNLPModel):
     def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         self.setup_validation_data(self._cfg.get('validation_ds'))
 
+    def setup_multiple_test_data(self, val_data_config: Union[DictConfig, Dict]):
+        self.setup_test_data(self._cfg.get('validation_ds'))
+
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         self._validation_dl = self._setup_eval_dataloader_from_config(cfg=val_data_config)
 
