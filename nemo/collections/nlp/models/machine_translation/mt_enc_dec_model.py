@@ -214,8 +214,8 @@ class MTEncDecModel(EncDecNLPModel):
             'num_non_pad_tokens': num_non_pad_tokens,
         }
 
-    def test_step(self, batch, batch_idx):
-        return self.eval_step(batch, batch_idx, 'test')
+    def test_step(self, batch, batch_idx, dataloader_idx=0):
+        return self.eval_step(batch, batch_idx, 'test', dataloader_idx)
 
     @rank_zero_only
     def log_param_stats(self):
@@ -359,11 +359,10 @@ class MTEncDecModel(EncDecNLPModel):
         self.setup_validation_data(self._cfg.get('validation_ds'))
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        # self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
-        self._validation_dl = self._setup_val_dataloader_from_config(cfg=val_data_config)
+        self._validation_dl = self._setup_eval_dataloader_from_config(cfg=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
+        self._test_dl = self._setup_eval_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         if cfg.get("load_from_cached_dataset", False):
@@ -439,7 +438,7 @@ class MTEncDecModel(EncDecNLPModel):
             drop_last=cfg.get("drop_last", False),
         )
 
-    def _setup_val_dataloader_from_config(self, cfg: DictConfig):
+    def _setup_eval_dataloader_from_config(self, cfg: DictConfig):
         src_file_name = cfg.get('src_file_name')
         tgt_file_name = cfg.get('tgt_file_name')
 
