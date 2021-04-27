@@ -16,14 +16,15 @@ import itertools
 import json
 import pickle
 import random
+from multiprocessing import Value
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 import torch
 import torch.distributed as dist
 import torch.utils.data as pt_data
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
@@ -148,7 +149,13 @@ class MTEncDecModel(EncDecNLPModel):
             pad_id=self.decoder_tokenizer.pad_id, label_smoothing=cfg.label_smoothing
         )
         self.eval_loss_fn = NLLLoss(ignore_index=self.decoder_tokenizer.pad_id)
-        self.eval_loss = GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True)
+        if self._validation_dl is not None:
+            for dataloader_idx in range(len(self._validation_dl)):
+                setattr(
+                    self,
+                    f'eval_loss_{dataloader_idx}',
+                    GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True),
+                )
 
     def filter_predicted_ids(self, ids):
         ids[ids >= self.decoder_tokenizer.vocab_size] = self.decoder_tokenizer.unk_id
@@ -183,7 +190,7 @@ class MTEncDecModel(EncDecNLPModel):
         }
         return {'loss': train_loss, 'log': tensorboard_logs}
 
-    def eval_step(self, batch, batch_idx, mode):
+    def eval_step(self, batch, batch_idx, mode, dataloader_idx=0):
         for i in range(len(batch)):
             if batch[i].ndim == 3:
                 # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
@@ -194,7 +201,9 @@ class MTEncDecModel(EncDecNLPModel):
         eval_loss = self.eval_loss_fn(log_probs=log_probs, labels=labels)
         # this will run encoder twice -- TODO: potentially fix
         _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
-        self.eval_loss(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
+        getattr(self, f'eval_loss_{dataloader_idx}')(
+            loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1]
+        )
         np_tgt = tgt_ids.detach().cpu().numpy()
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
         ground_truths = [self.target_processor.detokenize(tgt.split(' ')) for tgt in ground_truths]
@@ -205,8 +214,8 @@ class MTEncDecModel(EncDecNLPModel):
             'num_non_pad_tokens': num_non_pad_tokens,
         }
 
-    def test_step(self, batch, batch_idx):
-        return self.eval_step(batch, batch_idx, 'test')
+    def test_step(self, batch, batch_idx, dataloader_idx=0):
+        return self.eval_step(batch, batch_idx, 'test', dataloader_idx)
 
     @rank_zero_only
     def log_param_stats(self):
@@ -219,61 +228,88 @@ class MTEncDecModel(EncDecNLPModel):
                     global_step=self.global_step,
                 )
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        return self.eval_step(batch, batch_idx, 'val')
+        return self.eval_step(batch, batch_idx, 'val', dataloader_idx)
 
     def eval_epoch_end(self, outputs, mode):
-        eval_loss = self.eval_loss.compute()
-        translations = list(itertools.chain(*[x['translations'] for x in outputs]))
-        ground_truths = list(itertools.chain(*[x['ground_truths'] for x in outputs]))
-        assert len(translations) == len(ground_truths)
+        dl_0_sb_score = 0  # log dl_0 by default to preserve backward compatibility
+        dl_0_eval_loss = 0
+        # if user specifies one validation dataloader, then PTL reverts to giving a list of dictionary instead of a list of list of dictionary
+        if isinstance(outputs[0], dict):
+            outputs = [outputs]
+        for dataloader_idx, output in enumerate(outputs):
+            eval_loss = getattr(self, f'eval_loss_{dataloader_idx}').compute()
+            if dataloader_idx == 0:
+                dl_0_eval_loss = eval_loss
 
-        # Gather translations and ground truths from all workers
-        tr_and_gt = [None for _ in range(self.world_size)]
-        # we also need to drop pairs where ground truth is an empty string
-        dist.all_gather_object(tr_and_gt, [(t, g) for (t, g) in zip(translations, ground_truths) if g.strip() != ''])
-        if self.global_rank == 0:
-            _translations = []
-            _ground_truths = []
-            for rank in range(0, self.world_size):
-                _translations += [t for (t, g) in tr_and_gt[rank]]
-                _ground_truths += [g for (t, g) in tr_and_gt[rank]]
+            translations = list(itertools.chain(*[x['translations'] for x in output]))
+            ground_truths = list(itertools.chain(*[x['ground_truths'] for x in output]))
+            assert len(translations) == len(ground_truths)
 
-            if self.tgt_language in ['ja']:
-                sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="ja-mecab")
-            elif self.tgt_language in ['zh']:
-                sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="zh")
+            # Gather translations and ground truths from all workers
+            tr_and_gt = [None for _ in range(self.world_size)]
+            # we also need to drop pairs where ground truth is an empty string
+            dist.all_gather_object(
+                tr_and_gt, [(t, g) for (t, g) in zip(translations, ground_truths) if g.strip() != '']
+            )
+            if self.global_rank == 0:
+                _translations = []
+                _ground_truths = []
+                for rank in range(0, self.world_size):
+                    _translations += [t for (t, g) in tr_and_gt[rank]]
+                    _ground_truths += [g for (t, g) in tr_and_gt[rank]]
+
+                if self.tgt_language in ['ja']:
+                    sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="ja-mecab")
+                elif self.tgt_language in ['zh']:
+                    sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="zh")
+                else:
+                    sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="13a")
+
+                # because the reduction op later is average (over word_size)
+                sb_score = sacre_bleu.score * self.world_size
+                dl_0_sb_score = sb_score
+
+                dataset_name = "Validation" if mode == 'val' else "Test"
+                logging.info(
+                    f"Dataset name: {dataset_name}, Dataloader index: {dataloader_idx}, Set size: {len(translations)}"
+                )
+                logging.info(
+                    f"Dataset name: {dataset_name}, Dataloader index: {dataloader_idx}, Val Loss = {eval_loss}"
+                )
+                logging.info(
+                    f"Dataset name: {dataset_name}, Dataloader index: {dataloader_idx}, Sacre BLEU = {sb_score / self.world_size}"
+                )
+                logging.info(
+                    f"Dataset name: {dataset_name}, Dataloader index: {dataloader_idx}, Translation Examples:"
+                )
+                for i in range(0, 3):
+                    ind = random.randint(0, len(translations) - 1)
+                    logging.info("    " + '\u0332'.join(f"Example {i}:"))
+                    logging.info(f"    Prediction:   {translations[ind]}")
+                    logging.info(f"    Ground Truth: {ground_truths[ind]}")
             else:
-                sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="13a")
+                sb_score = 0.0
 
-            dataset_name = "Validation" if mode == 'val' else "Test"
-            logging.info(f"\n\n\n\n{dataset_name} set size: {len(_translations)}")
-            logging.info(f"{dataset_name} Sacre BLEU = {sacre_bleu.score}")
-            logging.info(f"{dataset_name} TRANSLATION EXAMPLES:".upper())
-            for i in range(0, 3):
-                ind = random.randint(0, len(translations) - 1)
-                logging.info("    " + '\u0332'.join(f"EXAMPLE {i}:"))
-                logging.info(f"    Prediction:   {translations[ind]}")
-                logging.info(f"    Ground Truth: {ground_truths[ind]}")
-            # because the reduction op later is average (over word_size)
-            sb_score = sacre_bleu.score * self.world_size
-        else:
-            sb_score = 0.0
+            self.log(f"{mode}_loss_dl_index_{dataloader_idx}", eval_loss, sync_dist=True)
+            self.log(f"{mode}_sacreBLEU_dl_index_{dataloader_idx}", sb_score, sync_dist=True)
 
-        ans = {f"{mode}_loss": eval_loss, f"{mode}_sacreBLEU": sb_score}
-        return ans
+            getattr(self, f'eval_loss_{dataloader_idx}').reset()
+
+        # log dl index 0 sacreBLEU and loss by default to preserve backwards compatibility
+        self.log(f'{mode}_sacreBLEU', dl_0_sb_score, sync_dist=True)
+        self.log(f'{mode}_loss', dl_0_eval_loss, sync_dist=True)
 
     def validation_epoch_end(self, outputs):
         """
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
-        self.log_dict(self.eval_epoch_end(outputs, 'val'), sync_dist=True)
-        self.eval_loss.reset()
+        self.eval_epoch_end(outputs, 'val')
 
     def test_epoch_end(self, outputs):
         return self.eval_epoch_end(outputs, 'test')
@@ -319,11 +355,17 @@ class MTEncDecModel(EncDecNLPModel):
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
+    def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict]):
+        self.setup_validation_data(self._cfg.get('validation_ds'))
+
+    def setup_multiple_test_data(self, test_data_config: Union[DictConfig, Dict]):
+        self.setup_test_data(self._cfg.get('test_ds'))
+
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
+        self._validation_dl = self._setup_eval_dataloader_from_config(cfg=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
+        self._test_dl = self._setup_eval_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         if cfg.get("load_from_cached_dataset", False):
@@ -398,6 +440,66 @@ class MTEncDecModel(EncDecNLPModel):
             pin_memory=cfg.get("pin_memory", False),
             drop_last=cfg.get("drop_last", False),
         )
+
+    def _setup_eval_dataloader_from_config(self, cfg: DictConfig):
+        src_file_name = cfg.get('src_file_name')
+        tgt_file_name = cfg.get('tgt_file_name')
+
+        if src_file_name is None or tgt_file_name is None:
+            raise ValueError(
+                'Validation dataloader needs both cfg.src_file_name and cfg.tgt_file_name to not be None.'
+            )
+        else:
+            # convert src_file_name and tgt_file_name to list of strings
+            if isinstance(src_file_name, str):
+                src_file_list = [src_file_name]
+            elif isinstance(src_file_name, ListConfig):
+                src_file_list = src_file_name
+            else:
+                raise ValueError("cfg.src_file_name must be string or list of strings")
+            if isinstance(tgt_file_name, str):
+                tgt_file_list = [tgt_file_name]
+            elif isinstance(tgt_file_name, ListConfig):
+                tgt_file_list = tgt_file_name
+            else:
+                raise ValueError("cfg.tgt_file_name must be string or list of strings")
+        if len(src_file_list) != len(tgt_file_list):
+            raise ValueError('The same number of filepaths must be passed in for source and target validation.')
+
+        dataloaders = []
+        for src_file, tgt_file in zip(src_file_list, tgt_file_list):
+            dataset = TranslationDataset(
+                dataset_src=str(Path(src_file).expanduser()),
+                dataset_tgt=str(Path(tgt_file).expanduser()),
+                tokens_in_batch=cfg.tokens_in_batch,
+                clean=cfg.get("clean", False),
+                max_seq_length=cfg.get("max_seq_length", 512),
+                min_seq_length=cfg.get("min_seq_length", 1),
+                max_seq_length_diff=cfg.get("max_seq_length_diff", 512),
+                max_seq_length_ratio=cfg.get("max_seq_length_ratio", 512),
+                cache_ids=cfg.get("cache_ids", False),
+                cache_data_per_node=cfg.get("cache_data_per_node", False),
+                use_cache=cfg.get("use_cache", False),
+                reverse_lang_direction=cfg.get("reverse_lang_direction", False),
+            )
+            dataset.batchify(self.encoder_tokenizer, self.decoder_tokenizer)
+
+            if cfg.shuffle:
+                sampler = pt_data.RandomSampler(dataset)
+            else:
+                sampler = pt_data.SequentialSampler(dataset)
+
+            dataloader = torch.utils.data.DataLoader(
+                dataset=dataset,
+                batch_size=1,
+                sampler=sampler,
+                num_workers=cfg.get("num_workers", 2),
+                pin_memory=cfg.get("pin_memory", False),
+                drop_last=cfg.get("drop_last", False),
+            )
+            dataloaders.append(dataloader)
+
+        return dataloaders
 
     def setup_pre_and_post_processing_utils(self, source_lang, target_lang):
         """
