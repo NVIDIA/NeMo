@@ -15,11 +15,11 @@
 from nemo_text_processing.inverse_text_normalization.graph_utils import GraphFst
 
 
-class TelefoneFst(GraphFst):
+class TelephoneFst(GraphFst):
     """
     Finite state transducer for classifying telephone numbers
     """
 
     def __init__(self):
-        super().__init__(name="telefone", kind="classify")
+        super().__init__(name="telephone", kind="classify")
         # country code, number_part, extension

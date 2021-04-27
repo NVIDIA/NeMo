@@ -8,7 +8,7 @@ For example,
 `"in nineteen seventy"` -> `"in 1975"` 
 and `"it costs one hundred and twenty three dollars"` -> `"it costs $123"`.
 
-NeMo ITN :cite:`textprocessing-itn-zhang2021nemo` is based on WFST-grammars. We also provide a deployment route to C++ using Sparrowhawk -- an open-source version of Google Kestrel :cite:`textprocessing-itn-ebden2015kestrel`.
+NeMo ITN :cite:`textprocessing-itn-zhang2021nemo` is based on WFST-grammars :cite:`textprocessing-itn-Mohri2009`. We also provide a deployment route to C++ using `Sparrowhawk <https://github.com/google/sparrowhawk>`_ :cite:`textprocessing-itn-sparrowhawk` -- an open-source version of Google Kestrel :cite:`textprocessing-itn-ebden2015kestrel`.
 See :doc:`Text Procesing Deployment <../tools/text_processing_deployment>` for details.
 
 .. note::
@@ -53,6 +53,9 @@ Example prediction run:
 .. code::
 
     python run_prediction.py  --input=<INPUT_TEXT_FILE> --output=<OUTPUT_PATH>  [--verbose]
+
+
+The input is expected to be lower-cased. Punctuation are outputted with separating spaces after semiotic tokens, e.g. `"i see, it is ten o'clock..."` -> `"I see, it is 10:00  .  .  ."`.
 
 
 Data Cleaning for Evaluation

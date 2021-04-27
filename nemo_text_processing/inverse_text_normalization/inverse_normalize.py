@@ -47,6 +47,7 @@ class InverseNormalizer:
 
         Args:
             texts: list of input strings
+            verbose: whether to print intermediate meta information
 
         Returns converted list of input strings
         """
@@ -65,7 +66,8 @@ class InverseNormalizer:
             e.g. twelve kilograms -> 12 kg
 
         Args:
-            text: string that may include semiotic classes.
+            text: string that may include semiotic classes
+            verbose: whether to print intermediate meta information
 
         Returns: written form
         """
@@ -167,7 +169,7 @@ class InverseNormalizer:
         Given tagged lattice return shortest path
 
         Args:
-            tagged_text: tagged text
+            lattice: classification lattice
 
         Returns: shortest path
         """

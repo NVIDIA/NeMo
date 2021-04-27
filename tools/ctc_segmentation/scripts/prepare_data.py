@@ -21,7 +21,7 @@ from typing import List
 
 import regex
 import scipy.io.wavfile as wav
-from nemo_text_processing.text_normalization.normalize import normalize
+from nemo_text_processing.text_normalization.normalize import Normalizer
 from normalization_helpers import LATIN_TO_RU, RU_ABBREVIATIONS
 from num2words import num2words
 
@@ -61,6 +61,8 @@ parser.add_argument(
     action='store_true',
     help='Set to True to use NeMo Normalization tool to convert numbers from written to spoken format.',
 )
+
+normalizer = Normalizer(input_case='lower_cased')
 
 
 def convert_audio(in_file: str, wav_file: str = None, sample_rate: int = 16000) -> str:
@@ -258,7 +260,7 @@ def split_text(
 
     if language == 'eng' and use_nemo_normalization:
         print('Using NeMo normalization tool...')
-        sentences = normalize(sentences, verbose=False)
+        sentences = normalizer.normalize(sentences, verbose=False)
 
     # replace numbers with num2words
     try:

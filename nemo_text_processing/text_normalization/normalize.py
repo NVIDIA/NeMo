@@ -52,6 +52,7 @@ class Normalizer:
 
         Args:
             texts: list of input strings
+            verbose: whether to print intermediate meta information
 
         Returns converted list input strings
         """
@@ -71,7 +72,8 @@ class Normalizer:
             e.g. 12 kg -> twelve kilograms
 
         Args:
-            text: string that may include semiotic classes.
+            text: string that may include semiotic classes
+            verbose: whether to print intermediate meta information
 
         Returns: spoken form
         """

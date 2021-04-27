@@ -6,9 +6,10 @@ NeMo Text Normalization converts text from written form into its verbalized form
 
 For example, 
 `"at 10:00"` -> `"at ten o'clock"` 
-and `"it weighs 10kg"` -> `"it weights ten kilograms"`.
+and `"it weighs 10kg."` -> `"it weights ten kilograms ."`.
 
-NeMo Text Normalization is based on WFST-grammars :cite:`textprocessing-norm-zhang2021nemo`. We also provide a deployment route to C++ using Sparrowhawk -- an open-source version of Google Kestrel :cite:`textprocessing-norm-ebden2015kestrel`.
+
+NeMo Text Normalization :cite:`textprocessing-norm-zhang2021nemo` is based on WFST-grammars :cite:`textprocessing-norm-Mohri2009`. We also provide a deployment route to C++ using `Sparrowhawk <https://github.com/google/sparrowhawk>`_ :cite:`textprocessing-norm-sparrowhawk` -- an open-source version of Google Kestrel :cite:`textprocessing-norm-ebden2015kestrel`.
 See :doc:`Text Procesing Deployment <../tools/text_processing_deployment>` for details.
 
 
@@ -53,7 +54,9 @@ Example prediction run:
 
 .. code::
 
-    python run_prediction.py  --input=<INPUT_TEXT_FILE> --output=<OUTPUT_PATH>
+    python run_prediction.py  <--input INPUT_TEXT_FILE> <--output OUTPUT_PATH> [--input_case INPUT_CASE]
+
+``INPUT_CASE`` specifies whether the input is lower-cased or cased. Punctuation are outputted with separating spaces after semiotic tokens, e.g. `"I see, it is 10:00..."` -> `"I see, it is ten o'clock  .  .  ."`.
 
 
 Evaluation
@@ -63,8 +66,8 @@ Example evaluation run on `Google's text normalization dataset <https://www.kagg
 
 .. code::
 
-    python run_evaluation.py  --input=./en_with_types/output-00001-of-00100 [--cat CLASS_CATEGORY]
-
+    python run_evaluation.py  --input=./en_with_types/output-00001-of-00100 [--cat CLASS_CATEGORY] [--input_case INPUT_CASE]
+ 
 
 
 References
