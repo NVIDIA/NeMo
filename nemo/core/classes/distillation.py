@@ -72,8 +72,8 @@ class DistillationModelPT(ModelPT):
         self.teacher.freeze()
 
         # Initialize student model (student model must be of same class as teacher, unless overriden)
-        if 'target' in cfg:
-            target_cls = model_utils.import_class_by_path(cfg.target)
+        if 'target' in self.distillation_cfg and self.distillation_cfg.target is not None:
+            target_cls = model_utils.import_class_by_path(self.distillation_cfg.target)
         else:
             target_cls = self.teacher.__class__
 
