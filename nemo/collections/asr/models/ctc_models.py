@@ -568,20 +568,13 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, DistillationMixin):
         else:
             log_probs, encoded_len, predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
 
+        # Distillation support
+        if self.is_being_distilled():
+            self.distillation_registration_step(log_prob=log_probs)
+
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
-
-        # Distillation support
-        if self.is_being_distilled():
-            if self.is_student_model():
-                loss_key = 'input'
-            else:
-                loss_key = 'target'
-
-            # Register the tensor for the loss function
-            self.register_distillation_tensor(loss_key=loss_key, tensor=log_probs)
-
         tensorboard_logs = {'train_loss': loss_value}
 
         if hasattr(self, '_optimizer') and self._optimizer is not None:
@@ -670,9 +663,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, DistillationMixin):
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
-
-    def setup_distillation_loss(self) -> Optional['torch.nn._Loss']:
-        return torch.nn.KLDivLoss(log_target=True, reduction='batchmean')
 
     def validate_distillation_model(self, teacher_model: 'EncDecCTCModel'):
         student_decoder_vocab = self.decoder.vocabulary
