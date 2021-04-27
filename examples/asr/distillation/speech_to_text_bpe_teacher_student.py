@@ -18,7 +18,7 @@ TODO REMOVE BEFORE MERGE !!
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
 
-from nemo.core.classes.teacher_student import TeacherStudentModelPT
+from nemo.core.classes.distillation import DistillationModelPT
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -30,7 +30,7 @@ def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
-    teacher_student_model = TeacherStudentModelPT(cfg=cfg.model, trainer=trainer)
+    teacher_student_model = DistillationModelPT(cfg=cfg.model, trainer=trainer)
 
     trainer.fit(teacher_student_model)
 

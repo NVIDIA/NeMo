@@ -18,12 +18,12 @@ from typing import Dict, List, Union
 from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 
-from nemo.core.classes.mixins import TeacherStudentMixin, TeacherStudentType
+from nemo.core.classes.mixins import DistillationMixin, DistillationType
 from nemo.core.classes.modelPT import ModelPT
 from nemo.utils import logging, model_utils
 
 
-class TeacherStudentModelPT(ModelPT):
+class DistillationModelPT(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
@@ -81,23 +81,25 @@ class TeacherStudentModelPT(ModelPT):
 
         # Test that the two classes implement the `TeacherStudentMixin`
         # If they do implement it, initialize their internal parameters.
-        if not isinstance(self.teacher, TeacherStudentMixin):
+        if not isinstance(self.teacher, DistillationMixin):
             raise TypeError(
-                f"Teacher model ({self.teacher.__class__.__name__}) must inherit {TeacherStudentMixin.__name__}"
+                f"Teacher model ({self.teacher.__class__.__name__}) must inherit {DistillationMixin.__name__}"
             )
         else:
-            self.teacher._TEACHER_STUDENT_TYPE = TeacherStudentType.TEACHER
+            # Add mixin type information and instantiate mixin
+            self.teacher._DISTILLATION_TYPE = DistillationType.TEACHER
             self.teacher.distillation_cfg = copy.deepcopy(self.distillation_cfg)
 
-        if not isinstance(self.student, TeacherStudentMixin):
+        if not isinstance(self.student, DistillationMixin):
             raise TypeError(
-                f"Student model ({self.student.__class__.__name__}) must inherit {TeacherStudentMixin.__name__}"
+                f"Student model ({self.student.__class__.__name__}) must inherit {DistillationMixin.__name__}"
             )
         else:
-            self.student._TEACHER_STUDENT_TYPE = TeacherStudentType.STUDENT
+            # Add mixin type information and instantiate mixin
+            self.student._DISTILLATION_TYPE = DistillationType.STUDENT
             self.student.distillation_cfg = copy.deepcopy(self.distillation_cfg)
 
-        # setup up delegation of TeacherStudentModelPT to self.student
+        # setup up delegation of DistillationModelPT to self.student
         self._setup_delegates()
 
         # reset model restoration state
@@ -105,7 +107,7 @@ class TeacherStudentModelPT(ModelPT):
         logging.setLevel(logging.INFO)
 
         # setup loss function
-        self._setup_loss_function()
+        self._setup_distillation_loss()
 
         # restore delegated data loaders (of student model only)
         if self._cfg is not None and not self._is_model_being_restored():
@@ -113,23 +115,25 @@ class TeacherStudentModelPT(ModelPT):
                 self.setup_training_data(self._cfg.train_ds)
 
             if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
-                self.setup_multiple_validation_data(val_data_config=None)
+                self.setup_multiple_validation_data(val_data_config=self._cfg.validation_ds)
 
             if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
-                self.setup_multiple_test_data(test_data_config=None)
+                self.setup_multiple_test_data(test_data_config=self._cfg.test_ds)
 
         # ModelPT wrappers over subclass implementations
         self.training_step = model_utils.wrap_training_step(self.training_step)
 
-    def _setup_loss_function(self):
+        # Validate that the student and teacher models are fundamentally compatibilities
+        self.student.__class__.validate_distillation_model(self=self.student, teacher_model=self.teacher)
+
+    def _setup_distillation_loss(self):
         loss_config = self.distillation_cfg.get('loss', None)
+        loss_obj = self.student.__class__.setup_distillation_loss(self=self.student)
 
-        if loss_config is None:
-            loss_config = self.student.default_distillation_loss_config()
-
-        if loss_config is None:
+        if loss_config is None and loss_obj is None:
             raise ValueError(
-                "`teacher` config should have `loss` subconfig declaring the loss function "
+                "Distillation loss could not be setup. Either override `setup_distillation_loss()` in model"
+                " OR `distillation` config should have `loss` subconfig declaring the loss function "
                 "for distillation. For example, KLDiv loss can be expressed as follows :"
                 """
                  loss:
@@ -139,7 +143,11 @@ class TeacherStudentModelPT(ModelPT):
                 """
             )
 
-        self.transfer_loss_primary = self.from_config_dict(loss_config)
+        # prioritize config over the default loss implementation
+        if loss_config is not None:
+            self.transfer_loss_primary = self.from_config_dict(loss_config)
+        else:
+            self.transfer_loss_primary = loss_obj
 
         # TODO: use config to setup secondary loss(es)
 
@@ -197,18 +205,20 @@ class TeacherStudentModelPT(ModelPT):
 
         # Delegate train steps, dynamically replacing self with self.student / self.teacher to maintain model
         # level unawareness.
-        self.teacher.__class__.training_step(self.teacher, batch=batch, batch_nb=batch_nb)
-        self.student.__class__.training_step(self.student, batch=batch, batch_nb=batch_nb)
-
-        # TODO: Maybe add hooks for student model to override
-        # if teacher_logprobs.shape != student_logprobs.shape:
-        #     raise TypeError(f"Teacher model provided logprobs of shape {teacher_logprobs.shape}\n"
-        #                     f"Student model provided logprobs of shape {student_logprobs.shape}\n"
-        #                     f"As the two shapes do not match, the student and teacher model are incompatible.")
+        self.teacher.__class__.training_step(self=self.teacher, batch=batch, batch_nb=batch_nb)
+        self.student.__class__.training_step(self=self.student, batch=batch, batch_nb=batch_nb)
 
         # Update the registry from both student and teacher models
-        primary_loss_dict = self.teacher._distillation_primary_registry  # type: dict
-        primary_loss_dict.update(self.student._distillation_primary_registry)  # type: dict
+        primary_loss_dict = self.teacher._distillation_registry_primary  # type: dict
+        primary_loss_dict.update(self.student._distillation_registry_primary)  # type: dict
+
+        # Check that tensors were registered for distillation loss calculation
+        if len(primary_loss_dict) == 0:
+            raise RuntimeError("No tensors were registered in order to compute the distillation loss.\n"
+                               "Use self.register_distillation_tensor(loss_key, tensor) to register tensors!")
+
+        # Call prehook_primary_distillation_loss() of student
+        self.student.__class__.prehook_primary_distillation_loss(self=self.student, loss_dict=primary_loss_dict)
 
         # Compute primary distillation loss
         loss_value = self.transfer_loss_primary(**primary_loss_dict)
@@ -232,7 +242,7 @@ class TeacherStudentModelPT(ModelPT):
     ):
         """ Prevent restoration of teacher-student model - it is not preserved """
         raise NotImplementedError(
-            f"Restoration of {TeacherStudentModelPT.__name__} is invalid,"
+            f"Restoration of {DistillationModelPT.__name__} is invalid,"
             f"only student model should be saved and restored."
         )
 
@@ -247,7 +257,7 @@ class TeacherStudentModelPT(ModelPT):
         return []
 
     # Abstract methods must be explicitly overridden, even if just delegates
-    # setup up delegation of TeacherStudentModelPT methods to self.student
+    # setup up delegation of DistillationModelPT methods to self.student
     def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
         return self.student.setup_training_data(train_data_config)
 

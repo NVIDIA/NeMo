@@ -31,14 +31,15 @@ from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecMode
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.classes.mixins import TeacherStudentMixin
+from nemo.core.classes.mixins import DistillationMixin
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
 from nemo.utils import logging
 
 __all__ = ['EncDecCTCModel']
 
 
-class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, TeacherStudentMixin):
+class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, DistillationMixin):
+class EncDecCTCModel(ASRModel, ExportableEncDecModel, DistillationMixin):
     """Base class for encoder decoder CTC-based models."""
 
     @classmethod
@@ -670,5 +671,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, TeacherStu
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
 
-    def default_distillation_loss_config(self) -> Optional[DictConfig]:
-        return DictConfig(dict(_target_='torch.nn.KLDivLoss', log_target=True, reduction='batchmean'))
+    def setup_distillation_loss(self) -> Optional['torch.nn._Loss']:
+        return torch.nn.KLDivLoss(log_target=True, reduction='batchmean')
+
+    def validate_distillation_model(self, teacher_model: 'EncDecCTCModel'):
+        pass
