@@ -344,3 +344,10 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         OmegaConf.set_struct(self._cfg.decoder, True)
 
         logging.info(f"Changed tokenizer to {self.decoder.vocabulary} vocabulary.")
+
+    def validate_distillation_model(self, teacher_model: 'EncDecCTCModel'):
+        student_decoder_vocab = self.tokenizer.tokenizer.get_vocab()
+        teacher_decoder_vocab = teacher_model.tokenizer.tokenizer.get_vocab()
+
+        if student_decoder_vocab != teacher_decoder_vocab:
+            raise ValueError("Vocabulary between student and teacher models is incorrect !")

@@ -675,4 +675,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, DistillationMixin):
         return torch.nn.KLDivLoss(log_target=True, reduction='batchmean')
 
     def validate_distillation_model(self, teacher_model: 'EncDecCTCModel'):
-        pass
+        student_decoder_vocab = self.decoder.vocabulary
+        teacher_decoder_vocab = teacher_model.decoder.vocabulary
+
+        if student_decoder_vocab != teacher_decoder_vocab:
+            raise ValueError("Vocabulary between student and teacher models is incorrect !")

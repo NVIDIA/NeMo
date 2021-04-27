@@ -214,8 +214,10 @@ class DistillationModelPT(ModelPT):
 
         # Check that tensors were registered for distillation loss calculation
         if len(primary_loss_dict) == 0:
-            raise RuntimeError("No tensors were registered in order to compute the distillation loss.\n"
-                               "Use self.register_distillation_tensor(loss_key, tensor) to register tensors!")
+            raise RuntimeError(
+                "No tensors were registered in order to compute the distillation loss.\n"
+                "Use self.register_distillation_tensor(loss_key, tensor) to register tensors!"
+            )
 
         # Call prehook_primary_distillation_loss() of student
         self.student.__class__.prehook_primary_distillation_loss(self=self.student, loss_dict=primary_loss_dict)
