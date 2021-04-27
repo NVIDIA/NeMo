@@ -345,7 +345,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
 
         logging.info(f"Changed tokenizer to {self.decoder.vocabulary} vocabulary.")
 
-    def validate_distillation_model(self, teacher_model: 'EncDecCTCModel'):
+    def validate_distillation_model(self, teacher_model: 'EncDecCTCModelBPE'):
         student_decoder_vocab = self.tokenizer.tokenizer.get_vocab()
         teacher_decoder_vocab = teacher_model.tokenizer.tokenizer.get_vocab()
 
