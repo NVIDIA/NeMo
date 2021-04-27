@@ -124,11 +124,11 @@ class DistillationModelPT(ModelPT):
         self.training_step = model_utils.wrap_training_step(self.training_step)
 
         # Validate that the student and teacher models are fundamentally compatibilities
-        self.student.__class__.validate_distillation_model(self=self.student, teacher_model=self.teacher)
+        self.student.validate_distillation_model(teacher_model=self.teacher)
 
     def _setup_distillation_loss(self):
         loss_config = self.distillation_cfg.get('loss', None)
-        loss_obj = self.student.__class__.setup_distillation_loss(self=self.student)
+        loss_obj = self.student.setup_distillation_loss()
 
         if loss_config is None and loss_obj is None:
             raise ValueError(
@@ -205,8 +205,8 @@ class DistillationModelPT(ModelPT):
 
         # Delegate train steps, dynamically replacing self with self.student / self.teacher to maintain model
         # level unawareness.
-        self.teacher.__class__.training_step(self=self.teacher, batch=batch, batch_nb=batch_nb)
-        student_outputs = self.student.__class__.training_step(self=self.student, batch=batch, batch_nb=batch_nb)
+        self.teacher.training_step(batch=batch, batch_nb=batch_nb)
+        student_outputs = self.student.training_step(batch=batch, batch_nb=batch_nb)
 
         # Update the registry from both student and teacher models
         primary_loss_dict = self.teacher._distillation_registry_primary  # type: dict
@@ -220,7 +220,7 @@ class DistillationModelPT(ModelPT):
             )
 
         # Call prehook_primary_distillation_loss() of student
-        self.student.__class__.prehook_primary_distillation_loss(self=self.student, loss_dict=primary_loss_dict)
+        self.student.prehook_primary_distillation_loss(loss_dict=primary_loss_dict)
 
         # Compute primary distillation loss
         loss_value = self.transfer_loss_primary(**primary_loss_dict)
