@@ -20,20 +20,43 @@ import torch
 from omegaconf import DictConfig
 
 
-class TeacherStudentType(Enum):
+class DistillationType(Enum):
     STUDENT = 1
     TEACHER = 2
 
 
-class TeacherStudentMixin(ABC):
+class DistillationMixin(ABC):
     def __init__(self):
         super().__init__()
-        self._TEACHER_STUDENT_TYPE: Optional[TeacherStudentType] = None
+        self._DISTILLATION_TYPE: Optional[DistillationType] = None
         self.distillation_cfg = DictConfig({})
-        self._distillation_primary_registry = {}
+        self._distillation_registry_primary = {}
 
-    def is_being_distilled(self):
-        return self._TEACHER_STUDENT_TYPE is not None
+    def setup_distillation_loss(self) -> Optional['torch.nn._Loss']:
+        """
+        If implemented by base class, in case the distillation config does not contain the 'loss' subconfig,
+        the model itself can provide a default loss which will be used in its place.
+
+        Returns:
+            An optional Loss object that will be used as the distillation loss function.
+            If None is returned, the distillation config must have an appropriate loss function defined.
+        """
+        return None
+
+    def register_distillation_tensor(self, loss_key: str, tensor: torch.Tensor):
+        if not self.is_being_distilled():
+            raise RuntimeError("Model is not being distilled, yet tensors are being registered for distillation")
+
+        if loss_key in self._distillation_registry_primary:
+            raise ValueError(f"Distillation key '{loss_key}' already exists in distillation registry!")
+
+        self._distillation_registry_primary[loss_key] = tensor
+
+    def reset_distillation_registry(self):
+        self._distillation_registry_primary.clear()
+
+    def is_being_distilled(self) -> bool:
+        return self._DISTILLATION_TYPE is not None
 
     def is_student_model(self) -> Optional[bool]:
         """
@@ -44,29 +67,26 @@ class TeacherStudentMixin(ABC):
             is not undergoing teacher-student distillation.
         """
         if self.is_being_distilled():
-            return self._TEACHER_STUDENT_TYPE == TeacherStudentType.STUDENT
+            return self._DISTILLATION_TYPE == DistillationType.STUDENT
         else:
             return None
 
-    def default_distillation_loss_config(self) -> Optional[DictConfig]:
+    def validate_distillation_model(self, teacher_model: 'ModelPT'):
         """
-        If implemented by base class, in case the distillation config does not contain the 'loss' subconfig,
-        the model itself can provide a default loss config which will be instantiated.
+        Optionally, perform validations on student model (self) and the teacher model (argument),
+        such that this function must execute just after creation of the student and teacher models.
+
+        If there is a fundamental incompatibility between the models, raise an appropriate error when
+        overriding this method.
+
+        Args:
+            teacher_model: An instance of a ModelPT subclass that also inherits the DistillationMixin.
 
         Returns:
-            An optional DictConfig that will be used to instantiate the distillation loss function.
-            If None is returned, the distillation config must have an appropriate loss function defined.
+            Nothing needs to be returned, however if there is some fundamental incompatibility between
+            the student and teacher models, raise the appropriate warning/error in order to notify the user.
         """
-        return None
+        pass
 
-    def register_distillation_tensor(self, loss_key: str, tensor: torch.Tensor):
-        if not self.is_being_distilled():
-            raise RuntimeError("Model is not being distilled, yet tensors are being registered for distillation")
-
-        if loss_key in self._distillation_primary_registry:
-            raise ValueError(f"Distillation key '{loss_key}' already exists in distillation registry!")
-
-        self._distillation_primary_registry[loss_key] = tensor
-
-    def reset_distillation_registry(self):
-        self._distillation_primary_registry.clear()
+    def prehook_primary_distillation_loss(self, loss_dict: dict):
+        pass
