@@ -18,8 +18,8 @@ from collections import OrderedDict
 from typing import List
 
 from nemo_text_processing.inverse_text_normalization.taggers.tokenize_and_classify import ClassifyFst
-from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
 from nemo_text_processing.inverse_text_normalization.verbalizers.verbalize_final import VerbalizeFinalFst
+from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
 from tqdm import tqdm
 
 try:
