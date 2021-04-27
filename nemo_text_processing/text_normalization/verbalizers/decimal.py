@@ -49,7 +49,6 @@ class DecimalFst(GraphFst):
             + pynini.closure(NEMO_NOT_QUOTE, 1)
             + pynutil.delete("\"")
         )
-        optional_fractional = pynini.closure(fractional, 0, 1)
         quantity = (
             delete_space
             + insert_space

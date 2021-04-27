@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
-from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_QUOTE, NEMO_SPACE, GraphFst, delete_space
+from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space, insert_space
 
 try:
     import pynini
@@ -40,23 +40,23 @@ class ElectronicFst(GraphFst):
             + pynutil.delete("\"")
             + (
                 pynini.closure(
-                    pynutil.add_weight(graph_digit + pynutil.insert(' '), 1.09)
+                    pynutil.add_weight(graph_digit + insert_space, 1.09)
                     | pynutil.add_weight(pynini.closure(pynini.cross(".", "dot ")), 1.09)
-                    | pynutil.add_weight(NEMO_NOT_QUOTE + pynutil.insert(' '), 1.1)
+                    | pynutil.add_weight(NEMO_NOT_QUOTE + insert_space, 1.1)
                 )
             )
             + pynutil.delete("\"")
         )
 
         domain_default = (
-            pynini.closure(NEMO_NOT_QUOTE + pynutil.insert(' '))
+            pynini.closure(NEMO_NOT_QUOTE + insert_space)
             + pynini.cross(".", "dot ")
             + NEMO_NOT_QUOTE
-            + pynini.closure(pynutil.insert(' ') + NEMO_NOT_QUOTE)
+            + pynini.closure(insert_space + NEMO_NOT_QUOTE)
         )
 
-        server_default = pynini.closure(NEMO_NOT_QUOTE + pynutil.insert(' '))
-        server_common = pynini.string_file(get_abs_path("data/electronic/server_name.tsv")) + pynutil.insert(' ')
+        server_default = pynini.closure(NEMO_NOT_QUOTE + insert_space)
+        server_common = pynini.string_file(get_abs_path("data/electronic/server_name.tsv")) + insert_space
 
         domain_common = pynini.cross(".", "dot ") + pynini.string_file(get_abs_path("data/electronic/domain.tsv"))
 

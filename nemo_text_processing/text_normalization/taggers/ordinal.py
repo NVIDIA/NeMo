@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.graph_utils import NEMO_ALPHA, NEMO_CHAR, NEMO_DIGIT, GraphFst
+from nemo_text_processing.text_normalization.graph_utils import NEMO_DIGIT, GraphFst
 
 try:
     import pynini

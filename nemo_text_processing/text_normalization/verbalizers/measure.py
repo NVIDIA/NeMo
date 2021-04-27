@@ -14,8 +14,6 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.graph_utils import NEMO_CHAR, GraphFst, delete_space
-from nemo_text_processing.text_normalization.verbalizers.cardinal import CardinalFst
-from nemo_text_processing.text_normalization.verbalizers.decimal import DecimalFst
 
 try:
     import pynini
@@ -31,6 +29,10 @@ class MeasureFst(GraphFst):
     Finite state transducer for verbalizing measure, e.g.
         measure { negative: "true" cardinal { integer: "twelve" } units: "kilograms" } -> minus twelve kilograms
         measure { decimal { integer_part: "twelve" fractional_part: "five" } units: "kilograms" } -> twelve point five kilograms
+    
+    Args:
+        decimal: DecimalFst
+        cardinal: CardinalFst
     """
 
     def __init__(self, decimal: GraphFst, cardinal: GraphFst):

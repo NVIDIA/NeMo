@@ -14,13 +14,10 @@
 
 from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
 from nemo_text_processing.text_normalization.graph_utils import (
-    NEMO_DIGIT,
     NEMO_SIGMA,
     SINGULAR_TO_PLURAL,
     GraphFst,
     convert_space,
-    delete_extra_space,
-    delete_space,
     insert_space,
 )
 

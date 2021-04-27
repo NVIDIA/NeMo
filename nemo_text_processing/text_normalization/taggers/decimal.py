@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
-from nemo_text_processing.text_normalization.graph_utils import NEMO_DIGIT, GraphFst, delete_extra_space, delete_space
+from nemo_text_processing.text_normalization.graph_utils import GraphFst, delete_extra_space, delete_space
 
 try:
     import pynini

@@ -14,8 +14,6 @@
 # limitations under the License.
 
 from nemo_text_processing.inverse_text_normalization.graph_utils import NEMO_CHAR, GraphFst, delete_space
-from nemo_text_processing.inverse_text_normalization.verbalizers.cardinal import CardinalFst
-from nemo_text_processing.inverse_text_normalization.verbalizers.decimal import DecimalFst
 
 try:
     import pynini

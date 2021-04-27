@@ -19,7 +19,6 @@ from nemo_text_processing.text_normalization.graph_utils import (
     SINGULAR_TO_PLURAL,
     GraphFst,
     convert_space,
-    delete_extra_space,
     delete_space,
 )
 

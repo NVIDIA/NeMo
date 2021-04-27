@@ -16,7 +16,6 @@ from nemo_text_processing.inverse_text_normalization.data_loader_utils import ge
 from nemo_text_processing.inverse_text_normalization.graph_utils import (
     NEMO_ALPHA,
     NEMO_DIGIT,
-    NEMO_SIGMA,
     GraphFst,
     delete_extra_space,
     delete_space,

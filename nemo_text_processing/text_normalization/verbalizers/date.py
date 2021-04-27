@@ -34,6 +34,9 @@ class DateFst(GraphFst):
     Finite state transducer for verbalizing date, e.g.
         date { month: "february" day: "five" year: "twenty twelve" preserve_order: true } -> february fifth twenty twelve
         date { day: "five" month: "february" year: "twenty twelve" preserve_order: true } -> the fifth of february twenty twelve
+
+    Args:
+        ordinal: OrdinalFst
     """
 
     def __init__(self, ordinal: GraphFst):

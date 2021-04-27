@@ -13,14 +13,13 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.graph_utils import NEMO_CHAR, NEMO_SIGMA, GraphFst
+from nemo_text_processing.text_normalization.graph_utils import NEMO_SIGMA, GraphFst
 
 try:
     import pynini
     from pynini.lib import pynutil
 
     PYNINI_AVAILABLE = True
-    delete_space = pynutil.delete(" ")
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
@@ -33,8 +32,6 @@ class ElectronicFst(GraphFst):
 
     def __init__(self):
         super().__init__(name="electronic", kind="classify")
-
-        # protocol, username, password, domain,port, path, query_string, fragment_id     protocol://username:password@domain:port/path?query_string#fragment_id
 
         username = pynutil.insert("username: \"") + NEMO_SIGMA + pynutil.insert("\"") + pynini.cross('@', ' ')
         domain_graph = pynutil.insert("domain: \"") + NEMO_SIGMA + pynutil.insert("\"")

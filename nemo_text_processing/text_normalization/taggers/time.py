@@ -18,11 +18,9 @@ from nemo_text_processing.text_normalization.graph_utils import (
     NEMO_DIGIT,
     GraphFst,
     convert_space,
-    delete_extra_space,
     delete_space,
     insert_space,
 )
-from nemo_text_processing.text_normalization.taggers.cardinal import CardinalFst
 
 try:
     import pynini
@@ -43,15 +41,18 @@ class TimeFst(GraphFst):
         2 a.m. -> time { hours: "two" suffix: "a m" }
         02:00 -> time { hours: "two" }
         2:00 -> time { hours: "two" }
+    
+    Args:
+        cardinal: CardinalFst
     """
 
-    def __init__(self):
+    def __init__(self, cardinal: GraphFst):
         super().__init__(name="time", kind="classify")
         suffix_graph = pynini.string_file(get_abs_path("data/time_suffix.tsv"))
         time_zone_graph = pynini.string_file(get_abs_path("data/time_zone.tsv"))
 
         # only used for < 1000 thousand -> 0 weight
-        cardinal = pynutil.add_weight(CardinalFst().graph, weight=-0.7)
+        cardinal = pynutil.add_weight(cardinal.graph, weight=-0.7)
 
         labels_hour = [str(x) for x in range(0, 24)]
         labels_minute_single = [str(x) for x in range(1, 10)]
