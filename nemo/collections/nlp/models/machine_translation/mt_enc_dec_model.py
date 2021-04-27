@@ -41,7 +41,7 @@ from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MT
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_transformer
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator
+from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TopKSequenceGenerator
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging, model_utils
 
@@ -439,6 +439,18 @@ class MTEncDecModel(EncDecNLPModel):
             num_workers=cfg.get("num_workers", 2),
             pin_memory=cfg.get("pin_memory", False),
             drop_last=cfg.get("drop_last", False),
+        )
+
+    def replace_beam_with_sampling(self, topk=500):
+        self.beam_search = TopKSequenceGenerator(
+            embedding=self.decoder.embedding,
+            decoder=self.decoder.decoder,
+            log_softmax=self.log_softmax,
+            max_sequence_length=self.beam_search.max_seq_length,
+            beam_size=topk,
+            bos=self.decoder_tokenizer.bos_id,
+            pad=self.decoder_tokenizer.pad_id,
+            eos=self.decoder_tokenizer.eos_id,
         )
 
     def _setup_eval_dataloader_from_config(self, cfg: DictConfig):
