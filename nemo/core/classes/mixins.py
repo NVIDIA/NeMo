@@ -39,9 +39,10 @@ class DistillationMixin(ABC):
 
         Returns:
             An optional Loss object that will be used as the distillation loss function.
+            By default, this is the KLDivergence loss.
             If None is returned, the distillation config must have an appropriate loss function defined.
         """
-        return None
+        return torch.nn.KLDivLoss(log_target=True, reduction='batchmean')
 
     def register_distillation_tensor(self, loss_key: str, tensor: torch.Tensor):
         if not self.is_being_distilled():
@@ -51,6 +52,24 @@ class DistillationMixin(ABC):
             raise ValueError(f"Distillation key '{loss_key}' already exists in distillation registry!")
 
         self._distillation_registry_primary[loss_key] = tensor
+
+    def distillation_registration_step(self, log_prob: torch.Tensor):
+        """
+        Helper method to register tensors inside of `training_step`. Subclasses should overwrite
+        this method (and its signature) to suit their requirements.
+
+        The default implementation assumes that the input is a tensor which represents log probabilities.
+
+        Args:
+            log_prob: A tensor of any shape (B, *) that represents log probabilities.
+        """
+        if self.is_student_model():
+            loss_key = 'input'
+        else:
+            loss_key = 'target'
+
+        # Register the tensor for the loss function
+        self.register_distillation_tensor(loss_key=loss_key, tensor=log_prob)
 
     def reset_distillation_registry(self):
         self._distillation_registry_primary.clear()
