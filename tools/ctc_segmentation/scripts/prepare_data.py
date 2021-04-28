@@ -21,11 +21,18 @@ from typing import List
 
 import regex
 import scipy.io.wavfile as wav
-from nemo_text_processing.text_normalization.normalize import Normalizer
 from normalization_helpers import LATIN_TO_RU, RU_ABBREVIATIONS
 from num2words import num2words
 
 from nemo.collections import asr as nemo_asr
+
+try:
+    from nemo_text_processing.text_normalization.normalize import Normalizer
+
+    NEMO_NORMALIZATION_AVAILABLE = True
+except (ModuleNotFoundError, ImportError):
+    NEMO_NORMALIZATION_AVAILABLE = False
+
 
 parser = argparse.ArgumentParser(description="Prepares text and audio files for segmentation")
 parser.add_argument("--in_text", type=str, default=None, help='Path to a text file or a directory with .txt files')
@@ -257,6 +264,9 @@ def split_text(
             sentences = [s.replace(k, v) for s in sentences]
 
     if language == 'eng' and use_nemo_normalization:
+        if not NEMO_NORMALIZATION_AVAILABLE:
+            raise ValueError(f'NeMo normalization tool is not installed.')
+
         print('Using NeMo normalization tool...')
         normalizer = Normalizer(input_case='cased')
         sentences_norm = normalizer.normalize_list(sentences, verbose=False)
