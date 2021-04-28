@@ -17,6 +17,7 @@ model:
   n_mel_channels: 80
   pitch_embedding_kernel_size: 3
   mel_loss_coeff: 40
+  hop_size: 256
 
   train_ds:
     manifest_filepath: ${train_dataset}
@@ -53,7 +54,7 @@ model:
     mag_power: 1.0
     n_fft: 1024
     n_window_size: 1024
-    n_window_stride: 256
+    n_window_stride: ${model.hop_size}
     normalize: null
     pad_to: 1
     pad_value: 0

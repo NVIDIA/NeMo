@@ -44,7 +44,8 @@ from nemo.utils import logging
 
 
 class FastSpeech2HifiGanE2EModel(TextToWaveform):
-    """TODO"""
+    """An end-to-end speech synthesis model based on FastSpeech2 and HiFiGan that converts strings to audio without
+    using the intermediate mel spectrogram representation."""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         if isinstance(cfg, dict):
@@ -80,6 +81,7 @@ class FastSpeech2HifiGanE2EModel(TextToWaveform):
         self.logged_real_samples = False
         self._tb_logger = None
         self.sample_rate = cfg.sample_rate
+        self.hop_size = cfg.hop_size
 
         # Parser and mappings are used for inference only.
         self.parser = parsers.make_parser(name='en')
@@ -190,7 +192,7 @@ class FastSpeech2HifiGanE2EModel(TextToWaveform):
                 )
                 real_audio = []
                 for i, splice in enumerate(splices):
-                    real_audio.append(f[i, splice * 256 : (splice + self.splice_length) * 256])
+                    real_audio.append(f[i, splice * self.hop_size : (splice + self.splice_length) * self.hop_size])
                 real_audio = torch.stack(real_audio).unsqueeze(1)
 
             real_score_mp, gen_score_mp, _, _ = self.multiperioddisc(real_audio, audio_pred)
@@ -220,11 +222,11 @@ class FastSpeech2HifiGanE2EModel(TextToWaveform):
             )
             real_audio = []
             for i, splice in enumerate(splices):
-                real_audio.append(f[i, splice * 256 : (splice + self.splice_length) * 256])
+                real_audio.append(f[i, splice * self.hop_size : (splice + self.splice_length) * self.hop_size])
             real_audio = torch.stack(real_audio).unsqueeze(1)
 
             # Do HiFiGAN generator loss
-            audio_length = torch.tensor([self.splice_length * 256 for _ in range(real_audio.shape[0])]).to(
+            audio_length = torch.tensor([self.splice_length * self.hop_size for _ in range(real_audio.shape[0])]).to(
                 real_audio.device
             )
             real_spliced_spec, _ = self.melspec_fn(real_audio.squeeze(), seq_len=audio_length)
@@ -401,6 +403,6 @@ class FastSpeech2HifiGanE2EModel(TextToWaveform):
         durations = torch.sum(torch.exp(log_dur_pred) - 1, 1)
         audio_list = []
         for i, sample in enumerate(audio):
-            audio_list.append(sample[: durations[i] * 256])
+            audio_list.append(sample[: durations[i] * self.hop_size])
 
         return audio_list

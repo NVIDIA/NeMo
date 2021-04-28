@@ -56,7 +56,9 @@ class FastPitchHifiGanE2EConfig:
 
 
 class FastPitchHifiGanE2EModel(TextToWaveform):
-    """TODO"""
+    """An end-to-end speech synthesis model based on FastPitch and HiFiGan that converts strings to audio without using
+    the intermediate mel spectrogram representation.
+    """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         if isinstance(cfg, dict):
@@ -121,6 +123,7 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
         self.hann_window = None
         self.splice_length = cfg.splice_length
         self.sample_rate = cfg.sample_rate
+        self.hop_size = cfg.hop_size
 
     @property
     def tb_logger(self):
@@ -258,7 +261,7 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
                 audio_pred, splices, _, _ = self(text=text, durs=durs, pitch=pitch)
                 real_audio = []
                 for i, splice in enumerate(splices):
-                    real_audio.append(audio[i, splice * 256 : (splice + self.splice_length) * 256])
+                    real_audio.append(audio[i, splice * self.hop_size : (splice + self.splice_length) * self.hop_size])
                 real_audio = torch.stack(real_audio).unsqueeze(1)
 
             real_score_mp, gen_score_mp, _, _ = self.multiperioddisc(real_audio, audio_pred)
@@ -280,7 +283,7 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
             audio_pred, splices, log_dur_preds, pitch_preds = self(text=text, durs=durs, pitch=pitch)
             real_audio = []
             for i, splice in enumerate(splices):
-                real_audio.append(audio[i, splice * 256 : (splice + self.splice_length) * 256])
+                real_audio.append(audio[i, splice * self.hop_size : (splice + self.splice_length) * self.hop_size])
             real_audio = torch.stack(real_audio).unsqueeze(1)
 
             _, dur_loss, pitch_loss = self.loss(
@@ -292,7 +295,7 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
             )
 
             # Do HiFiGAN generator loss
-            audio_length = torch.tensor([self.splice_length * 256 for _ in range(real_audio.shape[0])]).to(
+            audio_length = torch.tensor([self.splice_length * self.hop_size for _ in range(real_audio.shape[0])]).to(
                 real_audio.device
             )
             real_spliced_spec, _ = self.melspec_fn(real_audio.squeeze(), audio_length)
@@ -359,10 +362,10 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
         if self.tb_logger is not None:
             _, audio_target, audio_predict = outputs[0].values()
             if not self.logged_real_samples:
-                self.tb_logger.add_audio("val_target", audio_target[0].data.cpu(), self.global_step, 22050)
+                self.tb_logger.add_audio("val_target", audio_target[0].data.cpu(), self.global_step, self.sample_rate)
                 self.logged_real_samples = True
             audio_predict = audio_predict[0].data.cpu()
-            self.tb_logger.add_audio("val_pred", audio_predict, self.global_step, 22050)
+            self.tb_logger.add_audio("val_pred", audio_predict, self.global_step, self.sample_rate)
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()  # This reduces across batches, not workers!
         self.log('val_loss', avg_loss, sync_dist=True)
 
@@ -428,6 +431,6 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
         durations = torch.sum(torch.clamp(torch.exp(log_dur_pred) - 1, 0, self.max_token_duration), 1)
         audio_list = []
         for i, sample in enumerate(audio):
-            audio_list.append(sample[: durations[i] * 256])
+            audio_list.append(sample[: durations[i] * self.hop_size])
 
         return audio_list

@@ -18,6 +18,7 @@ model:
   mappings_filepath: ${mappings_file}
   sample_rate: 22050
   n_mels: 80
+  hop_size: 256
 
   train_ds:
     dataset:
@@ -63,7 +64,7 @@ model:
     mag_power: 1.0
     n_fft: 1024
     n_window_size: 1024
-    n_window_stride: 256
+    n_window_stride: ${model.hop_size}
     normalize: null
     pad_to: 0
     preemph: null
