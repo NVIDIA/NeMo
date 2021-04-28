@@ -176,4 +176,9 @@ def get_transformer(
             model_name=model_name, pretrained=pretrained, config_dict=config_dict, encoder=encoder
         )
 
+    elif library == 'megatron':
+        model = get_megatron_lm_model(
+            pretrained_model_name=model_name, config_dict=config_dict, checkpoint_file=checkpoint_file
+        )
+
     return model
