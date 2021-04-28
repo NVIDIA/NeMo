@@ -1,0 +1,8 @@
+.1665~point one six six five
+2.0~two point zero
+2.00~two point o o
+2.050~two point o five o
+100 million~one hundred million
+0.1 billion~zero point one billion
+.1 trillion~point one trillion
+-0.1~minus zero point one
