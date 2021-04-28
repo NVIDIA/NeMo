@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,38 +13,40 @@
 # limitations under the License.
 
 from argparse import ArgumentParser
-from time import perf_counter
 from typing import List
 
-from nemo_text_processing.text_normalization.normalize import normalizers
+from nemo_text_processing.text_normalization.normalize import Normalizer
 
 
 '''
-Runs normalization on text data
+Runs normalization prediction on text data
 '''
 
 
 def load_file(file_path: str) -> List[str]:
     """
     Load given text file into list of string.
+
     Args: 
         file_path: file path
+
     Returns: flat list of string
     """
     res = []
     with open(file_path, 'r') as fp:
         for line in fp:
-            if line:
-                res.append(line.strip())
+            res.append(line)
     return res
 
 
 def write_file(file_path: str, data: List[str]):
     """
     Writes out list of string to file.
+
     Args:
         file_path: file path
         data: list of string
+        
     """
     with open(file_path, 'w') as fp:
         for line in data:
@@ -55,25 +57,22 @@ def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--input", help="input file path", required=True, type=str)
     parser.add_argument("--output", help="output file path", required=True, type=str)
-    parser.add_argument("--verbose", help="print normalization info. For debugging", action='store_true')
     parser.add_argument(
-        "--normalizer", default='nemo', help="normlizer to use (" + ", ".join(normalizers.keys()) + ")", type=str
+        "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="lower_cased", type=str
     )
+    parser.add_argument("--verbose", help="print meta info for debugging", action='store_true')
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
     file_path = args.input
-    normalizer = normalizers[args.normalizer]
+    normalizer = Normalizer(input_case=args.input_case)
 
     print("Loading data: " + file_path)
     data = load_file(file_path)
 
     print("- Data: " + str(len(data)) + " sentences")
-    t_start = perf_counter()
-    normalizer_prediction = normalizer(data, verbose=args.verbose)
-    t_end = perf_counter()
-    print(f"- Finished in {t_end-t_start} seconds. Processed {len(data)/(t_end-t_start)} sentences per second.")
-    print("- Normalized. Writing out...")
+    normalizer_prediction = normalizer.normalize_list(data, verbose=args.verbose)
     write_file(args.output, normalizer_prediction)
+    print(f"- Normalized. Writing out to {args.output}")

@@ -12,12 +12,6 @@ Model Classes
     :show-inheritance:
     :members: 
 
-
-.. autoclass:: nemo_text_processing.inverse_text_normalization.ClassifyFinalFst
-    :show-inheritance:
-    :members: 
-
-
 .. autoclass:: nemo_text_processing.inverse_text_normalization.VerbalizeFst
     :show-inheritance:
     :members: 

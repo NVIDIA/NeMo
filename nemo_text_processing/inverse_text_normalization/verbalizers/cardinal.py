@@ -27,7 +27,7 @@ except (ModuleNotFoundError, ImportError):
 class CardinalFst(GraphFst):
     """
     Finite state transducer for verbalizing cardinal
-        e.g. tokens { cardinal { integer: "23" negative: "-" } } -> -23
+        e.g. cardinal { integer: "23" negative: "-" } -> -23
     """
 
     def __init__(self):

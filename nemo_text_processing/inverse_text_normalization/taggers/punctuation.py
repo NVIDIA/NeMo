@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.graph_utils import GraphFst, convert_space
+from nemo_text_processing.text_normalization.graph_utils import GraphFst
 
 try:
     import pynini
@@ -26,32 +26,15 @@ except (ModuleNotFoundError, ImportError):
 class PunctuationFst(GraphFst):
     """
     Finite state transducer for classifying punctuation
-        e.g. a, -> tokens { name: "a" } tokens { name: "," pause_length: "PAUSE_MEDIUM phrase_break: true type: PUNCT" }
+        e.g. a, -> tokens { name: "a" } tokens { name: "," }
     """
 
     def __init__(self):
         super().__init__(name="punctuation", kind="classify")
 
-        medium_punct = pynini.union(",", ";", "(", ")")
-        long_punct = pynini.union(".", "!", "?", ":")
+        s = "!#$%&\'()*+,-./:;<=>?@^_`{|}~"
+        punct = pynini.union(*s)
 
-        medium = (
-            pynutil.insert("tokens { name: \"")
-            + convert_space(medium_punct)
-            + pynutil.insert("\"")
-            + pynutil.insert(" pause_length: \"")
-            + convert_space(pynutil.insert("PAUSE_MEDIUM phrase_break: true type: PUNCT"))
-            + pynutil.insert("\" }")
-        )
-        loong = (
-            pynutil.insert("tokens { name: \"")
-            + convert_space(long_punct)
-            + pynutil.insert("\"")
-            + pynutil.insert(" pause_length: \"")
-            + convert_space(pynutil.insert("PAUSE_LONG phrase_break: true type: PUNCT"))
-            + pynutil.insert("\" }")
-        )
-
-        graph = medium | loong
+        graph = pynutil.insert("name: \"") + punct + pynutil.insert("\"")
 
         self.fst = graph.optimize()

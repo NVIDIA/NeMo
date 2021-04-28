@@ -39,13 +39,13 @@ class MoneyFst(GraphFst):
         e.g. twelve dollars and five cents -> money { integer_part: "12" fractional_part: 05 currency: "$" }
 
     Args:
-        cardinal: Cardinal GraphFST
-        decimal: Decimal GraphFST
+        cardinal: CardinalFst
+        decimal: DecimalFst
     """
 
     def __init__(self, cardinal: GraphFst, decimal: GraphFst):
         super().__init__(name="money", kind="classify")
-        # quantity, integer_part, fractional_part, currency, style(depr)
+        # quantity, integer_part, fractional_part, currency
 
         cardinal_graph = cardinal.graph_no_exception
         graph_decimal_final = decimal.final_graph_wo_negative

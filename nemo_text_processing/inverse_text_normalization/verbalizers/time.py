@@ -32,10 +32,10 @@ except (ModuleNotFoundError, ImportError):
 
 class TimeFst(GraphFst):
     """
-    Finite state transducer for verbalizing time
-        e.g. tokens { twelve thirty -> time { hours: "12" minutes: "30" } } -> 12:30
-        e.g. tokens { twelve past one -> time { minutes: "12" hours: "1" } } -> 01:12
-        e.g tokens { time { hours: "2" suffix: "a.m." } } -> 02:00 a.m.
+    Finite state transducer for verbalizing time, e.g.
+        time { hours: "12" minutes: "30" } -> 12:30
+        time { hours: "1" minutes: "12" } -> 01:12
+        time { hours: "2" suffix: "a.m." } -> 02:00 a.m.
     """
 
     def __init__(self):

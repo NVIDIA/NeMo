@@ -22,7 +22,7 @@ from nemo_text_processing.inverse_text_normalization.data_loader_utils import (
     training_data_to_sentences,
     training_data_to_tokens,
 )
-from nemo_text_processing.inverse_text_normalization.inverse_normalize import INVERSE_NORMALIZERS
+from nemo_text_processing.inverse_text_normalization.inverse_normalize import InverseNormalizer
 
 
 '''
@@ -34,12 +34,6 @@ like the Google text normalization data https://www.kaggle.com/richardwilliamspr
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--input", help="input file path", type=str)
-    parser.add_argument(
-        "--inverse_normalizer",
-        default='nemo',
-        help="inverse_normalizer to use (" + ", ".join(DENORMALIZERS.keys()) + ")",
-        type=str,
-    )
     parser.add_argument(
         "--cat",
         dest="category",
@@ -57,7 +51,7 @@ if __name__ == "__main__":
     # python run_evaluate.py --input=<INPUT> --cat=<CATEGORY> --filter
     args = parse_args()
     file_path = args.input
-    inverse_normalizer = INVERSE_NORMALIZERS[args.inverse_normalizer]
+    inverse_normalizer = InverseNormalizer()
 
     print("Loading training data: " + file_path)
     training_data = load_files([file_path])
@@ -69,7 +63,7 @@ if __name__ == "__main__":
         print("Sentence level evaluation...")
         sentences_un_normalized, sentences_normalized, _ = training_data_to_sentences(training_data)
         print("- Data: " + str(len(sentences_normalized)) + " sentences")
-        sentences_prediction = inverse_normalizer(sentences_normalized)
+        sentences_prediction = inverse_normalizer.inverse_normalize_list(sentences_normalized)
         print("- Denormalized. Evaluating...")
         sentences_accuracy = evaluate(
             preds=sentences_prediction, labels=sentences_un_normalized, input=sentences_normalized
@@ -83,7 +77,7 @@ if __name__ == "__main__":
         print("- Token type: " + token_type)
         tokens_un_normalized, tokens_normalized = tokens_per_type[token_type]
         print("  - Data: " + str(len(tokens_normalized)) + " tokens")
-        tokens_prediction = inverse_normalizer(tokens_normalized)
+        tokens_prediction = inverse_normalizer.inverse_normalize_list(tokens_normalized)
         print("  - Denormalized. Evaluating...")
         token_accuracy[token_type] = evaluate(tokens_prediction, tokens_un_normalized, input=tokens_normalized)
         print("  - Accuracy: " + str(token_accuracy[token_type]))
@@ -95,7 +89,6 @@ if __name__ == "__main__":
 
     print(" - Total: " + str(sum(token_count_per_type.values())), '\n')
 
-    # csv output
     for token_type in token_accuracy:
         if token_type not in known_types:
             raise ValueError("Unexpected token type: " + token_type)
@@ -105,7 +98,7 @@ if __name__ == "__main__":
         c2 = ['Num Tokens', len(sentences_normalized)] + [
             token_count_per_type[known_type] if known_type in tokens_per_type else '0' for known_type in known_types
         ]
-        c3 = [args.inverse_normalizer, sentences_accuracy] + [
+        c3 = ["Denormalization", sentences_accuracy] + [
             token_accuracy[known_type] if known_type in token_accuracy else '0' for known_type in known_types
         ]
 
@@ -113,4 +106,4 @@ if __name__ == "__main__":
             print(f'{str(c1[i]):10s} | {str(c2[i]):10s} | {str(c3[i]):5s}')
     else:
         print(f'numbers\t{token_count_per_type[args.category]}')
-        print(f'{args.inverse_normalizer}\t{token_accuracy[args.category]}')
+        print(f'Denormalization\t{token_accuracy[args.category]}')

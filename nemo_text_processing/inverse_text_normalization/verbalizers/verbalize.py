@@ -26,18 +26,31 @@ from nemo_text_processing.inverse_text_normalization.verbalizers.whitelist impor
 
 class VerbalizeFst(GraphFst):
     """
-    Composes other verbalizer grammars. This class will be compiled and exported to thrax FAR.
+    Composes other verbalizer grammars.
+    For deployment, this grammar will be compiled and exported to OpenFst Finate State Archiv (FAR) File. 
+    More details to deployment at NeMo/tools/text_processing_deployment.
     """
 
     def __init__(self):
         super().__init__(name="verbalize", kind="verbalize")
-        cardinal = CardinalFst().fst
-        ordinal = OrdinalFst().fst
-        decimal = DecimalFst().fst
-        measure = MeasureFst().fst
-        time = TimeFst().fst
-        date = DateFst().fst
-        money = MoneyFst().fst
-        whitelist = WhiteListFst().fst
-        graph = time | date | money | measure | ordinal | decimal | cardinal | whitelist
+        cardinal = CardinalFst()
+        cardinal_graph = cardinal.fst
+        ordinal_graph = OrdinalFst().fst
+        decimal = DecimalFst()
+        decimal_graph = decimal.fst
+        measure_graph = MeasureFst(decimal=decimal, cardinal=cardinal).fst
+        money_graph = MoneyFst(decimal=decimal).fst
+        time_graph = TimeFst().fst
+        date_graph = DateFst().fst
+        whitelist_graph = WhiteListFst().fst
+        graph = (
+            time_graph
+            | date_graph
+            | money_graph
+            | measure_graph
+            | ordinal_graph
+            | decimal_graph
+            | cardinal_graph
+            | whitelist_graph
+        )
         self.fst = graph
