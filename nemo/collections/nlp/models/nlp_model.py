@@ -383,7 +383,7 @@ class NLPModel(ModelPT, Exportable):
             cwd = os.getcwd()
             os.chdir(tmpdir)
             # detect if model parallel from tarfile
-            tar = tarfile.open(restore_path, "r:gz")
+            tar = tarfile.open(app_state.model_restore_path, "r:gz")
             names = tar.getnames()
             mp_ranks = []
             for name in names:
