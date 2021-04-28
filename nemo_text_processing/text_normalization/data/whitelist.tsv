@@ -5955,20 +5955,13 @@ EGBT	e g b t
 EGC	e g c
 EGD	e g d
 EGEA	e g e a
-.eg	e g
-eg.	e g
-eg	e g
-.E.g.	e g
-E. G.	e g
-E.G.	e g
-EG-	e g
-EG	e g
 egegn	e g e g n
 EGF-	e g f
 EGF	e g f
 egfl	e g f l
 EGFL	e g f l
 e.g.	for example
+e. g.	for example
 EGFR	e g f r
 EG&G	e g and g
 EggFTP	e g g f t p
@@ -22953,10 +22946,8 @@ VSS	v s s
 VSTM	v s t m
 VST	v s t
 VSU	v s u
-V. S.	v s
-V.S.	v s
-VS-	v s
-VS	v s
+vs.	versus
+_vs._	versus
 VSV	v s v
 VSW	v s w
 VSX	v s x
