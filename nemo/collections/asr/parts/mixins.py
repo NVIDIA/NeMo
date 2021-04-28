@@ -112,6 +112,12 @@ class ASRBPEMixin(ABC):
             )
         )
 
+        # Preserve config
+        if hasattr(self, 'cfg') and hasattr(self.cfg, 'tokenizer'):
+            OmegaConf.set_struct(self.cfg.tokenizer, False)
+            self.cfg.tokenizer = tokenizer_cfg
+            OmegaConf.set_struct(self.cfg.tokenizer, True)
+
 
 class DiarizationMixin(ABC):
     @abstractmethod
