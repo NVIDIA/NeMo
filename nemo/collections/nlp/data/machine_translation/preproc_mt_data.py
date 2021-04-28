@@ -132,10 +132,12 @@ class MTDataPreproc:
                 encoder_model_name=cfg.encoder.get('model_name'),
                 encoder_tokenizer_model=self.encoder_tokenizer_model,
                 encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0),
+                encoder_r2l=cfg.encoder_tokenizer.get('r2l', False),
                 decoder_tokenizer_name=cfg.decoder_tokenizer.get('library'),
                 decoder_model_name=cfg.decoder.get('model_name'),
                 decoder_tokenizer_model=self.decoder_tokenizer_model,
                 decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
+                decoder_r2l=cfg.decoder_tokenizer.get('r2l', False),
             )
 
             # If using tarred dataset for training, automatically create it if needed
@@ -219,10 +221,12 @@ class MTDataPreproc:
         encoder_tokenizer_model=None,
         encoder_bpe_dropout=0.0,
         encoder_model_name=None,
+        encoder_r2l=False,
         decoder_tokenizer_name=None,
         decoder_tokenizer_model=None,
         decoder_bpe_dropout=0.0,
         decoder_model_name=None,
+        decoder_r2l=False
     ):
 
         # if encoder_tokenizer_name != 'yttm' or decoder_tokenizer_name != 'yttm':
@@ -233,12 +237,14 @@ class MTDataPreproc:
             model_name=encoder_model_name,
             tokenizer_model=encoder_tokenizer_model,
             bpe_dropout=encoder_bpe_dropout,
+            r2l=encoder_r2l
         )
         decoder_tokenizer = get_nmt_tokenizer(
             library=decoder_tokenizer_name,
             model_name=decoder_model_name,
             tokenizer_model=decoder_tokenizer_model,
             bpe_dropout=decoder_bpe_dropout,
+            r2l=decoder_r2l
         )
 
         return encoder_tokenizer, decoder_tokenizer

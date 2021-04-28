@@ -55,6 +55,7 @@ def main():
     model.beam_search.beam_size = args.beam_size
     model.beam_search.len_pen = args.len_pen
     model.beam_search.max_delta_length = args.max_delta_length
+    model.eval()
 
     if torch.cuda.is_available():
         model = model.cuda()
