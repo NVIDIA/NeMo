@@ -56,6 +56,10 @@ def main():
         wavfile_list = tqdm(wavfile_list)
     for count, file_ in enumerate(wavfile_list):
         basename = Path(file_).stem
+        pitch_path = target_dir / "pitches" / f"{basename}.npy"
+        energy_path = target_dir / "energies" / f"{basename}.npy"
+        if pitch_path.exists() and energy_path.exists():
+            continue
         audio, sr = librosa.load(file_, sr=22050)
 
         # Calculate f0
@@ -64,16 +68,14 @@ def main():
         f0, _, _ = librosa.pyin(audio, fmin=80, fmax=800, frame_length=1024, sr=sr, fill_na=0.0)
 
         # Save to new file
-        save_path = target_dir / "pitches" / f"{basename}.npy"
-        np.save(save_path, f0)
+        np.save(pitch_path, f0)
 
         # Calculate energy
         stft_amplitude = np.abs(librosa.stft(audio, n_fft=1024, hop_length=256, win_length=1024))
         energy = np.linalg.norm(stft_amplitude, axis=0)  # axis=0 since librosa.stft -> (freq bins, frames)
 
         # Save to new file
-        save_path = target_dir / "energies" / f"{basename}.npy"
-        np.save(save_path, energy)
+        np.save(energy_path, energy)
 
         assert energy.shape == f0.shape
         if tqdm is None and count % 1000 == 0:

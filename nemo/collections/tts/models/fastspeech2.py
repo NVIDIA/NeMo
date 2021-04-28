@@ -116,7 +116,9 @@ class FastSpeech2Model(SpectrogramGenerator):
         mel, log_dur_preds, pitch_preds, energy_preds, encoded_text_mask = self(
             text=t, text_length=tl, spec_len=spec_len, durations=durations, pitch=pitch, energies=energies
         )
-        total_loss = self.loss(spec_pred=mel, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
+        total_loss = self.loss(
+            spec_pred=mel.tranpose(1, 2), spec_target=spec, spec_target_len=spec_len, pad_value=-11.52
+        )
         self.log(name="train_mel_loss", value=total_loss.clone().detach())
 
         # Duration prediction loss
@@ -139,7 +141,6 @@ class FastSpeech2Model(SpectrogramGenerator):
             total_loss += energy_loss
             self.log(name="train_energy_loss", value=energy_loss)
         self.log(name="train_loss", value=total_loss)
-
         return {"loss": total_loss, "outputs": [spec, mel]}
 
     def training_epoch_end(self, training_step_outputs):
@@ -166,8 +167,8 @@ class FastSpeech2Model(SpectrogramGenerator):
     def validation_step(self, batch, batch_idx):
         f, fl, t, tl, _, _, _ = batch
         spec, spec_len = self.audio_to_melspec_preprocessor(f, fl)
-        mel, log_dur_preds, _, _, _ = self(text=t, text_length=tl, spec_len=spec_len)
-        loss = self.loss(spec_pred=mel, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
+        mel, _, _, _, _ = self(text=t, text_length=tl, spec_len=spec_len)
+        loss = self.loss(spec_pred=mel.tranpose(1, 2), spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
         return {
             "val_loss": loss,
             "mel_target": spec,
@@ -214,7 +215,7 @@ class FastSpeech2Model(SpectrogramGenerator):
         # Convert text -> normalized text -> list of phones per word -> indices
         if str_input[-1] not in [".", "!", "?"]:
             str_input = str_input + "."
-        norm_text = re.findall("""[\w']+|[.,!?;"]""", self.parser._normalize(str_input))
+        norm_text = re.findall(r"""[\w']+|[.,!?;"]""", self.parser._normalize(str_input))
 
         try:
             phones = [self.word2phones[t] for t in norm_text]
