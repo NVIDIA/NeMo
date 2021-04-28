@@ -64,7 +64,7 @@ class MTDataPreproc:
             self.world_size = trainer.num_nodes * trainer.num_gpus
 
         if hasattr(cfg, 'train_ds'):
-            supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece']
+            supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece', 'megatron']
             supported_train_tokenizers = ['yttm', 'sentencepiece']
 
             if (

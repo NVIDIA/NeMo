@@ -111,7 +111,7 @@ def get_nmt_tokenizer(
 ):
     """
     Args:
-        model_name: if using a pretrained model from NeMo or HuggingFace
+        model_name: if using a pretrained model from NeMo, HuggingFace, or Megatron
         tokenizer_model: tokenizer model file of sentencepiece or youtokentome
         special_tokens: dict of special tokens
         vocab_file: path to vocab file
@@ -138,7 +138,10 @@ def get_nmt_tokenizer(
         return nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
             model_path=tokenizer_model, special_tokens=special_tokens_dict
         )
+    elif library == 'megatron':
+        logging.info(f'Getting Megatron tokenizer with pretrained model name: {model_name}')
+        return get_tokenizer(tokenizer_name=model_name)
     else:
         raise NotImplementedError(
-            'Currently we only support "yttm", "huggingface", and "sentencepiece" tokenizer library.'
+            'Currently we only support "yttm", "huggingface", "megatron", and "sentencepiece" tokenizer library.'
         )
