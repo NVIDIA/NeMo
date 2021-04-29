@@ -212,7 +212,7 @@ def parse_args():
     parser = ArgumentParser()
     parser.add_argument("input_string", help="input string", type=str)
     parser.add_argument(
-        "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="lower_cased", type=str
+        "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )
     parser.add_argument("--verbose", help="print info for debugging", action='store_true')
     return parser.parse_args()
