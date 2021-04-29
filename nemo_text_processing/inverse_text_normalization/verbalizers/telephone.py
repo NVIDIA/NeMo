@@ -1,4 +1,5 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.graph_utils import GraphFst
+from nemo_text_processing.inverse_text_normalization.graph_utils import (
+    NEMO_NOT_QUOTE,
+    GraphFst,
+    delete_space,
+    insert_space,
+)
 
 try:
     import pynini
@@ -23,11 +29,16 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-class ElectronicFst(GraphFst):
+class TelephoneFst(GraphFst):
     """
-    Finite state transducer for classifying electronic
+    Finite state transducer for verbalizing telephone, e.g.
+        telephone { number_part: "one two three one two three five six seven eight" }
+        -> 123-123-5678 
     """
 
     def __init__(self):
-        super().__init__(name="electronic", kind="classify")
-        # protocol, username, password, domain, port, path, query_string, fragment_id
+        super().__init__(name="telephone", kind="verbalize")
+
+        number_part = pynutil.delete("number_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        delete_tokens = self.delete_tokens(number_part)
+        self.fst = delete_tokens.optimize()
