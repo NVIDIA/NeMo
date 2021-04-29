@@ -147,13 +147,14 @@ class BERTLMModel(ModelPT):
         Lightning calls this inside the training loop with the data from the training dataloader
         passed in as `batch`.
         """
-        # forward pass
         input_ids, input_type_ids, input_mask, output_ids, output_mask, labels = batch
         forward_outputs = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
         mlm_log_probs, nsp_logits = self._parse_forward_outputs(forward_outputs)
         _, _, loss = self._compute_losses(mlm_log_probs, nsp_logits, output_ids, output_mask, labels)
-        tensorboard_logs = {"train_loss": loss}
-        return {"loss": loss, "log": tensorboard_logs}
+        lr = self._optimizer.param_groups[0]['lr']
+        self.log('train_loss', loss)
+        self.log('lr', lr, prog_bar=True)
+        return {"loss": loss, "lr": lr}
 
     def validation_step(self, batch, batch_idx):
         """
@@ -165,8 +166,7 @@ class BERTLMModel(ModelPT):
         mlm_log_probs, nsp_logits = self._parse_forward_outputs(forward_outputs)
         _, _, loss = self._compute_losses(mlm_log_probs, nsp_logits, output_ids, output_mask, labels)
         self.validation_perplexity(logits=mlm_log_probs)
-        tensorboard_logs = {'val_loss': loss}
-        return {'val_loss': loss, 'log': tensorboard_logs}
+        return {'val_loss': loss}
 
     def validation_epoch_end(self, outputs):
         """Called at the end of validation to aggregate outputs.
@@ -180,9 +180,8 @@ class BERTLMModel(ModelPT):
         if outputs:
             avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
             perplexity = self.validation_perplexity.compute()
-            tensorboard_logs = {'val_loss': avg_loss, 'perplexity': perplexity}
             logging.info(f"evaluation perplexity {perplexity.cpu().item()}")
-            return {'val_loss': avg_loss, 'log': tensorboard_logs}
+            self.log(f'val_loss', avg_loss)
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = (
