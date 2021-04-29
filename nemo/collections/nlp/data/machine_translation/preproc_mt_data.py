@@ -182,7 +182,7 @@ class MTDataPreproc:
                     # Preprocess data and cache for use during training
                     if self.global_rank == 0:
                         logging.info(
-                            f"Using tarred dataset for src: {cfg.train_ds.get('src_file_name')} and tgt: {cfg.train_ds.get('tgt_file_name')}"
+                            f"Creating tarred dataset for src: {cfg.train_ds.get('src_file_name')} and tgt: {cfg.train_ds.get('tgt_file_name')}"
                         )
 
                     if not cfg.get('multilingual'):
@@ -247,6 +247,7 @@ class MTDataPreproc:
                     logging.info(
                         f"Using tarred dataset created in folder(s) {outdir_list} and metadata created at {self._cfg.train_ds.metadata_file}"
                     )
+
                 elif cfg.train_ds.get('tar_files') is not None and cfg.train_ds.get('metadata_file') is None:
                     raise ValueError('A metadata file is required for tarred dataset but cfg.metadata_file is None.')
                 elif cfg.train_ds.get('tar_files') is None and cfg.train_ds.get('metadata_file') is not None:
