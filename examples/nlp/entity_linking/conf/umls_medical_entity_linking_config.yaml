@@ -1,4 +1,4 @@
-project_dir: .
+project_dir: ???
 name: SelfAlignmentPretrainingForMedicalEntityLinking
 trainer:
   gpus: 1

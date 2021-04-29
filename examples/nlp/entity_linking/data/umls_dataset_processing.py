@@ -21,6 +21,8 @@ import pandas as pd
 from omegaconf import OmegaConf
 from tqdm import tqdm
 
+# Info on these headers can be found here on the UMLS website https://www.ncbi.nlm.nih.gov/books/NBK9685/
+# section 3.3.4 Table 1
 HEADERS = [
     'CUI',
     'LAT',
@@ -68,6 +70,7 @@ def process_umls_training_dataset(data_path, train_save_name, val_save_name, max
 
     cui = df["CUI"].iloc[0]
     names = []
+    random.seed(2021)
 
     for idx in tqdm(range(len(df))):
         # Address incorrectly formatted data
@@ -160,6 +163,7 @@ def process_umls_index_dataset(data_path, data_savename, id2string_savename, hea
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument("--index", action="store_true", help="Whether to process data for building an index")
+    parser.add_argument("--project_dir", required=False, type=str, default=".")
     parser.add_argument("--cfg", required=False, type=str, default="conf/umls_medical_entity_linking_config.yaml")
     parser.add_argument(
         "--max_pairs", required=False, type=int, default=50, help="Max number of train pairs for a single concepts"
@@ -170,6 +174,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     cfg = OmegaConf.load(args.cfg)
+    cfg.project_dir = args.project_dir
 
     if args.index:
         process_umls_index_dataset(cfg.index.raw_data, cfg.index.index_ds.data_file, cfg.index.id_to_string, HEADERS)

@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,14 +22,11 @@ from omegaconf import OmegaConf
 
 from nemo.collections.nlp.models import EntityLinkingModel
 
+CFG_DIR = "../../../examples/nlp/entity_linking/conf"
 
-def get_cfg(save_dir):
-    wget.download(
-        "https://raw.githubusercontent.com/vadam5/NeMo/main/examples/nlp/entity_linking/conf/umls_medical_entity_linking_config.yaml",
-        save_dir,
-    )
 
-    cfg_file = os.path.join(save_dir, "umls_medical_entity_linking_config.yaml")
+def get_cfg():
+    cfg_file = os.path.join(CFG_DIR, "umls_medical_entity_linking_config.yaml")
     cfg = OmegaConf.load(cfg_file)
     cfg.model.train_ds = None
     cfg.model.validation_ds = None
@@ -44,7 +41,7 @@ class TestEntityLinkingModel:
         # Create a new temporary directory
         with tempfile.TemporaryDirectory() as restore_dir:
             with tempfile.TemporaryDirectory() as save_dir:
-                model = EntityLinkingModel(cfg=get_cfg(save_dir).model)
+                model = EntityLinkingModel(cfg=get_cfg().model)
                 assert isinstance(model, EntityLinkingModel)
 
                 save_dir_path = save_dir

@@ -34,7 +34,8 @@ __all__ = ['EntityLinkingModel']
 class EntityLinkingModel(NLPModel, Exportable):
     """
     Second stage pretraining of BERT based language model
-    for entity linking task.
+    for entity linking task. An implementation of Liu et. al's
+    NAACL 2021 paper Self-Alignment Pretraining for Biomedical Entity Representations.
     """
 
     @property
@@ -67,7 +68,6 @@ class EntityLinkingModel(NLPModel, Exportable):
         # Token to use for the self-alignment loss, typically the first token, [CLS]
         self._idx_conditioned_on = 0
         self.loss = MultiSimilarityLoss()
-        self.index = None
 
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = AutoTokenizer.from_pretrained(
@@ -117,7 +117,7 @@ class EntityLinkingModel(NLPModel, Exportable):
             val_loss = self.loss(logits=logits, labels=concept_ids)
 
         # No hard examples found in batch,
-        # shouldn't use this batch to update model weights
+        # val loss not used to update model weights
         if val_loss == 0:
             val_loss = None
         else:

@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ class MultiSimilarityLoss(Loss):
 
     def __init__(
         self,
-        scale_pos: Optional[float] = 2.0,
+        scale_pos: Optional[float] = 2.0,  # Params found to work best in our experiments
         scale_neg: Optional[float] = 40.0,
         offset: Optional[float] = 0.5,
         margin: Optional[float] = 0.1,
@@ -88,7 +88,7 @@ class MultiSimilarityLoss(Loss):
 
         if len(losses) == 0:
             loss = torch.zeros([], requires_grad=True).cuda()
-            logging.info(f'Encountered zero loss in multisimloss, loss = {loss}')
+            logging.info(f'Encountered zero loss in multisimloss, loss = {loss}. No hard examples found in the batch')
         else:
             loss = torch.sum(torch.stack(losses)) / logits.size(0)
 
