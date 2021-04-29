@@ -22,6 +22,7 @@ import tempfile
 import uuid
 from abc import abstractmethod
 from os import path
+from os.path import expanduser
 from typing import Callable, Dict, List, Optional, Union
 
 import hydra
@@ -37,7 +38,6 @@ from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
-from os.path import expanduser
 
 # Need to set them before EFF import as it is using them.
 _MODEL_CONFIG_YAML = "model_config.yaml"
@@ -180,12 +180,14 @@ class ModelPT(LightningModule, Model):
         if self.artifacts is None:
             self.artifacts = {}
 
-        if config_path is None or config_path.strip()=="":
+        if config_path is None or config_path.strip() == "":
             raise ValueError("config_path for artifact can't be None or empty")
 
         if config_path in self.artifacts.keys():
-            raise ValueError(f"You tried to register an artifact under config key={config_path} but an artifact for"
-                             f"it has already been registered.")
+            raise ValueError(
+                f"You tried to register an artifact under config key={config_path} but an artifact for"
+                f"it has already been registered."
+            )
 
         # src is a local existing path - register artifact and return exact same path for usage by the model
         if os.path.exists(src):
@@ -197,16 +199,18 @@ class ModelPT(LightningModule, Model):
             os.makedirs(tmpdir)
             # TODO: Write a code to delete this in destructor
             outfolder = self._unpack_nemo_file(path2file=_MODEL_RESTORE_PATH, out_folder=tmpdir)
-            #print(f" AAA: {os.listdir(tmpdir)}, B: {src}")
             return_path = os.path.abspath(os.path.join(outfolder, src[5:]))
         else:
-            raise FileNotFoundError(f"src path does not exist or it is not a path in nemo file. src value I got was: {src}")
+            raise FileNotFoundError(
+                f"src path does not exist or it is not a path in nemo file. src value I got was: {src}"
+            )
 
         assert os.path.exists(return_path)
         artifact_item = model_utils.ArtifactItem()
         artifact_item.path = os.path.abspath(src)
         artifact_item.path_type = model_utils.ArtifactPathType.LOCAL_PATH
         self.artifacts[config_path] = artifact_item
+        self._cfg.update_node(config_path, return_path)
         return return_path
 
     def _handle_artifacts(self, nemo_file_folder):

@@ -39,13 +39,15 @@ class MockModel(ModelPT):
         super(MockModel, self).__init__(cfg=cfg, trainer=trainer)
         self.w = torch.nn.Linear(10, 1)
 
+        print(f"ZZZZZZZZ: {self.cfg}")
+
         # mock temp file
         if 'temp_file' in self.cfg and self.cfg.temp_file is not None:
-            self.cfg.temp_file = self.register_artifact('temp_file', self.cfg.temp_file)
-            with open(self.cfg.temp_file, 'r') as f:
+            self.temp_file = self.register_artifact('temp_file', self.cfg.temp_file)
+            with open(self.temp_file, 'r') as f:
                 self.temp_data = f.readlines()
         else:
-            self.cfg.temp_file = None
+            self.temp_file = None
             self.temp_data = None
 
     def forward(self, x):
@@ -166,16 +168,16 @@ class TestSaveRestore:
             model = MockModel(cfg=cfg.model, trainer=None)
             model = model.to('cpu')
 
-            assert model.cfg.temp_file == empty_file.name
+            assert model.temp_file == empty_file.name
 
             # Save test
             model_copy = self.__test_restore_elsewhere(model, map_location='cpu')
-            assert filecmp.cmp(model.cfg.temp_file, model_copy.cfg.temp_file)
+            assert filecmp.cmp(model.temp_file, model_copy.temp_file)
 
         # Restore test
         diff = model.w.weight - model_copy.w.weight
         assert diff.mean() <= 1e-9
-        #assert os.path.basename(model.temp_file) == model_copy.temp_file
+        # assert os.path.basename(model.temp_file) == model_copy.temp_file
         assert model_copy.temp_data == ["*****\n"]
 
     @pytest.mark.unit
@@ -187,7 +189,7 @@ class TestSaveRestore:
 
             # Update config
             cfg = _mock_model_config()
-            cfg.model.temp_file = empty_file.name
+            cfg.model.temp_file = os.path.abspath(empty_file.name)
 
             # Inject arbitrary config arguments (after creating model)
             with open_dict(cfg.model):
@@ -200,12 +202,15 @@ class TestSaveRestore:
             assert model.temp_file == empty_file.name
 
             # Save test
-            model_config_copy = self.__test_restore_elsewhere(model, map_location='cpu', return_config=True)
+            # model_config_copy = self.__test_restore_elsewhere(model, map_location='cpu', return_config=True)
+            # assert filecmp.cmp(model.temp_file, model_config_copy._cfg.temp_file)
+            model_copy = self.__test_restore_elsewhere(model, map_location='cpu', return_config=False)
+            assert filecmp.cmp(model.temp_file, model_copy._cfg.temp_file)
+            assert model.cfg.xyz == model_copy.cfg.xyz
 
         # Restore test
-        assert isinstance(model_config_copy, DictConfig)
-        assert model.cfg.temp_file == model_config_copy.temp_file
-        assert model.cfg.xyz == model_config_copy.xyz
+        # assert isinstance(model_config_copy, DictConfig)
+        # assert model.cfg.xyz == model_config_copy.xyz
 
     @pytest.mark.unit
     def test_mock_restore_from_config_override_with_OmegaConf(self):
@@ -230,11 +235,11 @@ class TestSaveRestore:
 
             # Save test (with overriden config as OmegaConf object)
             model_copy = self.__test_restore_elsewhere(model, map_location='cpu', override_config_path=cfg)
+            assert filecmp.cmp(model.temp_file, model_copy.temp_file)
 
         # Restore test
         diff = model.w.weight - model_copy.w.weight
         assert diff.mean() <= 1e-9
-        assert os.path.basename(model.temp_file) == model_copy.temp_file
         assert model_copy.temp_data == ["*****\n"]
 
         # Test that new config has arbitrary content
@@ -272,7 +277,8 @@ class TestSaveRestore:
             # Restore test
             diff = model.w.weight - model_copy.w.weight
             assert diff.mean() <= 1e-9
-            assert os.path.basename(model.temp_file) == model_copy.temp_file
+            # assert os.path.basename(model.temp_file) == model_copy.temp_file
+            assert filecmp.cmp(model.temp_file, model_copy.temp_file)
             assert model_copy.temp_data == ["*****\n"]
 
             # Test that new config has arbitrary content
@@ -303,10 +309,9 @@ class TestSaveRestore:
                 # Restore test (using ModelPT as restorer)
                 # This forces the target class = MockModel to be used as resolver
                 model_copy = ModelPT.restore_from(save_path, map_location='cpu')
-
+            assert filecmp.cmp(model.temp_file, model_copy.temp_file)
         # Restore test
         diff = model.w.weight - model_copy.w.weight
         assert diff.mean() <= 1e-9
         assert isinstance(model_copy, MockModel)
-        assert os.path.basename(model.temp_file) == model_copy.temp_file
         assert model_copy.temp_data == ["*****\n"]
