@@ -56,6 +56,8 @@ Example prediction run:
 
 
 The input is expected to be lower-cased. Punctuation are outputted with separating spaces after semiotic tokens, e.g. `"i see, it is ten o'clock..."` -> `"I see, it is 10:00  .  .  ."`.
+Inner-sentence white-space characters in the input are not maintained. 
+
 
 
 Data Cleaning for Evaluation

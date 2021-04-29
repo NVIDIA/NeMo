@@ -58,7 +58,7 @@ def parse_args():
     parser.add_argument("--input", help="input file path", required=True, type=str)
     parser.add_argument("--output", help="output file path", required=True, type=str)
     parser.add_argument(
-        "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="lower_cased", type=str
+        "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )
     parser.add_argument("--verbose", help="print meta info for debugging", action='store_true')
     return parser.parse_args()
