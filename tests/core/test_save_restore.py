@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import filecmp
 import os
 import shutil
 import tempfile
@@ -40,16 +41,16 @@ class MockModel(ModelPT):
 
         # mock temp file
         if 'temp_file' in self.cfg and self.cfg.temp_file is not None:
-            self.temp_file = self.register_artifact('temp_file', self.cfg.temp_file)
-            with open(self.temp_file, 'r') as f:
+            self.cfg.temp_file = self.register_artifact('temp_file', self.cfg.temp_file)
+            with open(self.cfg.temp_file, 'r') as f:
                 self.temp_data = f.readlines()
         else:
-            self.temp_file = None
+            self.cfg.temp_file = None
             self.temp_data = None
 
     def forward(self, x):
         y = self.w(x)
-        return y, self.temp_file
+        return y, self.cfg.temp_file
 
     def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
         self._train_dl = None
@@ -165,15 +166,16 @@ class TestSaveRestore:
             model = MockModel(cfg=cfg.model, trainer=None)
             model = model.to('cpu')
 
-            assert model.temp_file == empty_file.name
+            assert model.cfg.temp_file == empty_file.name
 
             # Save test
             model_copy = self.__test_restore_elsewhere(model, map_location='cpu')
+            assert filecmp.cmp(model.cfg.temp_file, model_copy.cfg.temp_file)
 
         # Restore test
         diff = model.w.weight - model_copy.w.weight
         assert diff.mean() <= 1e-9
-        assert os.path.basename(model.temp_file) == model_copy.temp_file
+        #assert os.path.basename(model.temp_file) == model_copy.temp_file
         assert model_copy.temp_data == ["*****\n"]
 
     @pytest.mark.unit
