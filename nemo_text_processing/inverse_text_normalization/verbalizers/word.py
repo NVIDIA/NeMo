@@ -26,7 +26,7 @@ except (ModuleNotFoundError, ImportError):
 
 class WordFst(GraphFst):
     """
-    Finite state transducer for verbalizing word
+    Finite state transducer for verbalizing plain tokens
         e.g. tokens { name: "sleep" } -> sleep
     """
 

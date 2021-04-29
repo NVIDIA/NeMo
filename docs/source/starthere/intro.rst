@@ -38,30 +38,19 @@ Before you begin using NeMo, it's assumed you meet the following prerequisites.
 
 #. You have access to a Volta, Turing, or an NVIDIA Ampere architecture-based A100 GPU for training.
 
+.. _quick_start_guide:
+
 Quick Start Guide
 -----------------
 
 This NeMo Quick Start Guide is a starting point for users who want to try out NeMo; specifically, this guide enables users to quickly get started with the NeMo fundamentals by walking you through an example audio translator and voice swap.
 
-The best way to start is by going through these notebooks:
+If you're new to NeMo, the best way to get started is to take a look at the following tutorials:
 
-.. list-table:: **Start here**
-   :widths: 15 25 25
-   :header-rows: 1
-
-   * - Domain
-     - Title
-     - GitHub URL
-   * - General
-     - Getting Started: Exploring Nemo Fundamentals
-     - `NeMo Fundamentals <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/00_NeMo_Primer.ipynb>`_
-   * - General
-     - Getting Started: Sample Conversational AI application
-     - `Audio translator example <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/AudioTranslationSample.ipynb>`_
-   * - General
-     - Getting Started: Voice swap application
-     - `Voice swap example <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/VoiceSwapSample.ipynb>`_
-
+* `Text Classification (Sentiment Analysis) <https://github.com/NVIDIA/NeMo/blob/main/tutorials/Text_Classification_Sentiment_Analysis>`__ - demonstrates the Text Classification model using the NeMo NLP collection.
+* `NeMo Primer <https://github.com/NVIDIA/NeMo/blob/main/tutorials/00_NeMo_Primer.ipynb>`__ - introduces NeMo, PyTorch Lightning, and OmegaConf, and shows how to use, modify, save, and restore NeMo models.
+* `NeMo Models <https://github.com/NVIDIA/NeMo/blob/main/tutorials/01_NeMo_Models.ipynb>`__ - explains the fundamental concepts of the NeMo model.
+* `NeMo voice swap demo <https://github.com/NVIDIA/NeMo/blob/main/tutorials/NeMo_voice_swap_app.ipynb>`__ - demonstrates how to swap a voice in the audio fragment with a computer generated one using NeMo.
 
 Below we is the code snippet of Audio Translator application.
 

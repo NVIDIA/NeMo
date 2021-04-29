@@ -3,14 +3,14 @@
 Tutorials
 =========
 
-The best way to get started with NeMo is to checkout one of our tutorials.
+The best way to get started with NeMo is to start wtih one of our tutorials.
 
 Most NeMo tutorials can be run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.
 
-To run tutorials:
+To run a tutorial:
 
-* Click on Colab link (see table below)
-* Connect to an instance with a GPU (Runtime -> Change runtime type -> select "GPU" for hardware accelerator)
+#. Click the **Colab** link (see table below).
+#. Connect to an instance with a GPU. For example, click **Runtime** > **Change runtime type** and select **GPU** for the hardware accelerator.
 
 .. list-table:: **Tutorials**
    :widths: 15 25 25
@@ -108,7 +108,7 @@ To run tutorials:
      - `CTC Segmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/tools/CTC_Segmentation_Tutorial.ipynb>`_
    * - Text Processing
      - Text Normalization for TTS
-     - `Text Normalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/text_processing/Text_Normalization_Tutorial.ipynb>`_
+     - `Text Normalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/text_processing/Text_Normalization.ipynb>`_
    * - Text Processing
      - Inverse Text Normalization for ASR
      - `Inverse Text Normalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/text_processing/Inverse_Text_Normalization.ipynb>`_
