@@ -25,7 +25,7 @@ from nemo.collections.nlp.models import EntityLinkingModel
 
 def get_cfg(save_dir):
     wget.download(
-        "https://raw.githubusercontent.com/NVIDIA/NeMo/main/examples/"
+        "https://raw.githubusercontent.com/vadam5/NeMo/main/examples/"
         "nlp/entity_linking/conf/umls_medical_entity_linking_config.yaml",
         save_dir,
     )
