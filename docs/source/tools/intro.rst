@@ -9,6 +9,6 @@ NeMo provides a set of tools useful for developing Automatic Speech Recognitions
 
    ctc_segmentation
    speech_data_explorer
-   inverse_text_normalization_deployment
+   text_processing_deployment
 
 
