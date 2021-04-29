@@ -151,7 +151,6 @@ class BERTLMModel(ModelPT):
         forward_outputs = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
         mlm_log_probs, nsp_logits = self._parse_forward_outputs(forward_outputs)
         _, _, loss = self._compute_losses(mlm_log_probs, nsp_logits, output_ids, output_mask, labels)
-        tensorboard_logs = {"train_loss": loss}
         lr = self._optimizer.param_groups[0]['lr']
         self.log('train_loss', loss)
         self.log('lr', lr, prog_bar=True)
@@ -167,7 +166,6 @@ class BERTLMModel(ModelPT):
         mlm_log_probs, nsp_logits = self._parse_forward_outputs(forward_outputs)
         _, _, loss = self._compute_losses(mlm_log_probs, nsp_logits, output_ids, output_mask, labels)
         self.validation_perplexity(logits=mlm_log_probs)
-        self.log(f'val_loss', loss)
         return {'val_loss': loss}
 
     def validation_epoch_end(self, outputs):
@@ -182,7 +180,6 @@ class BERTLMModel(ModelPT):
         if outputs:
             avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
             perplexity = self.validation_perplexity.compute()
-            tensorboard_logs = {'val_loss': avg_loss, 'perplexity': perplexity}
             logging.info(f"evaluation perplexity {perplexity.cpu().item()}")
             self.log(f'val_loss', avg_loss)
 
