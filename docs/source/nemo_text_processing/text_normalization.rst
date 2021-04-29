@@ -56,7 +56,8 @@ Example prediction run:
 
     python run_prediction.py  <--input INPUT_TEXT_FILE> <--output OUTPUT_PATH> [--input_case INPUT_CASE]
 
-``INPUT_CASE`` specifies whether the input is lower-cased or cased. Punctuation are outputted with separating spaces after semiotic tokens, e.g. `"I see, it is 10:00..."` -> `"I see, it is ten o'clock  .  .  ."`.
+``INPUT_CASE`` specifies whether to treat the input as lower-cased or case sensitive. By default treat the input as cased since this is more informative, especially for abbreviations. Punctuation are outputted with separating spaces after semiotic tokens, e.g. `"I see, it is 10:00..."` -> `"I see, it is ten o'clock  .  .  ."`.
+Inner-sentence white-space characters in the input are not maintained. 
 
 
 Evaluation
