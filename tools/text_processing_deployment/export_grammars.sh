@@ -21,7 +21,7 @@
 #       echo "two dollars fifty" | ../../src/bin/normalizer_main --config=sparrowhawk_configuration.ascii_proto
 
 GRAMMARS=${1:-"itn_grammars"} # tn_grammars
-INPUT_CASE=${2:-"lower_cased"}
+INPUT_CASE=${2:-"cased"}
 python pynini_export.py --output_dir=. --grammars=${GRAMMARS} --input_case=${INPUT_CASE}
 find . -name "Makefile" -type f -delete
 bash docker/build.sh 
