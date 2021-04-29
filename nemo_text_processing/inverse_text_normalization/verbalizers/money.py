@@ -14,29 +14,27 @@
 # limitations under the License.
 
 from nemo_text_processing.inverse_text_normalization.graph_utils import NEMO_CHAR, GraphFst, delete_space
-from nemo_text_processing.inverse_text_normalization.verbalizers.decimal import DecimalFst
 
 try:
     import pynini
     from pynini.lib import pynutil
 
-    decimal = DecimalFst()
-
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
-    # Add placeholders
-    decimal = None
 
     PYNINI_AVAILABLE = False
 
 
 class MoneyFst(GraphFst):
     """
-    Finite state transducer for verbalizing money
-        e.g. tokens { money { integer_part: "12" fractional_part: 05 currency: "$" } } -> $12.05
+    Finite state transducer for verbalizing money, e.g.
+        money { integer_part: "12" fractional_part: 05 currency: "$" } -> $12.05
+
+    Args:
+        decimal: DecimalFst
     """
 
-    def __init__(self):
+    def __init__(self, decimal: GraphFst):
         super().__init__(name="money", kind="verbalize")
         unit = (
             pynutil.delete("currency:")
