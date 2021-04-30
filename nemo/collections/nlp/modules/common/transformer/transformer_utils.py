@@ -131,10 +131,7 @@ def get_megatron_transformer(
 
     if encoder:
         model = MegatronEncoderModule(
-            pretrained_model_name=model_name,
-            pretrained=pretrained,
-            config_dict=config_dict,
-            checkpoint_file=checkpoint_file,
+            model_name=model_name, pretrained=pretrained, config_dict=config_dict, checkpoint_file=checkpoint_file,
         )
     else:
         raise ValueError('Megatron decoders are not currently supported.')

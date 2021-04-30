@@ -164,7 +164,7 @@ class MegatronBertEncoder(BertModule):
         return self._vocab_size
 
     @typecheck()
-    def forward(self, input_ids, attention_mask, token_type_ids):
+    def forward(self, input_ids, attention_mask, token_type_ids=None):
         app_state = AppState()
         if app_state.model_parallel_size is None:
             self.complete_lazy_init()
