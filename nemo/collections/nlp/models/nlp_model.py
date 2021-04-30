@@ -391,9 +391,14 @@ class NLPModel(ModelPT, Exportable):
                     mp_ranks.append(name)
             if mp_ranks:
                 app_state.model_parallel_size = len(mp_ranks) // 2  # directory and file are included in getnames()
+
                 # get checkpoint version
-                tar.extract('./megatron_checkpoint_version.json', tmpdir)
-                with open('megatron_checkpoint_version.json', 'r') as f:
+                checkpoint_version_member = None
+                for member in tar.getmembers():
+                    if 'megatron_checkpoint_version.json' in member.name:
+                        checkpoint_version_member = member
+                tar.extract(checkpoint_version_member, tmpdir)
+                with open(checkpoint_version_member.name, 'r') as f:
                     checkpoint_version = json.load(f).get('checkpoint_version', None)
                 logging.info(
                     (
