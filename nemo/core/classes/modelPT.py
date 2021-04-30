@@ -117,7 +117,6 @@ class ModelPT(LightningModule, Model):
         self._scheduler = None
         self.trainer = trainer  # reference required for self.*_rank
         self._trainer = self.trainer  # alias for backward compatibility
-        self._to_cleanup = {}  # folders and files to delete after when model is destroyed
 
         # Set device_id in AppState
         if torch.cuda.is_available() and torch.cuda.current_device() is not None:
@@ -159,22 +158,32 @@ class ModelPT(LightningModule, Model):
         # ModelPT wrappers over subclass implementations
         self.training_step = model_utils.wrap_training_step(self.training_step)
 
+    def __del__(self):
+        """This is a destructor to delete temporary folders associated with this model instance.
+        """
+        if hasattr(self, "to_delete"):
+            for item in self.to_delete:
+                if os.path.isdir(item):
+                    shutil.rmtree(item)
+
     def register_artifact(self, config_path: str, src: str):
         """
         Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
-        when model.save_to("mymodel.nemo") is called.
+        when model.save_to("mymodel.nemo") is called.        
 
         How it works:
         1. It always returns existing absolute path which can be used immediately.
             EXCEPTION: src is None or "" in which case nothing will be done and src will be returned
         2. It will add (config_path, model_utils.ArtifactItem()) pair to self.artifacts
 
-        If "src" is local existing path, then it will be returned in absolute path form
+        If "src" is local existing path, then it will be returned in absolute path form.
         elif "src" starts with "nemo_file:unique_artifact_name":
-            .nemo will be untarred to a TMP folder and an actual existing path will be returned
+            .nemo will be untarred to a temporary folder location and an actual existing path will be returned
             Note: TMP folder will be deleted when the model instance is deleted
         else an error will be raised.
 
+        Returns:
+            If src is not None or empty it always returns absolute path which is guaranteed to exists during model instnce life
         """
         if src is None or src == "":
             return src
@@ -198,7 +207,9 @@ class ModelPT(LightningModule, Model):
         elif src.startswith("nemo:"):
             tmpdir = _CACHE_ROOT + f"_TMPDIRS/{uuid.uuid4().hex}"
             os.makedirs(tmpdir)
-            # TODO: Write a code to delete this in destructor
+            if not hasattr(self, 'to_delete'):
+                self.to_delete = set()
+            self.to_delete.add(tmpdir)
             outfolder = self._unpack_nemo_file(path2file=_MODEL_RESTORE_PATH, out_folder=tmpdir)
             return_path = os.path.abspath(os.path.join(outfolder, src[5:]))
         else:
@@ -265,28 +276,7 @@ class ModelPT(LightningModule, Model):
             self.to_config_file(path2yaml_file=config_yaml)
             if hasattr(self, 'artifacts') and self.artifacts is not None:
                 self._handle_artifacts(nemo_file_folder=tmpdir)
-                # for (conf_path, src) in self.artifacts.items():  # type: (str, model_utils.ArtifactItem)
-                #     try:
-                #         if src.path_type == model_utils.ArtifactPathType.LOCAL_PATH and os.path.exists(src.path):
-                #             shutil.copy2(src.path, tmpdir)
-                #         elif src.path_type == model_utils.ArtifactPathType.TAR_PATH:
-                #             # Need to step into nemo archive to extract file
-                #             # Get path where the command is executed - the artifacts will be "retrieved" there
-                #             # (original .nemo behavior)
-                #             cwd = os.getcwd()
-                #             try:
-                #                 # Step into the nemo archive to try and find the file
-                #                 with tempfile.TemporaryDirectory() as archive_dir:
-                #                     self._unpack_nemo_file(path2file=_MODEL_RESTORE_PATH, out_folder=archive_dir)
-                #                     os.chdir(archive_dir)
-                #                     shutil.copy2(src.path, tmpdir)
-                #             finally:
-                #                 # change back working directory
-                #                 os.chdir(cwd)
-                #         else:
-                #             raise ValueError(f"Invalid ArchivePathType found: {src.path_type}")
-                #     except Exception:
-                #         logging.error(f"Could not copy artifact {src} used in {conf_path}")
+                # We should not update self._cfg here - the model can still be in use
                 self._update_artifact_paths(path2yaml_file=config_yaml)
             torch.save(self.state_dict(), model_weights)
             self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
