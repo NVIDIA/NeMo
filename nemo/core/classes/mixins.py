@@ -19,6 +19,8 @@ from typing import Optional
 import torch
 from omegaconf import DictConfig
 
+from nemo.collections.common.losses import CosineSimilarityLoss
+
 
 class DistillationType(Enum):
     STUDENT = 1
@@ -31,6 +33,7 @@ class DistillationMixin(ABC):
         self._DISTILLATION_TYPE: Optional[DistillationType] = None
         self.distillation_cfg = DictConfig({})
         self._distillation_registry_primary = {}
+        self._distillation_registry_similarity = []
 
     def setup_distillation_loss(self) -> Optional['torch.nn._Loss']:
         """
@@ -42,16 +45,26 @@ class DistillationMixin(ABC):
             By default, this is the KLDivergence loss.
             If None is returned, the distillation config must have an appropriate loss function defined.
         """
-        return torch.nn.KLDivLoss(log_target=True, reduction='batchmean')
+        primary = torch.nn.KLDivLoss(log_target=True, reduction='batchmean')
+        secondary = CosineSimilarityLoss()
+        return (primary, secondary)
 
-    def register_distillation_tensor(self, loss_key: str, tensor: torch.Tensor):
+    def register_distillation_tensor(
+        self, loss_key: str = None, tensor: torch.Tensor = None, similarity_match: bool = False
+    ):
         if not self.is_being_distilled():
             raise RuntimeError("Model is not being distilled, yet tensors are being registered for distillation")
 
-        if loss_key in self._distillation_registry_primary:
+        if tensor is None:
+            raise ValueError("Distillation `tensor` cannot be None !")
+
+        if loss_key is not None and loss_key in self._distillation_registry_primary:
             raise ValueError(f"Distillation key '{loss_key}' already exists in distillation registry!")
 
-        self._distillation_registry_primary[loss_key] = tensor
+        if not similarity_match:
+            self._distillation_registry_primary[loss_key] = tensor
+        else:
+            self._distillation_registry_similarity.append(tensor)
 
     def distillation_registration_step(self, log_prob: torch.Tensor):
         """
@@ -73,6 +86,7 @@ class DistillationMixin(ABC):
 
     def reset_distillation_registry(self):
         self._distillation_registry_primary.clear()
+        self._distillation_registry_similarity.clear()
 
     def is_being_distilled(self) -> bool:
         return self._DISTILLATION_TYPE is not None
@@ -90,7 +104,7 @@ class DistillationMixin(ABC):
         else:
             return None
 
-    def validate_distillation_model(self, teacher_model: 'ModelPT'):
+    def validate_distillation_model(self, other_model: 'ModelPT'):
         """
         Optionally, perform validations on student model (self) and the teacher model (argument),
         such that this function must execute just after creation of the student and teacher models.
@@ -99,7 +113,7 @@ class DistillationMixin(ABC):
         overriding this method.
 
         Args:
-            teacher_model: An instance of a ModelPT subclass that also inherits the DistillationMixin.
+            other_model: An instance of a ModelPT subclass that also inherits the DistillationMixin.
 
         Returns:
             Nothing needs to be returned, however if there is some fundamental incompatibility between
@@ -108,4 +122,7 @@ class DistillationMixin(ABC):
         pass
 
     def prehook_primary_distillation_loss(self, loss_dict: dict):
+        pass
+
+    def prehook_similarity_matching_loss(self, student_tensors: list, teacher_tensors: list):
         pass
