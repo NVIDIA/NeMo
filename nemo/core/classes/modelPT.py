@@ -185,6 +185,7 @@ class ModelPT(LightningModule, Model):
         Returns:
             If src is not None or empty it always returns absolute path which is guaranteed to exists during model instnce life
         """
+        app_state = AppState()
         if src is None or src == "":
             return src
 
@@ -210,7 +211,7 @@ class ModelPT(LightningModule, Model):
             if not hasattr(self, 'to_delete'):
                 self.to_delete = set()
             self.to_delete.add(tmpdir)
-            outfolder = self._unpack_nemo_file(path2file=_MODEL_RESTORE_PATH, out_folder=tmpdir)
+            outfolder = self._unpack_nemo_file(path2file=app_state.model_restore_path, out_folder=tmpdir)
             return_path = os.path.abspath(os.path.join(outfolder, src[5:]))
         else:
             raise FileNotFoundError(
@@ -417,11 +418,13 @@ class ModelPT(LightningModule, Model):
         Returns:
             An instance of type cls or its underlying config (if return_config is set).
         """
+        app_state = AppState()
         if not path.exists(restore_path):
             raise FileNotFoundError(f"Can't find {restore_path}")
 
         global _MODEL_RESTORE_PATH
         _MODEL_RESTORE_PATH = os.path.abspath(os.path.expanduser(restore_path))
+        app_state.model_restore_path = _MODEL_RESTORE_PATH
         return cls._default_restore_from(restore_path, override_config_path, map_location, strict, return_config)
 
     @classmethod

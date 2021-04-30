@@ -104,23 +104,7 @@ class NLPModel(ModelPT, Exportable):
             cfg (DictConfig): Tokenizer config
         """
         vocab_file = None
-        if self._is_model_being_restored():
-            if os.path.exists('tokenizer.vocab_file'):
-                # model is being restored from .nemo file so tokenizer.vocab_file has precedence
-                vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src='tokenizer.vocab_file')
-                cfg.vocab_file = vocab_file
-
-            # tokenizer.vocab_file is added to the config file and registered as artifact for .nemo file
-            # during training but this file is missing for load_from_checkpoint() method call
-            # it's safer to use restore_from .nemo file
-            elif cfg.vocab_file and not os.path.exists(cfg.vocab_file):
-                logging.warning(
-                    f'tokenizer.vocab_file not found at {cfg.vocab_file}. It is recommended to use restore_from() method with .nemo file.'
-                )
-            else:
-                vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file)
-        elif cfg.vocab_file:
-            # use vocab file from config
+        if cfg.vocab_file:
             vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file)
         tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
