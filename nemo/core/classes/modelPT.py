@@ -42,8 +42,6 @@ from nemo.utils.get_rank import is_global_rank_zero
 # Need to set them before EFF import as it is using them.
 _MODEL_CONFIG_YAML = "model_config.yaml"
 _MODEL_WEIGHTS = "model_weights.ckpt"
-# TODO: allow overwrite via environment variable
-_CACHE_ROOT = f"{expanduser('~')}/.cache/torch/NeMo/NeMo_{nemo.__version__}"
 
 __all__ = ['ModelPT']
 
@@ -66,6 +64,7 @@ _MODEL_RESTORE_PATH:
     archive itself.
 """
 _MODEL_IS_RESTORED = False
+_NEMO_FILE_FOLDER = None
 _MODEL_RESTORE_PATH = None
 
 
@@ -158,29 +157,23 @@ class ModelPT(LightningModule, Model):
         # ModelPT wrappers over subclass implementations
         self.training_step = model_utils.wrap_training_step(self.training_step)
 
-    def __del__(self):
-        """This is a destructor to delete temporary folders associated with this model instance.
-        """
-        if hasattr(self, "to_delete"):
-            for item in self.to_delete:
-                if os.path.isdir(item):
-                    shutil.rmtree(item)
-
     def register_artifact(self, config_path: str, src: str):
         """
         Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
         when model.save_to("mymodel.nemo") is called.        
 
         How it works:
-        1. It always returns existing absolute path which can be used immediately.
+        1. It always returns existing absolute path which can be used during Model constructor call
             EXCEPTION: src is None or "" in which case nothing will be done and src will be returned
         2. It will add (config_path, model_utils.ArtifactItem()) pair to self.artifacts
 
         If "src" is local existing path, then it will be returned in absolute path form.
         elif "src" starts with "nemo_file:unique_artifact_name":
             .nemo will be untarred to a temporary folder location and an actual existing path will be returned
-            Note: TMP folder will be deleted when the model instance is deleted
         else an error will be raised.
+
+        WARNING: use .register_artifact calls in your models' constructors.
+        The returned path is not guaranteed to exist after you have exited your model's constuctor.
 
         Returns:
             If src is not None or empty it always returns absolute path which is guaranteed to exists during model instnce life
@@ -206,13 +199,13 @@ class ModelPT(LightningModule, Model):
         # this is the case when artifact must be retried from the nemo file
         # we are assuming that the location of the right nemo file is available from _MODEL_RESTORE_PATH
         elif src.startswith("nemo:"):
-            tmpdir = _CACHE_ROOT + f"_TMPDIRS/{uuid.uuid4().hex}"
-            os.makedirs(tmpdir)
-            if not hasattr(self, 'to_delete'):
-                self.to_delete = set()
-            self.to_delete.add(tmpdir)
-            outfolder = self._unpack_nemo_file(path2file=app_state.model_restore_path, out_folder=tmpdir)
-            return_path = os.path.abspath(os.path.join(outfolder, src[5:]))
+            # tmpdir = _CACHE_ROOT + f"_TMPDIRS/{uuid.uuid4().hex}"
+            # os.makedirs(tmpdir)
+            # if not hasattr(self, 'to_delete'):
+            #     self.to_delete = set()
+            # self.to_delete.add(tmpdir)
+            # outfolder = self._unpack_nemo_file(path2file=app_state.model_restore_path, out_folder=tmpdir)
+            return_path = os.path.abspath(os.path.join(_NEMO_FILE_FOLDER, src[5:]))
         else:
             raise FileNotFoundError(
                 f"src path does not exist or it is not a path in nemo file. src value I got was: {src}. Absolute: {os.path.abspath(src)}"
@@ -344,7 +337,7 @@ class ModelPT(LightningModule, Model):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
-                cls._set_model_restore_state(is_being_restored=True)
+                cls._set_model_restore_state(is_being_restored=True, folder=tmpdir)
                 cls._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
                 os.chdir(tmpdir)
                 if override_config_path is None:
@@ -1232,9 +1225,11 @@ class ModelPT(LightningModule, Model):
         return _MODEL_IS_RESTORED
 
     @staticmethod
-    def _set_model_restore_state(is_being_restored: bool):
+    def _set_model_restore_state(is_being_restored: bool, folder: str = None):
         global _MODEL_IS_RESTORED
+        global _NEMO_FILE_FOLDER
         _MODEL_IS_RESTORED = is_being_restored
+        _NEMO_FILE_FOLDER = folder
 
     @staticmethod
     def _is_restore_type_tarfile() -> bool:
