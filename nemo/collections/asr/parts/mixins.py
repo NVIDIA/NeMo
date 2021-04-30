@@ -75,7 +75,7 @@ class ASRBPEMixin(ABC):
 
             try:
                 spe_vocab_path = os.path.join(self.tokenizer_dir, 'tokenizer.vocab')
-                spe_vocab_path = self.register_artifact('spe_tokenizer.vocab', spe_vocab_path)
+                spe_vocab_path = self.register_artifact('tokenizer.spe_tokenizer.vocab', spe_vocab_path)
                 self.spe_vocab_path = spe_vocab_path
             except FileNotFoundError:
                 # fallback case for older checkpoints that did not preserve the tokenizer.vocab

@@ -127,6 +127,22 @@ class TestEncDecCTCModel:
             assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
 
     @pytest.mark.unit
+    def test_save_restore_artifact_spe(self, asr_model, test_data_dir):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tokenizer_dir = os.path.join(test_data_dir, "asr", "tokenizers", "an4_spe_128")
+            asr_model.change_vocabulary(new_tokenizer_dir=tokenizer_dir, new_tokenizer_type='bpe')
+
+            save_path = os.path.join(tmpdir, 'ctc_bpe.nemo')
+            asr_model.train()
+            asr_model.save_to(save_path)
+
+            new_model = EncDecCTCModelBPE.restore_from(save_path)
+            assert isinstance(new_model, type(asr_model))
+            assert new_model.vocab_path == 'vocab.txt'
+
+            assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
+
+    @pytest.mark.unit
     def test_vocab_change(self, test_data_dir, asr_model):
         old_vocab = copy.deepcopy(asr_model.decoder.vocabulary)
 
