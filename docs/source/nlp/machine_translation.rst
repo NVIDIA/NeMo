@@ -1,7 +1,7 @@
 .. _machine_translation:
 
 Machine Translation Models
-=========================
+==========================
 Machine translation is the task of translating text from one language to another. For example, from English to Spanish. Models are 
 based on the Transformer sequence-to-sequence architecture :cite:`nlp-machine_translation-vaswani2017attention`.
 

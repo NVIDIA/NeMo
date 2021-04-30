@@ -3,7 +3,7 @@ NeMo ASR Configuration Files
 
 This section describes the NeMo configuration file setup that is specific to models in the ASR collection. For general information 
 about how to set up and run experiments that is common to all NeMo models (e.g. Experiment Manager and PyTorch Lightning trainer 
-parameters), see the :doc:`../core` section.
+parameters), see the :doc:`../core/core` section.
 
 The model section of the NeMo ASR configuration files generally requires information about the dataset(s) being used, the preprocessor 
 for audio files, parameters for any augmentation being performed, as well as the model architecture specification. The sections on 

@@ -48,7 +48,8 @@ scripts available for datasets:
 
 You can convert them from their original format to NeMo's format. To convert the original datasets to NeMo's format, use the ``examples/text_classification/data/import_datasets.py`` script:
 
-.. code::
+.. code:: python
+
     python import_datasets.py \
         --dataset_name DATASET_NAME \
         --target_data_dir TARGET_PATH \

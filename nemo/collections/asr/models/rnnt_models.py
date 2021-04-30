@@ -135,8 +135,8 @@ class EncDecRNNTModel(ASRModel):
 
         Examples:
             .. code-block:: yaml
-                loss_name: "default"
 
+                loss_name: "default"
                 warprnnt_numba_kwargs:
                     kwargs2: some_other_val
 
