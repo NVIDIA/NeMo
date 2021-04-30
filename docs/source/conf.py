@@ -50,6 +50,7 @@ autodoc_mock_imports = [
     'megatron',  # megatron-lm in requirements, megatron in import
     'sklearn',
     'nemo_text_processing.inverse_text_normalization',  # Not installed automatically
+    'attr',  # attrdict in requirements, attr in import
 ]
 
 _skipped_autodoc_mock_imports = ['wrapt', 'numpy']
