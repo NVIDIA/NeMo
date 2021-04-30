@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import copy
 from abc import ABC, abstractmethod
 from typing import List
 
@@ -107,7 +108,16 @@ class ASRBPEMixin(ABC):
                 self.tokenizer_cfg.pop('vocab_path')
 
             self.tokenizer = tokenizers.AutoTokenizer(
-                pretrained_model_name='bert-base-cased', vocab_file=self.vocab_path, **self.tokenizer_cfg
+                pretrained_model_name='bert-base-cased',
+                vocab_file=self.vocab_path,
+                mask_token=self.tokenizer_cfg.get('mask_token', None),
+                bos_token=self.tokenizer_cfg.get('bos_token', None),
+                eos_token=self.tokenizer_cfg.get('eos_token', None),
+                pad_token=self.tokenizer_cfg.get('pad_token', None),
+                sep_token=self.tokenizer_cfg.get('sep_token', None),
+                cls_token=self.tokenizer_cfg.get('cls_token', None),
+                unk_token=self.tokenizer_cfg.get('unk_token', None),
+                use_fast=self.tokenizer_cfg.get('use_fast', False),
             )
 
         logging.info(
@@ -119,7 +129,9 @@ class ASRBPEMixin(ABC):
         # Preserve config
         if hasattr(self, 'cfg') and hasattr(self.cfg, 'tokenizer'):
             OmegaConf.set_struct(self.cfg.tokenizer, False)
-            self.cfg.tokenizer = tokenizer_cfg
+            tokenizer_cfg_merged = copy.deepcopy(tokenizer_cfg)
+            tokenizer_cfg_merged = OmegaConf.merge(tokenizer_cfg_merged, self.cfg.tokenizer)
+            self.cfg.tokenizer = tokenizer_cfg_merged
             OmegaConf.set_struct(self.cfg.tokenizer, True)
 
 
