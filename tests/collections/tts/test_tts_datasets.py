@@ -21,7 +21,6 @@ from nemo.collections.tts.data.datalayers import FastSpeech2Dataset
 
 
 class TestTTSDatasets:
-
     @pytest.mark.unit
     def test_fs2_dataset(self, test_data_dir):
         manifest_path = os.path.join(test_data_dir, 'tts/mini_ljspeech/manifest.json')
@@ -34,7 +33,7 @@ class TestTTSDatasets:
             mappings_filepath=mappings_file,
             sample_rate=22050,
             ignore_file=ignore_file,
-            load_supplementary_values=True
+            load_supplementary_values=True,
         )
 
         assert len(ds) == 4
