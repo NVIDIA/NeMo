@@ -123,17 +123,20 @@ def get_huggingface_transformer(
 
 def get_megatron_transformer(
     model_name: Optional[str] = None,
-    pretrained: bool = False,
+    pretrained: bool = True,
     config_dict: Optional[Union[dict, DictConfig]] = None,
     encoder: bool = True,
     checkpoint_file: str = None,
-) -> MegatronEncoderModule(EncoderModule):
+) -> MegatronEncoderModule:
 
     if encoder:
         model = MegatronEncoderModule(
-            model_name=model_name, pretrained=pretrained, config_dict=config_dict, checkpoint_file=checkpoint_file
+            pretrained_model_name=model_name,
+            pretrained=pretrained,
+            config_dict=config_dict,
+            checkpoint_file=checkpoint_file,
         )
     else:
-        raise ValueError('Only Megatron Encoders are currently supported.')
+        raise ValueError('Megatron decoders are not currently supported.')
 
     return model

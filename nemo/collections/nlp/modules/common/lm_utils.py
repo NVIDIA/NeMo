@@ -186,4 +186,7 @@ def get_transformer(
             checkpoint_file=checkpoint_file,
         )
 
+    else:
+        raise ValueError("Libary must be 'nemo', 'huggingface' or 'megatron'")
+
     return model

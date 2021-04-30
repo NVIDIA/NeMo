@@ -12,14 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_lm_model
 from typing import Optional
 
-from hydra.utils import instantiate
-from transformers import AutoConfig, AutoModel
 
 from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
-from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import get_huggingface_pretrained_lm_models_list
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_lm_model
 from nemo.core.classes.common import typecheck
 from nemo.utils import logging
 
@@ -30,7 +27,7 @@ class MegatronEncoderModule(EncoderModule):
     def __init__(
         self,
         model_name: Optional[str] = None,
-        pretrained: bool = False,
+        pretrained: bool = True,
         config_dict: Optional[dict] = None,
         checkpoint_file: Optional[str] = None,
     ):
@@ -66,9 +63,10 @@ class MegatronEncoderModule(EncoderModule):
                 'Currently Megatron models must be loaded from a pretrained model name or a pretrained checkpoint.'
             )
 
-        model = get_megatron_lm_model(
-            pretrained_model_name=model_name, config_dict=config_dict, checkpoint_file=checkpoint_file
-        )[0]
+        if model_name or checkpoint_file:
+            model = get_megatron_lm_model(
+                pretrained_model_name=model_name, config_dict=config_dict, checkpoint_file=checkpoint_file
+            )[0]
 
         self._hidden_size = model.hidden_size
         self._vocab_size = model.vocab_size
