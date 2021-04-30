@@ -180,9 +180,6 @@ class ModelPT(LightningModule, Model):
         if self.artifacts is None:
             self.artifacts = {}
 
-        if config_path is None or config_path.strip() == "":
-            raise ValueError("config_path for artifact can't be None or empty")
-
         if config_path in self.artifacts.keys():
             raise ValueError(
                 f"You tried to register an artifact under config key={config_path} but an artifact for"
@@ -190,7 +187,7 @@ class ModelPT(LightningModule, Model):
             )
 
         # src is a local existing path - register artifact and return exact same path for usage by the model
-        if os.path.exists(src):
+        if os.path.exists(os.path.abspath(src)):
             return_path = os.path.abspath(src)
         # this is the case when artifact must be retried from the nemo file
         # we are assuming that the location of the right nemo file is available from _MODEL_RESTORE_PATH
@@ -202,7 +199,7 @@ class ModelPT(LightningModule, Model):
             return_path = os.path.abspath(os.path.join(outfolder, src[5:]))
         else:
             raise FileNotFoundError(
-                f"src path does not exist or it is not a path in nemo file. src value I got was: {src}"
+                f"src path does not exist or it is not a path in nemo file. src value I got was: {src}. Absolute: {os.path.abspath(src)}"
             )
 
         assert os.path.exists(return_path)
@@ -210,7 +207,10 @@ class ModelPT(LightningModule, Model):
         artifact_item.path = os.path.abspath(src)
         artifact_item.path_type = model_utils.ArtifactPathType.LOCAL_PATH
         self.artifacts[config_path] = artifact_item
-        self._cfg.update_node(config_path, return_path)
+        # we were called by ModelPT
+        if hasattr(self, "_cfg"):
+            with open_dict(self._cfg):
+                self._cfg.update_node(config_path, return_path)
         return return_path
 
     def _handle_artifacts(self, nemo_file_folder):
@@ -380,6 +380,7 @@ class ModelPT(LightningModule, Model):
                     else:
                         model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
                     OmegaConf.set_struct(conf, True)
+                    os.chdir(cwd)
                     instance = cls.from_config_dict(config=conf)
                     instance = instance.to(map_location)
                     instance.load_state_dict(torch.load(model_weights, map_location=map_location), strict=strict)
