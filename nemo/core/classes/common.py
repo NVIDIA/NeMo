@@ -436,12 +436,11 @@ class Serialization(ABC):
             instance = hydra.utils.instantiate(config=config)
         else:
             instance = None
-
+            imported_cls_tb = None
             # Attempt class path resolution from config `target` class (if it exists)
             if 'target' in config:
                 target_cls = config.target
                 imported_cls = None
-                imported_cls_tb = None
                 try:
                     # try to import the target class
                     imported_cls = import_class_by_path(target_cls)
