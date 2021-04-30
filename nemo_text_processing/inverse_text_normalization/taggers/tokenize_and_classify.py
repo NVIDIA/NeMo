@@ -1,4 +1,5 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +17,7 @@ from nemo_text_processing.inverse_text_normalization.graph_utils import GraphFst
 from nemo_text_processing.inverse_text_normalization.taggers.cardinal import CardinalFst
 from nemo_text_processing.inverse_text_normalization.taggers.date import DateFst
 from nemo_text_processing.inverse_text_normalization.taggers.decimal import DecimalFst
+from nemo_text_processing.inverse_text_normalization.taggers.electronic import ElectronicFst
 from nemo_text_processing.inverse_text_normalization.taggers.measure import MeasureFst
 from nemo_text_processing.inverse_text_normalization.taggers.money import MoneyFst
 from nemo_text_processing.inverse_text_normalization.taggers.ordinal import OrdinalFst
@@ -60,6 +62,7 @@ class ClassifyFst(GraphFst):
         money_graph = MoneyFst(cardinal=cardinal, decimal=decimal).fst
         whitelist_graph = WhiteListFst().fst
         punct_graph = PunctuationFst().fst
+        electronic_graph = ElectronicFst().fst
         telephone_graph = TelephoneFst().fst
 
         classify = (
@@ -72,6 +75,7 @@ class ClassifyFst(GraphFst):
             | pynutil.add_weight(ordinal_graph, 1.1)
             | pynutil.add_weight(money_graph, 1.1)
             | pynutil.add_weight(telephone_graph, 1.1)
+            | pynutil.add_weight(electronic_graph, 1.1)
             | pynutil.add_weight(word_graph, 100)
         )
 
