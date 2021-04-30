@@ -165,7 +165,8 @@ class ModelPT(LightningModule, Model):
         when model.save_to("mymodel.nemo") is called.
 
         How it works:
-        1. It always returns existing absolute path which can be used immediately
+        1. It always returns existing absolute path which can be used immediately.
+            EXCEPTION: src is None or "" in which case nothing will be done and src will be returned
         2. It will add (config_path, model_utils.ArtifactItem()) pair to self.artifacts
 
         If "src" is local existing path, then it will be returned in absolute path form
@@ -175,6 +176,9 @@ class ModelPT(LightningModule, Model):
         else an error will be raised.
 
         """
+        if src is None or src == "":
+            return src
+
         if not hasattr(self, 'artifacts'):
             self.artifacts = {}
         if self.artifacts is None:
