@@ -99,15 +99,15 @@ class ASRBPEMixin(ABC):
         else:
             # This is a WPE Tokenizer
             vocab_path = os.path.join(self.tokenizer_dir, 'vocab.txt')
-            self.tokenizer_dir = self.register_artifact('tokenizer.vocab_path', vocab_path)
-            self.vocab_path = self.tokenizer_dir
+            vocab_path = self.register_artifact('tokenizer.vocab_path', vocab_path)
+            self.vocab_path = vocab_path
 
             # If path from previous registration exists, remove it
             if 'vocab_path' in self.tokenizer_cfg:
                 self.tokenizer_cfg.pop('vocab_path')
 
             self.tokenizer = tokenizers.AutoTokenizer(
-                pretrained_model_name='bert-base-cased', vocab_file=self.tokenizer_dir, **self.tokenizer_cfg
+                pretrained_model_name='bert-base-cased', vocab_file=self.vocab_path, **self.tokenizer_cfg
             )
 
         logging.info(

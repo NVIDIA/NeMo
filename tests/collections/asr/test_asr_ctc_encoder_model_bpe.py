@@ -122,7 +122,7 @@ class TestEncDecCTCModel:
 
             new_model = EncDecCTCModelBPE.restore_from(save_path)
             assert isinstance(new_model, type(asr_model))
-            assert new_model.vocab_path == 'vocab.txt'
+            assert new_model.vocab_path == os.path.join(new_model.tokenizer_dir, 'vocab.txt')
 
             assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
 
@@ -138,7 +138,9 @@ class TestEncDecCTCModel:
 
             new_model = EncDecCTCModelBPE.restore_from(save_path)
             assert isinstance(new_model, type(asr_model))
-            assert new_model.vocab_path == 'vocab.txt'
+            assert new_model.model_path == os.path.join(new_model.tokenizer_dir, 'tokenizer.model')
+            assert new_model.vocab_path == os.path.join(new_model.tokenizer_dir, 'vocab.txt')
+            assert new_model.spe_vocab_path == os.path.join(new_model.tokenizer_dir, 'tokenizer.vocab')
 
             assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
 
