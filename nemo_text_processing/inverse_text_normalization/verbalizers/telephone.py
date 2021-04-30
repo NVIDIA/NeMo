@@ -13,29 +13,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.graph_utils import GraphFst
+from nemo_text_processing.inverse_text_normalization.graph_utils import NEMO_NOT_QUOTE, GraphFst
 
 try:
     import pynini
     from pynini.lib import pynutil
 
-    PYNINI_AVAILABLE = False
+    PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-class PunctuationFst(GraphFst):
+class TelephoneFst(GraphFst):
     """
-    Finite state transducer for classifying punctuation
-        e.g. a, -> tokens { name: "a" } tokens { name: "," }
+    Finite state transducer for verbalizing telephone, e.g.
+        telephone { number_part: "one two three one two three five six seven eight" }
+        -> 123-123-5678 
     """
 
     def __init__(self):
-        super().__init__(name="punctuation", kind="classify")
+        super().__init__(name="telephone", kind="verbalize")
 
-        s = "!#$%&\'()*+,-./:;<=>?@^_`{|}~"
-        punct = pynini.union(*s)
-
-        graph = pynutil.insert("name: \"") + punct + pynutil.insert("\"")
-
-        self.fst = graph.optimize()
+        number_part = pynutil.delete("number_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        delete_tokens = self.delete_tokens(number_part)
+        self.fst = delete_tokens.optimize()

@@ -26,7 +26,7 @@ except (ModuleNotFoundError, ImportError):
 
 class TelephoneFst(GraphFst):
     """
-    Finite state transducer for verbalizing money, e.g.
+    Finite state transducer for verbalizing telephone numbers, e.g.
         telephone { country_code: "one" number_part: "one two three, one two three, five six seven eight" extension: "one"  }
         -> one, one two three, one two three, five six seven eight, one
     """
