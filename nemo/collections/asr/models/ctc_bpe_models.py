@@ -345,9 +345,11 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
 
         logging.info(f"Changed tokenizer to {self.decoder.vocabulary} vocabulary.")
 
-    def validate_distillation_model(self, teacher_model: 'EncDecCTCModelBPE'):
+    def validate_distillation_model(self, other_model: 'EncDecCTCModelBPE'):
         student_decoder_vocab = self.tokenizer.tokenizer.get_vocab()
-        teacher_decoder_vocab = teacher_model.tokenizer.tokenizer.get_vocab()
+        teacher_decoder_vocab = other_model.tokenizer.tokenizer.get_vocab()
 
         if student_decoder_vocab != teacher_decoder_vocab:
             raise ValueError("Vocabulary between student and teacher models is incorrect !")
+
+        self._validate_distillation_decoder_match(other_model=other_model)

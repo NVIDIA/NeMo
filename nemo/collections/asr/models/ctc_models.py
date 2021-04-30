@@ -572,6 +572,10 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, DistillationMixin):
         if self.is_being_distilled():
             self.distillation_registration_step(log_prob=log_probs)
 
+            if self._decoder_distillation_match:
+                for param in self.decoder.parameters():
+                    self.register_distillation_tensor(tensor=param, similarity_match=True)
+
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
@@ -664,9 +668,27 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, DistillationMixin):
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
 
-    def validate_distillation_model(self, teacher_model: 'EncDecCTCModel'):
+    def validate_distillation_model(self, other_model: 'EncDecCTCModel'):
         student_decoder_vocab = self.decoder.vocabulary
-        teacher_decoder_vocab = teacher_model.decoder.vocabulary
+        teacher_decoder_vocab = other_model.decoder.vocabulary
 
         if student_decoder_vocab != teacher_decoder_vocab:
             raise ValueError("Vocabulary between student and teacher models is incorrect !")
+
+        self._validate_distillation_decoder_match(other_model=other_model)
+
+    def _validate_distillation_decoder_match(self, other_model: 'EncDecCTCModelBPE'):
+        teacher_decoder_params = list(other_model.decoder.parameters())
+        student_decoder_params = list(self.decoder.parameters())
+
+        if len(teacher_decoder_params) == len(student_decoder_params):
+            self._decoder_distillation_match = True
+            for tp, sp in zip(teacher_decoder_params, student_decoder_params):
+                if tp.data.shape != sp.data.shape:
+                    self._decoder_distillation_match = False
+                    break
+
+            logging.info("Decoder parameters match exactly between student and teacher models")
+        else:
+            self._decoder_distillation_match = False
+            logging.info("Decoder parameters do not match exactly between student and teacher models")
