@@ -75,7 +75,7 @@ class ASRBPEMixin(ABC):
 
             try:
                 spe_vocab_path = os.path.join(self.tokenizer_dir, 'tokenizer.vocab')
-                spe_vocab_path = self.register_artifact('tokenizer.spe_tokenizer.vocab', spe_vocab_path)
+                spe_vocab_path = self.register_artifact('tokenizer.spe_tokenizer_vocab', spe_vocab_path)
                 self.spe_vocab_path = spe_vocab_path
             except FileNotFoundError:
                 # fallback case for older checkpoints that did not preserve the tokenizer.vocab
@@ -101,6 +101,10 @@ class ASRBPEMixin(ABC):
             vocab_path = os.path.join(self.tokenizer_dir, 'vocab.txt')
             self.tokenizer_dir = self.register_artifact('tokenizer.vocab_path', vocab_path)
             self.vocab_path = self.tokenizer_dir
+
+            # If path from previous registration exists, remove it
+            if 'vocab_path' in self.tokenizer_cfg:
+                self.tokenizer_cfg.pop('vocab_path')
 
             self.tokenizer = tokenizers.AutoTokenizer(
                 pretrained_model_name='bert-base-cased', vocab_file=self.tokenizer_dir, **self.tokenizer_cfg
