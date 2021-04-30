@@ -13,6 +13,8 @@
 # limitations under the License.
 
 
+from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
+from nemo.collections.nlp.modules.common.megatron.megatron_encoder import MegatronEncoderModule
 from typing import Optional, Union
 
 from omegaconf.dictconfig import DictConfig
@@ -110,9 +112,28 @@ def get_huggingface_transformer(
     config_dict: Optional[Union[dict, DictConfig]] = None,
     encoder: bool = True,
 ) -> Union[HuggingFaceEncoderModule, HuggingFaceDecoderModule]:
+
     if encoder:
         model = HuggingFaceEncoderModule(model_name, pretrained, config_dict)
     else:
         model = HuggingFaceDecoderModule(model_name, pretrained, config_dict)
+
+    return model
+
+
+def get_megatron_transformer(
+    model_name: Optional[str] = None,
+    pretrained: bool = False,
+    config_dict: Optional[Union[dict, DictConfig]] = None,
+    encoder: bool = True,
+    checkpoint_file: str = None,
+) -> MegatronEncoderModule(EncoderModule):
+
+    if encoder:
+        model = MegatronEncoderModule(
+            model_name=model_name, pretrained=pretrained, config_dict=config_dict, checkpoint_file=checkpoint_file
+        )
+    else:
+        raise ValueError('Only Megatron Encoders are currently supported.')
 
     return model
