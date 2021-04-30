@@ -48,6 +48,11 @@ class ASRBPEMixin(ABC):
         self.tokenizer_dir = self.tokenizer_cfg.pop('dir')  # Remove tokenizer directory
         self.tokenizer_type = self.tokenizer_cfg.pop('type').lower()  # Remove tokenizer_type
 
+        # Preserve config
+        if hasattr(self, 'cfg') and hasattr(self.cfg, 'tokenizer'):
+            self.cfg.tokenizer.dir = self.tokenizer_dir
+            self.cfg.tokenizer.type = self.tokenizer_type
+
         if self.tokenizer_type not in ['bpe', 'wpe']:
             raise ValueError(
                 "`tokenizer.type` must be either `bpe` for SentencePiece tokenizer or "
@@ -125,14 +130,6 @@ class ASRBPEMixin(ABC):
                 self.tokenizer.__class__.__name__, self.tokenizer.vocab_size
             )
         )
-
-        # Preserve config
-        if hasattr(self, 'cfg') and hasattr(self.cfg, 'tokenizer'):
-            OmegaConf.set_struct(self.cfg.tokenizer, False)
-            tokenizer_cfg_merged = copy.deepcopy(tokenizer_cfg)
-            tokenizer_cfg_merged = OmegaConf.merge(tokenizer_cfg_merged, self.cfg.tokenizer)
-            self.cfg.tokenizer = tokenizer_cfg_merged
-            OmegaConf.set_struct(self.cfg.tokenizer, True)
 
 
 class DiarizationMixin(ABC):

@@ -24,6 +24,7 @@ from omegaconf import DictConfig
 from nemo.collections.asr.data import audio_to_text
 from nemo.collections.asr.models import configs
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
+from nemo.collections.common import tokenizers
 from nemo.utils.config_utils import assert_dataclass_signature_match
 
 
@@ -138,6 +139,7 @@ class TestEncDecCTCModel:
 
             new_model = EncDecCTCModelBPE.restore_from(save_path)
             assert isinstance(new_model, type(asr_model))
+            assert isinstance(new_model.tokenizer, tokenizers.SentencePieceTokenizer)
             assert new_model.model_path == os.path.join(new_model.tokenizer_dir, 'tokenizer.model')
             assert new_model.vocab_path == os.path.join(new_model.tokenizer_dir, 'vocab.txt')
             assert new_model.spe_vocab_path == os.path.join(new_model.tokenizer_dir, 'tokenizer.vocab')
