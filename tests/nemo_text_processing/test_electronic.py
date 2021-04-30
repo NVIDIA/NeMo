@@ -13,21 +13,24 @@
 # limitations under the License.
 
 import pytest
+from nemo_text_processing.inverse_text_normalization.inverse_normalize import InverseNormalizer
 from nemo_text_processing.text_normalization.normalize import Normalizer
 from parameterized import parameterized
 from utils import PYNINI_AVAILABLE, parse_test_case_file
 
 
 class TestElectronic:
-    # @parameterized.expand(parse_test_case_file('data_inverse_text_normalization/test_cases_email.txt'))
-    # @pytest.mark.skipif(
-    #     not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
-    # )
-    # @pytest.mark.run_only_on('CPU')
-    # @pytest.mark.unit
-    # def test_denorm(self, test_input, expected):
-    #     pred = inverse_normalize(test_input, verbose=False)
-    #     assert pred == expected
+    inverse_normalizer = InverseNormalizer()
+
+    @parameterized.expand(parse_test_case_file('data_inverse_text_normalization/test_cases_electronic.txt'))
+    @pytest.mark.skipif(
+        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
+    )
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_denorm(self, test_input, expected):
+        pred = self.inverse_normalizer.inverse_normalize(test_input, verbose=False)
+        assert pred == expected
 
     normalizer = Normalizer(input_case="lower_cased")
 
