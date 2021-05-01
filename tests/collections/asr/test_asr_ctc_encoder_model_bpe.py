@@ -123,7 +123,7 @@ class TestEncDecCTCModel:
 
             new_model = EncDecCTCModelBPE.restore_from(save_path)
             assert isinstance(new_model, type(asr_model))
-            assert new_model.vocab_path == os.path.join(new_model.tokenizer_dir, 'vocab.txt')
+            assert new_model.vocab_path.endswith('_vocab.txt')
 
             assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
 
@@ -140,9 +140,9 @@ class TestEncDecCTCModel:
             new_model = EncDecCTCModelBPE.restore_from(save_path)
             assert isinstance(new_model, type(asr_model))
             assert isinstance(new_model.tokenizer, tokenizers.SentencePieceTokenizer)
-            assert new_model.model_path == os.path.join(new_model.tokenizer_dir, 'tokenizer.model')
-            assert new_model.vocab_path == os.path.join(new_model.tokenizer_dir, 'vocab.txt')
-            assert new_model.spe_vocab_path == os.path.join(new_model.tokenizer_dir, 'tokenizer.vocab')
+            assert new_model.model_path.endswith('_tokenizer.model')
+            assert new_model.vocab_path.endswith('_vocab.txt')
+            assert new_model.spe_vocab_path.endswith('_tokenizer.vocab')
 
             assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
 
@@ -227,7 +227,7 @@ class TestEncDecCTCModel:
 
                 # Check if vocabulary size is same
                 assert asr_model2.tokenizer.tokenizer.vocab_size == asr_model3.tokenizer.tokenizer.vocab_size
-                assert asr_model2.tokenizer_dir != asr_model3.tokenizer_dir
+                assert asr_model2.vocab_path != asr_model3.vocab_path
 
                 # Model PT level checks
                 assert len(asr_model2.artifacts) == 1
