@@ -58,7 +58,7 @@ class NLPModel(ModelPT, Exportable):
 
     @rank_zero_only
     def register_bert_model(self):
-        """Adds encoder config to .nemo archive.
+        """Adds encoder config to .nemo archive for Jarvis.
         """
         # check if there is an encoder, warn if not
         if self.bert_model is None:
@@ -67,23 +67,21 @@ class NLPModel(ModelPT, Exportable):
             # get encoder config and create source for artifact
             if isinstance(self.bert_model, MegatronBertEncoder):
                 pretrained_model_name = self.bert_model._model_name
-                encoder_config_path = pretrained_model_name + '_encoder_config.json'
-                encoder_config_src = os.path.join(NEMO_NLP_TMP, encoder_config_path)
+                encoder_config_path = pretrained_model_name + '_encoder_config'
+                encoder_config_src = os.path.join(NEMO_NLP_TMP, encoder_config_path + '.json')
                 config_for_json = OmegaConf.to_container(self.bert_model.config)
                 with open(encoder_config_src, 'w', encoding='utf-8') as f:
                     f.write(json.dumps(config_for_json, indent=2, sort_keys=True) + '\n')
-                self.register_artifact(encoder_config_path, encoder_config_src)
-                self.cfg.language_model.config_file = encoder_config_path
+                self.register_artifact('language_model.config_file', encoder_config_src)  # for .nemo
             elif isinstance(self.bert_model, BertModule):
                 # HuggingFace Transformer Config
                 pretrained_model_name = self.bert_model.name_or_path
                 # Some HF names have "/" in them so we replace with _
                 pretrained_model_name = pretrained_model_name.replace("/", "_")
-                encoder_config_path = pretrained_model_name + '_encoder_config.json'
-                encoder_config_src = os.path.join(NEMO_NLP_TMP, encoder_config_path)
+                encoder_config_path = pretrained_model_name + '_encoder_config'
+                encoder_config_src = os.path.join(NEMO_NLP_TMP, encoder_config_path + '.json')
                 self.bert_model.config.to_json_file(encoder_config_src)  # name requested by jarvis team
-                self.register_artifact(encoder_config_path, encoder_config_src)
-                self.cfg.language_model.config_file = encoder_config_path
+                self.register_artifact('language_model.config_file', encoder_config_src)  # for .nemo
             else:
                 logging.info(
                     f'Registering BERT model config for {self.bert_model} is not yet supported. Please override this method if needed.'
@@ -122,7 +120,7 @@ class NLPModel(ModelPT, Exportable):
     def _register_vocab_from_tokenizer(
         self,
         vocab_file_config_path: str = 'tokenizer.vocab_file',
-        vocab_dict_config_path: str = 'tokenizer_vocab_dict.json',
+        vocab_dict_config_path: str = 'tokenizer_vocab_dict',
         cfg: DictConfig = None,
     ):
         """Creates vocab file from tokenizer if vocab file is None.
