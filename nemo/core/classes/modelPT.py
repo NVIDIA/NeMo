@@ -193,9 +193,21 @@ class ModelPT(LightningModule, Model):
                 f"it has already been registered."
             )
 
+        artifact_item = model_utils.ArtifactItem()
+
+        # This is for backward compatibility, if the src objects exists simply inside of the tarfile
+        # without its key having been overriden, this pathway will be used.
+        src_obj_name = os.path.basename(src)
+        if _NEMO_FILE_FOLDER is not None:
+            src_obj_path = os.path.abspath(os.path.join(_NEMO_FILE_FOLDER, src_obj_name))
+        else:
+            src_obj_path = src_obj_name
+
         # src is a local existing path - register artifact and return exact same path for usage by the model
         if os.path.exists(os.path.abspath(src)):
             return_path = os.path.abspath(src)
+            artifact_item.path_type = model_utils.ArtifactPathType.LOCAL_PATH
+
         # this is the case when artifact must be retried from the nemo file
         # we are assuming that the location of the right nemo file is available from _MODEL_RESTORE_PATH
         elif src.startswith("nemo:"):
@@ -206,15 +218,20 @@ class ModelPT(LightningModule, Model):
             # self.to_delete.add(tmpdir)
             # outfolder = self._unpack_nemo_file(path2file=app_state.model_restore_path, out_folder=tmpdir)
             return_path = os.path.abspath(os.path.join(_NEMO_FILE_FOLDER, src[5:]))
+            artifact_item.path_type = model_utils.ArtifactPathType.TAR_PATH
+
+        # backward compatibility implementation
+        elif os.path.exists(src_obj_path):
+            return_path = src_obj_path
+            artifact_item.path_type = model_utils.ArtifactPathType.TAR_PATH
         else:
             raise FileNotFoundError(
                 f"src path does not exist or it is not a path in nemo file. src value I got was: {src}. Absolute: {os.path.abspath(src)}"
             )
 
         assert os.path.exists(return_path)
-        artifact_item = model_utils.ArtifactItem()
+
         artifact_item.path = os.path.abspath(src)
-        artifact_item.path_type = model_utils.ArtifactPathType.LOCAL_PATH
         self.artifacts[config_path] = artifact_item
         # we were called by ModelPT
         if hasattr(self, "_cfg"):
@@ -223,6 +240,7 @@ class ModelPT(LightningModule, Model):
         return return_path
 
     def _handle_artifacts(self, nemo_file_folder):
+        tarfile_artifacts = []
         for conf_path, artiitem in self.artifacts.items():
             if artiitem.path_type == model_utils.ArtifactPathType.LOCAL_PATH:
                 if not os.path.exists(artiitem.path):
@@ -240,8 +258,41 @@ class ModelPT(LightningModule, Model):
                 new_artiitem.path_type = model_utils.ArtifactPathType.TAR_PATH
                 self.artifacts[conf_path] = new_artiitem
 
+            elif artiitem.path_type == model_utils.ArtifactPathType.TAR_PATH:
+                # process all tarfile artifacts in one go, so preserve key-value pair
+                tarfile_artifacts.append((conf_path, artiitem))
+
             else:
                 raise ValueError(f"Directly referencing artifacts from other nemo files isn't supported yet")
+
+        # Process current tarfile artifacts by unpacking the previous tarfile and extract the artifacts
+        # that are currently required.
+        if len(tarfile_artifacts) > 0:
+            # Need to step into nemo archive to extract file
+            # Get path where the command is executed - the artifacts will be "retrieved" there
+            # (original .nemo behavior)
+            cwd = os.getcwd()
+            try:
+                # Step into the nemo archive to try and find the file
+                with tempfile.TemporaryDirectory() as archive_dir:
+                    self._unpack_nemo_file(path2file=_MODEL_RESTORE_PATH, out_folder=archive_dir)
+                    os.chdir(archive_dir)
+
+                    for conf_path, artiitem in tarfile_artifacts:
+                        # Generate new uniq artifact name and copy it to nemo_file_folder
+                        # Note uuid.uuid4().hex is guaranteed to be 32 character long
+                        artifact_base_name = os.path.basename(artiitem.path)
+                        artifact_uniq_name = f"{uuid.uuid4().hex}_{artifact_base_name}"
+                        shutil.copy2(artifact_base_name, os.path.join(nemo_file_folder, artifact_uniq_name))
+
+                        # Update artifacts registry
+                        new_artiitem = model_utils.ArtifactItem()
+                        new_artiitem.path = "nemo:" + artifact_uniq_name
+                        new_artiitem.path_type = model_utils.ArtifactPathType.TAR_PATH
+                        self.artifacts[conf_path] = new_artiitem
+            finally:
+                # change back working directory
+                os.chdir(cwd)
 
     def _update_artifact_paths(self, path2yaml_file):
         if self.artifacts is not None and len(self.artifacts) > 0:
