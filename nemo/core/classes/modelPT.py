@@ -225,9 +225,10 @@ class ModelPT(LightningModule, Model):
             return_path = src_obj_path
             artifact_item.path_type = model_utils.ArtifactPathType.TAR_PATH
         else:
-            raise FileNotFoundError(
-                f"src path does not exist or it is not a path in nemo file. src value I got was: {src}. Absolute: {os.path.abspath(src)}"
-            )
+            return None
+            # raise FileNotFoundError(
+            #     f"src path does not exist or it is not a path in nemo file. src value I got was: {src}. Absolute: {os.path.abspath(src)}"
+            # )
 
         assert os.path.exists(return_path)
 
