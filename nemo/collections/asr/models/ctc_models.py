@@ -688,12 +688,10 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, DistillationMixin):
                     self._decoder_distillation_match = False
                     break
 
-            if self._decoder_distillation_match:
-                # load state dict of teacher model into student model for better initialization
-                self.decoder.load_state_dict(other_model.decoder.state_dict())
-
-            logging.info("Decoder parameters match exactly between student and teacher models. Initializing "
-                         "student decoder with teacher parameters.")
+            logging.info(
+                "Decoder parameters match exactly between student and teacher models. Initializing "
+                "student decoder with teacher parameters."
+            )
         else:
             self._decoder_distillation_match = False
             logging.info("Decoder parameters do not match exactly between student and teacher models")
