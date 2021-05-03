@@ -149,16 +149,31 @@ class MTEncDecModel(EncDecNLPModel):
             pad_id=self.decoder_tokenizer.pad_id, label_smoothing=cfg.label_smoothing
         )
         self.eval_loss_fn = NLLLoss(ignore_index=self.decoder_tokenizer.pad_id)
+
+        # instantiate Torchmetric for each val/test dataloader
         if self._validation_dl is not None:
             for dataloader_idx in range(len(self._validation_dl)):
                 if dataloader_idx == 0:
                     setattr(
-                        self, f'eval_loss', GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True),
+                        self, f'val_loss', GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True),
                     )
                 else:
                     setattr(
                         self,
-                        f'eval_loss_{dataloader_idx}',
+                        f'val_loss_{dataloader_idx}',
+                        GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True),
+                    )
+
+        if self._test_dl is not None:
+            for dataloader_idx in range(len(self._test_dl)):
+                if dataloader_idx == 0:
+                    setattr(
+                        self, f'test_loss', GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True),
+                    )
+                else:
+                    setattr(
+                        self,
+                        f'test_loss_{dataloader_idx}',
                         GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True),
                     )
 
@@ -207,9 +222,9 @@ class MTEncDecModel(EncDecNLPModel):
         # this will run encoder twice -- TODO: potentially fix
         _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
         if dataloader_idx == 0:
-            getattr(self, f'eval_loss')(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
+            getattr(self, f'val_loss')(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
         else:
-            getattr(self, f'eval_loss_{dataloader_idx}')(
+            getattr(self, f'val_loss_{dataloader_idx}')(
                 loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1]
             )
         np_tgt = tgt_ids.detach().cpu().numpy()
@@ -249,9 +264,9 @@ class MTEncDecModel(EncDecNLPModel):
             outputs = [outputs]
         for dataloader_idx, output in enumerate(outputs):
             if dataloader_idx == 0:
-                eval_loss = getattr(self, f'eval_loss').compute()
+                eval_loss = getattr(self, f'{mode}_loss').compute()
             else:
-                eval_loss = getattr(self, f'eval_loss_{dataloader_idx}').compute()
+                eval_loss = getattr(self, f'{mode}_loss_{dataloader_idx}').compute()
 
             translations = list(itertools.chain(*[x['translations'] for x in output]))
             ground_truths = list(itertools.chain(*[x['ground_truths'] for x in output]))
@@ -304,11 +319,11 @@ class MTEncDecModel(EncDecNLPModel):
             if dataloader_idx == 0:
                 self.log(f"{mode}_loss", eval_loss, sync_dist=True)
                 self.log(f"{mode}_sacreBLEU", sb_score, sync_dist=True)
-                getattr(self, f'eval_loss').reset()
+                getattr(self, f'{mode}_loss').reset()
             else:
                 self.log(f"{mode}_loss_dl_index_{dataloader_idx}", eval_loss, sync_dist=True)
                 self.log(f"{mode}_sacreBLEU_dl_index_{dataloader_idx}", sb_score, sync_dist=True)
-                getattr(self, f'eval_loss_{dataloader_idx}').reset()
+                getattr(self, f'{mode}_loss_{dataloader_idx}').reset()
 
     def validation_epoch_end(self, outputs):
         """
