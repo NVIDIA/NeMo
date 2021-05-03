@@ -65,7 +65,7 @@ Citrinet models can be instantiated using the :class:``EncDecCTCModelBPE<nemo.co
 Conformer-CTC
 -------------
 
-Conformer-CTC is a CTC-based variant of the Conformer model introduced in :cite:``asr-models-gulati2020conformer``. Conformer-CTC has a 
+Conformer-CTC is a CTC-based variant of the Conformer model introduced in :cite:`asr-models-gulati2020conformer`. Conformer-CTC has a
 similar encoder as the original Conformer but uses CTC loss and decoding instead of RNNT loss, which makes it a non-autoregressive model.
 We also drop the LSTM decoder and instead use a linear decoder on the top of the encoder. This model uses the combination of 
 self-attention and convolution modules to achieve the best of the two approaches, the self-attention layers can learn the global 
@@ -81,8 +81,8 @@ Here is the overall architecture of the encoder of Conformer-CTC:
 
 This model supports both the sub-word level and character level encodings. You can find more details on the config files for the 
 Conformer-CTC models at :doc:`Conformer-CTC <./configs.html#conformer-ctc>`. The variant with sub-word encoding is a BPE-based model 
-which can be instantiated using the :class:``EncDecCTCModelBPE<nemo.collections.asr.models.EncDecCTCModelBPE>`` class, while the 
-character-based variant is based on :class:``EncDecCTCModel<nemo.collections.asr.models.EncDecCTCModel>``.
+which can be instantiated using the :class:`EncDecCTCModelBPE<nemo.collections.asr.models.EncDecCTCModelBPE>` class, while the
+character-based variant is based on :class:`EncDecCTCModel<nemo.collections.asr.models.EncDecCTCModel>`.
 
 References
 ----------
