@@ -187,11 +187,11 @@ Here is the list of the parameters in the model section which are shared among m
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
 | **Parameter**           | **Datatype**     | **Description**                                                                                               | **Supported Values**            |
 +=========================+==================+===============================================================================================================+=================================+
-| :code:``log_prediction``| bool             | Whether a random sample should be printed in the output at each step, along with its predicted transcript.    |                                 |
+| :code:`log_prediction`| bool             | Whether a random sample should be printed in the output at each step, along with its predicted transcript.    |                                 |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
-| :code:``ctc_reduction`` | string           | Specifies the reduction type of CTC loss. Defaults to ``mean_batch`` which would take the average over the    | :code:``none``,                 |
+| :code:`ctc_reduction` | string           | Specifies the reduction type of CTC loss. Defaults to ``mean_batch`` which would take the average over the    | :code:`none`,                 |
 |                         |                  | batch after taking the average over the length of each sample.                                                | :code:``mean_batch`             |
-|                         |                  |                                                                                                               | :code:``mean``, :code:``sum``   |
+|                         |                  |                                                                                                               | :code:`mean`, :code:`sum`   |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
 
 The following sections go into more detail about the specific configurations of each model architecture.
@@ -211,7 +211,7 @@ to repeat each sub-block (``R``), and the convolution parameters for each block.
 The number of blocks ``B`` is determined by the number of list elements under ``jasper`` minus the one prologue and two epilogue blocks. 
 The number of sub-blocks ``R`` is determined by setting the ``repeat`` parameter.
 
-To use QuartzNet (which uses more compact time-channel separable convolutions) instead of Jasper, add :code:``separable: true`` to all 
+To use QuartzNet (which uses more compact time-channel separable convolutions) instead of Jasper, add :code:`separable: true` to all
 but the last block in the architecture. 
 
 Change the parameter name ``jasper``.
@@ -219,14 +219,14 @@ Change the parameter name ``jasper``.
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+-------------------------------------+
 | **Parameter**           | **Datatype**     | **Description**                                                                                               | **Supported Values**                |
 +=========================+==================+===============================================================================================================+=====================================+
-| :code:``feat_in``       | int              | The number of input features. Should be equal to :code:``features`` in the preprocessor parameters.           |                                     |
+| :code:`feat_in`       | int              | The number of input features. Should be equal to :code:`features` in the preprocessor parameters.           |                                     |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+-------------------------------------+
-| :code:``activation``    | string           | Which activation function to use in the encoder.                                                              | :code:``hardtanh``, :code:``relu``, |
-|                         |                  |                                                                                                               | :code:``selu``, :code:``swish``     |
+| :code:`activation`    | string           | Which activation function to use in the encoder.                                                              | :code:`hardtanh`, :code:`relu`, |
+|                         |                  |                                                                                                               | :code:`selu`, :code:`swish`     |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+-------------------------------------+
-| :code:``conv_mask``     | bool             | Whether to use masked convolutions in the encoder. Defaults to ``true``.                                      |                                     |
+| :code:`conv_mask`     | bool             | Whether to use masked convolutions in the encoder. Defaults to ``true``.                                      |                                     |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+-------------------------------------+
-| :code:``jasper``        |                  | A list of blocks that specifies your encoder architecture. Each entry in this list represents one block in    |                                     |
+| :code:`jasper`        |                  | A list of blocks that specifies your encoder architecture. Each entry in this list represents one block in    |                                     |
 |                         |                  | the architecture and contains the parameters for that block, including convolution parameters, dropout, and   |                                     |
 |                         |                  | the number of times the block is repeated. Refer to the `Jasper <https://arxiv.org/pdf/1904.03288.pdf>`_ and  |                                     |
 |                         |                  | `QuartzNet <https://arxiv.org/pdf/1910.10261.pdf>`_ papers for details about specific model configurations.   |                                     |
@@ -307,13 +307,13 @@ Both Jasper and QuartzNet use the ``ConvASRDecoder`` as the decoder. The decoder
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
 | **Parameter**           | **Datatype**     | **Description**                                                                                               | **Supported Values**            |
 +=========================+==================+===============================================================================================================+=================================+
-| :code:``feat_in``       | int              | The number of input features to the decoder. Should be equal to the number of filters in the last block of    |                                 |
+| :code:`feat_in`       | int              | The number of input features to the decoder. Should be equal to the number of filters in the last block of    |                                 |
 |                         |                  | the encoder.                                                                                                  |                                 |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
-| :code:``vocabulary``    | list             | A list of the valid output characters for your model. For example, for an English dataset, this could be a    |                                 |
+| :code:`vocabulary`    | list             | A list of the valid output characters for your model. For example, for an English dataset, this could be a    |                                 |
 |                         |                  | list of all lowercase letters, space, and apostrophe.                                                         |                                 |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
-| :code:``num_classes``   | int              | Number of output classes, i.e. the length of :code:``vocabulary``.                                            |                                 |
+| :code:`num_classes`   | int              | Number of output classes, i.e. the length of :code:`vocabulary`.                                            |                                 |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
 
 For example, a decoder config corresponding to the encoder above should look similar to the following:
@@ -342,7 +342,7 @@ configuration is a shortform notation for Citrinet-21x5xC, such that ``B = 21`` 
 not be changed.
 
 To use Citrinet instead of QuartzNet, refer to the ``citrinet_512.yaml`` configuration found inside the ``examples/asr/conf/citrinet`` 
-directory. Citrinet is primarily comprised of the same :class:``~nemo.collections.asr.parts.jasper.JasperBlock`` as ``Jasper`` or 
+directory. Citrinet is primarily comprised of the same :class:`~nemo.collections.asr.parts.jasper.JasperBlock` as ``Jasper`` or
 ``QuartzNet`.
 
 While the configs for Citrinet and QuartzNet are similar, we note the additional flags used for Citrinet below. Refer to the 
@@ -351,14 +351,14 @@ While the configs for Citrinet and QuartzNet are similar, we note the additional
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
 | **Parameter**             | **Datatype**     | **Description**                                                                                           | **Supported Values**              |
 +===========================+==================+===========================================================================================================+===================================+
-| :code:``se``              | bool             | Whether to apply squeeze-and-excitation mechanism or not.                                                 | :code:``true`` or :code:``false   |
+| :code:`se`              | bool             | Whether to apply squeeze-and-excitation mechanism or not.                                                 | :code:`true` or :code:``false   |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
-| :code:``se_context_size`` | int              | SE context size. -1 means global context.                                                                 | :code:``-1`` or :code:``+ve int`` |
+| :code:`se_context_size` | int              | SE context size. -1 means global context.                                                                 | :code:`-1` or :code:`+ve int` |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
-| :code:``stride_last``     | bool             | Stride on the final repeated block or all repeated blocks.                                                | :code:``true`` or :code:``false`` |
+| :code:`stride_last`     | bool             | Stride on the final repeated block or all repeated blocks.                                                | :code:`true` or :code:`false` |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
-| :code:``residual_mode``   | str              | Type of residual branch to construct.                                                                     | :code:``"add"`` or                |
-|                           |                  | Can be pointwise residual addition or pointwise strided residual attention                                | :code:``"stride_add"``            |
+| :code:`residual_mode`   | str              | Type of residual branch to construct.                                                                     | :code:`"add"` or                |
+|                           |                  | Can be pointwise residual addition or pointwise strided residual attention                                | :code:`"stride_add"`            |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
 
 A Citrinet-512 config should look similar to the following:
@@ -457,4 +457,4 @@ These datasets are similar to other ASR models like `QuartzNet <./models.html#Qu
 specify the tokenizer if you want to use sub-word encoding instead of character-based encoding.
 
 The encoder section includes the details about the Conformer-CTC encoder architecture. You may find more information in the 
-config files and also :doc:``nemo.collections.asr.modules.ConformerEncoder<./api.html#nemo.collections.asr.modules.ConformerEncoder>``.
+config files and also :doc:`nemo.collections.asr.modules.ConformerEncoder<./api.html#nemo.collections.asr.modules.ConformerEncoder>`.
