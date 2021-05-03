@@ -153,9 +153,9 @@ sequences in the dataset.
 
 After each epoch, you should see a summary table of metrics on the validation set which include the following metrics:
 
-- :code:``Precision``
+- :code:`Precision`
 - :code:``Recall`
-- :code:``F1``
+- :code:`F1`
 
 At the end of training, NeMo saves the last checkpoint at the path specified in ``.nemo`` format.
 
