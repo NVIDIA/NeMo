@@ -28,12 +28,12 @@ ReLU, and dropout:
         :alt: japer model
         :scale: 50%
 
-Jasper models can be instantiated using the :class:``EncDecCTCModel<nemo.collections.asr.models.EncDecCTCModel>`` class.
+Jasper models can be instantiated using the :class:`EncDecCTCModel<nemo.collections.asr.models.EncDecCTCModel>` class.
 
 QuartzNet
 ---------
 
-QuartzNet :cite:``asr-models-kriman2019quartznet`` is a version of Jasper :cite:``asr-models-li2019jasper`` model with separable 
+QuartzNet :cite:`asr-models-kriman2019quartznet` is a version of Jasper :cite:`asr-models-li2019jasper` model with separable
 convolutions and larger filters. It can achieve performance similar to Jasper but with an order of magnitude fewer parameters. 
 Similarly to Jasper, the QuartzNet family of models are denoted as ``QuartzNet_[BxR]`` where ``B`` is the number of blocks and ``R`` 
 is the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D *separable* convolution, batch normalization, 
@@ -49,8 +49,8 @@ QuartzNet models can be instantiated using the :class:`EncDecCTCModel<nemo.colle
 Citrinet
 --------
 
-Citrinet is a version of QuartzNet :cite:``asr-models-kriman2019quartznet`` that extends ContextNet :cite:``asr-models-han2020contextnet``,
-utilizing subword encoding (via Word Piece tokenization) and Squeeze-and-Excitation mechanism :cite:``asr-models-hu2018squeeze`` to
+Citrinet is a version of QuartzNet :cite:`asr-models-kriman2019quartznet` that extends ContextNet :cite:`asr-models-han2020contextnet`,
+utilizing subword encoding (via Word Piece tokenization) and Squeeze-and-Excitation mechanism :cite:`asr-models-hu2018squeeze` to
 obtain highly accurate audio transcripts while utilizing a non-autoregressive CTC based decoding scheme for efficient inference.
 
     .. image:: images/citrinet_vertical.png
@@ -58,7 +58,7 @@ obtain highly accurate audio transcripts while utilizing a non-autoregressive CT
         :alt: citrinet model
         :scale: 50%
 
-Citrinet models can be instantiated using the :class:``EncDecCTCModelBPE<nemo.collections.asr.models.EncDecCTCModelBPE>`` class.
+Citrinet models can be instantiated using the :class:`EncDecCTCModelBPE<nemo.collections.asr.models.EncDecCTCModelBPE>` class.
 
 .. _Conformer-CTC_model:
 
