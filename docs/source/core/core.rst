@@ -643,7 +643,7 @@ Every Neural Module in NeMo must inherit from `nemo.core.classes.module.NeuralMo
 
 Every Neural Modules inherits the ``nemo.core.classes.common.Typing`` interface and needs to define neural types for its inputs and outputs.
 This is done by defining two properties: ``input_types`` and ``output_types``. Each property should return an ordered dictionary of 
-"port name"->"port neural type" pairs. Here is the example from :class:``~nemo.collections.asr.modules.ConvASREncoder`` class:
+"port name"->"port neural type" pairs. Here is the example from :class:`~nemo.collections.asr.modules.ConvASREncoder` class:
 
 .. code-block:: python
 

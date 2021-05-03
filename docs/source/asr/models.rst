@@ -28,12 +28,12 @@ ReLU, and dropout:
         :alt: japer model
         :scale: 50%
 
-Jasper models can be instantiated using the :class:``EncDecCTCModel<nemo.collections.asr.models.EncDecCTCModel>`` class.
+Jasper models can be instantiated using the :class:`EncDecCTCModel<nemo.collections.asr.models.EncDecCTCModel>` class.
 
 QuartzNet
 ---------
 
-QuartzNet :cite:``asr-models-kriman2019quartznet`` is a version of Jasper :cite:``asr-models-li2019jasper`` model with separable 
+QuartzNet :cite:`asr-models-kriman2019quartznet` is a version of Jasper :cite:`asr-models-li2019jasper` model with separable
 convolutions and larger filters. It can achieve performance similar to Jasper but with an order of magnitude fewer parameters. 
 Similarly to Jasper, the QuartzNet family of models are denoted as ``QuartzNet_[BxR]`` where ``B`` is the number of blocks and ``R`` 
 is the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D *separable* convolution, batch normalization, 
@@ -49,8 +49,8 @@ QuartzNet models can be instantiated using the :class:`EncDecCTCModel<nemo.colle
 Citrinet
 --------
 
-Citrinet is a version of QuartzNet :cite:``asr-models-kriman2019quartznet`` that extends ContextNet :cite:``asr-models-han2020contextnet``,
-utilizing subword encoding (via Word Piece tokenization) and Squeeze-and-Excitation mechanism :cite:``asr-models-hu2018squeeze`` to
+Citrinet is a version of QuartzNet :cite:`asr-models-kriman2019quartznet` that extends ContextNet :cite:`asr-models-han2020contextnet`,
+utilizing subword encoding (via Word Piece tokenization) and Squeeze-and-Excitation mechanism :cite:`asr-models-hu2018squeeze` to
 obtain highly accurate audio transcripts while utilizing a non-autoregressive CTC based decoding scheme for efficient inference.
 
     .. image:: images/citrinet_vertical.png
@@ -58,14 +58,14 @@ obtain highly accurate audio transcripts while utilizing a non-autoregressive CT
         :alt: citrinet model
         :scale: 50%
 
-Citrinet models can be instantiated using the :class:``EncDecCTCModelBPE<nemo.collections.asr.models.EncDecCTCModelBPE>`` class.
+Citrinet models can be instantiated using the :class:`EncDecCTCModelBPE<nemo.collections.asr.models.EncDecCTCModelBPE>` class.
 
 .. _Conformer-CTC_model:
 
 Conformer-CTC
 -------------
 
-Conformer-CTC is a CTC-based variant of the Conformer model introduced in :cite:``asr-models-gulati2020conformer``. Conformer-CTC has a 
+Conformer-CTC is a CTC-based variant of the Conformer model introduced in :cite:`asr-models-gulati2020conformer`. Conformer-CTC has a
 similar encoder as the original Conformer but uses CTC loss and decoding instead of RNNT loss, which makes it a non-autoregressive model.
 We also drop the LSTM decoder and instead use a linear decoder on the top of the encoder. This model uses the combination of 
 self-attention and convolution modules to achieve the best of the two approaches, the self-attention layers can learn the global 
@@ -81,8 +81,8 @@ Here is the overall architecture of the encoder of Conformer-CTC:
 
 This model supports both the sub-word level and character level encodings. You can find more details on the config files for the 
 Conformer-CTC models at :doc:`Conformer-CTC <./configs.html#conformer-ctc>`. The variant with sub-word encoding is a BPE-based model 
-which can be instantiated using the :class:``EncDecCTCModelBPE<nemo.collections.asr.models.EncDecCTCModelBPE>`` class, while the 
-character-based variant is based on :class:``EncDecCTCModel<nemo.collections.asr.models.EncDecCTCModel>``.
+which can be instantiated using the :class:`EncDecCTCModelBPE<nemo.collections.asr.models.EncDecCTCModelBPE>` class, while the
+character-based variant is based on :class:`EncDecCTCModel<nemo.collections.asr.models.EncDecCTCModel>`.
 
 References
 ----------

@@ -78,10 +78,10 @@ To convert an `IOB format <https://en.wikipedia.org/wiki/Inside%E2%80%93outside%
 Convert Dataset Required Arguments
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- :code:``--data_file``: path to the file to convert from IOB to NeMo format
+- :code:`--data_file`: path to the file to convert from IOB to NeMo format
 
-After running the above command, the data directory, where the :code:``--data_file`` is stored, should contain :code:``text_*.txt`` and :code:``labels_*.txt`` files.
-The default names for the training and evaluation in the :code:``conf/token_classification_config.yaml`` are the following:
+After running the above command, the data directory, where the :code:`--data_file` is stored, should contain :code:`text_*.txt` and :code:`labels_*.txt` files.
+The default names for the training and evaluation in the :code:`conf/token_classification_config.yaml` are the following:
 
 .. code::
 
@@ -152,14 +152,14 @@ Example of the command for training the model:
 Required Arguments for Training
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- :code:``model.dataset.data_dir``: path to the directory with pre-processed data.
+- :code:`model.dataset.data_dir`: path to the directory with pre-processed data.
 
 .. note::
 
     While the arguments are defined in the spec file, if you want to override these parameter definitions in the spec file and 
     experiment with them, use the command-line to define the parameter. For example, the sample spec file mentioned above has 
-    :code:``validation_ds.batch_size`` set to ``64``. However, if the GPU utilization can be optimized further by 
-    using a larger batch size, override it to the desired value by adding the field :code:``validation_ds.batch_size=128`` from 
+    :code:`validation_ds.batch_size` set to ``64``. However, if the GPU utilization can be optimized further by
+    using a larger batch size, override it to the desired value by adding the field :code:`validation_ds.batch_size=128` from
     the command-line. You can repeat this with any of the parameters defined in the sample spec file.
 
 Inference
@@ -177,7 +177,7 @@ To run inference with the pre-trained model, run:
 Required Arguments for Inference
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- :code:``pretrained_model``: pretrained Token Classification model from ``list_available_models()`` or path to a ``.nemo`` file. For example, ``ner_en_bert`` or ``your_model.nemo``
+- :code:`pretrained_model`: pretrained Token Classification model from ``list_available_models()`` or path to a ``.nemo`` file. For example, ``ner_en_bert`` or ``your_model.nemo``
 
 Model Evaluation
 ----------------
@@ -199,14 +199,14 @@ To start evaluation of the pre-trained model, run:
 Required Arguments
 ^^^^^^^^^^^^^^^^^^
 
-- :code:``pretrained_model``: pretrained Token Classification model from ``list_available_models()`` or path to a ``.nemo`` file. For example, ``ner_en_bert`` or ``your_model.nemo``
-- :code:``model.dataset.data_dir``: path to the directory that containes :code:``model.test_ds.text_file`` and :code:``model.test_ds.labels_file``
+- :code:`pretrained_model`: pretrained Token Classification model from ``list_available_models()`` or path to a ``.nemo`` file. For example, ``ner_en_bert`` or ``your_model.nemo``
+- :code:`model.dataset.data_dir`: path to the directory that containes :code:`model.test_ds.text_file` and :code:`model.test_ds.labels_file`
 
-During evaluation of the :code:``test_ds``, the script generates a classification report that includes the following metrics:
+During evaluation of the :code:`test_ds`, the script generates a classification report that includes the following metrics:
 
-- :code:``Precision``
-- :code:``Recall``
-- :code:``F1``
+- :code:`Precision`
+- :code:`Recall`
+- :code:`F1`
 
 For more information, see `here <https://en.wikipedia.org/wiki/Precision_and_recall>`__.
 

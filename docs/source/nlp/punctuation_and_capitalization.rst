@@ -130,7 +130,7 @@ The complete list of all possible labels used in this tutorial are:
 Converting Raw Data to NeMo Format
 ----------------------------------
 
-To pre-process the raw text data, stored under :code:``sourced_data_dir`` (see the :ref:`raw_data_format_punct`
+To pre-process the raw text data, stored under :code:`sourced_data_dir` (see the :ref:`raw_data_format_punct`
 section), run the following command:
 
 .. code::
@@ -143,11 +143,11 @@ section), run the following command:
 Required Argument for Dataset Conversion
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- :code:``-s`` or :code:``--source_file``: path to the raw file
-- :code:``-o`` or :code:``--output_dir`` - path to the directory to store the converted files
+- :code:`-s` or :code:`--source_file`: path to the raw file
+- :code:`-o` or :code:`--output_dir` - path to the directory to store the converted files
 
-After the conversion, the :code:``output_dir`` should contain :code:``labels_*.txt`` and :code:``text_*.txt`` files. The default names 
-for the training and evaluation in the :code:``conf/punctuation_capitalization_config.yaml`` are the following:
+After the conversion, the :code:`output_dir` should contain :code:`labels_*.txt` and :code:`text_*.txt` files. The default names
+for the training and evaluation in the :code:`conf/punctuation_capitalization_config.yaml` are the following:
 
 .. code::
 
@@ -242,8 +242,8 @@ Required Arguments for Training
 .. note::
 
     All parameters defined in the configuration file can be changed with command arguments. For example, the sample config file 
-    mentioned above has :code:``validation_ds.batch_size`` set to ``64``. However, if you see that the GPU utilization can be 
-    optimized further by using a larger batch size, you may override to the desired value by adding the field :code:``validation_ds.batch_size=128`` 
+    mentioned above has :code:`validation_ds.batch_size` set to ``64``. However, if you see that the GPU utilization can be
+    optimized further by using a larger batch size, you may override to the desired value by adding the field :code:`validation_ds.batch_size=128`
     over the command-line. You can repeat this with any of the parameters defined in the sample configuration file.
 
 Inference
@@ -278,16 +278,16 @@ To start evaluation of the pre-trained model, run:
 Required Arguments
 ^^^^^^^^^^^^^^^^^^
 
-- :code:``pretrained_model``: pretrained Punctuation and Capitalization model from ``list_available_models()`` or path to a ``.nemo`` 
+- :code:`pretrained_model`: pretrained Punctuation and Capitalization model from ``list_available_models()`` or path to a ``.nemo``
 file. For example: ``punctuation_en_bert`` or ``your_model.nemo``.
-- :code:``model.dataset.data_dir``: path to the directory that containes :code:``model.test_ds.text_file`` and :code:``model.test_ds.labels_file``
+- :code:`model.dataset.data_dir`: path to the directory that containes :code:`model.test_ds.text_file` and :code:`model.test_ds.labels_file`
 
-During evaluation of the :code:``test_ds``, the script generates two classification reports: one for capitalization task and another 
+During evaluation of the :code:`test_ds`, the script generates two classification reports: one for capitalization task and another
 one for punctuation task. This classification reports include the following metrics:
 
-- :code:``Precision``
-- :code:``Recall``
-- :code:``F1``
+- :code:`Precision`
+- :code:`Recall`
+- :code:`F1`
 
 More details about these metrics can be found `here <https://en.wikipedia.org/wiki/Precision_and_recall>`__.
 

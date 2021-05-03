@@ -26,7 +26,7 @@ NeMo Data Format
 
 When training the model, the dataset should be first converted to the required data format, which requires the following files:
 
-- :code:``dict.intents.csv`` - A list of all intent names in the data. One line per an intent name. The index of the intent line
+- :code:`dict.intents.csv` - A list of all intent names in the data. One line per an intent name. The index of the intent line
   (starting from ``0``) is used to identify the appropriate intent in ``train.tsv`` and ``test.tsv`` files.
 
 .. code::
@@ -36,7 +36,7 @@ When training the model, the dataset should be first converted to the required d
     meeting
     ...
 
-- :code:``dict.slots.csv`` - A list of all slot names in the data. One line per slot name. The index of the slot line
+- :code:`dict.slots.csv` - A list of all slot names in the data. One line per slot name. The index of the slot line
   (starting from ``0``) is used to identify the appropriate slots in the queries in ``train_slot.tsv`` and ``test_slot.tsv`` files.
   In the last line of this dictionary ``O`` slot name is used to identify all ``out of scope`` slots, which are usually the majority of the tokens
   in the queries.
@@ -49,13 +49,13 @@ When training the model, the dataset should be first converted to the required d
     ...
     O
 
-- :code:``train.tsv/test.tsv`` - A list of original queries, one per line, with the intent number
+- :code:`train.tsv/test.tsv` - A list of original queries, one per line, with the intent number
   separated by a tab (e.g. "what alarms do i have set right now <TAB> 0"). Intent numbers are
-  set according to the intent line in the intent dictionary file (:code:``dict.intents.csv``),
+  set according to the intent line in the intent dictionary file (:code:`dict.intents.csv`),
   starting from ``0``. The first line in these files should contain the header line ``sentence
   <tab> label``.
 
-- :code:``train_slot.tvs/test_slot.tsv`` - A list that contains one line per query, when each word from the original text queries
+- :code:`train_slot.tvs/test_slot.tsv` - A list that contains one line per query, when each word from the original text queries
   is replaced by a token number from the slots dictionary file (``dict.slots.csv``), counted starting from ``0``. All the words 
   which do not contain a relevant slot are replaced by ``out-of scope`` token number, which is also a part of the slot dictionary file,
   usually as the last entry there. For example a line from these files should look similar to: "54 0 0 54 54 12 12" (the numbers are 
@@ -87,9 +87,9 @@ Run the ``dataset_converter`` command:
         --target_data_dir=`target_data_dir` \
         --dataset_name=['assistant'|'snips'|'atis']
 
-- :code:``source_data_dir``: the directory location of the your dataset
-- :code:``target_data_dir``: the directory location where the converted dataset should be saved
-- :code:``dataset_name``: one of the implemented dataset names
+- :code:`source_data_dir`: the directory location of the your dataset
+- :code:`target_data_dir`: the directory location where the converted dataset should be saved
+- :code:`dataset_name`: one of the implemented dataset names
 
 After conversion, ``target_data_dir`` should contain the following files:
 
@@ -167,7 +167,7 @@ The following is an example of the command for training the model:
 Required Arguments for Training
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- :code:``model.data_dir``: the dataset directory
+- :code:`model.data_dir`: the dataset directory
 
 
 Optional Arguments

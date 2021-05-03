@@ -122,7 +122,7 @@ Fine-tuning on Downstream Tasks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To use a trained BERT model checkpoint on a NeMo NLP downstream task, e.g. :ref:`question_answering`, specify 
-:code:``model.language_model.lm_checkpoint=<PATH_TO_CHECKPOINT>``.
+:code:`model.language_model.lm_checkpoint=<PATH_TO_CHECKPOINT>`.
 
 References
 ----------
