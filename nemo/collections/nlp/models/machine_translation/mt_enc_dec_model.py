@@ -151,11 +151,16 @@ class MTEncDecModel(EncDecNLPModel):
         self.eval_loss_fn = NLLLoss(ignore_index=self.decoder_tokenizer.pad_id)
         if self._validation_dl is not None:
             for dataloader_idx in range(len(self._validation_dl)):
-                setattr(
-                    self,
-                    f'eval_loss_{dataloader_idx}',
-                    GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True),
-                )
+                if dataloader_idx == 0:
+                    setattr(
+                        self, f'eval_loss', GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True),
+                    )
+                else:
+                    setattr(
+                        self,
+                        f'eval_loss_{dataloader_idx}',
+                        GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True),
+                    )
 
     def filter_predicted_ids(self, ids):
         ids[ids >= self.decoder_tokenizer.vocab_size] = self.decoder_tokenizer.unk_id
@@ -201,9 +206,12 @@ class MTEncDecModel(EncDecNLPModel):
         eval_loss = self.eval_loss_fn(log_probs=log_probs, labels=labels)
         # this will run encoder twice -- TODO: potentially fix
         _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
-        getattr(self, f'eval_loss_{dataloader_idx}')(
-            loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1]
-        )
+        if dataloader_idx == 0:
+            getattr(self, f'eval_loss')(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
+        else:
+            getattr(self, f'eval_loss_{dataloader_idx}')(
+                loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1]
+            )
         np_tgt = tgt_ids.detach().cpu().numpy()
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
         ground_truths = [self.target_processor.detokenize(tgt.split(' ')) for tgt in ground_truths]
@@ -236,15 +244,14 @@ class MTEncDecModel(EncDecNLPModel):
         return self.eval_step(batch, batch_idx, 'val', dataloader_idx)
 
     def eval_epoch_end(self, outputs, mode):
-        dl_0_sb_score = 0  # log dl_0 by default to preserve backward compatibility
-        dl_0_eval_loss = 0
         # if user specifies one validation dataloader, then PTL reverts to giving a list of dictionary instead of a list of list of dictionary
         if isinstance(outputs[0], dict):
             outputs = [outputs]
         for dataloader_idx, output in enumerate(outputs):
-            eval_loss = getattr(self, f'eval_loss_{dataloader_idx}').compute()
             if dataloader_idx == 0:
-                dl_0_eval_loss = eval_loss
+                eval_loss = getattr(self, f'eval_loss').compute()
+            else:
+                eval_loss = getattr(self, f'eval_loss_{dataloader_idx}').compute()
 
             translations = list(itertools.chain(*[x['translations'] for x in output]))
             ground_truths = list(itertools.chain(*[x['ground_truths'] for x in output]))
@@ -272,7 +279,6 @@ class MTEncDecModel(EncDecNLPModel):
 
                 # because the reduction op later is average (over word_size)
                 sb_score = sacre_bleu.score * self.world_size
-                dl_0_sb_score = sb_score
 
                 dataset_name = "Validation" if mode == 'val' else "Test"
                 logging.info(
@@ -295,14 +301,14 @@ class MTEncDecModel(EncDecNLPModel):
             else:
                 sb_score = 0.0
 
-            self.log(f"{mode}_loss_dl_index_{dataloader_idx}", eval_loss, sync_dist=True)
-            self.log(f"{mode}_sacreBLEU_dl_index_{dataloader_idx}", sb_score, sync_dist=True)
-
-            getattr(self, f'eval_loss_{dataloader_idx}').reset()
-
-        # log dl index 0 sacreBLEU and loss by default to preserve backwards compatibility
-        self.log(f'{mode}_sacreBLEU', dl_0_sb_score, sync_dist=True)
-        self.log(f'{mode}_loss', dl_0_eval_loss, sync_dist=True)
+            if dataloader_idx == 0:
+                self.log(f"{mode}_loss", eval_loss, sync_dist=True)
+                self.log(f"{mode}_sacreBLEU", sb_score, sync_dist=True)
+                getattr(self, f'eval_loss').reset()
+            else:
+                self.log(f"{mode}_loss_dl_index_{dataloader_idx}", eval_loss, sync_dist=True)
+                self.log(f"{mode}_sacreBLEU_dl_index_{dataloader_idx}", sb_score, sync_dist=True)
+                getattr(self, f'eval_loss_{dataloader_idx}').reset()
 
     def validation_epoch_end(self, outputs):
         """
