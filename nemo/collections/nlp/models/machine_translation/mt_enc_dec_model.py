@@ -195,9 +195,9 @@ class MTEncDecModel(EncDecNLPModel):
         # this will run encoder twice -- TODO: potentially fix
         _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
         if dataloader_idx == 0:
-            getattr(self, f'val_loss')(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
+            getattr(self, f'{mode}_loss')(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
         else:
-            getattr(self, f'val_loss_{dataloader_idx}')(
+            getattr(self, f'{mode}_loss_{dataloader_idx}')(
                 loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1]
             )
         np_tgt = tgt_ids.detach().cpu().numpy()
@@ -241,6 +241,8 @@ class MTEncDecModel(EncDecNLPModel):
             else:
                 eval_loss = getattr(self, f'{mode}_loss_{dataloader_idx}').compute()
 
+            logging.info(f"eval_loss: {eval_loss}")
+
             translations = list(itertools.chain(*[x['translations'] for x in output]))
             ground_truths = list(itertools.chain(*[x['ground_truths'] for x in output]))
             assert len(translations) == len(ground_truths)
@@ -248,6 +250,8 @@ class MTEncDecModel(EncDecNLPModel):
             # Gather translations and ground truths from all workers
             tr_and_gt = [None for _ in range(self.world_size)]
             # we also need to drop pairs where ground truth is an empty string
+            logging.info(f'translations: {translations}')
+            logging.info(f'ground_truths: {ground_truths}')
             dist.all_gather_object(
                 tr_and_gt, [(t, g) for (t, g) in zip(translations, ground_truths) if g.strip() != '']
             )
@@ -306,7 +310,7 @@ class MTEncDecModel(EncDecNLPModel):
         self.eval_epoch_end(outputs, 'val')
 
     def test_epoch_end(self, outputs):
-        return self.eval_epoch_end(outputs, 'test')
+        self.eval_epoch_end(outputs, 'test')
 
     def setup_enc_dec_tokenizers(
         self,
