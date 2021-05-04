@@ -49,9 +49,11 @@ autodoc_mock_imports = [
     'transformers.tokenization_bert',  # has ., troublesome for this regex
     'megatron',  # megatron-lm in requirements, megatron in import
     'sklearn',
+    'nemo_text_processing.inverse_text_normalization',  # Not installed automatically
+    'attr',  # attrdict in requirements, attr in import
 ]
 
-_skipped_autodoc_mock_imports = ['wrapt']
+_skipped_autodoc_mock_imports = ['wrapt', 'numpy']
 
 for req_path in sorted(list(glob.glob("../../requirements/*.txt"))):
     if "docs.txt" in req_path:

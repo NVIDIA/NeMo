@@ -1,4 +1,5 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,9 +27,9 @@ except (ModuleNotFoundError, ImportError):
 
 class WhiteListFst(GraphFst):
     """
-    Finite state transducer for classifying whitelist
+    Finite state transducer for classifying whitelisted tokens
         e.g. misses -> tokens { name: "mrs." }
-    This class has highest priority among all classifiers and loads lookup table from "data/whitelist.tsv"
+    This class has highest priority among all classifier grammars. Whitelisted tokens are defined and loaded from "data/whitelist.tsv".
     """
 
     def __init__(self):
