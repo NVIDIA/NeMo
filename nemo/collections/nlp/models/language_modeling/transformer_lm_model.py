@@ -25,12 +25,11 @@ from pytorch_lightning import Trainer
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
-from nemo.collections.nlp.data import TarredOneSideTranslationDataset, TranslationOneSideDataset
+from nemo.collections.nlp.data import SentenceDataset, TarredSentenceDataset
 from nemo.collections.nlp.metrics import SequencePerplexity
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_transformer
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
-from nemo.collections.nlp.modules.common.transformer import TransformerEmbedding, TransformerEncoder
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.utils import logging, model_utils
@@ -233,7 +232,7 @@ class TransformerLMModel(ModelPT):
                         raise ValueError(
                             'Tar files specified in config and in metadata file. Tar files should only be specified once.'
                         )
-            dataset = TarredOneSideTranslationDataset(
+            dataset = TarredSentenceDataset(
                 text_tar_filepaths=tar_files,
                 metadata_path=metadata_file,
                 tokenizer=self.tokenizer,
@@ -250,7 +249,7 @@ class TransformerLMModel(ModelPT):
                 drop_last=cfg.get("drop_last", False),
             )
         else:
-            dataset = TranslationOneSideDataset(
+            dataset = SentenceDataset(
                 tokenizer=self.tokenizer,
                 dataset=cfg.file_name,
                 tokens_in_batch=cfg.tokens_in_batch,

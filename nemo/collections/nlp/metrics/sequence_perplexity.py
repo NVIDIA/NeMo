@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import torch
-from pytorch_lightning.metrics import Metric
+from torchmetrics import Metric
 
 __all__ = ['SequencePerplexity']
 
@@ -34,24 +34,29 @@ class SequencePerplexity(Metric):
         compute_on_step:
             Forward only calls ``update()`` and returns ``None`` if this is set to ``False``. default: ``True``
         dist_sync_on_step:
-            Synchronize metric state across processes at each ``forward()``
-            before returning the value at the step.
+            Synchronize metric state across processes at each ``forward()`` before returning the value at the step.
         process_group:
             Specify the process group on which synchronization is called. default: ``None`` (which selects the entire
                 world)
+        dist_sync_fn:
+            Callback that performs the allgather operation on the metric state. When ``None``, DDP will be used
+                to perform the allgather.
     """
 
-    def __init__(self, compute_on_step=True, dist_sync_on_step=False, process_group=None):
+    def __init__(self, compute_on_step=True, dist_sync_on_step=False, process_group=None, dist_sync_fn=None):
         super().__init__(
-            compute_on_step=compute_on_step, dist_sync_on_step=dist_sync_on_step, process_group=process_group
+            compute_on_step=compute_on_step,
+            dist_sync_on_step=dist_sync_on_step,
+            process_group=process_group,
+            dist_sync_fn=dist_sync_fn,
         )
 
         # Total sum of exponentiated average negative log likelihoods
-        self.add_state('perplexities_sum', torch.tensor(0.0, dtype=torch.float64), dist_reduce_fx='sum')
+        self.add_state('perplexities_sum', default=torch.tensor(0.0, dtype=torch.float64), dist_reduce_fx='sum')
         # Total number of sequences in all batches
-        self.add_state('num_sequences', torch.tensor(0, dtype=torch.int64), dist_reduce_fx='sum')
+        self.add_state('num_sequences', default=torch.tensor(0, dtype=torch.int64), dist_reduce_fx='sum')
 
-    def update(self, log_probs, labels, mask=None):
+    def update(self, log_probs: torch.Tensor, labels: torch.Tensor, mask=None):
 
         if mask is None:
             mask = torch.ones_like(labels)
