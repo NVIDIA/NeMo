@@ -19,18 +19,19 @@ import json
 import pickle
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Optional, List
 
 import braceexpand
 import numpy as np
 import webdataset as wd
+import torch.utils.data as pt_data
 from torch.utils.data import IterableDataset
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_ids
 from nemo.core import Dataset
 from nemo.utils import logging
 
-__all__ = ['TranslationDataset', 'TarredTranslationDataset']
+__all__ = ['TranslationDataset', 'TarredTranslationDataset', 'MultilingualTranslationDataset']
 
 
 @dataclass
@@ -38,8 +39,8 @@ class TranslationDataConfig:
     src_file_name: Optional[Any] = None  # Any = str or List[str]
     tgt_file_name: Optional[Any] = None  # Any = str or List[str]
     use_tarred_dataset: bool = False
-    tar_files: Optional[str] = None
-    metadata_file: Optional[str] = None
+    tar_files: Optional[Any] = None  # Any = str or List[str]
+    metadata_file: Optional[Any] = None  # Any = str or List[str]
     lines_per_dataset_fragment: Optional[int] = 1000000
     num_batches_per_tarfile: Optional[int] = 1000
     shard_strategy: Optional[str] = 'scatter'
@@ -79,6 +80,7 @@ class TranslationDataset(Dataset):
         cache_data_per_node: bool = False,
         use_cache: bool = False,
         reverse_lang_direction: bool = False,
+        prepend_id: int = None,
     ):
         self.dataset_src = dataset_src
         self.dataset_tgt = dataset_tgt
@@ -92,6 +94,7 @@ class TranslationDataset(Dataset):
         self.max_seq_length_diff = max_seq_length_diff
         self.max_seq_length_ratio = max_seq_length_ratio
         self.reverse_lang_direction = reverse_lang_direction
+        self.prepend_id = prepend_id
 
         # deprecation warnings for cache_ids, use_cache, and cache_data_per_node
         if self.cache_ids is True or self.use_cache is True or self.cache_data_per_node is True:
@@ -139,6 +142,8 @@ class TranslationDataset(Dataset):
             src_ids, tgt = tgt, src_ids
         labels = tgt[:, 1:]
         tgt_ids = tgt[:, :-1]
+        if self.prepend_id:
+            src_ids = np.insert(src_ids, 1, self.prepend_id, axis=-1)
         src_mask = (src_ids != self.src_pad_id).astype(np.int32)
         tgt_mask = (tgt_ids != self.tgt_pad_id).astype(np.int32)
         return src_ids, src_mask, tgt_ids, tgt_mask, labels
@@ -340,6 +345,7 @@ class TarredTranslationDataset(IterableDataset):
         global_rank: int = 0,
         world_size: int = 0,
         reverse_lang_direction: bool = False,
+        prepend_id: int = None,
     ):
         super(TarredTranslationDataset, self).__init__()
 
@@ -348,6 +354,7 @@ class TarredTranslationDataset(IterableDataset):
         self.reverse_lang_direction = reverse_lang_direction
         self.src_pad_id = encoder_tokenizer.pad_id
         self.tgt_pad_id = decoder_tokenizer.pad_id
+        self.prepend_id = prepend_id
 
         valid_shard_strategies = ['scatter', 'replicate']
         if shard_strategy not in valid_shard_strategies:
@@ -421,6 +428,8 @@ class TarredTranslationDataset(IterableDataset):
             src_ids, tgt = tgt, src_ids
         labels = tgt[:, 1:]
         tgt_ids = tgt[:, :-1]
+        if self.prepend_id:
+            src_ids = np.insert(src_ids, 1, self.prepend_id, axis=-1)
         src_mask = (src_ids != self.src_pad_id).astype(np.int32)
         tgt_mask = (tgt_ids != self.tgt_pad_id).astype(np.int32)
         return src_ids, src_mask, tgt_ids, tgt_mask, labels
@@ -430,3 +439,44 @@ class TarredTranslationDataset(IterableDataset):
 
     def __len__(self):
         return self.metadata['num_batches']
+
+
+class MultilingualTranslationDataset(IterableDataset):
+    def __init__(self, datasets: List[Any], shuffle: bool = True):
+        super().__init__()
+
+        self.datasets = datasets
+        self.iterables = []
+        self.shuffle = shuffle
+        self.N = 0
+        
+        for dataset in datasets:
+            iterable = self.get_iterable(dataset)
+            self.iterables.append(iterable)
+            self.N += len(dataset)
+
+    def get_iterable(self, dataset):
+        if isinstance(dataset, IterableDataset):
+            return dataset.__iter__()
+        else:
+            if self.shuffle:
+                sampler = pt_data.RandomSampler(dataset)
+            else:
+                sampler = pt_data.SequentialSampler(dataset)
+            return sampler.__iter__()
+    
+    def __iter__(self):
+        n = 0
+        while n < self.N:
+            n += 1
+            ind = 0
+            try:
+                val = next(self.iterables[ind])
+                # print (self.datasets[ind][val][0])
+                yield self.datasets[ind][val]
+            except StopIteration:
+                self.iterables[ind] = self.get_iterable(self.datasets[ind])
+                n -= 1
+
+    def __len__(self):
+        return self.N

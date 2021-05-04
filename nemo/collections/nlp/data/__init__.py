@@ -27,6 +27,7 @@ from nemo.collections.nlp.data.language_modeling.lm_bert_dataset import (
 from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import (
     TarredTranslationDataset,
     TranslationDataset,
+    MultilingualTranslationDataset,
 )
 from nemo.collections.nlp.data.machine_translation.one_side_dataset import (
     TarredOneSideTranslationDataset,

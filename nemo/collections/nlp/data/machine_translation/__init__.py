@@ -15,6 +15,7 @@
 from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import (
     TarredTranslationDataset,
     TranslationDataset,
+    MultilingualTranslationDataset,
 )
 from nemo.collections.nlp.data.machine_translation.one_side_dataset import (
     TarredOneSideTranslationDataset,

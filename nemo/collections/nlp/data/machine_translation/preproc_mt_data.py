@@ -22,7 +22,7 @@ import tempfile
 
 import youtokentome as yttm
 from joblib import Parallel, delayed
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, ListConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import create_spt_model
@@ -98,11 +98,41 @@ class MTDataPreproc:
                         raise ValueError(
                             'src_file_name and tgt_file_name needed to train tokenizers but could not be found.'
                         )
+                    
+                    src_fname = cfg.train_ds.get('src_file_name')
+                    tgt_fname = cfg.train_ds.get('tgt_file_name')
+                    src_language = cfg.get('src_language')
+                    tgt_language = cfg.get('tgt_language')
+                    spt_symbols = None
+                    tempdir = tempfile.TemporaryDirectory()
+
+                    if cfg.get('multilingual'):
+                        spt_symbols = []
+                        if isinstance(src_fname, ListConfig):
+                            fnames = (" ").join(src_fname)
+                            src_fname = os.path.join(tempdir.name, 'src.txt')
+                            os.system('cat %s > %s' % (fnames, src_fname))
+                        
+                        if isinstance(tgt_fname, ListConfig):
+                            fnames = (" ").join(tgt_fname)
+                            tgt_fname = os.path.join(tempdir.name, 'tgt.txt')
+                            os.system('cat %s > %s' % (fnames, tgt_fname))
+
+                        if isinstance(src_language, ListConfig):
+                            for lng in src_language:
+                                spt_symbols.append("<"+lng+">")
+                        
+                        if isinstance(tgt_language, ListConfig):
+                            for lng in tgt_language:
+                                spt_symbols.append("<"+lng+">")
+                        
+                        print (spt_symbols)
+                    
                     # train tokenizer model on training data
                     self.encoder_tokenizer_model, self.decoder_tokenizer_model = MTDataPreproc.train_tokenizers(
                         out_dir=cfg.get('preproc_out_dir'),
-                        src_fname=cfg.train_ds.get('src_file_name'),
-                        tgt_fname=cfg.train_ds.get('tgt_file_name'),
+                        src_fname=src_fname,
+                        tgt_fname=tgt_fname,
                         shared_tokenizer=cfg.get('shared_tokenizer'),
                         encoder_tokenizer_vocab_size=cfg.encoder_tokenizer.get('vocab_size'),
                         decoder_tokenizer_vocab_size=cfg.decoder_tokenizer.get('vocab_size'),
@@ -119,10 +149,14 @@ class MTDataPreproc:
                         decoder_special_tokens=OmegaConf.to_container(cfg.decoder_tokenizer.special_tokens)
                         if cfg.decoder_tokenizer.special_tokens
                         else None,
+                        spt_symbols=spt_symbols,
+                        multilingual=cfg.get('multilingual', False),
                     )
                     # update config
                     self._cfg.encoder_tokenizer.tokenizer_model = self.encoder_tokenizer_model
                     self._cfg.decoder_tokenizer.tokenizer_model = self.decoder_tokenizer_model
+
+                    tempdir.cleanup()
                 else:
                     self.encoder_tokenizer_model = cfg.encoder_tokenizer.get('tokenizer_model')
                     self.decoder_tokenizer_model = cfg.decoder_tokenizer.get('tokenizer_model')
@@ -147,6 +181,8 @@ class MTDataPreproc:
                         raise ValueError(
                             'src_file_name and tgt_file_name needed to create tarred dataset but could not be found.'
                         )
+                    if cfg.get('multilingual'):
+                        raise ValueError('Tarred dataset cannot be created with multilingual tag set to True. Pre-process each dataset one-by-one.')
                     # Preprocess data and cache for use during training
                     if self.global_rank == 0:
                         logging.info(
@@ -641,6 +677,8 @@ class MTDataPreproc:
         decoder_training_sample_size=-1,
         encoder_special_tokens=None,
         decoder_special_tokens=None,
+        spt_symbols=None,
+        multilingual=False,
     ):
         encoder_tokenizer_model = None
         decoder_tokenizer_model = None
@@ -656,6 +694,11 @@ class MTDataPreproc:
         if decoder_special_tokens:
             if isinstance(decoder_special_tokens, dict):
                 decoder_special_tokens = list(decoder_special_tokens.values())
+
+        if multilingual and encoder_tokenizer_name != 'sentencepiece':
+            raise NotImplementedError(
+                f"Currently we only support training setencepiece tokenizer for multilingual model."
+            )
 
         if shared_tokenizer:
             if (
@@ -702,6 +745,7 @@ class MTDataPreproc:
                                 bos=True,
                                 eos=True,
                                 pad=True,
+                                control_symbols=spt_symbols,
                                 user_defined_symbols=encoder_special_tokens,
                             )
                             os.rename(
@@ -743,6 +787,7 @@ class MTDataPreproc:
                                 bos=True,
                                 eos=True,
                                 pad=True,
+                                control_symbols=spt_symbols,
                                 user_defined_symbols=encoder_special_tokens,
                             )
                             os.rename(os.path.join(dir_name, 'tokenizer.model'), os.path.join(encoder_tokenizer_model))
@@ -781,6 +826,7 @@ class MTDataPreproc:
                                 bos=True,
                                 eos=True,
                                 pad=True,
+                                control_symbols=spt_symbols,
                                 user_defined_symbols=decoder_special_tokens,
                             )
                             os.rename(os.path.join(dir_name, 'tokenizer.model'), os.path.join(decoder_tokenizer_model))
