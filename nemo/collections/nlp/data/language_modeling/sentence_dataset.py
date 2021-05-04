@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Pytorch Dataset for training Neural Machine Translation."""
+"""Pytorch Dataset with sentences packed into batches by length."""
 import io
 import json
 import logging
@@ -28,10 +28,10 @@ from torch.utils.data import IterableDataset
 from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_ids
 from nemo.core import Dataset
 
-__all__ = ['TranslationOneSideDataset', 'TarredOneSideTranslationDataset']
+__all__ = ['SentenceDataset', 'TarredSentenceDataset']
 
 
-class TranslationOneSideDataset(Dataset):
+class SentenceDataset(Dataset):
     def __init__(
         self,
         tokenizer: Any,
@@ -138,9 +138,9 @@ class TranslationOneSideDataset(Dataset):
         return ids_
 
 
-class TarredOneSideTranslationDataset(IterableDataset):
+class TarredSentenceDataset(IterableDataset):
     """
-    A similar Dataset to the TranslationDataset, but which loads tarred tokenized pickle files.
+    A similar Dataset to the SentenceDataset, but which loads tarred tokenized pickle files.
     Accepts a single JSON metadata file containing the total number of batches
     as well as the path(s) to the tarball(s) containing the wav files. 
     Valid formats for the text_tar_filepaths argument include:
@@ -191,7 +191,7 @@ class TarredOneSideTranslationDataset(IterableDataset):
         global_rank: int = 0,
         world_size: int = 0,
     ):
-        super(TarredOneSideTranslationDataset, self).__init__()
+        super(TarredSentenceDataset, self).__init__()
 
         self.tokenizer = tokenizer
         self.pad_id = tokenizer.pad_id
