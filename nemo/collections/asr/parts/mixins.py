@@ -16,7 +16,7 @@ import os
 from abc import ABC, abstractmethod
 from typing import List
 
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.common import tokenizers
 from nemo.utils import logging
@@ -47,6 +47,17 @@ class ASRBPEMixin(ABC):
         self.tokenizer_dir = self.tokenizer_cfg.pop('dir')  # Remove tokenizer directory
         self.tokenizer_type = self.tokenizer_cfg.pop('type').lower()  # Remove tokenizer_type
 
+        self.hf_tokenizer_kwargs = self.tokenizer_cfg.pop("hf_kwargs", {})  # Remove HF tokenizer kwargs
+
+        # Preserve config
+        if hasattr(self, 'cfg') and 'tokenizer' in self.cfg:
+            self.cfg.tokenizer.dir = self.tokenizer_dir
+            self.cfg.tokenizer.type = self.tokenizer_type
+
+            if 'hf_kwargs' in tokenizer_cfg:
+                with open_dict(self.cfg.tokenizer):
+                    self.cfg.tokenizer.hf_kwargs = tokenizer_cfg.get('hf_kwargs')
+
         if self.tokenizer_type not in ['bpe', 'wpe']:
             raise ValueError(
                 "`tokenizer.type` must be either `bpe` for SentencePiece tokenizer or "
@@ -55,7 +66,10 @@ class ASRBPEMixin(ABC):
 
         if self.tokenizer_type == 'bpe':
             # This is a BPE Tokenizer
-            model_path = os.path.join(self.tokenizer_dir, 'tokenizer.model')
+            if 'model_path' in self.tokenizer_cfg:
+                model_path = self.tokenizer_cfg.get('model_path')
+            else:
+                model_path = os.path.join(self.tokenizer_dir, 'tokenizer.model')
             model_path = self.register_artifact('tokenizer.model_path', model_path)
             self.model_path = model_path
 
@@ -69,13 +83,19 @@ class ASRBPEMixin(ABC):
                 model_path=model_path, special_tokens=special_tokens, legacy=True
             )
 
-            vocab_path = os.path.join(self.tokenizer_dir, 'vocab.txt')
+            if 'vocab_path' in self.tokenizer_cfg:
+                vocab_path = self.tokenizer_cfg.get('vocab_path')
+            else:
+                vocab_path = os.path.join(self.tokenizer_dir, 'vocab.txt')
             vocab_path = self.register_artifact('tokenizer.vocab_path', vocab_path)
             self.vocab_path = vocab_path
 
             try:
-                spe_vocab_path = os.path.join(self.tokenizer_dir, 'tokenizer.vocab')
-                spe_vocab_path = self.register_artifact('spe_tokenizer.vocab', spe_vocab_path)
+                if 'spe_tokenizer_vocab' in self.tokenizer_cfg:
+                    spe_vocab_path = self.tokenizer_cfg.get('spe_tokenizer_vocab')
+                else:
+                    spe_vocab_path = os.path.join(self.tokenizer_dir, 'tokenizer.vocab')
+                spe_vocab_path = self.register_artifact('tokenizer.spe_tokenizer_vocab', spe_vocab_path)
                 self.spe_vocab_path = spe_vocab_path
             except FileNotFoundError:
                 # fallback case for older checkpoints that did not preserve the tokenizer.vocab
@@ -98,12 +118,29 @@ class ASRBPEMixin(ABC):
 
         else:
             # This is a WPE Tokenizer
-            vocab_path = os.path.join(self.tokenizer_dir, 'vocab.txt')
-            self.tokenizer_dir = self.register_artifact('tokenizer.vocab_path', vocab_path)
-            self.vocab_path = self.tokenizer_dir
+            # If path from previous registration exists, remove it
+            if 'vocab_path' in self.tokenizer_cfg:
+                vocab_path = self.tokenizer_cfg.get('vocab_path')
+            else:
+                vocab_path = os.path.join(self.tokenizer_dir, 'vocab.txt')
+            vocab_path = self.register_artifact('tokenizer.vocab_path', vocab_path)
+            self.vocab_path = vocab_path
+
+            # If path from previous registration exists, remove it
+            if 'vocab_path' in self.tokenizer_cfg:
+                self.tokenizer_cfg.pop('vocab_path')
 
             self.tokenizer = tokenizers.AutoTokenizer(
-                pretrained_model_name='bert-base-cased', vocab_file=self.tokenizer_dir, **self.tokenizer_cfg
+                pretrained_model_name='bert-base-cased',
+                vocab_file=self.vocab_path,
+                mask_token=self.hf_tokenizer_kwargs.get('mask_token', None),
+                bos_token=self.hf_tokenizer_kwargs.get('bos_token', None),
+                eos_token=self.hf_tokenizer_kwargs.get('eos_token', None),
+                pad_token=self.hf_tokenizer_kwargs.get('pad_token', None),
+                sep_token=self.hf_tokenizer_kwargs.get('sep_token', None),
+                cls_token=self.hf_tokenizer_kwargs.get('cls_token', None),
+                unk_token=self.hf_tokenizer_kwargs.get('unk_token', None),
+                use_fast=self.hf_tokenizer_kwargs.get('use_fast', False),
             )
 
         logging.info(
@@ -111,12 +148,6 @@ class ASRBPEMixin(ABC):
                 self.tokenizer.__class__.__name__, self.tokenizer.vocab_size
             )
         )
-
-        # Preserve config
-        if hasattr(self, 'cfg') and hasattr(self.cfg, 'tokenizer'):
-            OmegaConf.set_struct(self.cfg.tokenizer, False)
-            self.cfg.tokenizer = tokenizer_cfg
-            OmegaConf.set_struct(self.cfg.tokenizer, True)
 
 
 class DiarizationMixin(ABC):
