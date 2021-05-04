@@ -88,7 +88,7 @@ Character Encoding Datasets
     :show-inheritance:
     :members:
 
-.. autoclass:: nemo.collections.asr.data.audio_to_text.AudioToCharWithDursDataset
+.. autoclass:: nemo.collections.asr.data.audio_to_text.AudioToCharWithDursF0Dataset
     :show-inheritance:
     :members:
 

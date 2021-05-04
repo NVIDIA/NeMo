@@ -371,8 +371,8 @@ class FilterbankFeatures(nn.Module):
                 x.unsqueeze(1), (self.stft_pad_amount, self.stft_pad_amount), "reflect"
             ).squeeze(1)
 
-        # dither
-        if self.dither > 0:
+        # dither (only in training mode for eval determinism)
+        if self.training and self.dither > 0:
             x += self.dither * torch.randn_like(x)
 
         # do preemphasis

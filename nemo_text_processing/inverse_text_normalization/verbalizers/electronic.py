@@ -13,8 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-from nemo_text_processing.text_normalization.graph_utils import NEMO_CHAR, NEMO_SIGMA, GraphFst, delete_space
+from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space
 
 try:
     import pynini
@@ -25,20 +24,29 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-class WhiteListFst(GraphFst):
+class ElectronicFst(GraphFst):
     """
-    Finite state transducer for verbalizing whitelist
-        e.g. tokens { name: "mrs." } -> mrs.
+    Finite state transducer for verbalizing electronic
+        e.g. tokens { electronic { username: "cdf1" domain: "abc.edu" } } -> cdf1@abc.edu
     """
 
     def __init__(self):
-        super().__init__(name="whitelist", kind="verbalize")
-        graph = (
-            pynutil.delete("name:")
+        super().__init__(name="electronic", kind="verbalize")
+        user_name = (
+            pynutil.delete("username:")
             + delete_space
             + pynutil.delete("\"")
-            + pynini.closure(NEMO_CHAR - " ", 1)
+            + pynini.closure(NEMO_NOT_QUOTE, 1)
             + pynutil.delete("\"")
         )
-        graph = graph @ pynini.cdrewrite(pynini.cross(u"\u00A0", " "), "", "", NEMO_SIGMA)
-        self.fst = graph.optimize()
+        domain = (
+            pynutil.delete("domain:")
+            + delete_space
+            + pynutil.delete("\"")
+            + pynini.closure(NEMO_NOT_QUOTE, 1)
+            + pynutil.delete("\"")
+        )
+
+        graph = user_name + delete_space + pynutil.insert("@") + domain
+        delete_tokens = self.delete_tokens(graph)
+        self.fst = delete_tokens.optimize()
