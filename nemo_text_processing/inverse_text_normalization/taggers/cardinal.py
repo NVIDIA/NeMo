@@ -14,15 +14,14 @@
 # limitations under the License.
 
 
-from nemo_text_processing.inverse_text_normalization.data_loader_utils import get_abs_path
-from nemo_text_processing.inverse_text_normalization.graph_utils import (
+from nemo_text_processing.inverse_text_normalization.utils import get_abs_path, num_to_word
+from nemo_text_processing.text_normalization.graph_utils import (
     NEMO_DIGIT,
     NEMO_SIGMA,
     NEMO_SPACE,
     GraphFst,
     delete_space,
 )
-from nemo_text_processing.inverse_text_normalization.utils import num_to_word
 
 try:
     import pynini
