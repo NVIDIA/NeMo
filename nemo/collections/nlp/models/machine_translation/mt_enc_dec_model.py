@@ -250,8 +250,6 @@ class MTEncDecModel(EncDecNLPModel):
             # Gather translations and ground truths from all workers
             tr_and_gt = [None for _ in range(self.world_size)]
             # we also need to drop pairs where ground truth is an empty string
-            logging.info(f'translations: {translations}')
-            logging.info(f'ground_truths: {ground_truths}')
             dist.all_gather_object(
                 tr_and_gt, [(t, g) for (t, g) in zip(translations, ground_truths) if g.strip() != '']
             )
