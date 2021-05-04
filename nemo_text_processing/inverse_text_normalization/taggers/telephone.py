@@ -1,4 +1,5 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.graph_utils import GraphFst
+from nemo_text_processing.inverse_text_normalization.data_loader_utils import get_abs_path
+from nemo_text_processing.inverse_text_normalization.graph_utils import GraphFst, delete_space, insert_space
+
+try:
+    import pynini
+    from pynini.lib import pynutil
+
+    PYNINI_AVAILABLE = True
+except (ModuleNotFoundError, ImportError):
+    PYNINI_AVAILABLE = False
 
 
 class TelephoneFst(GraphFst):
@@ -22,4 +32,35 @@ class TelephoneFst(GraphFst):
 
     def __init__(self):
         super().__init__(name="telephone", kind="classify")
+        delete_space = pynutil.delete(' ')
         # country code, number_part, extension
+        add_separator = pynutil.insert(" ")  # between components
+        digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv"))).optimize() | pynini.cross(
+            "0", "o"
+        )
+
+        number_part = (
+            (
+                (pynini.closure(digit + insert_space, 2, 2) + digit + pynutil.delete("-"))
+                | (
+                    pynutil.delete("(")
+                    + pynini.closure(digit + insert_space, 2, 2)
+                    + digit
+                    + pynutil.delete(")")
+                    + pynini.closure(pynutil.delete("-"), 0, 1)
+                    + delete_space
+                )
+            )
+            + add_separator
+            + pynini.closure(digit + insert_space, 2, 2)
+            + digit
+            + pynutil.delete("-")
+            + add_separator
+            + pynini.closure(digit + insert_space, 3, 3)
+            + digit
+        )
+        number_part = pynutil.insert("number_part: \"") + pynini.invert(number_part) + pynutil.insert("\"")
+
+        graph = number_part
+        final_graph = self.add_tokens(graph)
+        self.fst = final_graph.optimize()

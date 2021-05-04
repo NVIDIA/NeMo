@@ -48,7 +48,8 @@ scripts available for datasets:
 
 You can convert them from their original format to NeMo's format. To convert the original datasets to NeMo's format, use the ``examples/text_classification/data/import_datasets.py`` script:
 
-.. code::
+.. code:: python
+
     python import_datasets.py \
         --dataset_name DATASET_NAME \
         --target_data_dir TARGET_PATH \
@@ -152,9 +153,9 @@ sequences in the dataset.
 
 After each epoch, you should see a summary table of metrics on the validation set which include the following metrics:
 
-- :code:``Precision``
+- :code:`Precision`
 - :code:``Recall`
-- :code:``F1``
+- :code:`F1`
 
 At the end of training, NeMo saves the last checkpoint at the path specified in ``.nemo`` format.
 
