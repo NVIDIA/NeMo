@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.data_loader_utils import get_abs_path
-from nemo_text_processing.inverse_text_normalization.graph_utils import NEMO_CHAR, GraphFst
+from nemo_text_processing.inverse_text_normalization.utils import get_abs_path
+from nemo_text_processing.text_normalization.graph_utils import NEMO_CHAR, GraphFst
 
 try:
     import pynini
