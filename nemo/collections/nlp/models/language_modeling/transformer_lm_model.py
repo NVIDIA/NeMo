@@ -99,6 +99,7 @@ class TransformerLMModel(ModelPT):
         self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
 
         self.loss_fn = SmoothedCrossEntropyLoss(pad_id=self.tokenizer.pad_id, label_smoothing=cfg.label_smoothing)
+        self.eval_loss_fn = SmoothedCrossEntropyLoss(pad_id=self.tokenizer.pad_id)
         self.eval_loss = GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True)
         self.eval_ppl = SequencePerplexity()
 
@@ -138,7 +139,7 @@ class TransformerLMModel(ModelPT):
         }
         return {"loss": train_loss, "log": tensorboard_logs}
 
-    def eval_step(self, batch, batch_idx, mode):
+    def eval_step(self, batch, batch_idx):
         for i in range(len(batch)):
             if batch[i].ndim == 3:
                 # Dataset returns already batched data and the first dimension of size 1
@@ -148,28 +149,29 @@ class TransformerLMModel(ModelPT):
         input_ids, labels = ids[:, :-1], ids[:, 1:]
         input_mask, output_mask = mask[:, :-1], mask[:, 1:]
         log_probs = self(input_ids=input_ids, attention_mask=input_mask)
+        eval_loss = self.eval_loss_fn(log_probs=log_probs, labels=labels)
 
-        eval_loss = self.loss_fn(log_probs=log_probs, labels=labels)
         self.eval_loss(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
         self.eval_ppl(log_probs=log_probs, labels=labels, mask=output_mask)
         return {}
 
     def test_step(self, batch, batch_idx):
-        return self.eval_step(batch, batch_idx, 'test')
+        return self.eval_step(batch, batch_idx)
 
     def validation_step(self, batch, batch_idx):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        return self.eval_step(batch, batch_idx, 'val')
+        return self.eval_step(batch, batch_idx)
 
     def eval_epoch_end(self, outputs, mode):
         eval_loss = self.eval_loss.compute()
         eval_ppl = self.eval_ppl.compute()
         ans = {f"{mode}_loss": eval_loss, f"{mode}_ppl": eval_ppl}
         ans['log'] = dict(ans)
-        logging.info(f"\n\n\n\n Validation PPL: {np.round(eval_ppl.item(), 2)}")
+        dataset_name = "Validation" if mode == 'val' else "Test"
+        logging.info(f"\n\n\n\n{dataset_name} PPL: {np.round(eval_ppl.item(), 2)}")
         return ans
 
     def validation_epoch_end(self, outputs):
