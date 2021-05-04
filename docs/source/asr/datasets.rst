@@ -180,12 +180,12 @@ Each line of the manifest should be in the following format:
 
   {"audio_filepath": "/path/to/audio.wav", "text": "the transcription of the utterance", "duration": 23.147}
 
-The :code:``audio_filepath`` field should provide an absolute path to the ``.wav`` file corresponding to the utterance.
-The :code:``text`` field should contain the full transcript for the utterance, and the :code:``duration`` field should
+The :code:`audio_filepath` field should provide an absolute path to the ``.wav`` file corresponding to the utterance.
+The :code:`text` field should contain the full transcript for the utterance, and the :code:`duration` field should
 reflect the duration of the utterance in seconds.
 
 Each entry in the manifest (describing one audio file) should be bordered by '{' and '}' and must
-be contained on one line. The fields that describe the file should be separated by commas, and have the form :code:``"field_name": value``,
+be contained on one line. The fields that describe the file should be separated by commas, and have the form :code:`"field_name": value`,
 as shown above. There should be no extra lines in the manifest, i.e. there should be exactly as many lines in the manifest as
 there are audio files in the dataset.
 
