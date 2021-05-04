@@ -81,7 +81,7 @@ class TestMTEncDecModel:
         log_probs = torch.nn.functional.log_softmax(logits, dim=-1)
         train_loss = model.loss_fn(log_probs=log_probs, labels=tgt_ids)
         eval_loss = model.eval_loss_fn(log_probs=log_probs, labels=tgt_ids)
-        assert not torch.allclose(train_loss, eval_loss), (train_loss, eval_loss)
+        assert not torch.allclose(train_loss, eval_loss)  # , (train_loss, eval_loss)
 
         cfg.label_smoothing = 0
         model = MTEncDecModel(cfg=cfg)

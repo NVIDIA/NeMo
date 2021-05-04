@@ -150,11 +150,18 @@ pipeline {
       }
       failFast true
       parallel {
-        stage('L2: pynini export') {
+        stage('L2: TN') {
           steps {
-            sh 'cd tools/inverse_text_normalization_deployment && python pynini_export.py /home/TestData/nlp/text_denorm/output/ && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
-            sh 'cd tools/inverse_text_normalization_deployment && cp *.grm /home/TestData/nlp/text_denorm/output/'
-            sh 'ls -R /home/TestData/nlp/text_denorm/output/'
+            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_norm/output/ --grammars=tn_grammars && ls -R /home/TestData/nlp/text_norm/output/ && echo ".far files created "|| exit 1'
+            sh 'cd nemo_text_processing/text_normalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_norm/ci/test.txt --input_case="lower_cased" --output=/home/TestData/nlp/text_norm/output/test.pynini.txt --verbose'
+            sh 'cmp --silent /home/TestData/nlp/text_norm/output/test.pynini.txt /home/TestData/nlp/text_norm/ci/test_goal_py.txt || exit 1'
+            sh 'rm -rf /home/TestData/nlp/text_norm/output/*'
+          }
+        }
+
+        stage('L2: ITN export') {
+          steps {
+            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_denorm/output/ --grammars=itn_grammars && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
             sh 'cd nemo_text_processing/inverse_text_normalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_denorm/ci/test.txt --output=/home/TestData/nlp/text_denorm/output/test.pynini.txt --verbose'
             sh 'cmp --silent /home/TestData/nlp/text_denorm/output/test.pynini.txt /home/TestData/nlp/text_denorm/ci/test_goal_py.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_denorm/output/*'
@@ -594,8 +601,8 @@ pipeline {
     stage('L2: MegaBERT Token Classification') {
       when {
         anyOf {
-          branch 'v1.0.0b2'
-          changeRequest target: 'v1.0.0b2'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -1011,6 +1018,7 @@ pipeline {
               python enc_dec_nmt.py \
               --config-path=conf \
               --config-name=aayn_base \
+              do_testing=true \
               model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
               model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
@@ -1021,6 +1029,7 @@ pipeline {
               model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
               trainer.gpus=[0] \
               +trainer.fast_dev_run=true \
+              +trainer.limit_test_batches=2 \
               exp_manager=null \
               '
             }
@@ -1032,6 +1041,7 @@ pipeline {
               python enc_dec_nmt.py \
               --config-path=conf \
               --config-name=aayn_base \
+              do_testing=true \
               model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
               model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
@@ -1044,6 +1054,30 @@ pipeline {
               model.decoder.pre_ln=true \
               trainer.gpus=[1] \
               +trainer.fast_dev_run=true \
+              +trainer.limit_test_batches=2 \
+              exp_manager=null \
+              '
+            }
+        }
+
+        stage('L2: NMT Multi-Validation') {
+            steps {
+              sh 'cd examples/nlp/machine_translation && \
+              python enc_dec_nmt.py \
+              --config-path=conf \
+              --config-name=aayn_base \
+              do_testing=true \
+              model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src \
+              model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref \
+              model.validation_ds.src_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.src,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src] \
+              model.validation_ds.tgt_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.ref,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref] \
+              model.test_ds.src_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.src,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src] \
+              model.test_ds.tgt_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.ref,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref] \
+              model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              trainer.gpus=[0] \
+              +trainer.fast_dev_run=true \
+              +trainer.limit_test_batches=2 \
               exp_manager=null \
               '
             }
