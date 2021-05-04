@@ -241,8 +241,6 @@ class MTEncDecModel(EncDecNLPModel):
             else:
                 eval_loss = getattr(self, f'{mode}_loss_{dataloader_idx}').compute()
 
-            logging.info(f"eval_loss: {eval_loss}")
-
             translations = list(itertools.chain(*[x['translations'] for x in output]))
             ground_truths = list(itertools.chain(*[x['ground_truths'] for x in output]))
             assert len(translations) == len(ground_truths)
