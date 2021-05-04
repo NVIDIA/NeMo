@@ -283,7 +283,8 @@ class ModelPT(LightningModule, Model):
                         # Generate new uniq artifact name and copy it to nemo_file_folder
                         # Note uuid.uuid4().hex is guaranteed to be 32 character long
                         artifact_base_name = os.path.basename(artiitem.path)
-                        artifact_uniq_name = f"{uuid.uuid4().hex}_{artifact_base_name}"
+                        # no need to hash here as we are in tarfile_artifacts which are already hashed
+                        artifact_uniq_name = artifact_base_name
                         shutil.copy2(artifact_base_name, os.path.join(nemo_file_folder, artifact_uniq_name))
 
                         # Update artifacts registry
