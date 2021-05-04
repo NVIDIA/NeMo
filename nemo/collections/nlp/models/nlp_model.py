@@ -56,6 +56,10 @@ class NLPModel(ModelPT, Exportable):
         super().__init__(cfg, trainer)
         self.set_world_size(trainer)
 
+    def register_artifact(self, config_path: str, src: str, return_none: bool = True):
+        """ Overrides ModelPT register_artifact default behavior. NLP models usually need to return None."""
+        return super().register_artifact(config_path, src, return_none=return_none)
+
     @rank_zero_only
     def register_bert_model(self):
         """Adds encoder config to .nemo archive for Jarvis.
