@@ -157,7 +157,7 @@ class ModelPT(LightningModule, Model):
         # ModelPT wrappers over subclass implementations
         self.training_step = model_utils.wrap_training_step(self.training_step)
 
-    def register_artifact(self, config_path: str, src: str, return_none: bool = False):
+    def register_artifact(self, config_path: str, src: str, verify_src_exists: bool = True):
         """ Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
             when model.save_to("mymodel.nemo") is called.        
 
@@ -177,7 +177,8 @@ class ModelPT(LightningModule, Model):
             Args:
                 config_path (str): Artifact key. Usually corresponds to the model config.
                 src (str): Path to artifact.
-                return_none (bool): If src is not found, then register_artifact will return None if this is set to True. Defaults to False.
+                verify_src_exists (bool): If set to False, then the artifact is optional and register_artifact will return None even if 
+                                          src is not found. Defaults to True.
 
             Returns:
                 str: If src is not None or empty it always returns absolute path which is guaranteed to exists during model instnce life
@@ -230,12 +231,13 @@ class ModelPT(LightningModule, Model):
             return_path = src_obj_path
             artifact_item.path_type = model_utils.ArtifactPathType.TAR_PATH
         else:
-            if return_none:
-                return None
-            else:
+            if verify_src_exists:
                 raise FileNotFoundError(
                     f"src path does not exist or it is not a path in nemo file. src value I got was: {src}. Absolute: {os.path.abspath(src)}"
                 )
+            else:
+                # artifact is optional and we simply return None
+                return None
 
         assert os.path.exists(return_path)
 
