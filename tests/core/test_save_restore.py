@@ -38,9 +38,6 @@ class MockModel(ModelPT):
     def __init__(self, cfg, trainer=None):
         super(MockModel, self).__init__(cfg=cfg, trainer=trainer)
         self.w = torch.nn.Linear(10, 1)
-
-        print(f"ZZZZZZZZ: {self.cfg}")
-
         # mock temp file
         if 'temp_file' in self.cfg and self.cfg.temp_file is not None:
             self.temp_file = self.register_artifact('temp_file', self.cfg.temp_file)
@@ -202,19 +199,11 @@ class TestSaveRestore:
             model = model.to('cpu')
 
             assert model.temp_file == empty_file.name
-
-            # Save test
-            # model_config_copy = self.__test_restore_elsewhere(model, map_location='cpu', return_config=True)
-            # assert filecmp.cmp(model.temp_file, model_config_copy._cfg.temp_file)
             model_copy = self.__test_restore_elsewhere(model, map_location='cpu', return_config=False)
             # because of caching - cache gets prepended
             assert os.path.basename(model_copy.temp_file).endswith(os.path.basename(model.temp_file))
             # assert filecmp.cmp(model.temp_file, model_copy._cfg.temp_file)
             assert model.cfg.xyz == model_copy.cfg.xyz
-
-        # Restore test
-        # assert isinstance(model_config_copy, DictConfig)
-        # assert model.cfg.xyz == model_config_copy.xyz
 
     @pytest.mark.unit
     def test_mock_restore_from_config_override_with_OmegaConf(self):

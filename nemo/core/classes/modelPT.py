@@ -217,12 +217,6 @@ class ModelPT(LightningModule, Model):
         # this is the case when artifact must be retried from the nemo file
         # we are assuming that the location of the right nemo file is available from _MODEL_RESTORE_PATH
         elif src.startswith("nemo:"):
-            # tmpdir = _CACHE_ROOT + f"_TMPDIRS/{uuid.uuid4().hex}"
-            # os.makedirs(tmpdir)
-            # if not hasattr(self, 'to_delete'):
-            #     self.to_delete = set()
-            # self.to_delete.add(tmpdir)
-            # outfolder = self._unpack_nemo_file(path2file=app_state.model_restore_path, out_folder=tmpdir)
             return_path = os.path.abspath(os.path.join(_NEMO_FILE_FOLDER, src[5:]))
             artifact_item.path_type = model_utils.ArtifactPathType.TAR_PATH
 
