@@ -109,7 +109,6 @@ class QAModel(NLPModel):
             'start_logits': start_logits,
             'end_logits': end_logits,
         }
-        self.log(f'{prefix}_loss', loss)
         return {f'{prefix}_loss': loss, f'{prefix}_tensors': tensors}
 
     def test_step(self, batch, batch_idx):

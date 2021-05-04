@@ -1,4 +1,5 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,13 +38,12 @@ class MeasureFst(GraphFst):
         e.g. minus twelve kilograms -> measure { negative: "true" cardinal { integer: "12" } units: "kg" }
 
     Args:
-        cardinal: Cardinal GraphFST
-        decimal: Decimal GraphFST
+        cardinal: CardinalFst
+        decimal: DecimalFst
     """
 
     def __init__(self, cardinal: GraphFst, decimal: GraphFst):
         super().__init__(name="measure", kind="classify")
-        # decimal, fraction, cardinal, units, style(depr)
 
         cardinal_graph = cardinal.graph_no_exception
 
