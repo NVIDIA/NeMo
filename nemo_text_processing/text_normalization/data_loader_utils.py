@@ -187,16 +187,16 @@ def training_data_to_sentences(data: List[Instance]) -> Tuple[List[str], List[st
     return un_normalized, normalized, categories
 
 
-def load_labels(rel_path):
+def load_labels(abs_path):
     """
     loads relative path file as dictionary
 
     Args:
-        rel_path: relative path
+        abs_path: absolute path
 
     Returns dictionary of mappings
     """
-    label_tsv = open(get_abs_path(rel_path))
+    label_tsv = open(abs_path)
     labels = list(csv.reader(label_tsv, delimiter="\t"))
     return labels
 
