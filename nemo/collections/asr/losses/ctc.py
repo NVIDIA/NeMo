@@ -16,13 +16,45 @@
 import torch
 from torch import nn
 
-from nemo.core.classes import Serialization, Typing, typecheck
+from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
 
 __all__ = ['CTCLoss']
 
 
-class CTCLoss(nn.CTCLoss, Serialization, Typing):
+try:
+    import k2
+
+    K2_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    K2_AVAILABLE = False
+
+
+def _transpose_input(log_probs, targets, input_lengths, target_lengths):
+    
+
+def resolve_ctc_loss(loss_name, blank_idx, reduction, zero_infinity, loss_kwargs):
+    loss_kwargs = {} if loss_kwargs is None else loss_kwargs
+
+    if loss_name == 'default':
+        loss_func_base = nn.CTCLoss(blank=blank_idx, reduction=reduction, zero_infinity=zero_infinity)
+        # here we transpose because we expect [B, T, D] while PyTorch assumes [T, B, D]
+        def _transpose_input(log_probs, targets, input_lengths, target_lengths):
+            return loss_func_base(log_probs.transpose(1, 0), targets, input_lengths, target_lengths)
+        loss_func = _transpose_input
+    elif loss_name == 'k2_fsa':
+        if not K2_AVAILABLE:
+            raise ImportError("k2 is not available")
+
+        from nemo.collections.asr.parts.k2.ctc import CTCLoss
+        # we assume that blank_idx + 1 == num_classes
+        loss_func = CTCLoss(num_classes=blank_idx+1, blank=blank_idx, reduction=reduction, **loss_kwargs)
+    else:
+        raise ValueError(f"Invalid value of `loss_name`: {loss_name}.")
+    return loss_func
+
+
+class CTCLoss(Loss):
     @property
     def input_types(self):
         """Input types definitions for CTCLoss.
@@ -42,7 +74,9 @@ class CTCLoss(nn.CTCLoss, Serialization, Typing):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, num_classes, zero_infinity=False, reduction='mean_batch'):
+    def __init__(self, num_classes, zero_infinity=False, reduction='mean_batch', loss_name="default", loss_kwargs=None):
+        super(CTCLoss, self).__init__()
+
         self._blank = num_classes
         # Don't forget to properly call base constructor
         if reduction == 'mean_batch':
@@ -51,7 +85,13 @@ class CTCLoss(nn.CTCLoss, Serialization, Typing):
         elif reduction in ['sum', 'mean', 'none']:
             ctc_reduction = reduction
             self._apply_batch_mean = False
-        super().__init__(blank=self._blank, reduction=ctc_reduction, zero_infinity=zero_infinity)
+        self._loss = resolve_ctc_loss(
+            loss_name=loss_name,
+            blank_idx=self._blank,
+            reduction=ctc_reduction,
+            zero_infinity=zero_infinity,
+            loss_kwargs=loss_kwargs
+        )
 
     @typecheck()
     def forward(self, log_probs, targets, input_lengths, target_lengths):
@@ -60,9 +100,7 @@ class CTCLoss(nn.CTCLoss, Serialization, Typing):
         input_lengths = input_lengths.long()
         target_lengths = target_lengths.long()
         targets = targets.long()
-        # here we transpose because we expect [B, T, D] while PyTorch assumes [T, B, D]
-        log_probs = log_probs.transpose(1, 0)
-        loss = super().forward(
+        loss = self._loss(
             log_probs=log_probs, targets=targets, input_lengths=input_lengths, target_lengths=target_lengths
         )
         if self._apply_batch_mean:
