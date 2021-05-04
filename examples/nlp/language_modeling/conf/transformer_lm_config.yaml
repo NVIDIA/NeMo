@@ -1,85 +1,96 @@
-# Config file for training left-to-right Transformer language model
-name: &name TransformerLM
+name: TransformerLanguageModel
+do_training: True # set to False if only preprocessing data
+
+model:
+  label_smoothing: 0.0
+  preproc_out_dir: null # path to store data preprocessing outputs
+  
+  train_ds:
+    use_tarred_dataset: true
+    tar_files: ??? # path to tarred files
+    metadata_file: ??? # metadata for tarred dataset
+    shard_strategy: scatter
+    tokens_in_batch: 4096
+    tar_shuffle_n: 256
+    
+  validation_ds:
+    file_name: ??? # path to file with validation data
+    tokens_in_batch: 512
+    clean: false
+    shuffle: false
+    num_samples: -1
+    drop_last: false
+    pin_memory: false
+    num_workers: 8
+    
+  test_ds:
+    file_name: ??? # path to file with test data
+    tokens_in_batch: 512
+    clean: false
+    shuffle: false
+    num_samples: -1
+    drop_last: false
+    pin_memory: false
+    num_workers: 8
+    
+  optim:
+    name: adam
+    lr: 0.001
+    betas:
+      - 0.9
+      - 0.98
+    weight_decay: 0.0
+    sched:
+      name: InverseSquareRootAnnealing
+      min_lr: 0.0
+      last_epoch: -1
+      warmup_ratio: 0.1
+
+  tokenizer:
+    tokenizer_name: yttm
+    tokenizer_model: ???
+    vocab_file: null
+    special_tokens: null
+    training_sample_size: null # valid for sentencepiece tokenizer
+
+  encoder:
+    library: nemo
+    model_name: null
+    pretrained: false
+    max_sequence_length: 512
+    num_token_types: 0
+    embedding_dropout: 0.1
+    learn_positional_encodings: false
+    hidden_size: 512
+    num_layers: 6
+    inner_size: 2048
+    num_attention_heads: 8
+    ffn_dropout: 0.1
+    attn_score_dropout: 0.1
+    attn_layer_dropout: 0.1
+    hidden_act: relu
+    mask_future: true
+    pre_ln: false
+
+  head:
+    num_layers: 1
+    activation: relu
+    log_softmax: true
+    dropout: 0.0
+    use_transformer_init: true
 
 trainer:
-  gpus: 1 # the number of gpus, 0 for CPU
+  gpus: 4
   num_nodes: 1
-  max_epochs: 2
-  max_steps: 400 # precedence over max_epochs
-  accumulate_grad_batches: 1 # accumulates grads every k batches
+  max_epochs: 200
   amp_level: O2 # O1/O2 for mixed precision
   precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
   accelerator: ddp
-  checkpoint_callback: False  # Provided by exp_manager
-  logger: False  # Provided by exp_manager
-  log_every_n_steps: 1  # Interval of logging.
-  val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
-  resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
-
-model:
-
-  language_model:
-    tokenizer: word
-    special_tokens:
-        unk_token: '<UNK>'
-        pad_token: '<PAD>'
-        bos_token: '<BOS>'
-        eos_token: '<EOS>'
-    vocab_file: ???
-    hidden_size: 512
-    num_layers: 6
-    num_attn_heads: 8
-    inner_size: 2048
-    max_seq_length: 256
-    embedding_dropout: 0
-    ffn_dropout: 0
-    attn_score_dropout: 0
-    attn_layer_dropout: 0
-
-  dataset:
-    max_seq_length: 256
-    num_workers: 2 # number of workers for data loaders
-    drop_last: false # drops the last last batch if it is smaller than the batch size
-    pin_memory: false # enables pin_memory feature of the data loaders
-    predict_last_k: 64 # number of last tokens to predict on evaluation
-
-  train_ds:
-    file_name: ??? # path to file with training data
-    batch_size: 32
-    shuffle: true
-    num_samples: -1 # number of samples to be considered, -1 means all the dataset
-
-  validation_ds:
-    file_name: ??? # path to file with validation data
-    batch_size: 32
-    shuffle: false
-    num_samples: -1 # number of samples to be considered, -1 means all the dataset
-
-  optim:
-    name: adam
-    lr: 1e-4
-    betas: [0.9, 0.999]
-    weight_decay: 0
-
-    sched:
-      name: WarmupAnnealing
-      warmup_steps: null
-      warmup_ratio: 0.05
-      last_epoch: -1
-
-      # pytorch lightning args
-      monitor: val_loss
-      reduce_on_plateau: false
+  checkpoint_callback: False
+  logger: False
+  log_every_n_steps: 50  # Interval of logging.
+  check_val_every_n_epoch: 1
 
 exp_manager:
-  exp_dir: null  # where to store logs and checkpoints
-  name: *name  # name of experiment
-  create_tensorboard_logger: True
-  create_checkpoint_callback: True
-
-hydra:
-  run:
-    dir: .
-  job_logging:
-    root:
-      handlers: null
+  name: TransformerLM
+  files_to_copy: []
