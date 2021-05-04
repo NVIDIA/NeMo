@@ -22,9 +22,7 @@ import numpy as np
 import torch
 from build_index import load_model
 from omegaconf import DictConfig, OmegaConf
-from tqdm import tqdm
 
-from nemo.collections.nlp.models import EntityLinkingModel
 from nemo.utils import logging
 
 try:

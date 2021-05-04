@@ -1016,6 +1016,7 @@ pipeline {
            steps {
              sh 'cd examples/nlp/entity_linking && \
              python self_alignment_pretraining.py \
+             project_dir=. \
              trainer.val_check_interval=3 \
              model.raw_data=None \
              model.train_ds.data_file=/home/TestData/nlp/entity_linking/tiny_example_train_pairs.tsv \
