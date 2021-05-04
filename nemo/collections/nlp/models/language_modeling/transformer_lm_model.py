@@ -23,9 +23,10 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
-from nemo.collections.common.metrics import GlobalAverageLossMetric, Perplexity
+from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.nlp.data import TarredOneSideTranslationDataset, TranslationOneSideDataset
+from nemo.collections.nlp.metrics import SequencePerplexity
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_transformer
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
@@ -99,7 +100,7 @@ class TransformerLMModel(ModelPT):
 
         self.loss_fn = SmoothedCrossEntropyLoss(pad_id=self.tokenizer.pad_id, label_smoothing=cfg.label_smoothing)
         self.eval_loss = GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True)
-        self.eval_ppl = Perplexity()
+        self.eval_ppl = SequencePerplexity()
 
     @typecheck()
     def forward(self, input_ids, attention_mask):

@@ -26,9 +26,7 @@ class Perplexity(Metric):
     ``probs`` or ``logits`` to the :meth:`update` method. The class computes perplexities for distributions passed to 
     :meth:`update` method in ``probs`` or ``logits`` arguments and averages the perplexities. Reducing results between
     all workers is done via SUM operations.
-
     See :doc:`PyTorch Lightning Metrics<pytorch-lightning:metrics>` for the metric usage instructions.
-
     Args:
         compute_on_step:
             Forward only calls ``update()`` and returns ``None`` if this is set to ``False``. default: ``True``
@@ -52,10 +50,15 @@ class Perplexity(Metric):
         # Total number of distributions seen since last reset
         self.add_state('num_distributions', torch.tensor(0, dtype=torch.int64), dist_reduce_fx='sum')
 
-    def update(self, log_probs, labels, mask):
-        target_log_probs = log_probs.gather(2, labels.unsqueeze(2)).squeeze(2)
-        avg_neg_ll = -(target_log_probs * mask).sum(dim=-1) / mask.sum(dim=-1)
-        ppl = avg_neg_ll.exp()
+    def update(self, probs=None, logits=None):
+        """
+        Updates :attr:`perplexities_sum` and :attr:`num_distributions`.
+        Args:
+            probs: A ``torch.Tensor`` which innermost dimension is valid probability distribution.
+            logits: A ``torch.Tensor`` without NaNs.
+        """
+        d = Categorical(probs, logits, validate_args=self.validate_args)
+        ppl = d.perplexity()
         self.num_distributions += ppl.numel()
         self.perplexities_sum += ppl.sum()
 
