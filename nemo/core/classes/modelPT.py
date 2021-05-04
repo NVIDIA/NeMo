@@ -244,9 +244,9 @@ class ModelPT(LightningModule, Model):
         artifact_item.path = os.path.abspath(src)
         self.artifacts[config_path] = artifact_item
         # we were called by ModelPT
-        if hasattr(self, "_cfg"):
+        if hasattr(self, "cfg"):
             with open_dict(self._cfg):
-                self._cfg.update_node(config_path, return_path)
+                self.cfg.update_node(config_path, return_path)
         return return_path
 
     def _handle_artifacts(self, nemo_file_folder):
