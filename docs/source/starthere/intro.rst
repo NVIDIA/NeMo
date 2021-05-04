@@ -34,7 +34,7 @@ Before you begin using NeMo, it's assumed you meet the following prerequisites.
 
 #. You have Python version 3.6, 3.7 or 3.8.
 
-#. You have Pytorch version 1.7.1.
+#. You have Pytorch version 1.8.1 or above
 
 #. You have access to a Volta, Turing, or an NVIDIA Ampere architecture-based A100 GPU for training.
 
@@ -142,13 +142,13 @@ The container includes all the dependencies and NeMo 1.0.0b3 already installed.
     stack=67108864 --device=/dev/snd nvcr.io/nvidia/nemo:1.0.0rc1
 
 
-If you chose to work with the ``main`` branch, we recommend using `NVIDIA's PyTorch container version 20.11-py3 <https://ngc.nvidia.com/containers/nvidia:pytorch/tags>`_, then install from GitHub.
+If you chose to work with the ``main`` branch, we recommend using `NVIDIA's PyTorch container version 21.04-py3 <https://ngc.nvidia.com/containers/nvidia:pytorch/tags>`_, then install from GitHub.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:20.11-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:21.04-py3
 
 
 FAQ
