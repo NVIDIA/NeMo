@@ -23,17 +23,28 @@ from omegaconf import OmegaConf
 from nemo.collections.nlp.models import EntityLinkingModel
 
 
-def get_cfg(save_dir):
-    wget.download(
-        "https://raw.githubusercontent.com/vadam5/NeMo/main/examples/"
-        "nlp/entity_linking/conf/umls_medical_entity_linking_config.yaml",
-        save_dir,
+def get_cfg():
+
+    language_model = OmegaConf.create(
+        {"pretrained_model_name": "bert-base-uncased", "config_file": None, "config": None, "lm_checkpoint": None}
     )
-    cfg_file = os.path.join(save_dir, "umls_medical_entity_linking_config.yaml")
-    cfg = OmegaConf.load(cfg_file)
-    cfg.model.train_ds = None
-    cfg.model.validation_ds = None
-    cfg.model.test_ds = None
+
+    tokenizer = OmegaConf.create(
+        {"tokenizer_name": "bert-base-uncased", "vocab_file": None, "tokenizer_model": None, "do_lower_case": True}
+    )
+
+    model = OmegaConf.create(
+        {
+            "nemo_path": "sap_entity_linking.nemo",
+            "max_seq_length": 128,
+            "language_model": language_model,
+            "tokenizer": tokenizer,
+            "train_ds": None,
+            "validation_ds": None,
+        }
+    )
+
+    cfg = OmegaConf.create({"model": model})
 
     return cfg
 
@@ -44,7 +55,7 @@ class TestEntityLinkingModel:
         # Create a new temporary directory
         with tempfile.TemporaryDirectory() as restore_dir:
             with tempfile.TemporaryDirectory() as save_dir:
-                model = EntityLinkingModel(cfg=get_cfg(save_dir).model)
+                model = EntityLinkingModel(cfg=get_cfg().model)
                 assert isinstance(model, EntityLinkingModel)
 
                 save_dir_path = save_dir
