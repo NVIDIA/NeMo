@@ -75,12 +75,12 @@ class IntentSlotClassificationModel(NLPModel):
         # Initialize Bert model
         self.bert_model = get_lm_model(
             pretrained_model_name=self.cfg.language_model.pretrained_model_name,
-            config_file=self.cfg.language_model.config_file,
+            config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
             config_dict=OmegaConf.to_container(self.cfg.language_model.config)
             if self.cfg.language_model.config
             else None,
             checkpoint_file=self.cfg.language_model.lm_checkpoint,
-            vocab_file=cfg.tokenizer.vocab_file,
+            vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file),
         )
 
         # Initialize Classifier.

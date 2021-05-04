@@ -17,6 +17,7 @@ import tempfile
 
 import pytest
 import torch
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models import MTEncDecModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import AAYNBaseConfig
@@ -66,6 +67,24 @@ class TestMTEncDecModel:
             # attempt to restore
             model_copy = model.__class__.restore_from(restore_path=model_restore_path)
             assert model.num_weights == model_copy.num_weights
+
+    @pytest.mark.unit
+    def test_no_artifact_name_collision(self):
+        model = MTEncDecModel(cfg=get_cfg())
+        assert isinstance(model, MTEncDecModel)
+        with tempfile.TemporaryDirectory() as tmpdir1:
+            model.save_to("nmt_model.nemo")
+            with tempfile.TemporaryDirectory() as tmpdir:
+                model._unpack_nemo_file(path2file="nmt_model.nemo", out_folder=tmpdir)
+                conf = OmegaConf.load(os.path.join(tmpdir, "model_config.yaml"))
+                # Make sure names now differ in saved config
+                assert conf.encoder_tokenizer.tokenizer_model != conf.decoder_tokenizer.tokenizer_model
+                # Make sure names in config start with "nemo:" prefix
+                assert conf.encoder_tokenizer.tokenizer_model.startswith("nemo:")
+                assert conf.decoder_tokenizer.tokenizer_model.startswith("nemo:")
+                # Check if both tokenizers were included
+                assert os.path.exists(os.path.join(tmpdir, conf.encoder_tokenizer.tokenizer_model[5:]))
+                assert os.path.exists(os.path.join(tmpdir, conf.decoder_tokenizer.tokenizer_model[5:]))
 
     @pytest.mark.unit
     def test_train_eval_loss(self):
