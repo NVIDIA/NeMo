@@ -26,8 +26,8 @@ from omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import create_spt_model
+from nemo.collections.nlp.data.language_modeling.sentence_dataset import SentenceDataset
 from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataset
-from nemo.collections.nlp.data.machine_translation.one_side_dataset import TranslationOneSideDataset
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer, get_tokenizer
 from nemo.utils import logging
@@ -888,12 +888,12 @@ class MTDataPreproc:
     ):
         """
         Writes current fragment of the overall parallel corpus to tarfiles by:
-        (1) Creating a minibatches using a TranslationOneSideDataset object.
+        (1) Creating a minibatches using a SentenceDataset object.
         (2) Writing each minibatch to a pickle file.
         (3) Adding pickle files to a tarfile until it reaches num_batches_per_tarfile.
         """
 
-        dataset = TranslationOneSideDataset(
+        dataset = SentenceDataset(
             tokenizer=tokenizer,
             dataset=fname,
             tokens_in_batch=num_tokens,
