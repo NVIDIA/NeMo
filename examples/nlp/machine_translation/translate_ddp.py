@@ -20,7 +20,7 @@ import torch
 import torch.multiprocessing as mp
 from torch.utils.data import DataLoader
 
-from nemo.collections.nlp.data.language_modeling import TarredSequenceDataset
+from nemo.collections.nlp.data.language_modeling import TarredSentenceDataset
 from nemo.collections.nlp.data.machine_translation import TarredTranslationDataset
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.utils import logging
@@ -75,7 +75,7 @@ def translate(rank, world_size, args):
             reverse_lang_direction=args.reverse_lang_direction,
         )
     else:
-        dataset = TarredSequenceDataset(
+        dataset = TarredSentenceDataset(
             text_tar_filepaths=args.text2translate,
             metadata_path=args.metadata_path,
             tokenizer=model.encoder_tokenizer,
