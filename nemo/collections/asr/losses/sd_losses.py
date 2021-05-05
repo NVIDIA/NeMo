@@ -42,8 +42,6 @@ class CTCLoss(CTCLossBase, Serialization, Typing):
         return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(self, num_classes, reduction='mean_batch', graph_type='topo', **loss_kwargs):
-        super(CTCLoss, self).__init__()
-
         self._blank = num_classes
         if reduction == 'mean_batch':
             ctc_reduction = 'none'
@@ -52,8 +50,8 @@ class CTCLoss(CTCLossBase, Serialization, Typing):
             ctc_reduction = reduction
             self._apply_batch_mean = False
 
-        # we assume that blank_idx + 1 == num_classes
-        super().__init__(num_classes=blank_idx+1, blank=blank_idx, reduction=reduction, graph_type=graph_type, **loss_kwargs)
+        # we assume that self._blank + 1 == num_classes
+        super().__init__(num_classes=self._blank+1, blank=self._blank, reduction=reduction, graph_type=graph_type, **loss_kwargs)
 
     @typecheck()
     def forward(self, log_probs, targets, input_lengths, target_lengths):

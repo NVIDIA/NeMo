@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+from typing import List, Optional
 
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
@@ -20,6 +20,7 @@ from pytorch_lightning import Trainer
 from nemo.collections.asr.losses.sd_losses import CTCLoss as FSACTCLoss
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from nemo.core.classes.common import PretrainedModelInfo
 
 
 class EncDecCTCSDModel(EncDecCTCModel):

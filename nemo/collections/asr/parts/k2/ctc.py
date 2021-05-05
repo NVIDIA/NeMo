@@ -45,9 +45,9 @@ class CTCLoss(torch.nn.Module):
             blank: int,
             reduction: str = 'mean_batch',
             graph_type: str = 'topo',
-            L_inv: Optional[k2.Fsa],
-            phones: Optional[k2.SymbolTable],
-            words: Optional[k2.SymbolTable],
+            L_inv: Optional[k2.Fsa] = None,
+            phones: Optional[k2.SymbolTable] = None,
+            words: Optional[k2.SymbolTable] = None,
             oov: str = '<UNK>'
     ):
         super().__init__()
@@ -66,7 +66,7 @@ class CTCLoss(torch.nn.Module):
         supervisions = [[i, 0, input_lengths[i]] for i in range(len(input_lengths))]
         supervisions = torch.IntTensor(supervisions)
         # the duration column has to be sorted in decreasing order
-        supervisions = supervisions[supervisions[:, -1].sort()[1][::-1]]
+        supervisions = torch.flip(supervisions[supervisions[:, -1].sort()[1]], [0])
         return supervisions
 
     def forward(
@@ -77,7 +77,7 @@ class CTCLoss(torch.nn.Module):
             target_lengths: torch.Tensor
     ) -> torch.Tensor:
         supervision_segments = self.create_supervision(input_lengths)
-        num_graphs = self.graph_compiler.compile(targets).to(nnet_output.device)
+        num_graphs = self.graph_compiler.compile(targets).to(log_probs.device)
         dense_fsa_vec = k2.DenseFsaVec(log_probs, supervision_segments)
 
         num_lats = k2.intersect_dense(num_graphs, dense_fsa_vec, 10.0)
@@ -92,4 +92,4 @@ class CTCLoss(torch.nn.Module):
             supervision_segments[:, 2],
             self.reduction
         )
-        return tot_scores
+        return -tot_scores

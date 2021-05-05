@@ -26,6 +26,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import re
 from typing import List, Tuple
 
@@ -121,9 +122,9 @@ def get_tot_objf_and_num_frames(
     finite_indexes = torch.nonzero(mask).squeeze(1)
     ok_frames = frames_per_seq[finite_indexes].sum()
     all_frames = frames_per_seq.sum()
-    if reduction = 'mean':
+    if reduction == 'mean':
         tot_scores = tot_scores[finite_indexes].mean()
-    elif reduction = 'sum':
+    elif reduction == 'sum':
         tot_scores = tot_scores[finite_indexes].sum()
     else:
         tot_scores = tot_scores[finite_indexes]
