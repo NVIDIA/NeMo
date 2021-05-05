@@ -42,6 +42,14 @@ Quick Start:
    For an interactive version of the quick start above, refer to the TTS inference notebook that can be found on the
    github readme.
 
+The full documentation tree is as follows:
+
+.. toctree::
+   :maxdepth: 8
+
+   datasets
+   api
+
 Available Models
 ################
 
