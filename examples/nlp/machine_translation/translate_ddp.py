@@ -20,7 +20,7 @@ import torch
 import torch.multiprocessing as mp
 from torch.utils.data import DataLoader
 
-from nemo.collections.nlp.data.language_modeling import TarredSequenceDataset
+from nemo.collections.nlp.data.language_modeling import TarredSentenceDataset
 from nemo.collections.nlp.data.machine_translation import TarredTranslationDataset
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.utils import logging
