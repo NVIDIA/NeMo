@@ -116,8 +116,8 @@ Use this installation mode if you want the version from a particular GitHub bran
     apt-get update && apt-get install -y libsndfile1 ffmpeg
     pip install Cython
     python -m pip install git+https://github.com/NVIDIA/NeMo.git@{BRANCH}#egg=nemo_toolkit[all]
-    # For r1.0.0rc1, replace {BRANCH} with r1.0.0rc1 like so:
-    # python -m pip install git+https://github.com/NVIDIA/NeMo.git@r1.0.0rc1#egg=nemo_toolkit[all]
+    # For v1.0.0, replace {BRANCH} with v1.0.0 like so:
+    # python -m pip install git+https://github.com/NVIDIA/NeMo.git@v1.0.0#egg=nemo_toolkit[all]
 
 From source
 ~~~~~~~~~~~
