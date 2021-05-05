@@ -75,7 +75,7 @@ def translate(rank, world_size, args):
             reverse_lang_direction=args.reverse_lang_direction,
         )
     else:
-        dataset = TarredSequenceDataset(
+        dataset = TarredSentenceDataset(
             text_tar_filepaths=args.text2translate,
             metadata_path=args.metadata_path,
             tokenizer=model.encoder_tokenizer,
