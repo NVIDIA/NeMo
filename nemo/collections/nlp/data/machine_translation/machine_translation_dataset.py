@@ -17,6 +17,7 @@
 import io
 import json
 import pickle
+import random
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any, Optional, List
@@ -143,7 +144,7 @@ class TranslationDataset(Dataset):
         labels = tgt[:, 1:]
         tgt_ids = tgt[:, :-1]
         if self.prepend_id:
-            src_ids = np.insert(src_ids, 1, self.prepend_id, axis=-1)
+            src_ids = np.insert(src_ids, 0, self.prepend_id, axis=-1)
         src_mask = (src_ids != self.src_pad_id).astype(np.int32)
         tgt_mask = (tgt_ids != self.tgt_pad_id).astype(np.int32)
         return src_ids, src_mask, tgt_ids, tgt_mask, labels
@@ -429,7 +430,7 @@ class TarredTranslationDataset(IterableDataset):
         labels = tgt[:, 1:]
         tgt_ids = tgt[:, :-1]
         if self.prepend_id:
-            src_ids = np.insert(src_ids, 1, self.prepend_id, axis=-1)
+            src_ids = np.insert(src_ids, 0, self.prepend_id, axis=-1)
         src_mask = (src_ids != self.src_pad_id).astype(np.int32)
         tgt_mask = (tgt_ids != self.tgt_pad_id).astype(np.int32)
         return src_ids, src_mask, tgt_ids, tgt_mask, labels
@@ -449,6 +450,11 @@ class MultilingualTranslationDataset(IterableDataset):
         self.iterables = []
         self.shuffle = shuffle
         self.N = 0
+
+        if isinstance(datasets[0], IterableDataset):
+            self.kind = "iterable"
+        else:
+            self.kind = "map"
         
         for dataset in datasets:
             iterable = self.get_iterable(dataset)
@@ -469,14 +475,16 @@ class MultilingualTranslationDataset(IterableDataset):
         n = 0
         while n < self.N:
             n += 1
-            ind = 0
+            ind = random.choice([0,1])
             try:
                 val = next(self.iterables[ind])
-                # print (self.datasets[ind][val][0])
-                yield self.datasets[ind][val]
+                if self.kind == "map":
+                    val = self.datasets[ind][val]
+                yield val
             except StopIteration:
                 self.iterables[ind] = self.get_iterable(self.datasets[ind])
-                n -= 1
+                if n < self.N:
+                    n -= 1
 
     def __len__(self):
         return self.N

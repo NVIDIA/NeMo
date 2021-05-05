@@ -125,8 +125,6 @@ class MTDataPreproc:
                         if isinstance(tgt_language, ListConfig):
                             for lng in tgt_language:
                                 spt_symbols.append("<"+lng+">")
-                        
-                        print (spt_symbols)
                     
                     # train tokenizer model on training data
                     self.encoder_tokenizer_model, self.decoder_tokenizer_model = MTDataPreproc.train_tokenizers(
@@ -222,11 +220,17 @@ class MTDataPreproc:
                 elif cfg.train_ds.get('tar_files') is not None and cfg.train_ds.get('metadata_file') is None:
                     raise ValueError('A metadata file is required for tarred dataset but cfg.metadata_file is None.')
                 elif cfg.train_ds.get('tar_files') is None and cfg.train_ds.get('metadata_file') is not None:
-                    metadata = json.load(cfg.train_ds.get('metadata_file'))
-                    if metadata['train_tar_files']:
-                        logging.info(f"Using tarred dataset: {metadata['train_tar_files']}")
+                    if isinstance(cfg.train_ds.get('metadata_file'), str):
+                        metadata_file_list = [cfg.train_ds.get('metadata_file')]
                     else:
-                        raise ValueError(f'tar_files not provided and metadata does not have tar files')
+                        metadata_file_list = cfg.train_ds.get('metadata_file')
+                    
+                    for metadata_file in metadata_file_list:
+                        metadata = json.load(open(metadata_file))
+                        if metadata['tar_files']:
+                            logging.info(f"Using tarred dataset: {metadata['tar_files']}")
+                        else:
+                            raise ValueError(f'tar_files not provided and metadata does not have tar files')
                 else:
                     self.train_tar_files = cfg.train_ds.get('tar_files')
                     self.train_metadata_file = cfg.train_ds.get('metadata_file')
