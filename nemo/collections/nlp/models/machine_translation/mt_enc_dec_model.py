@@ -203,12 +203,12 @@ class MTEncDecModel(EncDecNLPModel):
                 # is excess.
                 batch[i] = batch[i].squeeze(dim=0)
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
-        np_tgt = labels.detach().cpu().numpy()
-        np_tgt = self.decoder_tokenizer.ids_to_text(np_tgt[0])
-        np_src = src_ids.detach().cpu().numpy()
-        np_src = self.encoder_tokenizer.ids_to_text(np_src[0])
-        print (tgt_ids[0])
-        print (tgt_mask[0])
+        # np_tgt = labels.detach().cpu().numpy()
+        # np_tgt = self.decoder_tokenizer.ids_to_text(np_tgt[0])
+        # np_src = src_ids.detach().cpu().numpy()
+        # np_src = self.encoder_tokenizer.ids_to_text(np_src[0])
+        # print (tgt_ids[0])
+        # print (tgt_mask[0])
         log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
         train_loss = self.loss_fn(log_probs=log_probs, labels=labels)
         tensorboard_logs = {
