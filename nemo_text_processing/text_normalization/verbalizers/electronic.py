@@ -14,7 +14,13 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
-from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space, insert_space
+from nemo_text_processing.text_normalization.graph_utils import (
+    NEMO_ALPHA,
+    NEMO_NOT_QUOTE,
+    GraphFst,
+    delete_space,
+    insert_space,
+)
 
 try:
     import pynini
@@ -34,6 +40,7 @@ class ElectronicFst(GraphFst):
     def __init__(self):
         super().__init__(name="electronic", kind="verbalize")
         graph_digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv"))).optimize()
+        graph_symbols = pynini.string_file(get_abs_path("data/electronic/symbols.tsv")).optimize()
         user_name = (
             pynutil.delete("username:")
             + delete_space
@@ -41,7 +48,7 @@ class ElectronicFst(GraphFst):
             + (
                 pynini.closure(
                     pynutil.add_weight(graph_digit + insert_space, 1.09)
-                    | pynutil.add_weight(pynini.closure(pynini.cross(".", "dot ")), 1.09)
+                    | pynutil.add_weight(pynini.closure(graph_symbols + pynutil.insert(" ")), 1.09)
                     | pynutil.add_weight(NEMO_NOT_QUOTE + insert_space, 1.1)
                 )
             )
@@ -55,7 +62,11 @@ class ElectronicFst(GraphFst):
             + pynini.closure(insert_space + NEMO_NOT_QUOTE)
         )
 
-        server_default = pynini.closure(NEMO_NOT_QUOTE + insert_space)
+        server_default = (
+            pynini.closure((graph_digit | NEMO_ALPHA) + insert_space, 1)
+            + pynini.closure(graph_symbols + insert_space)
+            + pynini.closure((graph_digit | NEMO_ALPHA) + insert_space, 1)
+        )
         server_common = pynini.string_file(get_abs_path("data/electronic/server_name.tsv")) + insert_space
 
         domain_common = pynini.cross(".", "dot ") + pynini.string_file(get_abs_path("data/electronic/domain.tsv"))
