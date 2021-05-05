@@ -574,7 +574,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, DistillationMixin):
 
             if self._decoder_distillation_match:
                 for param in self.decoder.parameters():
-                    self.register_distillation_tensor(tensor=param, similarity_match=True)
+                    self.register_distillation_tensor(tensor=param, loss_name="cosine")
 
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len

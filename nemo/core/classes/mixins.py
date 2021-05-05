@@ -14,7 +14,7 @@
 
 from abc import ABC
 from enum import Enum
-from typing import Optional
+from typing import Optional, Union
 
 import torch
 from omegaconf import DictConfig
@@ -32,8 +32,9 @@ class DistillationMixin(ABC):
         super().__init__()
         self._DISTILLATION_TYPE: Optional[DistillationType] = None
         self.distillation_cfg = DictConfig({})
-        self._distillation_registry_primary = {}
-        self._distillation_registry_similarity = []
+        self._distillation_registry = {}
+        self._distillation_loss_dict = {}
+        # self._distillation_registry_similarity = []
 
     def setup_distillation_loss(self) -> Optional['torch.nn._Loss']:
         """
@@ -41,16 +42,19 @@ class DistillationMixin(ABC):
         the model itself can provide a default loss which will be used in its place.
 
         Returns:
-            An optional Loss object that will be used as the distillation loss function.
-            By default, this is the KLDivergence loss.
+            A dictionary of Loss object(s) that will be used as the distillation loss function.
+            The dictionary must have at least 1 key - "primary" which is the primary loss function used
+            for distillation.
+            By default, this function returns KLDivergence loss (primary) and CosineSimilarityLoss (cosine).
             If None is returned, the distillation config must have an appropriate loss function defined.
         """
         primary = torch.nn.KLDivLoss(log_target=True, reduction='batchmean')
-        secondary = CosineSimilarityLoss()
-        return (primary, secondary)
+        cosine = CosineSimilarityLoss()
+        loss_dict = {'primary': primary, 'cosine': cosine}
+        return loss_dict
 
     def register_distillation_tensor(
-        self, loss_key: str = None, tensor: torch.Tensor = None, similarity_match: bool = False
+        self, loss_key: str = None, tensor: torch.Tensor = None, loss_name: str = "primary",
     ):
         if not self.is_being_distilled():
             raise RuntimeError("Model is not being distilled, yet tensors are being registered for distillation")
@@ -58,13 +62,32 @@ class DistillationMixin(ABC):
         if tensor is None:
             raise ValueError("Distillation `tensor` cannot be None !")
 
-        if loss_key is not None and loss_key in self._distillation_registry_primary:
-            raise ValueError(f"Distillation key '{loss_key}' already exists in distillation registry!")
+        if loss_name not in self._distillation_loss_dict:
+            raise KeyError(f"Available distillation loss keys are : {list(self._distillation_loss_dict)}, "
+                           f"which did not match the provided key : {loss_name}")
 
-        if not similarity_match:
-            self._distillation_registry_primary[loss_key] = tensor
+        if loss_name not in self._distillation_registry:
+            # If this is a similarity match loss, create a list of tensors to register (unnamed args)
+            # Positional arg losses can only take binary arguments and are designated by passing None to loss_key
+            # For positional arg losses, create a list.
+            if loss_key is None:
+                self._distillation_registry[loss_name] = []
+            else:
+                # If loss_key is provided, consider it a kwargs based loss and instantiate a dict instead.
+                self._distillation_registry[loss_name] = {}
+
+        if loss_key is not None and loss_key in self._distillation_registry[loss_name]:
+            raise ValueError(
+                f"Distillation key '{loss_key}' already exists in distillation registry for "
+                f"loss named : {loss_name}!"
+            )
+
+        if loss_key is None:
+            # This is a positional binary loss
+            self._distillation_registry[loss_name].append(tensor)
         else:
-            self._distillation_registry_similarity.append(tensor)
+            # This is a kwarg based name
+            self._distillation_registry[loss_name][loss_key] = tensor
 
     def distillation_registration_step(self, log_prob: torch.Tensor):
         """
@@ -85,8 +108,8 @@ class DistillationMixin(ABC):
         self.register_distillation_tensor(loss_key=loss_key, tensor=log_prob)
 
     def reset_distillation_registry(self):
-        self._distillation_registry_primary.clear()
-        self._distillation_registry_similarity.clear()
+        self._distillation_registry.clear()
+        # self._distillation_registry_similarity.clear()
 
     def is_being_distilled(self) -> bool:
         return self._DISTILLATION_TYPE is not None
@@ -124,5 +147,7 @@ class DistillationMixin(ABC):
     def prehook_primary_distillation_loss(self, loss_dict: dict):
         pass
 
-    def prehook_similarity_matching_loss(self, student_tensors: list, teacher_tensors: list):
+    def prehook_additional_distillation_losses(
+        self, loss_name: str, student_registry: Union[list, dict], teacher_registry: Union[list, dict]
+    ):
         pass
