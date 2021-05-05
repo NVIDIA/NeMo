@@ -273,7 +273,7 @@ class DistillationModelPT(ModelPT):
                         primary_loss_value += similarity_loss_val
 
                         self.log(
-                            f'distillation_{additional_loss_name}_loss_{similarity_loss_log_idx}', similarity_loss_val
+                            f'{additional_loss_name}_subid_{similarity_loss_log_idx}', similarity_loss_val
                         )
                         similarity_loss_log_idx += 1
 
@@ -282,7 +282,7 @@ class DistillationModelPT(ModelPT):
                     additional_loss_val = additional_loss_val[0]  # only 1 item for dictionary based losses
                     primary_loss_value += additional_loss_val
 
-                    self.log(f'distillation_{additional_loss_name}_loss', additional_loss_val)
+                    self.log(f'{additional_loss_name}', additional_loss_val)
 
         # Clearup resources
         if additional_losses is not None:
