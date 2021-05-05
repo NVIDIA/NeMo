@@ -203,6 +203,12 @@ class MTEncDecModel(EncDecNLPModel):
                 # is excess.
                 batch[i] = batch[i].squeeze(dim=0)
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
+        np_tgt = labels.detach().cpu().numpy()
+        np_tgt = self.decoder_tokenizer.ids_to_text(np_tgt[0])
+        np_src = src_ids.detach().cpu().numpy()
+        np_src = self.encoder_tokenizer.ids_to_text(np_src[0])
+        print (tgt_ids[0])
+        print (tgt_mask[0])
         log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
         train_loss = self.loss_fn(log_probs=log_probs, labels=labels)
         tensorboard_logs = {
@@ -225,13 +231,17 @@ class MTEncDecModel(EncDecNLPModel):
         # this will run encoder twice -- TODO: potentially fix
         _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
         # print (tgt_ids)
-        # print (translations)
+        # print (translations[0])
+        # np_src = src_ids.detach().cpu().numpy()
+        # np_src = self.encoder_tokenizer.ids_to_text(np_src[0])
+        # print (np_src)
         getattr(self, f'eval_loss_{dataloader_idx}')(
             loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1]
         )
         np_tgt = tgt_ids.detach().cpu().numpy()
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
         ground_truths = [self.target_processor.detokenize(tgt.split(' ')) for tgt in ground_truths]
+        # print (ground_truths[0])
         num_non_pad_tokens = np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
         return {
             'translations': translations,
