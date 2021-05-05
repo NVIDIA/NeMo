@@ -16,13 +16,12 @@
 import torch
 from torch import nn
 
+from nemo.collections.asr.parts.k2.ctc import CTCLoss as CTCLossBase
 from nemo.core.classes import Serialization, Typing, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
 
-__all__ = ['CTCLoss']
 
-
-class CTCLoss(nn.CTCLoss, Serialization, Typing):
+class CTCLoss(CTCLossBase, Serialization, Typing):
     @property
     def input_types(self):
         """Input types definitions for CTCLoss.
@@ -42,16 +41,19 @@ class CTCLoss(nn.CTCLoss, Serialization, Typing):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, num_classes, zero_infinity=False, reduction='mean_batch'):
+    def __init__(self, num_classes, reduction='mean_batch', graph_type='topo', **loss_kwargs):
+        super(CTCLoss, self).__init__()
+
         self._blank = num_classes
-        # Don't forget to properly call base constructor
         if reduction == 'mean_batch':
             ctc_reduction = 'none'
             self._apply_batch_mean = True
         elif reduction in ['sum', 'mean', 'none']:
             ctc_reduction = reduction
             self._apply_batch_mean = False
-        super().__init__(blank=self._blank, reduction=ctc_reduction, zero_infinity=zero_infinity)
+
+        # we assume that blank_idx + 1 == num_classes
+        super().__init__(num_classes=blank_idx+1, blank=blank_idx, reduction=reduction, graph_type=graph_type, **loss_kwargs)
 
     @typecheck()
     def forward(self, log_probs, targets, input_lengths, target_lengths):
@@ -60,8 +62,6 @@ class CTCLoss(nn.CTCLoss, Serialization, Typing):
         input_lengths = input_lengths.long()
         target_lengths = target_lengths.long()
         targets = targets.long()
-        # here we transpose because we expect [B, T, D] while PyTorch assumes [T, B, D]
-        log_probs = log_probs.transpose(1, 0)
         loss = super().forward(
             log_probs=log_probs, targets=targets, input_lengths=input_lengths, target_lengths=target_lengths
         )
