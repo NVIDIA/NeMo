@@ -14,7 +14,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.graph_utils import NEMO_SIGMA, GraphFst
+from nemo_text_processing.text_normalization.graph_utils import NEMO_ALPHA, NEMO_DIGIT, NEMO_SIGMA, GraphFst
 
 try:
     import pynini
@@ -34,7 +34,12 @@ class ElectronicFst(GraphFst):
     def __init__(self):
         super().__init__(name="electronic", kind="classify")
 
-        username = pynutil.insert("username: \"") + NEMO_SIGMA + pynutil.insert("\"") + pynini.cross('@', ' ')
+        username = (
+            pynutil.insert("username: \"")
+            + pynini.closure(NEMO_ALPHA | NEMO_DIGIT | pynini.accep('.'))
+            + pynutil.insert("\"")
+            + pynini.cross('@', ' ')
+        )
         domain_graph = pynutil.insert("domain: \"") + NEMO_SIGMA + pynutil.insert("\"")
         graph = username + domain_graph
 
