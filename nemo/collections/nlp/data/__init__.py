@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from nemo.collections.nlp.data.data_utils import *
+from nemo.collections.nlp.data.entity_linking.entity_linking_dataset import EntityLinkingDataset
 from nemo.collections.nlp.data.information_retrieval.information_retrieval_dataset import (
     BertInformationRetrievalDataset,
 )
