@@ -14,7 +14,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.graph_utils import NEMO_ALPHA, NEMO_DIGIT, NEMO_NOT_SPACE, GraphFst
+from nemo_text_processing.text_normalization.graph_utils import NEMO_ALPHA, NEMO_DIGIT, GraphFst, get_abs_path
 
 try:
     import pynini
@@ -34,10 +34,16 @@ class ElectronicFst(GraphFst):
     def __init__(self):
         super().__init__(name="electronic", kind="classify")
 
+        accepted_symbols = []
+        with open(get_abs_path("data/electronic/symbols.tsv"), 'r') as f:
+            for line in f:
+                symbol, _ = line.split('\t')
+                accepted_symbols.append(pynini.accep(symbol))
+
         username = (
             pynutil.insert("username: \"")
             + NEMO_ALPHA
-            + pynini.closure(NEMO_ALPHA | NEMO_DIGIT | NEMO_NOT_SPACE)
+            + pynini.closure(NEMO_ALPHA | NEMO_DIGIT | pynini.union(*accepted_symbols))
             + pynutil.insert("\"")
             + pynini.cross('@', ' ')
         )
