@@ -1,8 +1,19 @@
 Speech Synthesis (TTS)
 ======================
+
+.. toctree::
+   :maxdepth: 4
+   :hidden:
+
+   datasets
+   api
+
 Speech Synthesis or Text-to-Speech (TTS) involves turning text into human speech. The NeMo TTS collection currently
-supports a two stage pipeline. First, a model is used to generate a mel spectrogram from text. Second, a model is used
+supports two pipelines for TTS:
+
+1) The two stage pipeline. First, a model is used to generate a mel spectrogram from text. Second, a model is used
 to generate audio from a mel spectrogram.
+2) The "end-to-end" approach that uses one model to generate audio straight from speech.
 
 Quick Start:
 
@@ -31,18 +42,12 @@ Quick Start:
    For an interactive version of the quick start above, refer to the TTS inference notebook that can be found on the
    github readme.
 
-The full documentation tree is as follows:
-
-.. toctree::
-   :maxdepth: 8
-
-   datasets
-   api
-
 Available Models
 ################
 
-NeMo supports a variety of models that can be used for TTS.
+NeMo supports a variety of models that can be used for TTS. For beginners, we recommend starting with the Tacotron2 +
+WaveGlow combination. Then we suggest trying using (TalkNet or FastPitch) + HiFiGAN if you want to continue exploring
+the two stage pipeline, or the FastPitch_HifiGan_E2E model for the end-to-end pipeline.
 
 .. list-table:: *TTS Models*
    :widths: 5 5 10 25
@@ -63,7 +68,15 @@ NeMo supports a variety of models that can be used for TTS.
    * - FastSpeech 2
      - :class:`SpectrogramGenerator<nemo.collections.tts.models.base.SpectrogramGenerator>`
      - (Coming soon)
-     - Non-autoregressive spectrogram generator that predicts duration, energy, and pitch
+     - Non-autoregressive transformer-based spectrogram generator that predicts duration, energy, and pitch
+   * - FastPitch
+     - :class:`SpectrogramGenerator<nemo.collections.tts.models.base.SpectrogramGenerator>`
+     - (Coming soon)
+     - Non-autoregressive transformer-based spectrogram generator that predicts duration, and pitch
+   * - TalkNet
+     - :class:`SpectrogramGenerator<nemo.collections.tts.models.base.SpectrogramGenerator>`
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_en_talknet
+     - Non-autoregressive convolution-based spectrogram generator
    * - WaveGlow
      - :class:`Vocoder<nemo.collections.tts.models.base.Vocoder>`
      - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_waveglow_88m
@@ -84,18 +97,29 @@ NeMo supports a variety of models that can be used for TTS.
      - :class:`Vocoder<nemo.collections.tts.models.base.Vocoder>`
      - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_hifigan
      - GAN-based vocoder
+   * - FastPitch_HifiGan_E2E
+     - :class:`TextToWaveform<nemo.collections.tts.models.base.TextToWaveform>`
+     - (Coming soon)
+     - End-to-end model based on composing FastPitch and HiFiGAN
+   * - FastSpeech2_HifiGan_E2E
+     - :class:`TextToWaveform<nemo.collections.tts.models.base.TextToWaveform>`
+     - (Coming soon)
+     - End-to-end model based on composing FastSpeech2 and HiFiGAN
 
 Base Classes
 ############
 
-The NeMo TTS has two base classes corresponding to the two stage pipeline:
+Two Stage Pipeline
+******************
+
+NeMo TTS has two base classes corresponding to the two stage pipeline:
 
   - :class:`SpectrogramGenerator<nemo.collections.tts.models.base.SpectrogramGenerator>`
   - :class:`Vocoder<nemo.collections.tts.models.base.Vocoder>`
 
 The :class:`SpectrogramGenerator<nemo.collections.tts.models.base.SpectrogramGenerator>` class has two important
 functions: :py:meth:`parse<nemo.collections.tts.models.base.SpectrogramGenerator.parse>` which
-accepts raw python strings and returns a torch.tensor that represents tokenized text ready to pass to
+accepts raw python strings and returns a torch.tensor that represents tokenized text ready to pass to, and
 :py:meth:`generate_spectrogram<nemo.collections.tts.models.base.SpectrogramGenerator.generate_spectrogram>` which
 accepts a batch of tokenized text and returns a torch.tensor that represents a batch of spectrograms
 
@@ -103,13 +127,18 @@ The :class:`Vocoder<nemo.collections.tts.models.base.Vocoder>` class has one imp
 :py:meth:`convert_spectrogram_to_audio<nemo.collections.tts.models.base.Vocoder.convert_spectrogram_to_audio>` which
 accepts a batch of spectrograms and returns a torch.tensor that represents a batch of raw audio.
 
-.. autoclass:: nemo.collections.tts.models.base.SpectrogramGenerator
-    :show-inheritance:
-    :members:
+End-to-End Pipeline
+*******************
 
-.. autoclass:: nemo.collections.tts.models.base.Vocoder
-    :show-inheritance:
-    :members:
+Correspondingly, NeMo TTS has one base class for the end-to-end pipeline:
+
+  - :class:`TextToWaveform<nemo.collections.tts.models.base.TextToWaveform>`
+
+Similiary to the SpectrogramGenerator, :class:`TextToWaveform<nemo.collections.tts.models.base.TextToWaveform>`
+implements two functions: :py:meth:`parse<nemo.collections.tts.models.base.TextToWaveform.parse>` which
+accepts raw python strings and returns a torch.tensor that represents tokenized text ready to pass to, and
+:py:meth:`generate_spectrogram<nemo.collections.tts.models.base.TextToWaveform.convert_text_to_waveform>` which
+accepts a batch of tokenized text and returns a torch.tensor that represents a batch of audio,
 
 TTS Training
 ############
