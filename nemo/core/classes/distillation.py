@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import torch
 from typing import Dict, List, Union
 
 from omegaconf import DictConfig, open_dict
@@ -159,19 +160,42 @@ class DistillationModelPT(ModelPT):
 
             self.transfer_loss_primary = self.from_config_dict(loss_config.primary)
 
-            if 'similarity' in loss_config:
-                self.transfer_loss_similarity = self.from_config_dict(loss_config.similarity)
-            else:
-                self.transfer_loss_similarity = None
-        else:
-            if type(loss_obj) in (list, tuple):
-                primary_loss_obj, similarity_loss_obj = loss_obj
-            else:
-                primary_loss_obj = loss_obj
-                similarity_loss_obj = None
+            self.loss_dict = {'primary': self.transfer_loss_primary}
 
-            self.transfer_loss_primary = primary_loss_obj
-            self.transfer_loss_similarity = similarity_loss_obj
+            for loss_key in loss_config.keys():
+                if loss_key != 'primary':
+                    self.loss_dict[loss_key] = self.from_config_dict(loss_config[loss_key])
+
+        else:
+            if type(loss_obj) == dict:
+                # Assume implementation correctly returns a dictionary of losses
+                if 'primary' not in loss_obj:
+                    raise ValueError(
+                        "setup_distillation_loss() must return a dictionary with at least one key - `primary` "
+                        "to denote the primary knowledge distillation loss."
+                    )
+
+            elif isinstance(loss_obj, torch.nn.Module):
+                # Consider the single loss returned as the primary loss and pack into dict
+                loss_obj = {'primary': loss_obj}
+
+            else:
+                raise ValueError(
+                    "setup_distillation_loss() should return a dictionary with at least one loss which "
+                    "has the key - `primary`, and any number of additional losses."
+                )
+
+            self.transfer_loss_primary = loss_obj['primary']
+            self.loss_dict = {'primary': self.transfer_loss_primary}
+
+            for loss_key in loss_obj.keys():
+                if loss_key != 'primary':
+                    self.loss_dict[loss_key] = loss_obj[loss_key]
+
+        # Attach the loss dict to teacher and student
+        self.teacher._distillation_loss_dict = self.loss_dict
+        self.student._distillation_loss_dict = self.loss_dict
+        logging.info(f"Distillation losses registered : {list(self.loss_dict.keys())}")
 
     def forward_delegate(self, fn):
         fn_name = fn.__name__
@@ -231,19 +255,38 @@ class DistillationModelPT(ModelPT):
         student_outputs = self.student.training_step(batch=batch, batch_nb=batch_nb)
 
         # Compute primary loss (required) and similarity losses (optional)
-        loss_value, similarity_losses = self._compute_loss()
-
-        self.log('distillation_train_loss', loss_value)
+        primary_loss_value, additional_losses = self._compute_loss()
+        self.log('distillation_train_loss', primary_loss_value)
 
         # Add similarity matching losses to primary loss with weighted term
-        if similarity_losses is not None:
+        if additional_losses is not None and len(additional_losses) > 0:
+            # For all additional losses
+            similarity_loss_log_idx = 1
             similarity_loss_weight = self.distillation_cfg.get('similarity_loss_weight', 1.0)
 
-            for ix, similarity_loss in enumerate(similarity_losses):
-                similarity_loss = similarity_loss_weight * similarity_loss
-                loss_value += similarity_loss
+            for ix, (additional_loss_name, additional_loss_val) in enumerate(additional_losses.items()):
 
-                self.log(f'similarity_loss_{ix + 1}', similarity_loss)
+                # if additional loss is a similarity loss (a positional loss)
+                if len(additional_loss_val) > 1:
+                    for jx, similarity_loss_val in enumerate(additional_loss_val):
+                        similarity_loss_val = similarity_loss_weight * similarity_loss_val
+                        primary_loss_value += similarity_loss_val
+
+                        self.log(
+                            f'distillation_{additional_loss_name}_loss_{similarity_loss_log_idx}', similarity_loss_val
+                        )
+                        similarity_loss_log_idx += 1
+
+                else:
+                    # if additional loss is a kwarg type loss
+                    additional_loss_val = additional_loss_val[0]  # only 1 item for dictionary based losses
+                    primary_loss_value += additional_loss_val
+
+                    self.log(f'distillation_{additional_loss_name}_loss', additional_loss_val)
+
+        # Clearup resources
+        if additional_losses is not None:
+            del additional_losses
 
         # Reset references to tensors which were registered
         self.teacher.reset_distillation_registry()
@@ -263,14 +306,20 @@ class DistillationModelPT(ModelPT):
             student_train_loss_weight = self.distillation_cfg.student_train_loss_weight
 
             distillation_loss_weight = self.distillation_cfg.get('distillation_loss_weight', 1.0)
-            loss_value = distillation_loss_weight * loss_value + student_train_loss_weight * student_train_loss
+            primary_loss_value = (
+                distillation_loss_weight * primary_loss_value + student_train_loss_weight * student_train_loss
+            )
 
-        return {'loss': loss_value}
+        return {'loss': primary_loss_value}
 
     def _compute_loss(self):
         # Update the registry from both student and teacher models
-        primary_loss_dict = self.teacher._distillation_registry_primary  # type: dict
-        primary_loss_dict.update(self.student._distillation_registry_primary)  # type: dict
+        teacher_registry = self.teacher._distillation_registry
+        student_registry = self.student._distillation_registry
+
+        # Extract the primary loss dictionary
+        primary_loss_dict = teacher_registry.pop('primary')  # type: dict
+        primary_loss_dict.update(student_registry.pop('primary'))  # type: dict
 
         # Check that tensors were registered for distillation loss calculation
         if len(primary_loss_dict) == 0:
@@ -285,39 +334,77 @@ class DistillationModelPT(ModelPT):
         # Compute primary distillation loss
         loss_value = self.transfer_loss_primary(**primary_loss_dict)
 
-        # Compute similarity loss if it was instantiated
-        if self.transfer_loss_similarity is not None:
-            # Extract list of tensors from teacher and student whose similarity must be matched 1:1
-            teacher_similarity_tensor_list = self.teacher._distillation_registry_similarity
-            student_similarity_tensor_list = self.student._distillation_registry_similarity
+        # Clear memory of primary loss
+        del primary_loss_dict
 
-            if len(teacher_similarity_tensor_list) != len(student_similarity_tensor_list):
-                raise ValueError(
-                    f"Tensors were registered for similarity loss, but "
-                    f"number of registered teacher tensors ({len(teacher_similarity_tensor_list)}) "
-                    f"does not match the number of registered student tensors ("
-                    f"{len(student_similarity_tensor_list)})!"
+        # For all subsequent loss tensors that may have been registered
+        additional_losses = {}
+
+        for loss_name in teacher_registry.keys():
+            if loss_name not in student_registry:
+                raise KeyError(f"Student distillation registry did not contain loss named {loss_name}")
+
+            # Assign new key name for this additional loss
+            additional_loss_key = f"distillation_additional_loss_{loss_name}_id_{len(additional_losses)}"
+
+            # Additional loss can hold 1 or more loss results
+            additional_losses[additional_loss_key] = []
+
+            # Extract the loss object from both student and teacher
+            # It is not yet known if its a positional loss (nameless) or a kwarg loss
+            teacher_loss_obj = teacher_registry.get(loss_name)
+            student_loss_obj = student_registry.get(loss_name)
+
+            if type(teacher_loss_obj) == list:
+                # This is a binary positional loss
+
+                # Extract list of tensors from teacher and student whose similarity must be matched 1:1
+                teacher_tensor_list = teacher_loss_obj
+                student_tensor_list = student_loss_obj
+
+                if len(teacher_tensor_list) != len(student_tensor_list):
+                    raise ValueError(
+                        f"Tensors were registered for similarity loss ({loss_name}), but "
+                        f"number of registered teacher tensors ({len(teacher_tensor_list)}) "
+                        f"does not match the number of registered student tensors ("
+                        f"{len(student_tensor_list)})!"
+                    )
+
+                # Call prehook_similarity_matching_loss() of student
+                self.student.prehook_additional_distillation_losses(
+                    loss_name=loss_name, student_registry=student_tensor_list, teacher_registry=teacher_tensor_list,
                 )
 
-            # Call prehook_similarity_matching_loss() of student
-            self.student.prehook_similarity_matching_loss(
-                student_tensors=student_similarity_tensor_list, teacher_tensors=teacher_similarity_tensor_list
-            )
+                # Disable typechecking and compute losses via direct function call
+                binary_positional_loss_fn = self.loss_dict[loss_name]
 
-            # Disable typechecking and compute losses via direct function call
-            similarity_losses = []
+                # Disable type checking for positional loss function call
+                with typecheck.disable_checks():
+                    for student_tensor, teacher_tensor in zip(student_tensor_list, teacher_tensor_list):
+                        additional_loss = binary_positional_loss_fn(student_tensor, teacher_tensor)
+                        additional_losses[additional_loss_key].append(additional_loss)
 
-            with typecheck.disable_checks():
-                for student_tensor, teacher_tensor in zip(
-                    student_similarity_tensor_list, teacher_similarity_tensor_list
-                ):
-                    similarity_loss = self.transfer_loss_similarity(student_tensor, teacher_tensor)
-                    similarity_losses.append(similarity_loss)
+            else:
+                # This is a kwarg loss
 
-        else:
-            similarity_losses = None
+                # Extract dict of tensors from teacher and student
+                teacher_tensor_dict = teacher_loss_obj
+                student_tensor_dict = student_loss_obj
 
-        return loss_value, similarity_losses
+                # Call prehook_similarity_matching_loss() of student
+                self.student.prehook_additional_distillation_losses(
+                    loss_name=loss_name, student_registry=student_tensor_dict, teacher_registry=teacher_tensor_dict,
+                )
+
+                additional_loss_dict = teacher_tensor_dict
+                additional_loss_dict.update(student_tensor_dict)
+
+                # Compute additional distillation loss
+                additional_loss = self.transfer_loss_primary(**additional_loss_dict)
+
+                additional_losses[additional_loss_key].append(additional_loss)
+
+        return loss_value, additional_losses
 
     def save_to(self, save_path: str):
         """ Delegate save_to to student model """
