@@ -197,9 +197,9 @@ class MTEncDecModel(EncDecNLPModel):
         # this will run encoder twice -- TODO: potentially fix
         _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
         if dataloader_idx == 0:
-            getattr(self, f'val_loss')(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
+            getattr(self, f'{mode}_loss')(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
         else:
-            getattr(self, f'val_loss_{dataloader_idx}')(
+            getattr(self, f'{mode}_loss_{dataloader_idx}')(
                 loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1]
             )
         np_tgt = tgt_ids.detach().cpu().numpy()
@@ -308,7 +308,7 @@ class MTEncDecModel(EncDecNLPModel):
         self.eval_epoch_end(outputs, 'val')
 
     def test_epoch_end(self, outputs):
-        return self.eval_epoch_end(outputs, 'test')
+        self.eval_epoch_end(outputs, 'test')
 
     def setup_enc_dec_tokenizers(
         self,
@@ -333,7 +333,7 @@ class MTEncDecModel(EncDecNLPModel):
 
         self.encoder_tokenizer = get_nmt_tokenizer(
             library=encoder_tokenizer_library,
-            tokenizer_model=self.register_artifact("cfg.encoder_tokenizer.tokenizer_model", encoder_tokenizer_model),
+            tokenizer_model=self.register_artifact("encoder_tokenizer.tokenizer_model", encoder_tokenizer_model),
             bpe_dropout=encoder_bpe_dropout,
             model_name=encoder_model_name,
             vocab_file=None,
@@ -343,7 +343,7 @@ class MTEncDecModel(EncDecNLPModel):
         )
         self.decoder_tokenizer = get_nmt_tokenizer(
             library=decoder_tokenizer_library,
-            tokenizer_model=self.register_artifact("cfg.decoder_tokenizer.tokenizer_model", decoder_tokenizer_model),
+            tokenizer_model=self.register_artifact("decoder_tokenizer.tokenizer_model", decoder_tokenizer_model),
             bpe_dropout=decoder_bpe_dropout,
             model_name=decoder_model_name,
             vocab_file=None,
