@@ -4,10 +4,11 @@ num_workers: 4
 sample_rate: &sample_rate 16000
 
 diarizer:
-  num_speakers: 2 # max number of speakers for each recording
+  oracle_num_speakers: ??? # if number of speakers is known input it or pass null if not known. Accepts int or path to file containing uniq-id and num of speakers of that session
+  max_num_speakers: 8 # max number of speakers for each recording. If oracle num speakers is passed this value is ignored
   out_dir: ???
-  paths2audio_files: null #file containing paths to audio files for inference
-  path2groundtruth_rttm_files: null #file containing paths to ground truth rttm files for score computation
+  paths2audio_files: ??? #file containing paths to audio files for inference
+  path2groundtruth_rttm_files: null #file containing paths to ground truth rttm files for score computation or null if no reference rttms are present
 
   vad:
     model_path: null #.nemo local model path or pretrained model name or none
@@ -21,6 +22,6 @@ diarizer:
 
   speaker_embeddings:
     oracle_vad_manifest: null
-    model_path: ??? #.nemo local model path or pretrained model name
-    window_length_in_sec: 1.5
-    shift_length_in_sec: 0.75
+    model_path: ??? #.nemo local model path or pretrained model name (speakerverification_speakernet or speakerdiarization_speakernet)
+    window_length_in_sec: 3.0 # for performace try with 3 sec and 1.5 sec
+    shift_length_in_sec: 1.5 # for performace try with 1.5 sec and 0.75 sec

@@ -28,9 +28,10 @@ An example Speaker Diarization dataset configuration could look like:
 .. code-block:: yaml
 
   diarizer:
-    num_speakers: 2 # for each recording
+    oracle_num_speakers: ??? # if number of speakers is known input it or pass null if not known. Accepts int or path to file containing uniq-id and num of speakers of that session
+    max_num_speakers: 8 # max number of speakers for each recording. If oracle num speakers is passed this value is ignored
     out_dir: ??? 
-    paths2audio_files: null # either list of audio file paths or file containing paths to audio files for which we need to perform diarization.
+    paths2audio_files: ??? # either list of audio file paths or file containing paths to audio files for which we need to perform diarization.
     path2groundtruth_rttm_files: null # (Optional) either list of rttm file paths or file containing paths to rttm files (this can be passed if we need to calculate DER rate based on our ground truth rttm files).
     ...
     
@@ -58,7 +59,7 @@ Diarizer Architecture Configurations
     speaker_embeddings:
       oracle_vad_manifest: null # leave it null if to perform diarization with above VAD model else path to manifest file genrerated as shown in Datasets section
       model_path: ??? #.nemo local model path or pretrained model name
-      window_length_in_sec: 1.5
-      shift_length_in_sec: 0.75
+      window_length_in_sec: 1.5 # for better performace try with 3 sec and 1.5 sec
+      shift_length_in_sec: 0.75 # for better performace try with 1.5 sec and 0.75 sec
 
 
