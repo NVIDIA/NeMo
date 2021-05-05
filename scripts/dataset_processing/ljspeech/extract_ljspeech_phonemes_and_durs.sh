@@ -4,19 +4,16 @@
 # Montreal Forced Aligner (MFA) library, and computes durations per phoneme.
 # Assumes you have downloaded and expanded the LJSpeech dataset, and that they
 # are located at the directory specified.
-# Also requires that you have manifests set up pointing to the appropriate
-# train/val/test wav files. Make sure you have run the
-# `create_manifests_and_textfiles.py` script.
 #
 # This script will create:
 # - <LJSPEECH_BASE>/mappings.json: Contains word->phone and phone->idx mappings
+# - <LJSPEECH_BASE>/wavs_to_ignore.pkl: A pickled list of wavs to ignore
+#     because of OOV words in their transcripts
 # - <LJSPEECH_BASE>/phoneme_durations/LJ*.npz: Numpy files for each wavfile
 #     with fields 'tokens' (token indices) and 'durs' (durations per token)
 #
 # It will also create intermediate files:
-# - <LJSPEECH_BASE>/wavs/LJ*.txt: Transcripts per wavfile (forA MFA alignment)
 # - <LJSPEECH_BASE>/alignments/wavs/LJ*.TextGrid: MFA output
-# - <LJSPEECH_BASE>/ljspeech_dict.txt: MFA-generated word->phone mapping
 #
 # Note: This script will create a conda environment to set up MFA, so please
 #       make sure that conda is active before running this script.
@@ -25,11 +22,7 @@
 #       it. (e.g. sudo apt-get install libopenblas-dev)
 #
 # Example Usage:
-# ./extract_ljspeech_phonemes_and_durs.sh \
-#   --train_manifest=/data/manifests/ljspeech_train.json \
-#   --val_manifest=/data/manifests/ljspeech_val.json \
-#   --test_manifest=/data/manifests/ljspeech_test.json \
-#   /data/LJSpeech-1.1
+# ./extract_ljspeech_phonemes_and_durs.sh /data/LJSpeech-1.1
 
 ENV_NAME='aligner'
 
@@ -60,10 +53,6 @@ EOF
 
 SKIP_ENV_SETUP=false
 G2P_DICT=''
-
-TRAIN_MANIFEST=''
-VAL_MANIFEST=''
-TEST_MANIFEST=''
 
 while :; do
   case $1 in

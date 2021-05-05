@@ -117,7 +117,7 @@ class FastSpeech2Model(SpectrogramGenerator):
             text=t, text_length=tl, spec_len=spec_len, durations=durations, pitch=pitch, energies=energies
         )
         total_loss = self.loss(
-            spec_pred=mel.tranpose(1, 2), spec_target=spec, spec_target_len=spec_len, pad_value=-11.52
+            spec_pred=mel.transpose(1, 2), spec_target=spec, spec_target_len=spec_len, pad_value=-11.52
         )
         self.log(name="train_mel_loss", value=total_loss.clone().detach())
 
@@ -168,7 +168,7 @@ class FastSpeech2Model(SpectrogramGenerator):
         f, fl, t, tl, _, _, _ = batch
         spec, spec_len = self.audio_to_melspec_preprocessor(f, fl)
         mel, _, _, _, _ = self(text=t, text_length=tl, spec_len=spec_len)
-        loss = self.loss(spec_pred=mel.tranpose(1, 2), spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
+        loss = self.loss(spec_pred=mel.transpose(1, 2), spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
         return {
             "val_loss": loss,
             "mel_target": spec,
