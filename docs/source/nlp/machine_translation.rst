@@ -414,7 +414,7 @@ the checkpoints that had the top 5 (by default) sacreBLEU scores.
 
 At the end of training, a ``.nemo`` file is written to the result directory which allows to run inference on a test set.
 
-Multi-validation
+Multi-Validation
 ----------------
 
 To run validation or testing on multiple datasets, specify the ``src_file_name`` and ``tgt_file_name`` with a list of file paths:
@@ -433,7 +433,7 @@ To use other indexes, append the index:
 
     exp_manager.checkpoint_callback_params.monitor=val_sacreBLEU_dl_index_1
   
-Multiple test datasets works exactly the same way as validation datasets, simply replace ``validation_ds`` by ``test_ds`` in the above examples.
+Multiple test datasets work exactly the same way as validation datasets, simply replace ``validation_ds`` by ``test_ds`` in the above examples.
 
 Model Inference
 ---------------
