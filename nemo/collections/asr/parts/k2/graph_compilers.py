@@ -45,21 +45,18 @@ class CtcTrainingTopologyCompiler(object):
         phone_ids_with_blank = list(range(num_classes))
         self.ctc_topo = k2.arc_sort(build_ctc_topo(phone_ids_with_blank, self.blank))
 
-    def compile(self, targets: torch.Tensor) -> k2.Fsa:
+    def compile(self, targets: torch.Tensor, target_lengths: torch.Tensor) -> k2.Fsa:
         decoding_graphs = k2.create_fsa_vec(
-            [self.compile_one_and_cache(target) for target in targets])
+            [self.compile_one_and_cache(t[:l]) for t, l in zip(targets, target_lengths)])
 
         # make sure the gradient is not accumulated
         decoding_graphs.requires_grad_(False)
         return decoding_graphs
 
-    @lru_cache(maxsize=100000)
+    @lru_cache(maxsize=1000000)
     def compile_one_and_cache(self, target: torch.Tensor) -> k2.Fsa:
         # shift targets to emulate blank = 0
-        if self.blank != 0:
-            target = [t+1 for t in target]
-        else:
-            target = target.tolist()
+        target = (target + int(self.blank != 0)).tolist()
         label_graph = k2.arc_sort(k2.linear_fsa(target))
         decoding_graph = k2.connect(k2.compose(self.ctc_topo, label_graph))
         return decoding_graph

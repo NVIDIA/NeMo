@@ -50,13 +50,13 @@ def build_ctc_topo(tokens: List[int], blank_idx: int = 0) -> k2.Fsa:
     '''
     assert blank_idx in tokens
 
-    def olabel(i):
+    def olabel(k):
         if blank_idx == 0:
-            return i
-        elif i == blank_idx:
+            return k
+        elif k == blank_idx:
             return 0
         else:
-            return i+1
+            return k+1
 
     num_states = len(tokens)
     final_state = num_states
