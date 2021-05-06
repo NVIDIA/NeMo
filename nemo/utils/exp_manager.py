@@ -600,6 +600,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             return output
 
         # Load the best model and then re-save it
+        app_state = AppState()
         if self.save_best_model:
             if not os.path.exists(self.best_model_path):
                 return output
@@ -616,9 +617,10 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             pl_module.load_state_dict(checkpoint, strict=True)
             pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
             pl_module.load_state_dict(old_state_dict, strict=True)
+            app_state.model_restore_path = os.path.abspath(os.path.expanduser(os.path.join(self.dirpath, self.prefix + self.postfix)))
         else:
             pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
-
+            app_state.model_restore_path = os.path.abspath(os.path.expanduser(os.path.join(self.dirpath, self.prefix + self.postfix)))
         return output
 
     @rank_zero_only

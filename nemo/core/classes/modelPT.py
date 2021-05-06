@@ -245,6 +245,7 @@ class ModelPT(LightningModule, Model):
 
     def _handle_artifacts(self, nemo_file_folder):
         tarfile_artifacts = []
+        app_state = AppState()
         for conf_path, artiitem in self.artifacts.items():
             if artiitem.path_type == model_utils.ArtifactPathType.LOCAL_PATH:
                 if not os.path.exists(artiitem.path):
@@ -279,9 +280,8 @@ class ModelPT(LightningModule, Model):
             try:
                 # Step into the nemo archive to try and find the file
                 with tempfile.TemporaryDirectory() as archive_dir:
-                    self._unpack_nemo_file(path2file=_MODEL_RESTORE_PATH, out_folder=archive_dir)
+                    self._unpack_nemo_file(path2file=app_state.model_restore_path, out_folder=archive_dir)
                     os.chdir(archive_dir)
-
                     for conf_path, artiitem in tarfile_artifacts:
                         # Generate new uniq artifact name and copy it to nemo_file_folder
                         # Note uuid.uuid4().hex is guaranteed to be 32 character long
