@@ -886,7 +886,7 @@ pipeline {
             trainer.gpus=[0,1] \
             trainer.accelerator=ddp \
             +trainer.fast_dev_run=true \
-            +exp_manager.use_datetime_version=False &&
+            +exp_manager.use_datetime_version=False && \
             python examples/nlp/token_classification/punctuation_capitalization_evaluate.py \
             pretrained_model=nemo_experiments/Punctuation_and_Capitalization/version_0/checkpoints/Punctuation_and_Capitalization.nemo && \
             rm -rf nemo_experiments'
