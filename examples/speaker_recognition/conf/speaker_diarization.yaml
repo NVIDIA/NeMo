@@ -4,8 +4,8 @@ num_workers: 4
 sample_rate: &sample_rate 16000
 
 diarizer:
-  oracle_num_speakers: ??? # if number of speakers is known input it or pass null if not known. Accepts int or path to file containing uniq-id and num of speakers of that session
-  max_num_speakers: 8 # max number of speakers for each recording. If oracle num speakers is passed this value is ignored
+  oracle_num_speakers: ??? # oracle number of speakers or pass null if not known. [int or path to file containing uniq-id with num of speakers of that session]
+  max_num_speakers: 8 # max number of speakers for each recording. If oracle num speakers is passed this value is ignored.
   out_dir: ???
   paths2audio_files: ??? #file containing paths to audio files for inference
   path2groundtruth_rttm_files: null #file containing paths to ground truth rttm files for score computation or null if no reference rttms are present

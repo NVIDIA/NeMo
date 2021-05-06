@@ -38,8 +38,8 @@ Each groundtruth label file should be in NIST Rich Transcription Time Marked (RT
   SPEAKER TS3012d.Mix-Headset 1 331.573 0.671 <NA> <NA> MTD046ID <NA> <NA>
 
 
-oracle_vad_manifest [Optional but suggested for good performace. This avoids FPR and TPR]:
-  - To perform just oracle diarization, that is taking speech activity time stamps from groundtruths or another VAD from wild instead from NeMo VAD output, ``diarizer`` expects an orcale manifest json file that contains paths to audio files with offset for start time and duration of segment.
+oracle_vad_manifest [Optional but suggested for good performace. This reduces FPR and TPR]:
+  - To perform just oracle diarization, that is taking speech activity time stamps from groundtruth RTTMs or another VAD from wild instead of NeMo VAD output, ``diarizer`` expects an oracle manifest json file that contains paths to audio files with offset for start time and duration of segment.
 
 To prepare an oracle manifest file, use the script from ``scripts`` folder as shown below:
 
@@ -52,8 +52,8 @@ Here ``paths2audio_files`` and ``path2groundtruth_rttm_files`` are files contain
 AMI Meeting Corpus
 ------------------
 
-The following are the suggested arguments and considerations we took for getting Speaker Error Rate (SER) of 4.1% on AMI Lapel test set corpus:
-  - diarizer.oracle_num_speakers = 4 (since there are exactly 4 speakers per each lapel test set session)
+The following are the suggested parameters for getting Speaker Error Rate (SER) of 4.1% on AMI Lapel test set corpus:
+  - diarizer.oracle_num_speakers = 4 (since there are exactly 4 speakers per each Lapel test set session)
   - diarizer.speaker_embeddings.model_path = ``speakerverification_speakernet`` (This model is trained on voxceleb dataset. ``Use this model for simialr non-telephonic speech datasets``)
   - diarizer.speaker_embeddings.window_length_in_sec = 3 
   - diarizer.speaker_embeddings.shift_length_in_sec = 1.5 
@@ -63,7 +63,7 @@ Input paths2audio_files, paths2rttm_files and oracle_vad_manifest by following s
 CallHome LDC97S42 (CH109)
 -------------------------
 
-The following are the suggested arguments and considerations we took for getting Speaker Error Rate (SER) of 5.4% on CH109 set:
+The following are the suggested parameters for getting Speaker Error Rate (SER) of 5.4% on CH109 set:
   - diarizer.oracle_num_speakers = 2 (since there are exactly 2 speakers per each ch109 session)
   - diarizer.speaker_embeddings.model_path = ``speakerdiarization_speakernet`` (This model is trained on voxceleb and telephonic speech Fisher and SWBD. ``Use this model for similar telephonic speech datasets``)
   - diarizer.speaker_embeddings.window_length_in_sec = 1.5

@@ -90,8 +90,17 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         # init speaker model
         self._init_speaker_model()
-        self._num_speakers = self._cfg.diarizer.oracle_num_speakers
-        self.max_num_speakers = self._cfg.diarizer.max_num_speakers
+
+        if self._cfg.diarizer.get('num_speakers', None):
+            self._num_speakers = self._cfg.diarizer.num_speakers
+            logging.warning("in next release num_speakers will be changed to oracle_num_speakers")
+        else:
+            self._num_speakers = self._cfg.diarizer.oracle_num_speakers
+
+        if self._cfg.diarizer.get('max_num_speakers', None):
+            self.max_num_speakers = self._cfg.diarizer.max_num_speakers
+        else:
+            self.max_num_speakers = 8
 
         self._device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
