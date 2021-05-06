@@ -23,5 +23,5 @@ diarizer:
   speaker_embeddings:
     oracle_vad_manifest: null
     model_path: ??? #.nemo local model path or pretrained model name (speakerverification_speakernet or speakerdiarization_speakernet)
-    window_length_in_sec: 3.0 # for performace try with 3 sec and 1.5 sec
-    shift_length_in_sec: 1.5 # for performace try with 1.5 sec and 0.75 sec
+    window_length_in_sec: 1.5 # for performace try with 3 sec and 1.5 sec
+    shift_length_in_sec: 0.75 # for performace try with 1.5 sec and 0.75 sec
