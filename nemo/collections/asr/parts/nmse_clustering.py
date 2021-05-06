@@ -171,6 +171,7 @@ def estimate_num_of_spkrs(X_conn, SPK_MAX):
 def NMEanalysis(mat, SPK_MAX, max_rp_threshold=0.250, sparse_search=True, search_p_volume=20, fixed_thres=None):
     """
     Normalized Eigengap analysis to get p_neighbours and estimated num of speakers
+    Reference: https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8937487&tag=1 
     """
     eps = 1e-10
     eig_ratio_list = []
