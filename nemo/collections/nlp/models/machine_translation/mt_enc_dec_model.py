@@ -558,7 +558,10 @@ class MTEncDecModel(EncDecNLPModel):
             raise ValueError('The same number of filepaths must be passed in for source and target validation.')
 
         dataloaders = []
+        prepend_pos = 0
         for pos, src_file in enumerate(src_file_list):
+            if self.multilingual:
+                prepend_pos = pos
             dataset = TranslationDataset(
                 dataset_src=str(Path(src_file).expanduser()),
                 dataset_tgt=str(Path(tgt_file_list[pos]).expanduser()),
@@ -572,7 +575,7 @@ class MTEncDecModel(EncDecNLPModel):
                 cache_data_per_node=cfg.get("cache_data_per_node", False),
                 use_cache=cfg.get("use_cache", False),
                 reverse_lang_direction=cfg.get("reverse_lang_direction", False),
-                prepend_id=self.multilingual_ids[pos],
+                prepend_id=self.multilingual_ids[prepend_pos],
             )
             dataset.batchify(self.encoder_tokenizer, self.decoder_tokenizer)
 
