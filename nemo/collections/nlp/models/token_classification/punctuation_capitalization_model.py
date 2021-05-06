@@ -263,18 +263,14 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             OmegaConf.set_struct(self._cfg, False)
             self._cfg.class_labels = {}
             self._cfg.class_labels = OmegaConf.create(
-                {'punct_labels_file': 'punct_label_ids.csv', 'capit_labels_file': 'capit_label_ids.csv'}
+                {'class_labels.punct_labels_file': 'punct_label_ids.csv', 'capit_labels_file': 'capit_label_ids.csv'}
             )
 
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-            self.register_artifact(
-                self._cfg.class_labels.punct_labels_file, self._train_dl.dataset.punct_label_ids_file
-            )
-            self.register_artifact(
-                self._cfg.class_labels.capit_labels_file, self._train_dl.dataset.capit_label_ids_file
-            )
+            self.register_artifact('class_labels.punct_labels_file', self._train_dl.dataset.punct_label_ids_file)
+            self.register_artifact('class_labels.capit_labels_file', self._train_dl.dataset.capit_label_ids_file)
 
             # save label maps to the config
             self._cfg.punct_label_ids = OmegaConf.create(self._train_dl.dataset.punct_label_ids)
