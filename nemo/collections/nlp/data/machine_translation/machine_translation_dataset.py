@@ -17,7 +17,6 @@
 import io
 import json
 import pickle
-import random
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any, List, Optional
@@ -505,7 +504,10 @@ class MultilingualTranslationDataset(IterableDataset):
         ind_gen = self.index_generator(self.datasets, **self.sampling_kwargs)
         while n < self.N:
             n += 1
-            ind = next(ind_gen)
+            try:
+                ind = next(ind_gen)
+            except StopIteration:
+                return
             try:
                 val = next(self.iterables[ind])
                 if self.kind == "map":

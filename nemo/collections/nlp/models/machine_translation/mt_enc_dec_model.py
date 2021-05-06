@@ -69,7 +69,6 @@ class MTEncDecModel(EncDecNLPModel):
 
         self.multilingual = cfg.get("multilingual", False)
         self.multilingual_ids = []
-        use_tarred = cfg.get("use_tarred_dataset", False)
 
         # Instantiates tokenizers and register to be saved with NeMo Model archive
         # After this call, ther will be self.encoder_tokenizer and self.decoder_tokenizer
