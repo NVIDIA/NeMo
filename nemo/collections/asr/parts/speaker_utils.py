@@ -21,8 +21,9 @@ import numpy as np
 from omegaconf import ListConfig
 from pyannote.core import Annotation, Segment
 from pyannote.metrics.diarization import DiarizationErrorRate
-from spectralcluster import SpectralClusterer
+from tqdm import tqdm
 
+from nemo.collections.asr.parts.nmse_clustering import COSclustering
 from nemo.utils import logging
 
 
@@ -194,14 +195,16 @@ def get_time_stamps(embeddings_file, reco2num, manifest_path, sample_rate, windo
     logging.info("sample '{}' embeddings shape is {}\n".format(sample, embeddings[sample][0].shape))
 
     speakers = {}
-    if type(reco2num) is int:
+    if isinstance(reco2num, int) or reco2num is None:
         for key in embeddings.keys():
             speakers[key] = reco2num
-    else:
+    elif isinstance(reco2num, str) and os.path.exists(reco2num):
         for key in open(reco2num).readlines():
             key = key.strip()
             wav_id, num = key.split()
             speakers[wav_id] = int(num)
+    else:
+        raise TypeError("reco2num must be None, int or path to file containing number of speakers for each uniq id")
 
     with open(manifest_path, 'r') as manifest:
         time_stamps = {}
@@ -227,7 +230,7 @@ def get_time_stamps(embeddings_file, reco2num, manifest_path, sample_rate, windo
     return embeddings, time_stamps, speakers
 
 
-def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rttm_dir):
+def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rttm_dir, max_num_speakers=8):
     """
     performs spectral clustering on embeddings with time stamps generated from VAD output
     Args:
@@ -237,6 +240,7 @@ def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rt
     speakers (dict): number of speaker for each audio recording 
     audio_rttm_map (dict): AUDIO_RTTM_MAP for mapping unique id with audio file path and rttm path
     out_rttm_dir (str): Path to write predicted rttms
+    max_num_speakers (int): maximum number of speakers to consider for spectral clustering. Will be ignored if speakers['key'] is not None
     
     Returns:
     all_reference (list[Annotation]): reference annotations for score calculation
@@ -247,36 +251,36 @@ def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rt
     all_reference = []
     no_references = False
 
-    for uniq_key in embeddings.keys():
+    for uniq_key in tqdm(embeddings.keys()):
         NUM_speakers = speakers[uniq_key]
-        if NUM_speakers >= 2:
-            emb = embeddings[uniq_key]
-            emb = np.asarray(emb)
+        emb = embeddings[uniq_key]
+        emb = np.asarray(emb)
 
-            cluster_method = SpectralClusterer(min_clusters=2, max_clusters=NUM_speakers)
-            cluster_labels = cluster_method.predict(emb)
+        cluster_labels = COSclustering(
+            uniq_key, emb, oracle_num_speakers=NUM_speakers, max_num_speaker=max_num_speakers
+        )
 
-            lines = time_stamps[uniq_key]
-            assert len(cluster_labels) == len(lines)
-            for idx, label in enumerate(cluster_labels):
-                tag = 'speaker_' + str(label)
-                lines[idx] += tag
+        lines = time_stamps[uniq_key]
+        assert len(cluster_labels) == len(lines)
+        for idx, label in enumerate(cluster_labels):
+            tag = 'speaker_' + str(label)
+            lines[idx] += tag
 
-            a = get_contiguous_stamps(lines)
-            labels = merge_stamps(a)
-            if out_rttm_dir:
-                labels_to_rttmfile(labels, uniq_key, out_rttm_dir)
-            hypothesis = labels_to_pyannote_object(labels)
-            all_hypothesis.append(hypothesis)
+        a = get_contiguous_stamps(lines)
+        labels = merge_stamps(a)
+        if out_rttm_dir:
+            labels_to_rttmfile(labels, uniq_key, out_rttm_dir)
+        hypothesis = labels_to_pyannote_object(labels)
+        all_hypothesis.append(hypothesis)
 
-            rttm_file = audio_rttm_map[uniq_key]['rttm_path']
-            if os.path.exists(rttm_file) and not no_references:
-                ref_labels = rttm_to_labels(rttm_file)
-                reference = labels_to_pyannote_object(ref_labels)
-                all_reference.append(reference)
-            else:
-                no_references = True
-                all_reference = []
+        rttm_file = audio_rttm_map[uniq_key]['rttm_path']
+        if os.path.exists(rttm_file) and not no_references:
+            ref_labels = rttm_to_labels(rttm_file)
+            reference = labels_to_pyannote_object(ref_labels)
+            all_reference.append(reference)
+        else:
+            no_references = True
+            all_reference = []
 
     return all_reference, all_hypothesis
 
@@ -321,6 +325,7 @@ def perform_diarization(
     shift=0.75,
     audio_rttm_map=None,
     out_rttm_dir=None,
+    max_num_speakers=8,
 ):
     """
     Performs diarization with embeddings generated based on VAD time stamps with recording 2 num of speakers (reco2num)
@@ -330,7 +335,9 @@ def perform_diarization(
         embeddings_file, reco2num, manifest_path, sample_rate, window, shift
     )
     logging.info("Performing Clustering")
-    all_reference, all_hypothesis = perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rttm_dir)
+    all_reference, all_hypothesis = perform_clustering(
+        embeddings, time_stamps, speakers, audio_rttm_map, out_rttm_dir, max_num_speakers
+    )
 
     if len(all_reference) and len(all_hypothesis):
         DER, CER, FA, MISS = get_DER(all_reference, all_hypothesis)
