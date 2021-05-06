@@ -561,6 +561,7 @@ Register Artifacts
 
 Conversational AI models can be complicated to restore as more information is needed than just the checkpoint weights in order to use the model.
 NeMo models can save additional artifacts in the .nemo file by calling ``.register_artifact``.
+When restoring NeMo models using ``.restore_from`` or ``.from_pretrained``, any artifacts that were registered will be available automatically.
 
 As an example, consider an NLP model that requires a trained tokenizer model. 
 The tokenizer model file can be automatically added to the .nemo file with the following:
