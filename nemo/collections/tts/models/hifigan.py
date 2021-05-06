@@ -26,6 +26,7 @@ from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
+from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
@@ -39,7 +40,7 @@ except ModuleNotFoundError:
     HAVE_WANDB = False
 
 
-class HifiGanModel(Vocoder):
+class HifiGanModel(Vocoder, Exportable):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
@@ -113,6 +114,9 @@ class HifiGanModel(Vocoder):
         """
         Runs the generator, for inputs and outputs see input_types, and output_types
         """
+        return self.generator(x=spec)
+
+    def forward_for_export(self, spec):
         return self.generator(x=spec)
 
     @typecheck(
@@ -313,3 +317,37 @@ class HifiGanModel(Vocoder):
         )
         list_of_models.append(model)
         return list_of_models
+
+    def load_state_dict(self, state_dict, strict=True):
+        # override load_state_dict to give us some flexibility to be backward-compatible
+        # with old checkpoints
+        new_state_dict = {}
+        num_resblocks = len(self.cfg['generator']['resblock_kernel_sizes'])
+        for k, v in state_dict.items():
+            new_k = k
+            if 'resblocks' in k:
+                parts = k.split(".")
+                # only do this is the checkpoint type is older
+                if len(parts) == 6:
+                    layer = int(parts[2])
+                    new_layer = f"{layer//num_resblocks}.{layer%num_resblocks}"
+                    new_k = f"generator.resblocks.{new_layer}.{'.'.join(parts[3:])}"
+            new_state_dict[new_k] = v
+        super().load_state_dict(new_state_dict, strict=strict)
+
+    def _prepare_for_export(self, **kwargs):
+        """
+        Override this method to prepare module for export. This is in-place operation.
+        Base version does common necessary module replacements (Apex etc)
+        """
+        self.generator.remove_weight_norm()
+
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        par = next(self.parameters())
+        mel = torch.randn((1, self.cfg['preprocessor']['nfilt'], 96), device=par.device, dtype=par.dtype)
+        return mel
