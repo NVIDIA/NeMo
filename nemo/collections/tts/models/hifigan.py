@@ -322,6 +322,7 @@ class HifiGanModel(Vocoder, Exportable):
         # override load_state_dict to give us some flexibility to be backward-compatible
         # with old checkpoints
         new_state_dict = {}
+        num_resblocks = len(self.cfg['generator']['resblock_kernel_sizes'])
         for k, v in state_dict.items():
             new_k = k
             if 'resblocks' in k:
@@ -329,7 +330,7 @@ class HifiGanModel(Vocoder, Exportable):
                 # only do this is the checkpoint type is older
                 if len(parts) == 6:
                     layer = int(parts[2])
-                    new_layer = f"{layer//3}.{layer%3}"
+                    new_layer = f"{layer//num_resblocks}.{layer%num_resblocks}"
                     new_k = f"generator.resblocks.{new_layer}.{'.'.join(parts[3:])}"
             new_state_dict[new_k] = v
         super().load_state_dict(new_state_dict, strict=strict)
