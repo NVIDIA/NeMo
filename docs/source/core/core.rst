@@ -584,9 +584,8 @@ In the above example, the model config will have
 .. code-block:: YAML
 
     encoder_tokenizer:
+        ...
         tokenizer_model: nemo:4978b28103264263a03439aaa6560e5e_tokenizer.model
-        tokenizer_model: null
-        special_tokens: null
 
 ``src`` is the path to the artifact and the basename of the path will be used when packaging the artifcat in the .nemo file.
 Each artifact will have a hash prepended to the basename of ``src`` in the .nemo file. This is to prevent collisions with basenames.
