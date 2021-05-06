@@ -556,6 +556,46 @@ checkpoint to be restored. For these models, the user will have to override ``lo
 
 It's highly recommended to use ``restore_from`` to load NeMo models.
 
+Register Artifacts
+------------------
+
+Conversational AI models can be complicated to restore as more information is needed than just the checkpoint weights in order to use the model.
+NeMo models can save additional artifacts in the .nemo file by calling ``.register_artifact``.
+
+As an example, consider an NLP model that requires a trained tokenizer model. 
+The tokenizer model file can be automatically added to the .nemo file with the following:
+
+.. code-block:: python
+
+    self.encoder_tokenizer = get_nmt_tokenizer(
+        ...
+        tokenizer_model=self.register_artifact(config_path='encoder_tokenizer.tokenizer_model',
+                                               src='/path/to/tokenizer.model',
+                                               verify_src_exists=True),
+    )
+
+By default, ``.register_artifact`` will always return a path. If the model is being restored from a .nemo file, 
+then that path will be to the artifact in the .nemo file. Otherwise, ``.register_artifact`` will return the local path specified by the user.
+
+``config_path`` is the artifact key. It usually corresponds to a model configuration but does not have to.
+The model config that is packaged with the .nemo file will be updated according to the ``config_path`` key.
+In the above example, the model config will have 
+
+.. code-block: yaml
+
+    encoder_tokenizer:
+        tokenizer_model: nemo:4978b28103264263a03439aaa6560e5e_tokenizer.model
+        tokenizer_model: null
+        special_tokens: null
+
+``src`` is the path to the artifact and the basename of the path will be used when packaging the artifcat in the .nemo file.
+Each artifact will have a hash prepended to the basename of ``src`` in the .nemo file. This is to prevent collisions with basenames.
+
+If ``verify_src_exists`` is set to ``False``, then the artifact is optional. This means that ``.register_artifact`` will return ``None`` 
+if the ``src`` cannot be found. 
+
+
+
 Experiment Manager
 ==================
 
