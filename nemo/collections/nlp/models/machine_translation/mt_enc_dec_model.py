@@ -105,7 +105,7 @@ class MTEncDecModel(EncDecNLPModel):
                 raise ValueError(
                     "Expect either cfg.src_language or cfg.tgt_language to be a list when multilingual=True."
                 )
-
+        else:
             # After this call, the model will have  self.source_processor and self.target_processor objects
             self.setup_pre_and_post_processing_utils(source_lang=self.src_language, target_lang=self.tgt_language)
             self.multilingual_ids = [None]
