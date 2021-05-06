@@ -53,6 +53,95 @@ a large biomedical text corpus, which achieves better performance in biomedical 
 Examples of using BioMegatron on biomedical downstream tasks can be found at (can be executed with `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_): 
 `NeMo/tutorials/nlp/Relation_Extraction-BioMegatron.ipynb <https://github.com/NVIDIA/NeMo/blob/main/tutorials/nlp/Relation_Extraction-BioMegatron.ipynb>`__ and `NeMo/tutorials/nlp/Token_Classification-BioMegatron.ipynb <https://github.com/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification-BioMegatron.ipynb>`__.
 
+Model Parallelism
+-----------------
+
+`Megatron-LM <https://github.com/NVIDIA/Megatron-LM>`_ is a highly optimized and efficient library for training large language models.
+With Megatron model parallelism, language models can be trained with billions of weights and then used in NeMo for downstream tasks.
+
+NeMo handles pretrained model parallel checkpoints from Megatron-LM automatically and model parallel models in NeMo have the all 
+the same features as other NeMo Models.
+
+Training
+^^^^^^^^
+
+All of the necessary logic to train model parallel models in NeMo with PyTorch Lightning is contained in the ``NLPDDPPlugin``. 
+The ``NLPDDPPlugin`` subclasses the PyTorch Lightning training type plugin ``DDPPlugin``.
+See `plugins <https://pytorch-lightning.readthedocs.io/en/latest/extensions/plugins.html>` for more information on PyTorch Lightning Plugins.
+
+To enable model parallel training in NeMo:
+
+.. code-block:: python
+
+    trainer = Trainer(plugins=[NLPDDPPlugin()], **cfg.trainer)
+
+Megatron-LM checkpoints have a specific format. One checkpoint is saved for each model parallel rank:
+
+.. code-block:: bash
+
+    iter_0080000/
+    ├── mp_rank_00
+    │   └── model_optim_rng.pt
+    └── mp_rank_01
+        └── model_optim_rng.pt
+
+
+To start from training from a Megatron-LM checkpoint, simply pass the path to the Megatron-LM checkpoint 
+via the language model config:
+
+.. code-block:: bash 
+
+    model.language_model.lm_checkpoint=/raid/megatron/bert/iter_0080000 \
+
+We also need to input the model configuration. This can be done via json:
+
+.. code-block:: json
+
+    {
+    "hidden-size": 1024, 
+    "num-attention-heads": 16, 
+    "num-layers": 24, 
+    "max-seq-length": 512
+    }
+
+And input via command line:
+
+.. code-block:: bash
+
+    model.language_model.config_file=/raid/data/megatron/bert/config.json \
+
+Or the model configuration can be input via YAML:
+
+.. code-block:: YAML
+
+    model:
+        language_model:
+            config:
+                hidden_size: 1024
+                num_attention_heads: 16
+                num_layers: 24
+                max_position_embeddings: 512
+
+Additionally, Megatron-LM requires a vocab file:
+
+.. code-block:: bash
+
+    model.tokenizer.vocab_file=/path/to/vocab.txt
+
+If using the Megatron-LM default tokenizer for training BERT the vocab file can be omitted:
+
+..code-block:: bash
+
+    # uncased model
+    model.tokenizer.tokenizer_name=megatron-bert-uncased
+
+    # or cased modeL 
+    model.tokenizer.tokenizer_name=megatron-bert-uncased
+
+
+
+
+
 
 References
 ----------
