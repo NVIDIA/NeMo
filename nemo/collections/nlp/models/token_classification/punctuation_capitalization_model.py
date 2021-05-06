@@ -263,7 +263,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             OmegaConf.set_struct(self._cfg, False)
             self._cfg.class_labels = {}
             self._cfg.class_labels = OmegaConf.create(
-                {'class_labels.punct_labels_file': 'punct_label_ids.csv', 'capit_labels_file': 'capit_label_ids.csv'}
+                {'punct_labels_file': 'punct_label_ids.csv', 'capit_labels_file': 'capit_label_ids.csv'}
             )
 
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
