@@ -116,8 +116,13 @@ class TextClassificationDataset(Dataset):
                     )
                 else:
                     with open(input_file, "r") as f:
-                        lines = f.readlines(num_samples)
+                        lines = f.readlines()
                         logging.info(f'Read {len(lines)} examples from {input_file}.')
+                        if num_samples > 0:
+                            lines = lines[:num_samples]
+                            logging.warning(
+                                f"Parameter 'num_samples' is set, so just the first {len(lines)} examples are kept."
+                            )
 
                         if shuffle:
                             random.shuffle(lines)
