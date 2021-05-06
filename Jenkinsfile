@@ -73,8 +73,8 @@ pipeline {
     stage('L0: Unit Tests CPU') {
       when {
         anyOf {
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       steps {
@@ -85,8 +85,8 @@ pipeline {
     stage('L0: Computer Vision Integration') {
       when {
         anyOf {
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -113,8 +113,8 @@ pipeline {
     // stage('L0: Integration Tests CPU') {
     //   when {
     //     anyOf{
-    //       branch 'v1.0.0'
-    //       changeRequest target: 'v1.0.0'
+    //       branch 'main'
+    //       changeRequest target: 'main'
     //     }
     //   }
     //   steps {
@@ -133,7 +133,7 @@ pipeline {
     //   when {
     //     anyOf{
     //       branch 'dev
-    //       changeRequest target: 'v1.0.0'
+    //       changeRequest target: 'main'
     //     }
     //   }
     //   steps {
@@ -144,8 +144,8 @@ pipeline {
     stage('L2: NeMo text processing') {
       when {
         anyOf {
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -173,8 +173,8 @@ pipeline {
     stage('L2: ASR dev run') {
       when {
         anyOf {
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -302,8 +302,8 @@ pipeline {
 //     stage('L2: ASR RNNT dev run') {
 //       when {
 //         anyOf {
-//           branch 'v1.0.0'
-//           changeRequest target: 'v1.0.0'
+//           branch 'main'
+//           changeRequest target: 'main'
 //         }
 //       }
 //       failFast true
@@ -340,8 +340,8 @@ pipeline {
     stage('L2: ASR Multi-dataloader dev run') {
       when {
         anyOf {
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -386,8 +386,8 @@ pipeline {
     stage('L2: Speech Transcription') {
       when {
         anyOf {
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -408,8 +408,8 @@ pipeline {
     stage('L2: Segmentation Tool') {
       when {
             anyOf {
-              branch 'v1.0.0'
-              changeRequest target: 'v1.0.0'
+              branch 'main'
+              changeRequest target: 'main'
             }
       }
       stages {
@@ -471,8 +471,8 @@ pipeline {
     stage('L2: Multi-GPU Megatron finetuning') {
       when {
         anyOf {
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -496,8 +496,8 @@ pipeline {
     stage('L2: SGD-QA') {
       when {
         anyOf {
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -542,8 +542,8 @@ pipeline {
     stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {
       when {
         anyOf {
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -597,12 +597,12 @@ pipeline {
         }
       }
     }
-    // Runs out of memory on the 12G TITAN V (GPU 0 on v1.0.0 CI)
+    // Runs out of memory on the 12G TITAN V (GPU 0 on main CI)
     stage('L2: MegaBERT Token Classification') {
       when {
         anyOf {
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -625,8 +625,8 @@ pipeline {
     stage('L2: Parallel SQUAD v1.1 & v2.0') {
       when {
         anyOf {
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -713,8 +713,8 @@ pipeline {
     stage('L2: Model Parallel Size 2 Megatron Text Classification') {
       when {
         anyOf{
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -742,8 +742,8 @@ pipeline {
     stage('L2: Model Parallel Size 2 Megatron Autoresume') {
       when {
         anyOf{
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -773,8 +773,8 @@ pipeline {
     stage('L2: Model Parallel Size 2 Megatron Evaluation from .nemo') {
       when {
         anyOf{
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -793,8 +793,8 @@ pipeline {
     stage('L2: Model Parallel Size 2 Megatron Train from .nemo') {
       when {
         anyOf{
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -815,8 +815,8 @@ pipeline {
     stage('L2: Parallel NLP Examples 2') {
       when {
         anyOf {
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -894,8 +894,8 @@ pipeline {
     stage('L2: Parallel Pretraining BERT pretraining from Text/Preprocessed') {
       when {
         anyOf {
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -1003,11 +1003,37 @@ pipeline {
       }
     }
 
+    stage('L2: Entity Linking') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage ('Self Alignment Pretraining BERT') {
+           steps {
+             sh 'cd examples/nlp/entity_linking && \
+             python self_alignment_pretraining.py \
+             project_dir=. \
+             trainer.val_check_interval=3 \
+             model.raw_data=None \
+             model.train_ds.data_file=/home/TestData/nlp/entity_linking/tiny_example_train_pairs.tsv \
+             model.validation_ds.data_file=/home/TestData/nlp/entity_linking/tiny_example_validation_pairs.tsv \
+             model.train_ds.batch_size=8 \
+             model.validation_ds.batch_size=8 \
+             exp_manager.exp_dir=null'
+          }
+        }
+      }
+    }
+
     stage('L2: NMT Attention is All You Need') {
       when {
         anyOf {
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -1101,8 +1127,8 @@ pipeline {
     stage('L2: NMT with HuggingFace') {
       when {
         anyOf {
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -1165,8 +1191,8 @@ pipeline {
     stage('L2: NMT Tarred Dataset Creation') {
       when {
         anyOf {
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -1219,8 +1245,8 @@ pipeline {
     stage('L2: TTS Fast dev runs 1') {
       when {
         anyOf {
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       parallel {
@@ -1274,8 +1300,8 @@ pipeline {
     stage('L2: TTS Fast dev runs 2') {
       when {
         anyOf {
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
 
@@ -1328,8 +1354,8 @@ pipeline {
     stage('L??: Speech Checkpoints tests') {
       when {
         anyOf {
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
