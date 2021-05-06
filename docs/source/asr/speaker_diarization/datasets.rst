@@ -3,7 +3,7 @@ Datasets
 Check out page :doc:`Speech Classification Datasets <../speech_classification/datasets>` and :doc:`Speaker Recogniton Datasets <../speaker_recognition/datasets>` 
 for preparing datasets for training and validating VAD and speaker embedding models respectively.
 
-For Speaker Diarization inference, ``diarizer`` expects following arguments, which needs to be created by user depending on dataset:
+For Speaker Diarization inference, ``diarizer`` expects following arguments :
 
   - paths2audio_files
   - oracle_num_speakers
@@ -12,13 +12,13 @@ For Speaker Diarization inference, ``diarizer`` expects following arguments, whi
 
 paths2audio_files:
   - a file containing absolute paths to audio files or list of paths to audio files. 
-  For generating a file that contains paths to audio files (which we call as ``scp file``), you can simply use ``find`` bash command as shown below:
+  For generating a file that contains paths to audio files, you can simply use ``find`` bash command as shown below:
 .. code-block:: bash
 
-  find $PWD/{data_dir} -iname '*.wav' > path_to_audiofiles.scp
+  find $PWD/{data_dir} -iname '*.wav' > path_to_audiofiles.txt
 
 .. note::
-  We expect audio and the corresponding RTTM to have the same base name and the name should be unique (uniq-id).
+  We expect audio and the corresponding RTTM files to have the same base name and the name should be unique (uniq-id).
 
 oracle_num_speakers:
   - if number of speakers is known input it or pass null if not known. Accepts int or path to file containing uniq-id with num of speakers of that session 
@@ -28,7 +28,7 @@ oracle_num_speakers:
     iaaa 2
 
 path2groundtruth_rttm_files [Optional]:
-  - To evaluate the diarizer system with known rttm files, One needs to provide an scp like file (path2groundtruth_rttm_files) for groundtruth label files.
+  - To evaluate the diarizer system with known rttm files, One needs to provide a txt file (path2groundtruth_rttm_files) for groundtruth label files.
   use above mentioned ``find`` command to get all reference rttm files (use '*.rttm' as search pattern)
 
 Each groundtruth label file should be in NIST Rich Transcription Time Marked (RTTM) format. Take one line from a RTTM file for example:
@@ -45,7 +45,7 @@ To prepare an oracle manifest file, use the script from ``scripts`` folder as sh
 
 .. code-block:: bash
 
-  python $NeMo/scripts/ --paths2rttm_files=<path2groundtruth_rttm_files.scp> --paths2audio_files=<paths2audio_files.scp> --manifest_file=<output_oracle_manifest_file.json>
+  python $NeMo/scripts/ --paths2rttm_files=<path2groundtruth_rttm_files.txt> --paths2audio_files=<paths2audio_files.txt> --manifest_file=<output_oracle_manifest_file.json>
 
 Here ``paths2audio_files`` and ``path2groundtruth_rttm_files`` are files containing paths to audio files as shown above.
 

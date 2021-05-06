@@ -31,7 +31,7 @@ An example Speaker Diarization dataset configuration could look like:
     oracle_num_speakers: ??? # if number of speakers is known input it or pass null if not known. Accepts int or path to file containing uniq-id and num of speakers of that session
     max_num_speakers: 8 # max number of speakers for each recording. If oracle num speakers is passed this value is ignored
     out_dir: ??? 
-    paths2audio_files: ??? # file containing paths to audio files for diarzation inference
+    paths2audio_files: ??? # file containing paths to audio files for diarzation
     path2groundtruth_rttm_files: null # (Optional) file containing paths to rttm files (this can be passed if we need to calculate DER rate based on ground truth rttm files).
     ...
     
