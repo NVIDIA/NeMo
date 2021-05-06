@@ -105,9 +105,6 @@ class MTEncDecModel(EncDecNLPModel):
                 raise ValueError(
                     "Expect either cfg.src_language or cfg.tgt_language to be a list when multilingual=True."
                 )
-        else:
-            if not isinstance(self.src_language, str) or not isinstance(self.tgt_language, str):
-                raise ValueError("cfg.src_language and cfg.tgt_language must be strings when multilingual=False.")
 
             # After this call, the model will have  self.source_processor and self.target_processor objects
             self.setup_pre_and_post_processing_utils(source_lang=self.src_language, target_lang=self.tgt_language)
