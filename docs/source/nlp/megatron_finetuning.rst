@@ -62,12 +62,16 @@ With Megatron model parallelism, language models can be trained with billions of
 NeMo handles pretrained model parallel checkpoints from Megatron-LM automatically and model parallel models in NeMo have the all 
 the same features as other NeMo Models.
 
+.. note::
+
+    Currently, NeMo only supports tensor model parallelism.
+
 Training
 ^^^^^^^^
 
 All of the necessary logic to train model parallel models in NeMo with PyTorch Lightning is contained in the ``NLPDDPPlugin``. 
 The ``NLPDDPPlugin`` subclasses the PyTorch Lightning training type plugin ``DDPPlugin``.
-See `plugins <https://pytorch-lightning.readthedocs.io/en/latest/extensions/plugins.html>` for more information on PyTorch Lightning Plugins.
+See `plugins <https://pytorch-lightning.readthedocs.io/en/latest/extensions/plugins.html>`_ for more information on PyTorch Lightning Plugins.
 
 To enable model parallel training in NeMo:
 
@@ -86,7 +90,7 @@ Megatron-LM checkpoints have a specific format. One checkpoint is saved for each
         └── model_optim_rng.pt
 
 
-To start from training from a Megatron-LM checkpoint, simply pass the path to the Megatron-LM checkpoint 
+To start training from a Megatron-LM checkpoint, simply pass the path to the Megatron-LM checkpoint 
 via the language model config:
 
 .. code-block:: bash 
@@ -135,13 +139,15 @@ If using the Megatron-LM default tokenizer for training BERT the vocab file can 
     # uncased model
     model.tokenizer.tokenizer_name=megatron-bert-uncased
 
-    # or cased modeL 
+.. code-block:: bash
+
+    # cased model 
     model.tokenizer.tokenizer_name=megatron-bert-uncased
 
 Auto-Resume
 ^^^^^^^^^^^
 
-Auto-resume works exactly the same as non-model parallel models.
+Resuming training with NeMo experiment manager and PyTorch Lightning works exactly the same as other NeMo models.
 While training with PTL, model parallel checkpoint will be saved and loaded properly.
 
 .. code-block:: bash
@@ -161,7 +167,7 @@ While training with PTL, model parallel checkpoint will be saved and loaded prop
 Save and Restore
 ^^^^^^^^^^^^^^^^
 
-Model parallel .nemo files behave the save as all other .nemo files. Calling ``.save_to`` will save 
+Model parallel .nemo files behave the same as all other .nemo files. Calling ``.save_to`` will save 
 a checkpoint for each model parallel rank inside the .nemo file:
 
 .. code-block:: bash
