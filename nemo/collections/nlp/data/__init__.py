@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from nemo.collections.nlp.data.data_utils import *
+from nemo.collections.nlp.data.entity_linking.entity_linking_dataset import EntityLinkingDataset
 from nemo.collections.nlp.data.information_retrieval.information_retrieval_dataset import (
     BertInformationRetrievalDataset,
 )
@@ -24,14 +25,11 @@ from nemo.collections.nlp.data.language_modeling.lm_bert_dataset import (
     BertPretrainingDataset,
     BertPretrainingPreprocessedDataloader,
 )
+from nemo.collections.nlp.data.language_modeling.sentence_dataset import SentenceDataset, TarredSentenceDataset
 from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import (
     MultilingualTranslationDataset,
     TarredTranslationDataset,
     TranslationDataset,
-)
-from nemo.collections.nlp.data.machine_translation.one_side_dataset import (
-    TarredOneSideTranslationDataset,
-    TranslationOneSideDataset,
 )
 from nemo.collections.nlp.data.neural_machine_translation.neural_machine_translation_dataset import (
     NeuralMachineTranslationDataset,

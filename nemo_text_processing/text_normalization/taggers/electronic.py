@@ -14,7 +14,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.graph_utils import NEMO_SIGMA, GraphFst
+from nemo_text_processing.text_normalization.graph_utils import NEMO_ALPHA, NEMO_DIGIT, GraphFst, get_abs_path
 
 try:
     import pynini
@@ -34,8 +34,25 @@ class ElectronicFst(GraphFst):
     def __init__(self):
         super().__init__(name="electronic", kind="classify")
 
-        username = pynutil.insert("username: \"") + NEMO_SIGMA + pynutil.insert("\"") + pynini.cross('@', ' ')
-        domain_graph = pynutil.insert("domain: \"") + NEMO_SIGMA + pynutil.insert("\"")
+        accepted_symbols = []
+        with open(get_abs_path("data/electronic/symbols.tsv"), 'r') as f:
+            for line in f:
+                symbol, _ = line.split('\t')
+                accepted_symbols.append(pynini.accep(symbol))
+
+        username = (
+            pynutil.insert("username: \"")
+            + NEMO_ALPHA
+            + pynini.closure(NEMO_ALPHA | NEMO_DIGIT | pynini.union(*accepted_symbols))
+            + pynutil.insert("\"")
+            + pynini.cross('@', ' ')
+        )
+        domain_graph = (
+            NEMO_ALPHA
+            + (pynini.closure(NEMO_ALPHA | NEMO_DIGIT | pynini.accep('-') | pynini.accep('.')))
+            + (NEMO_ALPHA | NEMO_DIGIT)
+        )
+        domain_graph = pynutil.insert("domain: \"") + domain_graph + pynutil.insert("\"")
         graph = username + domain_graph
 
         final_graph = self.add_tokens(graph)

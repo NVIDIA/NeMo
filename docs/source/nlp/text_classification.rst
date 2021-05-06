@@ -12,7 +12,7 @@ An example script on how to train the model can be found here: `NeMo/examples/nl
 The default configuration file for the model can be found at: `NeMo/examples/nlp/text_classification/conf/text_classification_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/text_classification/conf/text_classification_config.yaml>`__.
 
 There is also a Jupyter notebook which explains how to work with this model. We recommend you try this model in the Jupyter notebook (can run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.):
-`NeMo/tutorials/nlp/Text_Classification_Sentiment_Analysis.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/nlp/Text_Classification_Sentiment_Analysis.ipynb>`__.
+`NeMo/tutorials/nlp/Text_Classification_Sentiment_Analysis.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.0/tutorials/nlp/Text_Classification_Sentiment_Analysis.ipynb>`__.
 This tutorial shows an example of how run the Text Classification model on a sentiment analysis task. You may connect to an instance with a GPU (**Runtime** -> **Change runtime type** -> select **GPU** for the hardware accelerator) to run the notebook.
 
 Data Format
@@ -153,9 +153,9 @@ sequences in the dataset.
 
 After each epoch, you should see a summary table of metrics on the validation set which include the following metrics:
 
-- :code:``Precision``
+- :code:`Precision`
 - :code:``Recall`
-- :code:``F1``
+- :code:`F1`
 
 At the end of training, NeMo saves the last checkpoint at the path specified in ``.nemo`` format.
 
