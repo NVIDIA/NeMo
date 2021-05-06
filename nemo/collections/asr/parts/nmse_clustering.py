@@ -12,7 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This file is part of https://github.com/tango4j/Auto-Tuning-Spectral-Clustering.
+# Copyright (c) 2007-2020 The scikit-learn developers.
+
+# BSD 3-Clause License
+
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+# This file is part of https://github.com/scikit-learn/scikit-learn/blob/114616d9f6ce9eba7c1aacd3d4a254f868010e25/sklearn/manifold/_spectral_embedding.py and
+# https://github.com/tango4j/Auto-Tuning-Spectral-Clustering.
+
 
 import numpy as np
 import scipy
@@ -41,6 +58,17 @@ def get_X_conn_from_dist(X_dist_raw, p_neighbors):
 
 
 def isFullyConnected(X_conn_from_dist):
+    """ Return whether the graph is connected (True) or Not (False).
+    Parameters
+    ----------
+    graph : {array-like, sparse matrix} of shape (n_samples, n_samples)
+        Adjacency matrix of the graph, non-zero weight means an edge
+        between the nodes.
+    Returns
+    -------
+    is_connected : bool
+        True means the graph is fully connected and False means not.
+    """
     gC = _graph_connected_component(X_conn_from_dist, 0).sum() == X_conn_from_dist.shape[0]
     return gC
 
@@ -59,6 +87,22 @@ def gc_thres_min_gc(mat, max_n, n_list):
 
 
 def _graph_connected_component(graph, node_id):
+    """Find the largest graph connected components that contains one
+    given node.
+    Parameters
+    ----------
+    graph : array-like of shape (n_samples, n_samples)
+        Adjacency matrix of the graph, non-zero weight means an edge
+        between the nodes.
+    node_id : int
+        The index of the query node of the graph.
+    Returns
+    -------
+    connected_components_matrix : array-like of shape (n_samples,)
+        An array of bool value indicating the indexes of the nodes
+        belonging to the largest connected components of the given query
+        node.
+    """
     n_node = graph.shape[0]
     if sparse.issparse(graph):
         graph = graph.tocsr()
