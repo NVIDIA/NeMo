@@ -26,8 +26,8 @@ from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes import Exportable
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import CosineAnnealing
@@ -114,6 +114,9 @@ class HifiGanModel(Vocoder, Exportable):
         """
         Runs the generator, for inputs and outputs see input_types, and output_types
         """
+        return self.generator(x=spec)
+
+    def forward_for_export(self, spec):
         return self.generator(x=spec)
 
     @typecheck(
@@ -330,7 +333,7 @@ class HifiGanModel(Vocoder, Exportable):
                     new_k = f"generator.resblocks.{new_layer}.{'.'.join(parts[3:])}"
             new_state_dict[new_k] = v
         super().load_state_dict(new_state_dict, strict=strict)
-    
+
     def _prepare_for_export(self, **kwargs):
         """
         Override this method to prepare module for export. This is in-place operation.

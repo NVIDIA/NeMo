@@ -64,6 +64,7 @@ def get_padding(kernel_size, dilation=1):
 
 class ResBlock1(torch.nn.Module):
     __constants__ = ['lrelu_slope']
+
     def __init__(self, channels, kernel_size, dilation):
         super().__init__()
         self.lrelu_slope = LRELU_SLOPE
@@ -136,6 +137,7 @@ class ResBlock1(torch.nn.Module):
 
 class ResBlock2(torch.nn.Module):
     __constants__ = ['lrelu_slope']
+
     def __init__(self, channels, kernel_size, dilation):
         super().__init__()
         self.convs = nn.ModuleList(
@@ -179,6 +181,7 @@ class ResBlock2(torch.nn.Module):
 
 class Generator(NeuralModule):
     __constants__ = ['lrelu_slope', 'num_kernels', 'num_upsamples']
+
     def __init__(
         self,
         resblock,
