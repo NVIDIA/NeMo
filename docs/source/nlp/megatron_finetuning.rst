@@ -130,7 +130,7 @@ Additionally, Megatron-LM requires a vocab file:
 
 If using the Megatron-LM default tokenizer for training BERT the vocab file can be omitted:
 
-..code-block:: bash
+.. code-block:: bash
 
     # uncased model
     model.tokenizer.tokenizer_name=megatron-bert-uncased
@@ -138,6 +138,64 @@ If using the Megatron-LM default tokenizer for training BERT the vocab file can 
     # or cased modeL 
     model.tokenizer.tokenizer_name=megatron-bert-uncased
 
+Auto-Resume
+^^^^^^^^^^^
+
+Auto-resume works exactly the same as non-model parallel models.
+While training with PTL, model parallel checkpoint will be saved and loaded properly.
+
+.. code-block:: bash
+
+    checkpoints/
+    ├── mp_rank_00
+    │   ├── mp_autoresume-last.ckpt
+    │   ├── mp_autoresume---val_loss=0.35-epoch=0.ckpt
+    │   ├── mp_autoresume---val_loss=0.38-epoch=1.ckpt
+    │   └── mp_autoresume---val_loss=0.39-epoch=2.ckpt
+    └── mp_rank_01
+        ├── mp_autoresume-last.ckpt
+        ├── mp_autoresume---val_loss=0.35-epoch=0.ckpt
+        ├── mp_autoresume---val_loss=0.38-epoch=1.ckpt
+        └── mp_autoresume---val_loss=0.39-epoch=2.ckpt
+
+Save and Restore
+^^^^^^^^^^^^^^^^
+
+Model parallel .nemo files behave the save as all other .nemo files. Calling ``.save_to`` will save 
+a checkpoint for each model parallel rank inside the .nemo file:
+
+.. code-block:: bash
+
+    text_class_350m
+    ├── megatron-bert-uncased_encoder_config.json
+    ├── megatron_checkpoint_version.json
+    ├── model_config.yaml
+    ├── mp_rank_00
+    │   └── model_weights.ckpt
+    ├── mp_rank_01
+    │   └── model_weights.ckpt
+    ├── tokenizer_vocab_dict.json
+    └── tokenizer.vocab_file
+
+When restoring a model parallel .nemo file, we must pass in the ``Trainer`` as model parallel requires DDP:
+
+.. code-block:: python
+
+    model = TokenClassificationModel.restore_from(cfg.pretrained_model, trainer=trainer)
+
+Evaluation
+^^^^^^^^^^
+
+Since model parallel models always require more than one GPU, the ``Trainer`` is needed for evaluation:
+
+.. code-block:: python
+
+    trainer = pl.Trainer(plugins=[NLPDDPPlugin()], **cfg.trainer)
+
+    model = TextClassificationModel.restore_from(cfg.model.nemo_path, trainer=trainer)
+    model.setup_test_data(test_data_config=cfg.model.test_ds)
+
+    trainer.test(model=model, ckpt_path=None)
 
 
 
