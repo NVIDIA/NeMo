@@ -22,7 +22,7 @@ import tempfile
 
 import youtokentome as yttm
 from joblib import Parallel, delayed
-from omegaconf import OmegaConf, ListConfig
+from omegaconf import ListConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import create_spt_model
@@ -98,7 +98,7 @@ class MTDataPreproc:
                         raise ValueError(
                             'src_file_name and tgt_file_name needed to train tokenizers but could not be found.'
                         )
-                    
+
                     src_fname = cfg.train_ds.get('src_file_name')
                     tgt_fname = cfg.train_ds.get('tgt_file_name')
                     src_language = cfg.get('src_language')
@@ -112,7 +112,7 @@ class MTDataPreproc:
                             fnames = (" ").join(src_fname)
                             src_fname = os.path.join(tempdir.name, 'src.txt')
                             os.system('cat %s > %s' % (fnames, src_fname))
-                        
+
                         if isinstance(tgt_fname, ListConfig):
                             fnames = (" ").join(tgt_fname)
                             tgt_fname = os.path.join(tempdir.name, 'tgt.txt')
@@ -120,12 +120,12 @@ class MTDataPreproc:
 
                         if isinstance(src_language, ListConfig):
                             for lng in src_language:
-                                spt_symbols.append("<"+lng+">")
-                        
+                                spt_symbols.append("<" + lng + ">")
+
                         if isinstance(tgt_language, ListConfig):
                             for lng in tgt_language:
-                                spt_symbols.append("<"+lng+">")
-                    
+                                spt_symbols.append("<" + lng + ">")
+
                     # train tokenizer model on training data
                     self.encoder_tokenizer_model, self.decoder_tokenizer_model = MTDataPreproc.train_tokenizers(
                         out_dir=cfg.get('preproc_out_dir'),
@@ -180,7 +180,9 @@ class MTDataPreproc:
                             'src_file_name and tgt_file_name needed to create tarred dataset but could not be found.'
                         )
                     if cfg.get('multilingual'):
-                        raise ValueError('Tarred dataset cannot be created with multilingual tag set to True. Pre-process each dataset one-by-one.')
+                        raise ValueError(
+                            'Tarred dataset cannot be created with multilingual tag set to True. Pre-process each dataset one-by-one.'
+                        )
                     # Preprocess data and cache for use during training
                     if self.global_rank == 0:
                         logging.info(
@@ -224,7 +226,7 @@ class MTDataPreproc:
                         metadata_file_list = [cfg.train_ds.get('metadata_file')]
                     else:
                         metadata_file_list = cfg.train_ds.get('metadata_file')
-                    
+
                     for metadata_file in metadata_file_list:
                         metadata = json.load(open(metadata_file))
                         if metadata['tar_files']:

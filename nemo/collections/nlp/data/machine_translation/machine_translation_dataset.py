@@ -20,12 +20,12 @@ import pickle
 import random
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any, Optional, List
+from typing import Any, List, Optional
 
 import braceexpand
 import numpy as np
-import webdataset as wd
 import torch.utils.data as pt_data
+import webdataset as wd
 from torch.utils.data import IterableDataset
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_ids
@@ -333,6 +333,7 @@ class TarredTranslationDataset(IterableDataset):
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         reverse_lang_direction (bool): When True, swaps the source and target directions when returning minibatches.
+        prepend_id (int): Prepends the specificed token id to the start of every source sentence. Defaults to None.
     """
 
     def __init__(
@@ -443,19 +444,47 @@ class TarredTranslationDataset(IterableDataset):
 
 
 class MultilingualTranslationDataset(IterableDataset):
-    def __init__(self, datasets: List[Any], shuffle: bool = True):
+    """
+    A dataset that accepts as argument multiple datasets and then samples from them based on the specified 
+    sampling technique.
+    Args:
+        datasets (list): A list of datasets to sample from.
+        shuffle (bool): Whether to shuffle individual datasets. Only works with non-iterable datasets. 
+            Defaults to True.
+        sampling_technique (str): Sampling technique to choose which dataset to draw a sample from.
+            Defaults to 'temperature'. Currently supports 'temperature' and 'round-robin'
+        sampling_temperature (int): Temperature value for sampling. Only used when sampling_technique = 'temperature'.
+            Defaults to 5.
+    """
+
+    def __init__(
+        self,
+        datasets: List[Any],
+        shuffle: bool = True,
+        sampling_technique: str = 'temperature',
+        sampling_temperature: int = 5,
+    ):
         super().__init__()
 
+        supported_sampling_techniques = ['temperature', 'round-robin']
         self.datasets = datasets
         self.iterables = []
         self.shuffle = shuffle
+        self.sampling_kwargs = {}
+        if sampling_technique == 'temperature':
+            self.index_generator = MultilingualTranslationDataset.temperature
+            self.sampling_kwargs['temperature'] = sampling_temperature
+        elif sampling_technique == 'round-robin':
+            self.index_generator = MultilingualTranslationDataset.round_robin
+        else:
+            raise ValueError(f"Currently we only support sampling techniques in {supported_sampling_techniques}.")
         self.N = 0
 
         if isinstance(datasets[0], IterableDataset):
             self.kind = "iterable"
         else:
             self.kind = "map"
-        
+
         for dataset in datasets:
             iterable = self.get_iterable(dataset)
             self.iterables.append(iterable)
@@ -470,12 +499,13 @@ class MultilingualTranslationDataset(IterableDataset):
             else:
                 sampler = pt_data.SequentialSampler(dataset)
             return sampler.__iter__()
-    
+
     def __iter__(self):
         n = 0
+        ind_gen = self.index_generator(self.datasets, **self.sampling_kwargs)
         while n < self.N:
             n += 1
-            ind = random.choice([0,1])
+            ind = next(ind_gen)
             try:
                 val = next(self.iterables[ind])
                 if self.kind == "map":
@@ -488,3 +518,29 @@ class MultilingualTranslationDataset(IterableDataset):
 
     def __len__(self):
         return self.N
+
+    @staticmethod
+    def temperature(datasets, **kwargs):
+        temp = kwargs.get('temperature')
+        if not temp:
+            raise ValueError("temperature function expects a 'temperature' keyowrd argument.")
+
+        lengths = []
+        num = len(datasets)
+        for dataset in datasets:
+            lengths.append(len(dataset))
+
+        p = np.array(lengths) / np.sum(lengths)
+        p = np.power(p, 1 / temp)
+        p = p / np.sum(p)
+
+        while True:
+            ind = np.random.choice(np.arange(num), p=p)
+            yield ind
+
+    @staticmethod
+    def round_robin(datasets, **kwargs):
+        num = len(datasets)
+        while True:
+            for i in range(num):
+                yield i

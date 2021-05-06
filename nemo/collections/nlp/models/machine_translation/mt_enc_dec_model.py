@@ -35,7 +35,7 @@ from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.tokenizers.chinese_tokenizers import ChineseProcessor
 from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaProcessor
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
-from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset, MultilingualTranslationDataset
+from nemo.collections.nlp.data import MultilingualTranslationDataset, TarredTranslationDataset, TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.modules.common import TokenClassifier
@@ -87,20 +87,29 @@ class MTEncDecModel(EncDecNLPModel):
 
         if self.multilingual:
             if isinstance(self.src_language, ListConfig) and isinstance(self.tgt_language, ListConfig):
-                raise ValueError("cfg.src_language and cfg.tgt_language cannot both be lists. We only support many-to-one or one-to-many multilingual models.")
+                raise ValueError(
+                    "cfg.src_language and cfg.tgt_language cannot both be lists. We only support many-to-one or one-to-many multilingual models."
+                )
             elif isinstance(self.src_language, ListConfig):
-                self.setup_pre_and_post_processing_utils(source_lang=self.src_language[0], target_lang=self.tgt_language)
+                self.setup_pre_and_post_processing_utils(
+                    source_lang=self.src_language[0], target_lang=self.tgt_language
+                )
                 for lng in self.src_language:
-                    self.multilingual_ids.append(self.encoder_tokenizer.token_to_id("<"+lng+">"))
+                    self.multilingual_ids.append(self.encoder_tokenizer.token_to_id("<" + lng + ">"))
             elif isinstance(self.tgt_language, ListConfig):
-                self.setup_pre_and_post_processing_utils(source_lang=self.src_language, target_lang=self.tgt_language[0])
+                self.setup_pre_and_post_processing_utils(
+                    source_lang=self.src_language, target_lang=self.tgt_language[0]
+                )
                 for lng in self.tgt_language:
-                    self.multilingual_ids.append(self.encoder_tokenizer.token_to_id("<"+lng+">"))
+                    self.multilingual_ids.append(self.encoder_tokenizer.token_to_id("<" + lng + ">"))
             else:
-                raise ValueError("Expect either cfg.src_language or cfg.tgt_language to be a list when multilingual=True.")
+                raise ValueError(
+                    "Expect either cfg.src_language or cfg.tgt_language to be a list when multilingual=True."
+                )
         else:
             if not isinstance(self.src_language, str) or not isinstance(self.tgt_language, str):
                 raise ValueError("cfg.src_language and cfg.tgt_language must be strings when multilingual=False.")
+
             # After this call, the model will have  self.source_processor and self.target_processor objects
             self.setup_pre_and_post_processing_utils(source_lang=self.src_language, target_lang=self.tgt_language)
             self.multilingual_ids = [None]
@@ -203,12 +212,6 @@ class MTEncDecModel(EncDecNLPModel):
                 # is excess.
                 batch[i] = batch[i].squeeze(dim=0)
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
-        # np_tgt = labels.detach().cpu().numpy()
-        # np_tgt = self.decoder_tokenizer.ids_to_text(np_tgt[0])
-        # np_src = src_ids.detach().cpu().numpy()
-        # np_src = self.encoder_tokenizer.ids_to_text(np_src[0])
-        # print (tgt_ids[0])
-        # print (tgt_mask[0])
         log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
         train_loss = self.loss_fn(log_probs=log_probs, labels=labels)
         tensorboard_logs = {
@@ -218,8 +221,6 @@ class MTEncDecModel(EncDecNLPModel):
         return {'loss': train_loss, 'log': tensorboard_logs}
 
     def eval_step(self, batch, batch_idx, mode, dataloader_idx=0):
-        # print (batch[0][0])
-        # print (batch[2][0])
         for i in range(len(batch)):
             if batch[i].ndim == 3:
                 # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
@@ -230,18 +231,12 @@ class MTEncDecModel(EncDecNLPModel):
         eval_loss = self.eval_loss_fn(log_probs=log_probs, labels=labels)
         # this will run encoder twice -- TODO: potentially fix
         _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
-        # print (tgt_ids)
-        # print (translations[0])
-        # np_src = src_ids.detach().cpu().numpy()
-        # np_src = self.encoder_tokenizer.ids_to_text(np_src[0])
-        # print (np_src)
         getattr(self, f'eval_loss_{dataloader_idx}')(
             loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1]
         )
         np_tgt = tgt_ids.detach().cpu().numpy()
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
         ground_truths = [self.target_processor.detokenize(tgt.split(' ')) for tgt in ground_truths]
-        # print (ground_truths[0])
         num_non_pad_tokens = np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
         return {
             'translations': translations,
@@ -405,7 +400,9 @@ class MTEncDecModel(EncDecNLPModel):
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         if cfg.get("load_from_cached_dataset", False):
             if self.multilingual:
-                raise ValueError("Multilingual model does not support dataset caching, it is recommended to use TarredDataset instead.")
+                raise ValueError(
+                    "Multilingual model does not support dataset caching, it is recommended to use TarredDataset instead."
+                )
             logging.info('Loading from cached dataset %s' % (cfg.src_file_name))
             if cfg.src_file_name != cfg.tgt_file_name:
                 raise ValueError("src must be equal to target for cached dataset")
@@ -419,7 +416,7 @@ class MTEncDecModel(EncDecNLPModel):
                     metadata_file_list = [cfg.get('metadata_file')]
                 else:
                     metadata_file_list = cfg.get('metadata_file')
-                
+
                 datasets = []
                 for pos, metadata_file in enumerate(metadata_file_list):
                     with open(metadata_file) as metadata_reader:
@@ -449,7 +446,7 @@ class MTEncDecModel(EncDecNLPModel):
                         global_rank=self.global_rank,
                         world_size=self.world_size,
                         reverse_lang_direction=cfg.get("reverse_lang_direction", False),
-                        prepend_id=self.multilingual_ids[pos]
+                        prepend_id=self.multilingual_ids[pos],
                     )
                     datasets.append(dataset)
 
@@ -472,9 +469,11 @@ class MTEncDecModel(EncDecNLPModel):
             else:
                 src_file_list = cfg.src_file_name
                 tgt_file_list = cfg.tgt_file_name
-            
+
             if len(src_file_list) != len(tgt_file_list):
-                raise ValueError('The same number of filepaths must be passed in for source and target while training multilingual.')
+                raise ValueError(
+                    'The same number of filepaths must be passed in for source and target while training multilingual.'
+                )
 
             datasets = []
             for pos, src_file in enumerate(src_file_list):
@@ -495,7 +494,7 @@ class MTEncDecModel(EncDecNLPModel):
                 )
                 dataset.batchify(self.encoder_tokenizer, self.decoder_tokenizer)
                 datasets.append(dataset)
-            
+
             if self.multilingual:
                 dataset = MultilingualTranslationDataset(datasets, cfg.shuffle)
                 return torch.utils.data.DataLoader(
@@ -643,8 +642,6 @@ class MTEncDecModel(EncDecNLPModel):
                 inputs = [self.source_processor.detokenize(item.split(' ')) for item in inputs]
         finally:
             self.train(mode=mode)
-        # print (inputs[0])
-        # print (translations[0])
         return inputs, translations
 
     # TODO: We should drop source/target_lang arguments in favor of using self.src/tgt_language
