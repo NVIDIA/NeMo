@@ -318,7 +318,6 @@ class HifiGanModel(Vocoder, Exportable):
     def load_state_dict(self, state_dict, strict=True):
         # override load_state_dict to give us some flexibility to be backward-compatible
         # with old checkpoints
-        print("INSIDE LOAD_STATE_DICT FOR HIFIGAN")
         new_state_dict = {}
         for k, v in state_dict.items():
             new_k = k
