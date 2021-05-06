@@ -581,7 +581,7 @@ then that path will be to the artifact in the .nemo file. Otherwise, ``.register
 The model config that is packaged with the .nemo file will be updated according to the ``config_path`` key.
 In the above example, the model config will have 
 
-.. code-block: yaml
+.. code-block:: YAML
 
     encoder_tokenizer:
         tokenizer_model: nemo:4978b28103264263a03439aaa6560e5e_tokenizer.model
@@ -590,6 +590,11 @@ In the above example, the model config will have
 
 ``src`` is the path to the artifact and the basename of the path will be used when packaging the artifcat in the .nemo file.
 Each artifact will have a hash prepended to the basename of ``src`` in the .nemo file. This is to prevent collisions with basenames.
+The resulting .nemo file will then have the following file:
+
+.. code-block:: bash
+
+    4978b28103264263a03439aaa6560e5e_tokenizer.model
 
 If ``verify_src_exists`` is set to ``False``, then the artifact is optional. This means that ``.register_artifact`` will return ``None`` 
 if the ``src`` cannot be found. 
