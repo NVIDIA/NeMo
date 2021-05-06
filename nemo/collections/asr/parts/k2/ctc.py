@@ -51,10 +51,12 @@ class CTCLoss(torch.nn.Module):
             oov: str = '<UNK>'
     ):
         super().__init__()
+        self.blank = blank
+        self.num_classes = num_classes
         self.reduction = reduction
         if graph_type == 'topo':
             from nemo.collections.asr.parts.k2.graph_compilers import CtcTrainingTopologyCompiler as compiler
-            self.graph_compiler = compiler(num_classes, blank)
+            self.graph_compiler = compiler(self.num_classes)
         elif graph_type == 'graph':
             from nemo.collections.asr.parts.k2.graph_compilers import CtcTrainingGraphCompiler as compiler
             # self.graph_compiler = compiler(L_inv, phones, words, oov)
@@ -67,7 +69,7 @@ class CTCLoss(torch.nn.Module):
             (
                 torch.tensor(range(input_lengths.shape[0])),
                 torch.zeros(input_lengths.shape[0]),
-                input_lengths,
+                input_lengths.cpu(),
             ),
             1,
         ).to(torch.int32)
@@ -82,6 +84,14 @@ class CTCLoss(torch.nn.Module):
             input_lengths: torch.Tensor,
             target_lengths: torch.Tensor
     ) -> torch.Tensor:
+        if self.blank != 0:
+            # rearrange log_probs to put blank at the first place
+            index = list(range(self.num_classes))
+            del index[self.blank]
+            index = torch.tensor([self.blank] + index).to(log_probs.device)
+            log_probs = torch.index_select(log_probs, -1, index)
+            # shift targets to emulate blank = 0
+            targets += 1
         supervisions, order = self.create_supervision(input_lengths)
         supervisions = supervisions[order]
         log_probs = log_probs[order]
@@ -94,7 +104,7 @@ class CTCLoss(torch.nn.Module):
 
         num_tot_scores = num_lats.get_tot_scores(
             log_semiring=True,
-            use_double_scores=True
+            use_double_scores=False
         )
         tot_scores = num_tot_scores
         tot_scores, _, _ = get_tot_objf_and_num_frames(

@@ -34,41 +34,33 @@ import k2
 import torch
 
 
-def build_ctc_topo(tokens: List[int], blank_idx: int = 0) -> k2.Fsa:
-    '''Build CTC topology.
+def build_ctc_topo(tokens: List[int]) -> k2.Fsa:
+    """Build CTC topology.
     A token which appears once on the right side (i.e. olabels) may
     appear multiple times on the left side (ilabels), possibly with
     epsilons in between.
-    When 0 appears on the right side, it indicates an epsilon.
+    When 0 appears on the left side, it represents the blank symbol;
+    when it appears on the right side, it indicates an epsilon. That
+    is, 0 has two meanings here.
     Args:
       tokens:
         A list of tokens, e.g., phones, characters, etc.
-      blank_idx:
-        ID of the blank symbol.
     Returns:
       Returns an FST that converts repeated tokens to a single token.
-    '''
-    assert blank_idx in tokens
-
-    def olabel(k):
-        if blank_idx == 0:
-            return k
-        elif k == blank_idx:
-            return 0
-        else:
-            return k+1
+    """
+    assert 0 in tokens, "We assume 0 is ID of the blank symbol"
 
     num_states = len(tokens)
     final_state = num_states
-    arcs = ''
+    arcs = ""
     for i in range(num_states):
         for j in range(num_states):
             if i == j:
-                arcs += f'{i} {i} {tokens[i]} 0 0.0\n'
+                arcs += f"{i} {i} {tokens[i]} 0 0.0\n"
             else:
-                arcs += f'{i} {j} {tokens[j]} {olabel(tokens[j])} 0.0\n'
-        arcs += f'{i} {final_state} -1 -1 0.0\n'
-    arcs += f'{final_state}'
+                arcs += f"{i} {j} {tokens[j]} {tokens[j]} 0.0\n"
+        arcs += f"{i} {final_state} -1 -1 0.0\n"
+    arcs += f"{final_state}"
     ans = k2.Fsa.from_str(arcs, num_aux_labels=1)
     ans = k2.arc_sort(ans)
     return ans

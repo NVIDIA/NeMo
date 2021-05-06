@@ -39,11 +39,9 @@ from nemo.collections.asr.parts.k2.utils import get_phone_symbols
 
 class CtcTrainingTopologyCompiler(object):
 
-    def __init__(self, num_classes, blank):
-        assert blank < num_classes
-        self.blank = blank
+    def __init__(self, num_classes):
         phone_ids_with_blank = list(range(num_classes))
-        self.ctc_topo = k2.arc_sort(build_ctc_topo(phone_ids_with_blank, self.blank))
+        self.ctc_topo_inv = k2.arc_sort(build_ctc_topo(phone_ids_with_blank).invert())
 
     def compile(self, targets: torch.Tensor, target_lengths: torch.Tensor) -> k2.Fsa:
         decoding_graphs = k2.create_fsa_vec(
@@ -55,10 +53,11 @@ class CtcTrainingTopologyCompiler(object):
 
     @lru_cache(maxsize=1000000)
     def compile_one_and_cache(self, target: torch.Tensor) -> k2.Fsa:
-        # shift targets to emulate blank = 0
-        target = (target + int(self.blank != 0)).tolist()
-        label_graph = k2.arc_sort(k2.linear_fsa(target))
-        decoding_graph = k2.connect(k2.compose(self.ctc_topo, label_graph))
+        label_graph = k2.add_epsilon_self_loops(k2.linear_fsa(target.tolist()))
+        decoding_graph = k2.intersect(
+            self.ctc_topo_inv, label_graph, treat_epsilons_specially=False
+        )
+        decoding_graph = k2.connect(decoding_graph.invert())
         return decoding_graph
 
 
