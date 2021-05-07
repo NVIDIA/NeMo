@@ -606,6 +606,11 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             return output
 
         # Load the best model and then re-save it
+        app_state = AppState()
+        # since we are creating tarfile artifacts we need to update .nemo path
+        app_state.model_restore_path = os.path.abspath(
+            os.path.expanduser(os.path.join(self.dirpath, self.prefix + self.postfix))
+        )
         if self.save_best_model:
             if not os.path.exists(self.best_model_path):
                 return output
@@ -620,11 +625,10 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 checkpoint = checkpoint['state_dict']
             # get a new instanace of the model
             pl_module.load_state_dict(checkpoint, strict=True)
-            pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
+            pl_module.save_to(save_path=app_state.model_restore_path)
             pl_module.load_state_dict(old_state_dict, strict=True)
         else:
-            pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
-
+            pl_module.save_to(save_path=app_state.model_restore_path)
         return output
 
     @rank_zero_only
