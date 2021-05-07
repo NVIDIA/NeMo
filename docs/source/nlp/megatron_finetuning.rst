@@ -90,7 +90,7 @@ Megatron-LM checkpoints have a specific format. One checkpoint is saved for each
         └── model_optim_rng.pt
 
 
-To start training from a Megatron-LM checkpoint, simply pass the path to the Megatron-LM checkpoint 
+To start fine-tuning from a Megatron-LM checkpoint, simply pass the path to the Megatron-LM checkpoint 
 via the language model config:
 
 .. code-block:: bash 
