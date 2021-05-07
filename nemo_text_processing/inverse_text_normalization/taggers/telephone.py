@@ -27,7 +27,8 @@ except (ModuleNotFoundError, ImportError):
 
 class TelephoneFst(GraphFst):
     """
-    Finite state transducer for classifying telephone numbers
+    Finite state transducer for classifying telephone numbers, e.g. 
+        one two three one two three five six seven eight -> { number_part: "123-123-5678" }
     """
 
     def __init__(self):

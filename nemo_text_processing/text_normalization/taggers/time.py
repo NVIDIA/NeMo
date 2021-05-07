@@ -53,7 +53,7 @@ class TimeFst(GraphFst):
         time_zone_graph = pynini.string_file(get_abs_path("data/time_zone.tsv"))
 
         # only used for < 1000 thousand -> 0 weight
-        cardinal = pynutil.add_weight(cardinal.graph, weight=-0.7)
+        cardinal = cardinal.graph
 
         labels_hour = [str(x) for x in range(0, 24)]
         labels_minute_single = [str(x) for x in range(1, 10)]
