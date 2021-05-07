@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import torch
-from torchmetrics import Metric
 from torch.distributions.categorical import Categorical
+from torchmetrics import Metric
 
 __all__ = ['Perplexity']
 
