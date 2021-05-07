@@ -337,3 +337,21 @@ class TestExpManager:
 
         model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / "default.nemo"))
         assert math.fabs(float(model(torch.tensor([1.0, 1.0], device=model.device))) - 0.03) < 1e-5
+
+    @pytest.mark.unit
+    def test_nemo_checkpoint_always_save_nemo(self, tmp_path):
+        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4)
+        log_dir = exp_manager(
+            test_trainer,
+            {
+                "checkpoint_callback_params": {"save_best_model": True, "always_save_nemo": True},
+                "explicit_log_dir": str(tmp_path / "test"),
+            },
+        )
+        model = ExampleModel()
+        test_trainer.fit(model)
+
+        assert Path(str(tmp_path / "test" / "checkpoints" / "default.nemo")).exists()
+
+        model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / "default.nemo"))
+        assert float(model(torch.tensor([1.0, 1.0], device=model.device))) == 0.0
