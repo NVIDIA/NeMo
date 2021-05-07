@@ -47,7 +47,7 @@ class SpectrogramGenerator(ModelPT, ABC):
             tokens: A torch tensor representing the text to be generated
 
         Returns:
-            sepctrograms
+            spectrograms
         """
 
     @classmethod

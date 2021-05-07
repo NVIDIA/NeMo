@@ -28,7 +28,7 @@ NVIDIA NeMo User Guide
    asr/speech_classification/intro
    asr/speaker_recognition/intro
    asr/speaker_diarization/intro
-   
+
 .. toctree::
    :maxdepth: 2
    :caption: Natural Language Processing
@@ -40,6 +40,8 @@ NVIDIA NeMo User Guide
    :maxdepth: 2
    :caption: Text To Speech
    :name: Text To Speech
+   :includehidden:
+   :titlesonly:
 
    tts/intro
 
