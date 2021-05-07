@@ -417,7 +417,7 @@ At the end of training, a ``.nemo`` file is written to the result directory whic
 Multi-Validation
 ----------------
 
-To run validation or testing on multiple datasets, specify the ``src_file_name`` and ``tgt_file_name`` with a list of file paths:
+To run validation on multiple datasets, specify ``validation_ds.src_file_name`` and ``validation_ds.tgt_file_name`` with a list of file paths:
 
 .. code-block:: bash
 
