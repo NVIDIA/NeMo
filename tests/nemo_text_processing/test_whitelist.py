@@ -45,7 +45,7 @@ class TestWhitelist:
         pred = self.normalizer.normalize(test_input, verbose=False)
         assert pred == expected
 
-    normalizer_uppercased = Normalizer(input_case='cased')
+    normalizer_uppercased = Normalizer(input_case='cased') if PYNINI_AVAILABLE else None
     cases_uppercased = {"Dr. Evil": "doctor Evil", "No. 4": "number four", "dr. Evil": "dr. Evil", "no. 4": "no. four"}
 
     @parameterized.expand(cases_uppercased.items())

@@ -44,7 +44,7 @@ class TestDate:
         pred = self.normalizer.normalize(test_input, verbose=False)
         assert pred == expected
 
-    normalizer_uppercased = Normalizer(input_case='cased')
+    normalizer_uppercased = Normalizer(input_case='cased') if PYNINI_AVAILABLE else None
     cases_uppercased = {"Aug. 8": "august eighth", "8 Aug.": "the eighth of august", "aug. 8": "august eighth"}
 
     @parameterized.expand(cases_uppercased.items())
