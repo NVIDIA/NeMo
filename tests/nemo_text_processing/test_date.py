@@ -20,7 +20,7 @@ from utils import PYNINI_AVAILABLE, parse_test_case_file
 
 
 class TestDate:
-    inverse_normalizer = InverseNormalizer()
+    inverse_normalizer = InverseNormalizer() if PYNINI_AVAILABLE else None
 
     @parameterized.expand(parse_test_case_file('data_inverse_text_normalization/test_cases_date.txt'))
     @pytest.mark.skipif(
@@ -32,7 +32,7 @@ class TestDate:
         pred = self.inverse_normalizer.inverse_normalize(test_input, verbose=False)
         assert pred == expected
 
-    normalizer = Normalizer(input_case='lower_cased')
+    normalizer = Normalizer(input_case='lower_cased') if PYNINI_AVAILABLE else None
 
     @parameterized.expand(parse_test_case_file('data_text_normalization/test_cases_date.txt'))
     @pytest.mark.skipif(
@@ -44,7 +44,7 @@ class TestDate:
         pred = self.normalizer.normalize(test_input, verbose=False)
         assert pred == expected
 
-    normalizer_uppercased = Normalizer(input_case='cased')
+    normalizer_uppercased = Normalizer(input_case='cased') if PYNINI_AVAILABLE else None
     cases_uppercased = {"Aug. 8": "august eighth", "8 Aug.": "the eighth of august", "aug. 8": "august eighth"}
 
     @parameterized.expand(cases_uppercased.items())

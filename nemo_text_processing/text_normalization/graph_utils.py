@@ -17,9 +17,10 @@ import os
 import string
 from pathlib import Path
 
+from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
+
 try:
     import pynini
-    from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
     from pynini import Far
     from pynini.examples import plurals
     from pynini.lib import byte, pynutil, utf8
@@ -102,6 +103,8 @@ except (ModuleNotFoundError, ImportError):
 
     SINGULAR_TO_PLURAL = None
     PLURAL_TO_SINGULAR = None
+    TO_LOWER = None
+    TO_UPPER = None
 
     PYNINI_AVAILABLE = False
 
