@@ -343,7 +343,10 @@ class TestExpManager:
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4)
         log_dir = exp_manager(
             test_trainer,
-            {"checkpoint_callback_params": {"save_best_model": True, "always_save_nemo": True}, "explicit_log_dir": str(tmp_path / "test")},
+            {
+                "checkpoint_callback_params": {"save_best_model": True, "always_save_nemo": True},
+                "explicit_log_dir": str(tmp_path / "test"),
+            },
         )
         model = ExampleModel()
         test_trainer.fit(model)
