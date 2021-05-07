@@ -588,8 +588,9 @@ In the above example, the model config will have
         ...
         tokenizer_model: nemo:4978b28103264263a03439aaa6560e5e_tokenizer.model
 
-``src`` is the path to the artifact and the basename of the path will be used when packaging the artifcat in the .nemo file.
-Each artifact will have a hash prepended to the basename of ``src`` in the .nemo file. This is to prevent collisions with basenames.
+``src`` is the path to the artifact and the base-name of the path will be used when packaging the artifact in the .nemo file.
+Each artifact will have a hash prepended to the basename of ``src`` in the .nemo file. This is to prevent collisions with basenames 
+base-names that are identical (say when there are two or more tokenizers, both called `tokenizer.model`).
 The resulting .nemo file will then have the following file:
 
 .. code-block:: bash
