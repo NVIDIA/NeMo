@@ -287,7 +287,7 @@ class ModelPT(LightningModule, Model):
                         if 'nemo:' in artiitem.path:
                             artifact_base_name = artiitem.path.split('nemo:')[1]
                         else:
-                            artifact_base_name = artiitem.path
+                            artifact_base_name = os.path.basename(artiitem.path)
                         # no need to hash here as we are in tarfile_artifacts which are already hashed
                         artifact_uniq_name = artifact_base_name
                         shutil.copy2(artifact_base_name, os.path.join(nemo_file_folder, artifact_uniq_name))
