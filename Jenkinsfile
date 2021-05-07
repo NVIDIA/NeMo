@@ -255,6 +255,7 @@ pipeline {
         stage('Speaker Diarization Inference') {
           steps {
             sh 'python examples/speaker_recognition/speaker_diarize.py \
+            diarizer.oracle_num_speakers=2 \
             diarizer.paths2audio_files=/home/TestData/an4_diarizer/audio_files.scp \
             diarizer.path2groundtruth_rttm_files=/home/TestData/an4_diarizer/rttm_files.scp \
             diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
@@ -999,6 +1000,32 @@ pipeline {
               '
               sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTFromTextwordtok'
             }
+        }
+      }
+    }
+
+    stage('L2: Entity Linking') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage ('Self Alignment Pretraining BERT') {
+           steps {
+             sh 'cd examples/nlp/entity_linking && \
+             python self_alignment_pretraining.py \
+             project_dir=. \
+             trainer.val_check_interval=3 \
+             model.raw_data=None \
+             model.train_ds.data_file=/home/TestData/nlp/entity_linking/tiny_example_train_pairs.tsv \
+             model.validation_ds.data_file=/home/TestData/nlp/entity_linking/tiny_example_validation_pairs.tsv \
+             model.train_ds.batch_size=8 \
+             model.validation_ds.batch_size=8 \
+             exp_manager.exp_dir=null'
+          }
         }
       }
     }
