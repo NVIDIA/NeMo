@@ -66,9 +66,7 @@ class Exportable(ABC):
 
     def get_input_names(self):
         if not (hasattr(self, 'input_types')):
-            raise NotImplementedError(
-                'For export to work you must define input_types'
-            )
+            raise NotImplementedError('For export to work you must define input_types')
         input_names = list(self.input_types.keys())
         # remove unnecessary inputs for input_ports
         for name in self.disabled_deployment_input_names:
@@ -77,11 +75,9 @@ class Exportable(ABC):
 
     def get_output_names(self):
         if not (hasattr(self, 'output_types')):
-            raise NotImplementedError(
-                'For export to work you must define output_types'
-            )
+            raise NotImplementedError('For export to work you must define output_types')
         output_names = list(self.output_types.keys())
-            # remove unnecessary inputs for input_ports
+        # remove unnecessary inputs for input_ports
         for name in self.disabled_deployment_output_names:
             output_names.remove(name)
         return output_names
@@ -157,12 +153,12 @@ class Exportable(ABC):
                 input_list = tuple(input_list[:-1])
 
             input_names = self.input_module.get_input_names()
-            output_names = self.output_module.get_output_names()                
-                
+            output_names = self.output_module.get_output_names()
+
             output_example = self.forward(*input_list, **input_dict)
 
             my_args['input_example'] = input_example
-            
+
             self._prepare_for_export(**my_args)
 
             with torch.jit.optimized_execution(True), torch.no_grad():

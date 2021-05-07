@@ -54,7 +54,10 @@ wcfg = DictConfig({"waveglow": mcfg, "sigma": 1.0, "preprocessor": pcfg,})
 def input_example(sz):
     mel = torch.randn(1, 1, 80, sz).cuda().half()
     z = torch.randn(1, 8, sz * 256 // 8, 1).cuda().half()
-    return (mel, z,)
+    return (
+        mel,
+        z,
+    )
 
 
 def taco2wg(spec, z):

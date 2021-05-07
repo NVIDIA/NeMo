@@ -347,5 +347,4 @@ class HifiGanModel(Vocoder, Exportable):
         """
         par = next(self.parameters())
         mel = torch.randn((1, self.cfg['preprocessor']['nfilt'], 96), device=par.device, dtype=par.dtype)
-        return ({ 'spec' : mel },)
-
+        return ({'spec': mel},)
