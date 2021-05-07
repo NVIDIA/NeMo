@@ -284,7 +284,8 @@ class ModelPT(LightningModule, Model):
                     os.chdir(archive_dir)
                     for conf_path, artiitem in tarfile_artifacts:
                         # Get basename and copy it to nemo_file_folder
-                        artifact_base_name = artiitem.path.split('nemo:')[1]
+                        if 'nemo:' in artiitem.path:
+                            artifact_base_name = artiitem.path.split('nemo:')[1]
                         # no need to hash here as we are in tarfile_artifacts which are already hashed
                         artifact_uniq_name = artifact_base_name
                         shutil.copy2(artifact_base_name, os.path.join(nemo_file_folder, artifact_uniq_name))
