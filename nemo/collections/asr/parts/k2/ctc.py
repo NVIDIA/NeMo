@@ -100,7 +100,7 @@ class CTCLoss(torch.nn.Module):
         num_graphs = self.graph_compiler.compile(targets, target_lengths).to(log_probs.device)
         dense_fsa_vec = k2.DenseFsaVec(log_probs, supervisions)
 
-        num_lats = k2.intersect_dense(num_graphs, dense_fsa_vec, 10.0)
+        num_lats = k2.intersect_dense(num_graphs, dense_fsa_vec, torch.finfo(torch.float32).max)
 
         num_tot_scores = num_lats.get_tot_scores(
             log_semiring=True,
