@@ -43,7 +43,10 @@ class OptCounter(torch.optim.SGD):
         super().__init__(*args, **kwargs)
 
     def step(self, closure=None):
-        self.count += 1
+        try:
+            self.count += 1
+        except AttributeError:
+            self.count = 1
         super().step(closure)
 
 
