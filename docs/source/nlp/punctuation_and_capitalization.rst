@@ -218,11 +218,10 @@ To train the model from scratch, run:
              model.dataset.data_dir=<PATH/TO/DATA_DIR> \
              trainer.gpus=[0,1] \
              optim.name=adam \
-             optim.lr=0.0001 \
-             model.nemo_path=<PATH/TO/SAVE/.nemo>
+             optim.lr=0.0001
 
 The above command will start model training on GPUs 0 and 1 with Adam optimizer and learning rate of 0.0001; and the trained model is 
-store under ``<PATH/TO/SAVE/.nemo>``.
+stored in the ``nemo_experiments/Punctuation_and_Capitalization`` folder.
 
 To train from the pre-trained model, run:
 
