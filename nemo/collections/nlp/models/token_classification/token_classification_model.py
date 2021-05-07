@@ -231,7 +231,7 @@ class TokenClassificationModel(NLPModel):
         # save label maps to the config
         self._cfg.label_ids = OmegaConf.create(label_ids)
 
-        self.register_artifact(self._cfg.class_labels.class_labels_file, label_ids_filename)
+        self.register_artifact('class_labels.class_labels_file', label_ids_filename)
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig] = None):
