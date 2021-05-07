@@ -124,7 +124,11 @@ class DateFst(GraphFst):
         month_graph = pynutil.insert("month: \"") + month_graph + pynutil.insert("\"")
         month_numbers_graph = pynutil.insert("month: \"") + month_numbers_graph + pynutil.insert("\"")
 
-        day_graph = pynutil.insert("day: \"") + cardinal_graph + pynutil.insert("\"")
+        day_graph = (
+            pynutil.insert("day: \"")
+            + ((pynini.union("1", "2", "3") + NEMO_DIGIT) | NEMO_DIGIT) @ cardinal_graph
+            + pynutil.insert("\"")
+        )
         optional_day_graph = pynini.closure(delete_extra_space + day_graph, 0, 1)
 
         year_graph = pynutil.insert("year: \"") + year_graph + pynutil.insert("\"")
