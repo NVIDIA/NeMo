@@ -723,7 +723,6 @@ class TestOptimizersSchedulers:
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('CPU')
-    @pytest.mark.pleasefixme
     def test_max_step_computation(self):
         def train(
             max_epochs, accumulate_grad_batches, limit_train_batches, num_processes, batch_size, dataset_len, drop_last
