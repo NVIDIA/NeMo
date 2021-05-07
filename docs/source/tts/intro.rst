@@ -13,7 +13,7 @@ supports two pipelines for TTS:
 
 1) The two stage pipeline. First, a model is used to generate a mel spectrogram from text. Second, a model is used
 to generate audio from a mel spectrogram.
-2) The "end-to-end" approach that uses one model to generate audio straight from speech.
+2) The "end-to-end" approach that uses one model to generate audio straight from text.
 
 Quick Start:
 
@@ -80,7 +80,7 @@ the two stage pipeline, or the FastPitch_HifiGan_E2E model for the end-to-end pi
    * - FastPitch
      - :class:`SpectrogramGenerator<nemo.collections.tts.models.base.SpectrogramGenerator>`
      - (Coming soon)
-     - Non-autoregressive transformer-based spectrogram generator that predicts duration, and pitch
+     - Non-autoregressive transformer-based spectrogram generator that predicts duration and pitch
    * - TalkNet
      - :class:`SpectrogramGenerator<nemo.collections.tts.models.base.SpectrogramGenerator>`
      - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_en_talknet
@@ -142,11 +142,11 @@ Correspondingly, NeMo TTS has one base class for the end-to-end pipeline:
 
   - :class:`TextToWaveform<nemo.collections.tts.models.base.TextToWaveform>`
 
-Similiary to the SpectrogramGenerator, :class:`TextToWaveform<nemo.collections.tts.models.base.TextToWaveform>`
+Similarly to the SpectrogramGenerator, :class:`TextToWaveform<nemo.collections.tts.models.base.TextToWaveform>`
 implements two functions: :py:meth:`parse<nemo.collections.tts.models.base.TextToWaveform.parse>` which
 accepts raw python strings and returns a torch.tensor that represents tokenized text ready to pass to, and
 :py:meth:`generate_spectrogram<nemo.collections.tts.models.base.TextToWaveform.convert_text_to_waveform>` which
-accepts a batch of tokenized text and returns a torch.tensor that represents a batch of audio,
+accepts a batch of tokenized text and returns a torch.tensor that represents a batch of audio.
 
 TTS Training
 ############
