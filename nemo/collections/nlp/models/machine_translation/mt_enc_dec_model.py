@@ -681,6 +681,13 @@ class MTEncDecModel(EncDecNLPModel):
             self.setup_pre_and_post_processing_utils(source_lang, target_lang)
 
         mode = self.training
+        prepend_ids = []
+        if self.multilingual:
+            if source_lang is None or target_lang is None:
+                raise ValueError("Expect source_lang and target_lang to infer for multilingual model.")
+            src_symbol = self.encoder_tokenizer.token_to_id('<' + source_lang + '>')
+            tgt_symbol = self.encoder_tokenizer.token_to_id('<' + target_lang + '>')
+            prepend_ids = [src_symbol if src_symbol in self.multilingual_ids else tgt_symbol]
         try:
             self.eval()
             inputs = []
@@ -689,7 +696,7 @@ class MTEncDecModel(EncDecNLPModel):
                     txt = self.source_processor.normalize(txt)
                     txt = self.source_processor.tokenize(txt)
                 ids = self.encoder_tokenizer.text_to_ids(txt)
-                ids = [self.encoder_tokenizer.bos_id] + ids + [self.encoder_tokenizer.eos_id]
+                ids = prepend_ids + [self.encoder_tokenizer.bos_id] + ids + [self.encoder_tokenizer.eos_id]
                 inputs.append(ids)
             max_len = max(len(txt) for txt in inputs)
             src_ids_ = np.ones((len(inputs), max_len)) * self.encoder_tokenizer.pad_id
