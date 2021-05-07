@@ -229,7 +229,7 @@ setuptools.setup(
     # Add in any packaged data.
     include_package_data=True,
     exclude=['tools', 'tests'],
-    package_data={'': ['*.tsv', '*.txt']},
+    package_data={'': ['*.tsv', '*.txt', '*.far']},
     zip_safe=False,
     # PyPI package information.
     keywords=__keywords__,
