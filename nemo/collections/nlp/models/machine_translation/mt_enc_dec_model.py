@@ -35,7 +35,7 @@ from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.tokenizers.chinese_tokenizers import ChineseProcessor
 from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaProcessor
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
-from nemo.collections.nlp.data import MultilingualTranslationDataset, TarredTranslationDataset, TranslationDataset
+from nemo.collections.nlp.data import ConcatTranslationDataset, TarredTranslationDataset, TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.modules.common import TokenClassifier
@@ -434,7 +434,7 @@ class MTEncDecModel(EncDecNLPModel):
                     metadata_file_list = cfg.get('metadata_file')
 
                 datasets = []
-                for pos, metadata_file in enumerate(metadata_file_list):
+                for idx, metadata_file in enumerate(metadata_file_list):
                     with open(metadata_file) as metadata_reader:
                         metadata = json.load(metadata_reader)
                     if cfg.get('tar_files') is None:
@@ -446,7 +446,7 @@ class MTEncDecModel(EncDecNLPModel):
                     else:
                         tar_files = cfg.get('tar_files')
                         if multilingual:
-                            tar_files = tar_files[pos]
+                            tar_files = tar_files[idx]
                         if metadata.get('tar_files') is not None:
                             logging.info(
                                 f'Tar file paths found in both cfg and metadata using one in cfg by default - {tar_files}'
@@ -462,12 +462,12 @@ class MTEncDecModel(EncDecNLPModel):
                         global_rank=self.global_rank,
                         world_size=self.world_size,
                         reverse_lang_direction=cfg.get("reverse_lang_direction", False),
-                        prepend_id=self.multilingual_ids[pos],
+                        prepend_id=self.multilingual_ids[idx],
                     )
                     datasets.append(dataset)
 
                 if self.multilingual:
-                    dataset = MultilingualTranslationDataset(datasets)
+                    dataset = ConcatTranslationDataset(datasets)
                 else:
                     dataset = datasets[0]
 
@@ -492,10 +492,10 @@ class MTEncDecModel(EncDecNLPModel):
                 )
 
             datasets = []
-            for pos, src_file in enumerate(src_file_list):
+            for idx, src_file in enumerate(src_file_list):
                 dataset = TranslationDataset(
                     dataset_src=str(Path(src_file).expanduser()),
-                    dataset_tgt=str(Path(tgt_file_list[pos]).expanduser()),
+                    dataset_tgt=str(Path(tgt_file_list[idx]).expanduser()),
                     tokens_in_batch=cfg.tokens_in_batch,
                     clean=cfg.get("clean", False),
                     max_seq_length=cfg.get("max_seq_length", 512),
@@ -506,13 +506,13 @@ class MTEncDecModel(EncDecNLPModel):
                     cache_data_per_node=cfg.get("cache_data_per_node", False),
                     use_cache=cfg.get("use_cache", False),
                     reverse_lang_direction=cfg.get("reverse_lang_direction", False),
-                    prepend_id=self.multilingual_ids[pos],
+                    prepend_id=self.multilingual_ids[idx],
                 )
                 dataset.batchify(self.encoder_tokenizer, self.decoder_tokenizer)
                 datasets.append(dataset)
 
             if self.multilingual:
-                dataset = MultilingualTranslationDataset(datasets, cfg.shuffle)
+                dataset = ConcatTranslationDataset(datasets, cfg.shuffle)
                 return torch.utils.data.DataLoader(
                     dataset=dataset,
                     batch_size=1,
@@ -574,13 +574,13 @@ class MTEncDecModel(EncDecNLPModel):
             raise ValueError('The same number of filepaths must be passed in for source and target validation.')
 
         dataloaders = []
-        prepend_pos = 0
-        for pos, src_file in enumerate(src_file_list):
+        prepend_idx = 0
+        for idx, src_file in enumerate(src_file_list):
             if self.multilingual:
-                prepend_pos = pos
+                prepend_idx = idx
             dataset = TranslationDataset(
                 dataset_src=str(Path(src_file).expanduser()),
-                dataset_tgt=str(Path(tgt_file_list[pos]).expanduser()),
+                dataset_tgt=str(Path(tgt_file_list[idx]).expanduser()),
                 tokens_in_batch=cfg.tokens_in_batch,
                 clean=cfg.get("clean", False),
                 max_seq_length=cfg.get("max_seq_length", 512),
@@ -591,7 +591,7 @@ class MTEncDecModel(EncDecNLPModel):
                 cache_data_per_node=cfg.get("cache_data_per_node", False),
                 use_cache=cfg.get("use_cache", False),
                 reverse_lang_direction=cfg.get("reverse_lang_direction", False),
-                prepend_id=self.multilingual_ids[prepend_pos],
+                prepend_id=self.multilingual_ids[prepend_idx],
             )
             dataset.batchify(self.encoder_tokenizer, self.decoder_tokenizer)
 
