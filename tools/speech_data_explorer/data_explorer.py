@@ -620,14 +620,10 @@ def show_diff(idx, data):
         raise PreventUpdate
 
     orig_words = data[idx[0]]['text']
-    while '  ' in orig_words:
-        orig_words = orig_words.replace('  ', ' ')
-    orig_words = orig_words.replace(' ', '\n') + '\n'
+    orig_words = '\n'.join(orig_words.split()) + '\n'
 
     pred_words = data[idx[0]]['pred_text']
-    while '  ' in pred_words:
-        pred_words = pred_words.replace('  ', ' ')
-    pred_words = pred_words.replace(' ', '\n') + '\n'
+    pred_words = '\n'.join(pred_words.split()) + '\n'
 
     diff = diff_match_patch.diff_match_patch()
     diff.Diff_Timeout = 0
