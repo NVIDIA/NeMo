@@ -152,7 +152,7 @@ class TextClassificationModel(NLPModel, Exportable):
         """
         if not outputs:
             return {}
-        if self.testing:
+        if self.trainer.testing:
             prefix = 'test'
         else:
             prefix = 'val'
