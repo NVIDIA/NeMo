@@ -146,7 +146,7 @@ class Exportable(ABC):
                 input_example = self.input_module.input_example()
 
             my_args['input_example'] = input_example
-            
+
             # Run (posibly overridden) prepare method before calling forward()
             self._prepare_for_export(**my_args)
 
