@@ -145,6 +145,11 @@ class Exportable(ABC):
             if input_example is None:
                 input_example = self.input_module.input_example()
 
+            my_args['input_example'] = input_example
+            
+            # Run (posibly overridden) prepare method before calling forward()
+            self._prepare_for_export(**my_args)
+
             input_list = list(input_example)
             input_dict = {}
             # process possible kwargs
@@ -156,10 +161,6 @@ class Exportable(ABC):
             output_names = self.output_module.get_output_names()
 
             output_example = self.forward(*input_list, **input_dict)
-
-            my_args['input_example'] = input_example
-
-            self._prepare_for_export(**my_args)
 
             with torch.jit.optimized_execution(True), torch.no_grad():
                 jitted_model = None
