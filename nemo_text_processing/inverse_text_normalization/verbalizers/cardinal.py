@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space
+from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space
 
 try:
     import pynini
@@ -27,7 +27,7 @@ except (ModuleNotFoundError, ImportError):
 class CardinalFst(GraphFst):
     """
     Finite state transducer for verbalizing cardinal
-        e.g. tokens { cardinal { integer: "23" negative: "-" } } -> -23
+        e.g. cardinal { integer: "23" negative: "-" } -> -23
     """
 
     def __init__(self):

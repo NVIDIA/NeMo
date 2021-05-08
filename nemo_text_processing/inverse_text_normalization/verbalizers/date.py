@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.graph_utils import (
+from nemo_text_processing.text_normalization.graph_utils import (
     NEMO_NOT_QUOTE,
     GraphFst,
     delete_extra_space,
@@ -31,8 +31,9 @@ except (ModuleNotFoundError, ImportError):
 
 class DateFst(GraphFst):
     """
-    Finite state transducer for verbalizing date
-        e.g. tdate { month: "january" day: "5" year: "2012" preserve_order: true } -> february 5 2012
+    Finite state transducer for verbalizing date, e.g.
+        date { month: "january" day: "5" year: "2012" preserve_order: true } -> february 5 2012
+        date { day: "5" month: "january" year: "2012" preserve_order: true } -> 5 february 2012
     """
 
     def __init__(self):

@@ -122,6 +122,22 @@ class TransformerEncoderNM(EncoderModule, Exportable):
     def hidden_size(self):
         return self._hidden_size
 
+    @property
+    def vocab_size(self):
+        return self._vocab_size
+
+    @property
+    def max_sequence_length(self):
+        return self._max_sequence_length
+
+    @property
+    def embedding(self):
+        return self._embedding
+
+    @property
+    def encoder(self):
+        return self._encoder
+
     def input_example(self):
         """
         Generates input examples for tracing etc.

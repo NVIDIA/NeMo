@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space
+from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space
 
 try:
     import pynini
@@ -26,8 +26,8 @@ except (ModuleNotFoundError, ImportError):
 
 class DecimalFst(GraphFst):
     """
-    Finite state transducer for verbalizing decimal, 
-        e.g. tokens { decimal { negative: "true" integer_part: "12"  fractional_part: "5006" quantity: "billion" } } -> -12.5006 billion
+    Finite state transducer for verbalizing decimal, e.g.
+        decimal { negative: "true" integer_part: "12"  fractional_part: "5006" quantity: "billion" } -> -12.5006 billion
     """
 
     def __init__(self):
