@@ -190,9 +190,6 @@ class MegatronBertEncoder(BertModule):
         else:
             self.load_state_dict(state_dict)
 
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
-
         logging.info(f"Checkpoint loaded from from {filename}")
 
     def restore_weights(self, restore_path: str):
