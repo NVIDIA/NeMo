@@ -34,6 +34,21 @@ import k2
 import torch
 
 
+class GradExpNormalize(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, log_probs: torch.Tensor):
+        max_log_prob, _ = log_probs.max(-1)
+        probs = torch.exp(log_probs - max_log_prob.unsqueeze(-1))
+        ctx.save_for_backward(probs / probs.sum(-1).unsqueeze(-1))
+        return log_probs
+
+    @staticmethod
+    def backward(ctx, grad_output: torch.Tensor):
+        norm_probs = ctx.saved_tensors[0]
+        zero_mask = torch.all(grad_output.eq(0.0), -1).unsqueeze(-1)
+        return torch.where(zero_mask, grad_output, grad_output + norm_probs)
+
+
 def build_ctc_topo(tokens: List[int]) -> k2.Fsa:
     """Build CTC topology.
     A token which appears once on the right side (i.e. olabels) may
