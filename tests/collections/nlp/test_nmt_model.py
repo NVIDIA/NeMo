@@ -89,7 +89,7 @@ class TestMTEncDecModel:
     @pytest.mark.unit
     def test_train_eval_loss(self):
         cfg = get_cfg()
-        cfg.label_smoothing = 0.1
+        cfg.label_smoothing = 0.5
         model = MTEncDecModel(cfg=cfg)
         assert isinstance(model, MTEncDecModel)
         batch_size = 10
