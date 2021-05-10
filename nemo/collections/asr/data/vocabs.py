@@ -46,6 +46,7 @@ except (FileNotFoundError, LookupError):
 
 _words_re = re.compile("([a-z\-]+'[a-z\-]+|[a-z\-]+)|([^a-z{}]+)")
 
+
 def _text_preprocessing(text):
     text = unicode(text)
     text = ''.join(char for char in unicodedata.normalize('NFD', text) if unicodedata.category(char) != 'Mn')
