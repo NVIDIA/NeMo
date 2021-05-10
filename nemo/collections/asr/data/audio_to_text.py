@@ -318,7 +318,14 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
 
     @staticmethod
     def make_vocab(
-        notation='chars', punct=True, spaces=False, stresses=False, add_blank_at="last_but_one", pad_with_space=False
+        notation='chars',
+        punct=True,
+        spaces=False,
+        stresses=False,
+        add_blank_at="last_but_one",
+        pad_with_space=False,
+        improved_version_g2p=False,
+        phoneme_dict_path=None,
     ):
         """Constructs vocabulary from given parameters.
 
@@ -329,7 +336,9 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
             stresses (bool): True if use phonemes codes with stresses (0-2).
             add_blank_at: add blank to labels in the specified order ("last" or "last_but_one"),
              if None then no blank in labels.
-            pad_with_space (bool): TODO
+            pad_with_space (bool): True if pad text with spaces at the beginning and at the end.
+            improved_version_g2p (bool): True if use new version of g2p.
+            phoneme_dict_path (str): path to phoneme dict file (like CMU Pronouncing dictionary). If it's None then cmudict.dict() will be used.
 
         Returns:
             (vocabs.Base) Vocabulary
@@ -338,7 +347,13 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
             vocab = vocabs.Chars(punct=punct, spaces=spaces, add_blank_at=add_blank_at)
         elif notation == 'phonemes':
             vocab = vocabs.Phonemes(
-                punct=punct, stresses=stresses, spaces=spaces, add_blank_at=add_blank_at, pad_with_space=pad_with_space
+                punct=punct,
+                stresses=stresses,
+                spaces=spaces,
+                add_blank_at=add_blank_at,
+                pad_with_space=pad_with_space,
+                improved_version_g2p=improved_version_g2p,
+                phoneme_dict_path=phoneme_dict_path,
             )
         else:
             raise ValueError("Unsupported vocab type.")
@@ -488,6 +503,7 @@ class AudioToCharWithPriorDataset(AudioToCharDataset):
     Args:
         **kwargs: Passed to AudioToCharDataset constructor.
         attn_prior_folder (str): String path to folder with precomputed attention priors.
+        n_window_stride (int): Stride of window for fft in samples. Need to generate prior.
         vocab: Vocabulary config (parser + set of graphemes to use). Constructor propagates these to
             `self.make_vocab` function call to build a complete vocabulary.
     """
@@ -503,12 +519,15 @@ class AudioToCharWithPriorDataset(AudioToCharDataset):
             'attn_prior': NeuralType(('B', 'T', 'D'), ProbsType()),
         }
 
-    def __init__(self, attn_prior_folder, **kwargs):
+    def __init__(self, attn_prior_folder, n_window_stride=256, **kwargs):
         self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**kwargs.pop('vocab', {}))
         kwargs.setdefault('labels', [])  # For compatibility.
         super().__init__(**kwargs)
 
+        Path(attn_prior_folder).mkdir(parents=True, exist_ok=True)
         self.attn_prior_folder = attn_prior_folder
+
+        self.n_window_stride = n_window_stride
         self.id2enc_text = {}
         for i, e in enumerate(self.collection):
             # cache vocab encoding
@@ -535,9 +554,9 @@ class AudioToCharWithPriorDataset(AudioToCharDataset):
         if attn_prior_path.exists():
             attn_prior = np.load(attn_prior_path)
         else:
-            # TODO: hardcode
-            hop_len = 256
-            attn_prior = self.beta_binomial_prior_distribution(len(text), math.ceil((audio_len.item() + 1) / hop_len))
+            attn_prior = self.beta_binomial_prior_distribution(
+                len(text), math.ceil((audio_len.item() + 1) / self.n_window_stride)
+            )
             np.save(attn_prior_path, attn_prior)
 
         text, text_len, attn_prior = (

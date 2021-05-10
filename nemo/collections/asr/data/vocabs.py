@@ -14,10 +14,14 @@
 
 import abc
 import itertools
+import re
 import string
+import unicodedata
+from builtins import str as unicode
 from typing import List
 
 import nltk
+from nltk.corpus import cmudict
 
 from nemo.collections.asr.parts import parsers
 
@@ -40,12 +44,113 @@ try:
 except (FileNotFoundError, LookupError):
     HAVE_G2P = False
 
+_words_re = re.compile("([a-z\-]+'[a-z\-]+|[a-z\-]+)|([^a-z{}]+)")
+_words_with_unwanted_space_after_hyphen_re = re.compile("([a-z\-]+'[a-z\-]+\-\s|[a-z\-]+\-\s)|([^a-z{}]+)")
+
+# Based on LJSpeech
+def _text_preprocessing(text):
+    text = unicode(text)
+    text = ''.join(char for char in unicodedata.normalize('NFD', text) if unicodedata.category(char) != 'Mn')
+    text = text.lower()
+    text = re.sub("[^ a-z'\".,?!()\[\]:;\-]", "", text)
+
+    # it fixes bug in LJSpeech label
+    def remove_unwanted_space(match_obj):
+        if match_obj.group(1) is not None:
+            return match_obj.group(1)[:-1]
+        return match_obj.group(0)
+
+    text = re.sub(_words_with_unwanted_space_after_hyphen_re, remove_unwanted_space, text)
+    return text
+
+
+def _word_tokenize(text):
+    words = _words_re.findall(text)
+    words = [re.sub(r'\s(\d)', r'\1', word[1].upper()) if word[0] == '' else word[0] for word in words]
+    return words
+
+
+class G2p:
+    def __init__(
+        self, phoneme_dict_path=None, text_preprocessing_func=_text_preprocessing, word_tokenize_func=_word_tokenize,
+    ):
+        self.homograph2features = _g2p.homograph2features
+        self.g2p_dict = self._construct_grapheme2phoneme_dict(phoneme_dict_path)
+
+        self.text_preprocessing_func = text_preprocessing_func
+        self.word_tokenize_func = word_tokenize_func
+
+    @staticmethod
+    def _construct_grapheme2phoneme_dict(phoneme_dict_path=None, encoding='latin-1'):
+        if phoneme_dict_path is None:
+            return cmudict.dict()
+
+        _alt_re = re.compile(r'\([0-9]+\)')
+        g2p_dict = {}
+        with open(phoneme_dict_path, encoding=encoding) as file:
+            for line in file:
+                if len(line) and ('A' <= line[0] <= 'Z' or line[0] == "'"):
+                    parts = line.split('  ')
+                    word = re.sub(_alt_re, '', parts[0])
+                    word = word.lower()
+
+                    pronunciation = parts[1].strip().split(" ")
+                    if word in g2p_dict:
+                        g2p_dict[word].append(pronunciation)
+                    else:
+                        g2p_dict[word] = [pronunciation]
+        return g2p_dict
+
+    def __call__(self, text):
+        text = self.text_preprocessing_func(text)
+        words = self.word_tokenize_func(text)
+        words_and_pos_tags = nltk.pos_tag(words)
+
+        prons = []
+        for word, pos in words_and_pos_tags:
+            word_by_hyphen = word.split("-")
+
+            # punctuation
+            if re.search("[a-zA-Z]", word) is None:
+                pron = list(word)
+            # homograph
+            elif word in self.homograph2features:
+                pron1, pron2, pos1 = self.homograph2features[word]
+                if pos.startswith(pos1):
+                    pron = pron1
+                else:
+                    pron = pron2
+            # `'s` suffix
+            elif (
+                len(word) > 2 and word.endswith("'s") and (word not in self.g2p_dict) and (word[:-2] in self.g2p_dict)
+            ):
+                pron = self.g2p_dict[word[:-2]][0] + ["Z"]
+            elif len(word) > 1 and word.endswith("s") and (word not in self.g2p_dict) and (word[:-1] in self.g2p_dict):
+                pron = self.g2p_dict[word[:-1]][0] + ["Z"]
+            # g2p dict
+            elif word in self.g2p_dict:
+                pron = self.g2p_dict[word][0]
+            # word with hyphens
+            elif len(word_by_hyphen) > 1 and all([sub_word in self.g2p_dict for sub_word in word_by_hyphen]):
+                pron = []
+                for sub_word in word_by_hyphen:
+                    pron.extend(self.g2p_dict[sub_word][0])
+                    pron.extend(["-"])
+                pron.pop()
+            else:
+                # run gru-based seq2seq model from kyubyong_g2p for OOV
+                pron = _g2p.predict(word)
+
+            prons.extend(pron)
+
+        return prons
+
 
 class Base(abc.ABC):
     """Vocabulary for turning str text to list of int tokens."""
 
     # fmt: off
-    PUNCT = (  # Derived from LJSpeech
+    PUNCT = (  # Derived from LJSpeech and "/" additionally
         ',', '.', '!', '?', '-',
         ':', ';', '/', '"', '(',
         ')', '[', ']', '{', '}',
@@ -155,6 +260,8 @@ class Phonemes(Base):
         sep='|',  # To be able to distinguish between 2/3 letters codes.
         add_blank_at="last_but_one",
         pad_with_space=False,
+        improved_version_g2p=False,
+        phoneme_dict_path=None,
     ):
         labels = []
         self.space, labels = len(labels), labels + [space]  # Space
@@ -178,11 +285,16 @@ class Phonemes(Base):
         self.spaces = spaces
         self.pad_with_space = pad_with_space
 
+        if improved_version_g2p:
+            self.g2p = G2p(phoneme_dict_path)
+        else:
+            self.g2p = _g2p
+
     def encode(self, text):
         """See base class."""
         ps, space, labels = [], self.labels[self.space], set(self.labels)
 
-        for p in _g2p(text):  # noqa
+        for p in self.g2p(text):  # noqa
             # Remove stress
             if p.isalnum() and len(p) == 3 and not self.stresses:
                 p = p[:2]

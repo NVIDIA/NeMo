@@ -51,13 +51,7 @@ class ConvNorm(torch.nn.Module):
 
 
 class AlignmentEncoder(torch.nn.Module):
-    """
-    Module for alignment text and mel spectrogram.
-
-    Args:
-        VAR: TEXT
-        TODO: doc
-    """
+    """Module for alignment text and mel spectrogram. """
 
     def __init__(
         self, n_mel_channels=80, n_text_channels=512, n_att_channels=80, temperature=0.0005,
@@ -82,16 +76,16 @@ class AlignmentEncoder(torch.nn.Module):
         )
 
     def forward(self, queries, keys, mask=None, attn_prior=None):
-        """TODO: doc
+        """Forward pass of the aligner encoder.
 
         Args:
-            queries (torch.tensor): B x C x T1 tensor (probably going to be mel data)
-            keys (torch.tensor): B x C2 x T2 tensor (text data)
-            mask (torch.tensor): uint8 binary mask for variable length entries (should be in the T2 domain)
-            attn_prior (torch.tensor): TODO: doc
+            queries (torch.tensor): B x C x T1 tensor (probably going to be mel data).
+            keys (torch.tensor): B x C2 x T2 tensor (text data).
+            mask (torch.tensor): uint8 binary mask for variable length entries (should be in the T2 domain).
+            attn_prior (torch.tensor): prior for attention matrix.
         Output:
-            attn (torch.tensor): B x 1 x T1 x T2 attention mask. Final dim T2 should sum to 1
-            attn_logprob (torch.tensor): TODO: doc
+            attn (torch.tensor): B x 1 x T1 x T2 attention mask. Final dim T2 should sum to 1.
+            attn_logprob (torch.tensor): B x 1 x T1 x T2 log-prob attention mask.
         """
         keys_enc = self.key_proj(keys)  # B x n_attn_dims x T2
         queries_enc = self.query_proj(queries)

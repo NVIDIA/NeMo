@@ -35,7 +35,7 @@ except ModuleNotFoundError:
 
 
 class AlignerModel(ModelPT):
-    """TODO: doc."""
+    """Speech-to-text alignment pipeline."""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg=cfg, trainer=trainer)
@@ -66,15 +66,15 @@ class AlignerModel(ModelPT):
 
     @staticmethod
     def binarize_attention(attn, in_len, out_len):
-        """TODO: doc
+        """Convert soft attention matrix to hard attention matrix.
 
         Args:
-            attn: B x 1 x max_mel_len x max_text_len
-            in_len: TODO: doc
-            out_len: TODO: doc
+            attn (torch.Tensor): B x 1 x max_mel_len x max_text_len. Soft attention matrix.
+            in_len (torch.Tensor): B. Lengths of texts.
+            out_len (torch.Tensor): B. Lengths of spectrograms.
 
         Output:
-            attn_out (torch.tensor): B x 1 x max_mel_len x max_text_len. Final dim max_text_len should sum to 1
+            attn_out (torch.Tensor): B x 1 x max_mel_len x max_text_len. Hard attention matrix, final dim max_text_len should sum to 1.
         """
         b_size = attn.shape[0]
         with torch.no_grad():
@@ -82,7 +82,7 @@ class AlignerModel(ModelPT):
             attn_out = torch.zeros_like(attn)
             for ind in range(b_size):
                 hard_attn = mas(attn_cpu[ind, 0, : out_len[ind], : in_len[ind]])
-                attn_out[ind, 0, : out_len[ind], : in_len[ind]] = torch.tensor(hard_attn, device=attn.get_device())
+                attn_out[ind, 0, : out_len[ind], : in_len[ind]] = torch.tensor(hard_attn, device=attn.device)
         return attn_out
 
     def _metrics(self, attn_soft, attn_logprob, spec_len, text_len):
@@ -137,7 +137,7 @@ class AlignerModel(ModelPT):
                         plot_alignment_to_numpy(
                             np.fliplr(np.rot90(attn_soft[i, 0, : spec_len[i], : text_len[i]].data.cpu().numpy()))
                         ),
-                        caption=f"attn soft, {self.current_epoch}",
+                        caption=f"attn soft",
                     ),
                 )
 
@@ -146,23 +146,14 @@ class AlignerModel(ModelPT):
                         plot_alignment_to_numpy(
                             np.fliplr(np.rot90(attn_hard[i, 0, : spec_len[i], : text_len[i]].data.cpu().numpy()))
                         ),
-                        caption=f"attn hard, {self.current_epoch}",
+                        caption=f"attn hard",
                     )
                 )
 
             self.logger.experiment.log({"attn_matrices": attn_matrices})
 
-        return {'loss': loss, 'forward_sum_loss': forward_sum_loss, 'bin_loss': bin_loss}
-
-    def validation_epoch_end(self, outputs):
-        loss = torch.stack([x['loss'] for x in outputs]).mean()
-        forward_sum_loss = torch.stack([x['forward_sum_loss'] for x in outputs]).mean()
-        bin_loss = torch.stack(
-            [torch.tensor(x['bin_loss']) if isinstance(x['bin_loss'], float) else x['bin_loss'] for x in outputs]
-        ).mean()
-
         val_log = {'val_loss': loss, 'val_forward_sum_loss': forward_sum_loss, 'val_bin_loss': bin_loss}
-        return {'val_loss': loss, 'log': val_log}
+        self.log_dict(val_log, prog_bar=False, on_epoch=True, logger=True, sync_dist=True)
 
     @staticmethod
     def _loader(cfg):

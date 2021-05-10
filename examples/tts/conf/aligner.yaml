@@ -21,6 +21,7 @@ model:
       sample_rate: ${sample_rate}
       trim: false
       attn_prior_folder: ${attn_prior_folder}
+      n_window_stride: 256
       vocab:
         notation: phonemes
         punct: true
@@ -45,6 +46,7 @@ model:
       sample_rate: ${sample_rate}
       trim: false
       attn_prior_folder: ${attn_prior_folder}
+      n_window_stride: 256
       vocab:
         notation: phonemes
         punct: true
@@ -95,8 +97,8 @@ model:
 
     sched:
       name: CosineAnnealing
-      min_lr: 1e-5
-      warmup_ratio: 0.02
+      min_lr: 5e-5
+      warmup_ratio: 0.35
 
 trainer:
   gpus: 1
@@ -114,7 +116,7 @@ trainer:
 exp_manager:
   exp_dir: null
   name: ${name}
-  create_tensorboard_logger: True
+  create_tensorboard_logger: False
   create_checkpoint_callback: True
   checkpoint_callback_params:
     monitor: "val_forward_sum_loss"

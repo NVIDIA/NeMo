@@ -24,7 +24,6 @@ from numpy import ndarray
 from pesq import pesq
 from pystoi import stoi
 from pytorch_lightning.utilities import rank_zero_only
-from scipy.stats import betabinom
 
 from nemo.utils import logging
 
@@ -70,8 +69,8 @@ def mas(attn_map, width=1):
         curr_text_idx = prev_ind[i, curr_text_idx]
     opt[0, curr_text_idx] = 1
 
-    assert opt.sum(0).all() == True
-    assert opt.sum(1).all() == True
+    assert opt.sum(0).all()
+    assert opt.sum(1).all()
 
     return opt
 
