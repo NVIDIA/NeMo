@@ -1,4 +1,5 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,16 +14,15 @@
 # limitations under the License.
 
 
-from nemo_text_processing.inverse_text_normalization.data_loader_utils import get_abs_path
-from nemo_text_processing.inverse_text_normalization.graph_utils import (
+from nemo_text_processing.inverse_text_normalization.taggers.cardinal import CardinalFst
+from nemo_text_processing.inverse_text_normalization.utils import get_abs_path, num_to_word
+from nemo_text_processing.text_normalization.graph_utils import (
     GraphFst,
     convert_space,
     delete_extra_space,
     delete_space,
     insert_space,
 )
-from nemo_text_processing.inverse_text_normalization.taggers.cardinal import CardinalFst
-from nemo_text_processing.inverse_text_normalization.utils import num_to_word
 
 try:
     import pynini

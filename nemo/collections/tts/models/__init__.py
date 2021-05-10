@@ -11,10 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 from nemo.collections.tts.models.aligner import AlignerModel
 from nemo.collections.tts.models.degli import DegliModel
 from nemo.collections.tts.models.ed_mel2spec import EDMel2SpecModel
 from nemo.collections.tts.models.fastpitch import FastPitchModel
+from nemo.collections.tts.models.fastpitch_hifigan_e2e import FastPitchHifiGanE2EModel
+from nemo.collections.tts.models.fastspeech2 import FastSpeech2Model
+from nemo.collections.tts.models.fastspeech2_hifigan_e2e import FastSpeech2HifiGanE2EModel
 from nemo.collections.tts.models.glow_tts import GlowTTSModel
 from nemo.collections.tts.models.hifigan import HifiGanModel
 from nemo.collections.tts.models.melgan import MelGanModel
@@ -42,5 +46,8 @@ __all__ = [
     "MelGanModel",
     "HifiGanModel",
     "FastPitchModel",
+    "FastSpeech2Model",
+    "FastPitchHifiGanE2EModel",
+    "FastSpeech2HifiGanE2EModel",
     "AlignerModel",
 ]

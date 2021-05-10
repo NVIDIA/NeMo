@@ -8,6 +8,7 @@ NVIDIA NeMo User Guide
 
    starthere/intro
    starthere/tutorials
+   starthere/best-practices
 
 
 .. toctree::
@@ -20,8 +21,8 @@ NVIDIA NeMo User Guide
 
 .. toctree::
    :maxdepth: 2
-   :caption: Automatic Speech Recognition
-   :name: Automatic Speech Recognition
+   :caption: Speech Processing
+   :name: Speech Processing
 
    asr/intro
    asr/speech_classification/intro

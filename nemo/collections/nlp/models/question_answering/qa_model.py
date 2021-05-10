@@ -56,10 +56,12 @@ class QAModel(NLPModel):
         super().__init__(cfg=cfg, trainer=trainer)
         self.bert_model = get_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=cfg.language_model.config_file,
+            config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
             config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
             checkpoint_file=cfg.language_model.lm_checkpoint,
-            vocab_file=cfg.tokenizer.vocab_file,
+            vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file)
+            if cfg.tokenizer is not None
+            else None,
         )
 
         self.classifier = TokenClassifier(
@@ -109,7 +111,6 @@ class QAModel(NLPModel):
             'start_logits': start_logits,
             'end_logits': end_logits,
         }
-        self.log(f'{prefix}_loss', loss)
         return {f'{prefix}_loss': loss, f'{prefix}_tensors': tensors}
 
     def test_step(self, batch, batch_idx):

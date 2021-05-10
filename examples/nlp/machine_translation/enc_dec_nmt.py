@@ -92,6 +92,7 @@ Usage:
 class MTEncDecConfig(NemoConfig):
     name: Optional[str] = 'MTEncDec'
     do_training: bool = True
+    do_testing: bool = False
     model: MTEncDecModelConfig = MTEncDecModelConfig()
     trainer: Optional[TrainerConfig] = TrainerConfig()
     exp_manager: Optional[ExpManagerConfig] = ExpManagerConfig(name='MTEncDec', files_to_copy=[])
@@ -110,21 +111,25 @@ def main(cfg: MTEncDecConfig) -> None:
 
     # tokenizers will be trained and and tarred training data will be created if needed
     # model config is then updated
-    MTDataPreproc(cfg=cfg.model, trainer=trainer)
+    if cfg.model.preproc_out_dir is not None:
+        MTDataPreproc(cfg=cfg.model, trainer=trainer)
+
+    # experiment logs, checkpoints, and auto-resume are managed by exp_manager and PyTorch Lightning
+    exp_manager(trainer, cfg.exp_manager)
+
+    # everything needed to train translation models is encapsulated in the NeMo MTEncdDecModel
+    mt_model = MTEncDecModel(cfg.model, trainer=trainer)
+
+    logging.info("\n\n************** Model parameters and their sizes ***********")
+    for name, param in mt_model.named_parameters():
+        print(name, param.size())
+    logging.info("***********************************************************\n\n")
 
     if cfg.do_training:
-        # experiment logs, checkpoints, and auto-resume are managed by exp_manager and PyTorch Lightning
-        exp_manager(trainer, cfg.exp_manager)
-
-        # everything needed to train translation models is encapsulated in the NeMo MTEncdDecModel
-        mt_model = MTEncDecModel(cfg.model, trainer=trainer)
-
-        logging.info("\n\n************** Model parameters and their sizes ***********")
-        for name, param in mt_model.named_parameters():
-            print(name, param.size())
-        logging.info("***********************************************************\n\n")
-
         trainer.fit(mt_model)
+
+    if cfg.do_testing:
+        trainer.test(mt_model)
 
 
 if __name__ == '__main__':

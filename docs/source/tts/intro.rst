@@ -17,9 +17,9 @@ Quick Start:
     vocoder = Vocoder.from_pretrained("tts_waveglow_88m")
 
     # All spectrogram generators start by parsing raw strings to a tokenized version of the string
-    parsed = spec_gen.parse("You can type your sentence here to get nemo to produce speech.")
+    parsed = spec_generator.parse("You can type your sentence here to get nemo to produce speech.")
     # They then take the tokenized string and produce a spectrogram
-    spectrogram = spec_gen.generate_spectrogram(tokens=parsed)
+    spectrogram = spec_generator.generate_spectrogram(tokens=parsed)
     # Finally, a vocoder converts the spectrogram to audio
     audio = vocoder.convert_spectrogram_to_audio(spec=spectrogram)
 
@@ -30,6 +30,14 @@ Quick Start:
 
    For an interactive version of the quick start above, refer to the TTS inference notebook that can be found on the
    github readme.
+
+The full documentation tree is as follows:
+
+.. toctree::
+   :maxdepth: 8
+
+   datasets
+   api
 
 Available Models
 ################
@@ -52,6 +60,10 @@ NeMo supports a variety of models that can be used for TTS.
      - :class:`SpectrogramGenerator<nemo.collections.tts.models.base.SpectrogramGenerator>`
      - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_en_glowtts
      - Glow-based spectrogram generator
+   * - FastSpeech 2
+     - :class:`SpectrogramGenerator<nemo.collections.tts.models.base.SpectrogramGenerator>`
+     - (Coming soon)
+     - Non-autoregressive spectrogram generator that predicts duration, energy, and pitch
    * - WaveGlow
      - :class:`Vocoder<nemo.collections.tts.models.base.Vocoder>`
      - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_waveglow_88m
@@ -59,7 +71,7 @@ NeMo supports a variety of models that can be used for TTS.
    * - SqueezeWave
      - :class:`Vocoder<nemo.collections.tts.models.base.Vocoder>`
      - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_squeezewave
-     - Glow-based vocoder based on WaveGlow but with less parameters
+     - Glow-based vocoder based on WaveGlow but with fewer parameters
    * - UniGlow
      - :class:`Vocoder<nemo.collections.tts.models.base.Vocoder>`
      - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_uniglow
@@ -99,9 +111,13 @@ accepts a batch of spectrograms and returns a torch.tensor that represents a bat
     :show-inheritance:
     :members:
 
-Training
-########
-Training of TTS models can be done using the scripts inside the NeMo examples/tts folders. The majority of the TTS
+TTS Training
+############
+
+Training of TTS models can be done using the scripts inside the NeMo ``examples/tts folders``. The majority of the TTS
 YAML configurations should work out of the box with the LJSpeech dataset. If you want to train on other data, it is
 recommended that you walk through the Tacotron 2 Training notebook. Please pay special attention to the sample rate and
 FFT parameters for new data.
+
+Some models, like FastSpeech 2, require supplementary data such as phoneme durations, pitches, and energies.
+For more information about how to preprocess datasets for such models, see the `TTS Datasets <./datasets.html>`__ page.

@@ -1,4 +1,5 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,9 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.data_loader_utils import get_abs_path
-from nemo_text_processing.inverse_text_normalization.graph_utils import (
-    NEMO_SIGMA,
+from nemo_text_processing.inverse_text_normalization.utils import get_abs_path
+from nemo_text_processing.text_normalization.graph_utils import (
+    NEMO_ALPHA,
+    NEMO_DIGIT,
     GraphFst,
     delete_extra_space,
     delete_space,
@@ -30,7 +32,6 @@ try:
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
-    # Add placeholders for global variables
     graph_teen = None
     graph_digit = None
     ties_graph = None
@@ -39,30 +40,45 @@ except (ModuleNotFoundError, ImportError):
 
 
 def _get_month_graph():
+    """
+    Transducer for month, e.g. march -> march
+    """
     month_graph = pynini.string_file(get_abs_path("data/months.tsv"))
-    month_graph = pynini.invert(month_graph).optimize()
     return month_graph
 
 
 def _get_ties_graph():
+    """
+    Transducer for 20-99 e.g
+    twenty three -> 23
+    """
     graph = ties_graph + (delete_space + graph_digit | pynutil.insert("0"))
     return graph
 
 
 def _get_range_graph():
+    """
+    Transducer for decades (1**0s, 2**0s), centuries (2*00s, 1*00s), millennia (2000s)
+    """
     graph_ties = _get_ties_graph()
     graph = (graph_ties | graph_teen) + delete_space + pynini.cross("hundreds", "00s")
     graph |= pynini.cross("two", "2") + delete_space + pynini.cross("thousands", "000s")
     graph |= (
         (graph_ties | graph_teen)
         + delete_space
-        + (NEMO_SIGMA + pynini.cross("ties", "ty")) @ graph_ties
+        + (pynini.closure(NEMO_ALPHA, 1) + (pynini.cross("ies", "y") | pynutil.delete("s")))
+        @ (graph_ties | pynini.cross("ten", "10"))
         + pynutil.insert("s")
     )
+    graph @= pynini.union("1", "2") + NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT + "s"
     return graph
 
 
 def _get_year_graph():
+    """
+    Transducer for year, e.g. twenty twenty -> 2020
+    """
+
     def _get_digits_graph():
         zero = pynini.cross((pynini.accep("oh") | pynini.accep("o")), "0")
         graph = zero + delete_space + graph_digit
@@ -101,17 +117,16 @@ class DateFst(GraphFst):
     Finite state transducer for classifying date, 
         e.g. january fifth twenty twelve -> date { month: "january" day: "5" year: "2012" preserve_order: true }
         e.g. the fifth of january twenty twelve -> date { day: "5" month: "january" year: "2012" preserve_order: true }
+        e.g. twenty twenty -> date { year: "2012" preserve_order: true }
 
     Args:
-        ordinal: Ordinal GraphFST
+        ordinal: OrdinalFst
     """
 
     def __init__(self, ordinal: GraphFst):
         super().__init__(name="date", kind="classify")
 
         ordinal_graph = ordinal.graph
-
-        # weekday, day, month, year, style(depr), text(depr), short_year(depr), era
         year_graph = _get_year_graph()
         YEAR_WEIGHT = 0.001
         year_graph = pynutil.add_weight(year_graph, YEAR_WEIGHT)

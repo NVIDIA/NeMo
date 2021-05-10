@@ -13,14 +13,16 @@
 # limitations under the License.
 
 import copy
+import hashlib
 import inspect
 import os
 import shutil
 import tarfile
 import tempfile
+import uuid
 from abc import abstractmethod
-from dataclasses import is_dataclass
 from os import path
+from os.path import expanduser
 from typing import Callable, Dict, List, Optional, Union
 
 import hydra
@@ -29,6 +31,7 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.utilities import rank_zero_only
 
+import nemo
 from nemo.core import optim
 from nemo.core.classes.common import Model
 from nemo.core.optim import prepare_lr_scheduler
@@ -61,6 +64,7 @@ _MODEL_RESTORE_PATH:
     archive itself.
 """
 _MODEL_IS_RESTORED = False
+_NEMO_FILE_FOLDER = None
 _MODEL_RESTORE_PATH = None
 
 
@@ -153,91 +157,155 @@ class ModelPT(LightningModule, Model):
         # ModelPT wrappers over subclass implementations
         self.training_step = model_utils.wrap_training_step(self.training_step)
 
-    def register_artifact(self, config_path: str, src: str):
+    def register_artifact(self, config_path: str, src: str, verify_src_exists: bool = True):
+        """ Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
+            when model.save_to("mymodel.nemo") is called.        
+
+            How it works:
+            1. It always returns existing absolute path which can be used during Model constructor call
+                EXCEPTION: src is None or "" in which case nothing will be done and src will be returned
+            2. It will add (config_path, model_utils.ArtifactItem()) pair to self.artifacts
+
+            If "src" is local existing path, then it will be returned in absolute path form.
+            elif "src" starts with "nemo_file:unique_artifact_name":
+                .nemo will be untarred to a temporary folder location and an actual existing path will be returned
+            else an error will be raised.
+
+            WARNING: use .register_artifact calls in your models' constructors.
+            The returned path is not guaranteed to exist after you have exited your model's constuctor.
+
+            Args:
+                config_path (str): Artifact key. Usually corresponds to the model config.
+                src (str): Path to artifact.
+                verify_src_exists (bool): If set to False, then the artifact is optional and register_artifact will return None even if 
+                                          src is not found. Defaults to True.
+
+            Returns:
+                str: If src is not None or empty it always returns absolute path which is guaranteed to exists during model instnce life
         """
-        Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
-        when model.save_to("mymodel.nemo") is called.
 
-        WARNING: If you specified /example_folder/example.txt but ./example.txt exists, then ./example.txt will be used.
+        app_state = AppState()
+        if src is None or src == "":
+            return src
 
-        Args:
-            config_path: config path where artifact is used
-            src: path to the artifact
-
-        Returns:
-            path to be used when accessing artifact. If src='' or None then '' or None will be returned
-        """
         if not hasattr(self, 'artifacts'):
             self.artifacts = {}
         if self.artifacts is None:
             self.artifacts = {}
-        if src is not None and src.strip() != '':
-            archive_item = model_utils.ArtifactItem()
 
-            basename_src = os.path.basename(src)
-            # filename exists in current workdir - use it and raise warning
-            # this case is during model restoration or when file is written to cwd.
-            if os.path.exists(basename_src):
-                logging.warning(f"Using {os.path.abspath(basename_src)} instead of {src}.")
-                used_src = basename_src
+        if config_path in self.artifacts.keys():
+            logging.warning(
+                f"You tried to register an artifact under config key={config_path} but an artifact for"
+                f"it has already been registered."
+            )
 
-                # Case: register_artifact() called inside restoration context
-                if self._is_model_being_restored() and self._is_restore_type_tarfile():
-                    archive_item.path_type = model_utils.ArtifactPathType.TAR_PATH
-                else:
-                    archive_item.path_type = model_utils.ArtifactPathType.LOCAL_PATH
+        artifact_item = model_utils.ArtifactItem()
 
-            else:
-                used_src = src
-                archive_item.path_type = model_utils.ArtifactPathType.LOCAL_PATH
-
-            if not os.path.exists(used_src):
-                # File not found in local path or by basename
-                # Try to locate it inside the .nemo archive (if model was restored)
-                # Case: register_artifact() called outside restoration context
-                if self._is_restore_type_tarfile():
-                    # Get path where the command is executed - the artifacts will be "retrieved" there
-                    # (original .nemo behavior)
-                    cwd = os.getcwd()
-                    try:
-                        # Step into the nemo archive to try and find the file
-                        with tempfile.TemporaryDirectory() as tmpdir:
-                            self.__unpack_nemo_file(path2file=_MODEL_RESTORE_PATH, out_folder=tmpdir)
-                            os.chdir(tmpdir)
-                            if os.path.exists(basename_src):
-                                logging.warning(f"Using {os.path.abspath(basename_src)} instead of {src}.")
-                                used_src = basename_src
-
-                                archive_item.path = used_src
-                                archive_item.path_type = model_utils.ArtifactPathType.TAR_PATH
-                            else:
-                                # No further action can be taken, file not found anywhere
-                                raise FileNotFoundError(
-                                    f"Could not find {used_src} inside "
-                                    f"tarfile {_MODEL_RESTORE_PATH} or under local"
-                                )
-                    finally:
-                        # change back working directory
-                        os.chdir(cwd)
-                else:
-                    # No further action can be taken, file not found anywhere
-                    raise FileNotFoundError(f"Could not find {used_src}")
-            else:
-                # Found filepath
-                archive_item.path = used_src
-
-            # But disregarding whether you use "local" or "remote" artifact - always store the original path.
-            # This fixes issues raising when finetuning NLP models that create and register tokenizer vocabs.
-            if config_path in self.artifacts:
-                logging.warning(
-                    f"Artifact {config_path} with value '{self.artifacts[config_path]}' "
-                    f"already exists and will be overwritten with value '{src}'!"
-                )
-
-            self.artifacts[config_path] = archive_item
-            return used_src
+        # This is for backward compatibility, if the src objects exists simply inside of the tarfile
+        # without its key having been overriden, this pathway will be used.
+        src_obj_name = os.path.basename(src)
+        if _NEMO_FILE_FOLDER is not None:
+            src_obj_path = os.path.abspath(os.path.join(_NEMO_FILE_FOLDER, src_obj_name))
         else:
-            return src
+            src_obj_path = src_obj_name
+
+        # src is a local existing path - register artifact and return exact same path for usage by the model
+        if os.path.exists(os.path.abspath(src)):
+            return_path = os.path.abspath(src)
+            artifact_item.path_type = model_utils.ArtifactPathType.LOCAL_PATH
+
+        # this is the case when artifact must be retried from the nemo file
+        # we are assuming that the location of the right nemo file is available from _MODEL_RESTORE_PATH
+        elif src.startswith("nemo:"):
+            return_path = os.path.abspath(os.path.join(_NEMO_FILE_FOLDER, src[5:]))
+            artifact_item.path_type = model_utils.ArtifactPathType.TAR_PATH
+
+        # backward compatibility implementation
+        elif os.path.exists(src_obj_path):
+            return_path = src_obj_path
+            artifact_item.path_type = model_utils.ArtifactPathType.TAR_PATH
+        else:
+            if verify_src_exists:
+                raise FileNotFoundError(
+                    f"src path does not exist or it is not a path in nemo file. src value I got was: {src}. Absolute: {os.path.abspath(src)}"
+                )
+            else:
+                # artifact is optional and we simply return None
+                return None
+
+        assert os.path.exists(return_path)
+
+        artifact_item.path = os.path.abspath(src)
+        self.artifacts[config_path] = artifact_item
+        # we were called by ModelPT
+        if hasattr(self, "cfg"):
+            with open_dict(self._cfg):
+                self.cfg.update_node(config_path, return_path)
+        return return_path
+
+    def _handle_artifacts(self, nemo_file_folder):
+        tarfile_artifacts = []
+        for conf_path, artiitem in self.artifacts.items():
+            if artiitem.path_type == model_utils.ArtifactPathType.LOCAL_PATH:
+                if not os.path.exists(artiitem.path):
+                    raise FileNotFoundError(f"Artifact {conf_path} not found at location: {artiitem.path}")
+
+                # Generate new uniq artifact name and copy it to nemo_file_folder
+                # Note uuid.uuid4().hex is guaranteed to be 32 character long
+                artifact_base_name = os.path.basename(artiitem.path)
+                artifact_uniq_name = f"{uuid.uuid4().hex}_{artifact_base_name}"
+                shutil.copy2(artiitem.path, os.path.join(nemo_file_folder, artifact_uniq_name))
+
+                # Update artifacts registry
+                new_artiitem = model_utils.ArtifactItem()
+                new_artiitem.path = "nemo:" + artifact_uniq_name
+                new_artiitem.path_type = model_utils.ArtifactPathType.TAR_PATH
+                self.artifacts[conf_path] = new_artiitem
+
+            elif artiitem.path_type == model_utils.ArtifactPathType.TAR_PATH:
+                # process all tarfile artifacts in one go, so preserve key-value pair
+                tarfile_artifacts.append((conf_path, artiitem))
+
+            else:
+                raise ValueError(f"Directly referencing artifacts from other nemo files isn't supported yet")
+
+        # Process current tarfile artifacts by unpacking the previous tarfile and extract the artifacts
+        # that are currently required.
+        if len(tarfile_artifacts) > 0:
+            # Need to step into nemo archive to extract file
+            # Get path where the command is executed - the artifacts will be "retrieved" there
+            # (original .nemo behavior)
+            cwd = os.getcwd()
+            try:
+                # Step into the nemo archive to try and find the file
+                with tempfile.TemporaryDirectory() as archive_dir:
+                    self._unpack_nemo_file(path2file=_MODEL_RESTORE_PATH, out_folder=archive_dir)
+                    os.chdir(archive_dir)
+
+                    for conf_path, artiitem in tarfile_artifacts:
+                        # Generate new uniq artifact name and copy it to nemo_file_folder
+                        # Note uuid.uuid4().hex is guaranteed to be 32 character long
+                        artifact_base_name = os.path.basename(artiitem.path)
+                        # no need to hash here as we are in tarfile_artifacts which are already hashed
+                        artifact_uniq_name = artifact_base_name
+                        shutil.copy2(artifact_base_name, os.path.join(nemo_file_folder, artifact_uniq_name))
+
+                        # Update artifacts registry
+                        new_artiitem = model_utils.ArtifactItem()
+                        new_artiitem.path = "nemo:" + artifact_uniq_name
+                        new_artiitem.path_type = model_utils.ArtifactPathType.TAR_PATH
+                        self.artifacts[conf_path] = new_artiitem
+            finally:
+                # change back working directory
+                os.chdir(cwd)
+
+    def _update_artifact_paths(self, path2yaml_file):
+        if self.artifacts is not None and len(self.artifacts) > 0:
+            conf = OmegaConf.load(path2yaml_file)
+            for conf_path, item in self.artifacts.items():
+                conf.update_node(conf_path, item.path)
+            with open(path2yaml_file, 'w') as fout:
+                OmegaConf.save(config=conf, f=fout, resolve=True)
 
     def _default_save_to(self, save_path: str):
         """
@@ -250,38 +318,18 @@ class ModelPT(LightningModule, Model):
 
         Args:
             save_path: Path to .nemo file where model instance should be saved
+
         """
         with tempfile.TemporaryDirectory() as tmpdir:
             config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
             model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
-
-            if hasattr(self, 'artifacts') and self.artifacts is not None:
-                for (conf_path, src) in self.artifacts.items():  # type: (str, model_utils.ArtifactItem)
-                    try:
-                        if src.path_type == model_utils.ArtifactPathType.LOCAL_PATH and os.path.exists(src.path):
-                            shutil.copy2(src.path, tmpdir)
-                        elif src.path_type == model_utils.ArtifactPathType.TAR_PATH:
-                            # Need to step into nemo archive to extract file
-                            # Get path where the command is executed - the artifacts will be "retrieved" there
-                            # (original .nemo behavior)
-                            cwd = os.getcwd()
-                            try:
-                                # Step into the nemo archive to try and find the file
-                                with tempfile.TemporaryDirectory() as archive_dir:
-                                    self.__unpack_nemo_file(path2file=_MODEL_RESTORE_PATH, out_folder=archive_dir)
-                                    os.chdir(archive_dir)
-                                    shutil.copy2(src.path, tmpdir)
-                            finally:
-                                # change back working directory
-                                os.chdir(cwd)
-                        else:
-                            raise ValueError(f"Invalid ArchivePathType found: {src.path_type}")
-                    except Exception:
-                        logging.error(f"Could not copy artifact {src} used in {conf_path}")
-
             self.to_config_file(path2yaml_file=config_yaml)
+            if hasattr(self, 'artifacts') and self.artifacts is not None:
+                self._handle_artifacts(nemo_file_folder=tmpdir)
+                # We should not update self._cfg here - the model can still be in use
+                self._update_artifact_paths(path2yaml_file=config_yaml)
             torch.save(self.state_dict(), model_weights)
-            self.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
+            self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
     @rank_zero_only
     def save_to(self, save_path: str):
@@ -345,8 +393,8 @@ class ModelPT(LightningModule, Model):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
-                cls._set_model_restore_state(is_being_restored=True)
-                cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+                cls._set_model_restore_state(is_being_restored=True, folder=tmpdir)
+                cls._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
                 os.chdir(tmpdir)
                 if override_config_path is None:
                     config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
@@ -368,8 +416,15 @@ class ModelPT(LightningModule, Model):
                 if return_config:
                     instance = conf
                 else:
-                    model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
+                    app_state = AppState()
+                    if app_state.model_parallel_rank is not None:
+                        model_weights = path.join(
+                            tmpdir, f'mp_rank_{app_state.model_parallel_rank:02}', _MODEL_WEIGHTS
+                        )
+                    else:
+                        model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
                     OmegaConf.set_struct(conf, True)
+                    os.chdir(cwd)
                     instance = cls.from_config_dict(config=conf)
                     instance = instance.to(map_location)
                     instance.load_state_dict(torch.load(model_weights, map_location=map_location), strict=strict)
@@ -412,11 +467,13 @@ class ModelPT(LightningModule, Model):
         Returns:
             An instance of type cls or its underlying config (if return_config is set).
         """
+        app_state = AppState()
         if not path.exists(restore_path):
             raise FileNotFoundError(f"Can't find {restore_path}")
 
         global _MODEL_RESTORE_PATH
         _MODEL_RESTORE_PATH = os.path.abspath(os.path.expanduser(restore_path))
+        app_state.model_restore_path = _MODEL_RESTORE_PATH
         return cls._default_restore_from(restore_path, override_config_path, map_location, strict, return_config)
 
     @classmethod
@@ -1049,7 +1106,7 @@ class ModelPT(LightningModule, Model):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
-                cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+                cls._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
                 os.chdir(tmpdir)
                 model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
                 state_dict = torch.load(model_weights)
@@ -1205,13 +1262,12 @@ class ModelPT(LightningModule, Model):
         self._hparams_initial = copy.deepcopy(self._hparams)
 
     @staticmethod
-    def __make_nemo_file_from_folder(filename, source_dir):
+    def _make_nemo_file_from_folder(filename, source_dir):
         with tarfile.open(filename, "w:gz") as tar:
-            # tar.add(source_dir, arcname=path.basename(source_dir))
             tar.add(source_dir, arcname=".")
 
     @staticmethod
-    def __unpack_nemo_file(path2file: str, out_folder: str) -> str:
+    def _unpack_nemo_file(path2file: str, out_folder: str) -> str:
         if not path.exists(path2file):
             raise FileNotFoundError(f"{path2file} does not exist")
         tar = tarfile.open(path2file, "r:gz")
@@ -1225,9 +1281,11 @@ class ModelPT(LightningModule, Model):
         return _MODEL_IS_RESTORED
 
     @staticmethod
-    def _set_model_restore_state(is_being_restored: bool):
+    def _set_model_restore_state(is_being_restored: bool, folder: str = None):
         global _MODEL_IS_RESTORED
+        global _NEMO_FILE_FOLDER
         _MODEL_IS_RESTORED = is_being_restored
+        _NEMO_FILE_FOLDER = folder
 
     @staticmethod
     def _is_restore_type_tarfile() -> bool:
@@ -1237,11 +1295,17 @@ class ModelPT(LightningModule, Model):
         """
         global _MODEL_RESTORE_PATH
 
-        if _MODEL_RESTORE_PATH is None:
+        app_state = AppState()
+
+        if _MODEL_RESTORE_PATH is None and app_state.model_restore_path is None:
             return False
         else:
-            if tarfile.is_tarfile(_MODEL_RESTORE_PATH):
-                return True
+            if _MODEL_RESTORE_PATH:
+                if tarfile.is_tarfile(_MODEL_RESTORE_PATH):
+                    return True
+            elif app_state.model_restore_path:
+                if tarfile.is_tarfile(app_state.model_restore_path):
+                    return True
             else:
                 return False
 
