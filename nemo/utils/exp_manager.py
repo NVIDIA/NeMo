@@ -68,7 +68,7 @@ class CallbackParams:
     save_last: Optional[bool] = True
     save_top_k: Optional[int] = 3
     save_weights_only: Optional[bool] = False
-    mode: Optional[str] = "auto"
+    mode: Optional[str] = "min"
     period: Optional[int] = 1
     prefix: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     postfix: str = ".nemo"
@@ -589,6 +589,12 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.postfix = postfix
         self.previous_best_path = ""
 
+        # `prefix` is deprecated
+        if 'prefix' in kwargs:
+            self.prefix = kwargs.pop('prefix')
+        else:
+            self.prefix = ""
+
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(**kwargs)
 
@@ -667,9 +673,10 @@ def configure_checkpointing(
     if params.dirpath is None:
         params.dirpath = Path(log_dir / 'checkpoints')
     if params.filename is None:
-        params.filename = f'--{{{params.monitor}:.2f}}-{{epoch}}'
+        params.filename = f'{name}--{{{params.monitor}:.2f}}-{{epoch}}'
     if params.prefix is None:
         params.prefix = name
+    NeMoModelCheckpoint.CHECKPOINT_NAME_LAST = params.filename + '-last'
 
     logging.debug(params.dirpath)
     logging.debug(params.filename)
