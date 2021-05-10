@@ -26,7 +26,7 @@ from nemo.collections.asr.parts import parsers
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.fastspeech2loss import DurationLoss, L2MelLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
-from nemo.core.classes.common import typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import *
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
@@ -270,3 +270,21 @@ class FastSpeech2Model(SpectrogramGenerator):
 
     def setup_validation_data(self, cfg):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
+
+    @classmethod
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+        """
+        This method returns a list of pre-trained models which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        list_of_models = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_fastspeech2",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_fastspeech_2/versions/1.0.0/files/tts_en_fastspeech2.nemo",
+            description="This model is trained on LJSpeech sampled at 22050Hz, and can be used to generate female English voices with an American accent.",
+            class_=cls,
+            aliases=["FastSpeech2-22050Hz"],
+        )
+        list_of_models.append(model)
+        return list_of_models
