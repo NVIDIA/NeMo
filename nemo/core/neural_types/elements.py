@@ -147,8 +147,12 @@ class LogitsType(ElementType):
     """Element type to represent logits"""
 
 
+class ProbsType(ElementType):
+    """Element type to represent probabilities. For example, outputs of softmax layers."""
+
+
 class LogprobsType(ElementType):
-    """Element type to represent log-probabilities. For example, outputs of softmax layers."""
+    """Element type to represent log-probabilities. For example, outputs of log softmax layers."""
 
 
 class LabelsType(ElementType):

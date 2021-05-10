@@ -19,6 +19,7 @@ import librosa
 import matplotlib.pylab as plt
 import numpy as np
 import torch
+from numba import jit
 from numpy import ndarray
 from pesq import pesq
 from pystoi import stoi
@@ -41,6 +42,37 @@ def get_mask_from_lengths(lengths, max_len=None):
     ids = torch.arange(0, max_len, device=lengths.device, dtype=torch.long)
     mask = (ids < lengths.unsqueeze(1)).bool()
     return mask
+
+
+@jit(nopython=True)
+def mas(attn_map, width=1):
+    # assumes mel x text
+    opt = np.zeros_like(attn_map)
+    attn_map = np.log(attn_map)
+    attn_map[0, 1:] = -np.inf
+    log_p = np.zeros_like(attn_map)
+    log_p[0, :] = attn_map[0, :]
+    prev_ind = np.zeros_like(attn_map, dtype=np.int64)
+    for i in range(1, attn_map.shape[0]):
+        for j in range(attn_map.shape[1]):  # for each text dim
+            prev_j = np.arange(max(0, j - width), j + 1)
+            prev_log = np.array([log_p[i - 1, prev_idx] for prev_idx in prev_j])
+
+            ind = np.argmax(prev_log)
+            log_p[i, j] = attn_map[i, j] + prev_log[ind]
+            prev_ind[i, j] = prev_j[ind]
+
+    # now backtrack
+    curr_text_idx = attn_map.shape[1] - 1
+    for i in range(attn_map.shape[0] - 1, -1, -1):
+        opt[i, curr_text_idx] = 1
+        curr_text_idx = prev_ind[i, curr_text_idx]
+    opt[0, curr_text_idx] = 1
+
+    assert opt.sum(0).all()
+    assert opt.sum(1).all()
+
+    return opt
 
 
 def griffin_lim(magnitudes, n_iters=50, n_fft=1024):
