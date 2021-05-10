@@ -48,9 +48,9 @@ class NLPDDPPlugin(DDPPlugin):
     ) -> None:
         super().__init__(parallel_devices, num_nodes, cluster_environment, sync_batchnorm, **kwargs)
 
-    def init_ddp_connection(self, global_rank: int, world_size: int) -> None:
+    def init_ddp_connection(self, global_rank: int = None, world_size: int = None) -> None:
         # call PTL init ddp
-        super().init_ddp_connection(global_rank, world_size)
+        super().init_ddp_connection()
 
         # init model parallel
         app_state = AppState()
