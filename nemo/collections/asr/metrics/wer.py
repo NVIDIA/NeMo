@@ -16,7 +16,7 @@ from typing import List
 
 import editdistance
 import torch
-from pytorch_lightning.metrics import Metric
+from torchmetrics import Metric
 
 from nemo.collections.asr.parts.rnnt_utils import Hypothesis
 from nemo.utils import logging

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import torch
-from pytorch_lightning.metrics import Metric
+from torchmetrics import Metric
 
 __all__ = ['GlobalAverageLossMetric']
 

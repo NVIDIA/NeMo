@@ -17,7 +17,7 @@ from typing import List, Optional
 
 import editdistance
 import torch
-from pytorch_lightning.metrics import Metric
+from torchmetrics import Metric
 
 from nemo.collections.asr.metrics.rnnt_wer import AbstractRNNTDecoding
 from nemo.collections.asr.parts import rnnt_beam_decoding as beam_decode
