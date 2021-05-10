@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from collections import OrderedDict
-from typing import Dict
 
 import torch
 from hydra.utils import instantiate
@@ -26,7 +25,7 @@ from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursF0Dataset
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.talknet import GaussianEmbedding, MaskedInstanceNorm1d, StyleResidual
-from nemo.core import Exportable, ExportFormat
+from nemo.core import Exportable
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import MelSpectrogramType, NeuralType
