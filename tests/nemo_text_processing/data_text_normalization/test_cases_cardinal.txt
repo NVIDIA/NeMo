@@ -1,5 +1,6 @@
 1~one
 2~two
+-2~minus two
 3~three
 123~one hundred twenty three
 13,000~thirteen thousand

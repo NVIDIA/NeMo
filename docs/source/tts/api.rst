@@ -4,7 +4,7 @@ NeMo TTS Collection API
 TTS Base Classes
 ----------------
 
-The two classes below are the base of the TTS pipeline.
+The classes below are the base of the TTS pipeline.
 To read more about them, see the `Base Classes <./intro.html#Base Classes>`__ section of the intro page.
 
 .. autoclass:: nemo.collections.tts.models.base.SpectrogramGenerator
@@ -12,6 +12,10 @@ To read more about them, see the `Base Classes <./intro.html#Base Classes>`__ se
     :members:
 
 .. autoclass:: nemo.collections.tts.models.base.Vocoder
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.tts.models.base.TextToWaveform
     :show-inheritance:
     :members:
 
