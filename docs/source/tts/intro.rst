@@ -75,7 +75,7 @@ the two stage pipeline, or the FastPitch_HifiGan_E2E model for the end-to-end pi
      - Glow-based spectrogram generator
    * - FastSpeech 2
      - :class:`SpectrogramGenerator<nemo.collections.tts.models.base.SpectrogramGenerator>`
-     - (Coming soon)
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_en_fastspeech_2
      - Non-autoregressive transformer-based spectrogram generator that predicts duration, energy, and pitch
    * - FastPitch
      - :class:`SpectrogramGenerator<nemo.collections.tts.models.base.SpectrogramGenerator>`
