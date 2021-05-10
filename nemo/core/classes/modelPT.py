@@ -195,7 +195,7 @@ class ModelPT(LightningModule, Model):
 
         if config_path in self.artifacts.keys():
             logging.warning(
-                f"You tried to register an artifact under config key={config_path} but an artifact for"
+                f"You tried to register an artifact under config key={config_path} but an artifact for "
                 f"it has already been registered."
             )
 
