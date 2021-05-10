@@ -255,6 +255,7 @@ pipeline {
         stage('Speaker Diarization Inference') {
           steps {
             sh 'python examples/speaker_recognition/speaker_diarize.py \
+            diarizer.oracle_num_speakers=2 \
             diarizer.paths2audio_files=/home/TestData/an4_diarizer/audio_files.scp \
             diarizer.path2groundtruth_rttm_files=/home/TestData/an4_diarizer/rttm_files.scp \
             diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
@@ -766,7 +767,7 @@ pipeline {
         model.nemo_path=null \
         ~model.infer_samples \
         +exp_manager.explicit_log_dir=/home/TestData/nlp/mp_autoresume \
-        +exp_manager.resume_if_exists=true' 
+        +exp_manager.resume_if_exists=true'
       }
     }
 
@@ -884,8 +885,11 @@ pipeline {
             model.dataset.use_cache=false \
             trainer.gpus=[0,1] \
             trainer.accelerator=ddp \
-            +trainer.fast_dev_run=true \
-            exp_manager=null'
+            trainer.max_epochs=1 \
+            +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output && \
+            python punctuation_capitalization_evaluate.py \
+            pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo && \
+            rm -rf /home/TestData/nlp/token_classification_punctuation/output/*'
           }
         }
       }
