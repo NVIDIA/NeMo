@@ -260,7 +260,7 @@ class NLPModel(ModelPT, Exportable):
         Args:
             save_path: Path to .nemo file where model instance should be saved
         """
-
+        save_path = os.path.abspath(save_path)
         app_state = AppState()
         if app_state.model_parallel_size is not None:
             self._default_save_to(save_path)

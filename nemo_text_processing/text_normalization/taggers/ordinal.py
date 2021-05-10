@@ -38,7 +38,8 @@ class OrdinalFst(GraphFst):
 
         cardinal_graph = cardinal.graph
         self.graph = (
-            (pynini.closure(NEMO_DIGIT) + pynutil.delete(pynini.union("rd", "th", "st", "nd"))) @ cardinal_graph
+            (pynini.closure(NEMO_DIGIT | pynini.accep(",")) + pynutil.delete(pynini.union("rd", "th", "st", "nd")))
+            @ cardinal_graph
         ).optimize()
         final_graph = pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)
