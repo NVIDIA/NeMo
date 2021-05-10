@@ -487,7 +487,7 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
 class AudioToCharWithPriorDataset(AudioToCharDataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
-    files, transcripts, durations (in seconds) and paths to attention prior along mel length.
+    files, transcripts, durations (in seconds).
     Each new line is a different sample. Example below:
     {"audio_filepath": "/path/to/audio_1.wav", "text": "the
     transcription", "offset": 301.75, "duration": 0.82}
