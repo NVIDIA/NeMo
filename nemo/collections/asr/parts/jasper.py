@@ -398,7 +398,7 @@ class SqueezeExcite(nn.Module):
                 of context to compute the Squeeze step.
         """
         if hasattr(self, 'context_window'):
-            print(f"Changing Squeeze-Excitation context window from {self.context_window} to {context_window}")
+            logging.info(f"Changing Squeeze-Excitation context window from {self.context_window} to {context_window}")
 
         self.context_window = int(context_window)
 
