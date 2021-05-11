@@ -16,12 +16,11 @@
 import torch
 from torch import nn
 
-from nemo.collections.asr.parts.k2.ctc import CTCLoss as CTCLossBase
-from nemo.core.classes import Serialization, Typing, typecheck
+from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
 
 
-class CTCLoss(CTCLossBase, Serialization, Typing):
+class CTCLoss(Loss):
     @property
     def input_types(self):
         """Input types definitions for CTCLoss.
@@ -41,7 +40,8 @@ class CTCLoss(CTCLossBase, Serialization, Typing):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, num_classes, reduction='mean_batch', graph_type='topo', **loss_kwargs):
+    def __init__(self, num_classes, reduction='mean_batch', backend='k2', graph_type='topo', **loss_kwargs):
+        super().__init__()
         self._blank = num_classes
         if reduction == 'mean_batch':
             ctc_reduction = 'none'
@@ -51,7 +51,14 @@ class CTCLoss(CTCLossBase, Serialization, Typing):
             self._apply_batch_mean = False
 
         # we assume that self._blank + 1 == num_classes
-        super().__init__(num_classes=self._blank+1, blank=self._blank, reduction=reduction, graph_type=graph_type, **loss_kwargs)
+        if backend == 'k2':
+            from nemo.collections.asr.parts.k2.ctc import CTCLoss as CTCLossK2
+
+            self._loss = CTCLossK2(num_classes=self._blank+1, blank=self._blank, reduction=ctc_reduction, graph_type=graph_type, **loss_kwargs)
+        elif backend == 'gtn':
+            from nemo.collections.asr.parts.gtn.ctc import CTCLoss as CTCLossGTN
+
+            self._loss = CTCLossGTN(blank_idx=self._blank, reduction=ctc_reduction)
 
     @typecheck()
     def forward(self, log_probs, targets, input_lengths, target_lengths):
@@ -60,7 +67,7 @@ class CTCLoss(CTCLossBase, Serialization, Typing):
         input_lengths = input_lengths.long()
         target_lengths = target_lengths.long()
         targets = targets.long()
-        loss = super().forward(
+        loss = self._loss(
             log_probs=log_probs, targets=targets, input_lengths=input_lengths, target_lengths=target_lengths
         )
         if self._apply_batch_mean:

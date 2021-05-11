@@ -44,6 +44,7 @@ class EncDecCTCSDModel(EncDecCTCModel):
         self.loss = FSACTCLoss(
             num_classes=self.decoder.num_classes_with_blank - 1,
             reduction=self._cfg.get("ctc_reduction", "mean_batch"),
+            backend=self._cfg.get("loss_backend", "k2"),
             graph_type=self._cfg.get("graph_type", "topo"),
             **loss_kwargs
         )
@@ -72,6 +73,7 @@ class EncDecCTCSDModel(EncDecCTCModel):
         self.loss = FSACTCLoss(
             num_classes=self.decoder.num_classes_with_blank - 1,
             reduction=self._cfg.get("ctc_reduction", "mean_batch"),
+            backend=self._cfg.get("loss_backend", "k2"),
             graph_type=self._cfg.get("graph_type", "topo"),
             **loss_kwargs
         )
@@ -97,6 +99,7 @@ class EncDecCTCSDModelBPE(EncDecCTCModelBPE):
         self.loss = FSACTCLoss(
             num_classes=self.decoder.num_classes_with_blank - 1,
             reduction=self._cfg.get("ctc_reduction", "mean_batch"),
+            backend=self._cfg.get("loss_backend", "k2"),
             graph_type=self._cfg.get("graph_type", "topo"),
             **loss_kwargs
         )
@@ -124,6 +127,7 @@ class EncDecCTCSDModelBPE(EncDecCTCModelBPE):
         self.loss = FSACTCLoss(
             num_classes=self.decoder.num_classes_with_blank - 1,
             reduction=self._cfg.get("ctc_reduction", "mean_batch"),
+            backend=self._cfg.get("loss_backend", "k2"),
             graph_type=self._cfg.get("graph_type", "topo"),
             **loss_kwargs
         )

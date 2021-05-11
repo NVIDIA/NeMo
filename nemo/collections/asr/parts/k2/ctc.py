@@ -44,7 +44,7 @@ class CTCLoss(torch.nn.Module):
             self,
             num_classes: int,
             blank: int,
-            reduction: str = 'mean_batch',
+            reduction: str = 'mean',
             graph_type: str = 'topo',
             L_inv: Optional[k2.Fsa] = None,
             phones: Optional[k2.SymbolTable] = None,
@@ -95,7 +95,6 @@ class CTCLoss(torch.nn.Module):
             targets += 1
         supervisions, order = self.create_supervision(input_lengths)
         supervisions = supervisions[order]
-        log_probs = log_probs[order]
         targets = targets[order]
         target_lengths = target_lengths[order]
         num_graphs = self.graph_compiler.compile(targets, target_lengths).to(log_probs.device)
