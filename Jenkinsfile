@@ -1089,42 +1089,53 @@ pipeline {
               '
             }
         }
+      }
+      stage('L2: NMT Multi-Validation') {
+          steps {
+            sh 'cd examples/nlp/machine_translation && \
+            python enc_dec_nmt.py \
+            --config-path=conf \
+            --config-name=aayn_base \
+            do_testing=true \
+            model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src \
+            model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref \
+            model.validation_ds.src_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.src,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src] \
+            model.validation_ds.tgt_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.ref,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref] \
+            model.test_ds.src_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.src,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src] \
+            model.test_ds.tgt_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.ref,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref] \
+            model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+            model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=true \
+            +trainer.limit_test_batches=2 \
+            exp_manager=null \
+            '
+          }
+      }
 
-        stage('L2: NMT Multi-Validation') {
-            steps {
-              sh 'cd examples/nlp/machine_translation && \
-              python enc_dec_nmt.py \
-              --config-path=conf \
-              --config-name=aayn_base \
-              do_testing=true \
-              model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src \
-              model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref \
-              model.validation_ds.src_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.src,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src] \
-              model.validation_ds.tgt_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.ref,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref] \
-              model.test_ds.src_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.src,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src] \
-              model.test_ds.tgt_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.ref,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref] \
-              model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
-              model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
-              trainer.gpus=[0] \
-              +trainer.fast_dev_run=true \
-              +trainer.limit_test_batches=2 \
-              exp_manager=null \
-              '
-            }
-        }
-
-        stage('L2: NMT Inference') {
-            steps {
-              sh 'cd examples/nlp/machine_translation && \
-              python nmt_transformer_infer.py \
-              --model=/home/TestData/nlp/nmt/toy_data/TransformerLargeDe-En.nemo \
-              --srctext=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.test.src \
-              --tgtout=/home/TestData/nlp/nmt/toy_data/out.txt \
-              --target_lang en \
-              --source_lang de \
-              '
-            }
-        }
+      stage('L2: NMT Inference - PostLN') {
+          steps {
+            sh 'cd examples/nlp/machine_translation && \
+            python nmt_transformer_infer.py \
+            --model=/home/TestData/nlp/nmt/toy_data/TransformerLargeDe-En.nemo \
+            --srctext=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.test.src \
+            --tgtout=/home/TestData/nlp/nmt/toy_data/out.txt \
+            --target_lang en \
+            --source_lang de \
+            '
+          }
+      }
+      stage('L2: NMT Inference - Pre-LN') {
+          steps {
+            sh 'cd examples/nlp/machine_translation && \
+            python nmt_transformer_infer.py \
+            --model=/home/TestData/nlp/nmt/toy_data/en_de_24x6_preln.nemo \
+            --srctext=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.test.src \
+            --tgtout=/home/TestData/nlp/nmt/toy_data/out.txt \
+            --target_lang de \
+            --source_lang en \
+            '
+          }
       }
     }
 
