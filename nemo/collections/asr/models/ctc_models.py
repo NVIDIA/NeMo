@@ -28,6 +28,7 @@ from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
+from nemo.collections.asr.parts import asr_model_utils
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
@@ -627,3 +628,18 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
+
+    def change_conv_asr_se_context_window(self, context_window: int):
+        """
+        Update the context window of the SqueezeExcitation module if the provided model contains an
+        `encoder` which is an instance of `ConvASREncoder`.
+
+        Args:
+            context_window:  An integer representing the number of input timeframes that will be used
+                to compute the context. Each timeframe corresponds to a single window stride of the
+                STFT features.
+
+                Say the window_stride = 0.01s, then a context window of 128 represents 128 * 0.01 s
+                of context to compute the Squeeze step.
+        """
+        asr_model_utils.change_conv_asr_se_context_window(self, context_window=context_window)

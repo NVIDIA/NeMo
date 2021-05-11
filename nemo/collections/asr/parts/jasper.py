@@ -18,6 +18,7 @@ from typing import Callable, List, Optional, Tuple
 import torch
 import torch.nn as nn
 from torch import Tensor
+from torch.nn.modules.utils import _single
 
 from nemo.collections.asr.parts.activations import Swish
 from nemo.utils import logging
@@ -333,6 +334,7 @@ class SqueezeExcite(nn.Module):
         self.interpolation_mode = interpolation_mode
         self._quantize = quantize
 
+        self.pool = None  # prepare a placeholder which will be updated
         self.change_context_window(context_window=context_window)
 
         if activation is None:
@@ -378,6 +380,23 @@ class SqueezeExcite(nn.Module):
         return x * y
 
     def change_context_window(self, context_window: int):
+        """
+        Update the context window of the SqueezeExcitation module, in-place if possible.
+
+        Will update the pooling layer to either nn.AdaptiveAvgPool1d() (for global SE) or nn.AvgPool1d()
+        (for limited context SE).
+
+        If only the context window is changing but still a limited SE context block - then
+        the earlier instance of nn.AvgPool1d() will be updated.
+
+        Args:
+            context_window: An integer representing the number of input timeframes that will be used
+                to compute the context. Each timeframe corresponds to a single window stride of the
+                STFT features.
+
+                Say the window_stride = 0.01s, then a context window of 128 represents 128 * 0.01 s
+                of context to compute the Squeeze step.
+        """
         if hasattr(self, 'context_window'):
             print(f"Changing Squeeze-Excitation context window from {self.context_window} to {context_window}")
 
@@ -385,24 +404,35 @@ class SqueezeExcite(nn.Module):
 
         if self.context_window <= 0:
             if PYTORCH_QUANTIZATION_AVAILABLE and self._quantize:
-                self.pool = quant_nn.QuantAdaptiveAvgPool1d(1)  # context window = T
+                if not isinstance(self.pool, quant_nn.QuantAdaptiveAvgPool1d(1)):
+                    self.pool = quant_nn.QuantAdaptiveAvgPool1d(1)  # context window = T
+
             elif not PYTORCH_QUANTIZATION_AVAILABLE and self._quantize:
                 raise ImportError(
                     "pytorch-quantization is not installed. Install from "
                     "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
                 )
+
             else:
-                self.pool = nn.AdaptiveAvgPool1d(1)  # context window = T
+                if not isinstance(self.pool, nn.AdaptiveAvgPool1d):
+                    self.pool = nn.AdaptiveAvgPool1d(1)  # context window = T
         else:
             if PYTORCH_QUANTIZATION_AVAILABLE and self._quantize:
-                self.pool = quant_nn.QuantAvgPool1d(self.context_window, stride=1)
+                if not isinstance(self.pool, quant_nn.QuantAvgPool1d):
+                    self.pool = quant_nn.QuantAvgPool1d(self.context_window, stride=1)
+
             elif not PYTORCH_QUANTIZATION_AVAILABLE and self._quantize:
                 raise ImportError(
                     "pytorch-quantization is not installed. Install from "
                     "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
                 )
+
             else:
-                self.pool = nn.AvgPool1d(self.context_window, stride=1)
+                if not isinstance(self.pool, nn.AvgPool1d):
+                    self.pool = nn.AvgPool1d(self.context_window, stride=1)
+                else:
+                    # update the context window
+                    self.pool.kernel_size = _single(self.context_window)
 
 
 class JasperBlock(nn.Module):
