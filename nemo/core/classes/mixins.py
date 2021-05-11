@@ -63,8 +63,10 @@ class DistillationMixin(ABC):
             raise ValueError("Distillation `tensor` cannot be None !")
 
         if loss_name not in self._distillation_loss_dict:
-            raise KeyError(f"Available distillation loss keys are : {list(self._distillation_loss_dict)}, "
-                           f"which did not match the provided key : {loss_name}")
+            raise KeyError(
+                f"Available distillation loss keys are : {list(self._distillation_loss_dict)}, "
+                f"which did not match the provided key : {loss_name}"
+            )
 
         if loss_name not in self._distillation_registry:
             # If this is a similarity match loss, create a list of tensors to register (unnamed args)
