@@ -128,6 +128,10 @@ class TransformerEncoder(nn.Module):
             pre_ln,
         )
         self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(num_layers)])
+
+        if pre_ln:
+            self.layers.append(nn.LayerNorm(hidden_size, eps=1e-5))
+            
         self.diag = 0 if mask_future else None
 
     def _get_memory_states(self, encoder_states, encoder_mems_list=None, i=0):
@@ -155,7 +159,10 @@ class TransformerEncoder(nn.Module):
         cached_mems_list = [memory_states]
 
         for i, layer in enumerate(self.layers):
-            encoder_states = layer(encoder_states, encoder_attn_mask, memory_states)
+            if i == len(self.layers)-1:
+                encoder_states = layer(encoder_states)
+            else:
+                encoder_states = layer(encoder_states, encoder_attn_mask, memory_states)
             memory_states = self._get_memory_states(encoder_states, encoder_mems_list, i + 1)
             cached_mems_list.append(memory_states)
 
