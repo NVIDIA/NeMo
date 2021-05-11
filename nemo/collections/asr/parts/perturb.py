@@ -864,7 +864,7 @@ class AugmentationDataset(IterableDataset):
                 if bkey in tar_filepaths:
                     tar_filepaths = tar_filepaths.replace(bkey, "}")
 
-        self.audio_dataset = wd.WebDataset(tar_filepaths)
+        self.audio_dataset = wd.WebDataset(urls=tar_filepaths, nodesplitter=None)
 
         if shuffle_n > 0:
             self.audio_dataset = self.audio_dataset.shuffle(shuffle_n)

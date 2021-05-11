@@ -630,7 +630,7 @@ class _TarredAudioLabelDataset(IterableDataset):
                 raise ValueError(f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}")
 
         # Put together WebDataset
-        self._dataset = wd.WebDataset(audio_tar_filepaths)
+        self._dataset = wd.WebDataset(urls=audio_tar_filepaths, nodesplitter=None)
 
         if shuffle_n > 0:
             self._dataset = self._dataset.shuffle(shuffle_n)
