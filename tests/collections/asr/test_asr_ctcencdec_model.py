@@ -159,6 +159,19 @@ class TestEncDecCTCModel:
                 assert m.context_window == 32
 
     @pytest.mark.unit
+    def test_change_conv_asr_se_context_window_no_config_update(self, asr_model):
+        old_cfg = copy.deepcopy(asr_model.cfg)
+        asr_model.change_conv_asr_se_context_window(context_window=32, update_config=False)  # 32 * 0.01s context
+        new_config = asr_model.cfg
+
+        assert old_cfg.encoder.jasper[0].se_context_size == -1
+        assert new_config.encoder.jasper[0].se_context_size == -1  # no change
+
+        for name, m in asr_model.encoder.named_modules():
+            if type(m).__class__.__name__ == 'SqueezeExcite':
+                assert m.context_window == 32
+
+    @pytest.mark.unit
     def test_dataclass_instantiation(self, asr_model):
         model_cfg = configs.EncDecCTCModelConfig()
 

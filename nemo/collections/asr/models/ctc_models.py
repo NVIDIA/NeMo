@@ -629,7 +629,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
 
-    def change_conv_asr_se_context_window(self, context_window: int):
+    def change_conv_asr_se_context_window(self, context_window: int, update_config: bool = True):
         """
         Update the context window of the SqueezeExcitation module if the provided model contains an
         `encoder` which is an instance of `ConvASREncoder`.
@@ -641,5 +641,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
 
                 Say the window_stride = 0.01s, then a context window of 128 represents 128 * 0.01 s
                 of context to compute the Squeeze step.
+            update_config: Whether to update the config or not with the new context window.
         """
-        asr_model_utils.change_conv_asr_se_context_window(self, context_window=context_window)
+        asr_model_utils.change_conv_asr_se_context_window(
+            self, context_window=context_window, update_config=update_config
+        )
