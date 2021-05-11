@@ -24,7 +24,23 @@ from nemo_text_processing.inverse_text_normalization.taggers.tokenize_and_classi
 from nemo_text_processing.inverse_text_normalization.verbalizers.verbalize import VerbalizeFst as ITNVerbalizeFst
 from nemo_text_processing.text_normalization.taggers.tokenize_and_classify import ClassifyFst as TNClassifyFst
 from nemo_text_processing.text_normalization.verbalizers.verbalize import VerbalizeFst as TNVerbalizeFst
-from pynini.export import export
+
+from nemo.utils import logging
+
+try:
+    from pynini.export import export
+
+    PYNINI_AVAILABLE = True
+except (ModuleNotFoundError, ImportError):
+
+    logging.warning(
+        "`pynini` is not installed ! \n"
+        "Please run the `nemo_text_processing/setup.sh` script"
+        "prior to usage of this toolkit."
+    )
+
+    PYNINI_AVAILABLE = False
+
 
 # This script exports OpenFst finite state archive files tokenize_and_classify_tmp.far and verbalize_tmp.far from compiled grammars inside NeMo inverse text normalization for  production purposes
 
