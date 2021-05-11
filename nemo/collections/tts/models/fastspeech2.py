@@ -75,7 +75,12 @@ class FastSpeech2Model(SpectrogramGenerator):
 
         # Parser and mappings are used for inference only.
         self.parser = parsers.make_parser(name='en')
-        with open(cfg.mappings_filepath, 'r') as f:
+        if 'mappings_filepath' in cfg:
+            mappings_filepath = cfg.get('mappings_filepath')
+        else:
+            mappings_filepath = 'mappings.json'
+        mappings_filepath = self.register_artifact('mappings_filepath', mappings_filepath)
+        with open(mappings_filepath, 'r') as f:
             mappings = json.load(f)
             self.word2phones = mappings['word2phones']
             self.phone2idx = mappings['phone2idx']
