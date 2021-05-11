@@ -22,7 +22,7 @@ from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
 from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
 from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoder
 from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
-from nemo.collections.nlp.modules.common.transformer.transformer_modules import TransformerEmbedding
+from nemo.collections.nlp.modules.common.transformer.transformer_modules import TransformerEmbedding, TransformerASREmbedding
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 
@@ -93,14 +93,7 @@ class TransformerEncoderNM(EncoderModule, Exportable):
         self._hidden_size = hidden_size
         self._max_sequence_length = max_sequence_length
 
-        self._embedding = TransformerEmbedding(
-            vocab_size=self._vocab_size,
-            hidden_size=self._hidden_size,
-            max_sequence_length=max_sequence_length,
-            num_token_types=num_token_types,
-            embedding_dropout=embedding_dropout,
-            learn_positional_encodings=learn_positional_encodings,
-        )
+        self._embedding = TransformerASREmbedding(idim=32, input_layer='linear')
 
         self._encoder = TransformerEncoder(
             hidden_size=self._hidden_size,
@@ -179,14 +172,7 @@ class TransformerDecoderNM(DecoderModule, Exportable):
         self._hidden_size = hidden_size
         self._max_sequence_length = max_sequence_length
 
-        self._embedding = TransformerEmbedding(
-            vocab_size=self.vocab_size,
-            hidden_size=self.hidden_size,
-            max_sequence_length=max_sequence_length,
-            num_token_types=num_token_types,
-            embedding_dropout=embedding_dropout,
-            learn_positional_encodings=learn_positional_encodings,
-        )
+        self._embedding = TransformerASREmbedding(idim=5, input_layer='embed')
 
         self._decoder = TransformerDecoder(
             hidden_size=self.hidden_size,
@@ -203,6 +189,7 @@ class TransformerDecoderNM(DecoderModule, Exportable):
 
     @typecheck()
     def forward(self, input_ids, decoder_mask, encoder_embeddings, encoder_mask):
+
         decoder_embeddings = self._embedding(input_ids=input_ids)
         decoder_hidden_states = self._decoder(
             decoder_states=decoder_embeddings,

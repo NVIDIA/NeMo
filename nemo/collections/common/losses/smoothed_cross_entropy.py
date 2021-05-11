@@ -81,6 +81,10 @@ class SmoothedCrossEntropyLoss(Loss):
             output_mask: binary tensor of shape batch_size x seq_len
             eps: epsilon param to avoid divide by zero in loss calculation
         """
+       
+        # ingore
+        # log_probs = log_probs[:,:50,:]
+
         if output_mask is None and self._pad_id is None:
             raise ValueError("Both output_mask and pad_id are None")
         if output_mask is None and self._pad_id is not None:

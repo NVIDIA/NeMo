@@ -94,7 +94,7 @@ class TopKClassificationAccuracy(Metric):
 
             self.correct_counts_k = torch.tensor(correct_counts_k, dtype=labels.dtype, device=labels.device)
             self.total_counts_k = torch.tensor(total_counts_k, dtype=labels.dtype, device=labels.device)
-
+            
     def compute(self):
         """
         Computes the top-k accuracy.

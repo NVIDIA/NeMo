@@ -208,6 +208,7 @@ class ConformerEncoder(NeuralModule, Exportable):
 
     @typecheck()
     def forward(self, audio_signal, length=None):
+
         if length is None:
             length = torch.tensor(audio_signal.size(-1)).repeat(audio_signal.size(0)).to(audio_signal)
         audio_signal = torch.transpose(audio_signal, 1, 2)
@@ -218,6 +219,7 @@ class ConformerEncoder(NeuralModule, Exportable):
             audio_signal = self.pre_encode(audio_signal)
 
         audio_signal, pos_emb = self.pos_enc(audio_signal)
+        
         bs, xmax, idim = audio_signal.size()
 
         # Create the self-attention and padding masks

@@ -45,7 +45,8 @@ class LSTMDecoder(NeuralModule, Exportable):
     def output_types(self):
         return OrderedDict({"logprobs": NeuralType(('B', 'T', 'D'), LogprobsType())})
 
-    def __init__(self, feat_in, num_classes, lstm_hidden_size, vocabulary=None, bidirectional=False, num_layers=1):
+    def __init__(self, feat_in, num_classes, lstm_hidden_size, vocabulary=None, bidirectional=False, num_layers=1,
+        return_logits : bool = False):
         super().__init__()
 
         if vocabulary is not None:
@@ -57,7 +58,9 @@ class LSTMDecoder(NeuralModule, Exportable):
             self.__vocabulary = vocabulary
         self._feat_in = feat_in
         # Add 1 for blank char
-        self._num_classes = num_classes + 1
+        # self._num_classes = num_classes + 1
+        self._num_classes = num_classes 
+        self._return_logits = return_logits
 
         self.lstm_layer = nn.LSTM(
             input_size=feat_in,
@@ -73,6 +76,10 @@ class LSTMDecoder(NeuralModule, Exportable):
         output = encoder_output.transpose(1, 2)
         output, _ = self.lstm_layer(output)
         output = self.linear_layer(output)
+
+        if self._return_logits:
+            return output
+
         return torch.nn.functional.log_softmax(output, dim=-1)
 
     def input_example(self):

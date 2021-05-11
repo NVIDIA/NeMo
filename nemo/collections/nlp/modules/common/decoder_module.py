@@ -16,7 +16,7 @@ from abc import ABC
 from typing import Any, Dict, Optional
 
 from nemo.core.classes import NeuralModule
-from nemo.core.neural_types import ChannelType, MaskType, NeuralType
+from nemo.core.neural_types import ChannelType, MaskType, NeuralType, LabelsType
 
 __all__ = ['DecoderModule']
 
@@ -35,7 +35,10 @@ class DecoderModule(NeuralModule, ABC):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"last_hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
+        return {
+            "last_hidden_states": NeuralType(('B', 'T', 'D'), ChannelType()),
+            "pad_label_output": NeuralType(('B', 'T'), LabelsType(), optional=True),
+        }
 
     @property
     def hidden_size(self) -> Optional[int]:

@@ -22,7 +22,7 @@ from omegaconf.omegaconf import MISSING
 from torch import nn
 from torch.nn.functional import gelu
 
-__all__ = ["TransformerEmbedding"]
+__all__ = ["TransformerEmbedding", "TransformerASREmbedding"]
 
 
 class FixedPositionalEncoding(nn.Module):
@@ -49,6 +49,7 @@ class FixedPositionalEncoding(nn.Module):
 
     def forward(self, position_ids):
         return torch.embedding(self.pos_enc, position_ids)
+
 
 
 class TransformerEmbedding(nn.Module):
@@ -80,6 +81,7 @@ class TransformerEmbedding(nn.Module):
 
         self.max_sequence_length = max_sequence_length
         self.token_embedding = nn.Embedding(vocab_size, hidden_size, padding_idx=0)
+
         if learn_positional_encodings:
             self.position_embedding = nn.Embedding(max_sequence_length, hidden_size)
         else:
@@ -208,3 +210,73 @@ class PositionWiseFF(nn.Module):
         output_states = self.dense_out(output_states)
         output_states = self.layer_dropout(output_states)
         return output_states
+
+
+class PositionalEncoding(torch.nn.Module):
+    """Positional encoding module
+
+    :param int d_model: embedding dim
+    :param float dropout_rate: dropout rate
+    :param int max_len: maximum input length
+    """
+
+    def __init__(self, d_model, dropout_rate, max_len=512): #max_len=5000
+        super(PositionalEncoding, self).__init__()
+        self.dropout = torch.nn.Dropout(p=dropout_rate)
+        # Compute the positional encodings once in log space.
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float32).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2, dtype=torch.float32) *
+                             -(math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0)
+        self.max_len = max_len
+        self.xscale = math.sqrt(d_model)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x):
+        x = x * self.xscale + self.pe[:, :x.size(1)]
+        return self.dropout(x)
+
+
+
+class TransformerASREmbedding(nn.Module):
+    """
+    Embedding from token and position embeddings.
+    Optionally add token_type embedding (e.g. type of the sentence in BERT).
+
+    Args:
+
+    """
+
+    def __init__(
+        self,
+        idim,
+        input_layer='embed',
+        attention_dim=256,
+        dropout_rate=0.1,
+        positional_dropout_rate=0.1
+    ):
+        super().__init__()
+
+        if input_layer == "linear":
+            self.embedding_layer = nn.Sequential(
+                nn.Linear(idim, attention_dim),
+                nn.LayerNorm(attention_dim),
+                nn.Dropout(dropout_rate),
+                nn.ReLU(),
+                PositionalEncoding(attention_dim, positional_dropout_rate)
+            )
+
+        elif input_layer == "embed":
+            self.embedding_layer = nn.Sequential(
+                nn.Embedding(idim, attention_dim),
+                PositionalEncoding(attention_dim, positional_dropout_rate)
+            )
+        else:
+            raise("input layer should be either in linear or embed!")
+
+    def forward(self, input_ids):
+        embeddings = self.embedding_layer(input_ids)
+        return embeddings

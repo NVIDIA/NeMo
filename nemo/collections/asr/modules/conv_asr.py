@@ -120,7 +120,7 @@ class ConvASREncoder(NeuralModule, Exportable):
         conv_mask: bool = True,
         frame_splicing: int = 1,
         init_mode: Optional[str] = 'xavier_uniform',
-        quantize: bool = False,
+        quantize: bool = False, 
     ):
         super().__init__()
         if isinstance(jasper, ListConfig):
@@ -220,7 +220,13 @@ class ConvASRDecoder(NeuralModule, Exportable):
     def output_types(self):
         return OrderedDict({"logprobs": NeuralType(('B', 'T', 'D'), LogprobsType())})
 
-    def __init__(self, feat_in, num_classes, init_mode="xavier_uniform", vocabulary=None):
+    def __init__(
+        self, 
+        feat_in, 
+        num_classes, 
+        init_mode="xavier_uniform", 
+        vocabulary=None,
+        return_logits : bool = False):
         super().__init__()
 
         if vocabulary is not None:
@@ -230,6 +236,7 @@ class ConvASRDecoder(NeuralModule, Exportable):
                 )
             self.__vocabulary = vocabulary
         self._feat_in = feat_in
+        self._return_logits = return_logits
         # Add 1 for blank char
         self._num_classes = num_classes + 1
 
@@ -240,7 +247,12 @@ class ConvASRDecoder(NeuralModule, Exportable):
 
     @typecheck()
     def forward(self, encoder_output):
-        return torch.nn.functional.log_softmax(self.decoder_layers(encoder_output).transpose(1, 2), dim=-1)
+        logits = self.decoder_layers(encoder_output).transpose(1, 2)
+
+        if self._return_logits:
+            return logits
+
+        return torch.nn.functional.log_softmax(logits, dim=-1)
 
     def input_example(self):
         """

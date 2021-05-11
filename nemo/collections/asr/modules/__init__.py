@@ -28,3 +28,5 @@ from nemo.collections.asr.modules.conv_asr import (
 )
 from nemo.collections.asr.modules.lstm_decoder import LSTMDecoder
 from nemo.collections.asr.modules.rnnt import RNNTDecoder, RNNTJoint
+
+from nemo.collections.asr.modules.transformer import TransformerASREmbedding, TransformerEncoderNM, TransformerDecoderNM
