@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import copy
-import torch
 from typing import Dict, List, Union
 
+import torch
 from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 
@@ -272,9 +272,7 @@ class DistillationModelPT(ModelPT):
                         similarity_loss_val = similarity_loss_weight * similarity_loss_val
                         primary_loss_value += similarity_loss_val
 
-                        self.log(
-                            f'{additional_loss_name}_subid_{similarity_loss_log_idx}', similarity_loss_val
-                        )
+                        self.log(f'{additional_loss_name}_subid_{similarity_loss_log_idx}', similarity_loss_val)
                         similarity_loss_log_idx += 1
 
                 else:
