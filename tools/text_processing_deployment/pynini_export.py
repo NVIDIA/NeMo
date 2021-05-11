@@ -19,7 +19,6 @@ import time
 from argparse import ArgumentParser
 from typing import Dict
 
-import pynini
 from nemo_text_processing.inverse_text_normalization.taggers.tokenize_and_classify import ClassifyFst as ITNClassifyFst
 from nemo_text_processing.inverse_text_normalization.verbalizers.verbalize import VerbalizeFst as ITNVerbalizeFst
 from nemo_text_processing.text_normalization.taggers.tokenize_and_classify import ClassifyFst as TNClassifyFst
@@ -28,6 +27,7 @@ from nemo_text_processing.text_normalization.verbalizers.verbalize import Verbal
 from nemo.utils import logging
 
 try:
+    import pynini
     from pynini.export import export
 
     PYNINI_AVAILABLE = True
