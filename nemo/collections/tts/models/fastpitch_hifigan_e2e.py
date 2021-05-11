@@ -202,7 +202,7 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
             "splice": NeuralType(optional=True),
         },
         output_types={
-            "audio": NeuralType(('B', 'T'), MelSpectrogramType()),
+            "audio": NeuralType(('B', 'S', 'T'), MelSpectrogramType()),
             "splices": NeuralType(),
             "log_dur_preds": NeuralType(('B', 'T'), TokenLogDurationType()),
             "pitch_preds": NeuralType(('B', 'T'), RegressionValuesType()),
@@ -248,7 +248,7 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
                 splices.append(start)
             gen_in = torch.stack(output)
 
-        output = self.generator(gen_in.transpose(1, 2))
+        output = self.generator(x=gen_in.transpose(1, 2))
 
         return output, splices, log_durs_predicted, pitch_predicted
 
@@ -427,8 +427,8 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
         """
         self.eval()
         audio, _, log_dur_pred, _ = self(text=tokens, splice=False)
-        audio = audio.squeeze()
-        durations = torch.sum(torch.clamp(torch.exp(log_dur_pred) - 1, 0, self.max_token_duration), 1)
+        audio = audio.squeeze(1)
+        durations = torch.sum(torch.clamp(torch.exp(log_dur_pred) - 1, 0, self.max_token_duration), 1).to(torch.int)
         audio_list = []
         for i, sample in enumerate(audio):
             audio_list.append(sample[: durations[i] * self.hop_size])

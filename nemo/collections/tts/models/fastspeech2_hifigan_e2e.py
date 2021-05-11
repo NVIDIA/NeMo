@@ -138,7 +138,7 @@ class FastSpeech2HifiGanE2EModel(TextToWaveform):
             "energies": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
         },
         output_types={
-            "audio": NeuralType(('B', 'T'), MelSpectrogramType()),
+            "audio": NeuralType(('B', 'S', 'T'), MelSpectrogramType()),
             "splices": NeuralType(),
             "log_dur_preds": NeuralType(('B', 'T'), TokenLogDurationType()),
             "pitch_preds": NeuralType(('B', 'T'), RegressionValuesType()),
@@ -170,7 +170,7 @@ class FastSpeech2HifiGanE2EModel(TextToWaveform):
                 splices.append(start)
             gen_in = torch.stack(output)
 
-        output = self.generator(gen_in.transpose(1, 2))
+        output = self.generator(x=gen_in.transpose(1, 2))
 
         return output, splices, log_dur_preds, pitch_preds, energy_preds, encoded_text_mask
 
@@ -399,8 +399,8 @@ class FastSpeech2HifiGanE2EModel(TextToWaveform):
         self.eval()
         token_len = torch.tensor([len(i) for i in tokens]).to(self.device)
         audio, _, log_dur_pred, _, _, _ = self(text=tokens, text_length=token_len, splice=False)
-        audio = audio.squeeze()
-        durations = torch.sum(torch.exp(log_dur_pred) - 1, 1)
+        audio = audio.squeeze(1)
+        durations = torch.sum(torch.exp(log_dur_pred) - 1, 1).to(torch.int)
         audio_list = []
         for i, sample in enumerate(audio):
             audio_list.append(sample[: durations[i] * self.hop_size])
