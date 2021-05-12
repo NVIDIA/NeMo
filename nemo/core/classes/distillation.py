@@ -20,8 +20,7 @@ from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.core import typecheck
-from nemo.core.classes.mixins import distill_mixins
-from nemo.core.classes.mixins import DistillationMixin, DistillationType
+from nemo.core.classes.mixins import DistillationMixin, DistillationType, distill_mixins
 from nemo.core.classes.modelPT import ModelPT
 from nemo.utils import logging, model_utils
 
