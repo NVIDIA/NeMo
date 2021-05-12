@@ -467,7 +467,14 @@ class MTEncDecModel(EncDecNLPModel):
                     datasets.append(dataset)
 
                 if self.multilingual:
-                    dataset = ConcatTranslationDataset(datasets)
+                    dataset = ConcatTranslationDataset(
+                        datasets=datasets,
+                        sampling_technique=cfg.get('concat_sampling_technique'),
+                        sampling_temperature=cfg.get('concat_sampling_temperature'),
+                        sampling_probabilities=cfg.get('concat_sampling_probabilities'),
+                        global_rank=self.global_rank,
+                        world_size=self.world_size,
+                    )
                 else:
                     dataset = datasets[0]
 
@@ -512,7 +519,15 @@ class MTEncDecModel(EncDecNLPModel):
                 datasets.append(dataset)
 
             if self.multilingual:
-                dataset = ConcatTranslationDataset(datasets, cfg.shuffle)
+                dataset = ConcatTranslationDataset(
+                    datasets=datasets,
+                    shuffle=cfg.get('shuffle'),
+                    sampling_technique=cfg.get('concat_sampling_technique'),
+                    sampling_temperature=cfg.get('concat_sampling_temperature'),
+                    sampling_probabilities=cfg.get('concat_sampling_probabilities'),
+                    global_rank=self.global_rank,
+                    world_size=self.world_size,
+                )
                 return torch.utils.data.DataLoader(
                     dataset=dataset,
                     batch_size=1,
