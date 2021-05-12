@@ -1033,7 +1033,7 @@ pipeline {
       }
     }
 
-    stage('L2: NMT Attention is All You Need') {
+    stage('L2: NMT Attention is All You Need Training') {
       when {
         anyOf {
           branch 'v1.0.0'
@@ -1089,7 +1089,6 @@ pipeline {
               '
             }
         }
-
         stage('L2: NMT Multi-Validation') {
             steps {
               sh 'cd examples/nlp/machine_translation && \
@@ -1112,8 +1111,18 @@ pipeline {
               '
             }
         }
-
-        stage('L2: NMT Inference') {
+      }
+    }
+    stage('L2: NMT Attention is All You Need Inference') {
+      when {
+        anyOf {
+          branch 'v1.0.0'
+          changeRequest target: 'v1.0.0'
+        }
+      }
+      failFast true
+      parallel {
+        stage('L2: NMT Inference - PostLN') {
             steps {
               sh 'cd examples/nlp/machine_translation && \
               python nmt_transformer_infer.py \
@@ -1125,9 +1134,20 @@ pipeline {
               '
             }
         }
+        stage('L2: NMT Inference - Pre-LN') {
+            steps {
+              sh 'cd examples/nlp/machine_translation && \
+              python nmt_transformer_infer.py \
+              --model=/home/TestData/nlp/nmt/toy_data/en_de_24x6_preln.nemo \
+              --srctext=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.test.src \
+              --tgtout=/home/TestData/nlp/nmt/toy_data/out.txt \
+              --target_lang de \
+              --source_lang en \
+              '
+            }
+        }
       }
     }
-
     stage('L2: NMT with HuggingFace') {
       when {
         anyOf {
