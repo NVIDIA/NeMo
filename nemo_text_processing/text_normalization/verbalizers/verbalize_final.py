@@ -28,9 +28,8 @@ except (ModuleNotFoundError, ImportError):
 
 class VerbalizeFinalFst(GraphFst):
     """
-    Finite state transducer that verbalizes an entire sentence
-        e.g. tokens { name: "its" } tokens { time { hours: "twelve" minutes: "thirty" } } tokens { name: "now" } tokens { name: "." }
-            -> its twelve thirty now .
+    Finite state transducer that verbalizes an entire sentence, e.g. 
+    tokens { name: "its" } tokens { time { hours: "twelve" minutes: "thirty" } } tokens { name: "now" } tokens { name: "." } -> its twelve thirty now .
     """
 
     def __init__(self):

@@ -1,4 +1,4 @@
-Inverse Text Normalization Deployment
+NeMo Text Processing Deployment
 ===============================================
 
 This tool deploys :doc:`NeMo Inverse Text Normalization (ITN) <../nemo_text_processing/inverse_text_normalization>` and :doc:`NeMo Text Normalization (TN) <../nemo_text_processing/text_normalization>` for production :cite:`tools-itn_deploy-zhang2021nemo`.

@@ -186,7 +186,8 @@ class GraphFst:
         Args: 
             fst: input fst
         
-        Returns Fst
+        Returns:
+            Fst: fst
         """
         return pynutil.insert(f"{self.name} {{ ") + fst + pynutil.insert(" }")
 
@@ -194,10 +195,11 @@ class GraphFst:
         """
         Deletes class name wrap around output of given fst
 
-        Args
+        Args:
             fst: input fst
 
-        Returns Fst
+        Returns:
+            Fst: fst
         """
         res = (
             pynutil.delete(f"{self.name}")

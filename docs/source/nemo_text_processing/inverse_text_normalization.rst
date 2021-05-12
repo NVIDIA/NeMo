@@ -24,26 +24,26 @@ Classes
 ----------------------------------
 
 
-The base class for every grammar is :class:`GraphFst<nemo_text_processing.inverse_text_normalization.graph_utils.GraphFst>`.
+The base class for every grammar is :class:`GraphFst<nemo_text_processing.text_normalization.GraphFst>`.
 This tool is designed as a two-stage application: 1. `classification` of the input into semiotic tokens and 2. `verbalization` into written form.
 For every stage and every semiotic token class there is a corresponding grammar, e.g. :class:`taggers.CardinalFst<nemo_text_processing.inverse_text_normalization.taggers.cardinal.CardinalFst>`
 and :class:`verbalizers.CardinalFst<nemo_text_processing.inverse_text_normalization.verbalizers.cardinal.CardinalFst>`.
-Together, they compose the final grammars :class:`taggers.ClassifyFst<nemo_text_processing.inverse_text_normalization.classify.tokenize_and_classify.ClassifyFst>` and 
-:class:`verbalizers.VerbalizeFinalFst<nemo_text_processing.inverse_text_normalization.classify.verbalize_final.VerbalizeFinalFst>` that are compiled into WFST and used for inference.
+Together, they compose the final grammars :class:`ClassifyFst<nemo_text_processing.inverse_text_normalization.ClassifyFst>` and 
+:class:`VerbalizeFinalFst<nemo_text_processing.inverse_text_normalization.VerbalizeFinalFst>` that are compiled into WFST and used for inference.
 
 
 
 
 
 
-.. autoclass:: nemo_text_processing.inverse_text_normalization.taggers.tokenize_and_classify.ClassifyFst
+.. autoclass:: nemo_text_processing.inverse_text_normalization.ClassifyFst
     :show-inheritance:
     :members:
 
-.. autoclass:: nemo_text_processing.inverse_text_normalization.VerbalizeFst
+.. autoclass:: nemo_text_processing.inverse_text_normalization.VerbalizeFinalFst
     :show-inheritance:
     :members:
-
+ 
 
 Prediction
 ----------------------------------
