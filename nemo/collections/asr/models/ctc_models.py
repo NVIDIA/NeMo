@@ -28,6 +28,7 @@ from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
+from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
@@ -36,7 +37,7 @@ from nemo.utils import logging
 __all__ = ['EncDecCTCModel']
 
 
-class EncDecCTCModel(ASRModel, ExportableEncDecModel):
+class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
     """Base class for encoder decoder CTC-based models."""
 
     @classmethod
