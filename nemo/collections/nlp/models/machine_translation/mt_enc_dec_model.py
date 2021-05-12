@@ -90,21 +90,30 @@ class MTEncDecModel(EncDecNLPModel):
                     "cfg.src_language and cfg.tgt_language cannot both be lists. We only support many-to-one or one-to-many multilingual models."
                 )
             elif isinstance(self.src_language, ListConfig):
-                self.setup_pre_and_post_processing_utils(
-                    source_lang=self.src_language[0], target_lang=self.tgt_language
-                )
                 for lng in self.src_language:
                     self.multilingual_ids.append(self.encoder_tokenizer.token_to_id("<" + lng + ">"))
             elif isinstance(self.tgt_language, ListConfig):
-                self.setup_pre_and_post_processing_utils(
-                    source_lang=self.src_language, target_lang=self.tgt_language[0]
-                )
                 for lng in self.tgt_language:
                     self.multilingual_ids.append(self.encoder_tokenizer.token_to_id("<" + lng + ">"))
             else:
                 raise ValueError(
                     "Expect either cfg.src_language or cfg.tgt_language to be a list when multilingual=True."
                 )
+
+            if isinstance(self.src_language, ListConfig):
+                self.tgt_language = [self.tgt_language] * len(self.src_language)
+            else:
+                self.src_language = [self.src_language] * len(self.tgt_language)
+
+            self.source_processor_list = []
+            self.target_processor_list = []
+            for src_lng, tgt_lng in zip(self.src_language, self.tgt_language):
+                src_prcsr, tgt_prscr = self.setup_pre_and_post_processing_utils(
+                    source_lang=src_lng, target_lang=tgt_lng
+                )
+                self.source_processor_list.append(src_prcsr)
+                self.target_processor_list.append(tgt_prscr)
+
         else:
             # After this call, the model will have  self.source_processor and self.target_processor objects
             self.setup_pre_and_post_processing_utils(source_lang=self.src_language, target_lang=self.tgt_language)
@@ -215,6 +224,11 @@ class MTEncDecModel(EncDecNLPModel):
                 # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
                 # is excess.
                 batch[i] = batch[i].squeeze(dim=0)
+
+        if self.multilingual:
+            self.source_processor = self.source_processor_list[dataloader_idx]
+            self.target_processor = self.target_processor_list[dataloader_idx]
+
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
         log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
         eval_loss = self.eval_loss_fn(log_probs=log_probs, labels=labels)
@@ -644,6 +658,8 @@ class MTEncDecModel(EncDecNLPModel):
                 self.source_processor = MosesProcessor(source_lang)
             if target_lang is not None and target_lang not in ['ja', 'zh']:
                 self.target_processor = MosesProcessor(target_lang)
+
+        return self.source_processor, self.target_processor
 
     @torch.no_grad()
     def batch_translate(
