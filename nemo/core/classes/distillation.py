@@ -20,6 +20,7 @@ from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.core import typecheck
+from nemo.core.classes.mixins import distill_mixins
 from nemo.core.classes.mixins import DistillationMixin, DistillationType
 from nemo.core.classes.modelPT import ModelPT
 from nemo.utils import logging, model_utils
@@ -87,19 +88,14 @@ class DistillationModelPT(ModelPT):
             raise TypeError(
                 f"Teacher model ({self.teacher.__class__.__name__}) must inherit {DistillationMixin.__name__}"
             )
-        else:
-            # Add mixin type information and instantiate mixin
-            self.teacher._DISTILLATION_TYPE = DistillationType.TEACHER
-            self.teacher.distillation_cfg = copy.deepcopy(self.distillation_cfg)
 
         if not isinstance(self.student, DistillationMixin):
             raise TypeError(
                 f"Student model ({self.student.__class__.__name__}) must inherit {DistillationMixin.__name__}"
             )
-        else:
-            # Add mixin type information and instantiate mixin
-            self.student._DISTILLATION_TYPE = DistillationType.STUDENT
-            self.student.distillation_cfg = copy.deepcopy(self.distillation_cfg)
+
+        # If both checks passed, add mixin type information and config information
+        distill_mixins.set_distill_cfg(self.distillation_cfg)
 
         # setup up delegation of DistillationModelPT to self.student
         self._setup_delegates()
@@ -113,25 +109,31 @@ class DistillationModelPT(ModelPT):
 
         # restore delegated data loaders (of student model only)
         if self._cfg is not None and not self._is_model_being_restored():
-            if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
-                self.setup_training_data(self._cfg.train_ds)
+            with distill_mixins.as_distill_type(DistillationType.STUDENT):
+                if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
+                    self.setup_training_data(self._cfg.train_ds)
 
-            if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
-                self.setup_multiple_validation_data(val_data_config=self._cfg.validation_ds)
+                if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
+                    self.setup_multiple_validation_data(val_data_config=self._cfg.validation_ds)
 
-            if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
-                self.setup_multiple_test_data(test_data_config=self._cfg.test_ds)
+                if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
+                    self.setup_multiple_test_data(test_data_config=self._cfg.test_ds)
 
         # ModelPT wrappers over subclass implementations
         self.training_step = model_utils.wrap_training_step(self.training_step)
 
         # Validate that the student and teacher models are fundamentally compatibilities
-        self.teacher.validate_distillation_model(other_model=self.student)
-        self.student.validate_distillation_model(other_model=self.teacher)
+        with distill_mixins.as_distill_type(DistillationType.TEACHER):
+            self.teacher.validate_distillation_model(other_model=self.student)
+
+        with distill_mixins.as_distill_type(DistillationType.STUDENT):
+            self.student.validate_distillation_model(other_model=self.teacher)
 
     def _setup_distillation_loss(self):
         loss_config = self.distillation_cfg.get('loss', None)
-        loss_obj = self.student.setup_distillation_loss()
+
+        with distill_mixins.as_distill_type(DistillationType.STUDENT):
+            loss_obj = self.student.setup_distillation_loss()
 
         if loss_config is None and loss_obj is None:
             raise ValueError(
@@ -193,8 +195,7 @@ class DistillationModelPT(ModelPT):
                     self.loss_dict[loss_key] = loss_obj[loss_key]
 
         # Attach the loss dict to teacher and student
-        self.teacher._distillation_loss_dict = self.loss_dict
-        self.student._distillation_loss_dict = self.loss_dict
+        distill_mixins.set_distill_loss_dict(self.loss_dict)
         logging.info(f"Distillation losses registered : {list(self.loss_dict.keys())}")
 
     def forward_delegate(self, fn):
@@ -249,13 +250,19 @@ class DistillationModelPT(ModelPT):
         self.teacher.reset_distillation_registry()
         self.student.reset_distillation_registry()
 
-        # Delegate train steps, dynamically replacing self with self.student / self.teacher to maintain model
+        # Delegate train steps, dynamically replacing self with self.teacher to maintain model
         # level unawareness.
-        self.teacher.training_step(batch=batch, batch_nb=batch_nb)
-        student_outputs = self.student.training_step(batch=batch, batch_nb=batch_nb)
+        with distill_mixins.as_distill_type(DistillationType.TEACHER):
+            self.teacher.training_step(batch=batch, batch_nb=batch_nb)
 
-        # Compute primary loss (required) and similarity losses (optional)
-        primary_loss_value, additional_losses = self._compute_loss()
+        # Delegate train steps, dynamically replacing self with self.student to maintain model
+        # level unawareness.
+        with distill_mixins.as_distill_type(DistillationType.STUDENT):
+            student_outputs = self.student.training_step(batch=batch, batch_nb=batch_nb)
+
+            # Compute primary loss (required) and additional losses (optional)
+            primary_loss_value, additional_losses = self._compute_loss()
+
         self.log('distillation_train_loss', primary_loss_value)
 
         # Add similarity matching losses to primary loss with weighted term
@@ -431,14 +438,24 @@ class DistillationModelPT(ModelPT):
     # Abstract methods must be explicitly overridden, even if just delegates
     # setup up delegation of DistillationModelPT methods to self.student
     def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
-        return self.student.setup_training_data(train_data_config)
+        with distill_mixins.as_distill_type(DistillationType.STUDENT):
+            output = self.student.setup_training_data(train_data_config)
+        return output
 
     def setup_validation_data(self, val_data_config: Union[DictConfig, Dict]):
-        return self.student.setup_validation_data(val_data_config)
+        with distill_mixins.as_distill_type(DistillationType.STUDENT):
+            output = self.student.setup_validation_data(val_data_config)
+        return output
 
     def setup_test_data(self, test_data_config: Union[DictConfig, Dict]):
-        return self.student.setup_test_data(test_data_config)
+        with distill_mixins.as_distill_type(DistillationType.STUDENT):
+            output = self.student.setup_test_data(test_data_config)
+        return output
 
     def teardown(self, stage: str):
-        self.teacher.teardown(stage)
-        return self.student.teardown(stage)
+        with distill_mixins.as_distill_type(DistillationType.TEACHER):
+            self.teacher.teardown(stage)
+
+        with distill_mixins.as_distill_type(DistillationType.STUDENT):
+            output = self.student.teardown(stage)
+        return output
