@@ -14,7 +14,7 @@ diarizer:
     model_path: null #.nemo local model path or pretrained model name or none
     window_length_in_sec: 0.15
     shift_length_in_sec: 0.01
-    threshold: 0.5 # tune threshold on dev set. Check <NeMo_git_root>/scripts/voice_activity_detection/vad_tune_threshold.py
+    threshold: 0.7 # tune threshold on dev set. Check <NeMo_git_root>/scripts/voice_activity_detection/vad_tune_threshold.py
     vad_decision_smoothing: True
     smoothing_params:
       method: "median" 
@@ -23,5 +23,5 @@ diarizer:
   speaker_embeddings:
     oracle_vad_manifest: null
     model_path: ??? #.nemo local model path or pretrained model name (speakerverification_speakernet or speakerdiarization_speakernet)
-    window_length_in_sec: 3 # window length in sec for speaker embedding extraction
-    shift_length_in_sec: 1.5 # shift length in sec for speaker embedding extraction
+    window_length_in_sec: 1.5 # window length in sec for speaker embedding extraction
+    shift_length_in_sec: 0.75 # shift length in sec for speaker embedding extraction
