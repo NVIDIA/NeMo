@@ -538,7 +538,7 @@ class ConcatTranslationDataset(IterableDataset):
                 end_idx = start_idx + (len(self.datasets[idx]) // self.world_size)
                 if self.global_rank == self.world_size - 1:
                     end_idx = len(self.datasets[idx])
-                indices = range(start_idx + worker_info.id, end_idx, worker_info.num_workers)
+                indices = range(start_idx + wid, end_idx, wnum)
                 self.datasets[idx] = pt_data.Subset(self.datasets[idx], indices)
 
         for idx, dataset in enumerate(self.datasets):
