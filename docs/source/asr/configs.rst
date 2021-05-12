@@ -439,6 +439,21 @@ A Citrinet-512 config should look similar to the following:
 As mentioned above, Citrinet uses the ``ConvASRDecoder`` as the decoder layer similar to QuartzNet. Only the configuration must be 
 changed slightly as Citrinet utilizes sub-word tokenization.
 
+.. note::
+    The following information is relevant to any of the above models that implements its encoder as an :class:`~nemo.collections.asr.modules.conv_asr.ConvASREncoder`, and utilizes the ``SqueezeExcite`` mechanism.
+
+The ``SqueezeExcite`` block within a :class:`~nemo.collections.asr.modules.conv_asr.ConvASREncoder` network can be modified to utilize a different context window after the model has been instantiated (even after the model has been trained) so as to evaluate the model with limited context. This can be achieved using the :meth:`~nemo.collections.asr.parts.mixins.ASRModuleMixin.change_conv_asr_se_context_window`
+
+.. code-block:: python
+
+    # Here, model can be any model that has a `ConvASREncoder` as its encoder, and utilized `SqueezeExcite` blocks
+    # `context_window` : It is an integer representing the number of timeframes (each corresponding to some window stride).
+    # `update_config` : Bool flag which determines whether the config of the model should be updated to reflect the new context window.
+
+    # Here, we specify that 128 timeframes of 0.01s stride should be the context window
+    # This is equivalent to 128 * 0.01s context window for `SqueezeExcite`
+    model.change_conv_asr_se_context_window(context_window=128, update_config=True)
+
 Conformer-CTC
 ~~~~~~~~~~~~~
 
