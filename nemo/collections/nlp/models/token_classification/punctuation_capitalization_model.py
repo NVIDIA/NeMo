@@ -217,6 +217,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         self.log('capit_f1', capit_f1)
         self.log('capit_recall', capit_recall)
 
+        self.punct_class_report.reset()
+        self.capit_class_report.reset()
+
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         """
             Called at the end of test to aggregate outputs.
