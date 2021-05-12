@@ -74,6 +74,10 @@ Mixins
     :show-inheritance:
     :members:
 
+.. autoclass:: nemo.collections.asr.parts.mixins.ASRModuleMixin
+    :show-inheritance:
+    :members:
+
 Datasets
 --------
 
