@@ -15,11 +15,16 @@
 from abc import ABC
 from enum import Enum
 from typing import Optional, Union
+from contextlib import contextmanager
 
 import torch
 from omegaconf import DictConfig
 
 from nemo.collections.common.losses import CosineSimilarityLoss
+
+_DISTILLATION_TYPE = None
+_DISTILLATION_LOSS_DICT = None
+_DISTILLATION_CFG = DictConfig({})
 
 
 class DistillationType(Enum):
@@ -27,14 +32,33 @@ class DistillationType(Enum):
     TEACHER = 2
 
 
+@contextmanager
+def as_distill_type(distill_type: Optional[DistillationType]):
+    if distill_type is not None and not isinstance(distill_type, DistillationType):
+        raise TypeError("`distill_type` must be a valid enum value from `DistillationType` or None")
+
+    global _DISTILLATION_TYPE
+
+    original_type = _DISTILLATION_TYPE
+    _DISTILLATION_TYPE = distill_type
+    yield
+    _DISTILLATION_TYPE = original_type
+
+
+def set_distill_cfg(cfg: DictConfig):
+    global _DISTILLATION_CFG
+    _DISTILLATION_CFG = cfg
+
+
+def set_distill_loss_dict(loss_dict: dict):
+    global _DISTILLATION_LOSS_DICT
+    _DISTILLATION_LOSS_DICT = loss_dict
+
+
 class DistillationMixin(ABC):
     def __init__(self):
         super().__init__()
-        self._DISTILLATION_TYPE: Optional[DistillationType] = None
-        self.distillation_cfg = DictConfig({})
         self._distillation_registry = {}
-        self._distillation_loss_dict = {}
-        # self._distillation_registry_similarity = []
 
     def setup_distillation_loss(self) -> Optional['torch.nn._Loss']:
         """
@@ -62,9 +86,9 @@ class DistillationMixin(ABC):
         if tensor is None:
             raise ValueError("Distillation `tensor` cannot be None !")
 
-        if loss_name not in self._distillation_loss_dict:
+        if loss_name not in self.distill_loss_dict:
             raise KeyError(
-                f"Available distillation loss keys are : {list(self._distillation_loss_dict)}, "
+                f"Available distillation loss keys are : {list(self.distill_loss_dict)}, "
                 f"which did not match the provided key : {loss_name}"
             )
 
@@ -111,10 +135,9 @@ class DistillationMixin(ABC):
 
     def reset_distillation_registry(self):
         self._distillation_registry.clear()
-        # self._distillation_registry_similarity.clear()
 
     def is_being_distilled(self) -> bool:
-        return self._DISTILLATION_TYPE is not None
+        return self.distill_type is not None
 
     def is_student_model(self) -> Optional[bool]:
         """
@@ -125,7 +148,7 @@ class DistillationMixin(ABC):
             is not undergoing teacher-student distillation.
         """
         if self.is_being_distilled():
-            return self._DISTILLATION_TYPE == DistillationType.STUDENT
+            return self.distill_type == DistillationType.STUDENT
         else:
             return None
 
@@ -153,3 +176,18 @@ class DistillationMixin(ABC):
         self, loss_name: str, student_registry: Union[list, dict], teacher_registry: Union[list, dict]
     ):
         pass
+
+    @property
+    def distill_type(self):
+        global _DISTILLATION_TYPE
+        return _DISTILLATION_TYPE
+
+    @property
+    def distill_cfg(self):
+        global _DISTILLATION_CFG
+        return _DISTILLATION_CFG
+
+    @property
+    def distill_loss_dict(self):
+        global _DISTILLATION_LOSS_DICT
+        return _DISTILLATION_LOSS_DICT
