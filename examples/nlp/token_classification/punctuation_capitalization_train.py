@@ -96,10 +96,6 @@ def main(cfg: DictConfig) -> None:
 
     trainer.fit(model)
 
-    if cfg.model.nemo_path:
-        model.save_to(cfg.model.nemo_path)
-        logging.info(f'The model was saved to {cfg.model.nemo_path}')
-
 
 if __name__ == '__main__':
     main()
