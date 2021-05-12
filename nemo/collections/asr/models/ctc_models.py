@@ -39,7 +39,6 @@ __all__ = ['EncDecCTCModel']
 
 
 class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, DistillationMixin):
-class EncDecCTCModel(ASRModel, ExportableEncDecModel, DistillationMixin):
     """Base class for encoder decoder CTC-based models."""
 
     @classmethod
