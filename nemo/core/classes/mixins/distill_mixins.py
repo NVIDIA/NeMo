@@ -13,9 +13,9 @@
 # limitations under the License.
 
 from abc import ABC
+from contextlib import contextmanager
 from enum import Enum
 from typing import Optional, Union
-from contextlib import contextmanager
 
 import torch
 from omegaconf import DictConfig
