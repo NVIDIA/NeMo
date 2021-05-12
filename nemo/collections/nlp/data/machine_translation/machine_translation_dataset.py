@@ -17,9 +17,10 @@
 import io
 import json
 import pickle
+import torch
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Optional, List
 
 import braceexpand
 import numpy as np
@@ -30,7 +31,7 @@ from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_i
 from nemo.core import Dataset
 from nemo.utils import logging
 
-__all__ = ['TranslationDataset', 'TarredTranslationDataset']
+__all__ = ['TranslationDataset', 'TarredTranslationDataset', 'ConcatTranslationDataset']
 
 
 @dataclass
@@ -430,3 +431,135 @@ class TarredTranslationDataset(IterableDataset):
 
     def __len__(self):
         return self.metadata['num_batches']
+
+
+class ConcatTranslationDataset(IterableDataset):
+    """
+    A dataset that accepts as argument multiple datasets and then samples from them based on the specified 
+    sampling technique.
+    Args:
+        datasets (list): A list of datasets to sample from.
+        shuffle (bool): Whether to shuffle individual datasets. Only works with non-iterable datasets. 
+            Defaults to True.
+        sampling_technique (str): Sampling technique to choose which dataset to draw a sample from.
+            Defaults to 'temperature'. Currently supports 'temperature', 'random' and 'round-robin'.
+        sampling_temperature (int): Temperature value for sampling. Only used when sampling_technique = 'temperature'.
+            Defaults to 5.
+        sampling_probabilities (list): Probability values for sampling. Only used when sampling_technique = 'random'.
+    """
+
+    def __init__(
+        self,
+        datasets: List[Any],
+        shuffle: bool = True,
+        sampling_technique: str = 'random',
+        sampling_temperature: int = 5,
+        sampling_probabilities: List[float] = [1, 1],
+    ):
+        super().__init__()
+
+        supported_sampling_techniques = ['temperature', 'random', 'round-robin']
+        self.datasets = datasets
+        self.iterables = []
+        self.shuffle = shuffle
+        self.sampling_kwargs = {}
+        if sampling_technique == 'temperature':
+            self.index_generator = ConcatTranslationDataset.temperature_generator
+            self.sampling_kwargs['temperature'] = sampling_temperature
+        elif sampling_technique == 'random':
+            self.index_generator = ConcatTranslationDataset.random_generator
+            self.sampling_kwargs['p'] = sampling_probabilities
+        elif sampling_technique == 'round-robin':
+            self.index_generator = ConcatTranslationDataset.round_robin_generator
+        else:
+            raise ValueError(f"Currently we only support sampling techniques in {supported_sampling_techniques}.")
+        self.N = 0
+
+        if isinstance(datasets[0], IterableDataset):
+            self.kind = 'iterable'
+        else:
+            self.kind = 'map'
+
+        for dataset in datasets:
+            isiterable = isinstance(dataset, IterableDataset)
+            if (isiterable and not self.kind == 'iterable') or (not isiterable and self.kind == 'iterable'):
+                raise ValueError(
+                    "All datasets in ConcatTranslationDataset must be of the same kind (Iterable or Map)."
+                )
+
+        for dataset in datasets:
+            iterable = self.get_iterable(dataset)
+            self.iterables.append(iterable)
+            self.N += len(dataset)
+
+    def get_iterable(self, dataset):
+        if isinstance(dataset, IterableDataset):
+            return dataset.__iter__()
+        else:
+            if self.shuffle:
+                sampler = torch.utils.data.RandomSampler(dataset)
+            else:
+                sampler = torch.utils.data.SequentialSampler(dataset)
+            return sampler.__iter__()
+
+    def __iter__(self):
+        n = 0
+        ind_gen = self.index_generator(self.datasets, **self.sampling_kwargs)
+        while n < self.N:
+            n += 1
+            try:
+                ind = next(ind_gen)
+            except StopIteration:
+                return
+            try:
+                val = next(self.iterables[ind])
+                if self.kind == "map":
+                    val = self.datasets[ind][val]
+                yield val
+            except StopIteration:
+                self.iterables[ind] = self.get_iterable(self.datasets[ind])
+                if n < self.N:
+                    n -= 1
+
+    def __len__(self):
+        return self.N
+
+    @staticmethod
+    def temperature_generator(datasets, **kwargs):
+        temp = kwargs.get('temperature')
+        if not temp:
+            raise ValueError("Temperature generator expects a 'temperature' keyowrd argument.")
+
+        lengths = []
+        num = len(datasets)
+        for dataset in datasets:
+            lengths.append(len(dataset))
+
+        p = np.array(lengths) / np.sum(lengths)
+        p = np.power(p, 1 / temp)
+        p = p / np.sum(p)
+
+        while True:
+            ind = np.random.choice(np.arange(num), p=p)
+            yield ind
+
+    @staticmethod
+    def round_robin_generator(datasets, **kwargs):
+        num = len(datasets)
+        while True:
+            for i in range(num):
+                yield i
+
+    @staticmethod
+    def random_generator(datasets, **kwargs):
+        p = kwargs.get('p')
+        if not p:
+            raise ValueError("Random generator expects a 'p' keyowrd argument for sampling probabilities.")
+
+        num = len(datasets)
+        if len(p) != num:
+            raise ValueError("Length of probabilities list must be equal to the number of datasets.")
+
+        while True:
+            ind = np.random.choice(np.arange(num), p=p)
+            yield ind
