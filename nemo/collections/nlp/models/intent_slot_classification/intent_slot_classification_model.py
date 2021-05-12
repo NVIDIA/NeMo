@@ -306,6 +306,9 @@ class IntentSlotClassificationModel(NLPModel):
         self.log('slot_recall', slot_recall)
         self.log('slot_f1', slot_f1)
 
+        self.intent_classification_report.reset()
+        self.slot_classification_report.reset()
+
         return {
             'val_loss': avg_loss,
             'intent_precision': intent_precision,
