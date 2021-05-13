@@ -95,6 +95,7 @@ class TestMTEncDecModel:
         batch_size = 10
         time = 32
         vocab_size = 32000
+        torch.manual_seed(42)
         tgt_ids = torch.LongTensor(batch_size, time).random_(1, model.decoder_tokenizer.vocab_size)
         logits = torch.FloatTensor(batch_size, time, vocab_size).random_(-1, 1)
         log_probs = torch.nn.functional.log_softmax(logits, dim=-1)
