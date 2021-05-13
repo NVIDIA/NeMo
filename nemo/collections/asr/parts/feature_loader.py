@@ -31,7 +31,9 @@ class ExternalFeatureLoader(object):
             samples = np.load(file_path, allow_pickle=True)
             return self._convert_samples_to_float32(samples)
         except:
-            raise("Error open feature files. Probably not supported the format yet. Support pkl, npz, and npy format now. ")
+            raise (
+                "Error open feature files. Probably not supported the format yet. Support pkl, npz, and npy format now. "
+            )
         # TODO load other type of files such as kaldi io ark
 
     @staticmethod
