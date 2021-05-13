@@ -35,18 +35,17 @@ import torch
 
 
 class GradExpNormalize(torch.autograd.Function):
-    def make_non_pad_mask(input_lengths: torch.Tensor):
-        B = input_lengths.shape[0]
-        T = input_lengths.max() + 1
-        seq_range = torch.arange(0, T, dtype=torch.int64)
-        seq_range_expand = seq_range.unsqueeze(0).expand(B, T)
-        seq_length_expand = seq_range_expand.new(input_lengths).unsqueeze(-1)
+    def make_non_pad_mask(input_lengths: torch.Tensor, seq_len: int):
+        batch_size = input_lengths.shape[0]
+        seq_range = torch.arange(0, seq_len, dtype=torch.int64)
+        seq_range_expand = seq_range.unsqueeze(0).expand(batch_size, seq_len)
+        seq_length_expand = seq_range_expand.new(input_lengths.cpu()).unsqueeze(-1)
         mask = seq_range_expand < seq_length_expand
         return mask
 
     @staticmethod
     def forward(ctx, log_probs: torch.Tensor, input_lengths: torch.Tensor, reduction: str = "mean"):
-        mask = GradExpNormalize.make_non_pad_mask(input_lengths)
+        mask = GradExpNormalize.make_non_pad_mask(input_lengths, log_probs.shape[1])
         max_log_prob, _ = log_probs.max(-1)
         probs = torch.exp(log_probs - max_log_prob.unsqueeze(-1))
         norm_probs = torch.zeros_like(log_probs)
