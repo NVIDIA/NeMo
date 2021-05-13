@@ -19,6 +19,8 @@ from torch import nn
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
 
+from nemo.collections.asr.parts.k2.utils import GradExpNormalize
+
 
 class CTCLoss(Loss):
     @property
@@ -67,6 +69,9 @@ class CTCLoss(Loss):
         input_lengths = input_lengths.long()
         target_lengths = target_lengths.long()
         targets = targets.long()
+        # PyTorch is doing the log-softmax normalization as part of the CTC computation.
+        # More: https://github.com/k2-fsa/k2/issues/575
+        log_probs = GradExpNormalize.apply(log_probs, input_lengths, "mean" if self._apply_batch_mean else "none")
         loss = self._loss(
             log_probs=log_probs, targets=targets, input_lengths=input_lengths, target_lengths=target_lengths
         )

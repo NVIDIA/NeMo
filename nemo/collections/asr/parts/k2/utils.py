@@ -35,18 +35,30 @@ import torch
 
 
 class GradExpNormalize(torch.autograd.Function):
+    def make_non_pad_mask(input_lengths: torch.Tensor):
+        B = input_lengths.shape[0]
+        T = input_lengths.max() + 1
+        seq_range = torch.arange(0, T, dtype=torch.int64)
+        seq_range_expand = seq_range.unsqueeze(0).expand(B, T)
+        seq_length_expand = seq_range_expand.new(input_lengths).unsqueeze(-1)
+        mask = seq_range_expand < seq_length_expand
+        return mask
+
     @staticmethod
-    def forward(ctx, log_probs: torch.Tensor):
+    def forward(ctx, log_probs: torch.Tensor, input_lengths: torch.Tensor, reduction: str = "mean"):
+        mask = GradExpNormalize.make_non_pad_mask(input_lengths)
         max_log_prob, _ = log_probs.max(-1)
         probs = torch.exp(log_probs - max_log_prob.unsqueeze(-1))
-        ctx.save_for_backward(probs / probs.sum(-1).unsqueeze(-1))
+        norm_probs = torch.zeros_like(log_probs)
+        norm_probs[mask] += (probs / probs.sum(-1).unsqueeze(-1))[mask]
+        if reduction == "mean":
+            norm_probs /= norm_probs.shape[0]
+        ctx.save_for_backward(norm_probs)
         return log_probs
 
     @staticmethod
     def backward(ctx, grad_output: torch.Tensor):
-        norm_probs = ctx.saved_tensors[0]
-        zero_mask = torch.all(grad_output.eq(0.0), -1).unsqueeze(-1)
-        return torch.where(zero_mask, grad_output, grad_output + norm_probs)
+        return grad_output + ctx.saved_tensors[0], None, None
 
 
 def build_ctc_topo(tokens: List[int]) -> k2.Fsa:

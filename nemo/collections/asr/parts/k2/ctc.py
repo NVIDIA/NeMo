@@ -32,7 +32,6 @@ import torch
 import k2
 
 from nemo.collections.asr.parts.k2.utils import get_tot_objf_and_num_frames
-from nemo.collections.asr.parts.k2.utils import GradExpNormalize
 
 
 class CTCLoss(torch.nn.Module):
@@ -99,10 +98,6 @@ class CTCLoss(torch.nn.Module):
         target_lengths = target_lengths[order]
         num_graphs = self.graph_compiler.compile(targets, target_lengths).to(log_probs.device)
 
-        # PyTorch is doing the log-softmax normalization as part of the CTC computation.
-        # In k2 those things are separate.
-        # More: https://github.com/k2-fsa/k2/issues/575
-        log_probs = GradExpNormalize.apply(log_probs)
         dense_fsa_vec = k2.DenseFsaVec(log_probs, supervisions)
 
         num_lats = k2.intersect_dense(num_graphs, dense_fsa_vec, torch.finfo(torch.float32).max)

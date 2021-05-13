@@ -19,8 +19,6 @@
 import torch
 import gtn
 
-from nemo.collections.asr.parts.k2.utils import GradExpNormalize
-
 
 class CTCLossFunction(torch.autograd.Function):
     @staticmethod
@@ -117,8 +115,6 @@ class CTCLoss(torch.nn.Module):
             target_lengths: torch.Tensor
     ) -> torch.Tensor:
         target_list = [t[:l].tolist() for t, l in zip(targets, target_lengths)]
-        # PyTorch is doing the log-softmax normalization as part of the CTC computation.
-        log_probs = GradExpNormalize.apply(log_probs)
         loss = CTCLossFunction.apply(log_probs, input_lengths, target_list, self.blank_idx, self.reduction)
         if self.reduction == "mean":
             return loss.mean()
