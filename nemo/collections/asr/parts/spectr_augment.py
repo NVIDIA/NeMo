@@ -55,7 +55,7 @@ class SpecAugment(nn.Module):
             self.adaptive_temporal_width = False
         else:
             if time_width > 1.0 or time_width < 0.0:
-                raise ValueError('If `time_width` is a float value, must be in range [0, 1]')
+                raise ValueError("If `time_width` is a float value, must be in range [0, 1]")
 
             self.adaptive_temporal_width = True
 
@@ -115,8 +115,8 @@ class SpecCutout(nn.Module):
                 rect_x = self._rng.randint(0, sh[1] - self.rect_freq)
                 rect_y = self._rng.randint(0, sh[2] - self.rect_time)
 
-                w_x = self._rng.randint(0, self.rect_time)
-                w_y = self._rng.randint(0, self.rect_freq)
+                w_x = self._rng.randint(0, self.rect_freq)
+                w_y = self._rng.randint(0, self.rect_time)
 
                 x[idx, rect_x : rect_x + w_x, rect_y : rect_y + w_y] = 0.0
 
