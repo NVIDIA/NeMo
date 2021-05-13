@@ -19,7 +19,7 @@ import torch
 import torch.nn as nn
 from omegaconf.omegaconf import MISSING
 
-from nemo.collections.common.parts import form_attention_mask
+from nemo.collections.common.parts import NEG_INF, form_attention_mask, form_diagonal_mask
 from nemo.collections.nlp.modules.common.transformer.transformer_modules import MultiHeadAttention, PositionWiseFF
 
 __all__ = ["TransformerDecoder"]
@@ -51,16 +51,19 @@ class TransformerDecoderBlock(nn.Module):
         ffn_dropout: float = 0.0,
         hidden_act: str = "relu",
         pre_ln: bool = False,
+        restricted: int = -1
     ):
         super().__init__()
         self.pre_ln = pre_ln
+        self.restricted = restricted
+   
         self.layer_norm_1 = nn.LayerNorm(hidden_size, eps=1e-5)
         self.first_sub_layer = MultiHeadAttention(
             hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout
         )
         self.layer_norm_2 = nn.LayerNorm(hidden_size, eps=1e-5)
         self.second_sub_layer = MultiHeadAttention(
-            hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout 
+            hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout, restricted=restricted
         ) # restriction goes here
         self.layer_norm_3 = nn.LayerNorm(hidden_size, eps=1e-5)
         self.third_sub_layer = PositionWiseFF(hidden_size, inner_size, ffn_dropout, hidden_act)
@@ -77,12 +80,14 @@ class TransformerDecoderBlock(nn.Module):
         self_attn_output += residual
 
         residual = self_attn_output
-        self_attn_output = self.layer_norm_2(self_attn_output)
+        self_attn_output = self.layer_norm_2(self_attn_output) # torch.Size([250, 51, 256])
         enc_dec_attn_output = self.second_sub_layer(self_attn_output, encoder_states, encoder_states, encoder_mask)
-        enc_dec_attn_output += residual
+        enc_dec_attn_output += residual  # torch.Size([250, 51, 256])
 
         residual = enc_dec_attn_output
         enc_dec_attn_output = self.layer_norm_3(enc_dec_attn_output)
+        
+
         output_states = self.third_sub_layer(enc_dec_attn_output)
         output_states += residual
 
@@ -125,6 +130,7 @@ class TransformerDecoder(nn.Module):
         hidden_act: str = "relu",
         pre_ln: bool = False,
         pre_ln_final_layer_norm: bool = True,
+        restricted: int = -1
     ):
         super().__init__()
 
@@ -142,6 +148,7 @@ class TransformerDecoder(nn.Module):
             ffn_dropout,
             hidden_act,
             pre_ln,
+            restricted
         )
         self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(num_layers)])
         if pre_ln:
@@ -157,7 +164,7 @@ class TransformerDecoder(nn.Module):
         return memory_states
 
     def forward(
-        self, decoder_states, decoder_mask, encoder_states, encoder_mask, decoder_mems_list=None, return_mems=False
+        self, decoder_states, decoder_mask, encoder_states, encoder_mask, decoder_mems_list=None, return_mems=False, 
     ):
         """
         Args:
@@ -173,6 +180,9 @@ class TransformerDecoder(nn.Module):
         """
         decoder_attn_mask = form_attention_mask(decoder_mask, diagonal=self.diagonal)
         encoder_attn_mask = form_attention_mask(encoder_mask)
+
+
+        # print(encoder_attn_mask.shape) # torch.Size([250, 1, 1, 50])
         memory_states = self._get_memory_states(decoder_states, decoder_mems_list, 0)
         cached_mems_list = [memory_states]
 

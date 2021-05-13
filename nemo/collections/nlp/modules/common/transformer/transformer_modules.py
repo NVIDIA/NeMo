@@ -22,7 +22,11 @@ from omegaconf.omegaconf import MISSING
 from torch import nn
 from torch.nn.functional import gelu
 
+from nemo.collections.common.parts import NEG_INF, form_diagonal_mask
+
+
 __all__ = ["TransformerEmbedding", "TransformerASREmbedding"]
+
 
 
 class FixedPositionalEncoding(nn.Module):
@@ -129,7 +133,7 @@ class MultiHeadAttention(nn.Module):
             whole layer, but before layer normalization
     """
 
-    def __init__(self, hidden_size, num_attention_heads, attn_score_dropout=0.0, attn_layer_dropout=0.0):
+    def __init__(self, hidden_size, num_attention_heads, attn_score_dropout=0.0, attn_layer_dropout=0.0, restricted=-1):
         super().__init__()
         if hidden_size % num_attention_heads != 0:
             raise ValueError(
@@ -140,6 +144,7 @@ class MultiHeadAttention(nn.Module):
         self.num_attention_heads = num_attention_heads
         self.attn_head_size = int(hidden_size / num_attention_heads)
         self.attn_scale = math.sqrt(math.sqrt(self.attn_head_size))
+        self.restricted = restricted
 
         self.query_net = nn.Linear(hidden_size, hidden_size)
         self.key_net = nn.Linear(hidden_size, hidden_size)
@@ -148,6 +153,8 @@ class MultiHeadAttention(nn.Module):
 
         self.attn_dropout = nn.Dropout(attn_score_dropout)
         self.layer_dropout = nn.Dropout(attn_layer_dropout)
+
+        
 
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attn_head_size)
@@ -167,9 +174,19 @@ class MultiHeadAttention(nn.Module):
         value = self.transpose_for_scores(value)
 
         # for numerical stability we pre-divide query and key by sqrt(sqrt(d))
-        attention_scores = torch.matmul(query, key.transpose(-1, -2))
+        attention_scores = torch.matmul(query, key.transpose(-1, -2)) #  decoder torch.Size([250, 4, 51, 51])
+
+        # TODO check why mask fill scores before in epsnet baseline
+        if self.restricted > 0:
+            # hard coded change!!!
+            max_dim = max(attention_scores.size(2), attention_scores.size(3))
+            diagonal_restriction_mask = form_diagonal_mask(max_dim, self.restricted, device=attention_scores.device)[:attention_scores.size(2), :attention_scores.size(3)]
+            diagonal_restriction_mask = diagonal_restriction_mask.unsqueeze(0).unsqueeze(1) # (batch, 1, time1, time1)
+            attention_scores = attention_scores.masked_fill(diagonal_restriction_mask == 0, -10000.0) # NEG_INF
+
         if attention_mask is not None:
-            attention_scores = attention_scores + attention_mask.to(attention_scores.dtype)
+            attention_scores = attention_scores + attention_mask.to(attention_scores.dtype)  #torch.Size([250, 4, 51, 51])
+
         attention_probs = torch.softmax(attention_scores, dim=-1)
         attention_probs = self.attn_dropout(attention_probs)
 

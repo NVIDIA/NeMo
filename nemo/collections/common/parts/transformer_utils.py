@@ -15,7 +15,7 @@
 import torch
 import torch.nn as nn
 
-__all__ = ['NEG_INF', 'form_attention_mask', 'transformer_weights_init', 'mask_padded_tokens']
+__all__ = ['NEG_INF', 'form_attention_mask', 'transformer_weights_init', 'mask_padded_tokens', 'form_diagonal_mask']
 
 NEG_INF = -10000.0
 
@@ -77,3 +77,40 @@ def transformer_weights_init(module, std_init_range=0.02, xavier=True):
 def mask_padded_tokens(tokens, pad_id):
     mask = tokens != pad_id
     return mask
+
+
+# def form_diagonal_mask(input_mask, width=0, dtype=torch.uint8):
+#     """Create mask for restrict attention (1, size, size)
+
+#     :param int size: size of mask
+#     :param int width: width of the restricted range around the diagonal
+#     :param str device: "cpu" or "cuda" or torch.Tensor.device
+#     :param torch.dtype dtype: result dtype
+#     :rtype: torch.Tensor
+#     >>> diagonal_mask(3, width=1)
+#     [[1, 1, 0, 0],
+#      [1, 1, 1, 0],
+#      [0, 1, 1, 1],
+#      [0, 0, 1, 1]]
+#     """
+#     size =input_mask.shape[1]
+#     ret = torch.ones(size, size, device=input_mask.device, dtype=dtype)
+#     return ret.tril(diagonal=width).triu(diagonal=-width)
+
+
+def form_diagonal_mask(size, width=0, device="cpu", dtype=torch.uint8):
+    """Create mask for restrict attention (1, size, size)
+
+    :param int size: size of mask
+    :param int width: width of the restricted range around the diagonal
+    :param str device: "cpu" or "cuda" or torch.Tensor.device
+    :param torch.dtype dtype: result dtype
+    :rtype: torch.Tensor
+    >>> diagonal_mask(3, width=1)
+    [[1, 1, 0, 0],
+     [1, 1, 1, 0],
+     [0, 1, 1, 1],
+     [0, 0, 1, 1]]
+    """
+    ret = torch.ones(size, size, device=device, dtype=dtype)
+    return ret.tril(diagonal=width).triu(diagonal=-width)
