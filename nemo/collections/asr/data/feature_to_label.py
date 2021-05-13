@@ -47,9 +47,10 @@ class _FeatureSeqSpeakerLabelDataset(Dataset):
     Dataset that loads tensors via a json file containing paths to feature files, sequences of labels. 
     Each new line is a different sample. Example below:
     and their target labels. JSON files should be of the following format:
-        {"feature_filepath": "/path/to/feature_0.p", "seq_label": target_seq_label_0} \
+        {"feature_filepath": "/path/to/feature_0.p", "seq_label": speakerA speakerB SpeakerA ....} \
         ...
         {"feature_filepath": "/path/to/feature_n.p", "seq_label": target_seq_label_n} 
+    target_seq_label_n is the string of sequence of speaker label, separated by space.
 
     Args:
         manifest_filepath (str): Dataset parameter. Path to JSON containing data.
@@ -118,12 +119,13 @@ class _FeatureSeqSpeakerLabelDataset(Dataset):
 
 class FeatureToSeqSpeakerLabelDataset(_FeatureSeqSpeakerLabelDataset):
     """
-    Dataset that loads tensors via a json file containing paths to audio
-    files, command class, and durations (in seconds). Each new line is a
+    Dataset that loads tensors via a json file containing paths to feature
+    files and sequence of speakers. Each new line is a
     different sample. Example below:
-    {"feature_filepath": "/path/to/feature_0.p", "seq_label": target_seq_label_0} \
+    {"feature_filepath": "/path/to/feature_0.p", "seq_label": speakerA speakerB SpeakerA ....} \
     ...
     {"feature_filepath": "/path/to/feature_n.p", "seq_label": target_seq_label_n} 
+    target_seq_label_n is the string of sequence of speaker label, separated by space.
 
     Args:
         manifest_filepath (str): Path to manifest json as described above. Canbe comma-separated paths.
