@@ -29,13 +29,14 @@ from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss_name
 from nemo.collections.asr.metrics.rnnt_wer import RNNTWER, RNNTDecoding
 from nemo.collections.asr.models.asr_model import ASRModel
+from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
 
 
-class EncDecRNNTModel(ASRModel):
+class EncDecRNNTModel(ASRModel, ASRModuleMixin):
     """Base class for encoder decoder RNNT-based models."""
 
     @classmethod
@@ -135,8 +136,8 @@ class EncDecRNNTModel(ASRModel):
 
         Examples:
             .. code-block:: yaml
-                loss_name: "default"
 
+                loss_name: "default"
                 warprnnt_numba_kwargs:
                     kwargs2: some_other_val
 

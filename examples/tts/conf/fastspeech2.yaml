@@ -101,7 +101,6 @@ model:
     dropout: 0.2
     dur_d_hidden: 256
     dur_kernel_size: 3
-    va_hidden: 256
     pitch: ${model.add_pitch_predictor}
     log_pitch: True
     n_f0_bins: 256

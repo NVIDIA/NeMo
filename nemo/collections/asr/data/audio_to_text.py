@@ -12,12 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import io
+import math
 import os
+from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
 import braceexpand
+import numpy as np
 import torch
 import webdataset as wd
+from scipy.stats import betabinom
 from torch.nn import functional as F
 
 from nemo.collections.asr.data import vocabs
@@ -25,11 +29,13 @@ from nemo.collections.asr.parts import collections, parsers
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import *
+from nemo.core.neural_types.elements import ProbsType
 from nemo.utils import logging
 
 __all__ = [
     'AudioToCharDataset',
     'AudioToCharWithDursF0Dataset',
+    'AudioToCharWithPriorDataset',
     'AudioToBPEDataset',
     'TarredAudioToCharDataset',
     'TarredAudioToBPEDataset',
@@ -209,7 +215,7 @@ class AudioToCharDataset(_AudioTextDataset):
         """Returns definitions of module output ports.
                """
         return {
-            'audio_signal': NeuralType(('B', 'T')),
+            'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
@@ -259,7 +265,7 @@ class AudioToCharDataset(_AudioTextDataset):
 class AudioToCharWithDursF0Dataset(AudioToCharDataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
-    files, transcripts, and durations (in seconds) and F0 along mel length.
+    files, transcripts, and durations (in seconds).
     Each new line is a different sample. Example below:
     {"audio_filepath": "/path/to/audio_1.wav", "text": "the
     transcription", "offset": 301.75, "duration": 0.82}
@@ -268,11 +274,16 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
     transcription", "offset": 301.75, "duration": 0.82}
 
     Additionally, user provides path to precomputed durations via "durs_file" arg, which is a pickled python dict,
-    mapping example tag to it's durations tensor. Tag is a unique example identifier, which is a wav filename
-    without suffix. Durations are an additional dict of two tensors: graphemes durations and blanks durations with
+    mapping example tag to it's durations tensor, and name of method that was received durations via "durs_type".
+    Tag is a unique example identifier, which is a wav filename without suffix. Durations depend on "durs_type".
+    If durs_type == "asr_based" then durations are an additional dict of two tensors: graphemes/phonemes durations and blanks durations with
     "blanks" and "tokens" keys respectively.
     Example below:
     {'LJ050-0234': {'blanks': `blanks_durs_tensor`, 'tokens': `tokens_durs_tensor`},
+    ...}
+    If durs_type == "aligner_based" then durations are just tensor graphemes/phonemes durations.
+    Example below:
+    {'LJ050-0234': `tokens_durs_tensor`},
     ...}
 
     Additionally, F0 statistics is passed precomputed along mel length via "f0_file" arg, which is a pickled python
@@ -284,6 +295,7 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
     Args:
         **kwargs: Passed to AudioToCharDataset constructor.
         durs_file (str): String path to pickled durations location.
+        durs_type (str): Type of durations. Currently supported durations are "asr-based" and "aligned-based".
         f0_file (str): String path to pickled f0 statistics location.
         blanking (bool): Boolean flag indicate whether add or not blanks between text graphemes.
         load_audio(bool): Boolean flag indicate whether do or not load audio.
@@ -305,7 +317,16 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
         }
 
     @staticmethod
-    def make_vocab(notation='chars', punct=True, spaces=False, stresses=False, add_blank_at="last_but_one"):
+    def make_vocab(
+        notation='chars',
+        punct=True,
+        spaces=False,
+        stresses=False,
+        add_blank_at="last_but_one",
+        pad_with_space=False,
+        improved_version_g2p=False,
+        phoneme_dict_path=None,
+    ):
         """Constructs vocabulary from given parameters.
 
         Args:
@@ -315,6 +336,9 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
             stresses (bool): True if use phonemes codes with stresses (0-2).
             add_blank_at: add blank to labels in the specified order ("last" or "last_but_one"),
              if None then no blank in labels.
+            pad_with_space (bool): True if pad text with spaces at the beginning and at the end.
+            improved_version_g2p (bool): True if use new version of g2p.
+            phoneme_dict_path (str): path to phoneme dict file (like CMU Pronouncing dictionary). If it's None then cmudict.dict() will be used.
 
         Returns:
             (vocabs.Base) Vocabulary
@@ -322,15 +346,24 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
         if notation == 'chars':
             vocab = vocabs.Chars(punct=punct, spaces=spaces, add_blank_at=add_blank_at)
         elif notation == 'phonemes':
-            vocab = vocabs.Phonemes(punct=punct, stresses=stresses, spaces=spaces, add_blank_at=add_blank_at,)
+            vocab = vocabs.Phonemes(
+                punct=punct,
+                stresses=stresses,
+                spaces=spaces,
+                add_blank_at=add_blank_at,
+                pad_with_space=pad_with_space,
+                improved_version_g2p=improved_version_g2p,
+                phoneme_dict_path=phoneme_dict_path,
+            )
         else:
             raise ValueError("Unsupported vocab type.")
         return vocab
 
     def __init__(self, **kwargs):
         durs_file = kwargs.pop('durs_file', None)
+        durs_type = kwargs.pop('durs_type', "asr-based")
         f0_file = kwargs.pop('f0_file', None)
-        blanking = kwargs.pop('blanking', False)
+        self.blanking = kwargs.pop('blanking', False)
         self.load_audio = kwargs.pop('load_audio', True)
         self.vocab = self.make_vocab(**kwargs.pop('vocab', {}))
         kwargs.setdefault('labels', [])  # For compatibility.
@@ -349,12 +382,18 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
             durs = []
             for tag in tags:
                 tag_durs = tag2durs[tag]
-                durs.append(self.interleave(tag_durs['blanks'], tag_durs['tokens']))
+                if durs_type == "asr-based":
+                    durs.append(self.interleave(tag_durs['blanks'], tag_durs['tokens']))
+                elif durs_type == "aligner-based":
+                    durs.append(tag_durs)
+                else:
+                    raise NotImplementedError(
+                        f"{durs_type} duration type is not supported. Use asr-based or align-based."
+                    )
             self.durs = durs
         if f0_file:
             tag2f0 = torch.load(f0_file)
             self.f0 = [tag2f0[tag] for tag in tags]
-        self.blanking = blanking
 
     def __getitem__(self, item):
         audio, audio_len = None, None
@@ -443,6 +482,108 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
             f0,
             f0_mask,
         )
+
+
+class AudioToCharWithPriorDataset(AudioToCharDataset):
+    """
+    Dataset that loads tensors via a json file containing paths to audio
+    files, transcripts, durations (in seconds).
+    Each new line is a different sample. Example below:
+    {"audio_filepath": "/path/to/audio_1.wav", "text": "the
+    transcription", "offset": 301.75, "duration": 0.82}
+    ...
+    {"audio_filepath": "/path/to/audio_n.wav", "text": "the
+    transcription", "offset": 301.75, "duration": 0.82}
+
+    Additionally, user provides path to folder with precomputed attention priors via "attn_prior_folder" arg.
+    This folder should contain saved numpy array as attention prior along mel and text lengths.
+    If folder is empty, attention priors will be calculated and saved in specified folder.
+    Every name of saved numpy array is a unique example identifier, which is a wav filename without suffix.
+
+    Args:
+        **kwargs: Passed to AudioToCharDataset constructor.
+        attn_prior_folder (str): String path to folder with precomputed attention priors.
+        n_window_stride (int): Stride of window for fft in samples. Need to generate prior.
+        vocab: Vocabulary config (parser + set of graphemes to use). Constructor propagates these to
+            `self.make_vocab` function call to build a complete vocabulary.
+    """
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports."""
+        return {
+            'audio': NeuralType(('B', 'T'), AudioSignal()),
+            'audio_len': NeuralType(('B',), LengthsType()),
+            'text': NeuralType(('B', 'T'), LabelsType()),
+            'text_len': NeuralType(('B',), LengthsType()),
+            'attn_prior': NeuralType(('B', 'T', 'D'), ProbsType()),
+        }
+
+    def __init__(self, attn_prior_folder, n_window_stride=256, **kwargs):
+        self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**kwargs.pop('vocab', {}))
+        kwargs.setdefault('labels', [])  # For compatibility.
+        super().__init__(**kwargs)
+
+        Path(attn_prior_folder).mkdir(parents=True, exist_ok=True)
+        self.attn_prior_folder = attn_prior_folder
+
+        self.n_window_stride = n_window_stride
+        self.id2enc_text = {}
+        for i, e in enumerate(self.collection):
+            # cache vocab encoding
+            self.id2enc_text[i] = self.vocab.encode(e.text_raw)
+
+    @staticmethod
+    def beta_binomial_prior_distribution(phoneme_count, mel_count, scaling_factor=1.0):
+        x = np.arange(0, phoneme_count)
+        mel_text_probs = []
+        for i in range(1, mel_count + 1):
+            a, b = scaling_factor * i, scaling_factor * (mel_count + 1 - i)
+            mel_i_prob = betabinom(phoneme_count, a, b).pmf(x)
+            mel_text_probs.append(mel_i_prob)
+        return np.array(mel_text_probs)
+
+    def __getitem__(self, item):
+        audio, audio_len, _, _ = super().__getitem__(item)  # noqa
+
+        text = self.id2enc_text[item]
+
+        tag = Path(self.collection[item].audio_file).stem
+        attn_prior_path = Path(self.attn_prior_folder) / f"{tag}.npy"
+
+        if attn_prior_path.exists():
+            attn_prior = np.load(attn_prior_path)
+        else:
+            attn_prior = self.beta_binomial_prior_distribution(
+                len(text), math.ceil((audio_len.item() + 1) / self.n_window_stride)
+            )
+            np.save(attn_prior_path, attn_prior)
+
+        text, text_len, attn_prior = (
+            torch.tensor(text).long(),
+            torch.tensor(len(text)).long(),
+            torch.tensor(attn_prior),
+        )
+
+        return audio, audio_len, text, text_len, attn_prior
+
+    def _collate_fn(self, batch):
+        batch = list(zip(*batch))
+
+        asr_batch = _speech_collate_fn(list(zip(*batch[:4])), pad_id=self.vocab.pad)
+        audio, audio_len, text, text_len = asr_batch
+        attn_prior_list = batch[4]
+
+        attn_prior = torch.zeros(
+            len(attn_prior_list),
+            max([attn_prior_i.shape[0] for attn_prior_i in attn_prior_list]),
+            max([attn_prior_i.shape[1] for attn_prior_i in attn_prior_list]),
+        )
+
+        for i, attn_prior_i in enumerate(attn_prior_list):
+            attn_prior[i, : attn_prior_i.shape[0], : attn_prior_i.shape[1]] = attn_prior_i
+
+        return audio, audio_len, text, text_len, attn_prior
 
 
 class FastPitchDataset(_AudioTextDataset):
@@ -768,7 +909,7 @@ class _TarredAudioToTextDataset(IterableDataset):
                 raise ValueError(f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}")
 
         # Put together WebDataset
-        self._dataset = wd.WebDataset(audio_tar_filepaths)
+        self._dataset = wd.WebDataset(urls=audio_tar_filepaths, nodesplitter=None)
 
         if shuffle_n > 0:
             self._dataset = self._dataset.shuffle(shuffle_n)

@@ -14,7 +14,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.inverse_text_normalization.graph_utils import NEMO_CHAR, NEMO_SIGMA, GraphFst, delete_space
+from nemo_text_processing.text_normalization.graph_utils import NEMO_CHAR, NEMO_SIGMA, GraphFst, delete_space
 
 try:
     import pynini
@@ -28,7 +28,7 @@ except (ModuleNotFoundError, ImportError):
 class WhiteListFst(GraphFst):
     """
     Finite state transducer for verbalizing whitelist
-        e.g. tokens { tokens { name: "mrs." } } -> mrs.
+        e.g. tokens { name: "mrs." } -> mrs.
     """
 
     def __init__(self):

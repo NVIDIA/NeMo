@@ -151,7 +151,7 @@ There are two versions:
   SQuAD 2.0, a system must not only answer questions when possible, but also determine when no answer is supported by the paragraph 
   and abstain from answering.
 
-After downloading the files, you should have a :code:``squad`` data folder that contains the following four files for training and 
+After downloading the files, you should have a :code:`squad` data folder that contains the following four files for training and
 evaluation:
 
 .. code::
@@ -225,20 +225,20 @@ Example of the command for training the model:
 .. Note:: 
   
    The first time you train, it will take an extra 5-10 minutes to process the dataset. For future training runs, it will use the 
-   processed dataset if :code:``model.dataset.use_cache=true``, which is automatically cached in the files in the same directory as 
+   processed dataset if :code:`model.dataset.use_cache=true`, which is automatically cached in the files in the same directory as
    the data.
 
 Required Arguments for Training
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- :code:``model.train_ds.file``: path to the training file in JSON format
-- :code:``model.validation_ds.file``: path to the validation file in JSON format
+- :code:`model.train_ds.file`: path to the training file in JSON format
+- :code:`model.validation_ds.file`: path to the validation file in JSON format
 
 Fine-tuning Procedure
 ^^^^^^^^^^^^^^^^^^^^^
 
 Fine-tuning procedure and logs look similar to what's described in the Model Training section, with the addition of the model
-that is initially loaded from a previously trained checkpoint, e.g. by specifying :code:``pretrained_model=<PRETRAINED_MODEL_NAME>``.
+that is initially loaded from a previously trained checkpoint, e.g. by specifying :code:`pretrained_model=<PRETRAINED_MODEL_NAME>`.
 
 Inference
 ---------
@@ -259,7 +259,7 @@ To run inference with the pre-trained model, run:
 Required Arguments for inference:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- :code:``pretrained_model``: pretrained QA Model model from ``list_available_models()`` or path to a ``.nemo`` file
+- :code:`pretrained_model`: pretrained QA Model model from ``list_available_models()`` or path to a ``.nemo`` file
 
 Model Evaluation
 ----------------
@@ -281,13 +281,13 @@ To run evaluation of the pre-trained model, run:
 Required Arguments:
 ^^^^^^^^^^^^^^^^^^^
 
-- :code:``pretrained_model`: pretrained QA model from ``list_available_models()`` or path to a ``.nemo`` file
-- :code:``model.test_ds.file``: path to test file
+- :code:`pretrained_model`: pretrained QA model from `list_available_models()`` or path to a ``.nemo`` file
+- :code:`model.test_ds.file`: path to test file
 
 During evaluation of the :code:`test_ds`, the script generates the following metrics:
 
-- :code:``Exact Match (EM)``
-- :code:``F1``
+- :code:`Exact Match (EM)`
+- :code:`F1`
 
 More details about these metrics can be found `here <https://en.wikipedia.org/wiki/F-score>`__.
 
