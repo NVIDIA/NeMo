@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import pickle
-
 import numpy as np
 import torch
 
@@ -31,7 +29,7 @@ class ExternalFeatureLoader(object):
             samples = np.load(file_path, allow_pickle=True)
             return self._convert_samples_to_float32(samples)
         except:
-            raise (
+            raise TypeError(
                 "Error open feature files. Probably not supported the format yet. Support pkl, npz, and npy format now. "
             )
         # TODO load other type of files such as kaldi io ark
