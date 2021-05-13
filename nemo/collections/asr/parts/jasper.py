@@ -37,7 +37,7 @@ except ImportError:
 jasper_activations = {"hardtanh": nn.Hardtanh, "relu": nn.ReLU, "selu": nn.SELU, "swish": Swish}
 
 
-def tsd_uniform_(tensor, mode='fan_in'):
+def tds_uniform_(tensor, mode='fan_in'):
     """
     """
     fan = _calculate_correct_fan(tensor, mode)
@@ -48,7 +48,7 @@ def tsd_uniform_(tensor, mode='fan_in'):
         return tensor.uniform_(-bound, bound)
 
 
-def tsd_normal_(tensor, mode='fan_in'):
+def tds_normal_(tensor, mode='fan_in'):
     """
     """
     fan = _calculate_correct_fan(tensor, mode)
@@ -72,10 +72,10 @@ def init_weights(m, mode: Optional[str] = 'xavier_uniform'):
                 nn.init.kaiming_uniform_(m.weight, nonlinearity="relu")
             elif mode == 'kaiming_normal':
                 nn.init.kaiming_normal_(m.weight, nonlinearity="relu")
-            elif mode == 'tsd_uniform':
-                tsd_uniform_(m.weight)
-            elif mode == 'tsd_normal':
-                tsd_normal_(m.weight)
+            elif mode == 'tds_uniform':
+                tds_uniform_(m.weight)
+            elif mode == 'tds_normal':
+                tds_normal_(m.weight)
             else:
                 raise ValueError("Unknown Initialization mode: {0}".format(mode))
     elif isinstance(m, nn.BatchNorm1d):
