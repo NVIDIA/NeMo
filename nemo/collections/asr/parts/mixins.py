@@ -18,6 +18,7 @@ from typing import List
 
 from omegaconf import DictConfig, OmegaConf, open_dict
 
+from nemo.collections.asr.parts import asr_module_utils
 from nemo.collections.common import tokenizers
 from nemo.utils import logging
 
@@ -147,6 +148,34 @@ class ASRBPEMixin(ABC):
             "Tokenizer {} initialized with {} tokens".format(
                 self.tokenizer.__class__.__name__, self.tokenizer.vocab_size
             )
+        )
+
+
+class ASRModuleMixin(ABC):
+    """
+    ASRModuleMixin is a mixin class added to ASR models in order to add methods that are specific
+    to a particular instantiation of a module inside of an ASRModel.
+
+    Each method should first check that the module is present within the subclass, and support additional
+    functionality if the corresponding module is present.
+    """
+
+    def change_conv_asr_se_context_window(self, context_window: int, update_config: bool = True):
+        """
+        Update the context window of the SqueezeExcitation module if the provided model contains an
+        `encoder` which is an instance of `ConvASREncoder`.
+
+        Args:
+            context_window:  An integer representing the number of input timeframes that will be used
+                to compute the context. Each timeframe corresponds to a single window stride of the
+                STFT features.
+
+                Say the window_stride = 0.01s, then a context window of 128 represents 128 * 0.01 s
+                of context to compute the Squeeze step.
+            update_config: Whether to update the config or not with the new context window.
+        """
+        asr_module_utils.change_conv_asr_se_context_window(
+            self, context_window=context_window, update_config=update_config
         )
 
 
