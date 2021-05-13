@@ -459,7 +459,7 @@ class MTEncDecModel(EncDecNLPModel):
                             raise FileNotFoundError("Could not find tarred dataset in config or metadata.")
                     else:
                         tar_files = cfg.get('tar_files')
-                        if multilingual:
+                        if self.multilingual:
                             tar_files = tar_files[idx]
                         if metadata.get('tar_files') is not None:
                             logging.info(

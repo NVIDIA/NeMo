@@ -256,7 +256,8 @@ class MTDataPreproc:
                         metadata_file_list = cfg.train_ds.get('metadata_file')
 
                     for metadata_file in metadata_file_list:
-                        metadata = json.load(open(metadata_file))
+                        with open(metadata_file) as metadata_reader:
+                            metadata = json.load(metadata_reader)
                         if metadata['tar_files']:
                             logging.info(f"Using tarred dataset: {metadata['tar_files']}")
                         else:
