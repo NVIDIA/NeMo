@@ -87,66 +87,16 @@ class TestASRDatasets:
     def test_feat_seqlabel_dataset(self, test_data_dir):
         manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/feat/emb.json'))
         feature_loader = ExternalFeatureLoader(
-            file_path=manifest_path, sample_rate=16000, int_values=False, augmentor=None
+            file_path=manifest_path, sample_rate=16000, augmentor=None
         )
         ds_braceexpand = FeatureToSeqSpeakerLabelDataset(
             manifest_filepath=manifest_path, labels=self.unique_labels_in_seq, feature_loader=feature_loader
         )
-
+        #fmt: off
         correct_label = torch.tensor(
-            [
-                0.0,
-                1.0,
-                2.0,
-                2.0,
-                1.0,
-                2.0,
-                1.0,
-                2.0,
-                2.0,
-                1.0,
-                2.0,
-                2.0,
-                3.0,
-                1.0,
-                2.0,
-                2.0,
-                2.0,
-                0.0,
-                2.0,
-                1.0,
-                1.0,
-                2.0,
-                2.0,
-                1.0,
-                1.0,
-                2.0,
-                1.0,
-                1.0,
-                1.0,
-                1.0,
-                0.0,
-                0.0,
-                0.0,
-                2.0,
-                0.0,
-                2.0,
-                2.0,
-                2.0,
-                1.0,
-                2.0,
-                1.0,
-                1.0,
-                0.0,
-                1.0,
-                1.0,
-                0.0,
-                2.0,
-                1.0,
-                2.0,
-                1.0,
-            ]
+            [0.0, 1.0, 2.0, 2.0, 1.0, 2.0, 1.0, 2.0, 2.0, 1.0, 2.0, 2.0, 3.0, 1.0, 2.0, 2.0, 2.0, 0.0, 2.0, 1.0, 1.0, 2.0, 2.0, 1.0, 1.0, 2.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 2.0, 0.0, 2.0, 2.0, 2.0, 1.0, 2.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 2.0, 1.0, 2.0, 1.0,]
         )
+        #fmt: on
         correct_label_length = torch.tensor(50)
 
         assert ds_braceexpand[0][0].shape == (50, 32)

@@ -18,17 +18,21 @@ import torch
 
 
 class ExternalFeatureLoader(object):
-    def __init__(self, file_path, sample_rate=16000, int_values=False, augmentor=None):
+    def __init__(self, file_path, sample_rate=16000, augmentor=None):
         self._file_path = file_path
         self.augmentor = augmentor
 
     def load_feature_from_file(self, file_path):
-        # load pickle file
-        if file_path.endswith(".p") or file_path.endswith(".pickle"):
-            samples = pickle.load(open(file_path, "rb"))
+        """Load samples from file_path and convert it to be of type float32
+        file_path represent files that store the samples/features.
+        """
+        # load pickle/npy/npz file
+        try:
+            samples = np.load(file_path, allow_pickle=True)
             return self._convert_samples_to_float32(samples)
+        except:
+            raise("Error open feature files. Probably not supported the format yet. Support pkl, npz, and npy format now. ")
         # TODO load other type of files such as kaldi io ark
-        raise NotImplementedError
 
     @staticmethod
     def _convert_samples_to_float32(samples):

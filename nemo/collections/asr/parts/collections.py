@@ -350,7 +350,15 @@ class FeatSeqLabel(_Collection):
         index_by_file_id: bool = False,
     ):
         """Instantiates feat-SeqLabel manifest with filters and preprocessing.
+
+        Args:
+            feature_files: List of feature files.
+            seq_labels: List of sequences of abels.
+            offsets: List of offsets or None.
+            max_number: Maximum number of samples to collect.
+            index_by_file_id: If True, saves a mapping from filename base (ID) to index in data.
         """
+
         output_type = self.OUTPUT_TYPE
         data, num_filtered = (
             [],
@@ -363,7 +371,7 @@ class FeatSeqLabel(_Collection):
 
         for feature_file, seq_label in zip(feature_files, seq_labels):
 
-            label_tokens, uniq_labels_in_seq = self.dnc_parser(seq_label)
+            label_tokens, uniq_labels_in_seq = self.relative_speaker_parser(seq_label)
 
             data.append(output_type(feature_file, label_tokens))
             self.uniq_labels |= uniq_labels_in_seq
@@ -378,13 +386,14 @@ class FeatSeqLabel(_Collection):
 
             # Max number of entities filter.
             if len(data) == max_number:
-                brak
+                break
 
         logging.info("# {} files loaded including # {} unique labels".format(len(data), len(self.uniq_labels)))
         super().__init__(data)
 
-    def dnc_parser(self, seq_label):
+    def relative_speaker_parser(self, seq_label):
         """ Convert sequence of speaker labels to relative labels.
+        Convert sequence of absolute speaker to sequence of relative speaker [E A C A E E C] -> [0 1 2 1 0 0 2]
         In this seq of label , if label do not appear before, assign new relative labels len(pos); else reuse previous assigned relative labels.
         Args:
             seq_label (str): A string of a sequence of labels.
