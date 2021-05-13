@@ -126,6 +126,7 @@ class TransformerDecoder(nn.Module):
         pre_ln: bool = False,
     ):
         super().__init__()
+        self.pre_ln = pre_ln
 
         layer = TransformerDecoderBlock(
             hidden_size,
@@ -139,7 +140,7 @@ class TransformerDecoder(nn.Module):
         )
         self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(num_layers)])
 
-        if pre_ln:
+        if self.pre_ln:
             self.layers.append(nn.LayerNorm(hidden_size, eps=1e-5))
 
         self.diagonal = 0
@@ -172,12 +173,15 @@ class TransformerDecoder(nn.Module):
         cached_mems_list = [memory_states]
 
         for i, layer in enumerate(self.layers):
-            if i == len(self.layers) - 1:
+            if self.pre_ln and i == len(self.layers) - 1:
                 decoder_states = layer(decoder_states)
             else:
                 decoder_states = layer(
                     decoder_states, decoder_attn_mask, memory_states, encoder_states, encoder_attn_mask
                 )
+                if i == len(self.layers) - 2:
+                    continue
+
             memory_states = self._get_memory_states(decoder_states, decoder_mems_list, i + 1)
             cached_mems_list.append(memory_states)
 
