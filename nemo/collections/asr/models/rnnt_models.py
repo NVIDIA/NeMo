@@ -112,6 +112,9 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
 
+        self._setup_rnnt_optional_settings()
+
+    def _setup_rnnt_optional_settings(self):
         # setting up the variational noise for the decoder
         if hasattr(self.cfg, 'variational_noise'):
             self._optim_variational_noise_std = self.cfg['variational_noise'].get('std', 0)
@@ -119,6 +122,32 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
         else:
             self._optim_variational_noise_std = 0
             self._optim_variational_noise_start = 0
+
+        # Setup normalized gradients for model
+        if 'normalize_joint' in self.cfg:
+            self._optim_normalize_joint = self.cfg.normalize_joint
+            self._optim_normalize_txu = None
+        else:
+            self._optim_normalize_joint = False
+            self._optim_normalize_txu = None
+
+        # Setup normalized encoder norm for model
+        if 'normalize_encoder_norm' in self.cfg:
+            self._optim_normalize_encoder_norm = self.cfg.normalize_encoder_norm
+        else:
+            self._optim_normalize_encoder_norm = False
+
+        # Setup normalized decoder norm for model
+        if 'normalize_decoder_norm' in self.cfg:
+            self._optim_normalize_decoder_norm = self.cfg.normalize_decoder_norm
+        else:
+            self._optim_normalize_decoder_norm = False
+
+        # Setup normalized joint norm for model
+        if 'normalize_joint_norm' in self.cfg:
+            self._optim_normalize_joint_norm = self.cfg.normalize_joint_norm
+        else:
+            self._optim_normalize_joint_norm = False
 
     def extract_rnnt_loss_cfg(self, cfg: Optional[DictConfig]):
         """
@@ -607,6 +636,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
         # Log items
         self.log_dict(tensorboard_logs)
 
+        # Preserve batch acoustic model T and language model U parameters if normalizing
+        if self._optim_normalize_joint:
+            self._optim_normalize_txu = [encoded_len.max(), transcript_len.max()]
+
         return {'loss': loss_value}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
@@ -743,3 +776,32 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
                         dtype=param.dtype,
                     )
                     param.grad.data.add_(noise)
+
+        if self._optim_normalize_joint:
+            T, U = self._optim_normalize_txu
+            if T is not None and U is not None:
+                for param_name, param in self.encoder.named_parameters():
+                    if param.grad is not None:
+                        param.grad.data.div_(U)
+
+                for param_name, param in self.decoder.named_parameters():
+                    if param.grad is not None:
+                        param.grad.data.div_(T)
+
+        if self._optim_normalize_encoder_norm:
+            for param_name, param in self.encoder.named_parameters():
+                if param.grad is not None:
+                    norm = param.grad.norm()
+                    param.grad.data.div_(norm)
+
+        if self._optim_normalize_decoder_norm:
+            for param_name, param in self.decoder.named_parameters():
+                if param.grad is not None:
+                    norm = param.grad.norm()
+                    param.grad.data.div_(norm)
+
+        if self._optim_normalize_joint_norm:
+            for param_name, param in self.joint.named_parameters():
+                if param.grad is not None:
+                    norm = param.grad.norm()
+                    param.grad.data.div_(norm)
