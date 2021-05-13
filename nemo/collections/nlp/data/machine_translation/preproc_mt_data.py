@@ -930,10 +930,11 @@ class MTDataPreproc:
             total_batch_ctr += 1
             batch_ctr += 1
             pickle.dump(
-                batch, open(os.path.join(out_dir, 'fragment-%s-batch-%d.pkl' % (fragment_index, batch_ctr)), 'wb'),
+                batch,
+                open(os.path.join(out_dir, 'fragment-%s-batch-%d.pkl' % (fragment_index, total_batch_ctr)), 'wb'),
             )
-            tar_file_ptr.add(os.path.join(out_dir, 'fragment-%s-batch-%d.pkl' % (fragment_index, batch_ctr)))
-            os.remove(os.path.join(out_dir, 'fragment-%s-batch-%d.pkl' % (fragment_index, batch_ctr)))
+            tar_file_ptr.add(os.path.join(out_dir, 'fragment-%s-batch-%d.pkl' % (fragment_index, total_batch_ctr)))
+            os.remove(os.path.join(out_dir, 'fragment-%s-batch-%d.pkl' % (fragment_index, total_batch_ctr)))
 
             if batch_ctr == num_batches_per_tarfile:
                 tar_file_ctr += 1
