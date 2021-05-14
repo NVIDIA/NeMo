@@ -54,6 +54,7 @@ class NeMoTransformerConfig:
     attn_layer_dropout: float = 0.0
     hidden_act: str = 'relu'
     pre_ln: bool = False
+    pre_ln_final_norm: bool = True
 
     # named model arguments
     library: str = 'nemo'
@@ -84,6 +85,7 @@ class TransformerEncoderNM(EncoderModule, Exportable):
         hidden_act: str = 'relu',
         mask_future: bool = False,
         pre_ln: bool = False,
+        pre_ln_final_norm: bool = True,
     ):
         super().__init__()
 
@@ -110,6 +112,7 @@ class TransformerEncoderNM(EncoderModule, Exportable):
             hidden_act=hidden_act,
             mask_future=mask_future,
             pre_ln=pre_ln,
+            pre_ln_final_norm=pre_ln_final_norm,
         )
 
     @typecheck()
@@ -167,6 +170,7 @@ class TransformerDecoderNM(DecoderModule, Exportable):
         attn_layer_dropout: float = 0.0,
         hidden_act: str = 'relu',
         pre_ln: bool = False,
+        pre_ln_final_norm: bool = True,
     ):
         super().__init__()
 
@@ -193,6 +197,7 @@ class TransformerDecoderNM(DecoderModule, Exportable):
             attn_layer_dropout=attn_layer_dropout,
             hidden_act=hidden_act,
             pre_ln=pre_ln,
+            pre_ln_final_norm=pre_ln_final_norm,
         )
 
     @typecheck()

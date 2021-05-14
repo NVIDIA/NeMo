@@ -124,9 +124,16 @@ class TransformerDecoder(nn.Module):
         ffn_dropout: float = 0.0,
         hidden_act: str = "relu",
         pre_ln: bool = False,
+        pre_ln_final_norm: bool = True
     ):
         super().__init__()
         self.pre_ln = pre_ln
+        self.pre_ln_final_norm = pre_ln_final_norm
+
+        if self.pre_ln and self.pre_ln_final_norm:
+            self.final_norm = nn.LayerNorm(hidden_size, eps=1e-5)
+        else:
+            self.final_norm = None
 
         layer = TransformerDecoderBlock(
             hidden_size,
@@ -139,10 +146,6 @@ class TransformerDecoder(nn.Module):
             pre_ln,
         )
         self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(num_layers)])
-
-        if self.pre_ln:
-            self.layers.append(nn.LayerNorm(hidden_size, eps=1e-5))
-
         self.diagonal = 0
 
     def _get_memory_states(self, decoder_states, decoder_mems_list=None, i=0):
@@ -173,20 +176,13 @@ class TransformerDecoder(nn.Module):
         cached_mems_list = [memory_states]
 
         for i, layer in enumerate(self.layers):
-            if self.pre_ln:
-                if i == len(self.layers) - 1:
-                    decoder_states = layer(decoder_states)
-                else:
-                    decoder_states = layer(
-                        decoder_states, decoder_attn_mask, memory_states, encoder_states, encoder_attn_mask
-                    )
-                if i == len(self.layers) - 2:
-                    continue
-            else:
-                decoder_states = layer(
-                    decoder_states, decoder_attn_mask, memory_states, encoder_states, encoder_attn_mask
-                )
+            decoder_states = layer(decoder_states, decoder_attn_mask, memory_states, encoder_states, encoder_attn_mask)
             memory_states = self._get_memory_states(decoder_states, decoder_mems_list, i + 1)
+            cached_mems_list.append(memory_states)
+
+        if self.pre_ln and self.pre_ln_final_norm:
+            decoder_states = layer(decoder_states)
+            memory_states = self._get_memory_states(encoder_states, encoder_mems_list, i + 1)
             cached_mems_list.append(memory_states)
 
         if return_mems:
