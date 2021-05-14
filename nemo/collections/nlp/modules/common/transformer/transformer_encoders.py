@@ -114,10 +114,17 @@ class TransformerEncoder(nn.Module):
         ffn_dropout: float = 0.0,
         hidden_act: str = "relu",
         pre_ln: bool = False,
+        pre_ln_final_norm: bool = True
     ):
         super().__init__()
 
         self.pre_ln = pre_ln
+        self.pre_ln_final_norm = pre_ln_final_norm
+
+        if self.pre_ln and self.pre_ln_final_norm:
+            self.final_norm = nn.LayerNorm(hidden_size, eps=1e-5)
+        else:
+            self.final_norm = None
 
         layer = TransformerEncoderBlock(
             hidden_size,
@@ -130,10 +137,6 @@ class TransformerEncoder(nn.Module):
             pre_ln,
         )
         self.layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(num_layers)])
-
-        if self.pre_ln:
-            self.layers.append(nn.LayerNorm(hidden_size, eps=1e-5))
-
         self.diag = 0 if mask_future else None
 
     def _get_memory_states(self, encoder_states, encoder_mems_list=None, i=0):
@@ -161,16 +164,12 @@ class TransformerEncoder(nn.Module):
         cached_mems_list = [memory_states]
 
         for i, layer in enumerate(self.layers):
-            if self.pre_ln:
-                if i == len(self.layers) - 1:
-                    encoder_states = layer(encoder_states)
-                else:
-                    encoder_states = layer(encoder_states, encoder_attn_mask, memory_states)
-                    if i == len(self.layers) - 2:
-                        continue
-            else:
-                encoder_states = layer(encoder_states, encoder_attn_mask, memory_states)
+            encoder_states = layer(encoder_states, encoder_attn_mask, memory_states)
+            memory_states = self._get_memory_states(encoder_states, encoder_mems_list, i + 1)
+            cached_mems_list.append(memory_states)
 
+        if self.pre_ln and self.pre_ln_final_norm:
+            encoder_states = layer(encoder_states)
             memory_states = self._get_memory_states(encoder_states, encoder_mems_list, i + 1)
             cached_mems_list.append(memory_states)
 
