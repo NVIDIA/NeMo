@@ -112,9 +112,38 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
 
-        self._setup_rnnt_optional_settings()
+        self.setup_optim_normalization()
 
-    def _setup_rnnt_optional_settings(self):
+    def setup_optim_normalization(self):
+        """
+        Helper method to setup normalization of certain parts of the model prior to the optimization step.
+
+        Supported pre-optimization normalizations are as follows:
+
+        .. code-block:: yaml
+
+            # Variation Noise injection
+            model:
+                variational_noise:
+                    std: 0.0
+                    start_step: 0
+
+            # Joint - Length normalization
+            model:
+                normalize_joint_txu: false
+
+            # Encoder Network - gradient normalization
+            model:
+                normalize_encoder_norm: false
+
+            # Decoder / Prediction Network - gradient normalization
+            model:
+                normalize_decoder_norm: false
+
+            # Joint - gradient normalization
+            model:
+                normalize_joint_norm: false
+        """
         # setting up the variational noise for the decoder
         if hasattr(self.cfg, 'variational_noise'):
             self._optim_variational_noise_std = self.cfg['variational_noise'].get('std', 0)
@@ -123,31 +152,18 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
             self._optim_variational_noise_std = 0
             self._optim_variational_noise_start = 0
 
-        # Setup normalized gradients for model
-        if 'normalize_joint' in self.cfg:
-            self._optim_normalize_joint = self.cfg.normalize_joint
-            self._optim_normalize_txu = None
-        else:
-            self._optim_normalize_joint = False
-            self._optim_normalize_txu = None
+        # Setup normalized gradients for model joint by T x U scaling factor (joint length normalization)
+        self._optim_normalize_joint_txu = self.cfg.get('normalize_joint_txu', False)
+        self._optim_normalize_txu = None
 
         # Setup normalized encoder norm for model
-        if 'normalize_encoder_norm' in self.cfg:
-            self._optim_normalize_encoder_norm = self.cfg.normalize_encoder_norm
-        else:
-            self._optim_normalize_encoder_norm = False
+        self._optim_normalize_encoder_norm = self.cfg.get('normalize_encoder_norm', False)
 
         # Setup normalized decoder norm for model
-        if 'normalize_decoder_norm' in self.cfg:
-            self._optim_normalize_decoder_norm = self.cfg.normalize_decoder_norm
-        else:
-            self._optim_normalize_decoder_norm = False
+        self._optim_normalize_decoder_norm = self.cfg.get('normalize_decoder_norm', False)
 
         # Setup normalized joint norm for model
-        if 'normalize_joint_norm' in self.cfg:
-            self._optim_normalize_joint_norm = self.cfg.normalize_joint_norm
-        else:
-            self._optim_normalize_joint_norm = False
+        self._optim_normalize_joint_norm = self.cfg.get('normalize_joint_norm', False)
 
     def extract_rnnt_loss_cfg(self, cfg: Optional[DictConfig]):
         """
@@ -638,7 +654,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
         self.log_dict(tensorboard_logs)
 
         # Preserve batch acoustic model T and language model U parameters if normalizing
-        if self._optim_normalize_joint:
+        if self._optim_normalize_joint_txu:
             self._optim_normalize_txu = [encoded_len.max(), transcript_len.max()]
 
         return {'loss': loss_value}
@@ -779,7 +795,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
                     )
                     param.grad.data.add_(noise)
 
-        if self._optim_normalize_joint:
+        if self._optim_normalize_joint_txu:
             T, U = self._optim_normalize_txu
             if T is not None and U is not None:
                 for param_name, param in self.encoder.named_parameters():

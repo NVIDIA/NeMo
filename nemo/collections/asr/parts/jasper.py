@@ -39,9 +39,21 @@ jasper_activations = {"hardtanh": nn.Hardtanh, "relu": nn.ReLU, "selu": nn.SELU,
 
 def tds_uniform_(tensor, mode='fan_in'):
     """
+    Uniform Initialization from the paper [Sequence-to-Sequence Speech Recognition with Time-Depth Separable Convolutions](https://www.isca-speech.org/archive/Interspeech_2019/pdfs/2460.pdf)
+    Normalized to -
+
+    .. math::
+        \text{bound} = \text{2} \times \sqrt{\frac{1}{\text{fan\_mode}}}
+
+    Args:
+        tensor: an n-dimensional `torch.Tensor`
+        mode: either ``'fan_in'`` (default) or ``'fan_out'``. Choosing ``'fan_in'``
+            preserves the magnitude of the variance of the weights in the
+            forward pass. Choosing ``'fan_out'`` preserves the magnitudes in the
+            backwards pass.
     """
     fan = _calculate_correct_fan(tensor, mode)
-    gain = 2.0
+    gain = 2.0  # sqrt(4.0) = 2
     std = gain / math.sqrt(fan)  # sqrt(4.0 / fan_in)
     bound = std  # Calculate uniform bounds from standard deviation
     with torch.no_grad():
@@ -50,6 +62,18 @@ def tds_uniform_(tensor, mode='fan_in'):
 
 def tds_normal_(tensor, mode='fan_in'):
     """
+    Normal Initialization from the paper [Sequence-to-Sequence Speech Recognition with Time-Depth Separable Convolutions](https://www.isca-speech.org/archive/Interspeech_2019/pdfs/2460.pdf)
+    Normalized to -
+
+    .. math::
+        \text{bound} = \text{2} \times \sqrt{\frac{1}{\text{fan\_mode}}}
+
+    Args:
+        tensor: an n-dimensional `torch.Tensor`
+        mode: either ``'fan_in'`` (default) or ``'fan_out'``. Choosing ``'fan_in'``
+            preserves the magnitude of the variance of the weights in the
+            forward pass. Choosing ``'fan_out'`` preserves the magnitudes in the
+            backwards pass.
     """
     fan = _calculate_correct_fan(tensor, mode)
     gain = 2.0

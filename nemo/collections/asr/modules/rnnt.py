@@ -275,6 +275,10 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder):
             forget_gate_bias: Whether to perform unit forget gate bias.
             t_max: Whether to perform Chrono LSTM init.
             norm: Type of normalization to perform in RNN.
+            weights_init_scale: Float scale of the weights after initialization. Setting to lower than one
+                sometimes helps reduce variance between runs.
+            hidden_hidden_bias_scale: Float scale for the hidden-to-hidden bias scale. Set to 0.0 for
+                the default behaviour.
             dropout: Whether to apply dropout to RNN.
         """
         if self.blank_as_pad:

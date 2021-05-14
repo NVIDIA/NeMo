@@ -173,6 +173,12 @@ class LSTMDropout(torch.nn.Module):
                 Reference:
                 [Can recurrent neural networks warp time?](https://openreview.net/forum?id=SJcKhk-Ab)
 
+            weights_init_scale: Float scale of the weights after initialization. Setting to lower than one
+                sometimes helps reduce variance between runs.
+
+            hidden_hidden_bias_scale: Float scale for the hidden-to-hidden bias scale. Set to 0.0 for
+                the default behaviour.
+
         Returns:
             A `torch.nn.LSTM`.
         """
@@ -204,7 +210,6 @@ class LSTMDropout(torch.nn.Module):
                     bias.data[hidden_size : 2 * hidden_size].fill_(forget_gate_bias)
                 if "bias_hh" in name:
                     bias = getattr(self.lstm, name)
-                    # bias.data[hidden_size : 2 * hidden_size].fill_(0)
                     bias.data[hidden_size : 2 * hidden_size] *= float(hidden_hidden_bias_scale)
 
         self.dropout = torch.nn.Dropout(dropout) if dropout else None
