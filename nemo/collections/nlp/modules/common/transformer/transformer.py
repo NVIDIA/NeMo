@@ -91,6 +91,7 @@ class TransformerEncoderNM(EncoderModule, Exportable):
 
         self._vocab_size = vocab_size
         self._hidden_size = hidden_size
+        self._max_sequence_length = max_sequence_length
 
         self._embedding = TransformerEmbedding(
             vocab_size=self._vocab_size,
