@@ -1177,6 +1177,7 @@ class ModelPT(LightningModule, Model):
         Args:
             trainer: PyTorch Lightning Trainer object.
         """
+        self.trainer = trainer
         self._trainer = trainer
         self.set_world_size(self._trainer)
 

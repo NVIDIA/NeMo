@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import math
 from typing import Callable, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
 from torch import Tensor
+from torch.nn.init import _calculate_correct_fan
 from torch.nn.modules.utils import _single
 
 from nemo.collections.asr.parts.activations import Swish
@@ -36,6 +37,52 @@ except ImportError:
 jasper_activations = {"hardtanh": nn.Hardtanh, "relu": nn.ReLU, "selu": nn.SELU, "swish": Swish}
 
 
+def tds_uniform_(tensor, mode='fan_in'):
+    """
+    Uniform Initialization from the paper [Sequence-to-Sequence Speech Recognition with Time-Depth Separable Convolutions](https://www.isca-speech.org/archive/Interspeech_2019/pdfs/2460.pdf)
+    Normalized to -
+
+    .. math::
+        \text{bound} = \text{2} \times \sqrt{\frac{1}{\text{fan\_mode}}}
+
+    Args:
+        tensor: an n-dimensional `torch.Tensor`
+        mode: either ``'fan_in'`` (default) or ``'fan_out'``. Choosing ``'fan_in'``
+            preserves the magnitude of the variance of the weights in the
+            forward pass. Choosing ``'fan_out'`` preserves the magnitudes in the
+            backwards pass.
+    """
+    fan = _calculate_correct_fan(tensor, mode)
+    gain = 2.0  # sqrt(4.0) = 2
+    std = gain / math.sqrt(fan)  # sqrt(4.0 / fan_in)
+    bound = std  # Calculate uniform bounds from standard deviation
+    with torch.no_grad():
+        return tensor.uniform_(-bound, bound)
+
+
+def tds_normal_(tensor, mode='fan_in'):
+    """
+    Normal Initialization from the paper [Sequence-to-Sequence Speech Recognition with Time-Depth Separable Convolutions](https://www.isca-speech.org/archive/Interspeech_2019/pdfs/2460.pdf)
+    Normalized to -
+
+    .. math::
+        \text{bound} = \text{2} \times \sqrt{\frac{1}{\text{fan\_mode}}}
+
+    Args:
+        tensor: an n-dimensional `torch.Tensor`
+        mode: either ``'fan_in'`` (default) or ``'fan_out'``. Choosing ``'fan_in'``
+            preserves the magnitude of the variance of the weights in the
+            forward pass. Choosing ``'fan_out'`` preserves the magnitudes in the
+            backwards pass.
+    """
+    fan = _calculate_correct_fan(tensor, mode)
+    gain = 2.0
+    std = gain / math.sqrt(fan)  # sqrt(4.0 / fan_in)
+    bound = std  # Calculate uniform bounds from standard deviation
+    with torch.no_grad():
+        return tensor.normal_(0.0, bound)
+
+
 def init_weights(m, mode: Optional[str] = 'xavier_uniform'):
     if isinstance(m, MaskedConv1d):
         init_weights(m.conv, mode)
@@ -49,6 +96,10 @@ def init_weights(m, mode: Optional[str] = 'xavier_uniform'):
                 nn.init.kaiming_uniform_(m.weight, nonlinearity="relu")
             elif mode == 'kaiming_normal':
                 nn.init.kaiming_normal_(m.weight, nonlinearity="relu")
+            elif mode == 'tds_uniform':
+                tds_uniform_(m.weight)
+            elif mode == 'tds_normal':
+                tds_normal_(m.weight)
             else:
                 raise ValueError("Unknown Initialization mode: {0}".format(mode))
     elif isinstance(m, nn.BatchNorm1d):

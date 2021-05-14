@@ -15,3 +15,5 @@ coverage.xml
 *,cover
 *.log
 .git
+**/*.nemo
+**/*.ckpt

@@ -112,6 +112,38 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
 
+        self.setup_optim_normalization()
+
+    def setup_optim_normalization(self):
+        """
+        Helper method to setup normalization of certain parts of the model prior to the optimization step.
+
+        Supported pre-optimization normalizations are as follows:
+
+        .. code-block:: yaml
+
+            # Variation Noise injection
+            model:
+                variational_noise:
+                    std: 0.0
+                    start_step: 0
+
+            # Joint - Length normalization
+            model:
+                normalize_joint_txu: false
+
+            # Encoder Network - gradient normalization
+            model:
+                normalize_encoder_norm: false
+
+            # Decoder / Prediction Network - gradient normalization
+            model:
+                normalize_decoder_norm: false
+
+            # Joint - gradient normalization
+            model:
+                normalize_joint_norm: false
+        """
         # setting up the variational noise for the decoder
         if hasattr(self.cfg, 'variational_noise'):
             self._optim_variational_noise_std = self.cfg['variational_noise'].get('std', 0)
@@ -119,6 +151,19 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
         else:
             self._optim_variational_noise_std = 0
             self._optim_variational_noise_start = 0
+
+        # Setup normalized gradients for model joint by T x U scaling factor (joint length normalization)
+        self._optim_normalize_joint_txu = self.cfg.get('normalize_joint_txu', False)
+        self._optim_normalize_txu = None
+
+        # Setup normalized encoder norm for model
+        self._optim_normalize_encoder_norm = self.cfg.get('normalize_encoder_norm', False)
+
+        # Setup normalized decoder norm for model
+        self._optim_normalize_decoder_norm = self.cfg.get('normalize_decoder_norm', False)
+
+        # Setup normalized joint norm for model
+        self._optim_normalize_joint_norm = self.cfg.get('normalize_joint_norm', False)
 
     def extract_rnnt_loss_cfg(self, cfg: Optional[DictConfig]):
         """
@@ -580,6 +625,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
             if (sample_id + 1) % log_every_n_steps == 0:
                 self.wer.update(encoded, encoded_len, transcript, transcript_len)
                 _, scores, words = self.wer.compute()
+                self.wer.reset()
                 tensorboard_logs.update({'training_batch_wer': scores.float() / words})
 
         else:
@@ -606,6 +652,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
 
         # Log items
         self.log_dict(tensorboard_logs)
+
+        # Preserve batch acoustic model T and language model U parameters if normalizing
+        if self._optim_normalize_joint_txu:
+            self._optim_normalize_txu = [encoded_len.max(), transcript_len.max()]
 
         return {'loss': loss_value}
 
@@ -635,6 +685,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
 
             self.wer.update(encoded, encoded_len, transcript, transcript_len)
             wer, wer_num, wer_denom = self.wer.compute()
+            self.wer.reset()
 
             tensorboard_logs['val_wer_num'] = wer_num
             tensorboard_logs['val_wer_denom'] = wer_denom
@@ -743,3 +794,32 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
                         dtype=param.dtype,
                     )
                     param.grad.data.add_(noise)
+
+        if self._optim_normalize_joint_txu:
+            T, U = self._optim_normalize_txu
+            if T is not None and U is not None:
+                for param_name, param in self.encoder.named_parameters():
+                    if param.grad is not None:
+                        param.grad.data.div_(U)
+
+                for param_name, param in self.decoder.named_parameters():
+                    if param.grad is not None:
+                        param.grad.data.div_(T)
+
+        if self._optim_normalize_encoder_norm:
+            for param_name, param in self.encoder.named_parameters():
+                if param.grad is not None:
+                    norm = param.grad.norm()
+                    param.grad.data.div_(norm)
+
+        if self._optim_normalize_decoder_norm:
+            for param_name, param in self.decoder.named_parameters():
+                if param.grad is not None:
+                    norm = param.grad.norm()
+                    param.grad.data.div_(norm)
+
+        if self._optim_normalize_joint_norm:
+            for param_name, param in self.joint.named_parameters():
+                if param.grad is not None:
+                    norm = param.grad.norm()
+                    param.grad.data.div_(norm)
