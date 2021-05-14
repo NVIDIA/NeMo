@@ -473,16 +473,16 @@ def get_log_dir(
                 logging.warning(
                     "No version folders would be created under the log folder as 'resume_if_exists' is enabled."
                 )
-                version = ""
+                version = None
             elif is_global_rank_zero():
                 if use_datetime_version:
                     version = time.strftime('%Y-%m-%d_%H-%M-%S')
                 else:
                     tensorboard_logger = TensorBoardLogger(save_dir=Path(_exp_dir), name=name, version=version)
                     version = f"version_{tensorboard_logger.version}"
-                os.environ[NEMO_ENV_VARNAME_VERSION] = version
+                os.environ[NEMO_ENV_VARNAME_VERSION] = "" if version is None else version
 
-    log_dir = Path(_exp_dir) / Path(str(name)) / Path(str(version))
+    log_dir = Path(_exp_dir) / Path(str(name)) / Path("" if version is None else str(version))
     return log_dir, str(_exp_dir), name, version
 
 
