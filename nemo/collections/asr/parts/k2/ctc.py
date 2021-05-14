@@ -91,7 +91,7 @@ class CTCLoss(torch.nn.Module):
             index = torch.tensor([self.blank] + index).to(log_probs.device)
             log_probs = torch.index_select(log_probs, -1, index)
             # shift targets to emulate blank = 0
-            targets += 1
+            targets = targets + 1
         supervisions, order = self.create_supervision(input_lengths)
         supervisions = supervisions[order]
         targets = targets[order]
