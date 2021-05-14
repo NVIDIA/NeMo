@@ -32,7 +32,7 @@ from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, Featur
 from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.modules.fastpitch import regulate_len
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
-from nemo.core.classes.common import typecheck
+from nemo.core.classes.common import typecheck, PretrainedModelInfo
 from nemo.core.neural_types.elements import (
     MelSpectrogramType,
     RegressionValuesType,
@@ -410,13 +410,13 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
             List of available pre-trained models.
         """
         list_of_models = []
-        # model = PretrainedModelInfo(
-        #     pretrained_model_name="",
-        #     location="",
-        #     description="",
-        #     class_=cls,
-        # )
-        # list_of_models.append(model)
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_e2e_fastpitchhifigan",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_e2e_fastpitchhifigan/versions/1.0.0/files/tts_en_e2e_fastpitchhifigan.nemo",
+            description="This model is trained on LJSpeech sampled at 22050Hz with and can be used to generate female English voices with an American accent.",
+            class_=cls,
+        )
+        list_of_models.append(model)
 
         return list_of_models
 
