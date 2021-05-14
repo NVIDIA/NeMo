@@ -14,6 +14,7 @@
 
 from collections import OrderedDict
 
+import omegaconf
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig
@@ -29,6 +30,7 @@ from nemo.core import Exportable
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import MelSpectrogramType, NeuralType
+from nemo.utils import logging
 
 
 class TalkNetDursModel(ModelPT):
@@ -89,6 +91,12 @@ class TalkNetDursModel(ModelPT):
 
     @staticmethod
     def _loader(cfg):
+        try:
+            _ = cfg.dataset.manifest_filepath
+        except omegaconf.errors.MissingMandatoryValue:
+            logging.warning("manifest_filepath was skipped. No dataset for this model.")
+            return None
+
         dataset = instantiate(cfg.dataset)
         return torch.utils.data.DataLoader(  # noqa
             dataset=dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params,
@@ -176,6 +184,12 @@ class TalkNetPitchModel(ModelPT):
 
     @staticmethod
     def _loader(cfg):
+        try:
+            _ = cfg.dataset.manifest_filepath
+        except omegaconf.errors.MissingMandatoryValue:
+            logging.warning("manifest_filepath was skipped. No dataset for this model.")
+            return None
+
         dataset = instantiate(cfg.dataset)
         return torch.utils.data.DataLoader(  # noqa
             dataset=dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params,
@@ -255,6 +269,12 @@ class TalkNetSpectModel(SpectrogramGenerator, Exportable):
 
     @staticmethod
     def _loader(cfg):
+        try:
+            _ = cfg.dataset.manifest_filepath
+        except omegaconf.errors.MissingMandatoryValue:
+            logging.warning("manifest_filepath was skipped. No dataset for this model.")
+            return None
+
         dataset = instantiate(cfg.dataset)
         return torch.utils.data.DataLoader(  # noqa
             dataset=dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params,

@@ -15,6 +15,7 @@
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
+import omegaconf
 import torch
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf
@@ -28,6 +29,7 @@ from nemo.collections.tts.modules.fastpitch import FastPitchModule
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import MelSpectrogramType, RegressionValuesType, TokenDurationType, TokenIndex
 from nemo.core.neural_types.neural_type import NeuralType
+from nemo.utils import logging
 
 
 @dataclass
@@ -185,24 +187,30 @@ class FastPitchModel(SpectrogramGenerator):
         return {'val_loss': tb_logs['val_loss'], 'log': tb_logs}
 
     def _loader(self, cfg):
+        try:
+            _ = cfg.dataset.manifest_filepath
+        except omegaconf.errors.MissingMandatoryValue:
+            logging.warning("manifest_filepath was skipped. No dataset for this model.")
+            return None
+
         dataset = FastPitchDataset(
-            manifest_filepath=cfg['manifest_filepath'],
+            manifest_filepath=cfg.dataset['manifest_filepath'],
             parser=self.parser,
-            sample_rate=cfg['sample_rate'],
-            int_values=cfg.get('int_values', False),
-            max_duration=cfg.get('max_duration', None),
-            min_duration=cfg.get('min_duration', None),
-            max_utts=cfg.get('max_utts', 0),
-            trim=cfg.get('trim_silence', True),
+            sample_rate=cfg.dataset['sample_rate'],
+            int_values=cfg.dataset.get('int_values', False),
+            max_duration=cfg.dataset.get('max_duration', None),
+            min_duration=cfg.dataset.get('min_duration', None),
+            max_utts=cfg.dataset.get('max_utts', 0),
+            trim=cfg.dataset.get('trim_silence', True),
         )
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=cfg['batch_size'],
+            batch_size=cfg.dataset['batch_size'],
             collate_fn=dataset.collate_fn,
-            drop_last=cfg.get('drop_last', True),
-            shuffle=cfg['shuffle'],
-            num_workers=cfg.get('num_workers', 16),
+            drop_last=cfg.dataset.get('drop_last', True),
+            shuffle=cfg.dataset['shuffle'],
+            num_workers=cfg.dataset.get('num_workers', 16),
         )
 
     def setup_training_data(self, cfg):
