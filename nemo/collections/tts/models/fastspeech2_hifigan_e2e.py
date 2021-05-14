@@ -28,7 +28,7 @@ from nemo.collections.tts.losses.fastspeech2loss import DurationLoss, L1MelLoss
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
-from nemo.core.classes.common import typecheck, PretrainedModelInfo
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     LengthsType,
     MaskType,
