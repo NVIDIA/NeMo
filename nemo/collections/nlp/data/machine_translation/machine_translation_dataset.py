@@ -56,7 +56,6 @@ class TranslationDataConfig:
     drop_last: bool = False
     pin_memory: bool = False
     num_workers: int = 8
-    load_from_cached_dataset: bool = False
     reverse_lang_direction: bool = False
     load_from_tarred_dataset: bool = False
     metadata_path: Optional[str] = None
