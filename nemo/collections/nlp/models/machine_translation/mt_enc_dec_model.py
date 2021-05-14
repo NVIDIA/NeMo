@@ -428,17 +428,7 @@ class MTEncDecModel(EncDecNLPModel):
                     )
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
-        if cfg.get("load_from_cached_dataset", False):
-            if self.multilingual:
-                raise ValueError(
-                    "Multilingual model does not support dataset caching, it is recommended to use TarredDataset instead."
-                )
-            logging.info('Loading from cached dataset %s' % (cfg.src_file_name))
-            if cfg.src_file_name != cfg.tgt_file_name:
-                raise ValueError("src must be equal to target for cached dataset")
-            dataset = pickle.load(open(cfg.src_file_name, 'rb'))
-            dataset.reverse_lang_direction = cfg.get("reverse_lang_direction", False)
-        elif cfg.get("use_tarred_dataset", False):
+        if cfg.get("use_tarred_dataset", False):
             if cfg.get("metadata_file") is None:
                 raise FileNotFoundError("Trying to use tarred data set but could not find metadata path in config.")
             else:
