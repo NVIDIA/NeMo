@@ -114,17 +114,17 @@ class TransformerEncoder(nn.Module):
         ffn_dropout: float = 0.0,
         hidden_act: str = "relu",
         pre_ln: bool = False,
-        pre_ln_final_norm: bool = True,
+        pre_ln_final_layer_norm: bool = True,
     ):
         super().__init__()
 
         self.pre_ln = pre_ln
-        self.pre_ln_final_norm = pre_ln_final_norm
+        self.pre_ln_final_layer_norm = pre_ln_final_layer_norm
 
-        if self.pre_ln and self.pre_ln_final_norm:
-            self.final_norm = nn.LayerNorm(hidden_size, eps=1e-5)
+        if self.pre_ln and self.pre_ln_final_layer_norm:
+            self.final_layer_norm = nn.LayerNorm(hidden_size, eps=1e-5)
         else:
-            self.final_norm = None
+            self.final_layer_norm = None
 
         layer = TransformerEncoderBlock(
             hidden_size,
@@ -168,7 +168,7 @@ class TransformerEncoder(nn.Module):
             memory_states = self._get_memory_states(encoder_states, encoder_mems_list, i + 1)
             cached_mems_list.append(memory_states)
 
-        if self.pre_ln and self.pre_ln_final_norm:
+        if self.pre_ln and self.pre_ln_final_layer_norm:
             encoder_states = layer(encoder_states)
             memory_states = self._get_memory_states(encoder_states, encoder_mems_list, i + 1)
             cached_mems_list.append(memory_states)
