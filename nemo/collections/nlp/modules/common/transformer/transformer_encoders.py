@@ -114,7 +114,7 @@ class TransformerEncoder(nn.Module):
         ffn_dropout: float = 0.0,
         hidden_act: str = "relu",
         pre_ln: bool = False,
-        pre_ln_final_norm: bool = True
+        pre_ln_final_norm: bool = True,
     ):
         super().__init__()
 
