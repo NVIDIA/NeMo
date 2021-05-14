@@ -35,7 +35,7 @@ from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.tokenizers.chinese_tokenizers import ChineseProcessor
 from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaProcessor
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
-from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
+from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset, ConcatTranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.modules.common import TokenClassifier
@@ -395,12 +395,14 @@ class MTEncDecModel(EncDecNLPModel):
             dataset = pickle.load(open(cfg.src_file_name, 'rb'))
             dataset.reverse_lang_direction = cfg.get("reverse_lang_direction", False)
         elif cfg.get("use_tarred_dataset", False):
-            if cfg.get("metadata_file") is None:
-                raise FileNotFoundError("Trying to use tarred data set but could not find metadata path in config.")
-            else:
+            if cfg.get("backtranslated_tar_files", False) and cfg.get("backtranslated_metadata_file", False):
                 metadata_file = cfg.get('metadata_file')
-                with open(metadata_file) as metadata_reader:
+                backtranslated_metadata_file = cfg.get('backtranslated_metadata_file')
+                with open(metadata_file) as metadata_reader, open(
+                    backtranslated_metadata_file
+                ) as backtranslated_metadata_reader:
                     metadata = json.load(metadata_reader)
+                    backtranslated_metadata = json.load(backtranslated_metadata_reader)
                 if cfg.get('tar_files') is None:
                     tar_files = metadata.get('tar_files')
                     if tar_files is not None:
@@ -413,18 +415,84 @@ class MTEncDecModel(EncDecNLPModel):
                         logging.info(
                             f'Tar file paths found in both cfg and metadata using one in cfg by default - {tar_files}'
                         )
+                
+                if cfg.get('backtranslated_tar_files') is None:
+                    backtranslated_tar_files = metadata.get('backtranslated_tar_files')
+                    if tar_files is not None:
+                        logging.info(f'Loading from tarred dataset {backtranslated_tar_files}')
+                    else:
+                        raise FileNotFoundError("Could not find tarred dataset in config or metadata.")
+                else:
+                    backtranslated_tar_files = cfg.get('backtranslated_tar_files')
+                    if backtranslated_metadata.get('tar_files') is not None:
+                        logging.info(
+                            f'Tar file paths found in both cfg and metadata using one in cfg by default - {backtranslated_tar_files}'
+                        )
+                parallel_dataset = TarredTranslationDataset(
+                    text_tar_filepaths=tar_files,
+                    metadata_path=metadata_file,
+                    encoder_tokenizer=self.encoder_tokenizer,
+                    decoder_tokenizer=self.decoder_tokenizer,
+                    shuffle_n=cfg.get("tar_shuffle_n", 100),
+                    shard_strategy=cfg.get("shard_strategy", "scatter"),
+                    global_rank=self.global_rank,
+                    world_size=self.world_size,
+                    reverse_lang_direction=cfg.get("reverse_lang_direction", False),
+                )
+                backtranslated_dataset = TarredTranslationDataset(
+                    text_tar_filepaths=backtranslated_tar_files,
+                    metadata_path=backtranslated_metadata_file,
+                    encoder_tokenizer=self.encoder_tokenizer,
+                    decoder_tokenizer=self.decoder_tokenizer,
+                    shuffle_n=cfg.get("tar_shuffle_n", 100),
+                    shard_strategy=cfg.get("shard_strategy", "scatter"),
+                    global_rank=self.global_rank,
+                    world_size=self.world_size,
+                    reverse_lang_direction=cfg.get("reverse_lang_direction", False),
+                )
+                parallel_oversampling_factor = cfg.get("parallel_oversampling_factor", 1)
+                parallel_prob = parallel_oversampling_factor / (parallel_oversampling_factor + 1)
+                backtranslated_data_prob = 1 / (parallel_oversampling_factor + 1)
+                dataset = ConcatTranslationDataset(
+                    datasets=[parallel_dataset, backtranslated_dataset],
+                    shuffle=True,
+                    sampling_technique='random',
+                    sampling_temperature=5,
+                    sampling_probabilities=[parallel_prob, backtranslated_data_prob],
+                )
+            else:
+                if cfg.get("metadata_file") is None:
+                    raise FileNotFoundError(
+                        "Trying to use tarred data set but could not find metadata path in config."
+                    )
+                else:
+                    metadata_file = cfg.get('metadata_file')
+                    with open(metadata_file) as metadata_reader:
+                        metadata = json.load(metadata_reader)
+                    if cfg.get('tar_files') is None:
+                        tar_files = metadata.get('tar_files')
+                        if tar_files is not None:
+                            logging.info(f'Loading from tarred dataset {tar_files}')
+                        else:
+                            raise FileNotFoundError("Could not find tarred dataset in config or metadata.")
+                    else:
+                        tar_files = cfg.get('tar_files')
+                        if metadata.get('tar_files') is not None:
+                            logging.info(
+                                f'Tar file paths found in both cfg and metadata using one in cfg by default - {tar_files}'
+                            )
 
-            dataset = TarredTranslationDataset(
-                text_tar_filepaths=tar_files,
-                metadata_path=metadata_file,
-                encoder_tokenizer=self.encoder_tokenizer,
-                decoder_tokenizer=self.decoder_tokenizer,
-                shuffle_n=cfg.get("tar_shuffle_n", 100),
-                shard_strategy=cfg.get("shard_strategy", "scatter"),
-                global_rank=self.global_rank,
-                world_size=self.world_size,
-                reverse_lang_direction=cfg.get("reverse_lang_direction", False),
-            )
+                dataset = TarredTranslationDataset(
+                    text_tar_filepaths=tar_files,
+                    metadata_path=metadata_file,
+                    encoder_tokenizer=self.encoder_tokenizer,
+                    decoder_tokenizer=self.decoder_tokenizer,
+                    shuffle_n=cfg.get("tar_shuffle_n", 100),
+                    shard_strategy=cfg.get("shard_strategy", "scatter"),
+                    global_rank=self.global_rank,
+                    world_size=self.world_size,
+                    reverse_lang_direction=cfg.get("reverse_lang_direction", False),
+                )
             return torch.utils.data.DataLoader(
                 dataset=dataset,
                 batch_size=1,
