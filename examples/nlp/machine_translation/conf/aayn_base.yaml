@@ -5,6 +5,7 @@ do_testing: False # set to True to run evaluation on test data after training
 model:
   beam_size: 4
   len_pen: 0.6
+  multilingual: False
   max_generation_delta: 5
   label_smoothing: 0.1
   shared_tokenizer: True # train tokenizer model across src and tgt train data
@@ -33,6 +34,9 @@ model:
     drop_last: false
     pin_memory: false
     num_workers: 8
+    concat_sampling_technique: temperature # only used with ConcatTranslationDataset 
+    concat_sampling_temperature: 5 # only used with ConcatTranslationDataset 
+    concat_sampling_probabilities: null # only used with ConcatTranslationDataset 
 
   validation_ds:
     src_file_name: ???
