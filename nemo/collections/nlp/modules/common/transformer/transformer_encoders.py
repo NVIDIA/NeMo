@@ -169,7 +169,7 @@ class TransformerEncoder(nn.Module):
             cached_mems_list.append(memory_states)
 
         if self.pre_ln and self.pre_ln_final_layer_norm:
-            encoder_states = layer(encoder_states)
+            encoder_states = self.final_layer_norm(encoder_states)
             memory_states = self._get_memory_states(encoder_states, encoder_mems_list, i + 1)
             cached_mems_list.append(memory_states)
 
