@@ -401,7 +401,7 @@ class TarredTranslationDataset(IterableDataset):
         self.tarpath = text_tar_filepaths
 
         # Put together WebDataset
-        self._dataset = wd.WebDataset(text_tar_filepaths)
+        self._dataset = wd.WebDataset(urls=text_tar_filepaths, nodesplitter=None)
 
         if shuffle_n > 0:
             self._dataset = self._dataset.shuffle(shuffle_n)

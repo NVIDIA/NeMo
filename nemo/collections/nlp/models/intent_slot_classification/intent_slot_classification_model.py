@@ -136,8 +136,8 @@ class IntentSlotClassificationModel(NLPModel):
         self._save_label_ids(data_desc.slots_label_ids, slot_labels_file)
         self._save_label_ids(data_desc.intents_label_ids, intent_labels_file)
 
-        self.register_artifact(cfg.class_labels.intent_labels_file, intent_labels_file)
-        self.register_artifact(cfg.class_labels.slot_labels_file, slot_labels_file)
+        self.register_artifact('class_labels.intent_labels_file', intent_labels_file)
+        self.register_artifact('class_labels.slot_labels_file', slot_labels_file)
         OmegaConf.set_struct(cfg, True)
 
     def _save_label_ids(self, label_ids: Dict[str, int], filename: str) -> None:
@@ -305,6 +305,9 @@ class IntentSlotClassificationModel(NLPModel):
         self.log('slot_precision', slot_precision)
         self.log('slot_recall', slot_recall)
         self.log('slot_f1', slot_f1)
+
+        self.intent_classification_report.reset()
+        self.slot_classification_report.reset()
 
         return {
             'val_loss': avg_loss,

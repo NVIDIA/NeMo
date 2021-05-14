@@ -16,7 +16,7 @@ NeMo models contain everything needed to train and reproduce Conversational AI m
 
 NeMo uses `Hydra <https://hydra.cc/>`_ for configuring both NeMo models and the PyTorch Lightning Trainer.
 
-.. note:: Every NeMo model has an example configuration file and training script that can be found `here <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_.
+.. note:: Every NeMo model has an example configuration file and training script that can be found `here <https://github.com/NVIDIA/NeMo/tree/v1.0.0/examples>`_.
 
 The end result of using NeMo, `Pytorch Lightning <https://github.com/PyTorchLightning/pytorch-lightning>`_, and Hydra is that NeMo models all have the same look and feel and are also fully compatible with the PyTorch ecosystem. 
 
@@ -182,7 +182,7 @@ PyTorch Lightning Trainer
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Since every NeMo model is a ``LightningModule``, we can automatically take advantage of the PyTorch Lightning ``Trainer``. Every NeMo 
-`example <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ training script uses the ``Trainer`` object to fit the model.
+`example <https://github.com/NVIDIA/NeMo/tree/v1.0.0/examples>`_ training script uses the ``Trainer`` object to fit the model.
 
 First, instantiate the model and trainer, then call ``.fit``:
 
@@ -230,7 +230,7 @@ With Hydra, we can configure everything needed for NeMo with three interfaces:
 YAML
 ~~~~
 
-NeMo provides YAML configuration files for all of our `example <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ training scripts.
+NeMo provides YAML configuration files for all of our `example <https://github.com/NVIDIA/NeMo/tree/v1.0.0/examples>`_ training scripts.
 YAML files make it easy to experiment with different model and training configurations.
 
 Every NeMo example YAML has the same underlying configuration structure:
@@ -297,7 +297,7 @@ CLI
 With NeMo and Hydra, every aspect of model training can be modified from the command-line. This is extremely helpful for running lots 
 of experiments on compute clusters or for quickly testing parameters while developing.
 
-All NeMo `examples <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ come with instructions on how to 
+All NeMo `examples <https://github.com/NVIDIA/NeMo/tree/v1.0.0/examples>`_ come with instructions on how to
 run the training/inference script from the command-line (see `here <https://github.com/NVIDIA/NeMo/blob/4e9da75f021fe23c9f49404cd2e7da4597cb5879/examples/asr/speech_to_text.py#L24>`_
 for an example).
 
@@ -401,7 +401,7 @@ configuration for a Novograd optimizer with Cosine Annealing learning rate sched
         warmup_ratio: null
         min_lr: 1e-9:
 
-.. note:: `NeMo Examples <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples>`_ has optimizer and scheduler configurations for 
+.. note:: `NeMo Examples <https://github.com/NVIDIA/NeMo/tree/v1.0.0/examples>`_ has optimizer and scheduler configurations for
 every NeMo model. 
 
 Optimizers can be configured from the CLI as well:
@@ -555,6 +555,52 @@ training. Since NeMo models are ``LightningModules``, the PyTorch Lightning meth
 checkpoint to be restored. For these models, the user will have to override ``load_from_checkpoint`` if they want to use it.
 
 It's highly recommended to use ``restore_from`` to load NeMo models.
+
+Register Artifacts
+------------------
+
+Conversational AI models can be complicated to restore as more information is needed than just the checkpoint weights in order to use the model.
+NeMo models can save additional artifacts in the .nemo file by calling ``.register_artifact``.
+When restoring NeMo models using ``.restore_from`` or ``.from_pretrained``, any artifacts that were registered will be available automatically.
+
+As an example, consider an NLP model that requires a trained tokenizer model. 
+The tokenizer model file can be automatically added to the .nemo file with the following:
+
+.. code-block:: python
+
+    self.encoder_tokenizer = get_nmt_tokenizer(
+        ...
+        tokenizer_model=self.register_artifact(config_path='encoder_tokenizer.tokenizer_model',
+                                               src='/path/to/tokenizer.model',
+                                               verify_src_exists=True),
+    )
+
+By default, ``.register_artifact`` will always return a path. If the model is being restored from a .nemo file, 
+then that path will be to the artifact in the .nemo file. Otherwise, ``.register_artifact`` will return the local path specified by the user.
+
+``config_path`` is the artifact key. It usually corresponds to a model configuration but does not have to.
+The model config that is packaged with the .nemo file will be updated according to the ``config_path`` key.
+In the above example, the model config will have 
+
+.. code-block:: YAML
+
+    encoder_tokenizer:
+        ...
+        tokenizer_model: nemo:4978b28103264263a03439aaa6560e5e_tokenizer.model
+
+``src`` is the path to the artifact and the base-name of the path will be used when packaging the artifact in the .nemo file.
+Each artifact will have a hash prepended to the basename of ``src`` in the .nemo file. This is to prevent collisions with basenames 
+base-names that are identical (say when there are two or more tokenizers, both called `tokenizer.model`).
+The resulting .nemo file will then have the following file:
+
+.. code-block:: bash
+
+    4978b28103264263a03439aaa6560e5e_tokenizer.model
+
+If ``verify_src_exists`` is set to ``False``, then the artifact is optional. This means that ``.register_artifact`` will return ``None`` 
+if the ``src`` cannot be found. 
+
+
 
 Experiment Manager
 ==================

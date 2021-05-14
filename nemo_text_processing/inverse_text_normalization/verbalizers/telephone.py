@@ -27,7 +27,7 @@ except (ModuleNotFoundError, ImportError):
 class TelephoneFst(GraphFst):
     """
     Finite state transducer for verbalizing telephone, e.g.
-        telephone { number_part: "one two three one two three five six seven eight" }
+        telephone { number_part: "123-123-5678" }
         -> 123-123-5678 
     """
 

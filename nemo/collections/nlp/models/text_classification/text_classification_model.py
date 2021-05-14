@@ -152,7 +152,7 @@ class TextClassificationModel(NLPModel, Exportable):
         """
         if not outputs:
             return {}
-        if self.testing:
+        if self.trainer.testing:
             prefix = 'test'
         else:
             prefix = 'val'
@@ -168,6 +168,8 @@ class TextClassificationModel(NLPModel, Exportable):
         self.log(f'{prefix}_precision', precision)
         self.log(f'{prefix}_f1', f1)
         self.log(f'{prefix}_recall', recall)
+
+        self.classification_report.reset()
 
     def test_step(self, batch, batch_idx):
         """

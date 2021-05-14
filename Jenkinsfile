@@ -255,6 +255,7 @@ pipeline {
         stage('Speaker Diarization Inference') {
           steps {
             sh 'python examples/speaker_recognition/speaker_diarize.py \
+            diarizer.oracle_num_speakers=2 \
             diarizer.paths2audio_files=/home/TestData/an4_diarizer/audio_files.scp \
             diarizer.path2groundtruth_rttm_files=/home/TestData/an4_diarizer/rttm_files.scp \
             diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
@@ -766,7 +767,7 @@ pipeline {
         model.nemo_path=null \
         ~model.infer_samples \
         +exp_manager.explicit_log_dir=/home/TestData/nlp/mp_autoresume \
-        +exp_manager.resume_if_exists=true' 
+        +exp_manager.resume_if_exists=true'
       }
     }
 
@@ -884,8 +885,11 @@ pipeline {
             model.dataset.use_cache=false \
             trainer.gpus=[0,1] \
             trainer.accelerator=ddp \
-            +trainer.fast_dev_run=true \
-            exp_manager=null'
+            trainer.max_epochs=1 \
+            +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output && \
+            python punctuation_capitalization_evaluate.py \
+            pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo && \
+            rm -rf /home/TestData/nlp/token_classification_punctuation/output/*'
           }
         }
       }
@@ -1003,7 +1007,33 @@ pipeline {
       }
     }
 
-    stage('L2: NMT Attention is All You Need') {
+    stage('L2: Entity Linking') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage ('Self Alignment Pretraining BERT') {
+           steps {
+             sh 'cd examples/nlp/entity_linking && \
+             python self_alignment_pretraining.py \
+             project_dir=. \
+             trainer.val_check_interval=3 \
+             model.raw_data=None \
+             model.train_ds.data_file=/home/TestData/nlp/entity_linking/tiny_example_train_pairs.tsv \
+             model.validation_ds.data_file=/home/TestData/nlp/entity_linking/tiny_example_validation_pairs.tsv \
+             model.train_ds.batch_size=8 \
+             model.validation_ds.batch_size=8 \
+             exp_manager.exp_dir=null'
+          }
+        }
+      }
+    }
+
+    stage('L2: NMT Attention is All You Need Training') {
       when {
         anyOf {
           branch 'main'
@@ -1059,7 +1089,6 @@ pipeline {
               '
             }
         }
-
         stage('L2: NMT Multi-Validation') {
             steps {
               sh 'cd examples/nlp/machine_translation && \
@@ -1082,8 +1111,18 @@ pipeline {
               '
             }
         }
-
-        stage('L2: NMT Inference') {
+      }
+    }
+    stage('L2: NMT Attention is All You Need Inference') {
+      when {
+        anyOf {
+          branch 'v1.0.0'
+          changeRequest target: 'v1.0.0'
+        }
+      }
+      failFast true
+      parallel {
+        stage('L2: NMT Inference - PostLN') {
             steps {
               sh 'cd examples/nlp/machine_translation && \
               python nmt_transformer_infer.py \
@@ -1095,9 +1134,20 @@ pipeline {
               '
             }
         }
+        stage('L2: NMT Inference - Pre-LN') {
+            steps {
+              sh 'cd examples/nlp/machine_translation && \
+              python nmt_transformer_infer.py \
+              --model=/home/TestData/nlp/nmt/toy_data/en_de_24x6_preln.nemo \
+              --srctext=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.test.src \
+              --tgtout=/home/TestData/nlp/nmt/toy_data/out.txt \
+              --target_lang de \
+              --source_lang en \
+              '
+            }
+        }
       }
     }
-
     stage('L2: NMT with HuggingFace') {
       when {
         anyOf {

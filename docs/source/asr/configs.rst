@@ -10,7 +10,7 @@ for audio files, parameters for any augmentation being performed, as well as the
 this page cover each of these in more detail.
 
 Example configuration files for all of the NeMo ASR scripts can be found in the
-`config directory of the examples <https://github.com/NVIDIA/NeMo/tree/r1.0.0rc1/examples/asr/conf>`_.
+`config directory of the examples <https://github.com/NVIDIA/NeMo/tree/v1.0.0/examples/asr/conf>`_.
 
 
 Dataset Configuration
@@ -187,11 +187,11 @@ Here is the list of the parameters in the model section which are shared among m
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
 | **Parameter**           | **Datatype**     | **Description**                                                                                               | **Supported Values**            |
 +=========================+==================+===============================================================================================================+=================================+
-| :code:`log_prediction`| bool             | Whether a random sample should be printed in the output at each step, along with its predicted transcript.    |                                 |
+| :code:`log_prediction`  | bool             | Whether a random sample should be printed in the output at each step, along with its predicted transcript.    |                                 |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
-| :code:`ctc_reduction` | string           | Specifies the reduction type of CTC loss. Defaults to ``mean_batch`` which would take the average over the    | :code:`none`,                 |
-|                         |                  | batch after taking the average over the length of each sample.                                                | :code:``mean_batch`             |
-|                         |                  |                                                                                                               | :code:`mean`, :code:`sum`   |
+| :code:`ctc_reduction`   | string           | Specifies the reduction type of CTC loss. Defaults to ``mean_batch`` which would take the average over the    | :code:`none`,                   |
+|                         |                  | batch after taking the average over the length of each sample.                                                | :code:`mean_batch`              |
+|                         |                  |                                                                                                               | :code:`mean`, :code:`sum`       |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
 
 The following sections go into more detail about the specific configurations of each model architecture.
@@ -204,29 +204,29 @@ Jasper and QuartzNet
 The `Jasper <./models.html#Jasper>`__ and `QuartzNet <./models.html#QuartzNet>`__ models are very similar, and as such the components in their
 configs are very similar as well.
 
-Both architectures use the ``ConvASREncoder`` for the ``encoder``, with parameters detailed in the table below. The encoder parameters 
-include details about the Jasper/QuartzNet ``[BxR]`` encoder architecture, including how many blocks to use (``B``), how many times 
+Both architectures use the ``ConvASREncoder`` for the ``encoder``, with parameters detailed in the table below. The encoder parameters
+include details about the Jasper/QuartzNet ``[BxR]`` encoder architecture, including how many blocks to use (``B``), how many times
 to repeat each sub-block (``R``), and the convolution parameters for each block.
 
-The number of blocks ``B`` is determined by the number of list elements under ``jasper`` minus the one prologue and two epilogue blocks. 
+The number of blocks ``B`` is determined by the number of list elements under ``jasper`` minus the one prologue and two epilogue blocks.
 The number of sub-blocks ``R`` is determined by setting the ``repeat`` parameter.
 
 To use QuartzNet (which uses more compact time-channel separable convolutions) instead of Jasper, add :code:`separable: true` to all
-but the last block in the architecture. 
+but the last block in the architecture.
 
 Change the parameter name ``jasper``.
 
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+-------------------------------------+
 | **Parameter**           | **Datatype**     | **Description**                                                                                               | **Supported Values**                |
 +=========================+==================+===============================================================================================================+=====================================+
-| :code:`feat_in`       | int              | The number of input features. Should be equal to :code:`features` in the preprocessor parameters.           |                                     |
+| :code:`feat_in`         | int              | The number of input features. Should be equal to :code:`features` in the preprocessor parameters.             |                                     |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+-------------------------------------+
-| :code:`activation`    | string           | Which activation function to use in the encoder.                                                              | :code:`hardtanh`, :code:`relu`, |
-|                         |                  |                                                                                                               | :code:`selu`, :code:`swish`     |
+| :code:`activation`      | string           | Which activation function to use in the encoder.                                                              | :code:`hardtanh`, :code:`relu`,     |
+|                         |                  |                                                                                                               | :code:`selu`, :code:`swish`         |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+-------------------------------------+
-| :code:`conv_mask`     | bool             | Whether to use masked convolutions in the encoder. Defaults to ``true``.                                      |                                     |
+| :code:`conv_mask`       | bool             | Whether to use masked convolutions in the encoder. Defaults to ``true``.                                      |                                     |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+-------------------------------------+
-| :code:`jasper`        |                  | A list of blocks that specifies your encoder architecture. Each entry in this list represents one block in    |                                     |
+| :code:`jasper`          |                  | A list of blocks that specifies your encoder architecture. Each entry in this list represents one block in    |                                     |
 |                         |                  | the architecture and contains the parameters for that block, including convolution parameters, dropout, and   |                                     |
 |                         |                  | the number of times the block is repeated. Refer to the `Jasper <https://arxiv.org/pdf/1904.03288.pdf>`_ and  |                                     |
 |                         |                  | `QuartzNet <https://arxiv.org/pdf/1910.10261.pdf>`_ papers for details about specific model configurations.   |                                     |
@@ -307,13 +307,13 @@ Both Jasper and QuartzNet use the ``ConvASRDecoder`` as the decoder. The decoder
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
 | **Parameter**           | **Datatype**     | **Description**                                                                                               | **Supported Values**            |
 +=========================+==================+===============================================================================================================+=================================+
-| :code:`feat_in`       | int              | The number of input features to the decoder. Should be equal to the number of filters in the last block of    |                                 |
+| :code:`feat_in`         | int              | The number of input features to the decoder. Should be equal to the number of filters in the last block of    |                                 |
 |                         |                  | the encoder.                                                                                                  |                                 |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
-| :code:`vocabulary`    | list             | A list of the valid output characters for your model. For example, for an English dataset, this could be a    |                                 |
+| :code:`vocabulary`      | list             | A list of the valid output characters for your model. For example, for an English dataset, this could be a    |                                 |
 |                         |                  | list of all lowercase letters, space, and apostrophe.                                                         |                                 |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
-| :code:`num_classes`   | int              | Number of output classes, i.e. the length of :code:`vocabulary`.                                            |                                 |
+| :code:`num_classes`     | int              | Number of output classes, i.e. the length of :code:`vocabulary`.                                            |                                 |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
 
 For example, a decoder config corresponding to the encoder above should look similar to the following:
@@ -331,33 +331,33 @@ For example, a decoder config corresponding to the encoder above should look sim
 Citrinet
 ~~~~~~~~
 
-The `Citrinet <./models.html#Citrinet>`__ and `QuartzNet <./models.html#QuartzNet>`__ models are very similar, and as such the 
-components in their configs are very similar as well. Citrinet utilizes Squeeze and Excitation, as well as sub-word tokenization, in 
-contrast to QuartzNet. Depending on the dataset, we utilize different tokenizers. For Librispeech, we utilize the HuggingFace WordPiece 
+The `Citrinet <./models.html#Citrinet>`__ and `QuartzNet <./models.html#QuartzNet>`__ models are very similar, and as such the
+components in their configs are very similar as well. Citrinet utilizes Squeeze and Excitation, as well as sub-word tokenization, in
+contrast to QuartzNet. Depending on the dataset, we utilize different tokenizers. For Librispeech, we utilize the HuggingFace WordPiece
 tokenizer, and for all other datasets we utilize the Google Sentencepiece tokenizer - usually the ``unigram`` tokenizer type.
 
-Both architectures use the ``ConvASREncoder`` for the ``encoder``, with parameters detailed above. The encoder parameters include 
-details about the Citrinet-C encoder architecture, including how many filters are used per channel (``C``). The Citrinet-C 
-configuration is a shortform notation for Citrinet-21x5xC, such that ``B = 21`` and ``R = 5`` are the default and should generally 
+Both architectures use the ``ConvASREncoder`` for the ``encoder``, with parameters detailed above. The encoder parameters include
+details about the Citrinet-C encoder architecture, including how many filters are used per channel (``C``). The Citrinet-C
+configuration is a shortform notation for Citrinet-21x5xC, such that ``B = 21`` and ``R = 5`` are the default and should generally
 not be changed.
 
-To use Citrinet instead of QuartzNet, refer to the ``citrinet_512.yaml`` configuration found inside the ``examples/asr/conf/citrinet`` 
+To use Citrinet instead of QuartzNet, refer to the ``citrinet_512.yaml`` configuration found inside the ``examples/asr/conf/citrinet``
 directory. Citrinet is primarily comprised of the same :class:`~nemo.collections.asr.parts.jasper.JasperBlock` as ``Jasper`` or
 ``QuartzNet`.
 
-While the configs for Citrinet and QuartzNet are similar, we note the additional flags used for Citrinet below. Refer to the 
+While the configs for Citrinet and QuartzNet are similar, we note the additional flags used for Citrinet below. Refer to the
 ``JasperBlock`` documentation for the meaning of these arguments.
 
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
 | **Parameter**             | **Datatype**     | **Description**                                                                                           | **Supported Values**              |
 +===========================+==================+===========================================================================================================+===================================+
-| :code:`se`              | bool             | Whether to apply squeeze-and-excitation mechanism or not.                                                 | :code:`true` or :code:``false   |
+| :code:`se`                | bool             | Whether to apply squeeze-and-excitation mechanism or not.                                                 | :code:`true` or :code:`false`   |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
-| :code:`se_context_size` | int              | SE context size. -1 means global context.                                                                 | :code:`-1` or :code:`+ve int` |
+| :code:`se_context_size`   | int              | SE context size. -1 means global context.                                                                 | :code:`-1` or :code:`+ve int` |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
-| :code:`stride_last`     | bool             | Stride on the final repeated block or all repeated blocks.                                                | :code:`true` or :code:`false` |
+| :code:`stride_last`       | bool             | Stride on the final repeated block or all repeated blocks.                                                | :code:`true` or :code:`false` |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
-| :code:`residual_mode`   | str              | Type of residual branch to construct.                                                                     | :code:`"add"` or                |
+| :code:`residual_mode`     | str              | Type of residual branch to construct.                                                                     | :code:`"add"` or                |
 |                           |                  | Can be pointwise residual addition or pointwise strided residual attention                                | :code:`"stride_add"`            |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
 
@@ -438,6 +438,21 @@ A Citrinet-512 config should look similar to the following:
 
 As mentioned above, Citrinet uses the ``ConvASRDecoder`` as the decoder layer similar to QuartzNet. Only the configuration must be 
 changed slightly as Citrinet utilizes sub-word tokenization.
+
+.. note::
+    The following information is relevant to any of the above models that implements its encoder as an :class:`~nemo.collections.asr.modules.conv_asr.ConvASREncoder`, and utilizes the ``SqueezeExcite`` mechanism.
+
+The ``SqueezeExcite`` block within a :class:`~nemo.collections.asr.modules.conv_asr.ConvASREncoder` network can be modified to utilize a different context window after the model has been instantiated (even after the model has been trained) so as to evaluate the model with limited context. This can be achieved using the :meth:`~nemo.collections.asr.parts.mixins.ASRModuleMixin.change_conv_asr_se_context_window`
+
+.. code-block:: python
+
+    # Here, model can be any model that has a `ConvASREncoder` as its encoder, and utilized `SqueezeExcite` blocks
+    # `context_window` : It is an integer representing the number of timeframes (each corresponding to some window stride).
+    # `update_config` : Bool flag which determines whether the config of the model should be updated to reflect the new context window.
+
+    # Here, we specify that 128 timeframes of 0.01s stride should be the context window
+    # This is equivalent to 128 * 0.01s context window for `SqueezeExcite`
+    model.change_conv_asr_se_context_window(context_window=128, update_config=True)
 
 Conformer-CTC
 ~~~~~~~~~~~~~

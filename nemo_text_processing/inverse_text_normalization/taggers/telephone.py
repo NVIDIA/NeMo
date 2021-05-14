@@ -27,7 +27,8 @@ except (ModuleNotFoundError, ImportError):
 
 class TelephoneFst(GraphFst):
     """
-    Finite state transducer for classifying telephone numbers
+    Finite state transducer for classifying telephone numbers, e.g. 
+        one two three one two three five six seven eight -> { number_part: "123-123-5678" }
     """
 
     def __init__(self):
@@ -36,7 +37,7 @@ class TelephoneFst(GraphFst):
         # country code, number_part, extension
         add_separator = pynutil.insert(" ")  # between components
         digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv"))).optimize() | pynini.cross(
-            "0", "o"
+            "0", pynini.union("o", "oh", "zero")
         )
 
         number_part = (

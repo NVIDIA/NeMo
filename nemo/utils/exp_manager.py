@@ -68,7 +68,7 @@ class CallbackParams:
     save_last: Optional[bool] = True
     save_top_k: Optional[int] = 3
     save_weights_only: Optional[bool] = False
-    mode: Optional[str] = "auto"
+    mode: Optional[str] = "min"
     period: Optional[int] = 1
     prefix: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     postfix: str = ".nemo"
@@ -589,6 +589,12 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.postfix = postfix
         self.previous_best_path = ""
 
+        # `prefix` is deprecated
+        if 'prefix' in kwargs:
+            self.prefix = kwargs.pop('prefix')
+        else:
+            self.prefix = ""
+
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(**kwargs)
 
@@ -600,6 +606,11 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             return output
 
         # Load the best model and then re-save it
+        app_state = AppState()
+        # since we are creating tarfile artifacts we need to update .nemo path
+        app_state.model_restore_path = os.path.abspath(
+            os.path.expanduser(os.path.join(self.dirpath, self.prefix + self.postfix))
+        )
         if self.save_best_model:
             if not os.path.exists(self.best_model_path):
                 return output
@@ -614,11 +625,10 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 checkpoint = checkpoint['state_dict']
             # get a new instanace of the model
             pl_module.load_state_dict(checkpoint, strict=True)
-            pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
+            pl_module.save_to(save_path=app_state.model_restore_path)
             pl_module.load_state_dict(old_state_dict, strict=True)
         else:
-            pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
-
+            pl_module.save_to(save_path=app_state.model_restore_path)
         return output
 
     @rank_zero_only
@@ -667,9 +677,10 @@ def configure_checkpointing(
     if params.dirpath is None:
         params.dirpath = Path(log_dir / 'checkpoints')
     if params.filename is None:
-        params.filename = f'--{{{params.monitor}:.2f}}-{{epoch}}'
+        params.filename = f'{name}--{{{params.monitor}:.2f}}-{{epoch}}'
     if params.prefix is None:
         params.prefix = name
+    NeMoModelCheckpoint.CHECKPOINT_NAME_LAST = params.filename + '-last'
 
     logging.debug(params.dirpath)
     logging.debug(params.filename)

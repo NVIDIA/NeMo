@@ -1,0 +1,123 @@
+name: Aligner
+sample_rate: 22050
+
+train_dataset: ???
+validation_datasets: ???
+attn_prior_folder: ???
+
+model:
+  d_char: 512
+  n_mels: 80
+  bin_start_ratio: 0.3
+
+  train_ds:
+    dataset:
+      _target_: "nemo.collections.asr.data.audio_to_text.AudioToCharWithPriorDataset"
+      manifest_filepath: ${train_dataset}
+      max_duration: null
+      min_duration: 0.1
+      int_values: false
+      normalize: false
+      sample_rate: ${sample_rate}
+      trim: false
+      attn_prior_folder: ${attn_prior_folder}
+      n_window_stride: 256
+      vocab:
+        notation: phonemes
+        punct: true
+        spaces: true
+        stresses: false
+        add_blank_at: None
+        pad_with_space: True
+    dataloader_params:
+      drop_last: false
+      shuffle: true
+      batch_size: 64
+      num_workers: 4
+
+  validation_ds:
+    dataset:
+      _target_: "nemo.collections.asr.data.audio_to_text.AudioToCharWithPriorDataset"
+      manifest_filepath: ${validation_datasets}
+      max_duration: null
+      min_duration: 0.1
+      int_values: false
+      normalize: false
+      sample_rate: ${sample_rate}
+      trim: false
+      attn_prior_folder: ${attn_prior_folder}
+      n_window_stride: 256
+      vocab:
+        notation: phonemes
+        punct: true
+        spaces: true
+        stresses: false
+        add_blank_at: None
+        pad_with_space: True
+    dataloader_params:
+      drop_last: false
+      shuffle: false
+      batch_size: 64
+      num_workers: 1
+
+  preprocessor:
+    _target_: "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor"
+    dither: 0.0
+    features: ${model.n_mels}
+    frame_splicing: 1
+    highfreq: 8000
+    log: true
+    log_zero_guard_type: clamp
+    log_zero_guard_value: 1e-05
+    lowfreq: 0
+    mag_power: 1.0
+    n_fft: 1024
+    n_window_size: 1024
+    window_size: False
+    n_window_stride: 256
+    window_stride: False
+    normalize: null
+    pad_to: 1
+    pad_value: -11.52
+    preemph: null
+    sample_rate: ${sample_rate}
+    stft_conv: false
+    window: hann
+
+  alignment_encoder:
+    _target_: "nemo.collections.tts.modules.aligner.AlignmentEncoder"
+    n_mel_channels: ${model.n_mels}
+    n_text_channels: ${model.d_char}
+    n_att_channels: ${model.n_mels}
+
+  optim:
+    name: adam
+    lr: 1e-3
+    weight_decay: 1e-6
+
+    sched:
+      name: CosineAnnealing
+      min_lr: 5e-5
+      warmup_ratio: 0.35
+
+trainer:
+  gpus: 1
+  max_epochs: ???
+  num_nodes: 1
+  accelerator: ddp
+  accumulate_grad_batches: 1
+  checkpoint_callback: False
+  logger: False
+  gradient_clip_val: 1.0
+  flush_logs_every_n_steps: 1000
+  log_every_n_steps: 200
+  check_val_every_n_epoch: 25
+
+exp_manager:
+  exp_dir: null
+  name: ${name}
+  create_tensorboard_logger: False
+  create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: "val_forward_sum_loss"
+    mode: "min"

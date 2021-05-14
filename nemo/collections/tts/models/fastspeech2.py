@@ -26,7 +26,7 @@ from nemo.collections.asr.parts import parsers
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.fastspeech2loss import DurationLoss, L2MelLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
-from nemo.core.classes.common import typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import *
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
@@ -75,7 +75,14 @@ class FastSpeech2Model(SpectrogramGenerator):
 
         # Parser and mappings are used for inference only.
         self.parser = parsers.make_parser(name='en')
-        with open(cfg.mappings_filepath, 'r') as f:
+        if 'mappings_filepath' in cfg:
+            mappings_filepath = cfg.get('mappings_filepath')
+        else:
+            logging.error(
+                "ERROR: You must specify a mappings.json file in the config file under model.mappings_filepath."
+            )
+        mappings_filepath = self.register_artifact('mappings_filepath', mappings_filepath)
+        with open(mappings_filepath, 'r') as f:
             mappings = json.load(f)
             self.word2phones = mappings['word2phones']
             self.phone2idx = mappings['phone2idx']
@@ -117,7 +124,7 @@ class FastSpeech2Model(SpectrogramGenerator):
             text=t, text_length=tl, spec_len=spec_len, durations=durations, pitch=pitch, energies=energies
         )
         total_loss = self.loss(
-            spec_pred=mel.tranpose(1, 2), spec_target=spec, spec_target_len=spec_len, pad_value=-11.52
+            spec_pred=mel.transpose(1, 2), spec_target=spec, spec_target_len=spec_len, pad_value=-11.52
         )
         self.log(name="train_mel_loss", value=total_loss.clone().detach())
 
@@ -168,7 +175,7 @@ class FastSpeech2Model(SpectrogramGenerator):
         f, fl, t, tl, _, _, _ = batch
         spec, spec_len = self.audio_to_melspec_preprocessor(f, fl)
         mel, _, _, _, _ = self(text=t, text_length=tl, spec_len=spec_len)
-        loss = self.loss(spec_pred=mel.tranpose(1, 2), spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
+        loss = self.loss(spec_pred=mel.transpose(1, 2), spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
         return {
             "val_loss": loss,
             "mel_target": spec,
@@ -270,3 +277,21 @@ class FastSpeech2Model(SpectrogramGenerator):
 
     def setup_validation_data(self, cfg):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
+
+    @classmethod
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+        """
+        This method returns a list of pre-trained models which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        list_of_models = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_fastspeech2",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_fastspeech_2/versions/1.0.0/files/tts_en_fastspeech2.nemo",
+            description="This model is trained on LJSpeech sampled at 22050Hz, and can be used to generate female English voices with an American accent.",
+            class_=cls,
+            aliases=["FastSpeech2-22050Hz"],
+        )
+        list_of_models.append(model)
+        return list_of_models
