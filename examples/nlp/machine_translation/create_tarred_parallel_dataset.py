@@ -22,7 +22,6 @@ if __name__ == '__main__':
     parser.add_argument('--shared_tokenizer', action="store_true", help='Whether to share encoder/decoder tokenizers')
     parser.add_argument('--clean', action="store_true", help='Whether to clean dataset based on length diff')
     parser.add_argument('--tar_file_prefix', type=str, default='parallel', help='Prefix for tar files')
-    parser.add_argument('--bpe_dropout', type=float, default=0.1, help='Whether to share encoder/decoder tokenizers')
     parser.add_argument('--src_fname', type=str, required=True, help='Path to the source file')
     parser.add_argument('--tgt_fname', type=str, required=True, help='Path to the target file')
     parser.add_argument('--out_dir', type=str, required=True, help='Path to store dataloader and tokenizer models')
