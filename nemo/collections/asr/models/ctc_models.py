@@ -560,6 +560,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
                 predictions_lengths=encoded_len,
             )
             wer, _, _ = self._wer.compute()
+            self._wer.reset()
             tensorboard_logs.update({'training_batch_wer': wer})
 
         return {'loss': loss_value, 'log': tensorboard_logs}
@@ -580,6 +581,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             predictions=predictions, targets=transcript, target_lengths=transcript_len, predictions_lengths=encoded_len
         )
         wer, wer_num, wer_denom = self._wer.compute()
+        self._wer.reset()
         return {
             'val_loss': loss_value,
             'val_wer_num': wer_num,
