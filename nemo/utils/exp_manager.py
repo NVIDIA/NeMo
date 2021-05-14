@@ -473,7 +473,7 @@ def get_log_dir(
                 logging.warning(
                     "No version folders would be created under the log folder as 'resume_if_exists' is enabled."
                 )
-                version = None
+                version = ""
             elif is_global_rank_zero():
                 if use_datetime_version:
                     version = time.strftime('%Y-%m-%d_%H-%M-%S')
