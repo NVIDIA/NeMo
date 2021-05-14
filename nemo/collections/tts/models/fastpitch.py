@@ -13,21 +13,25 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import torch
 from hydra.utils import instantiate
-from omegaconf import MISSING, DictConfig, OmegaConf
+from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import FastPitchDataset
 from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.losses.fastpitchloss import FastPitchLoss
+from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
+from nemo.collections.tts.losses.fastpitchloss import MelLoss, PitchLoss, DurationLoss
+
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import FastPitchModule
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import MelSpectrogramType, RegressionValuesType, TokenDurationType, TokenIndex
 from nemo.core.neural_types.neural_type import NeuralType
+from nemo.utils import logging
 
 
 @dataclass
@@ -59,6 +63,19 @@ class FastPitchModel(SpectrogramGenerator):
         # Ensure passed cfg is compliant with schema
         OmegaConf.merge(cfg, schema)
 
+        self.learn_aligntment = False
+        self.aligner = None
+        if "learn_alignment" in self._cfg:
+            self.learn_aligntment = self._cfg.learn_alignment
+            self.aligner = instantiate(self._cfg.alignment_module)
+            self.forward_sum_loss = ForwardSumLoss()
+            self.bin_loss = BinLoss()
+            self.mel_loss = MelLoss()
+            self.pitch_loss = PitchLoss()
+            self.duration_loss = DurationLoss()
+        else:
+            self.loss = FastPitchLoss()
+
         self.preprocessor = instantiate(self._cfg.preprocessor)
 
         input_fft = instantiate(self._cfg.input_fft)
@@ -71,12 +88,15 @@ class FastPitchModel(SpectrogramGenerator):
             output_fft,
             duration_predictor,
             pitch_predictor,
+            self.aligner,
             cfg.n_speakers,
             cfg.symbols_embedding_dim,
             cfg.pitch_embedding_kernel_size,
             cfg.n_mel_channels,
         )
-        self.loss = FastPitchLoss()
+
+        self.binarize_attention = False
+        self.attention_coeff = 1.0
 
     @property
     def parser(self):
@@ -123,36 +143,37 @@ class FastPitchModel(SpectrogramGenerator):
 
     def training_step(self, batch, batch_idx):
         audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
-        mels, mel_lens = self.preprocessor(input_signal=audio, length=audio_lens)
+        mels, _ = self.preprocessor(input_signal=audio, length=audio_lens)
 
-        mels_pred, mel_lens, _, _, log_durs_pred, pitch_pred = self(
+        mels_pred, _, _, _, log_durs_pred, pitch_pred = self(
             text=text, durs=durs, pitch=pitch, speaker=speakers, pace=1.0
         )
 
-        loss, mel_loss, dur_loss, pitch_loss = self.loss(
-            spect_predicted=mels_pred,
-            log_durs_predicted=log_durs_pred,
-            pitch_predicted=pitch_pred,
-            spect_tgt=mels,
-            durs_tgt=durs,
-            dur_lens=text_lens,
-            pitch_tgt=pitch,
-        )
+        if self.learn_aligntment:
+            mel_loss = self.mel_loss(mels_pred, mels)
+            # pitch_loss TODO
+            # duration_loss = self.duration_loss()
+            self.ctc_loss = self.forward_sum_loss(attn_logprob, text_len, spec_len)
+            self.bin_loss = self.self.bin_loss(attn_hard, attn_soft)
+        else:
+            loss, mel_loss, dur_loss, pitch_loss = self.loss(
+                spect_predicted=mels_pred,
+                log_durs_predicted=log_durs_pred,
+                pitch_predicted=pitch_pred,
+                spect_tgt=mels,
+                durs_tgt=durs,
+                dur_lens=text_lens,
+                pitch_tgt=pitch,
+            )
 
-        losses = {
-            "mel_loss": mel_loss,
-            "dur_loss": dur_loss,
-            "pitch_loss": pitch_loss,
-        }
-        all_losses = {"loss": loss, **losses}
-        return {**all_losses, "progress_bar": losses, "log": all_losses}
+        return loss
 
     def validation_step(self, batch, batch_idx):
         audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
-        mels, mel_lens = self.preprocessor(input_signal=audio, length=audio_lens)
+        mels, _ = self.preprocessor(input_signal=audio, length=audio_lens)
 
         # Calculate val loss on ground truth durations to better align L2 loss in time
-        mels_pred, mel_lens, _, _, log_durs_pred, pitch_pred = self(
+        mels_pred, _, _, _, log_durs_pred, pitch_pred = self(
             text=text, durs=durs, pitch=None, speaker=speakers, pace=1.0
         )
 
@@ -184,32 +205,36 @@ class FastPitchModel(SpectrogramGenerator):
         }
         return {'val_loss': tb_logs['val_loss'], 'log': tb_logs}
 
-    def _loader(self, cfg):
-        dataset = FastPitchDataset(
-            manifest_filepath=cfg['manifest_filepath'],
-            parser=self.parser,
-            sample_rate=cfg['sample_rate'],
-            int_values=cfg.get('int_values', False),
-            max_duration=cfg.get('max_duration', None),
-            min_duration=cfg.get('min_duration', None),
-            max_utts=cfg.get('max_utts', 0),
-            trim=cfg.get('trim_silence', True),
-        )
+    def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
+        if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
+            raise ValueError(f"No dataset for {name}")
+        if "dataloader_params" not in cfg or not isinstance(cfg.dataloader_params, DictConfig):
+            raise ValueError(f"No dataloder_params for {name}")
+        if shuffle_should_be:
+            if 'shuffle' not in cfg.dataloader_params:
+                logging.warning(
+                    f"Shuffle should be set to True for {self}'s {name} dataloader but was not found in its "
+                    "config. Manually setting to True"
+                )
+                with open_dict(cfg.dataloader_params):
+                    cfg.dataloader_params.shuffle = True
+            elif not cfg.dataloader_params.shuffle:
+                logging.error(f"The {name} dataloader for {self} has shuffle set to False!!!")
+        elif not shuffle_should_be and cfg.dataloader_params.shuffle:
+            logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
 
-        return torch.utils.data.DataLoader(
-            dataset=dataset,
-            batch_size=cfg['batch_size'],
-            collate_fn=dataset.collate_fn,
-            drop_last=cfg.get('drop_last', True),
-            shuffle=cfg['shuffle'],
-            num_workers=cfg.get('num_workers', 16),
+        labels = self._cfg.labels
+
+        dataset = instantiate(
+            cfg.dataset, labels=labels, bos_id=len(labels), eos_id=len(labels) + 1, pad_id=len(labels) + 2
         )
+        return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
 
     def setup_training_data(self, cfg):
-        self._train_dl = self._loader(cfg)
+        self._train_dl = self.__setup_dataloader_from_config(cfg)
 
     def setup_validation_data(self, cfg):
-        self._validation_dl = self._loader(cfg)
+        self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="val")
 
     def setup_test_data(self, cfg):
         """Omitted."""
@@ -232,3 +257,22 @@ class FastPitchModel(SpectrogramGenerator):
         list_of_models.append(model)
 
         return list_of_models
+
+    def on_train_epoch_start(self):
+        if self.learn_aligntment:
+            # Switch to hard attention after 25% of training
+            if not self.binarize_attention and self.current_epoch >= np.ceil(0.25 * self._trainer.max_epochs):
+                logging.info(f"Using hard attentions after epoch: {self.current_epoch}")
+                self.binarize_attention = True
+
+            # Start training duration predictor after 33% of training
+            if not self.train_duration_predictor and self.current_epoch >= np.ceil(0.33 * self._trainer.max_epochs):
+                logging.info(f"Starting training duration predictor after epoch: {self.current_epoch}")
+                self.attention_coeff = 0.25
+                self.fastpitch.train_duration_predictor = True
+
+            # Start using duration predictor after 50% of training
+            if not self.use_duration_predictor and self.current_epoch >= np.ceil(0.50 * self._trainer.max_epochs):
+                logging.info(f"Using duration predictor after epoch: {self.current_epoch}")
+                self.fastpitch.use_duration_predictor = True
+
