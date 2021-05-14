@@ -182,7 +182,7 @@ class TransformerDecoder(nn.Module):
 
         if self.pre_ln and self.pre_ln_final_layer_norm:
             decoder_states = final_layer_norm(decoder_states)
-            memory_states = self._get_memory_states(encoder_states, encoder_mems_list, i + 1)
+            memory_states = self._get_memory_states(decoder_states, encoder_mems_list, i + 1)
             cached_mems_list.append(memory_states)
 
         if return_mems:
