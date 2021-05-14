@@ -175,17 +175,18 @@ class MultiHeadAttention(nn.Module):
 
         # for numerical stability we pre-divide query and key by sqrt(sqrt(d))
         attention_scores = torch.matmul(query, key.transpose(-1, -2)) #  decoder torch.Size([250, 4, 51, 51])
+        if attention_mask is not None:
+            attention_scores = attention_scores + attention_mask.to(attention_scores.dtype)  #torch.Size([250, 4, 51, 51])
 
-        # TODO check why mask fill scores before in epsnet baseline
+        # TODO extract this part and pass in diagonal_restriction_mask
         if self.restricted > 0:
             # hard coded change!!!
             max_dim = max(attention_scores.size(2), attention_scores.size(3))
             diagonal_restriction_mask = form_diagonal_mask(max_dim, self.restricted, device=attention_scores.device)[:attention_scores.size(2), :attention_scores.size(3)]
             diagonal_restriction_mask = diagonal_restriction_mask.unsqueeze(0).unsqueeze(1) # (batch, 1, time1, time1)
-            attention_scores = attention_scores.masked_fill(diagonal_restriction_mask == 0, -10000.0) # NEG_INF
+            attention_scores = attention_scores.masked_fill(diagonal_restriction_mask == 0, NEG_INF) #
 
-        if attention_mask is not None:
-            attention_scores = attention_scores + attention_mask.to(attention_scores.dtype)  #torch.Size([250, 4, 51, 51])
+        # [TODO] question -10000 or softmax 0? softmax -10000 nearly 0
 
         attention_probs = torch.softmax(attention_scores, dim=-1)
         attention_probs = self.attn_dropout(attention_probs)
