@@ -14,7 +14,6 @@
 
 import itertools
 import json
-import pickle
 import random
 from multiprocessing import Value
 from pathlib import Path
