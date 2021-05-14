@@ -785,6 +785,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint):
                     # Compute the wer (with logging for just 1st sub-batch)
                     self.wer.update(sub_enc, sub_enc_lens, sub_transcripts, sub_transcript_lens)
                     wer, wer_num, wer_denom = self.wer.compute()
+                    self.wer.reset()
 
                     wer_numer_list.append(wer_num)
                     wer_denom_list.append(wer_denom)

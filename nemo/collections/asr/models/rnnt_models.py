@@ -609,6 +609,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
             if (sample_id + 1) % log_every_n_steps == 0:
                 self.wer.update(encoded, encoded_len, transcript, transcript_len)
                 _, scores, words = self.wer.compute()
+                self.wer.reset()
                 tensorboard_logs.update({'training_batch_wer': scores.float() / words})
 
         else:
@@ -668,6 +669,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
 
             self.wer.update(encoded, encoded_len, transcript, transcript_len)
             wer, wer_num, wer_denom = self.wer.compute()
+            self.wer.reset()
 
             tensorboard_logs['val_wer_num'] = wer_num
             tensorboard_logs['val_wer_denom'] = wer_denom
