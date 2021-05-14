@@ -22,7 +22,7 @@ import tempfile
 
 import youtokentome as yttm
 from joblib import Parallel, delayed
-from omegaconf import OmegaConf
+from omegaconf import ListConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import create_spt_model
@@ -98,11 +98,39 @@ class MTDataPreproc:
                         raise ValueError(
                             'src_file_name and tgt_file_name needed to train tokenizers but could not be found.'
                         )
+
+                    src_fname = cfg.train_ds.get('src_file_name')
+                    tgt_fname = cfg.train_ds.get('tgt_file_name')
+                    src_language = cfg.get('src_language')
+                    tgt_language = cfg.get('tgt_language')
+                    spt_symbols = None
+                    tempdir = tempfile.TemporaryDirectory()
+
+                    if cfg.get('multilingual'):
+                        spt_symbols = []
+                        if isinstance(src_fname, ListConfig):
+                            fnames = (" ").join(src_fname)
+                            src_fname = os.path.join(tempdir.name, 'src.txt')
+                            os.system('cat %s > %s' % (fnames, src_fname))
+
+                        if isinstance(tgt_fname, ListConfig):
+                            fnames = (" ").join(tgt_fname)
+                            tgt_fname = os.path.join(tempdir.name, 'tgt.txt')
+                            os.system('cat %s > %s' % (fnames, tgt_fname))
+
+                        if isinstance(src_language, ListConfig):
+                            for lng in src_language:
+                                spt_symbols.append("<" + lng + ">")
+
+                        if isinstance(tgt_language, ListConfig):
+                            for lng in tgt_language:
+                                spt_symbols.append("<" + lng + ">")
+
                     # train tokenizer model on training data
                     self.encoder_tokenizer_model, self.decoder_tokenizer_model = MTDataPreproc.train_tokenizers(
                         out_dir=cfg.get('preproc_out_dir'),
-                        src_fname=cfg.train_ds.get('src_file_name'),
-                        tgt_fname=cfg.train_ds.get('tgt_file_name'),
+                        src_fname=src_fname,
+                        tgt_fname=tgt_fname,
                         shared_tokenizer=cfg.get('shared_tokenizer'),
                         encoder_tokenizer_vocab_size=cfg.encoder_tokenizer.get('vocab_size'),
                         decoder_tokenizer_vocab_size=cfg.decoder_tokenizer.get('vocab_size'),
@@ -119,10 +147,14 @@ class MTDataPreproc:
                         decoder_special_tokens=OmegaConf.to_container(cfg.decoder_tokenizer.special_tokens)
                         if cfg.decoder_tokenizer.special_tokens
                         else None,
+                        spt_symbols=spt_symbols,
+                        multilingual=cfg.get('multilingual', False),
                     )
                     # update config
                     self._cfg.encoder_tokenizer.tokenizer_model = self.encoder_tokenizer_model
                     self._cfg.decoder_tokenizer.tokenizer_model = self.decoder_tokenizer_model
+
+                    tempdir.cleanup()
                 else:
                     self.encoder_tokenizer_model = cfg.encoder_tokenizer.get('tokenizer_model')
                     self.decoder_tokenizer_model = cfg.decoder_tokenizer.get('tokenizer_model')
@@ -152,45 +184,84 @@ class MTDataPreproc:
                         logging.info(
                             f"Using tarred dataset for src: {cfg.train_ds.get('src_file_name')} and tgt: {cfg.train_ds.get('tgt_file_name')}"
                         )
+
+                    if not cfg.get('multilingual'):
+                        src_file_list = [cfg.train_ds.get('src_file_name')]
+                        tgt_file_list = [cfg.train_ds.get('tgt_file_name')]
+                        outdir_list = [cfg.get('preproc_out_dir')]
+                    else:
+                        src_file_list = cfg.train_ds.get('src_file_name')
+                        tgt_file_list = cfg.train_ds.get('tgt_file_name')
+                        if isinstance(cfg.get('src_language'), ListConfig):
+                            langs = cfg.get('src_language')
+                        elif isinstance(cfg.get('tgt_language'), ListConfig):
+                            langs = cfg.get('tgt_language')
+                        else:
+                            raise ValueError(
+                                "Expect either cfg.src_language or cfg.tgt_language to be a list when multilingual=True."
+                            )
+                        outdir_list = []
+                        for lang in langs:
+                            outdir_list.append(os.path.join(cfg.get('preproc_out_dir'), lang))
+
+                    if len(src_file_list) != len(tgt_file_list) or len(src_file_list) != len(outdir_list):
+                        raise ValueError(
+                            "Number of source files, target files, and multilingual language pairs must be the same."
+                        )
+
                     # TODO: have to get tokenizers instide .preprocess_parallel because they can't be pickled
-                    self.train_tar_files, self.train_metadata_file = MTDataPreproc.preprocess_parallel_dataset(
-                        clean=cfg.train_ds.clean,
-                        src_fname=cfg.train_ds.get('src_file_name'),
-                        tgt_fname=cfg.train_ds.get('tgt_file_name'),
-                        out_dir=cfg.get('preproc_out_dir'),
-                        encoder_tokenizer_name=cfg.encoder_tokenizer.get('library'),
-                        encoder_model_name=cfg.encoder.get('model_name'),
-                        encoder_tokenizer_model=self.encoder_tokenizer_model,
-                        encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0),
-                        decoder_tokenizer_name=cfg.decoder_tokenizer.get('library'),
-                        decoder_model_name=cfg.decoder.get('model_name'),
-                        decoder_tokenizer_model=self.decoder_tokenizer_model,
-                        decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
-                        max_seq_length=cfg.train_ds.get('max_seq_length', 512),
-                        tokens_in_batch=cfg.train_ds.get('tokens_in_batch', 8192),
-                        lines_per_dataset_fragment=cfg.train_ds.get('lines_per_dataset_fragment', 1000000),
-                        num_batches_per_tarfile=cfg.train_ds.get('num_batches_per_tarfile', 1000),
-                        min_seq_length=1,
-                        global_rank=self.global_rank,
-                        world_size=self.world_size,
-                        n_jobs=cfg.train_ds.get('n_preproc_jobs', -2),
-                        tar_file_prefix=cfg.train_ds.get('tar_file_prefix', 'parallel'),
-                    )
+                    metadata_file_list = []
+                    for idx, src_file in enumerate(src_file_list):
+                        self.train_tar_files, self.train_metadata_file = MTDataPreproc.preprocess_parallel_dataset(
+                            clean=cfg.train_ds.clean,
+                            src_fname=src_file,
+                            tgt_fname=tgt_file_list[idx],
+                            out_dir=outdir_list[idx],
+                            encoder_tokenizer_name=cfg.encoder_tokenizer.get('library'),
+                            encoder_model_name=cfg.encoder.get('model_name'),
+                            encoder_tokenizer_model=self.encoder_tokenizer_model,
+                            encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0),
+                            decoder_tokenizer_name=cfg.decoder_tokenizer.get('library'),
+                            decoder_model_name=cfg.decoder.get('model_name'),
+                            decoder_tokenizer_model=self.decoder_tokenizer_model,
+                            decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
+                            max_seq_length=cfg.train_ds.get('max_seq_length', 512),
+                            tokens_in_batch=cfg.train_ds.get('tokens_in_batch', 8192),
+                            lines_per_dataset_fragment=cfg.train_ds.get('lines_per_dataset_fragment', 1000000),
+                            num_batches_per_tarfile=cfg.train_ds.get('num_batches_per_tarfile', 1000),
+                            min_seq_length=1,
+                            global_rank=self.global_rank,
+                            world_size=self.world_size,
+                            n_jobs=cfg.train_ds.get('n_preproc_jobs', -2),
+                            tar_file_prefix=cfg.train_ds.get('tar_file_prefix', 'parallel'),
+                        )
+                        metadata_file_list.append(self.train_metadata_file)
                     # update config
                     # self._cfg.train_ds.tar_files = self.tar_files_to_string(self.train_tar_files)
                     # self._cfg.train_ds.tar_files = self.train_tar_files
-                    self._cfg.train_ds.metadata_file = self.train_metadata_file
+                    if not cfg.get('multilingual'):
+                        self._cfg.train_ds.metadata_file = metadata_file_list[0]
+                    else:
+                        self._cfg.train_ds.metadata_file = metadata_file_list
+
                     logging.info(
-                        f"Using tarred dataset created at {self.train_tar_files} and metadata created at {self._cfg.train_ds.metadata_file}"
+                        f"Using tarred dataset created in folder(s) {outdir_list} and metadata created at {self._cfg.train_ds.metadata_file}"
                     )
                 elif cfg.train_ds.get('tar_files') is not None and cfg.train_ds.get('metadata_file') is None:
                     raise ValueError('A metadata file is required for tarred dataset but cfg.metadata_file is None.')
                 elif cfg.train_ds.get('tar_files') is None and cfg.train_ds.get('metadata_file') is not None:
-                    metadata = json.load(cfg.train_ds.get('metadata_file'))
-                    if metadata['train_tar_files']:
-                        logging.info(f"Using tarred dataset: {metadata['train_tar_files']}")
+                    if isinstance(cfg.train_ds.get('metadata_file'), str):
+                        metadata_file_list = [cfg.train_ds.get('metadata_file')]
                     else:
-                        raise ValueError(f'tar_files not provided and metadata does not have tar files')
+                        metadata_file_list = cfg.train_ds.get('metadata_file')
+
+                    for metadata_file in metadata_file_list:
+                        with open(metadata_file) as metadata_reader:
+                            metadata = json.load(metadata_reader)
+                        if metadata['tar_files']:
+                            logging.info(f"Using tarred dataset: {metadata['tar_files']}")
+                        else:
+                            raise ValueError(f'tar_files not provided and metadata does not have tar files')
                 else:
                     self.train_tar_files = cfg.train_ds.get('tar_files')
                     self.train_metadata_file = cfg.train_ds.get('metadata_file')
@@ -641,6 +712,8 @@ class MTDataPreproc:
         decoder_training_sample_size=-1,
         encoder_special_tokens=None,
         decoder_special_tokens=None,
+        spt_symbols=None,
+        multilingual=False,
     ):
         encoder_tokenizer_model = None
         decoder_tokenizer_model = None
@@ -656,6 +729,11 @@ class MTDataPreproc:
         if decoder_special_tokens:
             if isinstance(decoder_special_tokens, dict):
                 decoder_special_tokens = list(decoder_special_tokens.values())
+
+        if multilingual and encoder_tokenizer_name != 'sentencepiece':
+            raise NotImplementedError(
+                f"Currently we only support training setencepiece tokenizer for multilingual model."
+            )
 
         if shared_tokenizer:
             if (
@@ -702,6 +780,7 @@ class MTDataPreproc:
                                 bos=True,
                                 eos=True,
                                 pad=True,
+                                control_symbols=spt_symbols,
                                 user_defined_symbols=encoder_special_tokens,
                             )
                             os.rename(
@@ -743,6 +822,7 @@ class MTDataPreproc:
                                 bos=True,
                                 eos=True,
                                 pad=True,
+                                control_symbols=spt_symbols,
                                 user_defined_symbols=encoder_special_tokens,
                             )
                             os.rename(os.path.join(dir_name, 'tokenizer.model'), os.path.join(encoder_tokenizer_model))
@@ -781,6 +861,7 @@ class MTDataPreproc:
                                 bos=True,
                                 eos=True,
                                 pad=True,
+                                control_symbols=spt_symbols,
                                 user_defined_symbols=decoder_special_tokens,
                             )
                             os.rename(os.path.join(dir_name, 'tokenizer.model'), os.path.join(decoder_tokenizer_model))
@@ -850,10 +931,11 @@ class MTDataPreproc:
             total_batch_ctr += 1
             batch_ctr += 1
             pickle.dump(
-                batch, open(os.path.join(out_dir, 'fragment-%s-batch-%d.pkl' % (fragment_index, batch_ctr)), 'wb'),
+                batch,
+                open(os.path.join(out_dir, 'fragment-%s-batch-%d.pkl' % (fragment_index, total_batch_ctr)), 'wb'),
             )
-            tar_file_ptr.add(os.path.join(out_dir, 'fragment-%s-batch-%d.pkl' % (fragment_index, batch_ctr)))
-            os.remove(os.path.join(out_dir, 'fragment-%s-batch-%d.pkl' % (fragment_index, batch_ctr)))
+            tar_file_ptr.add(os.path.join(out_dir, 'fragment-%s-batch-%d.pkl' % (fragment_index, total_batch_ctr)))
+            os.remove(os.path.join(out_dir, 'fragment-%s-batch-%d.pkl' % (fragment_index, total_batch_ctr)))
 
             if batch_ctr == num_batches_per_tarfile:
                 tar_file_ctr += 1

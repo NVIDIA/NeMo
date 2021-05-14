@@ -54,10 +54,11 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
     label_smoothing: Optional[float] = 0.0
     beam_size: int = 4
     len_pen: float = 0.0
-    src_language: str = 'en'
-    tgt_language: str = 'en'
+    src_language: Any = 'en'  # Any = str or List[str]
+    tgt_language: Any = 'en'  # Any = str or List[str]
     find_unused_parameters: Optional[bool] = True
     shared_tokenizer: Optional[bool] = True
+    multilingual: Optional[bool] = False
     preproc_out_dir: Optional[str] = None
 
     # network architecture configuration

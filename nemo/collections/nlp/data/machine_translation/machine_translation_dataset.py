@@ -19,10 +19,11 @@ import json
 import pickle
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 import braceexpand
 import numpy as np
+import torch.utils.data as pt_data
 import webdataset as wd
 from torch.utils.data import IterableDataset
 
@@ -30,7 +31,7 @@ from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_i
 from nemo.core import Dataset
 from nemo.utils import logging
 
-__all__ = ['TranslationDataset', 'TarredTranslationDataset']
+__all__ = ['TranslationDataset', 'TarredTranslationDataset', 'ConcatTranslationDataset']
 
 
 @dataclass
@@ -38,8 +39,8 @@ class TranslationDataConfig:
     src_file_name: Optional[Any] = None  # Any = str or List[str]
     tgt_file_name: Optional[Any] = None  # Any = str or List[str]
     use_tarred_dataset: bool = False
-    tar_files: Optional[str] = None
-    metadata_file: Optional[str] = None
+    tar_files: Optional[Any] = None  # Any = str or List[str]
+    metadata_file: Optional[Any] = None  # Any = str or List[str]
     lines_per_dataset_fragment: Optional[int] = 1000000
     num_batches_per_tarfile: Optional[int] = 1000
     shard_strategy: Optional[str] = 'scatter'
@@ -55,13 +56,15 @@ class TranslationDataConfig:
     drop_last: bool = False
     pin_memory: bool = False
     num_workers: int = 8
-    load_from_cached_dataset: bool = False
     reverse_lang_direction: bool = False
     load_from_tarred_dataset: bool = False
     metadata_path: Optional[str] = None
     tar_shuffle_n: int = 100
     n_preproc_jobs: int = -2
     tar_file_prefix: str = 'parallel'
+    concat_sampling_technique: Optional[str] = 'temperature'
+    concat_sampling_temperature: Optional[int] = 5
+    concat_sampling_probabilities: Optional[List[float]] = None
 
 
 class TranslationDataset(Dataset):
@@ -79,6 +82,7 @@ class TranslationDataset(Dataset):
         cache_data_per_node: bool = False,
         use_cache: bool = False,
         reverse_lang_direction: bool = False,
+        prepend_id: int = None,
     ):
         self.dataset_src = dataset_src
         self.dataset_tgt = dataset_tgt
@@ -92,6 +96,7 @@ class TranslationDataset(Dataset):
         self.max_seq_length_diff = max_seq_length_diff
         self.max_seq_length_ratio = max_seq_length_ratio
         self.reverse_lang_direction = reverse_lang_direction
+        self.prepend_id = prepend_id
 
         # deprecation warnings for cache_ids, use_cache, and cache_data_per_node
         if self.cache_ids is True or self.use_cache is True or self.cache_data_per_node is True:
@@ -139,6 +144,8 @@ class TranslationDataset(Dataset):
             src_ids, tgt = tgt, src_ids
         labels = tgt[:, 1:]
         tgt_ids = tgt[:, :-1]
+        if self.prepend_id:
+            src_ids = np.insert(src_ids, 0, self.prepend_id, axis=-1)
         src_mask = (src_ids != self.src_pad_id).astype(np.int32)
         tgt_mask = (tgt_ids != self.tgt_pad_id).astype(np.int32)
         return src_ids, src_mask, tgt_ids, tgt_mask, labels
@@ -325,8 +332,9 @@ class TarredTranslationDataset(IterableDataset):
                 data points! As such, there is no assured guarantee that all samples in the dataset will be
                 sampled at least once during 1 epoch.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
-        world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
+        world_size (int): Total number of processes, used for partitioning shards. Defaults to 1.
         reverse_lang_direction (bool): When True, swaps the source and target directions when returning minibatches.
+        prepend_id (int): Prepends the specificed token id to the start of every source sentence. Defaults to None.
     """
 
     def __init__(
@@ -338,8 +346,9 @@ class TarredTranslationDataset(IterableDataset):
         shuffle_n: int = 1,
         shard_strategy: str = "scatter",
         global_rank: int = 0,
-        world_size: int = 0,
+        world_size: int = 1,
         reverse_lang_direction: bool = False,
+        prepend_id: int = None,
     ):
         super(TarredTranslationDataset, self).__init__()
 
@@ -348,6 +357,7 @@ class TarredTranslationDataset(IterableDataset):
         self.reverse_lang_direction = reverse_lang_direction
         self.src_pad_id = encoder_tokenizer.pad_id
         self.tgt_pad_id = decoder_tokenizer.pad_id
+        self.prepend_id = prepend_id
 
         valid_shard_strategies = ['scatter', 'replicate']
         if shard_strategy not in valid_shard_strategies:
@@ -390,9 +400,11 @@ class TarredTranslationDataset(IterableDataset):
             logging.info(
                 "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx
             )
+            self.length = self.metadata['num_batches'] // world_size
 
         elif shard_strategy == 'replicate':
             logging.info("All tarred dataset shards will be replicated across all nodes.")
+            self.length = self.metadata['num_batches']
 
         else:
             raise ValueError(f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}")
@@ -421,6 +433,8 @@ class TarredTranslationDataset(IterableDataset):
             src_ids, tgt = tgt, src_ids
         labels = tgt[:, 1:]
         tgt_ids = tgt[:, :-1]
+        if self.prepend_id:
+            src_ids = np.insert(src_ids, 0, self.prepend_id, axis=-1)
         src_mask = (src_ids != self.src_pad_id).astype(np.int32)
         tgt_mask = (tgt_ids != self.tgt_pad_id).astype(np.int32)
         return src_ids, src_mask, tgt_ids, tgt_mask, labels
@@ -429,4 +443,163 @@ class TarredTranslationDataset(IterableDataset):
         return self._dataset.__iter__()
 
     def __len__(self):
-        return self.metadata['num_batches']
+        return self.length
+
+
+class ConcatTranslationDataset(IterableDataset):
+    """
+    A dataset that accepts as argument multiple datasets and then samples from them based on the specified 
+    sampling technique.
+    Args:
+        datasets (list): A list of datasets to sample from.
+        shuffle (bool): Whether to shuffle individual datasets. Only works with non-iterable datasets. 
+            Defaults to True.
+        sampling_technique (str): Sampling technique to choose which dataset to draw a sample from.
+            Defaults to 'temperature'. Currently supports 'temperature', 'random' and 'round-robin'.
+        sampling_temperature (int): Temperature value for sampling. Only used when sampling_technique = 'temperature'.
+            Defaults to 5.
+        sampling_probabilities (list): Probability values for sampling. Only used when sampling_technique = 'random'.
+        global_rank (int): Worker rank, used for partitioning map style datasets. Defaults to 0.
+        world_size (int): Total number of processes, used for partitioning map style datasets. Defaults to 1.
+    """
+
+    def __init__(
+        self,
+        datasets: List[Any],
+        shuffle: bool = True,
+        sampling_technique: str = 'temperature',
+        sampling_temperature: int = 5,
+        sampling_probabilities: List[float] = None,
+        global_rank: int = 0,
+        world_size: int = 1,
+    ):
+        super().__init__()
+
+        supported_sampling_techniques = ['temperature', 'random', 'round-robin']
+        self.datasets = datasets
+        self.iterables = [None] * len(datasets)
+        self.shuffle = shuffle
+        self.global_rank = global_rank
+        self.world_size = world_size
+        self.sampling_kwargs = {}
+        if sampling_technique == 'temperature':
+            self.index_generator = ConcatTranslationDataset.temperature_generator
+            self.sampling_kwargs['temperature'] = sampling_temperature
+        elif sampling_technique == 'random':
+            self.index_generator = ConcatTranslationDataset.random_generator
+            self.sampling_kwargs['p'] = sampling_probabilities
+        elif sampling_technique == 'round-robin':
+            self.index_generator = ConcatTranslationDataset.round_robin_generator
+        else:
+            raise ValueError(f"Currently we only support sampling techniques in {supported_sampling_techniques}.")
+        self.N = 0
+
+        if isinstance(datasets[0], IterableDataset):
+            self.kind = 'iterable'
+        else:
+            self.kind = 'map'
+
+        for idx, dataset in enumerate(datasets):
+            isiterable = isinstance(dataset, IterableDataset)
+            if (isiterable and not self.kind == 'iterable') or (not isiterable and self.kind == 'iterable'):
+                raise ValueError(
+                    "All datasets in ConcatTranslationDataset must be of the same kind (Iterable or Map)."
+                )
+
+            if self.kind == 'map':
+                self.N += len(dataset) // world_size
+            else:
+                self.N += len(dataset)
+
+    def get_iterable(self, dataset):
+        if isinstance(dataset, IterableDataset):
+            return dataset.__iter__()
+        else:
+            indices = np.arange(len(dataset))
+            if self.shuffle:
+                np.random.shuffle(indices)
+            return iter(indices)
+
+    def __iter__(self):
+        worker_info = pt_data.get_worker_info()
+        if worker_info is None:
+            max_elements = self.N
+            wid = 0
+            wnum = 1
+        else:
+            wid = worker_info.id
+            wnum = worker_info.num_workers
+            max_elements = len(range(wid, self.N, wnum))
+
+        if self.kind == 'map':
+            for idx in range(len(self.datasets)):
+                start_idx = (len(self.datasets[idx]) // self.world_size) * self.global_rank
+                end_idx = start_idx + (len(self.datasets[idx]) // self.world_size)
+                if self.global_rank == self.world_size - 1:
+                    end_idx = len(self.datasets[idx])
+                indices = range(start_idx + wid, end_idx, wnum)
+                self.datasets[idx] = pt_data.Subset(self.datasets[idx], indices)
+
+        for idx, dataset in enumerate(self.datasets):
+            iterable = self.get_iterable(dataset)
+            self.iterables[idx] = iterable
+
+        n = 0
+        ind_gen = self.index_generator(self.datasets, **self.sampling_kwargs)
+        while n < max_elements:
+            n += 1
+            try:
+                ind = next(ind_gen)
+            except StopIteration:
+                return
+            try:
+                val = next(self.iterables[ind])
+                if self.kind == 'map':
+                    val = self.datasets[ind][val]
+                yield val
+            except StopIteration:
+                self.iterables[ind] = self.get_iterable(self.datasets[ind])
+                n -= 1
+
+    def __len__(self):
+        return self.N
+
+    @staticmethod
+    def temperature_generator(datasets, **kwargs):
+        temp = kwargs.get('temperature')
+        if not temp:
+            raise ValueError("Temperature generator expects a 'temperature' keyowrd argument.")
+
+        lengths = []
+        num = len(datasets)
+        for dataset in datasets:
+            lengths.append(len(dataset))
+
+        p = np.array(lengths) / np.sum(lengths)
+        p = np.power(p, 1 / temp)
+        p = p / np.sum(p)
+
+        while True:
+            ind = np.random.choice(np.arange(num), p=p)
+            yield ind
+
+    @staticmethod
+    def round_robin_generator(datasets, **kwargs):
+        num = len(datasets)
+        while True:
+            for i in range(num):
+                yield i
+
+    @staticmethod
+    def random_generator(datasets, **kwargs):
+        p = kwargs.get('p')
+        if not p:
+            raise ValueError("Random generator expects a 'p' keyowrd argument for sampling probabilities.")
+
+        num = len(datasets)
+        if len(p) != num:
+            raise ValueError("Length of probabilities list must be equal to the number of datasets.")
+
+        while True:
+            ind = np.random.choice(np.arange(num), p=p)
+            yield ind
