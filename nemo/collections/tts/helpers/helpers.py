@@ -36,6 +36,27 @@ class OperationMode(Enum):
     infer = 2
 
 
+def binarize_attention(attn, in_len, out_len):
+    """Convert soft attention matrix to hard attention matrix.
+
+    Args:
+        attn (torch.Tensor): B x 1 x max_mel_len x max_text_len. Soft attention matrix.
+        in_len (torch.Tensor): B. Lengths of texts.
+        out_len (torch.Tensor): B. Lengths of spectrograms.
+
+    Output:
+        attn_out (torch.Tensor): B x 1 x max_mel_len x max_text_len. Hard attention matrix, final dim max_text_len should sum to 1.
+    """
+    b_size = attn.shape[0]
+    with torch.no_grad():
+        attn_cpu = attn.data.cpu().numpy()
+        attn_out = torch.zeros_like(attn)
+        for ind in range(b_size):
+            hard_attn = mas(attn_cpu[ind, 0, : out_len[ind], : in_len[ind]])
+            attn_out[ind, 0, : out_len[ind], : in_len[ind]] = torch.tensor(hard_attn, device=attn.device)
+    return attn_out
+
+
 def get_mask_from_lengths(lengths, max_len=None):
     if not max_len:
         max_len = torch.max(lengths).item()
