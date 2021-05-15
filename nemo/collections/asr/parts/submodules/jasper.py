@@ -23,6 +23,7 @@ from torch.nn.init import _calculate_correct_fan
 from torch.nn.modules.utils import _single
 
 from nemo.collections.asr.parts.utils.activations import Swish
+from nemo.core.classes.distillation import DistillationMixin
 from nemo.utils import logging
 
 try:
@@ -464,7 +465,7 @@ class SqueezeExcite(nn.Module):
                     self.pool.kernel_size = _single(self.context_window)
 
 
-class JasperBlock(nn.Module):
+class JasperBlock(nn.Module, DistillationMixin):
     """
     Constructs a single "Jasper" block. With modified parameters, also constructs other blocks for models
     such as `QuartzNet` and `Citrinet`.
@@ -608,7 +609,7 @@ class JasperBlock(nn.Module):
         future_context: int = -1,
         quantize=False,
     ):
-        super(JasperBlock, self).__init__()
+        super().__init__()
 
         if padding != "same":
             raise ValueError("currently only 'same' padding is supported")
@@ -932,6 +933,10 @@ class JasperBlock(nn.Module):
 
         # compute the output
         out = self.mout(out)
+
+        if self.is_being_distilled():
+            self.register_distillation_tensor(tensor=out, loss_name='cosine')
+
         if self.res is not None and self.dense_residual:
             return xs + [out], lens
 

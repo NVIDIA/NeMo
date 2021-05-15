@@ -352,4 +352,5 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         if student_decoder_vocab != teacher_decoder_vocab:
             raise ValueError("Vocabulary between student and teacher models is incorrect !")
 
+        self._validate_distillation_encoder_map(other_model=other_model)
         self._validate_distillation_decoder_match(other_model=other_model)

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from nemo.collections.common.losses.aggregator import AggregatorLoss
-from nemo.collections.common.losses.cosine_similarity import CosineSimilarityLoss
+from nemo.collections.common.losses.cosine_embedding import CosineEmbeddingLossWrapper
 from nemo.collections.common.losses.cross_entropy import CrossEntropyLoss, NLLLoss
 from nemo.collections.common.losses.mse_loss import MSELoss
 from nemo.collections.common.losses.multi_similarity_loss import MultiSimilarityLoss
