@@ -147,7 +147,7 @@ class DistillationModelPT(ModelPT):
                           reduction: 'batchmean'
                       
                       similarity:
-                          _target_: 'nemo.collections.common.losses.cosine_similarity.CosineSimilarityLoss'
+                          _target_: 'nemo.collections.common.losses.cosine_similarity.CosineEmbeddingLossWrapper'
                 """
             )
 
@@ -333,7 +333,7 @@ class DistillationModelPT(ModelPT):
             )
 
         # Call prehook_primary_distillation_loss() of student
-        self.student.prehook_primary_distillation_loss(loss_dict=primary_loss_dict)
+        self.student.prehook_primary_distillation_loss(loss_dict=primary_loss_dict, teacher_model=self.teacher)
 
         # Compute primary distillation loss
         loss_value = self.transfer_loss_primary(**primary_loss_dict)
@@ -349,7 +349,7 @@ class DistillationModelPT(ModelPT):
                 raise KeyError(f"Student distillation registry did not contain loss named {loss_name}")
 
             # Assign new key name for this additional loss
-            additional_loss_key = f"distillation_additional_loss_{loss_name}_id_{len(additional_losses)}"
+            additional_loss_key = f"distillation_additional_loss_{loss_name}_id_{len(additional_losses) + 1}"
 
             # Additional loss can hold 1 or more loss results
             additional_losses[additional_loss_key] = []
@@ -366,6 +366,14 @@ class DistillationModelPT(ModelPT):
                 teacher_tensor_list = teacher_loss_obj
                 student_tensor_list = student_loss_obj
 
+                # Call prehook_similarity_matching_loss() of student
+                self.student.prehook_additional_distillation_losses(
+                    loss_name=loss_name,
+                    student_registry=student_tensor_list,
+                    teacher_registry=teacher_tensor_list,
+                    teacher_model=self.teacher,
+                )
+
                 if len(teacher_tensor_list) != len(student_tensor_list):
                     raise ValueError(
                         f"Tensors were registered for similarity loss ({loss_name}), but "
@@ -374,19 +382,15 @@ class DistillationModelPT(ModelPT):
                         f"{len(student_tensor_list)})!"
                     )
 
-                # Call prehook_similarity_matching_loss() of student
-                self.student.prehook_additional_distillation_losses(
-                    loss_name=loss_name, student_registry=student_tensor_list, teacher_registry=teacher_tensor_list,
-                )
+                if len(student_tensor_list) > 0:
+                    # Disable typechecking and compute losses via direct function call
+                    binary_positional_loss_fn = self.loss_dict[loss_name]
 
-                # Disable typechecking and compute losses via direct function call
-                binary_positional_loss_fn = self.loss_dict[loss_name]
-
-                # Disable type checking for positional loss function call
-                with typecheck.disable_checks():
-                    for student_tensor, teacher_tensor in zip(student_tensor_list, teacher_tensor_list):
-                        additional_loss = binary_positional_loss_fn(student_tensor, teacher_tensor)
-                        additional_losses[additional_loss_key].append(additional_loss)
+                    # Disable type checking for positional loss function call
+                    with typecheck.disable_checks():
+                        for student_tensor, teacher_tensor in zip(student_tensor_list, teacher_tensor_list):
+                            additional_loss = binary_positional_loss_fn(student_tensor, teacher_tensor)
+                            additional_losses[additional_loss_key].append(additional_loss)
 
             else:
                 # This is a kwarg loss
@@ -397,16 +401,24 @@ class DistillationModelPT(ModelPT):
 
                 # Call prehook_similarity_matching_loss() of student
                 self.student.prehook_additional_distillation_losses(
-                    loss_name=loss_name, student_registry=student_tensor_dict, teacher_registry=teacher_tensor_dict,
+                    loss_name=loss_name,
+                    student_registry=student_tensor_dict,
+                    teacher_registry=teacher_tensor_dict,
+                    teacher_model=self.teacher,
                 )
 
                 additional_loss_dict = teacher_tensor_dict
                 additional_loss_dict.update(student_tensor_dict)
 
-                # Compute additional distillation loss
-                additional_loss = self.transfer_loss_primary(**additional_loss_dict)
+                if len(additional_loss_dict) > 0:
+                    # Compute additional distillation loss
+                    additional_loss = self.transfer_loss_primary(**additional_loss_dict)
 
-                additional_losses[additional_loss_key].append(additional_loss)
+                    additional_losses[additional_loss_key].append(additional_loss)
+
+            # If additional loss could not be added, remove the key
+            if len(additional_losses[additional_loss_key]) == 0:
+                additional_losses.pop(additional_loss_key)
 
         return loss_value, additional_losses
 
