@@ -13,17 +13,18 @@
 # limitations under the License.
 
 from abc import ABC
+from collections import defaultdict
 from contextlib import contextmanager
 from enum import Enum
-from typing import Optional, Union
+from typing import Dict, List, Optional, Type, Union
 
 import torch
 from omegaconf import DictConfig
 
-from nemo.collections.common.losses import CosineSimilarityLoss
+from nemo.collections.common.losses import CosineEmbeddingLossWrapper
 
 _DISTILLATION_TYPE = None
-_DISTILLATION_LOSS_DICT = None
+_DISTILLATION_LOSS_DICT = {}
 _DISTILLATION_CFG = DictConfig({})
 
 
@@ -69,11 +70,11 @@ class DistillationMixin(ABC):
             A dictionary of Loss object(s) that will be used as the distillation loss function.
             The dictionary must have at least 1 key - "primary" which is the primary loss function used
             for distillation.
-            By default, this function returns KLDivergence loss (primary) and CosineSimilarityLoss (cosine).
+            By default, this function returns KLDivergence loss (primary) and CosineEmbeddingLossWrapper (cosine).
             If None is returned, the distillation config must have an appropriate loss function defined.
         """
         primary = torch.nn.KLDivLoss(log_target=True, reduction='batchmean')
-        cosine = CosineSimilarityLoss()
+        cosine = CosineEmbeddingLossWrapper()
         loss_dict = {'primary': primary, 'cosine': cosine}
         return loss_dict
 
@@ -88,9 +89,13 @@ class DistillationMixin(ABC):
 
         if loss_name not in self.distill_loss_dict:
             raise KeyError(
-                f"Available distillation loss keys are : {list(self.distill_loss_dict)}, "
+                f"Available distillation loss keys are : {list(self.distill_loss_dict.keys())}, "
                 f"which did not match the provided key : {loss_name}"
             )
+
+        # If module is wrapped, its registry may not be available, recreate it
+        if not hasattr(self, '_distillation_registry'):
+            self._distillation_registry = {}
 
         if loss_name not in self._distillation_registry:
             # If this is a similarity match loss, create a list of tensors to register (unnamed args)
@@ -110,10 +115,10 @@ class DistillationMixin(ABC):
 
         if loss_key is None:
             # This is a positional binary loss
-            self._distillation_registry[loss_name].append(tensor)
+            self._distillation_registry[loss_name].append(tensor.detach())
         else:
             # This is a kwarg based name
-            self._distillation_registry[loss_name][loss_key] = tensor
+            self._distillation_registry[loss_name][loss_key] = tensor.detach()
 
     def distillation_registration_step(self, log_prob: torch.Tensor):
         """
@@ -135,6 +140,9 @@ class DistillationMixin(ABC):
 
     def reset_distillation_registry(self):
         self._distillation_registry.clear()
+        for _, m in self.named_modules():
+            if hasattr(m, '_distillation_registry') and len(m._distillation_registry) > 0:
+                m.reset_distillation_registry()
 
     def is_being_distilled(self) -> bool:
         return self.distill_type is not None
@@ -169,11 +177,15 @@ class DistillationMixin(ABC):
         """
         pass
 
-    def prehook_primary_distillation_loss(self, loss_dict: dict):
+    def prehook_primary_distillation_loss(self, loss_dict: dict, teacher_model: 'ModelPT'):
         pass
 
     def prehook_additional_distillation_losses(
-        self, loss_name: str, student_registry: Union[list, dict], teacher_registry: Union[list, dict]
+        self,
+        loss_name: str,
+        student_registry: Union[list, dict],
+        teacher_registry: Union[list, dict],
+        teacher_model: 'ModelPT',
     ):
         pass
 
@@ -191,3 +203,33 @@ class DistillationMixin(ABC):
     def distill_loss_dict(self):
         global _DISTILLATION_LOSS_DICT
         return _DISTILLATION_LOSS_DICT
+
+    @classmethod
+    def get_distillation_module_registry(
+        cls, module: torch.nn.Module
+    ) -> Dict[str, Dict[str, Union[List[Dict[str, torch.Tensor]], List[List[torch.Tensor]]]]]:
+        module_registry = {}
+        for name, m in module.named_modules():
+            if hasattr(m, '_distillation_registry'):
+                module_registry[name] = m._distillation_registry
+        return module_registry
+
+    @classmethod
+    def flatten_distillation_module_registry(
+        cls, registry: dict, loss_name: str, loss_key: Optional[str] = None,
+    ) -> (Union[List[Dict[str, torch.Tensor]], List[List[torch.Tensor]]], Type):
+        flattented_registry = []
+        for module_name, module_registry in registry.items():  # type: (str, dict)
+            if loss_name in module_registry:
+                loss_item = module_registry[loss_name]  # can be either another dict or a list
+
+                # If user wants just one particular key from one particular loss
+                # extract that loss value into a list of lists
+                if type(loss_item) == dict and loss_key is not None:
+                    flattented_registry.append(loss_item[loss_key])
+                else:
+                    # If the loss_key is not provided, then simply return either a list of lists
+                    # or a list of dictionaries without further extraction.
+                    flattented_registry.append(loss_item)
+
+        return flattented_registry
