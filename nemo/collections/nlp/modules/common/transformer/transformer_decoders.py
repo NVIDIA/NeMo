@@ -127,10 +127,8 @@ class TransformerDecoder(nn.Module):
         pre_ln_final_layer_norm: bool = True,
     ):
         super().__init__()
-        self.pre_ln = pre_ln
-        self.pre_ln_final_layer_norm = pre_ln_final_layer_norm
 
-        if self.pre_ln and self.pre_ln_final_layer_norm:
+        if pre_ln and pre_ln_final_layer_norm:
             self.final_layer_norm = nn.LayerNorm(hidden_size, eps=1e-5)
         else:
             self.final_layer_norm = None
@@ -180,8 +178,8 @@ class TransformerDecoder(nn.Module):
             memory_states = self._get_memory_states(decoder_states, decoder_mems_list, i + 1)
             cached_mems_list.append(memory_states)
 
-        if self.pre_ln and self.pre_ln_final_layer_norm:
-            decoder_states = final_layer_norm(decoder_states)
+        if self.final_layer_norm is not None:
+            decoder_states = self.final_layer_norm(decoder_states)
             memory_states = self._get_memory_states(decoder_states, encoder_mems_list, i + 1)
             cached_mems_list.append(memory_states)
 
