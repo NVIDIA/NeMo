@@ -134,6 +134,13 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         )
         results.append(model)
 
+        model = PretrainedModelInfo(
+            pretrained_model_name="asr_talknet_aligner",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:asr_talknet_aligner",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/asr_talknet_aligner/versions/1.0.0rc1/files/qn5x5_libri_tts_phonemes.nemo",
+        )
+        results.append(model)
+
         return results
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
