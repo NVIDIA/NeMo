@@ -54,7 +54,10 @@ wcfg = DictConfig({"waveglow": mcfg, "sigma": 1.0, "preprocessor": pcfg,})
 def input_example(sz):
     mel = torch.randn(1, 1, 80, sz).cuda().half()
     z = torch.randn(1, 8, sz * 256 // 8, 1).cuda().half()
-    return {"spec": mel, "z": z}
+    return (
+        mel,
+        z,
+    )
 
 
 def taco2wg(spec, z):
@@ -74,7 +77,6 @@ class TestWaveGlow:
     @pytest.mark.unit
     def test_export_to_onnx(self):
         model = WaveGlowModel(wcfg)
-        # model = WaveGlowModel.restore_from("../WaveGlow-22050Hz-268M.nemo")
         model = model.cuda().half()
         typecheck.set_typecheck_enabled(enabled=False)
         with tempfile.TemporaryDirectory() as tmpdir, model.nemo_infer():
@@ -84,7 +86,7 @@ class TestWaveGlow:
             n_mels = 80
             # Test export.
             inp = input_example(n_mels)
-            inp1 = taco2wg(**inp)
+            inp1 = taco2wg(*inp)
             inp2 = inp1
             res1 = model.waveglow(*inp1)
             res2 = model.waveglow(*inp2)
@@ -111,7 +113,7 @@ class TestWaveGlow:
                 omodel = onnx.load(tmp_file_name)
                 output_names = ['audio']
                 sess = onnxruntime.InferenceSession(omodel.SerializeToString())
-                output = sess.run(None, {"spec": inp["spec"].cpu().numpy(), "z": inp["z"].cpu().numpy()})[0]
+                output = sess.run(None, {"spec": inp[0].cpu().numpy(), "z": inp[1].cpu().numpy()})[0]
                 assert torch.allclose(torch.from_numpy(output), res2.cpu(), rtol=1, atol=100)
 
 
