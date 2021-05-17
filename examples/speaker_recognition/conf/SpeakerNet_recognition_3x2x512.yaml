@@ -113,7 +113,7 @@ model:
   optim:
     name: novograd
     # _target_: nemo.core.optim.optimizers.Novograd
-    lr: .006
+    lr: .008
     # optimizer arguments
     args:
       name: auto
