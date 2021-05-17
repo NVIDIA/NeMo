@@ -355,9 +355,6 @@ class FastSpeech2HifiGanE2EModel(TextToWaveform):
     def setup_training_data(self, cfg):
         self._train_dl = self.__setup_dataloader_from_config(cfg)
 
-    def list_available_models(self):
-        pass
-
     def setup_validation_data(self, cfg):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
 
