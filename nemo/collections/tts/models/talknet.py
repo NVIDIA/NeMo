@@ -14,6 +14,8 @@
 
 from collections import OrderedDict
 
+from typing import List
+
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig
@@ -26,8 +28,7 @@ from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.talknet import GaussianEmbedding, MaskedInstanceNorm1d, StyleResidual
 from nemo.core import Exportable
-from nemo.core.classes import ModelPT
-from nemo.core.classes.common import typecheck
+from nemo.core.classes import ModelPT, PretrainedModelInfo, typecheck
 from nemo.core.neural_types import MelSpectrogramType, NeuralType
 
 
@@ -105,9 +106,28 @@ class TalkNetDursModel(ModelPT):
         pass
 
     @classmethod
-    def list_available_models(cls):
-        """Empty."""
-        pass
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        list_of_models = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_talknet",
+            location=(
+                "https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_talknet/versions/1.0.0rc1/files"
+                "/talknet_durs.nemo"
+            ),
+            description=(
+                "This model is trained on LJSpeech sampled at 22050Hz, and can be used to generate durations "
+                "values for English voice with an American accent."
+            ),
+            class_=cls,  # noqa
+            aliases=["TalkNet-22050Hz"],
+        )
+        list_of_models.append(model)
+        return list_of_models
 
 
 class TalkNetPitchModel(ModelPT):
@@ -192,9 +212,28 @@ class TalkNetPitchModel(ModelPT):
         pass
 
     @classmethod
-    def list_available_models(cls):
-        """Empty."""
-        pass
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        list_of_models = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_talknet",
+            location=(
+                "https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_talknet/versions/1.0.0rc1/files"
+                "/talknet_pitch.nemo"
+            ),
+            description=(
+                "This model is trained on LJSpeech sampled at 22050Hz, and can be used to generate pitch "
+                "values for English voice with an American accent."
+            ),
+            class_=cls,  # noqa
+            aliases=["TalkNet-22050Hz"],
+        )
+        list_of_models.append(model)
+        return list_of_models
 
 
 class TalkNetSpectModel(SpectrogramGenerator, Exportable):
@@ -270,11 +309,6 @@ class TalkNetSpectModel(SpectrogramGenerator, Exportable):
         """Omitted."""
         pass
 
-    @classmethod
-    def list_available_models(cls):
-        """Empty."""
-        pass
-
     def parse(self, text: str, **kwargs) -> torch.Tensor:
         return torch.tensor(self.vocab.encode(text)).long().unsqueeze(0).to(self.device)
 
@@ -329,3 +363,27 @@ class TalkNetSpectModel(SpectrogramGenerator, Exportable):
         mel = self.proj(y)
 
         return mel
+
+    @classmethod
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        list_of_models = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_talknet",
+            location=(
+                "https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_talknet/versions/1.0.0rc1/files"
+                "/talknet_spect.nemo"
+            ),
+            description=(
+                "This model is trained on LJSpeech sampled at 22050Hz, and can be used to generate female "
+                "English voices with an American accent."
+            ),
+            class_=cls,  # noqa
+            aliases=["TalkNet-22050Hz"],
+        )
+        list_of_models.append(model)
+        return list_of_models
