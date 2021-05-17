@@ -64,30 +64,20 @@ class Exportable(ABC):
     def output_module(self):
         return self
 
-    def get_input_names(self, input_example):
-        if isinstance(input_example, Dict):
-            input_names = list(input_example.keys())
-        else:
-            if not (hasattr(self, 'input_types')):
-                raise NotImplementedError(
-                    'For export to work you must define input_types or pass names in input_example'
-                )
-            input_names = list(self.input_types.keys())
+    def get_input_names(self):
+        if not (hasattr(self, 'input_types')):
+            raise NotImplementedError('For export to work you must define input_types')
+        input_names = list(self.input_types.keys())
         # remove unnecessary inputs for input_ports
         for name in self.disabled_deployment_input_names:
             input_names.remove(name)
         return input_names
 
-    def get_output_names(self, output_example):
-        if isinstance(output_example, Dict):
-            output_names = list(output_example.keys())
-        else:
-            if not (hasattr(self, 'output_types')):
-                raise NotImplementedError(
-                    'For export to work you must define output_types or pass names in output_example'
-                )
-            output_names = list(self.output_types.keys())
-            # remove unnecessary inputs for input_ports
+    def get_output_names(self):
+        if not (hasattr(self, 'output_types')):
+            raise NotImplementedError('For export to work you must define output_types')
+        output_names = list(self.output_types.keys())
+        # remove unnecessary inputs for input_ports
         for name in self.disabled_deployment_output_names:
             output_names.remove(name)
         return output_names
@@ -155,20 +145,22 @@ class Exportable(ABC):
             if input_example is None:
                 input_example = self.input_module.input_example()
 
-            if isinstance(input_example, Dict):
-                input_example = tuple(input_example.values())
-
             my_args['input_example'] = input_example
+
+            # Run (posibly overridden) prepare method before calling forward()
             self._prepare_for_export(**my_args)
 
-            if output_example is None:
-                if isinstance(input_example, tuple):
-                    output_example = self.forward(*input_example)
-                else:
-                    output_example = self.forward(input_example)
+            input_list = list(input_example)
+            input_dict = {}
+            # process possible kwargs
+            if isinstance(input_list[-1], dict):
+                input_dict = input_list[-1]
+                input_list = tuple(input_list[:-1])
 
-            input_names = self.input_module.get_input_names(input_example)
-            output_names = self.output_module.get_output_names(output_example)
+            input_names = self.input_module.get_input_names()
+            output_names = self.output_module.get_output_names()
+
+            output_example = self.forward(*input_list, **input_dict)
 
             with torch.jit.optimized_execution(True), torch.no_grad():
                 jitted_model = None
