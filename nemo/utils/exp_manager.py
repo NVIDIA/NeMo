@@ -480,9 +480,9 @@ def get_log_dir(
                 else:
                     tensorboard_logger = TensorBoardLogger(save_dir=Path(_exp_dir), name=name, version=version)
                     version = f"version_{tensorboard_logger.version}"
-                os.environ[NEMO_ENV_VARNAME_VERSION] = version
+                os.environ[NEMO_ENV_VARNAME_VERSION] = "" if version is None else version
 
-    log_dir = Path(_exp_dir) / Path(str(name)) / Path(str(version))
+    log_dir = Path(_exp_dir) / Path(str(name)) / Path("" if version is None else str(version))
     return log_dir, str(_exp_dir), name, version
 
 
