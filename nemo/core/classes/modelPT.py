@@ -359,7 +359,7 @@ class ModelPT(LightningModule, Model):
         restore_path: str,
         override_config_path: Optional[Union[OmegaConf, str]] = None,
         map_location: Optional[torch.device] = None,
-        strict: bool = False,
+        strict: bool = True,
         return_config: bool = False,
     ):
         """
@@ -370,7 +370,7 @@ class ModelPT(LightningModule, Model):
                 config file or an OmegaConf / DictConfig object representing the model config.
             map_location: Optional torch.device() to map the instantiated model to a device.
                 By default (None), it will select a GPU if available, falling back to CPU otherwise.
-            strict: Passed to load_state_dict.
+            strict: Passed to load_state_dict. By default True
             return_config: If set to true, will return just the underlying config of the restored
                 model as an OmegaConf DictConfig object without instantiating the model.
 
@@ -444,7 +444,7 @@ class ModelPT(LightningModule, Model):
         restore_path: str,
         override_config_path: Optional[Union[OmegaConf, str]] = None,
         map_location: Optional[torch.device] = None,
-        strict: bool = False,
+        strict: bool = True,
         return_config: bool = False,
     ):
         """
@@ -456,7 +456,7 @@ class ModelPT(LightningModule, Model):
                 config file or an OmegaConf / DictConfig object representing the model config.
             map_location: Optional torch.device() to map the instantiated model to a device.
                 By default (None), it will select a GPU if available, falling back to CPU otherwise.
-            strict: Passed to load_state_dict.
+            strict: Passed to load_state_dict. By default True.
             return_config: If set to true, will return just the underlying config of the restored
                 model as an OmegaConf DictConfig object without instantiating the model.
 
@@ -1177,6 +1177,7 @@ class ModelPT(LightningModule, Model):
         Args:
             trainer: PyTorch Lightning Trainer object.
         """
+        self.trainer = trainer
         self._trainer = trainer
         self.set_world_size(self._trainer)
 
