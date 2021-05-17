@@ -505,6 +505,7 @@ class FileIO(ABC):
         override_config_path: Optional[str] = None,
         map_location: Optional['torch.device'] = None,
         strict: bool = True,
+        return_config: bool = False,
     ):
         """Restores module/model with weights"""
         raise NotImplementedError()
@@ -632,7 +633,7 @@ class Model(Typing, Serialization, FileIO):
                 config file
             map_location: Optional torch.device() to map the instantiated model to a device.
                 By default (None), it will select a GPU if available, falling back to CPU otherwise.
-            strict: Passed to torch.load_state_dict
+            strict: Passed to torch.load_state_dict. By default true.
             return_config: If set to true, will return just the underlying config of the restored
                 model as an OmegaConf DictConfig object without instantiating the model.
 
