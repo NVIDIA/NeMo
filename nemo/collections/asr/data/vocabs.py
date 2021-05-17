@@ -63,10 +63,17 @@ def _word_tokenize(text):
 
 class G2p:
     def __init__(
-        self, phoneme_dict_path=None, text_preprocessing_func=_text_preprocessing, word_tokenize_func=_word_tokenize,
+        self,
+        phoneme_dict_path=None,
+        use_seq2seq_for_oov=False,
+        ignore_ambiguous_words=True,
+        text_preprocessing_func=_text_preprocessing,
+        word_tokenize_func=_word_tokenize,
     ):
         self.homograph2features = _g2p.homograph2features
         self.g2p_dict = self._construct_grapheme2phoneme_dict(phoneme_dict_path)
+        self.use_seq2seq_for_oov = use_seq2seq_for_oov
+        self.ignore_ambiguous_words = ignore_ambiguous_words
 
         self.text_preprocessing_func = text_preprocessing_func
         self.word_tokenize_func = word_tokenize_func
@@ -92,6 +99,11 @@ class G2p:
                         g2p_dict[word] = [pronunciation]
         return g2p_dict
 
+    def handle_ambiguous(self, word):
+        if not self.ignore_ambiguous_words or len(self.g2p_dict[word]) == 1:
+            return True
+        return False
+
     def __call__(self, text):
         text = self.text_preprocessing_func(text)
         words = self.word_tokenize_func(text)
@@ -113,24 +125,40 @@ class G2p:
                     pron = pron2
             # `'s` suffix
             elif (
-                len(word) > 2 and word.endswith("'s") and (word not in self.g2p_dict) and (word[:-2] in self.g2p_dict)
+                len(word) > 2
+                and word.endswith("'s")
+                and (word not in self.g2p_dict)
+                and (word[:-2] in self.g2p_dict)
+                and self.handle_ambiguous(word[:-2])
             ):
                 pron = self.g2p_dict[word[:-2]][0] + ["Z"]
-            elif len(word) > 1 and word.endswith("s") and (word not in self.g2p_dict) and (word[:-1] in self.g2p_dict):
+            # `s` suffix
+            elif (
+                len(word) > 1
+                and word.endswith("s")
+                and (word not in self.g2p_dict)
+                and (word[:-1] in self.g2p_dict)
+                and self.handle_ambiguous(word[:-1])
+            ):
                 pron = self.g2p_dict[word[:-1]][0] + ["Z"]
             # g2p dict
-            elif word in self.g2p_dict:
+            elif word in self.g2p_dict and self.handle_ambiguous(word):
                 pron = self.g2p_dict[word][0]
             # word with hyphens
-            elif len(word_by_hyphen) > 1 and all([sub_word in self.g2p_dict for sub_word in word_by_hyphen]):
+            elif len(word_by_hyphen) > 1 and all(
+                [sub_word in self.g2p_dict and self.handle_ambiguous(sub_word) for sub_word in word_by_hyphen]
+            ):
                 pron = []
                 for sub_word in word_by_hyphen:
                     pron.extend(self.g2p_dict[sub_word][0])
                     pron.extend(["-"])
                 pron.pop()
             else:
-                # run gru-based seq2seq model from _g2p for OOV
-                pron = _g2p.predict(word)
+                if self.use_seq2seq_for_oov:
+                    # run gru-based seq2seq model from _g2p
+                    pron = _g2p.predict(word)
+                else:
+                    pron = word
 
             prons.extend(pron)
 
@@ -243,6 +271,7 @@ class Phonemes(Base):
         punct=True,
         stresses=False,
         spaces=True,
+        chars=False,
         *,
         space=' ',
         silence=None,
@@ -256,13 +285,20 @@ class Phonemes(Base):
     ):
         labels = []
         self.space, labels = len(labels), labels + [space]  # Space
+
         if silence is not None:
             self.silence, labels = len(labels), labels + [silence]  # Silence
+
         labels.extend(self.CONSONANTS)
         vowels = list(self.VOWELS)
+
         if stresses:
             vowels = [f'{p}{s}' for p, s in itertools.product(vowels, (0, 1, 2))]
         labels.extend(vowels)
+
+        if chars:
+            labels.extend(string.ascii_lowercase)
+
         if apostrophe:
             labels.append("'")  # Apostrophe
 
@@ -290,7 +326,7 @@ class Phonemes(Base):
             if p.isalnum() and len(p) == 3 and not self.stresses:
                 p = p[:2]
 
-            # Add space if last one isn't one.
+            # Add space if last one isn't one
             if p == space and len(ps) > 0 and ps[-1] != space:
                 ps.append(p)
 
