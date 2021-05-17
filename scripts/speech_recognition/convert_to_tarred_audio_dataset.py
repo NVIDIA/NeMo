@@ -462,7 +462,7 @@ class ASRTarredDatasetBuilder:
         """Creates a tarball containing the audio files from `entries`.
         """
         new_entries = []
-        tar = tarfile.open(os.path.join(target_dir, f'audio_{shard_id}.tar'), mode='w')
+        tar = tarfile.open(os.path.join(target_dir, f'audio_{shard_id}.tar'), mode='w', dereference=True)
 
         count = dict()
         for entry in entries:
