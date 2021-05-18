@@ -44,9 +44,7 @@ def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None)
         unk_index=config.get('unk_index', -1),
         normalize=config.get('normalize_transcripts', False),
         trim=config.get('trim_silence', False),
-        load_audio=config.get('load_audio', True),
         parser=config.get('parser', 'en'),
-        add_misc=config.get('add_misc', False),
         manifest_line_parser=config.get('manifest_line_parser', None),
     )
     return dataset
