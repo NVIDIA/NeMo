@@ -1,20 +1,21 @@
-name: &name "QuartzNet15x5_nemo1"
+name: &name "QuartzNet15x5_ru"
 
 trainer:
-  gpus: [0,1,2,3,4,5,6,7,8,9,11,12,13,14,15] # number of gpus
+  gpus: 8 # number of gpus
   # max_epochs: 5
-  max_steps: 10000 # computed at runtime if not set
+  max_steps: 50000 # computed at runtime if not set
   num_nodes: 1
   accelerator: ddp
-  accumulate_grad_batches: 10
+  accumulate_grad_batches: 20
   amp_level: O1
   precision: 16
   amp_backend: apex
+  gradient_clip_val: 0.5
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
   log_every_n_steps: 100  # Interval of logging.
-  val_check_interval: 0.5  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
-  # resume_from_checkpoint: "/raid/nkarpov/nemo_experiments/QuartzNet15x5_nemo1/2021-02-14_09-52-56/checkpoints/QuartzNet15x5_nemo1---val_wer=0.32-epoch=102.ckpt"
+  val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+  resume_from_checkpoint: null
 
 model:
   sample_rate: &sample_rate 16000
@@ -23,35 +24,58 @@ model:
   separable: &separable true
   labels: &labels [" ", "а", "б", "в", "г", "д", "е", "ж", "з", "и", "й", "к", "л", "м", "н", "о", "п",
          "р", "с", "т", "у", "ф", "х", "ц", "ч", "ш", "щ", "ъ", "ы", "ь", "э", "ю", "я"]
+  optim:
+    name: novograd
+    # _target_: nemo.core.optim.optimizers.Novograd
+    lr: .05
+    # optimizer arguments
+    betas: [0.9, 0.98]
+    weight_decay: 0.001
+
+    # scheduler setup
+    sched:
+      name: CosineAnnealing
+      # pytorch lightning args
+      # monitor: val_loss
+      # reduce_on_plateau: false
+
+      # Scheduler params
+      warmup_steps: 500
+      warmup_ratio: null
+      min_lr: 0.0
+      last_epoch: -1
 
   train_ds:
-    manifest_filepath: /raid/datasets/asr/shared/train/manifest_ru.jsonl
+    manifest_filepath: null
     sample_rate: 16000
     labels: *labels
-    batch_size: 96
-    trim_silence: False
-    max_duration: 16.7
+    batch_size: 64
+    trim_silence: false
+    max_duration: 20.0
     min_duration: 0.1
+    num_workers: 20
     shuffle: True
     is_tarred: False
     tarred_audio_filepaths: null
     tarred_shard_strategy: "scatter"
     parser: "ru"
-    num_workers: 20
-    # manifest_line_parser: "open_stt"
-
 
   validation_ds:
-    manifest_filepath: 
-      - /raid/datasets/asr/shared/test/portal_music/manifest_only_ru.jsonl
-      - /raid/datasets/asr/eval/wavs/16khz/sberbox/september/manifest_ru.jsonl
+    manifest_filepath: null
     sample_rate: 16000
     labels: *labels
-    batch_size: 96
+    batch_size: 64
+    num_workers: 20
     shuffle: False
     parser: "ru"
-    num_workers: 20
-    # manifest_line_parser: "open_stt"
+
+  test_ds:
+    manifest_filepath: null
+    sample_rate: 16000
+    labels: *labels
+    batch_size: 64
+    shuffle: False
+    parser: "ru"
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -68,10 +92,9 @@ model:
 
   spec_augment:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
-    freq_masks: 2
-    time_masks: 2
-    time_width: 30
-    freq_width: 20
+    rect_freq: 50
+    rect_masks: 5
+    rect_time: 120
 
   encoder:
     _target_: nemo.collections.asr.modules.ConvASREncoder
@@ -247,27 +270,6 @@ model:
     num_classes: 33
     vocabulary: *labels
 
-  optim:
-    name: novograd
-    # _target_: nemo.core.optim.optimizers.Novograd
-    lr: .01
-    # optimizer arguments
-    betas: [0.95, 0.5]
-    weight_decay: 0.001
-
-    # scheduler setup
-    sched:
-      name: CosineAnnealing
-
-      # pytorch lightning args
-      # monitor: val_loss
-      # reduce_on_plateau: false
-
-      # Scheduler params
-      warmup_steps: 1000
-      warmup_ratio: null
-      min_lr: 1e-6
-      last_epoch: -1
 
 exp_manager:
   exp_dir: null
