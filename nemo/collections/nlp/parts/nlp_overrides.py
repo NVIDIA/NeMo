@@ -58,13 +58,13 @@ class NLPDDPPlugin(DDPPlugin):
 
         if app_state.model_parallel_size is not None:
 
-            if self.has_megatron_encoder and not self.is_model_parallel_initialized:
+            if self.lightning_module.has_megatron_encoder and not self.lightning_module.is_model_parallel_initialized:
                 self.init_model_parallel(app_state.global_rank, app_state.world_size)
 
     def start_training(self, trainer: 'Trainer') -> None:
         """ PTL Hook that is called after DPP is initialized. """
 
-        if self.has_megatron_encoder:
+        if self.lightning_module.has_megatron_encoder:
             app_state = AppState()
             if app_state.model_parallel_size is not None:
                 # mpu grad clipping needs parameters to have the attribute model_parallel
@@ -97,7 +97,7 @@ class NLPDDPPlugin(DDPPlugin):
                         logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
                         set_checkpoint_version(0)
                 else:
-                    self.restore_megatron_encoder_weights()
+                    self.lightning_module.restore_megatron_encoder_weights()
 
             self.lightning_module.register_megatron_checkpoint_version()
 
@@ -194,29 +194,6 @@ class NLPDDPPlugin(DDPPlugin):
 
         else:
             return super().distributed_sampler_kwargs
-
-    @property
-    def has_megatron_encoder(self):
-        if hasattr(self.lightning_module, 'bert_model'):
-            if isinstance(self.lightning_module.bert_model, MegatronBertEncoder):
-                return True
-            else:
-                return False
-        elif hasattr(self.lightning_module, 'encoder'):
-            if isinstance(self.lightning_module.encoder, MegatronEncoderModule):
-                return True
-            else:
-                return False
-        else:
-            return False
-
-    @property
-    def is_model_parallel_initialized(self):
-        app_state = AppState()
-        if app_state.model_parallel_group is None:
-            return True
-        else:
-            return False
 
 
 class NLPCheckpointConnector(CheckpointConnector):

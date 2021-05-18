@@ -32,6 +32,7 @@ from transformers import TRANSFORMERS_CACHE
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
+from nemo.collections.nlp.modules.common.megatron.megatron_encoder import MegatronEncoderModule
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector
@@ -434,7 +435,7 @@ class NLPModel(ModelPT, Exportable):
             raise ValueError('Instantiate self.bert_model before registering megatron checkpoint version.')
         else:
             # get encoder config and create source for artifact
-            if isinstance(self.bert_model, MegatronBertEncoder):
+            if self.has_megatron_encoder:
                 checkpoint_version = get_checkpoint_version()
                 if checkpoint_version is None:
                     raise ValueError('Unable to get megatron checkpoint version.')
@@ -461,3 +462,39 @@ class NLPModel(ModelPT, Exportable):
     @property
     def output_module(self):
         return self.classifier
+
+    @property
+    def has_megatron_encoder(self):
+        if hasattr(self, 'bert_model'):
+            if isinstance(self.bert_model, MegatronBertEncoder):
+                return True
+            else:
+                return False
+        elif hasattr(self, 'encoder'):
+            if isinstance(self.encoder, MegatronEncoderModule):
+                return True
+            else:
+                return False
+        else:
+            return False
+
+    @property
+    def is_model_parallel_initialized(self):
+        app_state = AppState()
+        if app_state.model_parallel_group is None:
+            return True
+        else:
+            return False
+
+    def restore_megatron_encoder_weights(self):
+        """ Model parallel weights need to be restored after DDP is initialized and 
+            model parallel ranks are known.
+        """
+        if hasattr(self, 'bert_model'):
+            if isinstance(self.bert_model, MegatronBertEncoder):
+                logging.info(f"Restoring from pretrained model parallel checkpoint: {self.bert_model._restore_path}")
+                self.bert_model.restore_weights(self.bert_model._restore_path)
+        elif hasattr(self, 'encoder'):
+            if isinstance(self.encoder, MegatronEncoderModule):
+                logging.info(f"Restoring from pretrained model parallel checkpoint: {self.encoder._restore_path}")
+                self.encoder.restore_weights(self.encoder._restore_path)
