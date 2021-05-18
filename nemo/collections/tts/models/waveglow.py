@@ -252,7 +252,7 @@ class WaveGlowModel(GlowVocoder, Exportable):
         return self.waveglow(spec, z)
 
     def load_state_dict(self, state_dict, strict=True):
-        # Remove convinv.inv_conv weights since they are not initialized until forwarded is called during training
+        # Remove convinv.inv_conv weights since they are not initialized until forward is called during training
         # and can be computed from convinv.conv.weight
         # Ideally, we should remove this during saving instead of ignoring during loading
         for i in range(self._cfg.waveglow.n_flows):
