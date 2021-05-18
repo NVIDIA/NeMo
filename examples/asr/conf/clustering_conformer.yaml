@@ -52,8 +52,8 @@ model:
     _target_: nemo.collections.asr.modules.ConformerEncoder
     feat_in: 32
     feat_out: -1 # you may set it if you need different output size other than the default d_model
-    n_layers: 4 #16
-    d_model: 176
+    n_layers: 1 #16
+    d_model: 128 #176
 
     subsampling: false
     # Feed forward module's params
@@ -69,37 +69,37 @@ model:
     pos_emb_max_len: 5000
 
     # Convolution module's params
-    conv_kernel_size: 1 #31
+    conv_kernel_size: 3 #31
 
     ### regularization
-    dropout: 0.1 # The dropout used in most of the Conformer Modules
-    dropout_emb: 0.1 #0.0 # The dropout used for embeddings
-    dropout_att: 0.1 # The dropout for multi-headed attention modules
-
-  # decoder:
-  #   _target_: nemo.collections.asr.modules.ConvASRDecoder
-  #   feat_in: null
-  #   num_classes: 4
-  #   vocabulary: ${model.labels}
-  #   return_logits: true
+    dropout: 0.2 # The dropout used in most of the Conformer Modules
+    dropout_emb: 0.2 #0.0 # The dropout used for embeddings
+    dropout_att: 0.2 # The dropout for multi-headed attention modules
 
   decoder:
-    _target_: nemo.collections.asr.modules.LSTMDecoder
+    _target_: nemo.collections.asr.modules.ConvASRDecoder
     feat_in: null
     num_classes: 4
-    num_layers: 1
-    lstm_hidden_size: 100
     vocabulary: ${model.labels}
     return_logits: true
 
+  # decoder:
+  #   _target_: nemo.collections.asr.modules.LSTMDecoder
+  #   feat_in: null
+  #   num_classes: 4 # remove add blank in decoder
+  #   num_layers: 1
+  #   lstm_hidden_size: 100
+  #   vocabulary: ${model.labels}
+  #   return_logits: true
+
   optim:
     name: adamw
-    lr: 2
+    lr: 5
     # optimizer arguments
     betas: [0.9, 0.98]
     # less need for weight_decay as we already have large augmentations with SpecAug
     # you may need weight_decay for large models, small datasets, or when lower augmentation is used
-    weight_decay: 1e-2 # 1e-4
+    weight_decay: 1e-3 # 1e-4
 
     # scheduler setup
     sched:
@@ -149,5 +149,5 @@ exp_manager:
   # You may use this section to create a W&B logger
   create_wandb_logger: true
   wandb_logger_kwargs:
-    name: "noplus1_wd2_do1"
-    project: "con+lstm"
+    name: "dm128_el1_conv3_do2_wd3_lr5"
+    project: "new con+linear"
