@@ -180,7 +180,7 @@ def rnnt_loss_gpu(
     acts, acts_shape = rnnt_helper.flatten_tensor(acts)
 
     ### REPRESENT THE CUDA ARRAY INTERFACE OF COSTS VECTOR ###
-    costs_repr = cuda.as_cuda_array(costs)  # NO COPY OF DATA, JUST CHANGE REPRESENTATION
+    costs_repr = cuda.as_cuda_array(costs, sync=False)  # NO COPY OF DATA, JUST CHANGE REPRESENTATION
 
     wrapper = gpu_rnnt.GPURNNT(
         minibatch=minibatch_size,
