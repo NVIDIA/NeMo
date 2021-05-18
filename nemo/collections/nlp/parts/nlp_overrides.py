@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.nlp.modules.common.megatron.megatron_encoder import MegatronEncoderModule
 import os
 from typing import Any, Dict, List, Optional, Union
 
@@ -52,20 +53,18 @@ class NLPDDPPlugin(DDPPlugin):
         # call PTL init ddp
         super().init_ddp_connection()
 
-        # init model parallel
+        # init model parallel if needed
         app_state = AppState()
 
         if app_state.model_parallel_size is not None:
 
-            if isinstance(self.lightning_module.bert_model, MegatronBertEncoder):
-
-                if app_state.model_parallel_group is None:
-                    self.init_model_parallel(app_state.global_rank, app_state.world_size)
+            if self.has_megatron_encoder and not self.is_model_parallel_initialized:
+                self.init_model_parallel(app_state.global_rank, app_state.world_size)
 
     def start_training(self, trainer: 'Trainer') -> None:
         """ PTL Hook that is called after DPP is initialized. """
 
-        if isinstance(self.lightning_module.bert_model, MegatronBertEncoder):
+        if self.has_megatron_encoder:
             app_state = AppState()
             if app_state.model_parallel_size is not None:
                 # mpu grad clipping needs parameters to have the attribute model_parallel
@@ -98,10 +97,7 @@ class NLPDDPPlugin(DDPPlugin):
                         logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
                         set_checkpoint_version(0)
                 else:
-                    logging.info(
-                        f"Restoring from pretrained model parallel checkpoint: {self.lightning_module.bert_model._restore_path}"
-                    )
-                    self.lightning_module.bert_model.restore_weights(self.lightning_module.bert_model._restore_path)
+                    self.restore_megatron_encoder_weights()
 
             self.lightning_module.register_megatron_checkpoint_version()
 
@@ -113,7 +109,7 @@ class NLPDDPPlugin(DDPPlugin):
 
         if app_state.model_parallel_size is not None:
 
-            if isinstance(self.lightning_module.bert_model, MegatronBertEncoder):
+            if self.has_megatron_encoder:
                 # check megatron checkpoint version
                 checkpoint_version = get_checkpoint_version()
                 if checkpoint_version is None:
@@ -168,10 +164,21 @@ class NLPDDPPlugin(DDPPlugin):
                 app_state.data_parallel_size = mpu.get_data_parallel_world_size()
                 logging.info(f'mp_rank: {app_state.model_parallel_rank}')
                 logging.info(f'dp_rank: {app_state.data_parallel_rank}')
-                # TODO: get random seed from PTL
                 seed = os.environ.get("PL_GLOBAL_SEED", 1234)
                 # random seed must be set for megatron model parallel init
                 _set_random_seed(seed)
+
+    def restore_megatron_encoder_weights(self):
+        if hasattr(self.lightning_module, 'bert_model'):
+            logging.info(
+                f"Restoring from pretrained model parallel checkpoint: {self.lightning_module.bert_model._restore_path}"
+            )
+            self.lightning_module.bert_model.restore_weights(self.lightning_module.bert_model._restore_path)
+        elif hasattr(self.lightning_module, 'encoder'):
+            logging.info(
+                f"Restoring from pretrained model parallel checkpoint: {self.lightning_module.encoder._restore_path}"
+            )
+            self.lightning_module.encoder.restore_weights(self.lightning_module.encoder._restore_path)
 
     @property
     def distributed_sampler_kwargs(self):
@@ -187,6 +194,29 @@ class NLPDDPPlugin(DDPPlugin):
 
         else:
             return super().distributed_sampler_kwargs
+
+    @property
+    def has_megatron_encoder(self):
+        if hasattr(self.lightning_module, 'bert_model'):
+            if isinstance(self.lightning_module.bert_model, MegatronBertEncoder):
+                return True
+            else:
+                return False
+        elif hasattr(self.lightning_module, 'encoder'):
+            if isinstance(self.lightning_module.encoder, MegatronEncoderModule):
+                return True
+            else:
+                return False
+        else:
+            return False
+
+    @property
+    def is_model_parallel_initialized(self):
+        app_state = AppState()
+        if app_state.model_parallel_group is None:
+            return True
+        else:
+            return False
 
 
 class NLPCheckpointConnector(CheckpointConnector):

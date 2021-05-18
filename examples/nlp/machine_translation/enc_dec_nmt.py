@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from typing import Optional
 
 from omegaconf import OmegaConf
@@ -108,7 +109,7 @@ def main(cfg: MTEncDecConfig) -> None:
     logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
 
     # training is managed by PyTorch Lightning
-    trainer = Trainer(**cfg.trainer)
+    trainer = Trainer(plugins=[NLPDDPPlugin()], **cfg.trainer)
 
     # tokenizers will be trained and and tarred training data will be created if needed
     # model config is then updated
