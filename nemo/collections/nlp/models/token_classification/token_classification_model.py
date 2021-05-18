@@ -69,10 +69,10 @@ class TokenClassificationModel(NLPModel):
 
         self.bert_model = get_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=cfg.language_model.config_file,
+            config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
             config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
             checkpoint_file=cfg.language_model.lm_checkpoint,
-            vocab_file=cfg.tokenizer.vocab_file,
+            vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file),
         )
 
         self.classifier = TokenClassifier(
@@ -181,6 +181,8 @@ class TokenClassificationModel(NLPModel):
         self.log('f1', f1)
         self.log('recall', recall)
 
+        self.classification_report.reset()
+
     def test_step(self, batch, batch_idx):
         input_ids, input_type_ids, input_mask, subtokens_mask, loss_mask, labels = batch
         logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
@@ -229,7 +231,7 @@ class TokenClassificationModel(NLPModel):
         # save label maps to the config
         self._cfg.label_ids = OmegaConf.create(label_ids)
 
-        self.register_artifact(self._cfg.class_labels.class_labels_file, label_ids_filename)
+        self.register_artifact('class_labels.class_labels_file', label_ids_filename)
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig] = None):

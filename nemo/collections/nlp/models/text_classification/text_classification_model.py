@@ -16,7 +16,6 @@
 import os
 from typing import Dict, List, Optional
 
-import onnx
 import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
@@ -60,10 +59,10 @@ class TextClassificationModel(NLPModel, Exportable):
 
         self.bert_model = get_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=cfg.language_model.config_file,
+            config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
             config_dict=cfg.language_model.config,
             checkpoint_file=cfg.language_model.lm_checkpoint,
-            vocab_file=cfg.tokenizer.vocab_file,
+            vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file),
         )
 
         self.classifier = SequenceClassifier(
@@ -153,7 +152,7 @@ class TextClassificationModel(NLPModel, Exportable):
         """
         if not outputs:
             return {}
-        if self.testing:
+        if self.trainer.testing:
             prefix = 'test'
         else:
             prefix = 'val'
@@ -169,6 +168,8 @@ class TextClassificationModel(NLPModel, Exportable):
         self.log(f'{prefix}_precision', precision)
         self.log(f'{prefix}_f1', f1)
         self.log(f'{prefix}_recall', recall)
+
+        self.classification_report.reset()
 
     def test_step(self, batch, batch_idx):
         """
