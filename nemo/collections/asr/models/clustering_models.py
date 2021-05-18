@@ -72,6 +72,10 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
         #     if "feat_in" not in self._cfg.decoder or not self._cfg.decoder.feat_in:
         #         raise ValueError("param feat_in of the decoder's config is not set!")
 
+        with open_dict(self._cfg):
+            if "feat_in" in self._cfg.decoder and not self._cfg.decoder.feat_in:
+                self._cfg.decoder.feat_in = self.encoder._feat_out
+    
         self.decoder = EncDecClusteringModel.from_config_dict(self._cfg.decoder)
         # self.log_softmax = TokenClassifier(
         #     hidden_size=self.decoder.hidden_size,
@@ -80,17 +84,18 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
 
         # self.loss = CrossEntropyLoss(logits_ndim=3)
         self.loss = SmoothedCrossEntropyLoss(pad_id=-1)
-
+        # Setup metric objects
+        self._accuracy = TopKClassificationAccuracy(dist_sync_on_step=True, top_k=[1])
+        
         
         if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
             self.spec_augmentation = EncDecClusteringModel.from_config_dict(self._cfg.spec_augment)
         else:
             self.spec_augmentation = None
 
-        # Setup metric objects
-        self._accuracy = TopKClassificationAccuracy(dist_sync_on_step=True, top_k=[1])
+        if hasattr(self._cfg.decoder, 'restricted') :
+            self.restricted=self._cfg.decoder.restricted
 
-        self.restricted=self._cfg.decoder.restricted
 
     # TODO add trancribe function like in asr
     @torch.no_grad()
@@ -101,7 +106,6 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
         logprobs: bool = False,
         return_hypotheses: bool = False,
     ) -> List[str]:
-
         pass
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
@@ -243,7 +247,6 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
         label_seq=None,
     ):
         # [TODO] only take 'preprocessed' emb now
-
         has_input_signal = input_signal is not None and input_signal_length is not None
         has_processed_signal = processed_signal is not None and processed_signal_length is not None
 
@@ -275,15 +278,21 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
         # src_mask = (~make_pad_mask(processed_signal_length.tolist())).to(processed_signal.device).unsqueeze(-2)
         # src_mask = torch.squeeze(src_mask)
 
+
+        # BDT -> transformer -> BTD -> (BTD) transformer -> BTD
+        # BDT -> conformer -> BDT -> (BTD) transformer -> BTD
+        # BDT -> conformer -> BDT -> (BDT) lstm/conv -> BTD
+        # BDT -> transformer -> BTD -> (BDT) lstm -> BTD
+
         # Might need to clean up the logic here
         if self._cfg.decoder._target_ == "nemo.collections.asr.modules.TransformerDecoderNM":
 
-            # BDT -> transformer -> BTD -> (BTD) transformer -> BTD
-            src_hiddens, length, src_mask = self.encoder(input_ids=processed_signal)
-
-            # BDT -> conformer -> BDT -> (BTD) transformer -> BTD
             if self._cfg.encoder._target_ != "nemo.collections.asr.modules.TransformerEncoderNM":
-                src_hiddens = torch.transpose(src_hiddens, 1, 2)
+                encoded, length = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
+                src_hiddens = torch.transpose(encoded, 1, 2)
+            else:
+                
+                src_hiddens, length, src_mask = self.encoder(input_ids=processed_signal)
 
             logits, ys_out = self.decoder(
                 input_ids=label_seq,
@@ -292,19 +301,18 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
             )
 
         else:
-            # BDT -> conformer -> BDT -> (BDT) lstm/conv -> BTD
-            encoded, length = self.encoder(input_ids=processed_signal)
+            encoded, length = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
 
-            # BDT -> transformer -> BTD -> (BDT) lstm -> BTD
             if self._cfg.encoder._target_ == "nemo.collections.asr.modules.TransformerEncoderNM":
                 encoded = torch.transpose(encoded, 1, 2)
 
-            logits = self.decoder(encoder_output=encoded, return_logits=True)
+            logits = self.decoder(encoder_output=encoded)
             ys_out = label_seq
 
         # return softmax log resutls  TODO might select top k results
 
         log_probs = torch.nn.functional.log_softmax(logits, dim=-1)
+        # print(log_probs)
 
         # greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
         # return ys_out_pad as well for loss and accuracy calculation

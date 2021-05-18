@@ -29,7 +29,7 @@ model:
     is_speaker_emb: true
     labels: ${model.labels}
     sample_rate: ${model.sample_rate}
-    batch_size: 50 # you may increase batch_size if your memory allows
+    batch_size: 250 # you may increase batch_size if your memory allows
     shuffle: true
     num_workers: 20
     pin_memory: true
@@ -42,7 +42,7 @@ model:
     is_speaker_emb: true
     labels: ${model.labels}
     sample_rate: ${model.sample_rate}
-    batch_size: 50 # you may increase batch_size if your memory allows
+    batch_size: 250 # you may increase batch_size if your memory allows
     shuffle: false
     num_workers: 20
     pin_memory: true
@@ -72,9 +72,9 @@ model:
     conv_kernel_size: 1 #31
 
     ### regularization
-    dropout: 0.4 # The dropout used in most of the Conformer Modules
-    dropout_emb: 0.4 #0.0 # The dropout used for embeddings
-    dropout_att: 0.4 # The dropout for multi-headed attention modules
+    dropout: 0.1 # The dropout used in most of the Conformer Modules
+    dropout_emb: 0.1 #0.0 # The dropout used for embeddings
+    dropout_att: 0.1 # The dropout for multi-headed attention modules
 
   # decoder:
   #   _target_: nemo.collections.asr.modules.ConvASRDecoder
@@ -93,21 +93,21 @@ model:
     return_logits: true
 
   optim:
-    name: adam
+    name: adamw
     lr: 2
     # optimizer arguments
     betas: [0.9, 0.98]
     # less need for weight_decay as we already have large augmentations with SpecAug
     # you may need weight_decay for large models, small datasets, or when lower augmentation is used
-    weight_decay: 0.001
+    weight_decay: 1e-2 # 1e-4
 
     # scheduler setup
     sched:
       name: NoamAnnealing
       d_model: ${model.encoder.d_model}
       # scheduler config override
-      # warmup_steps: 10000
-      warmup_ratio: 0.2
+      warmup_steps: 5000
+      # warmup_ratio: 0.2
       min_lr: 1e-6
 
 trainer:
@@ -149,5 +149,5 @@ exp_manager:
   # You may use this section to create a W&B logger
   create_wandb_logger: true
   wandb_logger_kwargs:
-    name: "noplus1_conv1_lr2_b50"
-    project: "dnc_lstm"
+    name: "noplus1_wd2_do1"
+    project: "con+lstm"
