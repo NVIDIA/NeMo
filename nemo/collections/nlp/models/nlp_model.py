@@ -496,5 +496,5 @@ class NLPModel(ModelPT, Exportable):
                 self.bert_model.restore_weights(self.bert_model._restore_path)
         elif hasattr(self, 'encoder'):
             if isinstance(self.encoder, MegatronEncoderModule):
-                logging.info(f"Restoring from pretrained model parallel checkpoint: {self.encoder._restore_path}")
-                self.encoder.restore_weights(self.encoder._restore_path)
+                logging.info(f"Restoring from pretrained model parallel checkpoint: {self.encoder.checkpoint_file}")
+                self.encoder._encoder.restore_weights(self.encoder.checkpoint_file)

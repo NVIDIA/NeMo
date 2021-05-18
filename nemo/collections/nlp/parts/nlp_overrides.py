@@ -168,18 +168,6 @@ class NLPDDPPlugin(DDPPlugin):
                 # random seed must be set for megatron model parallel init
                 _set_random_seed(seed)
 
-    def restore_megatron_encoder_weights(self):
-        if hasattr(self.lightning_module, 'bert_model'):
-            logging.info(
-                f"Restoring from pretrained model parallel checkpoint: {self.lightning_module.bert_model._restore_path}"
-            )
-            self.lightning_module.bert_model.restore_weights(self.lightning_module.bert_model._restore_path)
-        elif hasattr(self.lightning_module, 'encoder'):
-            logging.info(
-                f"Restoring from pretrained model parallel checkpoint: {self.lightning_module.encoder._restore_path}"
-            )
-            self.lightning_module.encoder.restore_weights(self.lightning_module.encoder._restore_path)
-
     @property
     def distributed_sampler_kwargs(self):
         app_state = AppState()

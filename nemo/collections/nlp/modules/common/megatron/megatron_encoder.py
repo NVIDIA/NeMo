@@ -68,6 +68,7 @@ class MegatronEncoderModule(EncoderModule):
                 pretrained_model_name=model_name, config_dict=config_dict, checkpoint_file=checkpoint_file
             )[0]
 
+        self._checkpoint_file = checkpoint_file
         self._hidden_size = model.hidden_size
         self._vocab_size = model.vocab_size
 
@@ -77,6 +78,10 @@ class MegatronEncoderModule(EncoderModule):
     def forward(self, input_ids, encoder_mask):
         encoder_hidden_states = self._encoder.forward(input_ids=input_ids, attention_mask=encoder_mask)[0]
         return encoder_hidden_states
+
+    @property
+    def checkpoint_file(self) -> Optional[str]:
+        return self._checkpoint_file
 
     @property
     def hidden_size(self) -> Optional[int]:
