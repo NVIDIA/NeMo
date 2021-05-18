@@ -223,12 +223,12 @@ class FastPitchModel(SpectrogramGenerator):
             List of available pre-trained models.
         """
         list_of_models = []
-        # model = PretrainedModelInfo(
-        #     pretrained_model_name="",
-        #     location="",
-        #     description="",
-        #     class_=cls,
-        # )
-        # list_of_models.append(model)
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_fastpitch",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_fastpitch/versions/1.0.0/files/tts_en_fastpitch.nemo",
+            description="This model is trained on LJSpeech sampled at 22050Hz with and can be used to generate female English voices with an American accent.",
+            class_=cls,
+        )
+        list_of_models.append(model)
 
         return list_of_models
