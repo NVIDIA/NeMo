@@ -114,8 +114,14 @@ class TransformerEncoder(nn.Module):
         ffn_dropout: float = 0.0,
         hidden_act: str = "relu",
         pre_ln: bool = False,
+        pre_ln_final_layer_norm: bool = True,
     ):
         super().__init__()
+
+        if pre_ln and pre_ln_final_layer_norm:
+            self.final_layer_norm = nn.LayerNorm(hidden_size, eps=1e-5)
+        else:
+            self.final_layer_norm = None
 
         layer = TransformerEncoderBlock(
             hidden_size,
@@ -156,6 +162,11 @@ class TransformerEncoder(nn.Module):
 
         for i, layer in enumerate(self.layers):
             encoder_states = layer(encoder_states, encoder_attn_mask, memory_states)
+            memory_states = self._get_memory_states(encoder_states, encoder_mems_list, i + 1)
+            cached_mems_list.append(memory_states)
+
+        if self.final_layer_norm is not None:
+            encoder_states = self.final_layer_norm(encoder_states)
             memory_states = self._get_memory_states(encoder_states, encoder_mems_list, i + 1)
             cached_mems_list.append(memory_states)
 
