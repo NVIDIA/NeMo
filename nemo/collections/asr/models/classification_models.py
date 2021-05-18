@@ -478,6 +478,7 @@ class EncDecClassificationModel(_EncDecBaseModel):
 
         self._accuracy(logits=logits, labels=labels)
         topk_scores = self._accuracy.compute()
+        self._accuracy.reset()
 
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
             self.log('training_batch_accuracy_top@{}'.format(top_k), score)
@@ -520,6 +521,7 @@ class EncDecClassificationModel(_EncDecBaseModel):
         self._accuracy.correct_counts_k = correct_counts
         self._accuracy.total_counts_k = total_counts
         topk_scores = self._accuracy.compute()
+        self._accuracy.reset()
 
         tensorboard_log = {'val_loss': val_loss_mean}
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
@@ -535,6 +537,7 @@ class EncDecClassificationModel(_EncDecBaseModel):
         self._accuracy.correct_counts_k = correct_counts
         self._accuracy.total_counts_k = total_counts
         topk_scores = self._accuracy.compute()
+        self._accuracy.reset()
 
         tensorboard_log = {'test_loss': test_loss_mean}
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
@@ -699,7 +702,9 @@ class EncDecRegressionModel(_EncDecBaseModel):
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
         val_mse = self._mse.compute()
+        self._mse.reset()
         val_mae = self._mae.compute()
+        self._mae.reset()
 
         tensorboard_logs = {'val_loss': val_loss_mean, 'val_mse': val_mse, 'val_mae': val_mae}
 
@@ -708,7 +713,9 @@ class EncDecRegressionModel(_EncDecBaseModel):
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
         test_mse = self._mse.compute()
+        self._mse.reset()
         test_mae = self._mae.compute()
+        self._mae.reset()
 
         tensorboard_logs = {'test_loss': test_loss_mean, 'test_mse': test_mse, 'test_mae': test_mae}
 
