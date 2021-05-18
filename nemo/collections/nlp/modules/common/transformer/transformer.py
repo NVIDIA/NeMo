@@ -65,6 +65,9 @@ class NeMoTransformerConfig:
 class NeMoTransformerEncoderConfig(NeMoTransformerConfig):
     mask_future: bool = False
 
+@dataclass
+class NeMoTransformerDecoderConfig(NeMoTransformerConfig):
+    r2l: bool = False
 
 class TransformerEncoderNM(EncoderModule, Exportable):
     def __init__(

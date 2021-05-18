@@ -75,10 +75,12 @@ class MTEncDecModel(EncDecNLPModel):
             encoder_tokenizer_model=cfg.encoder_tokenizer.get('tokenizer_model'),
             encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0),
             encoder_model_name=cfg.encoder.get('model_name') if hasattr(cfg.encoder, 'model_name') else None,
+            encoder_r2l=cfg.encoder_tokenizer.get('r2l', False),
             decoder_tokenizer_library=cfg.decoder_tokenizer.get('library', 'yttm'),
             decoder_tokenizer_model=cfg.decoder_tokenizer.tokenizer_model,
             decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
             decoder_model_name=cfg.decoder.get('model_name') if hasattr(cfg.decoder, 'model_name') else None,
+            decoder_r2l=cfg.decoder_tokenizer.get('r2l', False)
         )
 
         # After this call, the model will have  self.source_processor and self.target_processor objects
@@ -314,10 +316,12 @@ class MTEncDecModel(EncDecNLPModel):
         encoder_tokenizer_model=None,
         encoder_bpe_dropout=0.0,
         encoder_model_name=None,
+        encoder_r2l=False,
         decoder_tokenizer_library=None,
         decoder_tokenizer_model=None,
         decoder_bpe_dropout=0.0,
         decoder_model_name=None,
+        decoder_r2l=False
     ):
 
         supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece']
@@ -335,6 +339,7 @@ class MTEncDecModel(EncDecNLPModel):
             vocab_file=None,
             special_tokens=None,
             use_fast=False,
+            r2l=encoder_r2l
         )
         self.decoder_tokenizer = get_nmt_tokenizer(
             library=decoder_tokenizer_library,
@@ -344,6 +349,7 @@ class MTEncDecModel(EncDecNLPModel):
             vocab_file=None,
             special_tokens=None,
             use_fast=False,
+            r2l=decoder_r2l
         )
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
