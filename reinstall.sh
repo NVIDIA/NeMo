@@ -30,6 +30,6 @@ else
 fi
 
 echo 'Installing additional nemo_text_processing conda dependency'
-bash nemo_text_processing/setup.sh
+bash nemo_text_processing/setup.sh > /dev/null 2>&1 && echo "nemo_text_processing installed!" || echo "nemo_text_processing could not be installed!"
 
 echo 'All done!'
