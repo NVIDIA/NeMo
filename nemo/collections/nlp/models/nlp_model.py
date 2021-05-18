@@ -431,21 +431,19 @@ class NLPModel(ModelPT, Exportable):
     @rank_zero_only
     def register_megatron_checkpoint_version(self):
         """ Adds checkpoint version to .nemo archive """
-        if self.bert_model is None:
-            raise ValueError('Instantiate self.bert_model before registering megatron checkpoint version.')
+        if self.has_megatron_encoder:
+            checkpoint_version = get_checkpoint_version()
+            if checkpoint_version is None:
+                raise ValueError('Unable to get megatron checkpoint version.')
+            else:
+                checkpoint_version_dict = {'checkpoint_version': checkpoint_version}
+                checkpoint_version_path = 'megatron_checkpoint_version.json'
+                checkpoint_version_src = os.path.join(NEMO_NLP_TMP, checkpoint_version_path)
+                with open(checkpoint_version_src, 'w') as f:
+                    f.write(json.dumps(checkpoint_version_dict))
+                self.register_artifact(checkpoint_version_path, checkpoint_version_src)
         else:
-            # get encoder config and create source for artifact
-            if self.has_megatron_encoder:
-                checkpoint_version = get_checkpoint_version()
-                if checkpoint_version is None:
-                    raise ValueError('Unable to get megatron checkpoint version.')
-                else:
-                    checkpoint_version_dict = {'checkpoint_version': checkpoint_version}
-                    checkpoint_version_path = 'megatron_checkpoint_version.json'
-                    checkpoint_version_src = os.path.join(NEMO_NLP_TMP, checkpoint_version_path)
-                    with open(checkpoint_version_src, 'w') as f:
-                        f.write(json.dumps(checkpoint_version_dict))
-                    self.register_artifact(checkpoint_version_path, checkpoint_version_src)
+            raise ValueError('Registering Megatron checkpoint version but no Megatron encoder detected.')
 
     @staticmethod
     def _unpack_nemo_file(path2file: str, out_folder: str) -> str:
@@ -481,7 +479,7 @@ class NLPModel(ModelPT, Exportable):
     @property
     def is_model_parallel_initialized(self):
         app_state = AppState()
-        if app_state.model_parallel_group is None:
+        if app_state.model_parallel_group is not None:
             return True
         else:
             return False
