@@ -13,7 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space
+from nemo_text_processing.text_normalization.graph_utils import (
+    NEMO_NOT_QUOTE,
+    GraphFst,
+    delete_space,
+    get_abs_path,
+    insert_space,
+)
 
 try:
     import pynini
@@ -34,8 +40,17 @@ class MoneyFst(GraphFst):
         decimal: DecimalFst
     """
 
-    def __init__(self, decimal: GraphFst):
+    def __init__(self, decimal: GraphFst, deterministic=True):
         super().__init__(name="money", kind="verbalize")
+
+        def _get_minor_currencies(file):
+            minor_currencies = []
+            with open(get_abs_path(file), 'r') as f:
+                for line in f:
+                    min_cur = line.strip()
+                    minor_currencies.append(pynini.closure(pynutil.insert(min_cur), 0, 1))
+            return minor_currencies
+
         unit = (
             pynutil.delete("currency:")
             + delete_space
@@ -44,5 +59,48 @@ class MoneyFst(GraphFst):
             + pynutil.delete("\"")
         )
         graph = decimal.numbers + delete_space + pynutil.insert(" ") + unit
+
+        if not deterministic:
+            minor_currencies_singular = _get_minor_currencies("data/currency/currency_minor_one.tsv")
+            minor_currencies_singular = pynini.closure(
+                pynini.cross("one", "one") + insert_space + pynini.union(*minor_currencies_singular), 0, 1
+            )
+            minor_currencies_plural = _get_minor_currencies("data/currency/currency_minor.tsv")
+            minor_currencies_plural = insert_space + pynini.union(*minor_currencies_plural)
+
+            fractional_default = (
+                pynutil.delete("fractional_part:")
+                + delete_space
+                + pynutil.delete("\"")
+                + pynini.closure(NEMO_NOT_QUOTE, 1)
+                + minor_currencies_singular
+                + pynutil.delete("\"")
+            )
+
+            fractional_with_zeros = (
+                pynutil.delete("fractional_part:")
+                + delete_space
+                + pynutil.delete("\"")
+                + pynini.cross('zero', '')
+                + pynini.closure(pynini.cross(' zero', ''))
+                + delete_space
+                + pynutil.delete("\"")
+                + delete_space
+            )
+
+            fractional = fractional_with_zeros | fractional_default
+
+            graph = (
+                decimal.integer
+                + delete_space
+                + insert_space
+                + unit
+                + delete_space
+                + insert_space
+                + pynini.closure(pynutil.insert("and "), 0, 1)
+                + fractional
+                + minor_currencies_plural
+            ) | graph
+
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

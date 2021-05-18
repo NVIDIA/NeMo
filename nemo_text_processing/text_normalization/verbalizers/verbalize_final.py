@@ -28,13 +28,17 @@ except (ModuleNotFoundError, ImportError):
 
 class VerbalizeFinalFst(GraphFst):
     """
-    Finite state transducer that verbalizes an entire sentence, e.g. 
+    Finite state transducer that verbalizes an entire sentence, e.g.
     tokens { name: "its" } tokens { time { hours: "twelve" minutes: "thirty" } } tokens { name: "now" } tokens { name: "." } -> its twelve thirty now .
+
+    Args:
+        deterministic: if True will provide a single transduction option,
+            for False multiple options (used for audio-based normalization)
     """
 
-    def __init__(self):
+    def __init__(self, deterministic: bool = True):
         super().__init__(name="verbalize_final", kind="verbalize")
-        verbalize = VerbalizeFst().fst
+        verbalize = VerbalizeFst(deterministic).fst
         word = WordFst().fst
         types = verbalize | word
         graph = (

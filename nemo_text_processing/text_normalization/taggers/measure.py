@@ -15,11 +15,14 @@
 
 from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
 from nemo_text_processing.text_normalization.graph_utils import (
+    NEMO_ALPHA,
     NEMO_NON_BREAKING_SPACE,
+    NEMO_NOT_SPACE,
     NEMO_SIGMA,
     SINGULAR_TO_PLURAL,
     GraphFst,
     convert_space,
+    delete_extra_space,
     delete_space,
 )
 
@@ -51,7 +54,9 @@ class MeasureFst(GraphFst):
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
         graph_unit_plural = convert_space(graph_unit @ SINGULAR_TO_PLURAL)
         graph_unit = convert_space(graph_unit)
-        optional_graph_negative = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
+        self.optional_graph_negative = pynini.closure(
+            pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1
+        )
 
         graph_unit2 = pynini.cross("/", "per") + delete_space + pynutil.insert(NEMO_NON_BREAKING_SPACE) + graph_unit
 
@@ -69,18 +74,18 @@ class MeasureFst(GraphFst):
             pynutil.insert("units: \"") + (graph_unit + optional_graph_unit2 | graph_unit2) + pynutil.insert("\"")
         )
 
-        subgraph_decimal = (
+        self.subgraph_decimal = (
             pynutil.insert("decimal { ")
-            + optional_graph_negative
+            + self.optional_graph_negative
             + decimal.final_graph_wo_negative
             + delete_space
             + pynutil.insert(" } ")
             + unit_plural
         )
 
-        subgraph_cardinal = (
+        self.subgraph_cardinal = (
             pynutil.insert("cardinal { ")
-            + optional_graph_negative
+            + self.optional_graph_negative
             + pynutil.insert("integer: \"")
             + ((NEMO_SIGMA - "1") @ cardinal_graph)
             + delete_space
@@ -89,9 +94,9 @@ class MeasureFst(GraphFst):
             + unit_plural
         )
 
-        subgraph_cardinal |= (
+        self.subgraph_cardinal |= (
             pynutil.insert("cardinal { ")
-            + optional_graph_negative
+            + self.optional_graph_negative
             + pynutil.insert("integer: \"")
             + pynini.cross("1", "one")
             + delete_space
@@ -99,6 +104,6 @@ class MeasureFst(GraphFst):
             + pynutil.insert(" } ")
             + unit_singular
         )
-        final_graph = subgraph_decimal | subgraph_cardinal
+        final_graph = self.subgraph_decimal | self.subgraph_cardinal
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

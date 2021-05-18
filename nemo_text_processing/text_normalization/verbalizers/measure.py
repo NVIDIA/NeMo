@@ -35,27 +35,22 @@ class MeasureFst(GraphFst):
         cardinal: CardinalFst
     """
 
-    def __init__(self, decimal: GraphFst, cardinal: GraphFst):
+    def __init__(self, decimal: GraphFst, cardinal: GraphFst, deterministic=True):
         super().__init__(name="measure", kind="verbalize")
         optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "minus ") + delete_space, 0, 1)
-        unit = (
-            pynutil.delete("units:")
-            + delete_space
-            + pynutil.delete("\"")
-            + pynini.closure(NEMO_CHAR - " ", 1)
-            + pynutil.delete("\"")
-            + delete_space
-        )
+        unit = pynutil.insert(" ") + pynini.closure(NEMO_CHAR - " ", 1)
+
+        unit = pynutil.delete("units: \"") + unit + pynutil.delete("\"") + delete_space
         graph_decimal = (
             pynutil.delete("decimal {")
             + delete_space
             + optional_sign
             + delete_space
             + decimal.numbers
-            + delete_space
+            + pynini.closure(delete_space)
             + pynutil.delete("}")
         )
-        graph_cardinal = (
+        self.graph_cardinal = (
             pynutil.delete("cardinal {")
             + delete_space
             + optional_sign
@@ -64,6 +59,6 @@ class MeasureFst(GraphFst):
             + delete_space
             + pynutil.delete("}")
         )
-        graph = (graph_cardinal | graph_decimal) + delete_space + pynutil.insert(" ") + unit
+        graph = (self.graph_cardinal | graph_decimal) + delete_space + unit
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
