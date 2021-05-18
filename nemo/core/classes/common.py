@@ -436,7 +436,7 @@ class Serialization(ABC):
             instance = hydra.utils.instantiate(config=config)
         else:
             instance = None
-
+            imported_cls_tb = None
             # Attempt class path resolution from config `target` class (if it exists)
             if 'target' in config:
                 target_cls = config.target
@@ -444,8 +444,8 @@ class Serialization(ABC):
                 try:
                     # try to import the target class
                     imported_cls = import_class_by_path(target_cls)
-                except (ImportError, ModuleNotFoundError):
-                    logging.debug(f'Target class `{target_cls}` could not be imported, falling back to original cls')
+                except Exception:
+                    imported_cls_tb = traceback.format_exc()
 
                 # try instantiating model with target class
                 if imported_cls is not None:
@@ -458,15 +458,16 @@ class Serialization(ABC):
                         instance = imported_cls(cfg=config)
                     except Exception:
                         imported_cls_tb = traceback.format_exc()
-                        logging.debug(
-                            f"Model instantiation from target class failed with following error.\n"
-                            f"Falling back to `cls`.\n"
-                            f"{imported_cls_tb}"
-                        )
                         instance = None
 
             # target class resolution was unsuccessful, fall back to current `cls`
             if instance is None:
+                if imported_cls_tb is not None:
+                    logging.debug(
+                        f"Model instantiation from target class {target_cls} failed with following error.\n"
+                        f"Falling back to `cls`.\n"
+                        f"{imported_cls_tb}"
+                    )
                 instance = cls(cfg=config)
 
         if not hasattr(instance, '_cfg'):
@@ -504,6 +505,7 @@ class FileIO(ABC):
         override_config_path: Optional[str] = None,
         map_location: Optional['torch.device'] = None,
         strict: bool = True,
+        return_config: bool = False,
     ):
         """Restores module/model with weights"""
         raise NotImplementedError()
@@ -548,6 +550,7 @@ class PretrainedModelInfo:
     description: str
     location: str
     class_: 'Model' = None
+    aliases: List[str] = None
 
     def __repr__(self):
         base = self.__class__.__name__
@@ -587,7 +590,9 @@ class Model(Typing, Serialization, FileIO):
     @abstractmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
         """
-        Should list all pre-trained models available via NVIDIA NGC cloud
+        Should list all pre-trained models available via NVIDIA NGC cloud.
+        Note: There is no check that requires model names and aliases to be unique. In the case of a collIsion, whatever
+        model (or alias) is listed first in the this returned list will be instantiated.
 
         Returns:
             A list of PretrainedModelInfo entries
@@ -628,7 +633,7 @@ class Model(Typing, Serialization, FileIO):
                 config file
             map_location: Optional torch.device() to map the instantiated model to a device.
                 By default (None), it will select a GPU if available, falling back to CPU otherwise.
-            strict: Passed to torch.load_state_dict
+            strict: Passed to torch.load_state_dict. By default true.
             return_config: If set to true, will return just the underlying config of the restored
                 model as an OmegaConf DictConfig object without instantiating the model.
 
@@ -637,12 +642,23 @@ class Model(Typing, Serialization, FileIO):
         """
         location_in_the_cloud = None
         description = None
-        if cls.list_available_models() is not None:
+        models = cls.list_available_models()
+        if models is not None:
             for pretrained_model_info in cls.list_available_models():
+                found = False
                 if pretrained_model_info.pretrained_model_name == model_name:
+                    found = True
+                elif pretrained_model_info.aliases is not None:
+                    for alias in pretrained_model_info.aliases:
+                        if alias == model_name:
+                            found = True
+                            break
+                if found:
                     location_in_the_cloud = pretrained_model_info.location
                     description = pretrained_model_info.description
                     class_ = pretrained_model_info.class_
+                    break
+
         if location_in_the_cloud is None:
             raise FileNotFoundError(
                 f"Model {model_name} was not found. Check cls.list_available_models() for the list of all available models."

@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,14 +14,15 @@
 
 from argparse import ArgumentParser
 
-from nemo_text_processing.text_normalization.normalize import normalizers
-from nemo_text_processing.text_normalization.utils import (
+from nemo_text_processing.text_normalization.clean_eval_data import filter_loaded_data
+from nemo_text_processing.text_normalization.data_loader_utils import (
     evaluate,
     known_types,
     load_files,
     training_data_to_sentences,
     training_data_to_tokens,
 )
+from nemo_text_processing.text_normalization.normalize import Normalizer
 
 
 '''
@@ -34,33 +35,38 @@ def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--input", help="input file path", type=str)
     parser.add_argument(
-        "--normalizer",
-        default='nemo',
-        help="normalizer to use (" + ", ".join(normalizers.keys()) + ")",
-        type=str,
-        choices=normalizers.keys(),
+        "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )
     parser.add_argument(
-        "--cat", dest="category", help="focus on class only (" + ", ".join(known_types) + ")", type=str, default=None
+        "--cat",
+        dest="category",
+        help="focus on class only (" + ", ".join(known_types) + ")",
+        type=str,
+        default=None,
+        choices=known_types,
     )
+    parser.add_argument("--filter", action='store_true', help="clean data for normalization purposes")
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     # Example usage:
-    # python run_evaluate.py --input=<INPUT> --cat=<CATEGORY>
+    # python run_evaluate.py --input=<INPUT> --cat=<CATEGORY> --filter
     args = parse_args()
     file_path = args.input
-    normalizer = normalizers[args.normalizer]
+    normalizer = Normalizer(input_case=args.input_case)
 
     print("Loading training data: " + file_path)
     training_data = load_files([file_path])
 
+    if args.filter:
+        training_data = filter_loaded_data(training_data)
+
     if args.category is None:
         print("Sentence level evaluation...")
-        sentences_un_normalized, sentences_normalized = training_data_to_sentences(training_data)
-        print("- Data: " + str(len(sentences_un_normalized)) + " sentences")
-        sentences_prediction = normalizer(sentences_un_normalized)
+        sentences_un_normalized, sentences_normalized, _ = training_data_to_sentences(training_data)
+        print("- Data: " + str(len(sentences_normalized)) + " sentences")
+        sentences_prediction = normalizer.normalize_list(sentences_un_normalized)
         print("- Normalized. Evaluating...")
         sentences_accuracy = evaluate(
             preds=sentences_prediction, labels=sentences_normalized, input=sentences_un_normalized
@@ -73,10 +79,12 @@ if __name__ == "__main__":
     for token_type in tokens_per_type:
         print("- Token type: " + token_type)
         tokens_un_normalized, tokens_normalized = tokens_per_type[token_type]
-        print("  - Data: " + str(len(tokens_un_normalized)) + " tokens")
-        tokens_prediction = normalizer(tokens_un_normalized)
-        print("  - Normalized. Evaluating...")
-        token_accuracy[token_type] = evaluate(tokens_prediction, tokens_normalized, tokens_un_normalized)
+        print("  - Data: " + str(len(tokens_normalized)) + " tokens")
+        tokens_prediction = normalizer.normalize_list(tokens_un_normalized)
+        print("  - Denormalized. Evaluating...")
+        token_accuracy[token_type] = evaluate(
+            preds=tokens_prediction, labels=tokens_normalized, input=tokens_un_normalized
+        )
         print("  - Accuracy: " + str(token_accuracy[token_type]))
     token_count_per_type = {token_type: len(tokens_per_type[token_type][0]) for token_type in tokens_per_type}
     token_weighted_accuracy = [
@@ -85,7 +93,8 @@ if __name__ == "__main__":
     print("- Accuracy: " + str(sum(token_weighted_accuracy) / sum(token_count_per_type.values())))
     print(" - Total: " + str(sum(token_count_per_type.values())), '\n')
 
-    # csv output
+    print(" - Total: " + str(sum(token_count_per_type.values())), '\n')
+
     for token_type in token_accuracy:
         if token_type not in known_types:
             raise ValueError("Unexpected token type: " + token_type)
@@ -95,7 +104,7 @@ if __name__ == "__main__":
         c2 = ['Num Tokens', len(sentences_normalized)] + [
             token_count_per_type[known_type] if known_type in tokens_per_type else '0' for known_type in known_types
         ]
-        c3 = [args.normalizer, sentences_accuracy] + [
+        c3 = ['Normalization', sentences_accuracy] + [
             token_accuracy[known_type] if known_type in token_accuracy else '0' for known_type in known_types
         ]
 
@@ -103,4 +112,4 @@ if __name__ == "__main__":
             print(f'{str(c1[i]):10s} | {str(c2[i]):10s} | {str(c3[i]):5s}')
     else:
         print(f'numbers\t{token_count_per_type[args.category]}')
-        print(f'{args.normalizer}\t{token_accuracy[args.category]}')
+        print(f'Normalization\t{token_accuracy[args.category]}')

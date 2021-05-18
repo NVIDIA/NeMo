@@ -15,8 +15,8 @@
 from typing import Any, Dict, Optional
 
 import torch
-from pytorch_lightning.metrics import Metric
-from pytorch_lightning.metrics.utils import METRIC_EPS
+from torchmetrics import Metric
+from torchmetrics.utilities.data import METRIC_EPS
 
 __all__ = ['ClassificationReport']
 

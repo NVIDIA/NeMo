@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import torch
-from pytorch_lightning.metrics import Metric
 from torch.distributions.categorical import Categorical
+from torchmetrics import Metric
 
 __all__ = ['Perplexity']
 
@@ -26,9 +26,7 @@ class Perplexity(Metric):
     ``probs`` or ``logits`` to the :meth:`update` method. The class computes perplexities for distributions passed to 
     :meth:`update` method in ``probs`` or ``logits`` arguments and averages the perplexities. Reducing results between
     all workers is done via SUM operations.
-
     See :doc:`PyTorch Lightning Metrics<pytorch-lightning:metrics>` for the metric usage instructions.
-
     Args:
         compute_on_step:
             Forward only calls ``update()`` and returns ``None`` if this is set to ``False``. default: ``True``
@@ -55,7 +53,6 @@ class Perplexity(Metric):
     def update(self, probs=None, logits=None):
         """
         Updates :attr:`perplexities_sum` and :attr:`num_distributions`.
-
         Args:
             probs: A ``torch.Tensor`` which innermost dimension is valid probability distribution.
             logits: A ``torch.Tensor`` without NaNs.
