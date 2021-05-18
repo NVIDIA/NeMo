@@ -30,8 +30,8 @@ def main(cfg: DictConfig) -> None:
     logging.info(f'\nConfig Params:\n{cfg.pretty()}')
     trainer = pl.Trainer(plugins=[NLPDDPPlugin()], **cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-
-    model = TextClassificationModel.restore_from(cfg.model.nemo_path, trainer=trainer)
+    # TODO: can we drop strict=False
+    model = TextClassificationModel.restore_from(cfg.model.nemo_path, trainer=trainer, strict=False)
     model.setup_test_data(test_data_config=cfg.model.test_ds)
 
     trainer.test(model=model, ckpt_path=None)
