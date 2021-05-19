@@ -627,7 +627,7 @@ class MTEncDecModel(EncDecNLPModel):
 
     @torch.no_grad()
     def batch_translate(
-        self, src: torch.LongTensor, src_mask: torch.LongTensor,
+        self, src: torch.LongTensor, src_mask: torch.LongTensor, return_beam_scores: bool = False
     ):
         """	
         Translates a minibatch of inputs from source language to target language.	
@@ -642,9 +642,13 @@ class MTEncDecModel(EncDecNLPModel):
         try:
             self.eval()
             src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
-            beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
-            beam_results = self.filter_predicted_ids(beam_results)
+            beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask, return_beam_scores=return_beam_scores)
+            if return_beam_scores:
+                beam_ids, scores = beam_results
+                beam_results = self.filter_predicted_ids(beam_ids)
+                scores = scores.view(-1)
 
+            beam_results = self.filter_predicted_ids(beam_ids)
             translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
             inputs = [self.encoder_tokenizer.ids_to_text(inp) for inp in src.cpu().numpy()]
             if self.target_processor is not None:
@@ -656,11 +660,14 @@ class MTEncDecModel(EncDecNLPModel):
                 inputs = [self.source_processor.detokenize(item.split(' ')) for item in inputs]
         finally:
             self.train(mode=mode)
+        if return_beam_scores:
+            return inputs, translations, scores.data.cpu().numpy().tolist()
+
         return inputs, translations
 
     # TODO: We should drop source/target_lang arguments in favor of using self.src/tgt_language
     @torch.no_grad()
-    def translate(self, text: List[str], source_lang: str = None, target_lang: str = None) -> List[str]:
+    def translate(self, text: List[str], source_lang: str = None, target_lang: str = None, return_beam_scores: bool = False) -> List[str]:
         """
         Translates list of sentences from source language to target language.
         Should be regular text, this method performs its own tokenization/de-tokenization
@@ -693,7 +700,11 @@ class MTEncDecModel(EncDecNLPModel):
 
             src_mask = torch.FloatTensor((src_ids_ != self.encoder_tokenizer.pad_id)).to(self.device)
             src = torch.LongTensor(src_ids_).to(self.device)
-            _, translations = self.batch_translate(src, src_mask)
+            if return_beam_scores:
+                _, translations, scores = self.batch_translate(src, src_mask, return_beam_scores=True)
+                return translations, scores
+            else:
+                _, translations = self.batch_translate(src, src_mask, return_beam_scores=False)
         finally:
             self.train(mode=mode)
         return translations

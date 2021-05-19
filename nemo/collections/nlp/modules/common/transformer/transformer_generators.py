@@ -136,8 +136,8 @@ class GreedySequenceGenerator:
 
         return tgt, batch_size, max_generation_length
 
-    def _forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None):
-
+    def _forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None, return_beam_scores=False):
+        assert not return_beam_scores
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
 
         # pad profile tracks sequences ending with <eos> token to replace
@@ -163,9 +163,9 @@ class GreedySequenceGenerator:
 
         return tgt
 
-    def __call__(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None):
+    def __call__(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None, return_beam_scores=False):
         with self.as_frozen():
-            return self._forward(decoder_input_ids, encoder_hidden_states, encoder_input_mask)
+            return self._forward(decoder_input_ids, encoder_hidden_states, encoder_input_mask, return_beam_scores=return_beam_scores)
 
     def freeze(self) -> None:
         """Freeze weights of embedding, decoder, and classification layers to prevent memory leak.
@@ -279,7 +279,7 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         """Returns length penalty according to https://arxiv.org/pdf/1609.08144.pdf"""
         return ((5 + lengths) / 6).pow(alpha)
 
-    def _forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None):
+    def _forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None, return_beam_scores=False):
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
 
         # generate initial buffer of beam_size prefixes-hypotheses
@@ -368,12 +368,15 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         # select best performing hypotheses in each element of the batch
         len_penalties = self.compute_len_penalty(prefixes_len, self.len_pen)
         scores = scores / len_penalties
-        best_guesses = (
-            torch.argmax(scores.view(-1, self.beam_size), dim=1, keepdim=True).repeat(1, prefixes.size(1)).unsqueeze(1)
-        )
-        tgt = prefixes.view(batch_size, self.beam_size, -1).gather(1, best_guesses)
+        if return_beam_scores:
+            return prefixes, scores
+        else:
+            best_guesses = (
+                torch.argmax(scores.view(-1, self.beam_size), dim=1, keepdim=True).repeat(1, prefixes.size(1)).unsqueeze(1)
+            )
+            tgt = prefixes.view(batch_size, self.beam_size, -1).gather(1, best_guesses)
 
-        return tgt.squeeze(1)
+            return tgt.squeeze(1)
 
 
 class EnsembleBeamSearchSequenceGenerator:
