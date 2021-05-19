@@ -78,7 +78,7 @@ class MegatronEncoderModule(EncoderModule):
     def forward(self, input_ids, encoder_mask):
         encoder_hidden_states = self._encoder.forward(
             input_ids=input_ids, attention_mask=encoder_mask, token_type_ids=None
-        )[0]
+        )
         return encoder_hidden_states
 
     @property
