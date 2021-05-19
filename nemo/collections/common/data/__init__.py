@@ -12,7 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import (
-    TarredTranslationDataset,
-    TranslationDataset,
-)
+from nemo.collections.common.data.dataset import ConcatDataset
