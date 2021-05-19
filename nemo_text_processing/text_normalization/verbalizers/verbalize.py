@@ -42,7 +42,7 @@ class VerbalizeFst(GraphFst):
         super().__init__(name="verbalize", kind="verbalize", deterministic=deterministic)
         cardinal = CardinalFst(deterministic=deterministic)
         cardinal_graph = cardinal.fst
-        decimal = DecimalFst(deterministic=deterministic)
+        decimal = DecimalFst(cardinal=cardinal, deterministic=deterministic)
         decimal_graph = decimal.fst
         ordinal = OrdinalFst(deterministic=deterministic)
         ordinal_graph = ordinal.fst
