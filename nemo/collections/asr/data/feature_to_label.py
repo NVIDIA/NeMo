@@ -15,7 +15,7 @@ from typing import Dict, List, Optional
 
 import torch
 
-from nemo.collections.asr.parts import collections
+from nemo.collections.common.parts.preprocessing import collections
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import AcousticEncodedRepresentation, LabelsType, LengthsType, NeuralType
 from nemo.utils import logging
@@ -88,7 +88,7 @@ class _FeatureSeqSpeakerLabelDataset(Dataset):
         self, *, manifest_filepath: str, labels: List[str], feature_loader, is_speaker_emb: bool = False,
     ):
         super().__init__()
-        self.collection = collections.ASRFeatureSequenceLabel(manifests_files=manifest_filepath.split(','),)
+        self.collection = collections.ASRFeatureSequenceLabel(manifests_files=manifest_filepath.split(','), )
 
         self.feature_loader = feature_loader
         self.labels = labels if labels else self.collection.uniq_labels

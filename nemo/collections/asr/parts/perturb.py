@@ -48,7 +48,7 @@ from omegaconf import DictConfig, OmegaConf
 from scipy import signal
 from torch.utils.data import IterableDataset
 
-from nemo.collections.asr.parts import collections, parsers
+from nemo.collections.common.parts.preprocessing import collections, parsers
 from nemo.collections.asr.parts.segment import AudioSegment
 from nemo.utils import logging
 

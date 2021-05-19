@@ -25,7 +25,7 @@ from scipy.stats import betabinom
 from torch.nn import functional as F
 
 from nemo.collections.asr.data import vocabs
-from nemo.collections.asr.parts import collections, parsers
+from nemo.collections.common.parts.preprocessing import collections, parsers
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import *

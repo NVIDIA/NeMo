@@ -55,7 +55,7 @@ import torch
 from torch.nn.utils.rnn import pad_sequence
 from tqdm import tqdm
 
-from nemo.collections.asr.parts import collections, parsers
+from nemo.collections.common.parts.preprocessing import collections, parsers
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.segment import AudioSegment
 from nemo.core.classes import Dataset
