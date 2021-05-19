@@ -111,7 +111,7 @@ class MegatronBertEncoder(BertModule):
         logging.info(f'Megatron-lm argparse args: {args}')
 
         self.language_model, self._language_model_key = get_language_model(
-            attention_mask_func=bert_attention_mask_func, num_tokentypes=2, add_pooler=False
+            attention_mask_func=bert_attention_mask_func, num_tokentypes=0, add_pooler=False
         )
 
         self.config = OmegaConf.create(config)
