@@ -21,12 +21,15 @@ class ExternalFeatureLoader(object):
     """
 
     def __init__(self, file_path, sample_rate=16000, augmentor=None):
+        """Load feature samples from file_path.
+        file_path (str) is the path of the file that stores feature/sample.
+        """
         self._file_path = file_path
         self.augmentor = augmentor
 
     def load_feature_from_file(self, file_path):
         """Load samples from file_path and convert it to be of type float32
-        file_path represent files that store the samples/features.
+        file_path (str) is the path of the file that stores feature/sample.
         """
         # load pickle/npy/npz file
         try:
