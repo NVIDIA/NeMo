@@ -337,10 +337,10 @@ class ASRSpeechLabel(SpeechLabel):
         return item
 
 
-class FeatSeqLabel(_Collection):
+class FeatureSequenceLabel(_Collection):
     """List of feature sequence of label correspondence with preprocessing."""
 
-    OUTPUT_TYPE = collections.namedtuple(typename='FeatSeqLabelEntity', field_names='feature_file seq_label',)
+    OUTPUT_TYPE = collections.namedtuple(typename='FeatureSequenceLabelEntity', field_names='feature_file seq_label',)
 
     def __init__(
         self,
@@ -349,7 +349,7 @@ class FeatSeqLabel(_Collection):
         max_number: Optional[int] = None,
         index_by_file_id: bool = False,
     ):
-        """Instantiates feat-SeqLabel manifest with filters and preprocessing.
+        """Instantiates feature-SequenceLabel manifest with filters and preprocessing.
 
         Args:
             feature_files: List of feature files.
@@ -419,8 +419,8 @@ class FeatSeqLabel(_Collection):
         return relative_seq_label, unique_labels_in_seq
 
 
-class ASRFeatSeqLabel(FeatSeqLabel):
-    """`FeatSeqLabel` collector from asr structured json files."""
+class ASRFeatureSequenceLabel(FeatureSequenceLabel):
+    """`FeatureSequenceLabel` collector from asr structured json files."""
 
     def __init__(self, manifests_files: Union[str, List[str]], *args, **kwargs):
         """Parse lists of feature files and sequences of labels.
@@ -428,8 +428,8 @@ class ASRFeatSeqLabel(FeatSeqLabel):
         Args:
             manifests_files: Either single string file or list of such -
                 manifests to yield items from.
-            *args: Args to pass to `FeatSeqLabel` constructor.
-            **kwargs: Kwargs to pass to `FeatSeqLabel` constructor.
+            *args: Args to pass to `FeatureSequenceLabel` constructor.
+            **kwargs: Kwargs to pass to `FeatureSequenceLabel` constructor.
         """
 
         feature_files, seq_labels = [], []

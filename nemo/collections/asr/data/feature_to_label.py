@@ -21,7 +21,7 @@ from nemo.core.neural_types import AcousticEncodedRepresentation, LabelsType, Le
 from nemo.utils import logging
 
 
-def _feature_collate_fn(batch, pad_id):
+def _feature_collate_fn(batch):
     """collate batch of feat sig, feat len, tokens, tokens len
     Args:
         batch (FloatTensor, LongTensor, LongTensor, LongTensor):  A tuple of tuples of feature, feature lengths,
@@ -88,7 +88,7 @@ class _FeatureSeqSpeakerLabelDataset(Dataset):
         self, *, manifest_filepath: str, labels: List[str], feature_loader, is_speaker_emb: bool = False,
     ):
         super().__init__()
-        self.collection = collections.ASRFeatSeqLabel(manifests_files=manifest_filepath.split(','),)
+        self.collection = collections.ASRFeatureSequenceLabel(manifests_files=manifest_filepath.split(','),)
 
         self.feature_loader = feature_loader
         self.labels = labels if labels else self.collection.uniq_labels
@@ -130,10 +130,10 @@ class FeatureToSeqSpeakerLabelDataset(_FeatureSeqSpeakerLabelDataset):
     Args:
         manifest_filepath (str): Path to manifest json as described above. Canbe comma-separated paths.
         labels (Optional[list]): String containing all the possible labels to map to
-            if None then automatically picks from ASRFeatSeqLabel collection.
+            if None then automatically picks from ASRFeatureSequenceLabel collection.
         feature_loader, Feature load to loader (external) feature.
     
     """
 
     def _collate_fn(self, batch):
-        return _feature_collate_fn(batch, pad_id=0)
+        return _feature_collate_fn(batch)

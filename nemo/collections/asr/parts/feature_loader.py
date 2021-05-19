@@ -16,6 +16,10 @@ import torch
 
 
 class ExternalFeatureLoader(object):
+    """Feature loader that load external features store in certain format. 
+    Currently support pickle, npy and npz format.
+    """
+
     def __init__(self, file_path, sample_rate=16000, augmentor=None):
         self._file_path = file_path
         self.augmentor = augmentor
