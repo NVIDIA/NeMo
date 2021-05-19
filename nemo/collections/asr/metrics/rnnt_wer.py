@@ -20,8 +20,8 @@ import editdistance
 import torch
 from torchmetrics import Metric
 
-from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode, \
-    rnnt_beam_decoding as beam_decode
+from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
+from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.utils import logging
 

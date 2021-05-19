@@ -29,7 +29,7 @@ from tqdm import tqdm
 
 from nemo.collections.asr.models.classification_models import EncDecClassificationModel
 from nemo.collections.asr.models.label_models import ExtractSpeakerEmbeddingsModel
-from nemo.collections.asr.parts.mixins import DiarizationMixin
+from nemo.collections.asr.parts.mixins.mixins import DiarizationMixin
 from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map, perform_diarization, write_rttm2manifest
 from nemo.collections.asr.parts.utils.vad_utils import (
     generate_overlap_vad_seq,

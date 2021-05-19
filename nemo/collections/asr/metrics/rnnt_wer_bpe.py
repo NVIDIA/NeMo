@@ -20,8 +20,8 @@ import torch
 from torchmetrics import Metric
 
 from nemo.collections.asr.metrics.rnnt_wer import AbstractRNNTDecoding
-from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode, \
-    rnnt_beam_decoding as beam_decode
+from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
+from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 

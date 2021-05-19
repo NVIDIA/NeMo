@@ -88,7 +88,7 @@ class _FeatureSeqSpeakerLabelDataset(Dataset):
         self, *, manifest_filepath: str, labels: List[str], feature_loader, is_speaker_emb: bool = False,
     ):
         super().__init__()
-        self.collection = collections.ASRFeatureSequenceLabel(manifests_files=manifest_filepath.split(','), )
+        self.collection = collections.ASRFeatureSequenceLabel(manifests_files=manifest_filepath.split(','),)
 
         self.feature_loader = feature_loader
         self.labels = labels if labels else self.collection.uniq_labels
