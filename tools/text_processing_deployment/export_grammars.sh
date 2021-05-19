@@ -15,13 +15,15 @@
 
 #!/bin/bash
 
-# This script compiles and exports WFST-grammars from nemo_tools inverse text normalization, builds C++ production backend Sparrowhawk (https://github.com/google/sparrowhawk) in docker, 
-# pluggs grammars into Sparrowhawk and returns prompt inside docker.
-# To run inverse text normalization, run e.g.
+# This script compiles and exports WFST-grammars from nemo_text_processing, builds C++ production backend Sparrowhawk (https://github.com/google/sparrowhawk) in docker, 
+# plugs grammars into Sparrowhawk and returns prompt inside docker.
+# For inverse text normalization run:
 #       echo "two dollars fifty" | ../../src/bin/normalizer_main --config=sparrowhawk_configuration.ascii_proto
+# For text normalization run:
+#       echo "\$2.5" | ../../src/bin/normalizer_main --config=sparrowhawk_configuration.ascii_proto
 
 GRAMMARS=${1:-"itn_grammars"} # tn_grammars
-INPUT_CASE=${2:-"cased"}
+INPUT_CASE=${2:-"cased"} # lower_cased, only for tn_grammars
 python pynini_export.py --output_dir=. --grammars=${GRAMMARS} --input_case=${INPUT_CASE}
 find . -name "Makefile" -type f -delete
 bash docker/build.sh 
