@@ -67,7 +67,7 @@ class ConcatDataset(IterableDataset):
             self.index_generator = ConcatDataset.round_robin_generator
         else:
             raise ValueError(f"Currently we only support sampling techniques in {supported_sampling_techniques}.")
-        self.N = 0
+        self.length = 0
 
         if isinstance(datasets[0], IterableDataset):
             self.kind = 'iterable'
@@ -80,9 +80,9 @@ class ConcatDataset(IterableDataset):
                 raise ValueError("All datasets in ConcatDataset must be of the same kind (Iterable or Map).")
 
             if self.kind == 'map':
-                self.N += len(dataset) // world_size
+                self.length += len(dataset) // world_size
             else:
-                self.N += len(dataset)
+                self.length += len(dataset)
 
     def get_iterable(self, dataset):
         if isinstance(dataset, IterableDataset):
@@ -96,13 +96,13 @@ class ConcatDataset(IterableDataset):
     def __iter__(self):
         worker_info = pt_data.get_worker_info()
         if worker_info is None:
-            max_elements = self.N
+            max_elements = self.length
             wid = 0
             wnum = 1
         else:
             wid = worker_info.id
             wnum = worker_info.num_workers
-            max_elements = len(range(wid, self.N, wnum))
+            max_elements = len(range(wid, self.length, wnum))
 
         if self.kind == 'map':
             for idx in range(len(self.datasets)):
@@ -135,7 +135,7 @@ class ConcatDataset(IterableDataset):
                 n -= 1
 
     def __len__(self):
-        return self.N
+        return self.length
 
     @staticmethod
     def temperature_generator(datasets, **kwargs):
