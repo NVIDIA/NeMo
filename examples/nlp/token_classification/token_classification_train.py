@@ -110,7 +110,8 @@ def main(cfg: DictConfig) -> None:
         model = TokenClassificationModel(cfg.model, trainer=trainer)
     else:
         if os.path.exists(cfg.pretrained_model):
-            model = TokenClassificationModel.restore_from(cfg.pretrained_model, trainer=trainer)
+            # TODO: can we drop strict=False?
+            model = TokenClassificationModel.restore_from(cfg.pretrained_model, trainer=trainer, strict=False)
         elif cfg.pretrained_model in TokenClassificationModel.get_available_model_names():
             model = TokenClassificationModel.from_pretrained(cfg.pretrained_model)
         else:

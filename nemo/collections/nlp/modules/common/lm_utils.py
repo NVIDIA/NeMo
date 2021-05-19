@@ -124,6 +124,7 @@ def get_transformer(
     config_dict: Optional[dict] = None,
     checkpoint_file: Optional[str] = None,
     encoder: bool = True,
+    pre_ln_final_layer_norm=True,
 ) -> Union[EncoderModule, DecoderModule]:
     """Gets Transformer based model to be used as an Encoder or Decoder in NeMo NLP.
        First choose the library to get the transformer from. This can be huggingface,
@@ -159,7 +160,11 @@ def get_transformer(
         if isinstance(config_dict, NeMoTransformerConfig):
             config_dict = asdict(config_dict)
         model = get_nemo_transformer(
-            model_name=model_name, pretrained=pretrained, config_dict=config_dict, encoder=encoder,
+            model_name=model_name,
+            pretrained=pretrained,
+            config_dict=config_dict,
+            encoder=encoder,
+            pre_ln_final_layer_norm=pre_ln_final_layer_norm,
         )
 
         if checkpoint_file is not None:
