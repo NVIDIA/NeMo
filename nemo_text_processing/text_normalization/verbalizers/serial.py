@@ -35,7 +35,7 @@ class SerialFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, measure: GraphFst, deterministic: bool):
+    def __init__(self, measure: GraphFst, deterministic: bool = False):
         super().__init__(name="serial", kind="verbalize", deterministic=deterministic)
 
         serial = pynutil.delete("units: \"") + pynini.cross("serial", "") + pynutil.delete("\"") + delete_space

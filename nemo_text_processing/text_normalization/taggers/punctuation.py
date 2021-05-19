@@ -35,7 +35,7 @@ class PunctuationFst(GraphFst):
 
     """
 
-    def __init__(self, deterministic: bool):
+    def __init__(self, deterministic: bool = True):
         super().__init__(name="punctuation", kind="classify", deterministic=deterministic)
 
         s = "!#$%&\'()*+,-./:;<=>?@^_`{|}~\""

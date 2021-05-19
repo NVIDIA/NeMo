@@ -58,50 +58,50 @@ pipeline {
       }
     }
 
-//     stage('PyTorch Lightning DDP Checks') {
-//       steps {
-//         sh 'python "tests/core_ptl/check_for_ranks.py"'
-//       }
-//     }
-//
-//     stage('L0: Unit Tests GPU') {
-//       steps {
-//         sh 'pytest -m "not pleasefixme" --with_downloads'
-//       }
-//     }
-//
-//     stage('L0: Unit Tests CPU') {
-//       when {
-//         anyOf {
-//           branch 'main'
-//           changeRequest target: 'main'
-//         }
-//       }
-//       steps {
-//         sh 'CUDA_VISIBLE_DEVICES="" pytest -m "not pleasefixme" --cpu --with_downloads'
-//       }
-//     }
-//
-//     stage('L0: Computer Vision Integration') {
-//       when {
-//         anyOf {
-//           branch 'main'
-//           changeRequest target: 'main'
-//         }
-//       }
-//       failFast true
-//       parallel {
-//         stage ('MNIST image classification with LeNet-5 Integration Test - on CPU') {
-//           steps {
-//             sh 'cd examples/cv && \
-//             python mnist_lenet5_image_classification_pure_lightning.py trainer.gpus=0 \
-//             trainer.accelerator=null \
-//             trainer.fast_dev_run=true model.dataset.data_folder=/home/TestData \
-//             && rm -rf outputs'
-//           }
-//         }
-//       }
-//     }
+    stage('PyTorch Lightning DDP Checks') {
+      steps {
+        sh 'python "tests/core_ptl/check_for_ranks.py"'
+      }
+    }
+
+    stage('L0: Unit Tests GPU') {
+      steps {
+        sh 'pytest -m "not pleasefixme" --with_downloads'
+      }
+    }
+
+    stage('L0: Unit Tests CPU') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      steps {
+        sh 'CUDA_VISIBLE_DEVICES="" pytest -m "not pleasefixme" --cpu --with_downloads'
+      }
+    }
+
+    stage('L0: Computer Vision Integration') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage ('MNIST image classification with LeNet-5 Integration Test - on CPU') {
+          steps {
+            sh 'cd examples/cv && \
+            python mnist_lenet5_image_classification_pure_lightning.py trainer.gpus=0 \
+            trainer.accelerator=null \
+            trainer.fast_dev_run=true model.dataset.data_folder=/home/TestData \
+            && rm -rf outputs'
+          }
+        }
+      }
+    }
 
     // We have no integration tests, please enable this when one is added
     // stage('L0: Integration Tests GPU') {
@@ -155,7 +155,7 @@ pipeline {
             sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_norm/output/ --grammars=tn_grammars && ls -R /home/TestData/nlp/text_norm/output/ && echo ".far files created "|| exit 1'
             sh 'cd nemo_text_processing/text_normalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_norm/ci/test.txt --input_case="lower_cased" --output=/home/TestData/nlp/text_norm/output/test.pynini.txt --verbose'
             sh 'cmp --silent /home/TestData/nlp/text_norm/output/test.pynini.txt /home/TestData/nlp/text_norm/ci/test_goal_py.txt || exit 1'
-//             sh 'rm -rf /home/TestData/nlp/text_norm/output/*'
+            sh 'rm -rf /home/TestData/nlp/text_norm/output/*'
           }
         }
 
@@ -164,7 +164,7 @@ pipeline {
             sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_denorm/output/ --grammars=itn_grammars && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
             sh 'cd nemo_text_processing/inverse_text_normalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_denorm/ci/test.txt --output=/home/TestData/nlp/text_denorm/output/test.pynini.txt --verbose'
             sh 'cmp --silent /home/TestData/nlp/text_denorm/output/test.pynini.txt /home/TestData/nlp/text_denorm/ci/test_goal_py.txt || exit 1'
-//             sh 'rm -rf /home/TestData/nlp/text_denorm/output/*'
+            sh 'rm -rf /home/TestData/nlp/text_denorm/output/*'
           }
         }
       }

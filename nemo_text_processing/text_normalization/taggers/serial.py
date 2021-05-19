@@ -40,7 +40,7 @@ class SerialFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal: GraphFst, deterministic: bool):
+    def __init__(self, cardinal: GraphFst, deterministic: bool = False):
         super().__init__(name="serial", kind="classify", deterministic=deterministic)
 
         num_graph = cardinal.graph

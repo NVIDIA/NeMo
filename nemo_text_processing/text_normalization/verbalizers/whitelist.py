@@ -35,7 +35,7 @@ class WhiteListFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, deterministic: bool):
+    def __init__(self, deterministic: bool = True):
         super().__init__(name="whitelist", kind="verbalize", deterministic=deterministic)
         graph = (
             pynutil.delete("name:")

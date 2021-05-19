@@ -37,7 +37,7 @@ class CardinalFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, deterministic: bool):
+    def __init__(self, deterministic: bool = True):
         super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
 
         graph = pynini.Far(get_abs_path("data/numbers/cardinal_number_name.far")).get_fst()

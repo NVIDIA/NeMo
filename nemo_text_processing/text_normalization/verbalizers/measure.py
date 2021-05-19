@@ -37,7 +37,7 @@ class MeasureFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, decimal: GraphFst, cardinal: GraphFst, deterministic: bool):
+    def __init__(self, decimal: GraphFst, cardinal: GraphFst, deterministic: bool = True):
         super().__init__(name="measure", kind="verbalize", deterministic=deterministic)
         optional_sign = cardinal.optional_sign
         unit = pynutil.insert(" ") + pynini.closure(NEMO_CHAR - " ", 1)
