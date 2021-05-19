@@ -15,10 +15,8 @@
 import os
 
 import pytest
-import torch
 
 from nemo.collections.asr.data.audio_to_text import TarredAudioToBPEDataset, TarredAudioToCharDataset
-from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.common import tokenizers
 
 

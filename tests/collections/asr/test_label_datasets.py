@@ -18,9 +18,8 @@ import torch
 
 from nemo.collections.asr.data.audio_to_label import TarredAudioToClassificationLabelDataset
 from nemo.collections.asr.data.feature_to_label import FeatureToSeqSpeakerLabelDataset
-from nemo.collections.asr.parts.feature_loader import ExternalFeatureLoader
-from nemo.collections.asr.parts.features import WaveformFeaturizer
-from nemo.collections.common import tokenizers
+from nemo.collections.asr.parts.preprocessing.feature_loader import ExternalFeatureLoader
+from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 
 
 class TestASRDatasets:

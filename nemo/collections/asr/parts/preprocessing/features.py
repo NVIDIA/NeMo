@@ -43,8 +43,8 @@ from librosa.util import tiny
 from torch.autograd import Variable
 from torch_stft import STFT
 
-from nemo.collections.asr.parts.perturb import AudioAugmentor
-from nemo.collections.asr.parts.segment import AudioSegment
+from nemo.collections.asr.parts.preprocessing.perturb import AudioAugmentor
+from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.common.parts.patch_utils import stft_patch
 from nemo.utils import logging
 

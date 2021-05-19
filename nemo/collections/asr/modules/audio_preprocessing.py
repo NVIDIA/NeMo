@@ -20,8 +20,8 @@ from typing import Any, Optional
 import torch
 from packaging import version
 
-from nemo.collections.asr.parts.features import FilterbankFeatures
-from nemo.collections.asr.parts.spectr_augment import SpecAugment, SpecCutout
+from nemo.collections.asr.parts.preprocessing.features import FilterbankFeatures
+from nemo.collections.asr.parts.submodules.spectr_augment import SpecAugment, SpecCutout
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import (
     AudioSignal,

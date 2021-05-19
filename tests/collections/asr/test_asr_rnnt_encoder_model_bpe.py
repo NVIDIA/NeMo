@@ -21,8 +21,8 @@ import torch
 from omegaconf import DictConfig
 
 from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
-from nemo.collections.asr.parts import rnnt_beam_decoding as beam_decode
-from nemo.collections.asr.parts import rnnt_greedy_decoding as greedy_decode
+from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode, \
+    rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.numba import __NUMBA_MINIMUM_VERSION__, numba_utils
 from nemo.collections.common import tokenizers
 
