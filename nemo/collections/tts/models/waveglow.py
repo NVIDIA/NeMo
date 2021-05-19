@@ -228,10 +228,10 @@ class WaveGlowModel(GlowVocoder, Exportable):
         list_of_models.append(model)
         model = PretrainedModelInfo(
             pretrained_model_name="tts_waveglow_88m",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_waveglow_88m/versions/1.0.0rc1/files/tts_waveglow_88m.nemo",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_waveglow_88m/versions/1.0.0/files/tts_waveglow.nemo",
             description="This model is trained on LJSpeech sampled at 22050Hz, and has been tested on generating female English voices with an American accent and Mandarin voices.",
             class_=cls,
-            aliases=["WaveGlow-22050Hz"],
+            aliases=["WaveGlow-22050Hz", "tts_waveglow"],
         )
         list_of_models.append(model)
         return list_of_models
@@ -250,3 +250,11 @@ class WaveGlowModel(GlowVocoder, Exportable):
 
     def forward_for_export(self, spec, z=None):
         return self.waveglow(spec, z)
+
+    def load_state_dict(self, state_dict, strict=True):
+        # Remove convinv.inv_conv weights since they are not initialized until forward is called during training
+        # and can be computed from convinv.conv.weight
+        # Ideally, we should remove this during saving instead of ignoring during loading
+        for i in range(self._cfg.waveglow.n_flows):
+            del state_dict[f"waveglow.convinv.{i}.inv_conv.weight"]
+        super().load_state_dict(state_dict, strict=strict)
