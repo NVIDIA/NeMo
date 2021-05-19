@@ -14,7 +14,6 @@
 
 from typing import Optional
 
-
 from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_lm_model
 from nemo.core.classes.common import typecheck
