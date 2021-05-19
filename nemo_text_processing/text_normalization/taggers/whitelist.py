@@ -55,7 +55,7 @@ class WhiteListFst(GraphFst):
 
         graph = _get_whitelist_graph()
         if not deterministic:
-            graph |= _get_whitelist_graph("data/whitelist_not_deterministic.tsv")
+            graph |= _get_whitelist_graph("data/whitelist_alternatives.tsv")
 
         graph = pynutil.insert("name: \"") + convert_space(graph) + pynutil.insert("\"")
         self.fst = graph.optimize()

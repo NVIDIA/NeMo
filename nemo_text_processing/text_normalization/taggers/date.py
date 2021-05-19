@@ -53,7 +53,7 @@ def get_ties_graph(deterministic: bool = True):
     graph = graph_teen | ties_graph + pynutil.delete("0") | ties_graph + insert_space + graph_digit
 
     if deterministic:
-        graph = graph | pynini.cross("0", "oh") + insert_space + graph_digit
+        graph = graph | pynini.cross("0", "o") + insert_space + graph_digit
     else:
         graph = (
             graph
@@ -67,7 +67,9 @@ def get_ties_graph(deterministic: bool = True):
 
 def get_hundreds_graph(deterministic: bool = True):
     """
-    1290 -> twelve nineteen
+    Returns a four digit transducer which is combination of ties/teen or digits
+    (using hundred instead of thousand format), e.g.
+    1219 -> twelve nineteen
     3900 -> thirty nine hundred
     """
     graph_ties = get_ties_graph(deterministic)
@@ -111,10 +113,12 @@ class DateFst(GraphFst):
 
     Args:
         ordinal: OrdinalFst
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal: GraphFst, deterministic: bool = True):
-        super().__init__(name="date", kind="classify")
+    def __init__(self, cardinal: GraphFst, deterministic: bool):
+        super().__init__(name="date", kind="classify", deterministic=deterministic)
 
         month_graph = pynini.string_file(get_abs_path("data/months/names.tsv")).optimize()
         month_graph |= (TO_LOWER + pynini.closure(NEMO_CHAR)) @ month_graph

@@ -38,22 +38,22 @@ class VerbalizeFst(GraphFst):
             for False multiple options (used for audio-based normalization)
     """
 
-    def __init__(self, deterministic: bool = True):
-        super().__init__(name="verbalize", kind="verbalize")
+    def __init__(self, deterministic: bool):
+        super().__init__(name="verbalize", kind="verbalize", deterministic=deterministic)
         cardinal = CardinalFst(deterministic=deterministic)
         cardinal_graph = cardinal.fst
         decimal = DecimalFst(deterministic=deterministic)
         decimal_graph = decimal.fst
-        ordinal = OrdinalFst()
+        ordinal = OrdinalFst(deterministic=deterministic)
         ordinal_graph = ordinal.fst
-        telephone_graph = TelephoneFst().fst
-        electronic_graph = ElectronicFst().fst
-        measure = MeasureFst(decimal=decimal, cardinal=cardinal)
+        telephone_graph = TelephoneFst(deterministic=deterministic).fst
+        electronic_graph = ElectronicFst(deterministic=deterministic).fst
+        measure = MeasureFst(decimal=decimal, cardinal=cardinal, deterministic=deterministic)
         measure_graph = measure.fst
-        time_graph = TimeFst().fst
+        time_graph = TimeFst(deterministic=deterministic).fst
         date_graph = DateFst(ordinal=ordinal, deterministic=deterministic).fst
         money_graph = MoneyFst(decimal=decimal, deterministic=deterministic).fst
-        whitelist_graph = WhiteListFst().fst
+        whitelist_graph = WhiteListFst(deterministic=deterministic).fst
         graph = (
             time_graph
             | date_graph
@@ -68,6 +68,6 @@ class VerbalizeFst(GraphFst):
         )
 
         if not deterministic:
-            serial_graph = SerialFst(measure).fst
+            serial_graph = SerialFst(measure, deterministic=deterministic).fst
             graph |= serial_graph
         self.fst = graph

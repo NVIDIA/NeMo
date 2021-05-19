@@ -28,10 +28,14 @@ class DecimalFst(GraphFst):
     """
     Finite state transducer for verbalizing decimal, e.g.
         decimal { negative: "true" integer_part: "twelve" fractional_part: "five o o six" quantity: "billion" } -> minus twelve point five o o six billion
+
+    Args:
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, deterministic=False):
-        super().__init__(name="decimal", kind="verbalize")
+    def __init__(self, deterministic: bool):
+        super().__init__(name="decimal", kind="verbalize", deterministic=deterministic)
 
         self.optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "minus ") + delete_space, 0, 1)
         self.integer = (
@@ -68,8 +72,8 @@ class DecimalFst(GraphFst):
 
         graph = self.optional_sign + (
             self.integer
-            | self.integer + self.quantity
-            | self.optional_integer + self.fractional + self.optional_quantity
+            | (self.integer + self.quantity)
+            | (self.optional_integer + self.fractional + self.optional_quantity)
         )
         self.numbers = graph
         delete_tokens = self.delete_tokens(graph)

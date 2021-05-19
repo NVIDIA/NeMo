@@ -37,7 +37,8 @@ except (ModuleNotFoundError, ImportError):
 
 class SerialFst(GraphFst):
     """
-    Finite state transducer for classifying serial:
+    Finite state transducer for classifying serial.
+        The serial is a combination of digits, letters and dashes, e.g.:
         c325 ->
         tokens { serial { value: "c three hundred twenty five" } }
         tokens { serial { value: "c three two five" } }
@@ -46,10 +47,12 @@ class SerialFst(GraphFst):
 
     Args:
         cardinal: CardinalFst
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal: GraphFst):
-        super().__init__(name="serial", kind="classify")
+    def __init__(self, cardinal: GraphFst, deterministic: bool):
+        super().__init__(name="serial", kind="classify", deterministic=deterministic)
 
         num_graph = cardinal.graph
         serial_graph_cardinal_start = (

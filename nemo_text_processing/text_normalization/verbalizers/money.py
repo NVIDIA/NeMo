@@ -38,10 +38,12 @@ class MoneyFst(GraphFst):
 
     Args:
         decimal: DecimalFst
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, decimal: GraphFst, deterministic=True):
-        super().__init__(name="money", kind="verbalize")
+    def __init__(self, decimal: GraphFst, deterministic: bool):
+        super().__init__(name="money", kind="verbalize", deterministic=deterministic)
 
         def _get_minor_currencies(file):
             minor_currencies = []

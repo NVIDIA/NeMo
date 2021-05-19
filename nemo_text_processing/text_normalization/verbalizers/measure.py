@@ -33,11 +33,13 @@ class MeasureFst(GraphFst):
     Args:
         decimal: DecimalFst
         cardinal: CardinalFst
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, decimal: GraphFst, cardinal: GraphFst, deterministic=True):
-        super().__init__(name="measure", kind="verbalize")
-        optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "minus ") + delete_space, 0, 1)
+    def __init__(self, decimal: GraphFst, cardinal: GraphFst, deterministic: bool):
+        super().__init__(name="measure", kind="verbalize", deterministic=deterministic)
+        optional_sign = cardinal.optional_sign
         unit = pynutil.insert(" ") + pynini.closure(NEMO_CHAR - " ", 1)
 
         unit = pynutil.delete("units: \"") + unit + pynutil.delete("\"") + delete_space
@@ -47,7 +49,7 @@ class MeasureFst(GraphFst):
             + optional_sign
             + delete_space
             + decimal.numbers
-            + pynini.closure(delete_space)
+            + delete_space
             + pynutil.delete("}")
         )
         self.graph_cardinal = (

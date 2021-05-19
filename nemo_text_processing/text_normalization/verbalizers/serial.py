@@ -28,10 +28,15 @@ class SerialFst(GraphFst):
     """
     Finite state transducer for verbalizing serial, e.g.
         tokens { serial { value: "c thirty two five" } } -> c thirty two five
+
+    Args:
+        measure: MeasureFst
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, measure):
-        super().__init__(name="serial", kind="verbalize")
+    def __init__(self, measure: GraphFst, deterministic: bool):
+        super().__init__(name="serial", kind="verbalize", deterministic=deterministic)
 
         serial = pynutil.delete("units: \"") + pynini.cross("serial", "") + pynutil.delete("\"") + delete_space
         graph = measure.graph_cardinal + delete_space + serial

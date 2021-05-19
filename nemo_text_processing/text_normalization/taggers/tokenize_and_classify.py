@@ -55,22 +55,22 @@ class ClassifyFst(GraphFst):
         cardinal = CardinalFst(deterministic=deterministic)
         cardinal_graph = cardinal.fst
 
-        ordinal = OrdinalFst(cardinal=cardinal)
+        ordinal = OrdinalFst(cardinal=cardinal, deterministic=deterministic)
         ordinal_graph = ordinal.fst
 
         decimal = DecimalFst(cardinal=cardinal, deterministic=deterministic)
         decimal_graph = decimal.fst
 
-        measure = MeasureFst(cardinal=cardinal, decimal=decimal)
+        measure = MeasureFst(cardinal=cardinal, decimal=decimal, deterministic=deterministic)
         measure_graph = measure.fst
         date_graph = DateFst(cardinal=cardinal, deterministic=deterministic).fst
-        word_graph = WordFst().fst
-        time_graph = TimeFst(cardinal=cardinal).fst
-        telephone_graph = TelephoneFst().fst
-        electonic_graph = ElectronicFst().fst
+        word_graph = WordFst(deterministic=deterministic).fst
+        time_graph = TimeFst(cardinal=cardinal, deterministic=deterministic).fst
+        telephone_graph = TelephoneFst(deterministic=deterministic).fst
+        electonic_graph = ElectronicFst(deterministic=deterministic).fst
         money_graph = MoneyFst(cardinal=cardinal, decimal=decimal, deterministic=deterministic).fst
         whitelist_graph = WhiteListFst(input_case=input_case, deterministic=deterministic).fst
-        punct_graph = PunctuationFst().fst
+        punct_graph = PunctuationFst(deterministic=deterministic).fst
 
         classify = (
             pynutil.add_weight(whitelist_graph, 1.01)
@@ -87,8 +87,8 @@ class ClassifyFst(GraphFst):
         )
 
         if not deterministic:
-            serial_graph = SerialFst(cardinal).fst
-            classify |= pynutil.add_weight(serial_graph, 1.09)
+            serial_graph = SerialFst(cardinal, deterministic=deterministic).fst
+            classify |= pynutil.add_weight(serial_graph, 1.1)
             classify = classify.optimize()
 
         punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=1.1) + pynutil.insert(" }")

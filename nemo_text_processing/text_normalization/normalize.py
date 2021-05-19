@@ -66,24 +66,6 @@ class Normalizer:
             res.append(text)
         return res
 
-    def prepare_text(self, text: str, verbose: bool) -> str:
-        """
-        Prepares text for normalization.
-
-        Args:
-            text: string that may include semiotic classes
-            verbose: whether to print intermediate meta information
-
-        Returns: pre-processed text
-        """
-        text = text.strip()
-        if not text:
-            return text
-        if verbose:
-            print(f'input: {text}')
-        text = pynini.escape(text)
-        return text
-
     def normalize(self, text: str, verbose: bool) -> str:
         """
         Main function. Normalizes tokens from written to spoken form
@@ -95,7 +77,12 @@ class Normalizer:
 
         Returns: spoken form
         """
-        text = self.prepare_text(text, verbose)
+        text = text.strip()
+        if not text:
+            if verbose:
+                print(text)
+            return text
+        text = pynini.escape(text)
         tagged_lattice = self.find_tags(text)
         tagged_text = self.select_tag(tagged_lattice)
         if verbose:

@@ -34,7 +34,7 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 """
-The script provides multiple normalization options and chooses the best one that minimizes WER of the ASR output
+The script provides multiple normalization options and chooses the best one that minimizes CER of the ASR output
 (most of the semiotic classes use deterministic=False flag).
 
 To run this script with a .json manifest file:
@@ -49,14 +49,14 @@ To run this script with a .json manifest file:
         "transcript" - ASR model prediction (optional)
 
 
-To run with a single audio file, use:
+To run with a single audio file, specify path to audio and text with:
     python normalize_with_audio.py \
            --audio_data PATH/TO/AUDIO.WAV \
            --text raw text OR PATH/TO/.TXT/FILE
            --model QuartzNet15x5Base-En \
            --verbose
     
-To use possible normalization options for a text input without an audio file (could be used for debugging), run:
+To see possible normalization options for a text input without an audio file (could be used for debugging), run:
     python python normalize_with_audio.py --text "RAW TEXT"
 """
 
@@ -75,36 +75,43 @@ class NormalizerWithAudio(Normalizer):
 
         self.tagger = ClassifyFst(input_case=input_case, deterministic=False)
         self.verbalizer = VerbalizeFinalFst(deterministic=False)
-        self.semiotic_classes = ['money', 'cardinal', 'decimal', 'measure', 'date', 'electronic', 'ordinal', 'time']
 
-    def normalize_with_audio(self, text: str, transcript: str, verbose: bool = False) -> str:
+    def normalize_with_audio(self, text: str, verbose: bool = False) -> str:
         """
         Main function. Normalizes tokens from written to spoken form
             e.g. 12 kg -> twelve kilograms
+
         Args:
             text: string that may include semiotic classes
             transcript: transcription of the audio
             verbose: whether to print intermediate meta information
-        Returns: spoken form that matches the audio file best
-        """
 
-        def get_tagged_texts(text, verbose):
-            text = self.prepare_text(text, verbose)
+        Returns:
+            normalized text options (usually there are multiple ways of normalizing a given semiotic class)
+        """
+        text = text.strip()
+        if not text:
+            if verbose:
+                print(text)
+            return text
+        text = pynini.escape(text)
+
+        def get_tagged_texts(text):
             tagged_lattice = self.find_tags(text)
             tagged_texts = self.select_all_semiotic_tags(tagged_lattice)
             return tagged_texts
 
-        tagged_texts = set(get_tagged_texts(text, verbose))  # + get_tagged_texts(pre_process(text), verbose))
+        tagged_texts = set(get_tagged_texts(text))
         normalized_texts = []
 
         for tagged_text in tagged_texts:
             self.parser(tagged_text)
             tokens = self.parser.parse()
             tags_reordered = self.generate_permutations(tokens)
-            for tagged_text in tags_reordered:
-                tagged_text = pynini.escape(tagged_text)
+            for tagged_text_reordered in tags_reordered:
+                tagged_text_reordered = pynini.escape(tagged_text_reordered)
 
-                verbalizer_lattice = self.find_verbalizer(tagged_text)
+                verbalizer_lattice = self.find_verbalizer(tagged_text_reordered)
                 if verbalizer_lattice.num_states() == 0:
                     continue
 
@@ -117,14 +124,24 @@ class NormalizerWithAudio(Normalizer):
 
         normalized_texts = [post_process(t) for t in normalized_texts]
         normalized_texts = set(normalized_texts)
-        if transcript:
-            normalized_texts = calculate_cer(normalized_texts, transcript)
-            normalized_texts = sorted(normalized_texts, key=lambda x: x[1])
-            normalized_text, cer = normalized_texts[0]
-        else:
-            normalized_text = normalized_texts.pop()
-            cer = None
-            print(tagged_text)
+        return normalized_texts
+
+    def select_best_match(self, normalized_texts: List[str], transcript: str, verbose: bool = False):
+        """
+        Selects the best normalization option based on the lowest CER
+
+        Args:
+            normalized_texts: normalized text options
+            transcript: ASR model transcript of the audio file corresponding to the normalized text
+            verbose: whether to print intermediate meta information
+
+        Returns:
+            normalized text with the lowest CER and CER value
+        """
+        normalized_texts = calculate_cer(normalized_texts, transcript)
+        normalized_texts = sorted(normalized_texts, key=lambda x: x[1])
+        normalized_text, cer = normalized_texts[0]
+
         if verbose:
             print('-' * 30)
             for option in normalized_texts:
@@ -145,17 +162,17 @@ class NormalizerWithAudio(Normalizer):
 
 def calculate_cer(normalized_texts: List[str], transcript: str, remove_punct=False) -> List[Tuple[str, float]]:
     """
-    Calculates character error rate (CER) and sorts options by the lowest CER
+    Calculates character error rate (CER)
 
     Args:
         normalized_texts: normalized text options
         transcript: ASR model output
 
-    Returns: normalized options sorted by CER
+    Returns: normalized options with corresponding CER
     """
     normalized_options = []
     for text in normalized_texts:
-        text_clean = text.replace('-', ' ').lower()
+        text_clean = text.replace('-', ' ').lower().strip()
         if remove_punct:
             for punct in "!?:;,.-()*+-/<=>@^_":
                 text_clean = text_clean.replace(punct, " ")
@@ -217,7 +234,7 @@ def post_process(text: str, punctuation='!,.:;?') -> str:
 
     for punct in punctuation:
         text = text.replace(f' {punct}', punct)
-    return text
+    return text.strip()
 
 
 def get_asr_model(asr_model: ASRModel):
@@ -240,7 +257,7 @@ def get_asr_model(asr_model: ASRModel):
 
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument("--text", help="input string", default=None, type=str)
+    parser.add_argument("--text", help="input string or path to a .txt file", default=None, type=str)
     parser.add_argument(
         "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )
@@ -271,7 +288,8 @@ def normalize_manifest(args):
                     if asr_model is None:
                         asr_model = get_asr_model(args.model)
                     transcript = asr_model.transcribe([audio])[0]
-                normalized_text, cer = normalizer.normalize_with_audio(line['text'], transcript, args.verbose)
+                normalized_texts = normalizer.normalize_with_audio(line['text'], args.verbose)
+                normalized_text, cer = normalizer.select_best_match(normalized_texts, transcript, args.verbose)
 
                 line['nemo_wfst'] = normalized_text
                 line['CER_nemo_wfst'] = cer
@@ -284,16 +302,16 @@ if __name__ == "__main__":
 
     if args.text:
         normalizer = NormalizerWithAudio(input_case=args.input_case)
-        if args.audio_data:
-            asr_model = get_asr_model(args.model)
-            transcript = asr_model.transcribe([args.audio_data])[0]
-        else:
-            transcript = None
-            args.verbose = True
         if os.path.exists(args.text):
             with open(args.text, 'r') as f:
                 args.text = f.read()
-        normalized_text, cer = normalizer.normalize_with_audio(args.text, transcript, verbose=args.verbose)
+        normalized_texts = normalizer.normalize_with_audio(args.text, args.verbose)
+        for norm_text in normalized_texts:
+            print(norm_text)
+        if args.audio_data:
+            asr_model = get_asr_model(args.model)
+            transcript = asr_model.transcribe([args.audio_data])[0]
+            normalized_text, cer = normalizer.select_best_match(normalized_texts, transcript, args.verbose)
     elif not os.path.exists(args.audio_data):
         raise ValueError(f'{args.audio_data} not found.')
     elif args.audio_data.endswith('.json'):

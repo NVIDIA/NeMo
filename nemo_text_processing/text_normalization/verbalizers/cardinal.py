@@ -34,15 +34,14 @@ class CardinalFst(GraphFst):
             for False multiple options (used for audio-based normalization)
     """
 
-    def __init__(self, deterministic: bool = True):
-        super().__init__(name="cardinal", kind="verbalize")
+    def __init__(self, deterministic: bool):
+        super().__init__(name="cardinal", kind="verbalize", deterministic=deterministic)
 
         self.optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "minus ") + delete_space, 0, 1)
 
         if deterministic:
             integer = pynini.closure(NEMO_NOT_QUOTE, 1)
         else:
-            print('HERE')
             integer = (
                 pynini.closure(NEMO_NOT_QUOTE)
                 + pynini.closure(pynini.cross("hundred ", ""), 0, 1)
