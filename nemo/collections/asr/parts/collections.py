@@ -354,7 +354,6 @@ class FeatureSequenceLabel(_Collection):
         Args:
             feature_files: List of feature files.
             seq_labels: List of sequences of abels.
-            offsets: List of offsets or None.
             max_number: Maximum number of samples to collect.
             index_by_file_id: If True, saves a mapping from filename base (ID) to index in data.
         """
@@ -422,24 +421,27 @@ class FeatureSequenceLabel(_Collection):
 class ASRFeatureSequenceLabel(FeatureSequenceLabel):
     """`FeatureSequenceLabel` collector from asr structured json files."""
 
-    def __init__(self, manifests_files: Union[str, List[str]], *args, **kwargs):
+    def __init__(
+        self, manifests_files: Union[str, List[str]], max_number: Optional[int] = None, index_by_file_id: bool = False,
+    ):
+
         """Parse lists of feature files and sequences of labels.
 
         Args:
             manifests_files: Either single string file or list of such -
                 manifests to yield items from.
-            *args: Args to pass to `FeatureSequenceLabel` constructor.
-            **kwargs: Kwargs to pass to `FeatureSequenceLabel` constructor.
+            max_number:  Maximum number of samples to collect; pass to `FeatureSequenceLabel` constructor.
+            index_by_file_id: If True, saves a mapping from filename base (ID) to index in data; pass to `FeatureSequenceLabel` constructor.
         """
 
         feature_files, seq_labels = [], []
-        for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item):
+        for item in manifest.item_iter(manifests_files, parse_func=self._parse_item):
             feature_files.append(item['feature_file'])
             seq_labels.append(item['seq_label'])
 
-        super().__init__(feature_files, seq_labels, *args, **kwargs)
+        super().__init__(feature_files, seq_labels, max_number, index_by_file_id)
 
-    def __parse_item(self, line: str, manifest_file: str) -> Dict[str, Any]:
+    def _parse_item(self, line: str, manifest_file: str) -> Dict[str, Any]:
         item = json.loads(line)
 
         # Feature file
