@@ -1052,16 +1052,20 @@ class JasperBlock(nn.Module):
 
 
 class ParallelBlock(nn.Module):
-    def __init__(self, blocks, aggregation_mode=None, out_filters=None, reduction_ratio=8):
+    def __init__(self, blocks, aggregation_mode=None, out_filters=None, reduction_ratio=8, block_dropout_prob=0.0):
         super().__init__()
         self.blocks = nn.ModuleList(blocks)
         self.aggregation_mode = aggregation_mode
-        if aggregation_mode == "single":
-            self.weights = nn.Parameter(torch.ones(1, len(blocks), 1, 1), requires_grad=True)
-        elif aggregation_mode == "per_channel":
-            self.weights = nn.Parameter(torch.ones(1, len(blocks), out_filters, 1), requires_grad=True)
-        elif aggregation_mode == "se_attention":
-            self.attention = SqueezeExciteAttention(out_filters, len(blocks) * out_filters, reduction_ratio)
+        if aggregation_mode == "dropout":
+            self.weights = nn.Parameter(torch.ones(1, len(blocks), 1, 1), requires_grad=False)
+            self.dropout = nn.Dropout(block_dropout_prob)
+
+
+    def get_dropout_mask(self):
+        weights = self.dropout(self.weights)
+        while torch.sum(weights) == 0:
+            weights = self.dropout(self.weights)
+        return weights
 
     def forward(self, x):
         if len(self.blocks) == 1:
@@ -1074,11 +1078,8 @@ class ParallelBlock(nn.Module):
         max_mask = None
 
         scaling_weights = None
-        if self.aggregation_mode in ["single", "per_channel"]:
-            scaling_weights = self.weights
-        elif self.aggregation_mode == "se_attention":
-            scaling_weights = self.attention(input_feat)
-            scaling_weights = scaling_weights.view(batch, len(self.blocks), channels, 1)
+        if self.aggregation_mode == "dropout":
+            scaling_weights = self.get_dropout_mask()
 
         for i, block in enumerate(self.blocks):
             output, mask = block(x)
