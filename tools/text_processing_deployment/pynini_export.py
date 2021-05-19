@@ -72,8 +72,8 @@ def itn_grammars(**kwargs):
 
 def tn_grammars(**kwargs):
     d = {}
-    d['classify'] = {'TOKENIZE_AND_CLASSIFY': TNClassifyFst(input_case=kwargs["input_case"]).fst}
-    d['verbalize'] = {'ALL': TNVerbalizeFst().fst, 'REDUP': pynini.accep("REDUP")}
+    d['classify'] = {'TOKENIZE_AND_CLASSIFY': TNClassifyFst(input_case=kwargs["input_case"], deterministic=True).fst}
+    d['verbalize'] = {'ALL': TNVerbalizeFst(deterministic=True).fst, 'REDUP': pynini.accep("REDUP")}
     return d
 
 
