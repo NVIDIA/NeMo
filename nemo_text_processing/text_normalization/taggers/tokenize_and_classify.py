@@ -50,7 +50,7 @@ class ClassifyFst(GraphFst):
     """
 
     def __init__(self, input_case: str, deterministic: bool = True):
-        super().__init__(name="tokenize_and_classify", kind="classify")
+        super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
 
         cardinal = CardinalFst(deterministic=deterministic)
         cardinal_graph = cardinal.fst
