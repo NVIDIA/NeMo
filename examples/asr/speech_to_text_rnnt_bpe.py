@@ -12,68 +12,124 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+# Preparing the Tokenizer for the dataset
+Use the `process_asr_text_tokenizer.py` script under <NEMO_ROOT>/scripts/tokenizers/ in order to prepare the tokenizer.
+
+```sh
+python <NEMO_ROOT>/scripts/tokenizers/process_asr_text_tokenizer.py \
+        --manifest=<path to train manifest files, seperated by commas>
+        OR
+        --data_file=<path to text data, seperated by commas> \
+        --data_root="<output directory>" \
+        --vocab_size=<number of tokens in vocabulary> \
+        --tokenizer=<"spe" or "wpe"> \
+        --no_lower_case \
+        --spe_type=<"unigram", "bpe", "char" or "word"> \
+        --spe_character_coverage=1.0 \
+        --log
+```
+
+# Training the model
+```sh
+python speech_to_text_rnnt_bpe.py \
+    # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
+    model.train_ds.manifest_filepath=<path to train manifest> \
+    model.validation_ds.manifest_filepath=<path to val/test manifest> \
+    model.tokenizer.dir=<path to directory of tokenizer (not full path to the vocab file!)> \
+    model.tokenizer.type=<either bpe or wpe> \
+    trainer.gpus=-1 \
+    trainer.accelerator="ddp" \
+    trainer.max_epochs=100 \
+    model.optim.name="adamw" \
+    model.optim.lr=0.001 \
+    model.optim.betas=[0.9,0.999] \
+    model.optim.weight_decay=0.0001 \
+    model.optim.sched.warmup_steps=2000
+    exp_manager.create_wandb_logger=True \
+    exp_manager.wandb_logger_kwargs.name="<Name of experiment>" \
+    exp_manager.wandb_logger_kwargs.project="<Name of project>"
+```
+
+Finetune a model
+1) Finetune from a .nemo file
+
+```sh
+    python examples/asr/speech_to_text_rnnt_bpe.py \
+        --config-path=<path to dir of configs> \
+        --config-name=<name of config without .yaml>) \
+        model.train_ds.manifest_filepath="<path to manifest file>" \
+        model.validation_ds.manifest_filepath="<path to manifest file>" \
+        trainer.gpus=-1 \
+        trainer.max_epochs=50 \
+        +init_from_nemo_model="<path to .nemo model file>"
+```
+
+2) Finetune from a pretrained model (via NGC)
+
+```sh
+    python examples/asr/speech_to_text_rnnt_bpe.py \
+        --config-path=<path to dir of configs> \
+        --config-name=<name of config without .yaml>) \
+        model.train_ds.manifest_filepath="<path to manifest file>" \
+        model.validation_ds.manifest_filepath="<path to manifest file>" \
+        trainer.gpus=-1 \
+        trainer.max_epochs=50 \
+        +init_from_pretrained_model="<name of pretrained checkpoint>"
+```
+"""
+
 import pytorch_lightning as pl
+from omegaconf import OmegaConf, open_dict
 
 from nemo.collections.asr.models import EncDecRNNTBPEModel
 from nemo.core.config import hydra_runner
+from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-"""
-Basic run (on CPU for 50 epochs):
-    python examples/asr/speech_to_text_rnnt_bpe.py \
-        model.train_ds.manifest_filepath="/Users/okuchaiev/Data/an4_dataset/an4_train.json" \
-        model.validation_ds.manifest_filepath="/Users/okuchaiev/Data/an4_dataset/an4_val.json" \
-        hydra.run.dir="." \
-        trainer.gpus=0 \
-        trainer.max_epochs=50
+def restore_weights_if_required(model: EncDecRNNTBPEModel, cfg: OmegaConf):
+    if 'init_from_nemo_model' not in cfg and 'init_from_pretrained_model' not in cfg:
+        # model weights do not need to be restored
+        return
 
+    if 'init_from_nemo_model' in cfg and 'init_from_pretrained_model' in cfg:
+        raise ValueError("Cannot pass both `init_from_nemo_model` and `init_from_pretrained_model` to config!")
 
-Add PyTorch Lightning Trainer arguments from CLI:
-    python speech_to_text_rnnt_bpe.py \
-        ... \
-        +trainer.fast_dev_run=true
+    if 'init_from_nemo_model' in cfg and cfg.init_from_nemo_model is not None:
+        with open_dict(cfg):
+            # Restore model
+            model_path = cfg.pop('init_from_nemo_model')
+            restored_model = EncDecRNNTBPEModel.restore_from(model_path, map_location='cpu', strict=True)
 
-Hydra logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/.hydra)"
-PTL logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/lightning_logs)"
+            # Restore checkpoint into current model
+            model.load_state_dict(restored_model.state_dict(), strict=False)
+            logging.info(f'Model checkpoint restored from nemo file with path : `{model_path}`')
 
-Override some args of optimizer:
-    python speech_to_text_rnnt_bpe.py \
-    --config-path="experimental/contextnet_rnnt" \
-    --config-name="config_rnnt_bpe" \
-    model.train_ds.manifest_filepath="./an4/train_manifest.json" \
-    model.validation_ds.manifest_filepath="./an4/test_manifest.json" \
-    hydra.run.dir="." \
-    trainer.gpus=2 \
-    trainer.precision=16 \
-    trainer.max_epochs=2 \
-    model.optim.args.params.betas=[0.8,0.5] \
-    model.optim.args.params.weight_decay=0.0001
+            del restored_model
 
-Overide optimizer entirely
-    python speech_to_text_rnnt_bpe.py \
-    --config-path="experimental/contextnet_rnnt" \
-    --config-name="config_rnnt_bpe" \
-    model.train_ds.manifest_filepath="./an4/train_manifest.json" \
-    model.validation_ds.manifest_filepath="./an4/test_manifest.json" \
-    hydra.run.dir="." \
-    trainer.gpus=2 \
-    trainer.precision=16 \
-    trainer.max_epochs=2 \
-    model.optim.name=adamw \
-    model.optim.lr=0.001 \
-    ~model.optim.args \
-    +model.optim.args.betas=[0.8,0.5]\
-    +model.optim.args.weight_decay=0.0005
+    if 'init_from_pretrained_model' in cfg and cfg.init_from_pretrained_model is not None:
+        with open_dict(cfg):
+            # Restore model
+            model_name = cfg.pop('init_from_pretrained_model')
+            restored_model = EncDecRNNTBPEModel.from_pretrained(model_name, map_location='cpu', strict=True)
 
-"""
+            # Restore checkpoint into current model
+            model.load_state_dict(restored_model.state_dict(), strict=False)
+            logging.info(f'Model checkpoint restored from pretrained chackpoint with name : `{model_name}`')
+
+            del restored_model
 
 
 @hydra_runner(config_path="experimental/contextnet_rnnt", config_name="config_rnnt_bpe")
 def main(cfg):
+    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     asr_model = EncDecRNNTBPEModel(cfg=cfg.model, trainer=trainer)
+
+    restore_weights_if_required(asr_model, cfg)
 
     trainer.fit(asr_model)
 
