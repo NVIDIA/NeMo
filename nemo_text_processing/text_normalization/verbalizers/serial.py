@@ -13,36 +13,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.graph_utils import NEMO_DIGIT, GraphFst
+from nemo_text_processing.text_normalization.graph_utils import GraphFst, delete_space
 
 try:
     import pynini
     from pynini.lib import pynutil
 
     PYNINI_AVAILABLE = True
-except (ImportError, ModuleNotFoundError):
+except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-class OrdinalFst(GraphFst):
+class SerialFst(GraphFst):
     """
-    Finite state transducer for classifying ordinal, e.g.
-        13th -> ordinal { integer: "thirteen" }
-        
+    Finite state transducer for verbalizing serial, e.g.
+        tokens { serial { value: "c thirty two five" } } -> c thirty two five
+
     Args:
-        cardinal: CardinalFst
+        measure: MeasureFst
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal: GraphFst, deterministic: bool = True):
-        super().__init__(name="ordinal", kind="classify", deterministic=deterministic)
+    def __init__(self, measure: GraphFst, deterministic: bool = False):
+        super().__init__(name="serial", kind="verbalize", deterministic=deterministic)
 
-        cardinal_graph = cardinal.graph
-        self.graph = (
-            (pynini.closure(NEMO_DIGIT | pynini.accep(",")) + pynutil.delete(pynini.union("rd", "th", "st", "nd")))
-            @ cardinal_graph
-        ).optimize()
-        final_graph = pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
-        final_graph = self.add_tokens(final_graph)
-        self.fst = final_graph.optimize()
+        serial = pynutil.delete("units: \"") + pynini.cross("serial", "") + pynutil.delete("\"") + delete_space
+        graph = measure.graph_cardinal + delete_space + serial
+        delete_tokens = self.delete_tokens(graph)
+        self.fst = delete_tokens.optimize()

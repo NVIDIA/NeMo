@@ -35,10 +35,14 @@ class ElectronicFst(GraphFst):
     """
     Finite state transducer for verbalizing electronic
         e.g. tokens { electronic { username: "cdf1" domain: "abc.edu" } } -> c d f one at a b c dot e d u
+
+    Args:
+        deterministic: if True will provide a single transduction option,
+        for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self):
-        super().__init__(name="electronic", kind="verbalize")
+    def __init__(self, deterministic: bool = True):
+        super().__init__(name="electronic", kind="verbalize", deterministic=deterministic)
         graph_digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv"))).optimize()
         graph_symbols = pynini.string_file(get_abs_path("data/electronic/symbols.tsv")).optimize()
         user_name = (

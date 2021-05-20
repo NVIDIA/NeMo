@@ -21,6 +21,7 @@ from nemo_text_processing.text_normalization.graph_utils import (
     convert_space,
     insert_space,
 )
+from nemo_text_processing.text_normalization.taggers.date import get_hundreds_graph
 
 try:
     import pynini
@@ -40,30 +41,46 @@ class MoneyFst(GraphFst):
     Args:
         cardinal: CardinalFst
         decimal: DecimalFst
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal: GraphFst, decimal: GraphFst):
-        super().__init__(name="money", kind="classify")
+    def __init__(self, cardinal: GraphFst, decimal: GraphFst, deterministic: bool = True):
+        super().__init__(name="money", kind="classify", deterministic=deterministic)
         cardinal_graph = cardinal.graph
         graph_decimal_final = decimal.final_graph_wo_negative
 
-        unit_singular = pynini.string_file(get_abs_path("data/currency.tsv"))
+        unit_singular = pynini.string_file(get_abs_path("data/currency/currency.tsv"))
         unit_plural = convert_space(unit_singular @ SINGULAR_TO_PLURAL)
         unit_singular = convert_space(unit_singular)
 
         graph_unit_singular = pynutil.insert("currency: \"") + unit_singular + pynutil.insert("\"")
         graph_unit_plural = pynutil.insert("currency: \"") + unit_plural + pynutil.insert("\"")
 
-        graph_integer = (
-            graph_unit_plural
-            + pynutil.insert(" integer_part: \"")
-            + ((NEMO_SIGMA - "1") @ cardinal_graph)
-            + pynutil.insert("\"")
-        )
-        graph_integer |= (
+        singular_graph = (
             graph_unit_singular + pynutil.insert(" integer_part: \"") + pynini.cross("1", "one") + pynutil.insert("\"")
         )
+
         graph_decimal = graph_unit_plural + insert_space + graph_decimal_final
+
+        if deterministic:
+            graph_integer = (
+                graph_unit_plural
+                + pynutil.insert(" integer_part: \"")
+                + ((NEMO_SIGMA - "1") @ cardinal_graph)
+                + pynutil.insert("\"")
+            )
+        else:
+            graph_integer = (
+                graph_unit_plural
+                + pynutil.insert(" integer_part: \"")
+                + ((NEMO_SIGMA - "1") @ (get_hundreds_graph(deterministic) | cardinal_graph))
+                + pynutil.insert("\"")
+            )
+            graph_decimal |= singular_graph + insert_space + graph_decimal_final
+
+        graph_integer |= singular_graph
+
         final_graph = graph_integer | graph_decimal
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

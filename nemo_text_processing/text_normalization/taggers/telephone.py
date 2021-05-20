@@ -33,10 +33,14 @@ class TelephoneFst(GraphFst):
     extension optional: 1-9999
     E.g 
     +1 123-123-5678-1 -> telephone { country_code: "one" number_part: "one two three, one two three, five six seven eight" extension: "one" }
+
+    Args:
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self):
-        super().__init__(name="telephone", kind="classify")
+    def __init__(self, deterministic: bool = True):
+        super().__init__(name="telephone", kind="classify", deterministic=deterministic)
 
         add_separator = pynutil.insert(", ")  # between components
         digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv"))).optimize() | pynini.cross(

@@ -43,30 +43,36 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = True
 
 
-def _get_ties_graph():
+def get_ties_graph(deterministic: bool = True):
     """
     Returns two digit transducer, e.g. 
     03 -> o three
     12 -> thirteen
     20 -> twenty
     """
-    graph = (
-        graph_teen
-        | ties_graph + pynutil.delete("0")
-        | ties_graph + insert_space + graph_digit
-        | pynini.cross("0", "o") + insert_space + graph_digit
-    )
+    graph = graph_teen | ties_graph + pynutil.delete("0") | ties_graph + insert_space + graph_digit
+
+    if deterministic:
+        graph = graph | pynini.cross("0", "o") + insert_space + graph_digit
+    else:
+        graph = (
+            graph
+            | (pynini.cross("0", "oh") | pynini.cross("0", "o") | pynini.cross("0", "zero"))
+            + insert_space
+            + graph_digit
+        )
+
     return graph.optimize()
 
 
-def _get_year_graph():
+def get_hundreds_graph(deterministic: bool = True):
     """
-    Transducer for year, only from 1000 - 2999 e.g.
-    1290-> twelve nineteen
-    2000 - 2009 will be verbalized as two thousand..
+    Returns a four digit transducer which is combination of ties/teen or digits
+    (using hundred instead of thousand format), e.g.
+    1219 -> twelve nineteen
+    3900 -> thirty nine hundred
     """
-
-    graph_ties = _get_ties_graph()
+    graph_ties = get_ties_graph(deterministic)
     graph = (
         graph_ties + insert_space + graph_ties
         | graph_teen + insert_space + pynini.cross("00", "hundred")
@@ -80,6 +86,16 @@ def _get_year_graph():
             weight=-0.001,
         )
     )
+    return graph
+
+
+def _get_year_graph(deterministic: bool = True):
+    """
+    Transducer for year, only from 1000 - 2999 e.g.
+    1290 -> twelve nineteen
+    2000 - 2009 will be verbalized as two thousand.
+    """
+    graph = get_hundreds_graph(deterministic)
     graph = (pynini.union("1", "2") + NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT + pynini.closure("s", 0, 1)) @ graph
     return graph
 
@@ -97,10 +113,12 @@ class DateFst(GraphFst):
 
     Args:
         ordinal: OrdinalFst
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal: GraphFst):
-        super().__init__(name="date", kind="classify")
+    def __init__(self, cardinal: GraphFst, deterministic: bool):
+        super().__init__(name="date", kind="classify", deterministic=deterministic)
 
         month_graph = pynini.string_file(get_abs_path("data/months/names.tsv")).optimize()
         month_graph |= (TO_LOWER + pynini.closure(NEMO_CHAR)) @ month_graph
@@ -114,7 +132,7 @@ class DateFst(GraphFst):
 
         cardinal_graph = cardinal.graph_hundred_component_at_least_one_none_zero_digit
 
-        year_graph = _get_year_graph()
+        year_graph = _get_year_graph(deterministic)
 
         YEAR_WEIGHT = 0.001
         year_graph_standalone = (

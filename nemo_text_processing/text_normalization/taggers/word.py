@@ -28,10 +28,14 @@ class WordFst(GraphFst):
     """
     Finite state transducer for classifying word. Considers sentence boundary exceptions.
         e.g. sleep -> tokens { name: "sleep" }
+
+    Args:
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self):
-        super().__init__(name="word", kind="classify")
+    def __init__(self, deterministic: bool = True):
+        super().__init__(name="word", kind="classify", deterministic=deterministic)
 
         word = pynutil.insert("name: \"") + pynini.closure(NEMO_NOT_SPACE, 1) + pynutil.insert("\"")
         self.fst = word.optimize()

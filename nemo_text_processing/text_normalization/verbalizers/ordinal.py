@@ -30,10 +30,14 @@ class OrdinalFst(GraphFst):
     """
     Finite state transducer for verbalizing ordinal, e.g.
         ordinal { integer: "thirteen" } } -> thirteenth
+
+    Args:
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self):
-        super().__init__(name="ordinal", kind="verbalize")
+    def __init__(self, deterministic: bool = True):
+        super().__init__(name="ordinal", kind="verbalize", deterministic=deterministic)
 
         graph_digit = pynini.string_file(get_abs_path("data/ordinals/digit.tsv")).invert()
         graph_teens = pynini.string_file(get_abs_path("data/ordinals/teen.tsv")).invert()

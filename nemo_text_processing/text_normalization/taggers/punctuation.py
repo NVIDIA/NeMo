@@ -28,12 +28,17 @@ class PunctuationFst(GraphFst):
     """
     Finite state transducer for classifying punctuation
         e.g. a, -> tokens { name: "a" } tokens { name: "," }
+
+    Args:
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
+
     """
 
-    def __init__(self):
-        super().__init__(name="punctuation", kind="classify")
+    def __init__(self, deterministic: bool = True):
+        super().__init__(name="punctuation", kind="classify", deterministic=deterministic)
 
-        s = "!#$%&\'()*+,-./:;<=>?@^_`{|}~"
+        s = "!#$%&\'()*+,-./:;<=>?@^_`{|}~\""
         punct = pynini.union(*s)
 
         graph = pynutil.insert("name: \"") + punct + pynutil.insert("\"")

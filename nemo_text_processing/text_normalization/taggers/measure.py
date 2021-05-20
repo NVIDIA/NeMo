@@ -42,10 +42,12 @@ class MeasureFst(GraphFst):
     Args:
         cardinal: CardinalFst
         decimal: DecimalFst
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal: GraphFst, decimal: GraphFst):
-        super().__init__(name="measure", kind="classify")
+    def __init__(self, cardinal: GraphFst, decimal: GraphFst, deterministic: bool = True):
+        super().__init__(name="measure", kind="classify", deterministic=deterministic)
         cardinal_graph = cardinal.graph
 
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))

@@ -1,0 +1,11 @@
+123~123|one twenty three|one two three|one hundred twenty three|one hundred and twenty three
+$123~$123|one twenty three dollars|one two three dollars|one hundred twenty three dollars|one hundred and twenty three dollars
+$123.2~$123.2|one twenty three dollars and two cents|one two three dollars two cents|one hundred twenty three dollars and two cents|one hundred and twenty three point two dollars
+1.24~1.24|one point two four|one two four|one point twenty four|one twenty four
+$1.21~one dollar and twenty one cents|one dollar twenty one cents|one point two one dollars|one twenty one dollars
+£1.00~one pound|one point o o pounds
+t-0t25d12-f~t zero t twenty five d twelve f
+133-A~one hundred thirty three A
+B2A23C~B two A twenty three C
+25d08A~twenty five d zero eight A
+C24~C twenty four

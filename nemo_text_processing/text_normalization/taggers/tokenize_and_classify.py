@@ -22,6 +22,7 @@ from nemo_text_processing.text_normalization.taggers.measure import MeasureFst
 from nemo_text_processing.text_normalization.taggers.money import MoneyFst
 from nemo_text_processing.text_normalization.taggers.ordinal import OrdinalFst
 from nemo_text_processing.text_normalization.taggers.punctuation import PunctuationFst
+from nemo_text_processing.text_normalization.taggers.serial import SerialFst
 from nemo_text_processing.text_normalization.taggers.telephone import TelephoneFst
 from nemo_text_processing.text_normalization.taggers.time import TimeFst
 from nemo_text_processing.text_normalization.taggers.whitelist import WhiteListFst
@@ -44,29 +45,32 @@ class ClassifyFst(GraphFst):
     
     Args:
         input_case: accepting either "lower_cased" or "cased" input.
+        deterministic: if True will provide a single transduction option,
+            for False multiple options (used for audio-based normalization)
     """
 
-    def __init__(self, input_case: str):
-        super().__init__(name="tokenize_and_classify", kind="classify")
+    def __init__(self, input_case: str, deterministic: bool = True):
+        super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
 
-        cardinal = CardinalFst()
+        cardinal = CardinalFst(deterministic=deterministic)
         cardinal_graph = cardinal.fst
 
-        ordinal = OrdinalFst(cardinal=cardinal)
+        ordinal = OrdinalFst(cardinal=cardinal, deterministic=deterministic)
         ordinal_graph = ordinal.fst
 
-        decimal = DecimalFst(cardinal=cardinal)
+        decimal = DecimalFst(cardinal=cardinal, deterministic=deterministic)
         decimal_graph = decimal.fst
 
-        measure_graph = MeasureFst(cardinal=cardinal, decimal=decimal).fst
-        date_graph = DateFst(cardinal=cardinal).fst
-        word_graph = WordFst().fst
-        time_graph = TimeFst(cardinal=cardinal).fst
-        telephone_graph = TelephoneFst().fst
-        electonic_graph = ElectronicFst().fst
-        money_graph = MoneyFst(cardinal=cardinal, decimal=decimal).fst
-        whitelist_graph = WhiteListFst(input_case=input_case).fst
-        punct_graph = PunctuationFst().fst
+        measure = MeasureFst(cardinal=cardinal, decimal=decimal, deterministic=deterministic)
+        measure_graph = measure.fst
+        date_graph = DateFst(cardinal=cardinal, deterministic=deterministic).fst
+        word_graph = WordFst(deterministic=deterministic).fst
+        time_graph = TimeFst(cardinal=cardinal, deterministic=deterministic).fst
+        telephone_graph = TelephoneFst(deterministic=deterministic).fst
+        electonic_graph = ElectronicFst(deterministic=deterministic).fst
+        money_graph = MoneyFst(cardinal=cardinal, decimal=decimal, deterministic=deterministic).fst
+        whitelist_graph = WhiteListFst(input_case=input_case, deterministic=deterministic).fst
+        punct_graph = PunctuationFst(deterministic=deterministic).fst
 
         classify = (
             pynutil.add_weight(whitelist_graph, 1.01)
@@ -80,7 +84,12 @@ class ClassifyFst(GraphFst):
             | pynutil.add_weight(telephone_graph, 1.1)
             | pynutil.add_weight(electonic_graph, 1.1)
             | pynutil.add_weight(word_graph, 100)
-        ).optimize()
+        )
+
+        if not deterministic:
+            serial_graph = SerialFst(cardinal, deterministic=deterministic).fst
+            classify |= pynutil.add_weight(serial_graph, 1.1)
+            classify = classify.optimize()
 
         punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=1.1) + pynutil.insert(" }")
         token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")

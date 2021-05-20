@@ -42,8 +42,8 @@ class Normalizer:
     def __init__(self, input_case: str):
         assert input_case in ["lower_cased", "cased"]
 
-        self.tagger = ClassifyFst(input_case=input_case)
-        self.verbalizer = VerbalizeFinalFst()
+        self.tagger = ClassifyFst(input_case=input_case, deterministic=True)
+        self.verbalizer = VerbalizeFinalFst(deterministic=True)
         self.parser = TokenParser()
 
     def normalize_list(self, texts: List[str], verbose=False) -> List[str]:

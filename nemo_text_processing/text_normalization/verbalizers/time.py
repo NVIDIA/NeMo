@@ -29,10 +29,14 @@ class TimeFst(GraphFst):
     Finite state transducer for verbalizing time, e.g.
         time { hours: "twelve" minutes: "thirty" suffix: "a m" zone: "e s t" } -> twelve thirty a m e s t
         time { hours: "twelve" } -> twelve o'clock
+
+    Args:
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self):
-        super().__init__(name="time", kind="verbalize")
+    def __init__(self, deterministic: bool = True):
+        super().__init__(name="time", kind="verbalize", deterministic=deterministic)
         hour = (
             pynutil.delete("hours:")
             + delete_space
