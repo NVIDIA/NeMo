@@ -374,8 +374,6 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         )
         tgt = prefixes.view(batch_size, self.beam_size, -1).gather(1, best_guesses)
 
-        print("SHIIIIIIIIT", tgt)
-
         return tgt.squeeze(1)
 
 
