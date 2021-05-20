@@ -640,9 +640,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
 
 
-def configure_checkpointing(
-    trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, params: 'DictConfig', last_checkpoint: str
-):
+def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, params: 'DictConfig'):
     """ Adds ModelCheckpoint to trainer. Raises CheckpointMisconfigurationError if trainer already has a ModelCheckpoint
     callback or if trainer.weights_save_path was passed to Trainer.
     """
