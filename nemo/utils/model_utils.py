@@ -581,8 +581,10 @@ def maybe_init_from_pretrained_checkpoint(model: 'ModelPT', cfg: OmegaConf, map_
             if hasattr(model, 'trainer') and model.trainer is not None:
                 trainer = model.trainer
                 if hasattr(trainer, 'resume_from_checkpoint') and trainer.resume_from_checkpoint is not None:
-                    logging.info("Model training is being resumed via Pytorch Lightning.\n"
-                                 "Initialization from pretrained model (via cloud) will be skipped.")
+                    logging.info(
+                        "Model training is being resumed via Pytorch Lightning.\n"
+                        "Initialization from pretrained model (via cloud) will be skipped."
+                    )
                     return
 
             restored_model = model.from_pretrained(model_name, map_location=map_location, strict=True)
