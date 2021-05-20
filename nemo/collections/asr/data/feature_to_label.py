@@ -112,6 +112,7 @@ class _FeatureSeqSpeakerLabelDataset(Dataset):
         features = self.feature_loader.process(sample.feature_file)
         f, fl = features, torch.tensor(features.shape[0]).long()
 
+
         t = torch.tensor(sample.seq_label).long()
         tl = torch.tensor(len(sample.seq_label)).long()
 

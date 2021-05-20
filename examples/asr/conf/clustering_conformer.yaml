@@ -137,6 +137,7 @@ exp_manager:
   create_tensorboard_logger: true
   create_checkpoint_callback: true
   checkpoint_callback_params:
+    save_best_model: True
     # in case of multiple validation sets, first one is used
     monitor: "val_acc"
     mode: "max"

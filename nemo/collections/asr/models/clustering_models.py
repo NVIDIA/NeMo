@@ -43,6 +43,8 @@ from nemo.core.neural_types import (
     SpectrogramType,
 )
 from nemo.utils import logging
+from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator
+from nemo.collections.asr.parts.transformer_utils import subsequent_mask
 
 __all__ = ['EncDecClusteringModel']
 
@@ -77,17 +79,20 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
                 self._cfg.decoder.feat_in = self.encoder._feat_out
     
         self.decoder = EncDecClusteringModel.from_config_dict(self._cfg.decoder)
-        # self.log_softmax = TokenClassifier(
-        #     hidden_size=self.decoder.hidden_size,
-        #     num_classes=self.decoder.vocab_size,
-        # )
-
-        # self.loss = CrossEntropyLoss(logits_ndim=3)
-        self.loss = SmoothedCrossEntropyLoss(pad_id=-1)
+        self.loss = SmoothedCrossEntropyLoss(pad_id=-1) # self.loss = CrossEntropyLoss(logits_ndim=3)
         # Setup metric objects
         self._accuracy = TopKClassificationAccuracy(dist_sync_on_step=True, top_k=[1])
-        
-        
+
+        # odim = self._cfg.decoder.num_classes + 1 # 4+1=5
+        if "vocab_size" in self._cfg.decoder:
+            odim = self._cfg.decoder.vocab_size
+        else:
+            odim = self._cfg.decoder.num_classes+1
+
+        self.odim = odim
+        self.sos = odim - 1 #4
+        self.eos = odim - 1 #4
+       
         if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
             self.spec_augmentation = EncDecClusteringModel.from_config_dict(self._cfg.spec_augment)
         else:
@@ -96,17 +101,6 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
         if hasattr(self._cfg.decoder, 'restricted') :
             self.restricted=self._cfg.decoder.restricted
 
-
-    # TODO add trancribe function like in asr
-    @torch.no_grad()
-    def transcribe(
-        self,
-        paths2audio_files: List[str],
-        batch_size: int = 4,
-        logprobs: bool = False,
-        return_hypotheses: bool = False,
-    ) -> List[str]:
-        pass
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:
@@ -118,7 +112,7 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
         device = 'gpu' if torch.cuda.is_available() else 'cpu'
 
         feature_loader = ExternalFeatureLoader(
-            file_path=config['manifest_filepath'], sample_rate=16000, int_values=False, augmentor=None
+            file_path=config['manifest_filepath'], sample_rate=16000, augmentor=None
         )
 
         if config.get('is_speaker_emb', False):
@@ -285,6 +279,7 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
         # BDT -> transformer -> BTD -> (BDT) lstm -> BTD
 
         # Might need to clean up the logic here
+        # TODO fix logic here
         if self._cfg.decoder._target_ == "nemo.collections.asr.modules.TransformerDecoderNM":
 
             if self._cfg.encoder._target_ != "nemo.collections.asr.modules.TransformerEncoderNM":
@@ -400,4 +395,211 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
         if self._test_dl is not None:
             return self._test_dl
 
-    # [TODO] transcribe dataloder
+    def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
+        """
+        Setup function for a temporary data loader which wraps the provided audio file.
+
+        Args:
+            config: A python dictionary which contains the following keys:
+
+        Returns:
+            A pytorch DataLoader for the given audio file(s).
+        """
+        if hasattr(config, 'paths2audio_files'):
+            batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+        else:
+            batch_size = min(config['batch_size'], len(config['paths2feature_files']))
+        dl_config = {
+            'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
+            'labels': self.cfg.labels,
+            'batch_size': batch_size,
+            'shuffle': False,
+            'is_speaker_emb' : True,
+        }
+
+        temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
+        return temporary_datalayer
+
+
+    @torch.no_grad()
+    def transcribe_one(self, signal, device):
+        # transformer 
+        enc_output, length, src_mask = self.encoder(input_ids=signal)
+        h = enc_output.squeeze(0) # (T/L, H)  (50. 256)
+        logging.info('input lengths: ' + str(h.size(0)))
+        
+        # preprare sos
+        y = self.sos
+        # sos
+        vy = h.new_zeros(1).long()
+        # add back args
+        maxlenratio, minlenratio = 1.0, 1.0
+        beam_size = 4
+        if maxlenratio == 0:
+            maxlen = h.shape[0]
+        else:
+            # maxlen >= 1
+            maxlen = max(1, int(maxlenratio * h.size(0)))
+        minlen = int(minlenratio * h.size(0))
+        # sos
+        hyp = {'score': 0.0, 'yseq': [y]}
+
+        hyps = [hyp]
+        ended_hyps = []
+
+        traced_decoder = None
+        # beam
+        for i in range(maxlen):
+            print('position ' + str(i))
+            hyps_best_kept = []
+            for hyp in hyps:
+                print("=== hyp", hyp)
+                vy.unsqueeze(1)
+                vy[0] = hyp['yseq'][i]
+                ys_mask = subsequent_mask(i + 1, device=h.device).unsqueeze(0)
+                ys = torch.tensor(hyp['yseq']).unsqueeze(0).to(device)
+                # print(ys_mask, ys)
+
+                # local_att_scores = self.decoder.recognize(ys, ys_mask, enc_output)
+                logits, ys_out = self.decoder(
+                    input_ids=ys,
+                    encoder_embeddings=enc_output,  # output of the encoder (B x L_enc x H)
+                    encoder_mask=src_mask,  # encoder inputs mask (B x L_enc)
+                )
+                local_att_scores = logits[:, -1] ### add recognize to decoder TODO
+                max_local_beam = min(beam_size, local_att_scores.shape[1])
+                local_best_scores, local_best_ids = torch.topk(local_att_scores, max_local_beam, dim=1)
+                # print("=== local", local_best_scores, local_best_ids)
+
+                for j in range(max_local_beam):
+                    new_hyp = {}
+                    # BEAM SEARCH. store top-beamsize best local score 
+                    new_hyp['score'] = hyp['score'] + float(local_best_scores[0, j])
+                    new_hyp['yseq'] = [0] * (1 + len(hyp['yseq']))
+                    new_hyp['yseq'][:len(hyp['yseq'])] = hyp['yseq']
+                    new_hyp['yseq'][len(hyp['yseq'])] = int(local_best_ids[0, j])
+                    if int(local_best_ids[0, j]) == self.eos and i < minlen:
+                        continue
+                    else:
+                        hyps_best_kept.append(new_hyp)
+
+                hyps_best_kept = sorted(hyps_best_kept, key=lambda x: x['score'], reverse=True)[:beam_size]
+
+            # sort and get nbest
+            hyps = hyps_best_kept
+            print('number of pruned hypothes: ' + str(len(hyps)))
+
+            # TODO this is one on on tagging so maxlen is not .... TODO
+            if i == maxlen - 1:
+                print('adding <eos> in the last postion in the loop')
+                for hyp in hyps:
+                    hyp['yseq'].append(self.eos)
+            
+            # add ended hypothes to a final list, and removed them from current hypothes
+            # (this will be a probmlem, number of hyps < beam)
+            remained_hyps = []
+            for hyp in hyps:
+                if hyp['yseq'][-1] == self.eos:
+                    # only store the sequence that has more than minlen outputs
+                    if len(hyp['yseq']) >= minlen:
+                        ended_hyps.append(hyp)
+                else:
+                    remained_hyps.append(hyp)
+            # end detect here. not need but need to check length TODO
+
+            hyps = remained_hyps
+            if len(hyps) > 0:
+                print('remeined hypothes: ' + str(len(hyps)))
+            else:
+                print('no hypothesis. Finish decoding.')
+                break
+
+            print('number of ended hypothes: ' + str(len(ended_hyps)))
+        
+        nbest = 1
+        
+        nbest_hyps = sorted(ended_hyps, key=lambda x: x['score'], reverse=True)[:min(len(ended_hyps), nbest)]
+
+        # check number of hypotheis
+        if len(nbest_hyps) == 0:
+            logging.warning('there is no N-best results, perform recognition again with smaller minlenratio.')
+
+        logging.info('total log probability: ' + str(nbest_hyps[0]['score']))
+        logging.info('normalized log probability: ' + str(nbest_hyps[0]['score'] / len(nbest_hyps[0]['yseq'])))
+        return nbest_hyps[0]['yseq']
+
+    # todo change name transcribe to assgin/tagging
+    @torch.no_grad()
+    def transcribe(
+        self,
+        paths2audio_files: List[str]=[],
+        paths2feature_files: List[str]=[],
+        batch_size: int = 4,
+        logprobs: bool = False,
+        return_hypotheses: bool = False,
+    ) -> List[str]:
+        print(paths2feature_files)
+
+        # if (path2audio)
+        if (paths2audio_files is None and paths2feature_files is None) or (len(paths2feature_files)==0 and len(paths2audio_files) == 0):
+            return {}
+
+        if return_hypotheses and logprobs:
+            raise ValueError(
+                "Either `return_hypotheses` or `logprobs` can be True at any given time."
+                "Returned hypotheses will contain the logprobs."
+            )
+
+        # We will store transcriptions here
+        hypotheses = []
+        # Model's mode and device
+        mode = self.training
+        device = next(self.parameters()).device
+
+        try:
+            # Switch model to evaluation mode
+            self.eval()
+            # Freeze the encoder and decoder modules
+            self.encoder.freeze()
+            self.decoder.freeze()
+            logging_level = logging.get_verbosity()
+            logging.set_verbosity(logging.WARNING)
+            # Work in tmp directory - will store manifest file there
+            with tempfile.TemporaryDirectory() as tmpdir:
+                if paths2feature_files:
+                    with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
+                        for feature_file in paths2feature_files:
+                            entry = {'feature_filepath': feature_file, 'seq_label': 'nothing'}
+                            fp.write(json.dumps(entry) + '\n')
+
+                    config = {'paths2feature_files': paths2feature_files, 'batch_size': batch_size, 'temp_dir': tmpdir}
+                
+                # transformer
+                temporary_datalayer = self._setup_transcribe_dataloader(config)
+                print(temporary_datalayer)
+                for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
+                    # logits, logits_len, greedy_predictions = self.forward(
+                    #     input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
+                    # )
+                    signal = test_batch[0].to(device).transpose(1, 2)  # convert (B, T, D) to (B, D, T)
+                    ###### change this in data!!!!
+                
+                    # transformer 
+                    hypothesis = self.transcribe_one(signal, device)
+                    hypotheses.append(hypothesis)
+                    # src_hiddens, length, src_mask = self.encoder(input_ids=signal)
+                    # beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
+                    print(hypothesis)
+                    del hypothesis
+        finally:
+            # set mode back to its original value
+            self.train(mode=mode)
+            if mode is True:
+                self.encoder.unfreeze()
+                self.decoder.unfreeze()
+            logging.set_verbosity(logging_level)
+        return hypotheses
+
+
+    
+

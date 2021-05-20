@@ -47,6 +47,7 @@ model:
     ffn_dropout: 0.1
     learn_positional_encodings: true
     pre_ln: true
+    max_sequence_length: 5000
   
   decoder:
     _target_: nemo.collections.asr.modules.TransformerDecoderNM
@@ -60,7 +61,8 @@ model:
     ffn_dropout: 0.1
     learn_positional_encodings: true
     pre_ln: true
-    restricted: -1
+    restricted: 1 #-1
+    max_sequence_length: 5000
 
 
   optim:
@@ -70,7 +72,7 @@ model:
     betas: [0.9, 0.98]
     # less need for weight_decay as we already have large augmentations with SpecAug
     # you may need weight_decay for large models, small datasets, or when lower augmentation is used
-    weight_decay: 0.001
+    weight_decay: 0 # 0.001
     eps: 1e-9
 
     # scheduler setup
@@ -80,12 +82,13 @@ model:
       # scheduler config override 
       # warmup_steps: 40000
       # warmup_ratio: 0.4
+      warmup_steps: 5000
       min_lr: 1e-6
 
 trainer:
   gpus: -1 # number of GPUs, -1 would use all available GPUs
   num_nodes: 1
-  max_epochs: 50
+  max_epochs: 10
   max_steps: null # computed at runtime if not set
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   accelerator: ddp
@@ -109,10 +112,12 @@ exp_manager:
   create_tensorboard_logger: true
   create_checkpoint_callback: true
   checkpoint_callback_params:
+    save_best_model: True
     # in case of multiple validation sets, first one is used
     monitor: "val_acc"
     mode: "max"
     save_top_k: 3
+    
 
   # you need to set these two to True to continue the training
   resume_if_exists: false
@@ -121,5 +126,5 @@ exp_manager:
   # You may use this section to create a W&B logger
   create_wandb_logger: true
   wandb_logger_kwargs:
-    name: "b50_lr5_wr4"
+    name: "res1_50"
     project: "new_trans+trans"
