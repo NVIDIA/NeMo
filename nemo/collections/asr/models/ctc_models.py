@@ -330,6 +330,12 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             self._cfg.decoder = new_decoder_config
             OmegaConf.set_struct(self._cfg.decoder, True)
 
+            ds_keys = ['train_ds', 'validation_ds', 'test_ds']
+            for key in ds_keys:
+                if key in self.cfg:
+                    with open_dict(self.cfg[key]):
+                        self.cfg[key]['labels'] = OmegaConf.create(new_vocabulary)
+
             logging.info(f"Changed decoder to output to {self.decoder.vocabulary} vocabulary.")
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
@@ -337,6 +343,10 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             augmentor = process_augmentations(config['augmentor'])
         else:
             augmentor = None
+
+        # Automatically inject args from model config to dataloader config
+        audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
+        audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='labels')
 
         shuffle = config['shuffle']
         device = 'gpu' if torch.cuda.is_available() else 'cpu'
