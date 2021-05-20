@@ -34,7 +34,7 @@ try:
 except ImportError:
     PYTORCH_QUANTIZATION_AVAILABLE = False
 
-jasper_activations = {"hardtanh": nn.Hardtanh, "relu": nn.ReLU, "selu": nn.SELU, "swish": Swish}
+jasper_activations = {"hardtanh": nn.Hardtanh, "relu": nn.ReLU, "selu": nn.SELU, "swish": Swish, "silu": nn.SiLU}
 
 
 def tds_uniform_(tensor, mode='fan_in'):
