@@ -33,5 +33,7 @@
 # SOFTWARE.
 # This file contains code artifacts adapted from https://github.com/ryanleary/patter
 
-# ALIAS FILE for backward compatibility
+"""
+ALIAS FILE for backward compatibility
+"""
 from nemo.collections.asr.parts.preprocessing.features import *
