@@ -29,22 +29,33 @@ class WhiteListFst(GraphFst):
     """
     Finite state transducer for classifying whitelist, e.g.
         misses -> tokens { name: "mrs" }
+        for non-deterministic case: "Dr. Abc" ->
+            tokens { name: "drive" } tokens { name: "Abc" }
+            tokens { name: "doctor" } tokens { name: "Abc" }
+            tokens { name: "Dr." } tokens { name: "Abc" }
     This class has highest priority among all classifier grammars. Whitelisted tokens are defined and loaded from "data/whitelist.tsv".
 
     Args:
         input_case: accepting either "lower_cased" or "cased" input.
+        deterministic: if True will provide a single transduction option,
+            for False multiple options (used for audio-based normalization)
     """
 
-    def __init__(self, input_case: str):
+    def __init__(self, input_case: str, deterministic: bool = True):
         super().__init__(name="whitelist", kind="classify")
 
-        whitelist = load_labels(get_abs_path("data/whitelist.tsv"))
-        if input_case == "lower_cased":
-            whitelist = [(x.lower(), y) for x, y in whitelist]
-        else:
-            whitelist = [(x, y) for x, y in whitelist]
+        def _get_whitelist_graph(file="data/whitelist.tsv"):
+            whitelist = load_labels(get_abs_path(file))
+            if input_case == "lower_cased":
+                whitelist = [(x.lower(), y) for x, y in whitelist]
+            else:
+                whitelist = [(x, y) for x, y in whitelist]
+            graph = pynini.string_map(whitelist)
+            return graph
 
-        graph = pynini.string_map(whitelist)
+        graph = _get_whitelist_graph()
+        if not deterministic:
+            graph |= _get_whitelist_graph("data/whitelist_alternatives.tsv")
 
         graph = pynutil.insert("name: \"") + convert_space(graph) + pynutil.insert("\"")
         self.fst = graph.optimize()

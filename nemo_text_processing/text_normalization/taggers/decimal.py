@@ -61,8 +61,8 @@ class DecimalFst(GraphFst):
     cardinal: CardinalFst
     """
 
-    def __init__(self, cardinal: GraphFst):
-        super().__init__(name="decimal", kind="classify")
+    def __init__(self, cardinal: GraphFst, deterministic: bool):
+        super().__init__(name="decimal", kind="classify", deterministic=deterministic)
 
         cardinal_graph = cardinal.graph
         cardinal_graph_hundred_component_at_least_one_none_zero_digit = (
@@ -79,9 +79,10 @@ class DecimalFst(GraphFst):
             + pynini.closure(delete_space + (graph_decimal | pynini.cross("o", "0")), 1)
         )
         self.graph = pynini.invert(graph_decimal).optimize()
+        if not deterministic:
+            self.graph = self.graph | cardinal_graph
 
         point = pynutil.delete(".")
-
         optional_graph_negative = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
 
         graph_fractional = pynutil.insert("fractional_part: \"") + self.graph + pynutil.insert("\"")

@@ -21,6 +21,7 @@ from nemo_text_processing.text_normalization.verbalizers.electronic import Elect
 from nemo_text_processing.text_normalization.verbalizers.measure import MeasureFst
 from nemo_text_processing.text_normalization.verbalizers.money import MoneyFst
 from nemo_text_processing.text_normalization.verbalizers.ordinal import OrdinalFst
+from nemo_text_processing.text_normalization.verbalizers.serial import SerialFst
 from nemo_text_processing.text_normalization.verbalizers.telephone import TelephoneFst
 from nemo_text_processing.text_normalization.verbalizers.time import TimeFst
 from nemo_text_processing.text_normalization.verbalizers.whitelist import WhiteListFst
@@ -31,23 +32,28 @@ class VerbalizeFst(GraphFst):
     Composes other verbalizer grammars.
     For deployment, this grammar will be compiled and exported to OpenFst Finate State Archiv (FAR) File. 
     More details to deployment at NeMo/tools/text_processing_deployment.
+
+    Args:
+        deterministic: if True will provide a single transduction option,
+            for False multiple options (used for audio-based normalization)
     """
 
-    def __init__(self):
-        super().__init__(name="verbalize", kind="verbalize")
-        decimal = DecimalFst()
-        decimal_graph = decimal.fst
-        cardinal = CardinalFst()
+    def __init__(self, deterministic: bool = True):
+        super().__init__(name="verbalize", kind="verbalize", deterministic=deterministic)
+        cardinal = CardinalFst(deterministic=deterministic)
         cardinal_graph = cardinal.fst
-        ordinal = OrdinalFst()
+        decimal = DecimalFst(cardinal=cardinal, deterministic=deterministic)
+        decimal_graph = decimal.fst
+        ordinal = OrdinalFst(deterministic=deterministic)
         ordinal_graph = ordinal.fst
-        telephone_graph = TelephoneFst().fst
-        electronic_graph = ElectronicFst().fst
-        measure_graph = MeasureFst(decimal=decimal, cardinal=cardinal).fst
-        time_graph = TimeFst().fst
-        date_graph = DateFst(ordinal=ordinal).fst
-        money_graph = MoneyFst(decimal=decimal).fst
-        whitelist_graph = WhiteListFst().fst
+        telephone_graph = TelephoneFst(deterministic=deterministic).fst
+        electronic_graph = ElectronicFst(deterministic=deterministic).fst
+        measure = MeasureFst(decimal=decimal, cardinal=cardinal, deterministic=deterministic)
+        measure_graph = measure.fst
+        time_graph = TimeFst(deterministic=deterministic).fst
+        date_graph = DateFst(ordinal=ordinal, deterministic=deterministic).fst
+        money_graph = MoneyFst(decimal=decimal, deterministic=deterministic).fst
+        whitelist_graph = WhiteListFst(deterministic=deterministic).fst
         graph = (
             time_graph
             | date_graph
@@ -60,4 +66,8 @@ class VerbalizeFst(GraphFst):
             | electronic_graph
             | whitelist_graph
         )
+
+        if not deterministic:
+            serial_graph = SerialFst(measure, deterministic=deterministic).fst
+            graph |= serial_graph
         self.fst = graph
