@@ -29,10 +29,14 @@ class ElectronicFst(GraphFst):
     """
     Finite state transducer for classifying electronic: as URLs, email addresses, etc.
         e.g. cdf1@abc.edu -> tokens { electronic { username: "cdf1" domain: "abc.edu" } }
+
+    Args:
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self):
-        super().__init__(name="electronic", kind="classify")
+    def __init__(self, deterministic: bool = True):
+        super().__init__(name="electronic", kind="classify", deterministic=deterministic)
 
         accepted_symbols = []
         with open(get_abs_path("data/electronic/symbols.tsv"), 'r') as f:
