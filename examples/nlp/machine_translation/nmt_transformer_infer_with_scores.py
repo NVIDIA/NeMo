@@ -48,6 +48,7 @@ def main():
         logging.info("Attempting to initialize from .nemo file")
         model = nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(restore_path=args.model)
         src_text = []
+        src_texts = []
         tgt_text = []
         all_scores = []
     else:
@@ -77,19 +78,26 @@ def main():
                 assert len(res) == len(scores) == len(src_text) * args.beam_size
                 tgt_text += res
                 all_scores += scores
+                src_texts += [item for item in src_text for i in range(args.beam_size)]
                 src_text = []
             count += 1
             # if count % 300 == 0:
             #    print(f"Translated {count} sentences")
         if len(src_text) > 0:
-            res, scores = model.translate(text=src_text, source_lang=args.source_lang, target_lang=args.target_lang)
+            res, scores = model.translate(
+                text=src_text,
+                source_lang=args.source_lang,
+                target_lang=args.target_lang,
+                return_beam_scores=True
+            )
             assert len(res) == len(scores) == len(src_text) * args.beam_size
             tgt_text += res
             all_scores += scores
+            src_texts += [item for item in src_text for i in range(args.beam_size)]
 
     with open(args.tgtout, 'w') as tgt_f:
-        for line, score in zip(tgt_text, all_scores):
-            tgt_f.write(line + "\t" + str(score) + "\n")
+        for line, score, inp in zip(tgt_text, all_scores, src_texts):
+            tgt_f.write(inp + "\t" + line + "\t" + str(score) + "\n")
 
 if __name__ == '__main__':
     main()  # noqa pylint: disable=no-value-for-parameter
