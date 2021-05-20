@@ -18,8 +18,12 @@ from nemo_text_processing.text_normalization.graph_utils import GraphFst
 
 class FractionFst(GraphFst):
     """
-    Finite state transducer for verbalizing fraction, 
+    Finite state transducer for verbalizing fraction
+
+    Args:
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self):
-        super().__init__(name="fraction", kind="verbalize")
+    def __init__(self, deterministic: bool = True):
+        super().__init__(name="fraction", kind="verbalize", deterministic=deterministic)

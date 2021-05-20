@@ -22,11 +22,27 @@ except (ImportError, ModuleNotFoundError):
     PYNINI_AVAILABLE = False
 
 
-def parse_test_case_file(file_name):
+def parse_test_case_file(file_name: str):
+    """
+    Prepares tests pairs for ITN and TN tests
+    """
     test_pairs = []
-    with open(os.path.dirname(os.path.abspath(__file__)) + '/' + file_name, 'r') as f:
+    with open(os.path.dirname(os.path.abspath(__file__)) + os.path.sep + file_name, 'r') as f:
         for line in f:
             spoken, written = line.split('~')
             test_pairs.append((spoken, written.strip("\n")))
     print(test_pairs)
+    return test_pairs
+
+
+def get_test_cases_multiple(file_name: str = 'data_text_normalization/test_cases_normalize_with_audio.txt'):
+    """
+    Prepares tests pairs for audio based TN tests
+    """
+    test_pairs = []
+    with open(os.path.dirname(os.path.abspath(__file__)) + os.path.sep + file_name, 'r') as f:
+        for line in f:
+            written, normalized_options = line.split('~')
+            normalized_options = normalized_options.strip().split('|')
+            test_pairs.append((written, normalized_options))
     return test_pairs

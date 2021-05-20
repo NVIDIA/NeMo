@@ -42,7 +42,7 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-# This script exports OpenFst finite state archive files tokenize_and_classify_tmp.far and verbalize_tmp.far from compiled grammars inside NeMo inverse text normalization for  production purposes
+# This script exports compiled grammars inside nemo_text_processing into OpenFst finite state archive files tokenize_and_classify.far and verbalize.far for production purposes
 
 
 def _generator_main(file_name: str, graphs: Dict[str, pynini.FstLike]):
@@ -71,8 +71,8 @@ def itn_grammars(**kwargs):
 
 def tn_grammars(**kwargs):
     d = {}
-    d['classify'] = {'TOKENIZE_AND_CLASSIFY': TNClassifyFst(input_case=kwargs["input_case"]).fst}
-    d['verbalize'] = {'ALL': TNVerbalizeFst().fst, 'REDUP': pynini.accep("REDUP")}
+    d['classify'] = {'TOKENIZE_AND_CLASSIFY': TNClassifyFst(input_case=kwargs["input_case"], deterministic=True).fst}
+    d['verbalize'] = {'ALL': TNVerbalizeFst(deterministic=True).fst, 'REDUP': pynini.accep("REDUP")}
     return d
 
 
