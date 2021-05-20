@@ -191,9 +191,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         resume_if_exists=cfg.resume_if_exists,
     )
 
-    last_checkpoint = None
     if cfg.resume_if_exists:
-        last_checkpoint = check_resume(trainer, log_dir, cfg.resume_past_end, cfg.resume_ignore_no_checkpoint)
+        check_resume(trainer, log_dir, cfg.resume_past_end, cfg.resume_ignore_no_checkpoint)
 
     checkpoint_name = name
     # If name returned from get_log_dir is "", use cfg.name for checkpointing
@@ -236,7 +235,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         )
 
     if cfg.create_checkpoint_callback:
-        configure_checkpointing(trainer, log_dir, checkpoint_name, cfg.checkpoint_callback_params, last_checkpoint)
+        configure_checkpointing(trainer, log_dir, checkpoint_name, cfg.checkpoint_callback_params)
 
     if is_global_rank_zero():
         # Move files_to_copy to folder and add git information if present
@@ -377,8 +376,6 @@ def check_resume(
             new_run_dir.mkdir()
             for _file in files_to_move:
                 move(str(_file), str(new_run_dir))
-
-    return checkpoint
 
 
 def check_explicit_log_dir(
@@ -702,7 +699,7 @@ def configure_checkpointing(
             )
 
     checkpoint_callback = NeMoModelCheckpoint(**params)
-    checkpoint_callback.last_model_path = last_checkpoint
+    checkpoint_callback.last_model_path = trainer.resume_from_checkpoint or ""
     trainer.callbacks.append(checkpoint_callback)
 
 
