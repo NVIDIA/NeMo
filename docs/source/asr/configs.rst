@@ -473,3 +473,56 @@ specify the tokenizer if you want to use sub-word encoding instead of character-
 
 The encoder section includes the details about the Conformer-CTC encoder architecture. You may find more information in the 
 config files and also :doc:`nemo.collections.asr.modules.ConformerEncoder<./api.html#nemo.collections.asr.modules.ConformerEncoder>`.
+
+
+Finetuning Configurations
+-------------------------
+
+All ASR scripts support easy fine tuning by partially/fully loading the pretrained weights from a checkpoint into the currently instantiated model. Pre-trained weights can be provided in multiple ways -
+
+1) Providing a path to a NeMo model (via ``init_from_nemo_model``)
+2) Providing a name of a pretrained NeMo model (which will be downloaded via the cloud) (via ``init_from_pretrained_model``)
+3) Providing a path to a Pytorch Lightning checkpoint file (via ``init_from_ptl_ckpt``)
+
+Finetuning via a NeMo model
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: sh
+
+    python examples/asr/script_to_<script_name>.py \
+        --config-path=<path to dir of configs> \
+        --config-name=<name of config without .yaml>) \
+        model.train_ds.manifest_filepath="<path to manifest file>" \
+        model.validation_ds.manifest_filepath="<path to manifest file>" \
+        trainer.gpus=-1 \
+        trainer.max_epochs=50 \
+        +init_from_nemo_model="<path to .nemo model file>"
+
+
+Finetuning via a NeMo pretrained model name
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: sh
+
+    python examples/asr/script_to_<script_name>.py \
+        --config-path=<path to dir of configs> \
+        --config-name=<name of config without .yaml>) \
+        model.train_ds.manifest_filepath="<path to manifest file>" \
+        model.validation_ds.manifest_filepath="<path to manifest file>" \
+        trainer.gpus=-1 \
+        trainer.max_epochs=50 \
+        +init_from_pretrained_model="<name of pretrained checkpoint>"
+
+Finetuning via a Pytorch Lightning checkpoint
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: sh
+
+    python examples/asr/script_to_<script_name>.py \
+        --config-path=<path to dir of configs> \
+        --config-name=<name of config without .yaml>) \
+        model.train_ds.manifest_filepath="<path to manifest file>" \
+        model.validation_ds.manifest_filepath="<path to manifest file>" \
+        trainer.gpus=-1 \
+        trainer.max_epochs=50 \
+        +init_from_ptl_ckpt="<name of pytorch lightning checkpoint>"
