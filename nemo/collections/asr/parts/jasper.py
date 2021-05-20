@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import math
 from typing import Callable, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
 from torch import Tensor
+from torch.nn.init import _calculate_correct_fan
+from torch.nn.modules.utils import _single
 
 from nemo.collections.asr.parts.activations import Swish
 from nemo.utils import logging
@@ -35,6 +37,52 @@ except ImportError:
 jasper_activations = {"hardtanh": nn.Hardtanh, "relu": nn.ReLU, "selu": nn.SELU, "swish": Swish}
 
 
+def tds_uniform_(tensor, mode='fan_in'):
+    """
+    Uniform Initialization from the paper [Sequence-to-Sequence Speech Recognition with Time-Depth Separable Convolutions](https://www.isca-speech.org/archive/Interspeech_2019/pdfs/2460.pdf)
+    Normalized to -
+
+    .. math::
+        \text{bound} = \text{2} \times \sqrt{\frac{1}{\text{fan\_mode}}}
+
+    Args:
+        tensor: an n-dimensional `torch.Tensor`
+        mode: either ``'fan_in'`` (default) or ``'fan_out'``. Choosing ``'fan_in'``
+            preserves the magnitude of the variance of the weights in the
+            forward pass. Choosing ``'fan_out'`` preserves the magnitudes in the
+            backwards pass.
+    """
+    fan = _calculate_correct_fan(tensor, mode)
+    gain = 2.0  # sqrt(4.0) = 2
+    std = gain / math.sqrt(fan)  # sqrt(4.0 / fan_in)
+    bound = std  # Calculate uniform bounds from standard deviation
+    with torch.no_grad():
+        return tensor.uniform_(-bound, bound)
+
+
+def tds_normal_(tensor, mode='fan_in'):
+    """
+    Normal Initialization from the paper [Sequence-to-Sequence Speech Recognition with Time-Depth Separable Convolutions](https://www.isca-speech.org/archive/Interspeech_2019/pdfs/2460.pdf)
+    Normalized to -
+
+    .. math::
+        \text{bound} = \text{2} \times \sqrt{\frac{1}{\text{fan\_mode}}}
+
+    Args:
+        tensor: an n-dimensional `torch.Tensor`
+        mode: either ``'fan_in'`` (default) or ``'fan_out'``. Choosing ``'fan_in'``
+            preserves the magnitude of the variance of the weights in the
+            forward pass. Choosing ``'fan_out'`` preserves the magnitudes in the
+            backwards pass.
+    """
+    fan = _calculate_correct_fan(tensor, mode)
+    gain = 2.0
+    std = gain / math.sqrt(fan)  # sqrt(4.0 / fan_in)
+    bound = std  # Calculate uniform bounds from standard deviation
+    with torch.no_grad():
+        return tensor.normal_(0.0, bound)
+
+
 def init_weights(m, mode: Optional[str] = 'xavier_uniform'):
     if isinstance(m, MaskedConv1d):
         init_weights(m.conv, mode)
@@ -48,6 +96,10 @@ def init_weights(m, mode: Optional[str] = 'xavier_uniform'):
                 nn.init.kaiming_uniform_(m.weight, nonlinearity="relu")
             elif mode == 'kaiming_normal':
                 nn.init.kaiming_normal_(m.weight, nonlinearity="relu")
+            elif mode == 'tds_uniform':
+                tds_uniform_(m.weight)
+            elif mode == 'tds_normal':
+                tds_normal_(m.weight)
             else:
                 raise ValueError("Unknown Initialization mode: {0}".format(mode))
     elif isinstance(m, nn.BatchNorm1d):
@@ -330,29 +382,11 @@ class SqueezeExcite(nn.Module):
                 callable activation function.
         """
         super(SqueezeExcite, self).__init__()
-        self.context_window = int(context_window)
         self.interpolation_mode = interpolation_mode
+        self._quantize = quantize
 
-        if self.context_window <= 0:
-            if PYTORCH_QUANTIZATION_AVAILABLE and quantize:
-                self.pool = quant_nn.QuantAdaptiveAvgPool1d(1)  # context window = T
-            elif not PYTORCH_QUANTIZATION_AVAILABLE and quantize:
-                raise ImportError(
-                    "pytorch-quantization is not installed. Install from "
-                    "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
-                )
-            else:
-                self.pool = nn.AdaptiveAvgPool1d(1)  # context window = T
-        else:
-            if PYTORCH_QUANTIZATION_AVAILABLE and quantize:
-                self.pool = quant_nn.QuantAvgPool1d(self.context_window, stride=1)
-            elif not PYTORCH_QUANTIZATION_AVAILABLE and quantize:
-                raise ImportError(
-                    "pytorch-quantization is not installed. Install from "
-                    "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
-                )
-            else:
-                self.pool = nn.AvgPool1d(self.context_window, stride=1)
+        self.pool = None  # prepare a placeholder which will be updated
+        self.change_context_window(context_window=context_window)
 
         if activation is None:
             activation = nn.ReLU(inplace=True)
@@ -374,6 +408,7 @@ class SqueezeExcite(nn.Module):
                 activation,
                 nn.Linear(channels // reduction_ratio, channels, bias=False),
             )
+        self.gap = nn.AdaptiveAvgPool1d(1)
 
     def forward(self, x):
         # The use of negative indices on the transpose allow for expanded SqueezeExcite
@@ -381,7 +416,10 @@ class SqueezeExcite(nn.Module):
         # Computes in float32 to avoid instabilities during training with AMP.
         with torch.cuda.amp.autocast(enabled=False):
             x = x.float()
-            y = self.pool(x)  # [B, C, T - context_window + 1]
+            if timesteps < self.context_window:
+                y = self.gap(x)
+            else:
+                y = self.pool(x)  # [B, C, T - context_window + 1]
             y = y.transpose(1, -1)  # [B, T - context_window + 1, C]
             y = self.fc(y)  # [B, T - context_window + 1, C]
             y = y.transpose(1, -1)  # [B, C, T - context_window + 1]
@@ -391,6 +429,61 @@ class SqueezeExcite(nn.Module):
 
         y = torch.sigmoid(y)
         return x * y
+
+    def change_context_window(self, context_window: int):
+        """
+        Update the context window of the SqueezeExcitation module, in-place if possible.
+
+        Will update the pooling layer to either nn.AdaptiveAvgPool1d() (for global SE) or nn.AvgPool1d()
+        (for limited context SE).
+
+        If only the context window is changing but still a limited SE context block - then
+        the earlier instance of nn.AvgPool1d() will be updated.
+
+        Args:
+            context_window: An integer representing the number of input timeframes that will be used
+                to compute the context. Each timeframe corresponds to a single window stride of the
+                STFT features.
+
+                Say the window_stride = 0.01s, then a context window of 128 represents 128 * 0.01 s
+                of context to compute the Squeeze step.
+        """
+        if hasattr(self, 'context_window'):
+            logging.info(f"Changing Squeeze-Excitation context window from {self.context_window} to {context_window}")
+
+        self.context_window = int(context_window)
+
+        if self.context_window <= 0:
+            if PYTORCH_QUANTIZATION_AVAILABLE and self._quantize:
+                if not isinstance(self.pool, quant_nn.QuantAdaptiveAvgPool1d(1)):
+                    self.pool = quant_nn.QuantAdaptiveAvgPool1d(1)  # context window = T
+
+            elif not PYTORCH_QUANTIZATION_AVAILABLE and self._quantize:
+                raise ImportError(
+                    "pytorch-quantization is not installed. Install from "
+                    "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
+                )
+
+            else:
+                if not isinstance(self.pool, nn.AdaptiveAvgPool1d):
+                    self.pool = nn.AdaptiveAvgPool1d(1)  # context window = T
+        else:
+            if PYTORCH_QUANTIZATION_AVAILABLE and self._quantize:
+                if not isinstance(self.pool, quant_nn.QuantAvgPool1d):
+                    self.pool = quant_nn.QuantAvgPool1d(self.context_window, stride=1)
+
+            elif not PYTORCH_QUANTIZATION_AVAILABLE and self._quantize:
+                raise ImportError(
+                    "pytorch-quantization is not installed. Install from "
+                    "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
+                )
+
+            else:
+                if not isinstance(self.pool, nn.AvgPool1d):
+                    self.pool = nn.AvgPool1d(self.context_window, stride=1)
+                else:
+                    # update the context window
+                    self.pool.kernel_size = _single(self.context_window)
 
 
 class JasperBlock(nn.Module):

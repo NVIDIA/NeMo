@@ -330,7 +330,7 @@ class MelGanModel(Vocoder):
         list_of_models = []
         model = PretrainedModelInfo(
             pretrained_model_name="tts_melgan",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_melgan/versions/1.0.0rc1/files/tts_melgan.nemo",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_melgan/versions/1.0.0/files/tts_melgan.nemo",
             description="This model is trained on LJSpeech sampled at 22050Hz, and has been tested on generating female English voices with an American accent.",
             class_=cls,
         )

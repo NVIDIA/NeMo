@@ -28,6 +28,7 @@ from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
+from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
@@ -36,7 +37,7 @@ from nemo.utils import logging
 __all__ = ['EncDecCTCModel']
 
 
-class EncDecCTCModel(ASRModel, ExportableEncDecModel):
+class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
     """Base class for encoder decoder CTC-based models."""
 
     @classmethod
@@ -130,6 +131,13 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
             pretrained_model_name="stt_zh_citrinet_512",
             description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_zh_citrinet_512",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_zh_citrinet_512/versions/1.0.0rc1/files/stt_zh_citrinet_512.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="asr_talknet_aligner",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:asr_talknet_aligner",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/asr_talknet_aligner/versions/1.0.0rc1/files/qn5x5_libri_tts_phonemes.nemo",
         )
         results.append(model)
 
@@ -559,6 +567,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
                 predictions_lengths=encoded_len,
             )
             wer, _, _ = self._wer.compute()
+            self._wer.reset()
             tensorboard_logs.update({'training_batch_wer': wer})
 
         return {'loss': loss_value, 'log': tensorboard_logs}
@@ -579,6 +588,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel):
             predictions=predictions, targets=transcript, target_lengths=transcript_len, predictions_lengths=encoded_len
         )
         wer, wer_num, wer_denom = self._wer.compute()
+        self._wer.reset()
         return {
             'val_loss': loss_value,
             'val_wer_num': wer_num,

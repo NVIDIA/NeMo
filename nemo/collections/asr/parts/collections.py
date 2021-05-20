@@ -335,3 +335,134 @@ class ASRSpeechLabel(SpeechLabel):
         )
 
         return item
+
+
+class FeatureSequenceLabel(_Collection):
+    """List of feature sequence of label correspondence with preprocessing."""
+
+    OUTPUT_TYPE = collections.namedtuple(typename='FeatureSequenceLabelEntity', field_names='feature_file seq_label',)
+
+    def __init__(
+        self,
+        feature_files: List[str],
+        seq_labels: List[str],
+        max_number: Optional[int] = None,
+        index_by_file_id: bool = False,
+    ):
+        """Instantiates feature-SequenceLabel manifest with filters and preprocessing.
+
+        Args:
+            feature_files: List of feature files.
+            seq_labels: List of sequences of abels.
+            max_number: Maximum number of samples to collect.
+            index_by_file_id: If True, saves a mapping from filename base (ID) to index in data.
+        """
+
+        output_type = self.OUTPUT_TYPE
+        data, num_filtered = (
+            [],
+            0.0,
+        )
+        self.uniq_labels = set()
+
+        if index_by_file_id:
+            self.mapping = {}
+
+        for feature_file, seq_label in zip(feature_files, seq_labels):
+
+            label_tokens, uniq_labels_in_seq = self.relative_speaker_parser(seq_label)
+
+            data.append(output_type(feature_file, label_tokens))
+            self.uniq_labels |= uniq_labels_in_seq
+
+            if label_tokens is None:
+                num_filtered += 1
+                continue
+
+            if index_by_file_id:
+                file_id, _ = os.path.splitext(os.path.basename(feature_file))
+                self.mapping[feature_file] = len(data) - 1
+
+            # Max number of entities filter.
+            if len(data) == max_number:
+                break
+
+        logging.info("# {} files loaded including # {} unique labels".format(len(data), len(self.uniq_labels)))
+        super().__init__(data)
+
+    def relative_speaker_parser(self, seq_label):
+        """ Convert sequence of speaker labels to relative labels.
+        Convert sequence of absolute speaker to sequence of relative speaker [E A C A E E C] -> [0 1 2 1 0 0 2]
+        In this seq of label , if label do not appear before, assign new relative labels len(pos); else reuse previous assigned relative labels.
+        Args:
+            seq_label (str): A string of a sequence of labels.
+
+        Return:
+            relative_seq_label (List) : A list of relative sequence of labels
+            unique_labels_in_seq (Set): A set of unique labels in the sequence
+        """
+        seq = seq_label.split()
+        conversion_dict = dict()
+        relative_seq_label = []
+
+        for seg in seq:
+            if seg in conversion_dict:
+                converted = conversion_dict[seg]
+            else:
+                converted = len(conversion_dict)
+                conversion_dict[seg] = converted
+
+            relative_seq_label.append(converted)
+
+        unique_labels_in_seq = set(conversion_dict.keys())
+        return relative_seq_label, unique_labels_in_seq
+
+
+class ASRFeatureSequenceLabel(FeatureSequenceLabel):
+    """`FeatureSequenceLabel` collector from asr structured json files."""
+
+    def __init__(
+        self, manifests_files: Union[str, List[str]], max_number: Optional[int] = None, index_by_file_id: bool = False,
+    ):
+
+        """Parse lists of feature files and sequences of labels.
+
+        Args:
+            manifests_files: Either single string file or list of such -
+                manifests to yield items from.
+            max_number:  Maximum number of samples to collect; pass to `FeatureSequenceLabel` constructor.
+            index_by_file_id: If True, saves a mapping from filename base (ID) to index in data; pass to `FeatureSequenceLabel` constructor.
+        """
+
+        feature_files, seq_labels = [], []
+        for item in manifest.item_iter(manifests_files, parse_func=self._parse_item):
+            feature_files.append(item['feature_file'])
+            seq_labels.append(item['seq_label'])
+
+        super().__init__(feature_files, seq_labels, max_number, index_by_file_id)
+
+    def _parse_item(self, line: str, manifest_file: str) -> Dict[str, Any]:
+        item = json.loads(line)
+
+        # Feature file
+        if 'feature_filename' in item:
+            item['feature_file'] = item.pop('feature_filename')
+        elif 'feature_filepath' in item:
+            item['feature_file'] = item.pop('feature_filepath')
+        else:
+            raise ValueError(
+                f"Manifest file has invalid json line " f"structure: {line} without proper feature file key."
+            )
+        item['feature_file'] = os.path.expanduser(item['feature_file'])
+
+        # Seq of Label.
+        if 'seq_label' in item:
+            item['seq_label'] = item.pop('seq_label')
+        else:
+            raise ValueError(
+                f"Manifest file has invalid json line " f"structure: {line} without proper seq_label key."
+            )
+
+        item = dict(feature_file=item['feature_file'], seq_label=item['seq_label'],)
+
+        return item
