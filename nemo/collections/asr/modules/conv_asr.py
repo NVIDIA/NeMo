@@ -127,6 +127,11 @@ class ConvASREncoder(NeuralModule, Exportable):
             jasper = OmegaConf.to_container(jasper)
 
         activation = jasper_activations[activation]()
+
+        # If the activation can be executed in place, do so.
+        if hasattr(activation, 'inplace'):
+            activation.inplace = True
+
         feat_in = feat_in * frame_splicing
 
         self._feat_in = feat_in
