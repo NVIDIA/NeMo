@@ -642,10 +642,9 @@ class MTEncDecModel(EncDecNLPModel):
         try:
             self.eval()
             src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
-            beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask, return_beam_scores=return_beam_scores)
+            beam_ids = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask, return_beam_scores=return_beam_scores)
             if return_beam_scores:
-                beam_ids, scores = beam_results
-                beam_results = self.filter_predicted_ids(beam_ids)
+                beam_ids, scores = beam_ids
                 scores = scores.view(-1)
 
             beam_results = self.filter_predicted_ids(beam_ids)
