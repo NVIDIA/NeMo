@@ -90,7 +90,17 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         # init speaker model
         self._init_speaker_model()
-        self._num_speakers = self._cfg.diarizer.num_speakers
+
+        if self._cfg.diarizer.get('num_speakers', None):
+            self._num_speakers = self._cfg.diarizer.num_speakers
+            logging.warning("in next release num_speakers will be changed to oracle_num_speakers")
+        else:
+            self._num_speakers = self._cfg.diarizer.oracle_num_speakers
+
+        if self._cfg.diarizer.get('max_num_speakers', None):
+            self.max_num_speakers = self._cfg.diarizer.max_num_speakers
+        else:
+            self.max_num_speakers = 8
 
         self._device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -252,8 +262,8 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             with autocast():
                 _, embs = self._speaker_model.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
                 emb_shape = embs.shape[-1]
-                embs = embs.type(torch.float32)
-                embs = embs.view(-1, emb_shape).cpu().detach().numpy()
+                embs = embs.view(-1, emb_shape).type(torch.float32)
+                embs = embs.cpu().detach().numpy()
                 out_embeddings[uniq_names[i]].extend(embs)
             del test_batch
 
@@ -346,6 +356,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             shift=self._cfg.diarizer.speaker_embeddings.shift_length_in_sec,
             audio_rttm_map=self.AUDIO_RTTM_MAP,
             out_rttm_dir=out_rttm_dir,
+            max_num_speakers=self.max_num_speakers,
         )
 
     @staticmethod

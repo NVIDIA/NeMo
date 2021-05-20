@@ -56,9 +56,13 @@ class NLPModel(ModelPT, Exportable):
         super().__init__(cfg, trainer)
         self.set_world_size(trainer)
 
+    def register_artifact(self, config_path: str, src: str, verify_src_exists: bool = False):
+        """ Overrides ModelPT register_artifact default behavior. NLP models usually need artifacts that are optional."""
+        return super().register_artifact(config_path, src, verify_src_exists=verify_src_exists)
+
     @rank_zero_only
     def register_bert_model(self):
-        """Adds encoder config to .nemo archive.
+        """Adds encoder config to .nemo archive for Jarvis.
         """
         # check if there is an encoder, warn if not
         if self.bert_model is None:
@@ -67,23 +71,21 @@ class NLPModel(ModelPT, Exportable):
             # get encoder config and create source for artifact
             if isinstance(self.bert_model, MegatronBertEncoder):
                 pretrained_model_name = self.bert_model._model_name
-                encoder_config_path = pretrained_model_name + '_encoder_config.json'
-                encoder_config_src = os.path.join(NEMO_NLP_TMP, encoder_config_path)
+                encoder_config_path = pretrained_model_name + '_encoder_config'
+                encoder_config_src = os.path.join(NEMO_NLP_TMP, encoder_config_path + '.json')
                 config_for_json = OmegaConf.to_container(self.bert_model.config)
                 with open(encoder_config_src, 'w', encoding='utf-8') as f:
                     f.write(json.dumps(config_for_json, indent=2, sort_keys=True) + '\n')
-                self.register_artifact(encoder_config_path, encoder_config_src)
-                self.cfg.language_model.config_file = encoder_config_path
+                self.register_artifact('language_model.config_file', encoder_config_src)  # for .nemo
             elif isinstance(self.bert_model, BertModule):
                 # HuggingFace Transformer Config
                 pretrained_model_name = self.bert_model.name_or_path
                 # Some HF names have "/" in them so we replace with _
                 pretrained_model_name = pretrained_model_name.replace("/", "_")
-                encoder_config_path = pretrained_model_name + '_encoder_config.json'
-                encoder_config_src = os.path.join(NEMO_NLP_TMP, encoder_config_path)
+                encoder_config_path = pretrained_model_name + '_encoder_config'
+                encoder_config_src = os.path.join(NEMO_NLP_TMP, encoder_config_path + '.json')
                 self.bert_model.config.to_json_file(encoder_config_src)  # name requested by jarvis team
-                self.register_artifact(encoder_config_path, encoder_config_src)
-                self.cfg.language_model.config_file = encoder_config_path
+                self.register_artifact('language_model.config_file', encoder_config_src)  # for .nemo
             else:
                 logging.info(
                     f'Registering BERT model config for {self.bert_model} is not yet supported. Please override this method if needed.'
@@ -104,23 +106,7 @@ class NLPModel(ModelPT, Exportable):
             cfg (DictConfig): Tokenizer config
         """
         vocab_file = None
-        if self._is_model_being_restored():
-            if os.path.exists('tokenizer.vocab_file'):
-                # model is being restored from .nemo file so tokenizer.vocab_file has precedence
-                vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src='tokenizer.vocab_file')
-                cfg.vocab_file = vocab_file
-
-            # tokenizer.vocab_file is added to the config file and registered as artifact for .nemo file
-            # during training but this file is missing for load_from_checkpoint() method call
-            # it's safer to use restore_from .nemo file
-            elif cfg.vocab_file and not os.path.exists(cfg.vocab_file):
-                logging.warning(
-                    f'tokenizer.vocab_file not found at {cfg.vocab_file}. It is recommended to use restore_from() method with .nemo file.'
-                )
-            else:
-                vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file)
-        elif cfg.vocab_file:
-            # use vocab file from config
+        if cfg.vocab_file:
             vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file)
         tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
@@ -138,7 +124,7 @@ class NLPModel(ModelPT, Exportable):
     def _register_vocab_from_tokenizer(
         self,
         vocab_file_config_path: str = 'tokenizer.vocab_file',
-        vocab_dict_config_path: str = 'tokenizer_vocab_dict.json',
+        vocab_dict_config_path: str = 'tokenizer_vocab_dict',
         cfg: DictConfig = None,
     ):
         """Creates vocab file from tokenizer if vocab file is None.
@@ -230,16 +216,16 @@ class NLPModel(ModelPT, Exportable):
 
                 self._trainer.checkpoint_connector = NLPCheckpointConnector(self._trainer)
 
-                # Configure checkpointing for model parallel
-                if app_state.create_checkpoint_callback:
-                    # global rank 0 is configured by exp_manager
-                    if not is_global_rank_zero() and app_state.data_parallel_rank == 0:
-                        configure_checkpointing(
-                            self._trainer,
-                            app_state.log_dir,
-                            app_state.checkpoint_name,
-                            app_state.checkpoint_callback_params,
-                        )
+                # # Configure checkpointing for model parallel
+                # if app_state.create_checkpoint_callback:
+                #     # global rank 0 is configured by exp_manager
+                #     if not is_global_rank_zero() and app_state.data_parallel_rank == 0:
+                #         configure_checkpointing(
+                #             self._trainer,
+                #             app_state.log_dir,
+                #             app_state.checkpoint_name,
+                #             app_state.checkpoint_callback_params,
+                #         )
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         """ LightningModule hook that's used to save things in addition to model weights. """
@@ -274,7 +260,7 @@ class NLPModel(ModelPT, Exportable):
         Args:
             save_path: Path to .nemo file where model instance should be saved
         """
-
+        save_path = os.path.abspath(save_path)
         app_state = AppState()
         if app_state.model_parallel_size is not None:
             self._default_save_to(save_path)
@@ -345,7 +331,7 @@ class NLPModel(ModelPT, Exportable):
         restore_path: str,
         override_config_path: Optional[Union[OmegaConf, str]] = None,
         map_location: Optional[torch.device] = None,
-        strict: bool = False,
+        strict: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
     ):
@@ -358,7 +344,7 @@ class NLPModel(ModelPT, Exportable):
                 config file or an OmegaConf / DictConfig object representing the model config.
             map_location: Optional torch.device() to map the instantiated model to a device.
                 By default (None), it will select a GPU if available, falling back to CPU otherwise.
-            strict: Passed to load_state_dict.
+            strict: Passed to load_state_dict. Set to True by default.
             return_config: If set to true, will return just the underlying config of the restored
                 model as an OmegaConf DictConfig object without instantiating the model.
             trainer: PyTorch Lightning trainer. Must be passed in order to use model parallel .nemo
@@ -383,7 +369,7 @@ class NLPModel(ModelPT, Exportable):
             cwd = os.getcwd()
             os.chdir(tmpdir)
             # detect if model parallel from tarfile
-            tar = tarfile.open(restore_path, "r:gz")
+            tar = tarfile.open(app_state.model_restore_path, "r:gz")
             names = tar.getnames()
             mp_ranks = []
             for name in names:
@@ -391,9 +377,14 @@ class NLPModel(ModelPT, Exportable):
                     mp_ranks.append(name)
             if mp_ranks:
                 app_state.model_parallel_size = len(mp_ranks) // 2  # directory and file are included in getnames()
+
                 # get checkpoint version
-                tar.extract('./megatron_checkpoint_version.json', tmpdir)
-                with open('megatron_checkpoint_version.json', 'r') as f:
+                checkpoint_version_member = None
+                for member in tar.getmembers():
+                    if 'megatron_checkpoint_version.json' in member.name:
+                        checkpoint_version_member = member
+                tar.extract(checkpoint_version_member, tmpdir)
+                with open(checkpoint_version_member.name, 'r') as f:
                     checkpoint_version = json.load(f).get('checkpoint_version', None)
                 logging.info(
                     (

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from typing import Union
 
 import inflect
@@ -32,3 +33,15 @@ def num_to_word(x: Union[str, int]):
         x = str(x)
         x = _inflect.number_to_words(str(x)).replace("-", " ").replace(",", "")
     return x
+
+
+def get_abs_path(rel_path):
+    """
+    Get absolute path
+
+    Args:
+        rel_path: relative path to this file
+        
+    Returns absolute path
+    """
+    return os.path.dirname(os.path.abspath(__file__)) + '/' + rel_path

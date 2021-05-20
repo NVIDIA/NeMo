@@ -1,12 +1,12 @@
 .. _machine_translation:
 
 Machine Translation Models
-=========================
+==========================
 Machine translation is the task of translating text from one language to another. For example, from English to Spanish. Models are 
 based on the Transformer sequence-to-sequence architecture :cite:`nlp-machine_translation-vaswani2017attention`.
 
-An example script on how to train the model can be found here: `NeMo/examples/nlp/machine_translation/enc_dec_nmt.py <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/examples/nlp/machine_translation/enc_dec_nmt.py>`__.
-The default configuration file for the model can be found at: `NeMo/examples/nlp/machine_translation/conf/aayn_base.yaml <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/examples/nlp/machine_translation/conf/aayn_base.yaml>`__.
+An example script on how to train the model can be found here: `NeMo/examples/nlp/machine_translation/enc_dec_nmt.py <https://github.com/NVIDIA/NeMo/blob/v1.0.0/examples/nlp/machine_translation/enc_dec_nmt.py>`__.
+The default configuration file for the model can be found at: `NeMo/examples/nlp/machine_translation/conf/aayn_base.yaml <https://github.com/NVIDIA/NeMo/blob/v1.0.0/examples/nlp/machine_translation/conf/aayn_base.yaml>`__.
 
 Quick Start Guide
 -----------------
@@ -213,7 +213,7 @@ as follows:
 Applying BPE Tokenization, Batching, Bucketing and Padding
 ----------------------------------------------------------
 
-Given BPE tokenizers, and a cleaned parallel corpus, the following steps are applied to create a `TranslationDataset <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/nemo/collections/nlp/data/machine_translation/machine_translation_dataset.py#L64>`__ object.
+Given BPE tokenizers, and a cleaned parallel corpus, the following steps are applied to create a `TranslationDataset <https://github.com/NVIDIA/NeMo/blob/v1.0.0/nemo/collections/nlp/data/machine_translation/machine_translation_dataset.py#L64>`__ object.
 
 #. Text to IDs - This performs subword tokenization with the BPE model on an input string and maps it to a sequence of tokens for the 
    source and target text.
@@ -285,7 +285,7 @@ Tarred datasets can be configured as follows:
 
 Tarred datasets can be created in two ways:
 
-#. Using the Hydra config and `training script <https://github.com/NVIDIA/NeMo/blob/r1.0.0rc1/examples/nlp/machine_translation/enc_dec_nmt.py>`__.
+#. Using the Hydra config and `training script <https://github.com/NVIDIA/NeMo/blob/v1.0.0/examples/nlp/machine_translation/enc_dec_nmt.py>`__.
 
    For example:
 
@@ -413,6 +413,27 @@ The trainer keeps track of the sacreBLEU score :cite:`nlp-machine_translation-po
 the checkpoints that had the top 5 (by default) sacreBLEU scores.
 
 At the end of training, a ``.nemo`` file is written to the result directory which allows to run inference on a test set.
+
+Multi-Validation
+----------------
+
+To run validation on multiple datasets, specify ``validation_ds.src_file_name`` and ``validation_ds.tgt_file_name`` with a list of file paths:
+
+.. code-block:: bash
+
+  model.validation_ds.src_file_name=[/data/wmt13-en-de.src,/data/wmt14-en-de.src] \
+  model.validation_ds.tgt_file_name=[/data/wmt13-en-de.ref,/data/wmt14-en-de.ref] \
+
+When using ``val_loss`` or ``val_sacreBLEU`` for the ``exp_manager.checkpoint_callback_params.monitor`` 
+then the 0th indexed dataset will be used as the monitor. 
+
+To use other indexes, append the index:
+
+.. code-block:: bash
+
+    exp_manager.checkpoint_callback_params.monitor=val_sacreBLEU_dl_index_1
+  
+Multiple test datasets work exactly the same way as validation datasets, simply replace ``validation_ds`` by ``test_ds`` in the above examples.
 
 Model Inference
 ---------------

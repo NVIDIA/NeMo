@@ -65,8 +65,20 @@ def get_segments(
         text_no_preprocessing = f.readlines()
         text_no_preprocessing = [t.strip() for t in text_no_preprocessing if t.strip()]
 
+    # add corresponding normalized original text
+    transcript_file_normalized = transcript_file.replace('.txt', '_with_punct_normalized.txt')
+    if not os.path.exists(transcript_file_normalized):
+        raise ValueError(f'{transcript_file_normalized} not found.')
+
+    with open(transcript_file_normalized, "r") as f:
+        text_normalized = f.readlines()
+        text_normalized = [t.strip() for t in text_normalized if t.strip()]
+
     if len(text_no_preprocessing) != len(text):
         raise ValueError(f'{transcript_file} and {transcript_file_no_preprocessing} do not match')
+
+    if len(text_normalized) != len(text):
+        raise ValueError(f'{transcript_file} and {transcript_file_normalized} do not match')
 
     ground_truth_mat, utt_begin_indices = cs.prepare_text(config, text)
     logging.debug(f"Syncing {transcript_file}")
@@ -77,11 +89,17 @@ def get_segments(
 
     timings, char_probs, char_list = cs.ctc_segmentation(config, log_probs, ground_truth_mat)
     segments = cs.determine_utterance_segments(config, utt_begin_indices, char_probs, timings, text)
-    write_output(output_file, path_wav, segments, text, text_no_preprocessing)
+    write_output(output_file, path_wav, segments, text, text_no_preprocessing, text_normalized)
 
 
 def write_output(
-    out_path: str, path_wav: str, segments: List[Tuple[float]], text: str, text_no_preprocessing: str, stride: int = 2
+    out_path: str,
+    path_wav: str,
+    segments: List[Tuple[float]],
+    text: str,
+    text_no_preprocessing: str,
+    text_normalized: str,
+    stride: int = 2,
 ):
     """
     Write the segmentation output to a file
@@ -91,6 +109,7 @@ def write_output(
     segments: Segments include start, end and alignment score
     text: Text used for alignment
     text_no_preprocessing: Reference txt without any pre-processing
+    text_normalized: Reference text normalized
     stride: Stride applied to an ASR input
     """
     # Uses char-wise alignments to get utterance-wise alignments and writes them into the given file
@@ -98,7 +117,9 @@ def write_output(
         outfile.write(str(path_wav) + "\n")
 
         for i, (start, end, score) in enumerate(segments):
-            outfile.write(f'{start/stride} {end/stride} {score} | {text[i]} | {text_no_preprocessing[i]}\n')
+            outfile.write(
+                f'{start/stride} {end/stride} {score} | {text[i]} | {text_no_preprocessing[i]} | {text_normalized[i]}\n'
+            )
 
 
 #####################

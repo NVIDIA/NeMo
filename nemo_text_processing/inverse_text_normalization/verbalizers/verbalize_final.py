@@ -13,10 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.graph_utils import GraphFst, delete_extra_space, delete_space
-from nemo_text_processing.inverse_text_normalization.verbalizers.punctuation import PunctuationFst
 from nemo_text_processing.inverse_text_normalization.verbalizers.verbalize import VerbalizeFst
 from nemo_text_processing.inverse_text_normalization.verbalizers.word import WordFst
+from nemo_text_processing.text_normalization.graph_utils import GraphFst, delete_extra_space, delete_space
 
 try:
     import pynini
@@ -29,17 +28,15 @@ except (ModuleNotFoundError, ImportError):
 
 class VerbalizeFinalFst(GraphFst):
     """
-    Finite state transducer that verbalizes an entire sentence
-        e.g. tokens { name: "its" } tokens { time { hours: "12" minutes: "30" } } tokens { name: "now" } tokens { name: "." pause_length: "PAUSE_LONG phrase_break: true type: PUNCT" }
-            -> its 12:30 now .
+    Finite state transducer that verbalizes an entire sentence, e.g. 
+    tokens { name: "its" } tokens { time { hours: "12" minutes: "30" } } tokens { name: "now" } -> its 12:30 now
     """
 
     def __init__(self):
         super().__init__(name="verbalize_final", kind="verbalize")
         verbalize = VerbalizeFst().fst
-        punct = PunctuationFst().fst
         word = WordFst().fst
-        types = verbalize | word | punct
+        types = verbalize | word
         graph = (
             pynutil.delete("tokens")
             + delete_space

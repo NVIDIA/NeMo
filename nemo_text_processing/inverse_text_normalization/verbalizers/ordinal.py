@@ -13,12 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.graph_utils import (
-    NEMO_NOT_QUOTE,
-    NEMO_SIGMA,
-    GraphFst,
-    delete_space,
-)
+from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_QUOTE, NEMO_SIGMA, GraphFst, delete_space
 
 try:
     import pynini
@@ -31,8 +26,8 @@ except (ModuleNotFoundError, ImportError):
 
 class OrdinalFst(GraphFst):
     """
-    Finite state transducer for verbalizing ordinal
-        e.g. tokens { thirteenth -> ordinal { integer: "13" } } -> 13th
+    Finite state transducer for verbalizing ordinal, e.g.
+       ordinal { integer: "13" } -> 13th
     """
 
     def __init__(self):
