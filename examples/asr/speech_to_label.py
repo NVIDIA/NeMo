@@ -102,19 +102,64 @@ python speech_to_label.py \
     +trainer.precision=16 \
     +trainer.amp_level=O1  # needed if using PyTorch < 1.6
 
+# Finetune a model
+1) Finetune from a .nemo file
+
+```sh
+    python examples/asr/speech_to_label.py \
+        --config-path=<path to dir of configs> \
+        --config-name=<name of config without .yaml>) \
+        model.train_ds.manifest_filepath="<path to manifest file>" \
+        model.validation_ds.manifest_filepath="<path to manifest file>" \
+        trainer.gpus=-1 \
+        trainer.max_epochs=50 \
+        +init_from_nemo_model="<path to .nemo model file>"
+```
+
+2) Finetune from a pretrained model (via NGC)
+
+```sh
+    python examples/asr/speech_to_label.py \
+        --config-path=<path to dir of configs> \
+        --config-name=<name of config without .yaml>) \
+        model.train_ds.manifest_filepath="<path to manifest file>" \
+        model.validation_ds.manifest_filepath="<path to manifest file>" \
+        trainer.gpus=-1 \
+        trainer.max_epochs=50 \
+        +init_from_pretrained_model="<name of pretrained checkpoint>"
+```
+
+3) Finetune from a Pytorch Lightning checkpoint
+
+```sh
+    python examples/asr/speech_to_label.py \
+        --config-path=<path to dir of configs> \
+        --config-name=<name of config without .yaml>) \
+        model.train_ds.manifest_filepath="<path to manifest file>" \
+        model.validation_ds.manifest_filepath="<path to manifest file>" \
+        trainer.gpus=-1 \
+        trainer.max_epochs=50 \
+        +init_from_ptl_ckpt="<name of pytorch lightning checkpoint>"
+```
 """
 import pytorch_lightning as pl
+from omegaconf import OmegaConf
 
 from nemo.collections.asr.models import EncDecClassificationModel
 from nemo.core.config import hydra_runner
+from nemo.utils import logging, model_utils
 from nemo.utils.exp_manager import exp_manager
 
 
 @hydra_runner(config_path="conf", config_name="matchboxnet_3x1x64_v1")
 def main(cfg):
+    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     asr_model = EncDecClassificationModel(cfg=cfg.model, trainer=trainer)
+
+    model_utils.maybe_init_from_pretrained_checkpoint(asr_model, cfg)
 
     trainer.fit(asr_model)
 

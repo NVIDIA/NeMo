@@ -81,48 +81,28 @@ Finetune a model
         trainer.max_epochs=50 \
         +init_from_pretrained_model="<name of pretrained checkpoint>"        
 ```
+
+3) Finetune from a Pytorch Lightning checkpoint
+
+```sh
+    python examples/asr/speech_to_text.py \
+        --config-path=<path to dir of configs> \
+        --config-name=<name of config without .yaml>) \
+        model.train_ds.manifest_filepath="<path to manifest file>" \
+        model.validation_ds.manifest_filepath="<path to manifest file>" \
+        trainer.gpus=-1 \
+        trainer.max_epochs=50 \
+        +init_from_ptl_ckpt="<name of pytorch lightning checkpoint>"
+```
 """
 
 import pytorch_lightning as pl
-from omegaconf import OmegaConf, open_dict
+from omegaconf import OmegaConf
 
 from nemo.collections.asr.models import EncDecCTCModel
 from nemo.core.config import hydra_runner
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 from nemo.utils.exp_manager import exp_manager
-
-
-def restore_weights_if_required(model: EncDecCTCModel, cfg: OmegaConf):
-    if 'init_from_nemo_model' not in cfg and 'init_from_pretrained_model' not in cfg:
-        # model weights do not need to be restored
-        return
-
-    if 'init_from_nemo_model' in cfg and 'init_from_pretrained_model' in cfg:
-        raise ValueError("Cannot pass both `init_from_nemo_model` and `init_from_pretrained_model` to config!")
-
-    if 'init_from_nemo_model' in cfg and cfg.init_from_nemo_model is not None:
-        with open_dict(cfg):
-            # Restore model
-            model_path = cfg.pop('init_from_nemo_model')
-            restored_model = EncDecCTCModel.restore_from(model_path, map_location='cpu', strict=True)
-
-            # Restore checkpoint into current model
-            model.load_state_dict(restored_model.state_dict(), strict=False)
-            logging.info(f'Model checkpoint restored from nemo file with path : `{model_path}`')
-
-            del restored_model
-
-    if 'init_from_pretrained_model' in cfg and cfg.init_from_pretrained_model is not None:
-        with open_dict(cfg):
-            # Restore model
-            model_name = cfg.pop('init_from_pretrained_model')
-            restored_model = EncDecCTCModel.from_pretrained(model_name, map_location='cpu', strict=True)
-
-            # Restore checkpoint into current model
-            model.load_state_dict(restored_model.state_dict(), strict=False)
-            logging.info(f'Model checkpoint restored from pretrained chackpoint with name : `{model_name}`')
-
-            del restored_model
 
 
 @hydra_runner(config_path="conf", config_name="config")
@@ -133,7 +113,7 @@ def main(cfg):
     exp_manager(trainer, cfg.get("exp_manager", None))
     asr_model = EncDecCTCModel(cfg=cfg.model, trainer=trainer)
 
-    restore_weights_if_required(asr_model, cfg)
+    model_utils.maybe_init_from_pretrained_checkpoint(asr_model, cfg)
 
     trainer.fit(asr_model)
 
