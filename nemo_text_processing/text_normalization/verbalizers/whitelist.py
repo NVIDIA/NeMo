@@ -29,10 +29,14 @@ class WhiteListFst(GraphFst):
     """
     Finite state transducer for verbalizing whitelist
         e.g. tokens { name: "misses" } } -> misses
+
+    Args:
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self):
-        super().__init__(name="whitelist", kind="verbalize")
+    def __init__(self, deterministic: bool = True):
+        super().__init__(name="whitelist", kind="verbalize", deterministic=deterministic)
         graph = (
             pynutil.delete("name:")
             + delete_space
