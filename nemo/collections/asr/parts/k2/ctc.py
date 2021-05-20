@@ -26,12 +26,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import torch
 import k2
 
+from nemo.collections.asr.parts.k2.utils import create_supervision
 from nemo.collections.asr.parts.k2.utils import get_tot_objf_and_num_frames
+from nemo.collections.asr.parts.k2.utils import load_graph
+from nemo.collections.asr.parts.k2.utils import make_blank_first
+from nemo.collections.asr.parts.k2.utils import GradExpNormalize
 
 
 class CTCLoss(torch.nn.Module):
@@ -45,10 +49,8 @@ class CTCLoss(torch.nn.Module):
             blank: int,
             reduction: str = 'mean',
             graph_type: str = 'topo',
-            L_inv: Optional[k2.Fsa] = None,
-            phones: Optional[k2.SymbolTable] = None,
-            words: Optional[k2.SymbolTable] = None,
-            oov: str = '<UNK>'
+            aux_graph: Optional[Union[k2.Fsa, str]] = None,
+            **kwargs
     ):
         super().__init__()
         self.blank = blank
@@ -58,24 +60,13 @@ class CTCLoss(torch.nn.Module):
             from nemo.collections.asr.parts.k2.graph_compilers import CtcTrainingTopologyCompiler as compiler
             self.graph_compiler = compiler(self.num_classes)
         elif graph_type == 'graph':
-            from nemo.collections.asr.parts.k2.graph_compilers import CtcTrainingGraphCompiler as compiler
-            # self.graph_compiler = compiler(L_inv, phones, words, oov)
-            raise NotImplementedError("Not adapted yet")
+            from nemo.collections.asr.parts.k2.graph_compilers import CtcTrainingNumGraphCompiler as compiler
+            raise NotImplementedError("Not tested yet")
+            if isinstance(aux_graph, str):
+                aux_graph = load_graph(aux_graph)
+            self.graph_compiler = compiler(self.num_classes, aux_graph=aux_graph)
         else:
             raise ValueError(f"Invalid value of `graph_type`: {graph_type}.")
-
-    def create_supervision(self, input_lengths):
-        supervisions = torch.stack(
-            (
-                torch.tensor(range(input_lengths.shape[0])),
-                torch.zeros(input_lengths.shape[0]),
-                input_lengths.cpu(),
-            ),
-            1,
-        ).to(torch.int32)
-        # the duration column has to be sorted in decreasing order
-        order = torch.argsort(supervisions[:, -1], descending=True)
-        return supervisions, order
 
     def forward(
             self,
@@ -86,17 +77,19 @@ class CTCLoss(torch.nn.Module):
     ) -> torch.Tensor:
         if self.blank != 0:
             # rearrange log_probs to put blank at the first place
-            index = list(range(self.num_classes))
-            del index[self.blank]
-            index = torch.tensor([self.blank] + index).to(log_probs.device)
-            log_probs = torch.index_select(log_probs, -1, index)
-            # shift targets to emulate blank = 0
-            targets = targets + 1
-        supervisions, order = self.create_supervision(input_lengths)
-        supervisions = supervisions[order]
+            # and shift targets to emulate blank = 0
+            log_probs, targets = make_blank_first(self.blank, log_probs, targets)
+        supervisions, order = create_supervision(input_lengths)
         targets = targets[order]
         target_lengths = target_lengths[order]
-        num_graphs = self.graph_compiler.compile(targets, target_lengths).to(log_probs.device)
+        # PyTorch is doing the log-softmax normalization as part of the CTC computation.
+        # More: https://github.com/k2-fsa/k2/issues/575
+        # It would be nice to have dense_fsa_vec.get_tot_scores() instead.
+        log_probs = GradExpNormalize.apply(log_probs, input_lengths, "mean" if self.reduction != "sum" else "none")
+
+        if log_probs.device != self.graph_compiler.device:
+            self.graph_compiler.to(log_probs.device)
+        num_graphs = self.graph_compiler.compile(targets, target_lengths)
 
         dense_fsa_vec = k2.DenseFsaVec(log_probs, supervisions)
 

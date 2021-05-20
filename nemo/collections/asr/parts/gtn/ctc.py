@@ -54,9 +54,9 @@ class CTCLossFunction(torch.autograd.Function):
             # create criterion graph
             g_criterion = CTCLossFunction.create_ctc_graph(targets[b], blank_idx)
             # compose the graphs
-            g_loss = gtn.negate(
-                gtn.forward_score(gtn.intersect(g_emissions, g_criterion))
-            )
+            g_loss = gtn.forward_score(gtn.intersect(g_emissions, g_criterion))
+            norm = gtn.forward_score(g_emissions)
+            loss = gtn.negate(gtn.subtract(g_loss, norm))
 
             scale = 1.0
             if reduction == "mean":
@@ -64,7 +64,8 @@ class CTCLossFunction(torch.autograd.Function):
                 scale = 1.0 / L if L > 0 else scale
 
             # Save for backward:
-            losses[b] = g_loss
+            # losses[b] = g_loss
+            losses[b] = loss
             scales[b] = scale
             emissions_graphs[b] = g_emissions
 

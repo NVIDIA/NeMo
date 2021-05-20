@@ -17,7 +17,7 @@ from typing import List, Optional
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
-from nemo.collections.asr.losses.sd_losses import CTCLoss as FSACTCLoss
+from nemo.collections.asr.losses.sd_losses import SDLoss
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.core.classes.common import PretrainedModelInfo
@@ -40,12 +40,10 @@ class EncDecCTCSDModel(EncDecCTCModel):
         super().__init__(cfg=cfg, trainer=trainer)
 
         del self.loss
-        loss_kwargs=self._cfg.get("loss_kwargs", {})
-        self.loss = FSACTCLoss(
+        loss_kwargs=self._cfg.get("loss", {})
+        self.loss = SDLoss(
             num_classes=self.decoder.num_classes_with_blank - 1,
             reduction=self._cfg.get("ctc_reduction", "mean_batch"),
-            backend=self._cfg.get("loss_backend", "k2"),
-            graph_type=self._cfg.get("graph_type", "topo"),
             **loss_kwargs
         )
 
@@ -70,11 +68,9 @@ class EncDecCTCSDModel(EncDecCTCModel):
 
         del self.loss
         loss_kwargs=self._cfg.get("loss_kwargs", {})
-        self.loss = FSACTCLoss(
+        self.loss = SDLoss(
             num_classes=self.decoder.num_classes_with_blank - 1,
             reduction=self._cfg.get("ctc_reduction", "mean_batch"),
-            backend=self._cfg.get("loss_backend", "k2"),
-            graph_type=self._cfg.get("graph_type", "topo"),
             **loss_kwargs
         )
 
@@ -95,12 +91,10 @@ class EncDecCTCSDModelBPE(EncDecCTCModelBPE):
         super().__init__(cfg=cfg, trainer=trainer)
 
         del self.loss
-        loss_kwargs=self._cfg.get("loss_kwargs", {})
-        self.loss = FSACTCLoss(
+        loss_kwargs=self._cfg.get("loss", {})
+        self.loss = SDLoss(
             num_classes=self.decoder.num_classes_with_blank - 1,
             reduction=self._cfg.get("ctc_reduction", "mean_batch"),
-            backend=self._cfg.get("loss_backend", "k2"),
-            graph_type=self._cfg.get("graph_type", "topo"),
             **loss_kwargs
         )
 
@@ -124,10 +118,8 @@ class EncDecCTCSDModelBPE(EncDecCTCModelBPE):
 
         del self.loss
         loss_kwargs=self._cfg.get("loss_kwargs", {})
-        self.loss = FSACTCLoss(
+        self.loss = SDLoss(
             num_classes=self.decoder.num_classes_with_blank - 1,
             reduction=self._cfg.get("ctc_reduction", "mean_batch"),
-            backend=self._cfg.get("loss_backend", "k2"),
-            graph_type=self._cfg.get("graph_type", "topo"),
             **loss_kwargs
         )

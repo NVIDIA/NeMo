@@ -27,88 +27,102 @@
 # limitations under the License.
 
 from functools import lru_cache
-from typing import Iterable
+from typing import Iterable, Optional, Tuple
 
 import torch
 
 import k2
 
 from nemo.collections.asr.parts.k2.utils import build_ctc_topo
-from nemo.collections.asr.parts.k2.utils import get_phone_symbols
+from nemo.collections.asr.parts.k2.utils import intersect_with_self_loops
 
 
 class CtcTrainingTopologyCompiler(object):
 
-    def __init__(self, num_classes):
+    def __init__(self, num_classes: int, device: torch.device = torch.device("cpu")):
         phone_ids_with_blank = list(range(num_classes))
-        self.ctc_topo_inv = k2.arc_sort(build_ctc_topo(phone_ids_with_blank).invert())
+        self.ctc_topo_inv = k2.arc_sort(build_ctc_topo(phone_ids_with_blank).to(device).invert_())
+        self.device = device
+        self.base_graph = self.ctc_topo_inv
+
+    def to(self, device: torch.device):
+        self.ctc_topo_inv = self.ctc_topo_inv.to(device)
+        if self.base_graph is not None:
+            self.base_graph = self.base_graph.to(device)
+        self.device = device
 
     def compile(self, targets: torch.Tensor, target_lengths: torch.Tensor) -> k2.Fsa:
-        decoding_graphs = k2.create_fsa_vec(
-            [self.compile_one_and_cache(t[:l]) for t, l in zip(targets, target_lengths)])
+        token_ids_list = [t[:l].tolist() for t, l in zip(targets, target_lengths)]
+        label_graph = k2.linear_fsa(token_ids_list, self.device)
+        decoding_graphs = intersect_with_self_loops(self.base_graph, label_graph)
+        decoding_graphs = k2.arc_sort(decoding_graphs.invert_()).to(self.device)
 
         # make sure the gradient is not accumulated
         decoding_graphs.requires_grad_(False)
         return decoding_graphs
 
-    @lru_cache(maxsize=1000000)
-    def compile_one_and_cache(self, target: torch.Tensor) -> k2.Fsa:
-        label_graph = k2.add_epsilon_self_loops(k2.linear_fsa(target.tolist()))
-        decoding_graph = k2.intersect(
-            self.ctc_topo_inv, label_graph, treat_epsilons_specially=False
-        )
-        decoding_graph = k2.connect(decoding_graph.invert())
-        return decoding_graph
+
+class CtcTrainingNumGraphCompiler(CtcTrainingTopologyCompiler):
+
+    def __init__(self, num_classes: int, device: torch.device = torch.device("cpu"), aux_graph: Optional[k2.Fsa] = None):
+        super().__init__(num_classes, device)
+        if aux_graph is None:
+            self.base_graph = None
+        else:
+            self.base_graph = intersect_with_self_loops(self.ctc_topo_inv, aux_graph)
+            self.base_graph = k2.arc_sort(self.base_graph).to(self.device)
+
+    def compile(self, targets: torch.Tensor, target_lengths: torch.Tensor, aux_graph: Optional[k2.Fsa] = None) -> k2.Fsa:
+        if aux_graph is None and self.base_graph is None:
+            raise ValueError(f"At least one of aux_graph and self.base_graph must be set: {aux_graph}, {self.base_graph}")
+        elif aux_graph is not None:
+            self.base_graph = intersect_with_self_loops(self.ctc_topo_inv, aux_graph)
+            self.base_graph = k2.arc_sort(self.base_graph).to(self.device)
+        return super().compile(targets, target_lengths)
 
 
-class CtcTrainingGraphCompiler(object):
+class CtcCrfTrainingGraphCompiler(CtcTrainingTopologyCompiler):
 
-    def __init__(self,
-                 L_inv: k2.Fsa,
-                 phones: k2.SymbolTable,
-                 words: k2.SymbolTable,
-                 oov: str = '<UNK>'):
-        '''
-        Args:
-          L_inv:
-            Its labels are words, while its aux_labels are phones.
-        phones:
-          The phone symbol table.
-        words:
-          The word symbol table.
-        oov:
-          Out of vocabulary word.
-        '''
-        if L_inv.properties & k2.fsa_properties.ARC_SORTED != 0:
-            L_inv = k2.arc_sort(L_inv)
+    def __init__(self, num_classes: int, device: torch.device = torch.device("cpu"), aux_graph: Optional[k2.Fsa] = None):
+        super().__init__(num_classes, device)
+        if aux_graph is None:
+            self.den_graph = None
+        else:
+            self.den_graph = intersect_with_self_loops(self.ctc_topo_inv, aux_graph).invert_()
+            self.den_graph = k2.create_fsa_vec([self.den_graph.detach()]).to(self.device)
 
-        assert oov in words
+    def to(self, device: torch.device):
+        if self.den_graph is not None:
+            self.den_graph = self.den_graph.to(device)
+        super().to(device)
 
-        self.L_inv = L_inv
-        self.phones = phones
-        self.words = words
-        self.oov = oov
-        phone_ids = get_phone_symbols(phones)
-        phone_ids_with_blank = [0] + phone_ids
-        self.ctc_topo = k2.arc_sort(build_ctc_topo(phone_ids_with_blank))
+    def compile(self, targets: torch.Tensor, target_lengths: torch.Tensor, aux_graph: Optional[k2.Fsa] = None) -> Tuple[k2.Fsa, k2.Fsa]:
+        if aux_graph is None and self.den_graph is None:
+            raise ValueError(f"At least one of aux_graph and self.den_graph must be set: {aux_graph}, {self.den_graph}")
+        elif aux_graph is not None:
+            self.den_graph = intersect_with_self_loops(self.ctc_topo_inv, aux_graph).invert_()
+            self.den_graph = k2.create_fsa_vec([self.den_graph.detach()]).to(self.device)
+        return super().compile(targets, target_lengths), self.den_graph
 
-    def compile(self, texts: Iterable[str]) -> k2.Fsa:
-        decoding_graphs = k2.create_fsa_vec(
-            [self.compile_one_and_cache(text) for text in texts])
 
-        # make sure the gradient is not accumulated
-        decoding_graphs.requires_grad_(False)
-        return decoding_graphs
+class MmiTrainingGraphCompiler(CtcTrainingNumGraphCompiler):
 
-    @lru_cache(maxsize=100000)
-    def compile_one_and_cache(self, text: str) -> k2.Fsa:
-        tokens = (token if token in self.words else self.oov
-                  for token in text.split(' '))
-        word_ids = [self.words[token] for token in tokens]
-        label_graph = k2.linear_fsa(word_ids)
-        decoding_graph = k2.connect(k2.intersect(label_graph,
-                                                 self.L_inv)).invert_()
-        decoding_graph = k2.arc_sort(decoding_graph)
-        decoding_graph = k2.compose(self.ctc_topo, decoding_graph)
-        decoding_graph = k2.connect(decoding_graph)
-        return decoding_graph
+    def __init__(self, num_classes: int, device: torch.device = torch.device("cpu"), aux_graph: Optional[k2.Fsa] = None):
+        super().__init__(num_classes, device, aux_graph)
+        if aux_graph is None:
+            self.den_graph = None
+        else:
+            self.den_graph = k2.create_fsa_vec([self.base_graph.invert().detach()]).to(self.device)
+
+    def to(self, device: torch.device):
+        if self.den_graph is not None:
+            self.den_graph = self.den_graph.to(device)
+        super().to(device)
+
+    def compile(self, targets: torch.Tensor, target_lengths: torch.Tensor, aux_graph: Optional[k2.Fsa] = None) -> Tuple[k2.Fsa, k2.Fsa]:
+        num_graphs = super().compile(targets, target_lengths, aux_graph)
+        if aux_graph is None and self.den_graph is None:
+            raise ValueError(f"At least one of aux_graph and self.den_graph must be set: {aux_graph}, {self.den_graph}")
+        elif aux_graph is not None:
+            self.den_graph = k2.create_fsa_vec([self.base_graph.invert().detach()]).to(self.device)
+        return num_graphs, self.den_graph

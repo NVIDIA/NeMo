@@ -26,8 +26,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
 import math
 import re
+from pickle import UnpicklingError
 from typing import List, Tuple
 
 import k2
@@ -60,6 +62,57 @@ class GradExpNormalize(torch.autograd.Function):
         return grad_output + ctx.saved_tensors[0], None, None
 
 
+def create_supervision(input_lengths: torch.Tensor):
+    supervisions = torch.stack(
+        (
+            torch.tensor(range(input_lengths.shape[0])),
+            torch.zeros(input_lengths.shape[0]),
+            input_lengths.cpu(),
+        ),
+        1,
+    ).to(torch.int32)
+    # the duration column has to be sorted in decreasing order
+    order = torch.argsort(supervisions[:, -1], descending=True)
+    return supervisions[order], order
+
+def make_blank_first(blank_idx: int, log_probs: torch.Tensor, targets: torch.Tensor):
+    index = list(range(log_probs.shape[-1]))
+    del index[blank_idx]
+    index = torch.tensor([blank_idx] + index).to(log_probs.device)
+    # TODO: fix this to work in general
+    return torch.index_select(log_probs, -1, index), targets + 1
+
+def load_graph(graph_path):
+    errors = []
+    try:
+        graph_dict = torch.load(graph_path)
+        graph = k2.Fsa.from_dict(graph_dict)
+        return graph
+    except UnpicklingError as e:
+        errors.append(e)
+        with open(graph_path, "rt", encoding="utf-8") as f:
+            graph_txt = f.read()
+        for func, acceptor in itertools.product([k2.Fsa.from_str, k2.Fsa.from_openfst], [True, False]):
+            try:
+                graph = func(graph_txt, acceptor=acceptor)
+                return graph
+            except (TypeError, ValueError, RuntimeError) as e:
+                errors.append(e)
+    raise Exception(errors)
+
+def graph_to_den(graph: k2.Fsa, replicate_den: bool = False, times: int = 1):
+    graph_vec = k2.create_fsa_vec([graph.detach()])
+    if replicate_den:
+        indexes = torch.zeros(times, dtype=torch.int32, device=graph.device)
+        den = k2.index_fsa(graph_vec, indexes)
+    else:
+        den = graph_vec.to(graph.device)
+    return den
+
+def intersect_with_self_loops(base_graph: k2.Fsa, aux_graph: k2.Fsa):
+    aux_graph_with_self_loops = k2.arc_sort(k2.add_epsilon_self_loops(aux_graph)).to(base_graph.device)
+    return k2.intersect(base_graph, aux_graph_with_self_loops, treat_epsilons_specially=False)
+
 def build_ctc_topo(tokens: List[int]) -> k2.Fsa:
     """Build CTC topology.
     A token which appears once on the right side (i.e. olabels) may
@@ -89,31 +142,6 @@ def build_ctc_topo(tokens: List[int]) -> k2.Fsa:
     arcs += f"{final_state}"
     ans = k2.Fsa.from_str(arcs, num_aux_labels=1)
     ans = k2.arc_sort(ans)
-    return ans
-
-
-def get_phone_symbols(symbol_table: k2.SymbolTable,
-                      pattern: str = r'^#\d+$') -> List[int]:
-    '''Return a list of phone IDs containing no disambiguation symbols.
-    Caution:
-      0 is not a phone ID so it is excluded from the return value.
-    Args:
-      symbol_table:
-        A symbol table in k2.
-      pattern:
-        Symbols containing this pattern are disambiguation symbols.
-    Returns:
-      Return a list of symbol IDs excluding those from disambiguation symbols.
-    '''
-    regex = re.compile(pattern)
-    symbols = symbol_table.symbols
-    ans = []
-    for s in symbols:
-        if not regex.match(s):
-            ans.append(symbol_table[s])
-    if 0 in ans:
-        ans.remove(0)
-    ans.sort()
     return ans
 
 def get_tot_objf_and_num_frames(

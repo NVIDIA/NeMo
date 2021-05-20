@@ -19,10 +19,8 @@ from torch import nn
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
 
-from nemo.collections.asr.parts.k2.utils import GradExpNormalize
 
-
-class CTCLoss(Loss):
+class SDLoss(Loss):
     @property
     def input_types(self):
         """Input types definitions for CTCLoss.
@@ -42,7 +40,7 @@ class CTCLoss(Loss):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, num_classes, reduction='mean_batch', backend='k2', graph_type='topo', **loss_kwargs):
+    def __init__(self, num_classes, reduction='mean_batch', backend='k2', loss_type='ctc', **loss_kwargs):
         super().__init__()
         self._blank = num_classes
         if reduction == 'mean_batch':
@@ -54,13 +52,16 @@ class CTCLoss(Loss):
 
         # we assume that self._blank + 1 == num_classes
         if backend == 'k2':
-            from nemo.collections.asr.parts.k2.ctc import CTCLoss as CTCLossK2
+            if loss_type == 'ctc':
+                from nemo.collections.asr.parts.k2.ctc import CTCLoss as K2Loss
+            elif loss_type == 'sd':
+                from nemo.collections.asr.parts.k2.sd import SDLoss as K2Loss
 
-            self._loss = CTCLossK2(num_classes=self._blank+1, blank=self._blank, reduction=ctc_reduction, graph_type=graph_type, **loss_kwargs)
+            self._loss = K2Loss(num_classes=self._blank+1, blank=self._blank, reduction=ctc_reduction, **loss_kwargs)
         elif backend == 'gtn':
-            from nemo.collections.asr.parts.gtn.ctc import CTCLoss as CTCLossGTN
+            from nemo.collections.asr.parts.gtn.ctc import CTCLoss as GTNCTCLoss
 
-            self._loss = CTCLossGTN(blank_idx=self._blank, reduction=ctc_reduction)
+            self._loss = GTNCTCLoss(blank_idx=self._blank, reduction=ctc_reduction)
 
     @typecheck()
     def forward(self, log_probs, targets, input_lengths, target_lengths):
@@ -69,9 +70,6 @@ class CTCLoss(Loss):
         input_lengths = input_lengths.long()
         target_lengths = target_lengths.long()
         targets = targets.long()
-        # PyTorch is doing the log-softmax normalization as part of the CTC computation.
-        # More: https://github.com/k2-fsa/k2/issues/575
-        log_probs = GradExpNormalize.apply(log_probs, input_lengths, "mean" if self._apply_batch_mean else "none")
         loss = self._loss(
             log_probs=log_probs, targets=targets, input_lengths=input_lengths, target_lengths=target_lengths
         )
