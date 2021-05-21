@@ -116,9 +116,7 @@ class ModelPT(LightningModule, Model):
         self.trainer = trainer  # reference required for self.*_rank
         self._trainer = self.trainer  # alias for backward compatibility
 
-        # Unique global model id
-        self.model_guid = uuid.uuid4()
-        AppState().register_model_guid(self.model_guid)
+        self._set_model_guid()
 
         # Set device_id in AppState
         if torch.cuda.is_available() and torch.cuda.current_device() is not None:
@@ -205,7 +203,6 @@ class ModelPT(LightningModule, Model):
             )
 
         artifact_item = model_utils.ArtifactItem()
-        artifact_item.model_guid = self.model_guid
 
         # This is for backward compatibility, if the src objects exists simply inside of the tarfile
         # without its key having been overriden, this pathway will be used.
@@ -267,7 +264,6 @@ class ModelPT(LightningModule, Model):
                 new_artiitem = model_utils.ArtifactItem()
                 new_artiitem.path = "nemo:" + artifact_uniq_name
                 new_artiitem.path_type = model_utils.ArtifactPathType.TAR_PATH
-                new_artiitem.model_guid = artiitem.model_guid
                 self.artifacts[conf_path] = new_artiitem
 
             elif artiitem.path_type == model_utils.ArtifactPathType.TAR_PATH:
@@ -305,7 +301,6 @@ class ModelPT(LightningModule, Model):
                         new_artiitem = model_utils.ArtifactItem()
                         new_artiitem.path = "nemo:" + artifact_uniq_name
                         new_artiitem.path_type = model_utils.ArtifactPathType.TAR_PATH
-                        new_artiitem.model_guid = artiitem.model_guid
                         self.artifacts[conf_path] = new_artiitem
             finally:
                 # change back working directory
@@ -1297,6 +1292,11 @@ class ModelPT(LightningModule, Model):
         global _NEMO_FILE_FOLDER
         _MODEL_IS_RESTORED = is_being_restored
         _NEMO_FILE_FOLDER = folder
+
+    def _set_model_guid(self):
+        if not hasattr(self, 'model_guid'):
+            self.model_guid = str(uuid.uuid4())
+            AppState().register_model_guid(self.model_guid)
 
     @staticmethod
     def _is_restore_type_tarfile() -> bool:

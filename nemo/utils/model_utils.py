@@ -46,7 +46,6 @@ class ArtifactPathType(Enum):
 class ArtifactItem:
     path: str
     path_type: ArtifactPathType
-    model_guid: str
 
 
 def resolve_dataset_name_from_cfg(cfg: DictConfig) -> str:
