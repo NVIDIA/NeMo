@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import json
-from os.path import expanduser, split, join
+from os.path import expanduser, split, join, isabs
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 
@@ -63,8 +63,6 @@ def item_iter(
 
     if parse_func is None:
         parse_func = __parse_item
-    elif parse_func == "open_stt":
-        parse_func = __parse_open_stt
 
     k = -1
     for manifest_file in manifests_files:
@@ -75,30 +73,6 @@ def item_iter(
                 item['id'] = k
 
                 yield item
-
-def __parse_open_stt(line: str, manifest_file: str) -> Dict[str, Any]:
-    manifest_path, _ = split(manifest_file)
-    line_list = line.split(",")
-    assert len(line_list)==3, f"Incorrect fields number: {len(line_list)}"
-    item = dict(
-        offset=None,
-        speaker=None,
-        orig_sr=None,
-    )
-
-    item['audio_file'] = line_list[0]
-    if item['audio_file'][0] != "/":
-        item['audio_file'] = join(manifest_path, item['audio_file'])
-
-    text_file = line_list[1]
-    if text_file[0] != "/":
-        text_file = join(manifest_path, text_file)
-    with open(text_file, 'r') as f:
-            item['text'] = f.read().replace('\n', '')
-
-    item['duration'] = float(line_list[2])
-
-    return item
 
 def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
     item = json.loads(line)
@@ -113,7 +87,7 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
             f"Manifest file {manifest_file} has invalid json line structure: {line} without proper audio file key."
         )
     item['audio_file'] = expanduser(item['audio_file'])
-    if item['audio_file'][0] != "/":
+    if not isabs(item['audio_file']):
         item['audio_file'] = join(manifest_path, item['audio_file'])
 
     # Duration.
@@ -126,7 +100,7 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
     if 'text' in item:
         pass
     elif 'text_filepath' in item:
-        if item['text_filepath'][0] != "/":
+        if not isabs(item['text_filepath']):
             item['text_filepath'] = join(manifest_path, item['text_filepath'])
         with open(item.pop('text_filepath'), 'r', encoding='utf8') as f:
             item['text'] = f.read().replace('\n', '')
