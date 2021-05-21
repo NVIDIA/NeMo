@@ -185,6 +185,7 @@ class ASRAudioText(AudioText):
         Args:
             manifests_files: Either single string file or list of such -
                 manifests to yield items from.
+            manifest_line_parser: Callable function to parse a line in the manifest file.
             *args: Args to pass to `AudioText` constructor.
             **kwargs: Kwargs to pass to `AudioText` constructor.
         """

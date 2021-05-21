@@ -15,7 +15,7 @@ import io
 import math
 import os
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union, Any
 
 import braceexpand
 import numpy as np
@@ -105,6 +105,7 @@ class _AudioTextDataset(Dataset):
         normalize: whether to normalize transcript text (default): True
         bos_id: Id of beginning of sequence symbol to append if not None
         eos_id: Id of end of sequence symbol to append if not None
+        manifest_line_parser: Callable function to parse a line in the manifest file
     """
 
     @property
