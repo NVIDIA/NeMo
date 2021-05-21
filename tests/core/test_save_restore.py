@@ -24,6 +24,7 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
 from nemo.collections.nlp.models import PunctuationCapitalizationModel
 from nemo.core.classes import ModelPT
+from nemo.utils.app_state import AppState
 
 
 def getattr2(object, attr):
@@ -310,3 +311,49 @@ class TestSaveRestore:
         assert diff.mean() <= 1e-9
         assert isinstance(model_copy, MockModel)
         assert model_copy.temp_data == ["*****\n"]
+
+    @pytest.mark.unit
+    def test_mock_save_to_restore_from_multiple_models(self):
+        appstate = AppState()
+        # reset appstate cache of model guid and restoration paths from previous tests
+        appstate.reset_model_guid_registry()
+        appstate._all_model_restore_paths = []
+
+        with tempfile.NamedTemporaryFile('w') as empty_file, tempfile.NamedTemporaryFile('w') as empty_file2:
+            # Write some data
+            empty_file.writelines(["*****\n"])
+            empty_file.flush()
+            empty_file2.writelines(["+++++\n"])
+            empty_file2.flush()
+
+            # Update config + create ,pde;s
+            cfg = _mock_model_config()
+            cfg.model.temp_file = empty_file.name
+            cfg2 = _mock_model_config()
+            cfg2.model.temp_file = empty_file2.name
+
+            # Create models
+            model = MockModel(cfg=cfg.model, trainer=None)
+            model = model.to('cpu')
+            model2 = MockModel(cfg=cfg2.model, trainer=None)
+            model2 = model2.to('cpu')
+
+            assert model.temp_file == empty_file.name
+            assert model2.temp_file == empty_file2.name
+
+            # Save test
+            model_copy = self.__test_restore_elsewhere(model, map_location='cpu')
+            model2_copy = self.__test_restore_elsewhere(model2, map_location='cpu')
+            # assert filecmp.cmp(model.temp_file, model_copy.temp_file)
+
+        # Restore test
+        assert model_copy.temp_data == ["*****\n"]
+        assert model2_copy.temp_data == ['+++++\n']
+
+        # AppState tests
+        assert len(appstate._model_guid_map) == 4  # (2 original, 2 copies)
+        assert len(appstate._all_model_restore_paths) == 2  # (paths of 2 restored copies)
+        assert (
+            appstate.model_restore_path
+            == appstate.get_model_metadata_from_guid(model2_copy.model_guid).restoration_path
+        )

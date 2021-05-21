@@ -12,7 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
+from typing import Optional
+
 from nemo.utils.metaclasses import Singleton
+
+
+@dataclass()
+class ModelMetadataRegistry:
+    guid: str
+    gidx: int
+    restoration_path: Optional[str] = None
 
 
 class AppState(metaclass=Singleton):
@@ -50,6 +60,8 @@ class AppState(metaclass=Singleton):
         self._model_config_yaml = "model_config.yaml"
         self._model_weights_ckpt = "model_weights.ckpt"
         self._model_restore_path = None
+        self._all_model_restore_paths = []
+        self._model_guid_map = {}
 
     @property
     def device_id(self):
@@ -342,8 +354,25 @@ class AppState(metaclass=Singleton):
 
     @property
     def model_restore_path(self):
-        return self._model_restore_path
+        return self._all_model_restore_paths[-1] if len(self._all_model_restore_paths) > 0 else None
 
     @model_restore_path.setter
     def model_restore_path(self, path):
         self._model_restore_path = path
+
+        if path not in self._all_model_restore_paths:
+            self._all_model_restore_paths.append(path)
+
+    def register_model_guid(self, guid):
+        # Maps a guid to its restore path (None or last absolute path)
+        model_restore_path = self.model_restore_path
+        idx = len(self._model_guid_map)
+        self._model_guid_map[guid] = ModelMetadataRegistry(guid, idx, restoration_path=self.model_restore_path)
+
+    def reset_model_guid_registry(self):
+        # Reset the guid mapping
+        self._model_guid_map.clear()
+
+    def get_model_metadata_from_guid(self, guid):
+        # Returns the global model idx and restoration path
+        return self._model_guid_map[guid]
