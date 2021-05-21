@@ -66,6 +66,9 @@ class FastPitchModel(SpectrogramGenerator):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
 
+        self.learn_aligntment = False
+        if "learn_alignment" in cfg:
+            self.learn_aligntment = cfg.learn_alignment
         super().__init__(cfg=cfg, trainer=trainer)
         self._parser = None
 
@@ -78,13 +81,10 @@ class FastPitchModel(SpectrogramGenerator):
         # Ensure passed cfg is compliant with schema
         OmegaConf.merge(cfg, schema)
 
-        self.learn_aligntment = False
         self.aligner = None
         self.mel_loss = MelLoss()
         self.pitch_loss = PitchLoss()
         self.duration_loss = DurationLoss()
-        if "learn_alignment" in self._cfg:
-            self.learn_aligntment = self._cfg.learn_alignment
         if self.learn_aligntment:
             self.aligner = instantiate(self._cfg.alignment_module)
             self.forward_sum_loss = ForwardSumLoss()
@@ -153,7 +153,11 @@ class FastPitchModel(SpectrogramGenerator):
         return spect.transpose(1, 2)
 
     def training_step(self, batch, batch_idx):
-        audio, audio_lens, text, text_lens, durs, pitch, speakers = batch  # TODO: alignment diff dataloader
+        attn_prior, durs, speakers = None, None
+        if self.learn_aligntment:
+            audio, audio_lens, text, text_lens, attn_prior, pitch = batch
+        else:
+            audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
         mels, spec_len = self.preprocessor(input_signal=audio, length=audio_lens)
 
         mels_pred, _, log_durs_pred, pitch_pred, attn_soft, attn_logprob, attn_hard, attn_hard_dur = self(
@@ -162,7 +166,7 @@ class FastPitchModel(SpectrogramGenerator):
             pitch=pitch,
             speaker=speakers,
             pace=1.0,
-            spec=spec,
+            spec=mels,
             attn_prior=attn_prior,
             mel_lens=spec_len,
             input_lens=text_lens,
@@ -177,7 +181,7 @@ class FastPitchModel(SpectrogramGenerator):
             ctc_loss = self.forward_sum_loss(attn_logprob, text_lens, spec_len)
             bin_loss = self.bin_loss(attn_hard, attn_soft)
             loss += ctc_loss + bin_loss
-            pitch = average_pitch(pitch_dense, attn_hard_dur)
+            pitch = average_pitch(pitch, attn_hard_dur)
 
         pitch_loss = self.pitch_loss(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens)
         loss += pitch_loss
@@ -185,7 +189,11 @@ class FastPitchModel(SpectrogramGenerator):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
+        durs, speakers = None, None, None
+        if self.learn_aligntment:
+            audio, audio_lens, text, text_lens, _, pitch = batch
+        else:
+            audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
         mels, _ = self.preprocessor(input_signal=audio, length=audio_lens)
 
         # Calculate val loss on ground truth durations to better align L2 loss in time
@@ -239,11 +247,14 @@ class FastPitchModel(SpectrogramGenerator):
         elif not shuffle_should_be and cfg.dataloader_params.shuffle:
             logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
 
-        labels = self._cfg.labels
-
-        dataset = instantiate(
-            cfg.dataset, labels=labels, bos_id=len(labels), eos_id=len(labels) + 1, pad_id=len(labels) + 2
-        )
+        kwargs_dict = {}
+        if cfg.dataset._target_ == "nemo.collections.asr.data.audio_to_text.FastPitchDataset":
+            labels = self._cfg.labels
+            kwargs_dict["labels"] = labels
+            kwargs_dict["bos_id"] = len(labels)
+            kwargs_dict["eos_id"] = len(labels) + 1
+            kwargs_dict["pad_id"] = len(labels) + 2
+        dataset = instantiate(cfg.dataset, **kwargs_dict)
         return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
 
     def setup_training_data(self, cfg):
