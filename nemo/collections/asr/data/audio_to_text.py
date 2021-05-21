@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
 import braceexpand
+import librosa
 import numpy as np
 import torch
 import webdataset as wd
@@ -587,10 +588,6 @@ class AudioToCharWithPriorDataset(AudioToCharDataset):
 
 
 class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
-    """
-    TODO
-    """
-
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports."""
@@ -600,73 +597,42 @@ class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
             'text': NeuralType(('B', 'T'), LabelsType()),
             'text_len': NeuralType(('B',), LengthsType()),
             'attn_prior': NeuralType(('B', 'T', 'D'), ProbsType()),
+            'pitch': NeuralType(('B', 'T'), RegressionValuesType()),
         }
 
-    def __init__(self, attn_prior_folder, n_window_stride=256, **kwargs):
-        self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**kwargs.pop('vocab', {}))
-        kwargs.setdefault('labels', [])  # For compatibility.
-        super().__init__(**kwargs)
-
-        Path(attn_prior_folder).mkdir(parents=True, exist_ok=True)
-        self.attn_prior_folder = attn_prior_folder
-
-        self.n_window_stride = n_window_stride
-        self.id2enc_text = {}
-        for i, e in enumerate(self.collection):
-            # cache vocab encoding
-            self.id2enc_text[i] = self.vocab.encode(e.text_raw)
-
-    @staticmethod
-    def beta_binomial_prior_distribution(phoneme_count, mel_count, scaling_factor=1.0):
-        x = np.arange(0, phoneme_count)
-        mel_text_probs = []
-        for i in range(1, mel_count + 1):
-            a, b = scaling_factor * i, scaling_factor * (mel_count + 1 - i)
-            mel_i_prob = betabinom(phoneme_count, a, b).pmf(x)
-            mel_text_probs.append(mel_i_prob)
-        return np.array(mel_text_probs)
+    def __init__(self, sup_data_path, pitch_fmin, pitch_fmax, n_window_size, **kwargs):
+        self.pitch_fmin = pitch_fmin
+        self.pitch_fmax = pitch_fmax
+        self.n_window_size = n_window_size
+        super().__init__(attn_prior_folder=sup_data_path, **kwargs)
 
     def __getitem__(self, item):
-        audio, audio_len, _, _ = super().__getitem__(item)  # noqa
-
-        text = self.id2enc_text[item]
-
+        audio, audio_len, text, text_len, attn_prior = super().__getitem__(item)
         tag = Path(self.collection[item].audio_file).stem
-        attn_prior_path = Path(self.attn_prior_folder) / f"{tag}.npy"
-
-        if attn_prior_path.exists():
-            attn_prior = np.load(attn_prior_path)
-        else:
-            attn_prior = self.beta_binomial_prior_distribution(
-                len(text), math.ceil((audio_len.item() + 1) / self.n_window_stride)
-            )
-            np.save(attn_prior_path, attn_prior)
-
-        text, text_len, attn_prior = (
-            torch.tensor(text).long(),
-            torch.tensor(len(text)).long(),
-            torch.tensor(attn_prior),
+        pitch_path = (
+            Path(self.attn_prior_folder)
+            / f"{tag}_pitch_pyin_fmin{self.pitch_fmin}_fmax{self.pitch_fmax}_fl{self.n_window_size}.npy"
         )
 
-        return audio, audio_len, text, text_len, attn_prior
+        if pitch_path.exists():
+            pitch = np.load(pitch_path)
+        else:
+            pitch, _, _ = librosa.pyin(
+                audio,
+                fmin=self.pitch_fmin,
+                fmax=self.pitch_fmax,
+                frame_length=self.n_window_size,
+                sr=self.featurizer.sample_rate,
+                fill_na=0.0,
+            )
+            np.save(pitch_path, pitch)
+
+        return audio, audio_len, text, text_len, attn_prior, pitch
 
     def _collate_fn(self, batch):
-        batch = list(zip(*batch))
-
-        asr_batch = _speech_collate_fn(list(zip(*batch[:4])), pad_id=self.vocab.pad)
-        audio, audio_len, text, text_len = asr_batch
-        attn_prior_list = batch[4]
-
-        attn_prior = torch.zeros(
-            len(attn_prior_list),
-            max([attn_prior_i.shape[0] for attn_prior_i in attn_prior_list]),
-            max([attn_prior_i.shape[1] for attn_prior_i in attn_prior_list]),
-        )
-
-        for i, attn_prior_i in enumerate(attn_prior_list):
-            attn_prior[i, : attn_prior_i.shape[0], : attn_prior_i.shape[1]] = attn_prior_i
-
-        return audio, audio_len, text, text_len, attn_prior
+        audio, audio_len, text, text_len, attn_prior, pitch = batch
+        sbatch = (audio, audio_len, text, text_len, attn_prior)
+        audio, audio_len, text, text_len, attn_prior = super()._collate_fn(sbatch)
 
 
 class FastPitchDataset(_AudioTextDataset):

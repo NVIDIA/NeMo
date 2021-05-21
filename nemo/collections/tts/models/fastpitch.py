@@ -41,6 +41,24 @@ class FastPitchConfig:
     pitch_predictor: Dict[Any, Any] = MISSING
 
 
+def average_pitch(pitch, durs):
+    durs_cums_ends = torch.cumsum(durs, dim=1).long()
+    durs_cums_starts = F.pad(durs_cums_ends[:, :-1], (1, 0))
+    pitch_nonzero_cums = F.pad(torch.cumsum(pitch != 0.0, dim=2), (1, 0))
+    pitch_cums = F.pad(torch.cumsum(pitch, dim=2), (1, 0))
+
+    bs, l = durs_cums_ends.size()
+    n_formants = pitch.size(1)
+    dcs = durs_cums_starts[:, None, :].expand(bs, n_formants, l)
+    dce = durs_cums_ends[:, None, :].expand(bs, n_formants, l)
+
+    pitch_sums = (torch.gather(pitch_cums, 2, dce) - torch.gather(pitch_cums, 2, dcs)).float()
+    pitch_nelems = (torch.gather(pitch_nonzero_cums, 2, dce) - torch.gather(pitch_nonzero_cums, 2, dcs)).float()
+
+    pitch_avg = torch.where(pitch_nelems == 0.0, pitch_nelems, pitch_sums / pitch_nelems)
+    return pitch_avg
+
+
 class FastPitchModel(SpectrogramGenerator):
     """FastPitch Model that is used to generate mel spectrograms from text"""
 
@@ -62,16 +80,15 @@ class FastPitchModel(SpectrogramGenerator):
 
         self.learn_aligntment = False
         self.aligner = None
+        self.mel_loss = MelLoss()
+        self.pitch_loss = PitchLoss()
+        self.duration_loss = DurationLoss()
         if "learn_alignment" in self._cfg:
             self.learn_aligntment = self._cfg.learn_alignment
+        if self.learn_aligntment:
             self.aligner = instantiate(self._cfg.alignment_module)
             self.forward_sum_loss = ForwardSumLoss()
             self.bin_loss = BinLoss()
-            self.mel_loss = MelLoss()
-            self.pitch_loss = PitchLoss()
-            self.duration_loss = DurationLoss()
-        else:
-            self.loss = FastPitchLoss()
 
         self.preprocessor = instantiate(self._cfg.preprocessor)
 
@@ -91,9 +108,6 @@ class FastPitchModel(SpectrogramGenerator):
             cfg.pitch_embedding_kernel_size,
             cfg.n_mel_channels,
         )
-
-        self.binarize_attention = False
-        self.attention_coeff = 1.0
 
     @property
     def parser(self):
@@ -139,29 +153,34 @@ class FastPitchModel(SpectrogramGenerator):
         return spect.transpose(1, 2)
 
     def training_step(self, batch, batch_idx):
-        audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
-        mels, _ = self.preprocessor(input_signal=audio, length=audio_lens)
+        audio, audio_lens, text, text_lens, durs, pitch, speakers = batch  # TODO: alignment diff dataloader
+        mels, spec_len = self.preprocessor(input_signal=audio, length=audio_lens)
 
-        mels_pred, _, _, _, log_durs_pred, pitch_pred = self(
-            text=text, durs=durs, pitch=pitch, speaker=speakers, pace=1.0
+        mels_pred, _, log_durs_pred, pitch_pred, attn_soft, attn_logprob, attn_hard, attn_hard_dur = self(
+            text=text,
+            durs=durs,
+            pitch=pitch,
+            speaker=speakers,
+            pace=1.0,
+            spec=spec,
+            attn_prior=attn_prior,
+            mel_lens=spec_len,
+            input_lens=text_lens,
         )
+        if durs is None:
+            durs = attn_hard_dur
 
+        mel_loss = self.mel_loss(spect_predicted=mels_pred, spect_tgt=mels)
+        dur_loss = self.duration_loss(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=text_lens)
+        loss = mel_loss + dur_loss
         if self.learn_aligntment:
-            mel_loss = self.mel_loss(mels_pred, mels)
-            # pitch_loss TODO
-            # duration_loss = self.duration_loss()
-            self.ctc_loss = self.forward_sum_loss(attn_logprob, text_len, spec_len)
-            self.bin_loss = self.self.bin_loss(attn_hard, attn_soft)
-        else:
-            loss, mel_loss, dur_loss, pitch_loss = self.loss(
-                spect_predicted=mels_pred,
-                log_durs_predicted=log_durs_pred,
-                pitch_predicted=pitch_pred,
-                spect_tgt=mels,
-                durs_tgt=durs,
-                dur_lens=text_lens,
-                pitch_tgt=pitch,
-            )
+            ctc_loss = self.forward_sum_loss(attn_logprob, text_lens, spec_len)
+            bin_loss = self.bin_loss(attn_hard, attn_soft)
+            loss += ctc_loss + bin_loss
+            pitch = average_pitch(pitch_dense, attn_hard_dur)
+
+        pitch_loss = self.pitch_loss(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens)
+        loss += pitch_loss
 
         return loss
 
@@ -254,22 +273,4 @@ class FastPitchModel(SpectrogramGenerator):
         # list_of_models.append(model)
 
         return list_of_models
-
-    def on_train_epoch_start(self):
-        if self.learn_aligntment:
-            # Switch to hard attention after 25% of training
-            if not self.binarize_attention and self.current_epoch >= np.ceil(0.25 * self._trainer.max_epochs):
-                logging.info(f"Using hard attentions after epoch: {self.current_epoch}")
-                self.binarize_attention = True
-
-            # Start training duration predictor after 33% of training
-            if not self.train_duration_predictor and self.current_epoch >= np.ceil(0.33 * self._trainer.max_epochs):
-                logging.info(f"Starting training duration predictor after epoch: {self.current_epoch}")
-                self.attention_coeff = 0.25
-                self.fastpitch.train_duration_predictor = True
-
-            # Start using duration predictor after 50% of training
-            if not self.use_duration_predictor and self.current_epoch >= np.ceil(0.50 * self._trainer.max_epochs):
-                logging.info(f"Using duration predictor after epoch: {self.current_epoch}")
-                self.fastpitch.use_duration_predictor = True
 

@@ -90,9 +90,6 @@ class DurationLoss(Loss):
 
 
 class PitchLoss(Loss):
-    """ A base loss that computes duration and pitch loss. Used in both FastPitchHifiGanE2EModel and FastPitchModel.
-    """
-
     def __init__(self, loss_scale=0.1):
         super().__init__()
         self.loss_scale = loss_scale
@@ -124,9 +121,6 @@ class PitchLoss(Loss):
 
 
 class MelLoss(Loss):
-    """ FastPitchLoss that computes spectrogram, pitch, and duration loss.
-    """
-
     @property
     def input_types(self):
         return {
