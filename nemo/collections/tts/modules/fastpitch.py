@@ -60,6 +60,7 @@ from nemo.core.neural_types.elements import (
     TokenLogDurationType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
+from nemo.collections.tts.helpers.helpers import binarize_attention
 
 
 def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
@@ -145,7 +146,6 @@ class FastPitchModule(NeuralModule):
         self.pitch_predictor = pitch_predictor
         self.aligner = aligner
         self.learn_alignment = aligner is not None
-        self.train_duration_predictor = False
         self.use_duration_predictor = True
         self.binarize = False
 
@@ -192,7 +192,17 @@ class FastPitchModule(NeuralModule):
 
     @typecheck()
     def forward(
-        self, *, text, durs=None, pitch=None, speaker=None, pace=1.0, spec=None, attn_prior=None, mel_len=None
+        self,
+        *,
+        text,
+        durs=None,
+        pitch=None,
+        speaker=None,
+        pace=1.0,
+        spec=None,
+        attn_prior=None,
+        mel_lens=None,
+        input_lens=None,
     ):
 
         if not self.learn_alignment and self.training:
@@ -214,33 +224,35 @@ class FastPitchModule(NeuralModule):
             pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
         else:
             pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
-        enc_out = enc_out + pitch_emb.transpose(1, 2)
 
-        # Predict durations
-        attn, attn_logprob = None, None
-        predict_durs = self.train_duration_predictor
+        log_durs_predicted = self.duration_predictor(enc_out, enc_mask)
+        durs_predicted = torch.clamp(torch.exp(log_durs_predicted) - 1, 0, self.max_token_duration)
+        enc_out = enc_out + pitch_emb
+
+        attn_soft, attn_hard, attn_hard_dur, attn_logprob = None, None, None, None
         if self.learn_alignment and spec is None:
-            attn, attn_logprob = self.aligner(spec, enc_out, enc_mask, attn_prior)
-        else:
-            predict_durs = True
-        if predict_durs:
-            log_durs_predicted = self.duration_predictor(enc_out, enc_mask)
-            durs_predicted = torch.clamp(torch.exp(log_durs_predicted) - 1, 0, self.max_token_duration)
-
-        if durs is not None:
+            text_emb = self.encoder.word_emb(text)
+            attn_soft, attn_logprob = self.aligner(spec, text_emb.permute(0, 2, 1), enc_mask, attn_prior)
+            attn_hard = binarize_attention(attn_soft, input_lens, mel_lens)
+            attn_hard_dur = attn_hard.sum(2)[:, 0, :]
+            len_regulated, dec_lens = regulate_len(attn_hard_dur, enc_out, pace)
+        # Use predictions during inference
+        elif spec is None:
+            len_regulated, dec_lens = regulate_len(durs_predicted, enc_out, pace)
+        elif durs is not None:
             len_regulated, dec_lens = regulate_len(durs, enc_out, pace)
-        elif predict_durs and self.use_duration_predictor:
-            len_regulated, dec_lens = regulate_len(durs_predicted, enc_out, pace)
-        elif self.binarize:
-            durs_predicted = torch.sum(attn, 2)
-            len_regulated, dec_lens = regulate_len(durs_predicted, enc_out, pace)
-        else:
-            len_regulated = torch.matmul(attn, text)
-            dec_lens = mel_len
 
         # Output FFT
-        dec_out, dec_mask = self.decoder(input=len_regulated, seq_lens=dec_lens)
+        dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens)
         spect = self.proj(dec_out)
-        if self.learn_alignment:
-            return (spect, attn, attn_logprob, dec_lens, dec_mask, durs_predicted, log_durs_predicted, pitch_predicted)
-        return (spect, dec_lens, dec_mask, durs_predicted, log_durs_predicted, pitch_predicted)
+        return (
+            spect,
+            durs_predicted,
+            log_durs_predicted,
+            pitch_predicted,
+            attn_soft,
+            attn_logprob,
+            attn_hard,
+            attn_hard_dur,
+        )
+
