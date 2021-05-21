@@ -215,8 +215,8 @@ class FastPitchModel(SpectrogramGenerator):
         dur_loss = self.duration_loss(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=text_lens)
         loss = mel_loss + dur_loss
         if self.learn_alignment:
-            ctc_loss = self.forward_sum_loss(attn_logprob, text_lens, spec_len)
-            bin_loss = self.bin_loss(attn_hard, attn_soft)
+            ctc_loss = self.forward_sum_loss(attn_logprob=attn_logprob, in_lens=text_lens, out_lens=spec_len)
+            bin_loss = self.bin_loss(hard_attention=attn_hard, soft_attention=attn_soft)
             loss += ctc_loss + bin_loss
             pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
 
