@@ -1295,8 +1295,17 @@ class ModelPT(LightningModule, Model):
 
     def _set_model_guid(self):
         if not hasattr(self, 'model_guid'):
+            appstate = AppState()
+
+            # Generate a unique uuid for the instance
+            # also determine if the model is being restored or not, and preserve the path
             self.model_guid = str(uuid.uuid4())
-            AppState().register_model_guid(self.model_guid)
+            if self._is_model_being_restored():
+                restore_path = appstate.model_restore_path
+            else:
+                restore_path = None
+
+            appstate.register_model_guid(self.model_guid, model_restore_path=restore_path)
 
     @staticmethod
     def _is_restore_type_tarfile() -> bool:

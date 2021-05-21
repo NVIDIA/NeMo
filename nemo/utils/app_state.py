@@ -29,7 +29,7 @@ class ModelMetadataRegistry:
 class AppState(metaclass=Singleton):
     def __init__(self):
         # method call lock
-        self._lock = Lock()
+        self.__lock = Lock()
 
         # TODO: should we store global config in hydra_runner?
         self._app_cfg = None
@@ -362,21 +362,19 @@ class AppState(metaclass=Singleton):
 
     @model_restore_path.setter
     def model_restore_path(self, path):
-        with self._lock:
+        with self.__lock:
             self._model_restore_path = path
+            self._all_model_restore_paths.append(path)
 
-            if path not in self._all_model_restore_paths:
-                self._all_model_restore_paths.append(path)
-
-    def register_model_guid(self, guid):
+    def register_model_guid(self, guid: str, model_restore_path: str):
         # Maps a guid to its restore path (None or last absolute path)
-        with self._lock:
+        with self.__lock:
             idx = len(self._model_guid_map)
-            self._model_guid_map[guid] = ModelMetadataRegistry(guid, idx, restoration_path=self.model_restore_path)
+            self._model_guid_map[guid] = ModelMetadataRegistry(guid, idx, restoration_path=model_restore_path)
 
     def reset_model_guid_registry(self):
         # Reset the guid mapping
-        with self._lock:
+        with self.__lock:
             self._model_guid_map.clear()
 
     def get_model_metadata_from_guid(self, guid):
