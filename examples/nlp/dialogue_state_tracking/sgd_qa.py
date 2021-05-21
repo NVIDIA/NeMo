@@ -14,7 +14,7 @@
 # limitations under the License.
 
 """
-This script contains an example of how to train and test the NeMo SGD-QA Model.
+This script contains an example of how to train and test the NeMo SGD-QA Model (https://arxiv.org/abs/2105.08049).
 The SGD-QA model is a fast multi-pass schema-guided state-tracking model, that is trained on the Google schema-guided state tracking dataset (https://arxiv.org/abs/1909.05855).
 The model takes dialogue as input and outputs the dialogue state, which includes slot-value pairs. 
 The model consists of two components: a neural natural language understanding model (NLU), and a rule-based state tracker.
