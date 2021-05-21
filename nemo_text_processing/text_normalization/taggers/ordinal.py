@@ -31,10 +31,12 @@ class OrdinalFst(GraphFst):
         
     Args:
         cardinal: CardinalFst
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal: GraphFst):
-        super().__init__(name="ordinal", kind="classify")
+    def __init__(self, cardinal: GraphFst, deterministic: bool = True):
+        super().__init__(name="ordinal", kind="classify", deterministic=deterministic)
 
         cardinal_graph = cardinal.graph
         self.graph = (

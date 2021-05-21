@@ -28,20 +28,29 @@ class CardinalFst(GraphFst):
     """
     Finite state transducer for verbalizing cardinal, e.g.
         cardinal { negative: "true" integer: "23" } -> minus twenty three
+
+    Args:
+        deterministic: if True will provide a single transduction option,
+            for False multiple options (used for audio-based normalization)
     """
 
-    def __init__(self):
-        super().__init__(name="cardinal", kind="verbalize")
+    def __init__(self, deterministic: bool = True):
+        super().__init__(name="cardinal", kind="verbalize", deterministic=deterministic)
 
-        optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "minus ") + delete_space, 0, 1)
-        integer = (
-            pynutil.delete("integer:")
-            + delete_space
-            + pynutil.delete("\"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
-        )
+        self.optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "minus ") + delete_space, 0, 1)
 
-        self.numbers = optional_sign + integer
+        if deterministic:
+            integer = pynini.closure(NEMO_NOT_QUOTE, 1)
+        else:
+            integer = (
+                pynini.closure(NEMO_NOT_QUOTE)
+                + pynini.closure(pynini.cross("hundred ", "") | pynini.cross("hundred ", "hundred and "), 0, 1)
+                + pynini.closure(NEMO_NOT_QUOTE)
+            )
+
+        self.integer = delete_space + pynutil.delete("\"") + integer + pynutil.delete("\"")
+        integer = pynutil.delete("integer:") + self.integer
+
+        self.numbers = self.optional_sign + integer
         delete_tokens = self.delete_tokens(self.numbers)
         self.fst = delete_tokens.optimize()

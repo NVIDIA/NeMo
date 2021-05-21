@@ -323,6 +323,7 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
         punct=True,
         spaces=False,
         stresses=False,
+        chars=False,
         add_blank_at="last_but_one",
         pad_with_space=False,
         improved_version_g2p=False,
@@ -335,6 +336,7 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
             punct (bool): True if reserve grapheme for basic punctuation.
             spaces (bool): True if prepend spaces to every punctuation symbol.
             stresses (bool): True if use phonemes codes with stresses (0-2).
+            chars (bool): True if additionally use chars together with phonemes.
             add_blank_at: add blank to labels in the specified order ("last" or "last_but_one"),
              if None then no blank in labels.
             pad_with_space (bool): True if pad text with spaces at the beginning and at the end.
@@ -351,6 +353,7 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
                 punct=punct,
                 stresses=stresses,
                 spaces=spaces,
+                chars=chars,
                 add_blank_at=add_blank_at,
                 pad_with_space=pad_with_space,
                 improved_version_g2p=improved_version_g2p,

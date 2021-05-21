@@ -29,10 +29,14 @@ class TelephoneFst(GraphFst):
     Finite state transducer for verbalizing telephone numbers, e.g.
         telephone { country_code: "one" number_part: "one two three, one two three, five six seven eight" extension: "one"  }
         -> one, one two three, one two three, five six seven eight, one
+
+    Args:
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self):
-        super().__init__(name="telephone", kind="verbalize")
+    def __init__(self, deterministic: bool = True):
+        super().__init__(name="telephone", kind="verbalize", deterministic=deterministic)
 
         add_separator = pynutil.insert(",")  # between components
 

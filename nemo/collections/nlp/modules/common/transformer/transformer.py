@@ -54,6 +54,7 @@ class NeMoTransformerConfig:
     attn_layer_dropout: float = 0.0
     hidden_act: str = 'relu'
     pre_ln: bool = False
+    pre_ln_final_layer_norm: bool = True
 
     # named model arguments
     library: str = 'nemo'
@@ -84,11 +85,13 @@ class TransformerEncoderNM(EncoderModule, Exportable):
         hidden_act: str = 'relu',
         mask_future: bool = False,
         pre_ln: bool = False,
+        pre_ln_final_layer_norm: bool = True,
     ):
         super().__init__()
 
         self._vocab_size = vocab_size
         self._hidden_size = hidden_size
+        self._max_sequence_length = max_sequence_length
 
         self._embedding = TransformerEmbedding(
             vocab_size=self._vocab_size,
@@ -110,6 +113,7 @@ class TransformerEncoderNM(EncoderModule, Exportable):
             hidden_act=hidden_act,
             mask_future=mask_future,
             pre_ln=pre_ln,
+            pre_ln_final_layer_norm=pre_ln_final_layer_norm,
         )
 
     @typecheck()
@@ -167,6 +171,7 @@ class TransformerDecoderNM(DecoderModule, Exportable):
         attn_layer_dropout: float = 0.0,
         hidden_act: str = 'relu',
         pre_ln: bool = False,
+        pre_ln_final_layer_norm: bool = True,
     ):
         super().__init__()
 
@@ -193,6 +198,7 @@ class TransformerDecoderNM(DecoderModule, Exportable):
             attn_layer_dropout=attn_layer_dropout,
             hidden_act=hidden_act,
             pre_ln=pre_ln,
+            pre_ln_final_layer_norm=pre_ln_final_layer_norm,
         )
 
     @typecheck()
