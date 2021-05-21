@@ -71,7 +71,7 @@ from omegaconf import OmegaConf
 
 from nemo.collections.asr.models import EncDecRNNTModel
 from nemo.core.config import hydra_runner
-from nemo.utils import logging, model_utils
+from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
@@ -83,7 +83,7 @@ def main(cfg):
     exp_manager(trainer, cfg.get("exp_manager", None))
     asr_model = EncDecRNNTModel(cfg=cfg.model, trainer=trainer)
 
-    model_utils.maybe_init_from_pretrained_checkpoint(asr_model, cfg)
+    asr_model.maybe_init_from_pretrained_checkpoint(cfg)
 
     trainer.fit(asr_model)
 
