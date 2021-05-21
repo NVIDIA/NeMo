@@ -54,9 +54,9 @@ class FastPitchConfig:
 
 def average_pitch(pitch, durs):
     durs_cums_ends = torch.cumsum(durs, dim=1).long()
-    durs_cums_starts = torch.functional.pad(durs_cums_ends[:, :-1], (1, 0))
-    pitch_nonzero_cums = torch.functional.pad(torch.cumsum(pitch != 0.0, dim=2), (1, 0))
-    pitch_cums = torch.functional.pad(torch.cumsum(pitch, dim=2), (1, 0))
+    durs_cums_starts = torch.nn.functional.pad(durs_cums_ends[:, :-1], (1, 0))
+    pitch_nonzero_cums = torch.nn.functional.pad(torch.cumsum(pitch != 0.0, dim=2), (1, 0))
+    pitch_cums = torch.nn.functional.pad(torch.cumsum(pitch, dim=2), (1, 0))
 
     bs, l = durs_cums_ends.size()
     n_formants = pitch.size(1)
@@ -77,9 +77,9 @@ class FastPitchModel(SpectrogramGenerator):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
 
-        self.learn_aligntment = False
+        self.learn_alignment = False
         if "learn_alignment" in cfg:
-            self.learn_aligntment = cfg.learn_alignment
+            self.learn_alignment = cfg.learn_alignment
         self._parser = None
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -96,7 +96,7 @@ class FastPitchModel(SpectrogramGenerator):
         self.mel_loss = MelLoss()
         self.pitch_loss = PitchLoss()
         self.duration_loss = DurationLoss()
-        if self.learn_aligntment:
+        if self.learn_alignment:
             self.aligner = instantiate(self._cfg.alignment_module)
             self.forward_sum_loss = ForwardSumLoss()
             self.bin_loss = BinLoss()
@@ -191,7 +191,7 @@ class FastPitchModel(SpectrogramGenerator):
 
     def training_step(self, batch, batch_idx):
         attn_prior, durs, speakers = None, None, None
-        if self.learn_aligntment:
+        if self.learn_alignment:
             audio, audio_lens, text, text_lens, attn_prior, pitch = batch
         else:
             audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
@@ -200,10 +200,10 @@ class FastPitchModel(SpectrogramGenerator):
         mels_pred, _, log_durs_pred, pitch_pred, attn_soft, attn_logprob, attn_hard, attn_hard_dur = self(
             text=text,
             durs=durs,
-            pitch=pitch,
+            pitch=None if self.learn_alignment else pitch,
             speaker=speakers,
             pace=1.0,
-            spec=mels,
+            spec=mels if self.learn_alignment else None,
             attn_prior=attn_prior,
             mel_lens=spec_len,
             input_lens=text_lens,
@@ -214,11 +214,11 @@ class FastPitchModel(SpectrogramGenerator):
         mel_loss = self.mel_loss(spect_predicted=mels_pred, spect_tgt=mels)
         dur_loss = self.duration_loss(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=text_lens)
         loss = mel_loss + dur_loss
-        if self.learn_aligntment:
+        if self.learn_alignment:
             ctc_loss = self.forward_sum_loss(attn_logprob, text_lens, spec_len)
             bin_loss = self.bin_loss(attn_hard, attn_soft)
             loss += ctc_loss + bin_loss
-            pitch = average_pitch(pitch, attn_hard_dur)
+            pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
 
         pitch_loss = self.pitch_loss(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens)
         loss += pitch_loss
@@ -226,23 +226,33 @@ class FastPitchModel(SpectrogramGenerator):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        durs, speakers = None, None
-        if self.learn_aligntment:
-            audio, audio_lens, text, text_lens, _, pitch = batch
+        attn_prior, durs, speakers = None, None, None
+        if self.learn_alignment:
+            audio, audio_lens, text, text_lens, attn_prior, pitch = batch
         else:
             audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
-        mels, _ = self.preprocessor(input_signal=audio, length=audio_lens)
+        mels, mel_lens = self.preprocessor(input_signal=audio, length=audio_lens)
 
         # Calculate val loss on ground truth durations to better align L2 loss in time
         mels_pred, _, log_durs_pred, pitch_pred, _, _, _, attn_hard_dur = self(
-            text=text, durs=durs, pitch=None, speaker=speakers, pace=1.0
+            text=text,
+            durs=durs,
+            pitch=None,
+            speaker=speakers,
+            pace=1.0,
+            spec=mels if self.learn_alignment else None,
+            attn_prior=attn_prior,
+            mel_lens=mel_lens,
+            input_lens=text_lens,
         )
+        if durs is None:
+            durs = attn_hard_dur
 
         mel_loss = self.mel_loss(spect_predicted=mels_pred, spect_tgt=mels)
         dur_loss = self.duration_loss(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=text_lens)
         loss = mel_loss + dur_loss
-        if self.learn_aligntment:
-            pitch = average_pitch(pitch, attn_hard_dur)
+        if self.learn_alignment:
+            pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
 
         pitch_loss = self.pitch_loss(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens)
         loss += pitch_loss

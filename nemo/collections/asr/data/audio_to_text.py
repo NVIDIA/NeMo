@@ -553,7 +553,10 @@ class AudioToCharWithPriorDataset(AudioToCharDataset):
         text = self.id2enc_text[item]
 
         tag = Path(self.collection[item].audio_file).stem
-        attn_prior_path = Path(self.attn_prior_folder) / f"{tag}.npy"
+        attn_prior_path = (
+            Path(self.attn_prior_folder)
+            / f"{tag}_ap_tl{len(text)}_al_{math.ceil((audio_len.item() + 1) / self.n_window_stride)}.npy"
+        )
 
         if attn_prior_path.exists():
             attn_prior = np.load(attn_prior_path)
