@@ -60,6 +60,7 @@ from nemo.core.neural_types.elements import (
     TokenLogDurationType,
     ProbsType,
     LengthsType,
+    LogprobsType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.collections.tts.helpers.helpers import binarize_attention
@@ -192,9 +193,9 @@ class FastPitchModule(NeuralModule):
             "durs_predicted": NeuralType(('B', 'T'), TokenDurationType()),
             "log_durs_predicted": NeuralType(('B', 'T'), TokenLogDurationType()),
             "pitch_predicted": NeuralType(('B', 'T'), RegressionValuesType()),
-            "attn_soft": NeuralType(('B', 'S', 'T', 'T'), SequenceToSequenceAlignmentType()),
-            "attn_logprob": NeuralType(('B', 'S', 'T', 'T'), SequenceToSequenceAlignmentType()),
-            "attn_hard": NeuralType(('B', 'S', 'T', 'T'), SequenceToSequenceAlignmentType()),
+            "attn_soft": NeuralType(('B', 'S', 'T', 'D'), ProbsType()),
+            "attn_logprob": NeuralType(('B', 'S', 'T', 'D'), LogprobsType()),
+            "attn_hard": NeuralType(('B', 'S', 'T', 'D'), ProbsType()),
             "attn_hard_dur": NeuralType(('B', 'T'), TokenDurationType()),
         }
 
