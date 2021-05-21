@@ -43,9 +43,9 @@ class FastPitchConfig:
 
 def average_pitch(pitch, durs):
     durs_cums_ends = torch.cumsum(durs, dim=1).long()
-    durs_cums_starts = F.pad(durs_cums_ends[:, :-1], (1, 0))
-    pitch_nonzero_cums = F.pad(torch.cumsum(pitch != 0.0, dim=2), (1, 0))
-    pitch_cums = F.pad(torch.cumsum(pitch, dim=2), (1, 0))
+    durs_cums_starts = torch.functional.pad(durs_cums_ends[:, :-1], (1, 0))
+    pitch_nonzero_cums = torch.functional.pad(torch.cumsum(pitch != 0.0, dim=2), (1, 0))
+    pitch_cums = torch.functional.pad(torch.cumsum(pitch, dim=2), (1, 0))
 
     bs, l = durs_cums_ends.size()
     n_formants = pitch.size(1)
@@ -197,19 +197,18 @@ class FastPitchModel(SpectrogramGenerator):
         mels, _ = self.preprocessor(input_signal=audio, length=audio_lens)
 
         # Calculate val loss on ground truth durations to better align L2 loss in time
-        mels_pred, _, _, _, log_durs_pred, pitch_pred = self(
+        mels_pred, _, log_durs_pred, pitch_pred, _, _, _, attn_hard_dur = self(
             text=text, durs=durs, pitch=None, speaker=speakers, pace=1.0
         )
 
-        loss, mel_loss, dur_loss, pitch_loss = self.loss(
-            spect_predicted=mels_pred,
-            log_durs_predicted=log_durs_pred,
-            pitch_predicted=pitch_pred,
-            spect_tgt=mels,
-            durs_tgt=durs,
-            dur_lens=text_lens,
-            pitch_tgt=pitch,
-        )
+        mel_loss = self.mel_loss(spect_predicted=mels_pred, spect_tgt=mels)
+        dur_loss = self.duration_loss(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=text_lens)
+        loss = mel_loss + dur_loss
+        if self.learn_aligntment:
+            pitch = average_pitch(pitch, attn_hard_dur)
+
+        pitch_loss = self.pitch_loss(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens)
+        loss += pitch_loss
 
         ret = {
             "loss": loss,
@@ -249,11 +248,7 @@ class FastPitchModel(SpectrogramGenerator):
 
         kwargs_dict = {}
         if cfg.dataset._target_ == "nemo.collections.asr.data.audio_to_text.FastPitchDataset":
-            labels = self._cfg.labels
-            kwargs_dict["labels"] = labels
-            kwargs_dict["bos_id"] = len(labels)
-            kwargs_dict["eos_id"] = len(labels) + 1
-            kwargs_dict["pad_id"] = len(labels) + 2
+            kwargs_dict["parser"] = self.parser
         dataset = instantiate(cfg.dataset, **kwargs_dict)
         return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
 
