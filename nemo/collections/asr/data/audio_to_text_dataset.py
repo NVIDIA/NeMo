@@ -15,8 +15,8 @@
 from typing import Optional
 
 import torch
-from omegaconf import DictConfig
 from hydra.utils import instantiate
+from omegaconf import DictConfig
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dali
 

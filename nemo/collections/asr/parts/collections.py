@@ -15,7 +15,7 @@
 import collections
 import json
 import os
-from typing import Any, Dict, List, Optional, Union, Callable
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import pandas as pd
 

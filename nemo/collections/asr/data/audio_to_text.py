@@ -15,7 +15,7 @@ import io
 import math
 import os
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union, Any
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import braceexpand
 import numpy as np

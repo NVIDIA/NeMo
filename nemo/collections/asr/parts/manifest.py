@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import json
-from os.path import expanduser, split, join, isabs
+from os.path import expanduser, isabs, join, split
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 

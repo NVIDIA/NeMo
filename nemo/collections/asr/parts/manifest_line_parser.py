@@ -1,5 +1,6 @@
-from os.path import split, join, isabs
+from os.path import isabs, join, split
 from typing import Any, Dict
+
 
 class OpenSttParser():
     @staticmethod
