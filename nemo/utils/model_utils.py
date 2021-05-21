@@ -517,4 +517,3 @@ def check_lib_version(lib_name: str, checked_version: str, operator) -> (Optiona
 
     msg = f"Lib {lib_name} has not been installed. Please use pip or conda to install this package."
     return None, msg
-
