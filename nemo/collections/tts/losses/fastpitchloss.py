@@ -68,7 +68,7 @@ class DurationLoss(Loss):
         return {
             "log_durs_predicted": NeuralType(('B', 'T'), TokenLogDurationType()),
             "durs_tgt": NeuralType(('B', 'T'), TokenDurationType()),
-            "lens": NeuralType(('B'), LengthsType()),
+            "len": NeuralType(('B'), LengthsType()),
         }
 
     @property
@@ -99,7 +99,7 @@ class PitchLoss(Loss):
         return {
             "pitch_predicted": NeuralType(('B', 'T'), RegressionValuesType()),
             "pitch_tgt": NeuralType(('B', 'T'), RegressionValuesType()),
-            "lens": NeuralType(('B'), LengthsType()),
+            "len": NeuralType(('B'), LengthsType()),
         }
 
     @property
@@ -115,7 +115,7 @@ class PitchLoss(Loss):
         pitch_predicted = F.pad(pitch_predicted, (0, ldiff, 0, 0), value=0.0)
         pitch_loss = F.mse_loss(pitch_tgt, pitch_predicted, reduction='none')
         pitch_loss = (pitch_loss * dur_mask).sum() / dur_mask.sum()
-        pitch_loss *= self.pitch_predictor_loss_scale
+        pitch_loss *= self.loss_scale
 
         return pitch_loss
 

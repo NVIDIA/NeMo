@@ -202,6 +202,7 @@ class Typing(ABC):
                         f"{input_types[key].compare(value.neural_type)} :",
                         f"Input type expected : {input_types[key]}",
                         f"Input type found : {value.neural_type}",
+                        f"Argument: {key}",
                     ]
                     for i, dict_tuple in enumerate(metadata.base_types[key].elements_type.type_parameters.items()):
                         error_msg.insert(i + 2, f'  input param_{i} : {dict_tuple[0]}: {dict_tuple[1]}')

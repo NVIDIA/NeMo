@@ -26,7 +26,15 @@ from nemo.collections.tts.losses.fastpitchloss import MelLoss, PitchLoss, Durati
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import FastPitchModule
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types.elements import MelSpectrogramType, RegressionValuesType, TokenDurationType, TokenIndex
+from nemo.core.neural_types.elements import (
+    MelSpectrogramType,
+    RegressionValuesType,
+    TokenDurationType,
+    TokenIndex,
+    Index,
+    ProbsType,
+    LengthsType,
+)
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 
@@ -137,14 +145,40 @@ class FastPitchModel(SpectrogramGenerator):
     @typecheck(
         input_types={
             "text": NeuralType(('B', 'T'), TokenIndex()),
-            "durs": NeuralType(('B', 'T'), TokenDurationType(), optional=True),
-            "pitch": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
-            "speaker": NeuralType(optional=True),  # NeuralType(('B'), IntType(), optional=True),
+            "durs": NeuralType(('B', 'T'), TokenDurationType()),
+            "pitch": NeuralType(('B', 'T'), RegressionValuesType()),
+            "speaker": NeuralType(('B'), Index()),
             "pace": NeuralType(optional=True),
+            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType(), optional=True),
+            "attn_prior": NeuralType(('B', 'T', 'T'), ProbsType(), optional=True),
+            "mel_lens": NeuralType(('B'), LengthsType(), optional=True),
+            "input_lens": NeuralType(('B'), LengthsType(), optional=True),
         }
     )
-    def forward(self, *, text, durs=None, pitch=None, speaker=0, pace=1.0):
-        return self.fastpitch(text=text, durs=durs, pitch=pitch, speaker=speaker, pace=pace)
+    def forward(
+        self,
+        *,
+        text,
+        durs=None,
+        pitch=None,
+        speaker=0,
+        pace=1.0,
+        spec=None,
+        attn_prior=None,
+        mel_lens=None,
+        input_lens=None,
+    ):
+        return self.fastpitch(
+            text=text,
+            durs=durs,
+            pitch=pitch,
+            speaker=speaker,
+            pace=pace,
+            spec=spec,
+            attn_prior=attn_prior,
+            mel_lens=mel_lens,
+            input_lens=input_lens,
+        )
 
     @typecheck(output_types={"spect": NeuralType(('B', 'C', 'T'), MelSpectrogramType())})
     def generate_spectrogram(self, tokens: 'torch.tensor', speaker: int = 0, pace: float = 1.0) -> torch.tensor:
