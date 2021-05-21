@@ -51,49 +51,15 @@ python speech_to_text_rnnt_bpe.py \
     exp_manager.wandb_logger_kwargs.project="<Name of project>"
 ```
 
-Finetune a model
-1) Finetune from a .nemo file
+# Fine-tune a model
 
-```sh
-    python examples/asr/speech_to_text_rnnt_bpe.py \
-        --config-path=<path to dir of configs> \
-        --config-name=<name of config without .yaml>) \
-        model.train_ds.manifest_filepath="<path to manifest file>" \
-        model.validation_ds.manifest_filepath="<path to manifest file>" \
-        trainer.gpus=-1 \
-        trainer.max_epochs=50 \
-        +init_from_nemo_model="<path to .nemo model file>"
-```
+For documentation on fine-tuning this model, please visit -
+https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.html#fine-tuning-configurations
 
-2) Finetune from a pretrained model (via NGC)
-
-```sh
-    python examples/asr/speech_to_text_rnnt_bpe.py \
-        --config-path=<path to dir of configs> \
-        --config-name=<name of config without .yaml>) \
-        model.train_ds.manifest_filepath="<path to manifest file>" \
-        model.validation_ds.manifest_filepath="<path to manifest file>" \
-        trainer.gpus=-1 \
-        trainer.max_epochs=50 \
-        +init_from_pretrained_model="<name of pretrained checkpoint>"
-```
-
-3) Finetune from a Pytorch Lightning checkpoint
-
-```sh
-    python examples/asr/speech_to_text_rnnt_bpe.py \
-        --config-path=<path to dir of configs> \
-        --config-name=<name of config without .yaml>) \
-        model.train_ds.manifest_filepath="<path to manifest file>" \
-        model.validation_ds.manifest_filepath="<path to manifest file>" \
-        trainer.gpus=-1 \
-        trainer.max_epochs=50 \
-        +init_from_ptl_ckpt="<name of pytorch lightning checkpoint>"
-```
 """
 
 import pytorch_lightning as pl
-from omegaconf import OmegaConf, open_dict
+from omegaconf import OmegaConf
 
 from nemo.collections.asr.models import EncDecRNNTBPEModel
 from nemo.core.config import hydra_runner

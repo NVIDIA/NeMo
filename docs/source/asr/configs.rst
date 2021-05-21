@@ -475,17 +475,17 @@ The encoder section includes the details about the Conformer-CTC encoder archite
 config files and also :doc:`nemo.collections.asr.modules.ConformerEncoder<./api.html#nemo.collections.asr.modules.ConformerEncoder>`.
 
 
-Finetuning Configurations
+Fine-tuning Configurations
 -------------------------
 
-All ASR scripts support easy fine tuning by partially/fully loading the pretrained weights from a checkpoint into the currently instantiated model. Pre-trained weights can be provided in multiple ways -
+All ASR scripts support easy fine-tuning by partially/fully loading the pretrained weights from a checkpoint into the currently instantiated model. Pre-trained weights can be provided in multiple ways -
 
 1) Providing a path to a NeMo model (via ``init_from_nemo_model``)
 2) Providing a name of a pretrained NeMo model (which will be downloaded via the cloud) (via ``init_from_pretrained_model``)
 3) Providing a path to a Pytorch Lightning checkpoint file (via ``init_from_ptl_ckpt``)
 
-Finetuning via a NeMo model
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Fine-tuning via a NeMo model
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: sh
 
@@ -499,8 +499,8 @@ Finetuning via a NeMo model
         +init_from_nemo_model="<path to .nemo model file>"
 
 
-Finetuning via a NeMo pretrained model name
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Fine-tuning via a NeMo pretrained model name
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: sh
 
@@ -513,8 +513,8 @@ Finetuning via a NeMo pretrained model name
         trainer.max_epochs=50 \
         +init_from_pretrained_model="<name of pretrained checkpoint>"
 
-Finetuning via a Pytorch Lightning checkpoint
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Fine-tuning via a Pytorch Lightning checkpoint
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: sh
 
