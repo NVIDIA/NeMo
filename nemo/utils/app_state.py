@@ -366,18 +366,18 @@ class AppState(metaclass=Singleton):
             self._model_restore_path = path
             self._all_model_restore_paths.append(path)
 
-    def register_model_guid(self, guid: str, model_restore_path: str):
+    def register_model_guid(self, guid: str, restoration_path: Optional[str] = None):
         # Maps a guid to its restore path (None or last absolute path)
         with self.__lock:
             idx = len(self._model_guid_map)
-            self._model_guid_map[guid] = ModelMetadataRegistry(guid, idx, restoration_path=model_restore_path)
+            self._model_guid_map[guid] = ModelMetadataRegistry(guid, idx, restoration_path=restoration_path)
 
     def reset_model_guid_registry(self):
         # Reset the guid mapping
         with self.__lock:
             self._model_guid_map.clear()
 
-    def get_model_metadata_from_guid(self, guid):
+    def get_model_metadata_from_guid(self, guid) -> ModelMetadataRegistry:
         # Returns the global model idx and restoration path
         metadata = self._model_guid_map[guid]
         return metadata

@@ -314,11 +314,6 @@ class TestSaveRestore:
 
     @pytest.mark.unit
     def test_mock_save_to_restore_from_multiple_models(self):
-        appstate = AppState()
-        # reset appstate cache of model guid and restoration paths from previous tests
-        # appstate.reset_model_guid_registry()
-        # appstate._all_model_restore_paths = []
-
         with tempfile.NamedTemporaryFile('w') as empty_file, tempfile.NamedTemporaryFile('w') as empty_file2:
             # Write some data
             empty_file.writelines(["*****\n"])
@@ -348,4 +343,84 @@ class TestSaveRestore:
 
         # Restore test
         assert model_copy.temp_data == ["*****\n"]
-        assert model2_copy.temp_data == ['+++++\n']
+        assert model2_copy.temp_data == ["+++++\n"]
+
+    @pytest.mark.unit
+    def test_mock_save_to_restore_from_multiple_models_inverted_order(self):
+        with tempfile.NamedTemporaryFile('w') as empty_file, tempfile.NamedTemporaryFile('w') as empty_file2:
+            # Write some data
+            empty_file.writelines(["*****\n"])
+            empty_file.flush()
+            empty_file2.writelines(["+++++\n"])
+            empty_file2.flush()
+
+            # Update config + create ,pde;s
+            cfg = _mock_model_config()
+            cfg.model.temp_file = empty_file.name
+            cfg2 = _mock_model_config()
+            cfg2.model.temp_file = empty_file2.name
+
+            # Create models
+            model = MockModel(cfg=cfg.model, trainer=None)
+            model = model.to('cpu')
+            model2 = MockModel(cfg=cfg2.model, trainer=None)
+            model2 = model2.to('cpu')
+
+            assert model.temp_file == empty_file.name
+            assert model2.temp_file == empty_file2.name
+
+            # Save test (inverted order)
+            model2_copy = self.__test_restore_elsewhere(model2, map_location='cpu')
+            model_copy = self.__test_restore_elsewhere(model, map_location='cpu')
+            # assert filecmp.cmp(model.temp_file, model_copy.temp_file)
+
+        # Restore test
+        assert model_copy.temp_data == ["*****\n"]
+        assert model2_copy.temp_data == ["+++++\n"]
+
+    @pytest.mark.unit
+    def test_mock_save_to_restore_chained(self):
+        with tempfile.NamedTemporaryFile('w') as empty_file, tempfile.NamedTemporaryFile('w') as empty_file2:
+            # Write some data
+            empty_file.writelines(["*****\n"])
+            empty_file.flush()
+
+            # Update config + create ,pde;s
+            cfg = _mock_model_config()
+            cfg.model.temp_file = empty_file.name
+
+            # Create models
+            model = MockModel(cfg=cfg.model, trainer=None)
+            model = model.to('cpu')
+
+            assert model.temp_file == empty_file.name
+
+            def save_copy(model, save_folder, restore_folder):
+                # Where model will be saved
+                model_save_path = os.path.join(save_folder, f"{model.__class__.__name__}.nemo")
+                model.save_to(save_path=model_save_path)
+                # Where model will be restored from
+                model_restore_path = os.path.join(restore_folder, f"{model.__class__.__name__}.nemo")
+                shutil.copy(model_save_path, model_restore_path)
+                return model_restore_path
+
+            # Save test
+            with tempfile.TemporaryDirectory() as level4:
+                with tempfile.TemporaryDirectory() as level3:
+                    with tempfile.TemporaryDirectory() as level2:
+                        with tempfile.TemporaryDirectory() as level1:
+                            path = save_copy(model, level1, level2)
+                        model_copy2 = model.__class__.restore_from(path)
+                        path = save_copy(model_copy2, level2, level3)
+                    model_copy3 = model.__class__.restore_from(path)
+                    path = save_copy(model_copy3, level3, level4)
+                model_copy = model.__class__.restore_from(path)
+
+        # Restore test
+        assert model_copy.temp_data == ["*****\n"]
+
+        # AppState test
+        appstate = AppState()
+        metadata = appstate.get_model_metadata_from_guid(model_copy.model_guid)
+        assert metadata.guid != model.model_guid
+        assert metadata.restoration_path == path

@@ -338,6 +338,8 @@ class ModelPT(LightningModule, Model):
             torch.save(self.state_dict(), model_weights)
             self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
+            AppState().register_model_guid(self.model_guid, restoration_path=save_path)
+
     @rank_zero_only
     def save_to(self, save_path: str):
         """
@@ -1305,7 +1307,7 @@ class ModelPT(LightningModule, Model):
             else:
                 restore_path = None
 
-            appstate.register_model_guid(self.model_guid, model_restore_path=restore_path)
+            appstate.register_model_guid(self.model_guid, restoration_path=restore_path)
 
     @staticmethod
     def _is_restore_type_tarfile() -> bool:
