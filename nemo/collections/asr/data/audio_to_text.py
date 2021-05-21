@@ -621,7 +621,7 @@ class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
             pitch = np.load(pitch_path)
         else:
             pitch, _, _ = librosa.pyin(
-                audio,
+                audio.numpy(),
                 fmin=self.pitch_fmin,
                 fmax=self.pitch_fmax,
                 frame_length=self.n_window_size,
@@ -630,12 +630,19 @@ class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
             )
             np.save(pitch_path, pitch)
 
-        return audio, audio_len, text, text_len, attn_prior, pitch
+        return audio, audio_len, text, text_len, attn_prior, torch.tensor(pitch)
 
     def _collate_fn(self, batch):
-        audio, audio_len, text, text_len, attn_prior, pitch = batch
-        sbatch = (audio, audio_len, text, text_len, attn_prior)
-        audio, audio_len, text, text_len, attn_prior = super()._collate_fn(sbatch)
+        batch = list(zip(*batch))
+        audio, audio_len, text, text_len, attn_prior = super()._collate_fn(list(zip(*batch[:5])))
+        pitch_list = batch[5]
+
+        pitch = torch.zeros(len(pitch_list), max([pitch.shape[0] for pitch in pitch_list]))
+
+        for i, pitch_i in enumerate(pitch_list):
+            pitch[i, : pitch_i.shape[0]] = pitch_i
+
+        return audio, audio_len, text, text_len, attn_prior, pitch
 
 
 class FastPitchDataset(_AudioTextDataset):
