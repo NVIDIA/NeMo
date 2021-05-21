@@ -67,6 +67,14 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         results.append(model)
 
         model = PretrainedModelInfo(
+            pretrained_model_name="stt_es_citrinet_512",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_es_citrinet_512",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_es_citrinet_512/versions/1.0.0/files/stt_es_citrinet_512.nemo",
+        )
+
+        results.append(model)
+
+        model = PretrainedModelInfo(
             pretrained_model_name="stt_en_conformer_ctc_small",
             description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_ctc_small",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_conformer_ctc_small/versions/1.0.0rc1/files/stt_en_conformer_ctc_small.nemo",
