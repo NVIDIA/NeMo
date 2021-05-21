@@ -192,9 +192,9 @@ class FastPitchModule(NeuralModule):
             "durs_predicted": NeuralType(('B', 'T'), TokenDurationType()),
             "log_durs_predicted": NeuralType(('B', 'T'), TokenLogDurationType()),
             "pitch_predicted": NeuralType(('B', 'T'), RegressionValuesType()),
-            "attn_soft": NeuralType(('B', 'T', 'T'), SequenceToSequenceAlignmentType()),
-            "attn_logprob": NeuralType(('B', 'T', 'T'), SequenceToSequenceAlignmentType()),
-            "attn_hard": NeuralType(('B', 'T', 'T'), SequenceToSequenceAlignmentType()),
+            "attn_soft": NeuralType(('B', 'S', 'T', 'T'), SequenceToSequenceAlignmentType()),
+            "attn_logprob": NeuralType(('B', 'S', 'T', 'T'), SequenceToSequenceAlignmentType()),
+            "attn_hard": NeuralType(('B', 'S', 'T', 'T'), SequenceToSequenceAlignmentType()),
             "attn_hard_dur": NeuralType(('B', 'T'), TokenDurationType()),
         }
 
@@ -238,17 +238,17 @@ class FastPitchModule(NeuralModule):
         enc_out = enc_out + pitch_emb.transpose(1, 2)
 
         attn_soft, attn_hard, attn_hard_dur, attn_logprob = None, None, None, None
-        if self.learn_alignment and spec is None:
+        if self.learn_alignment and spec is not None:
             text_emb = self.encoder.word_emb(text)
             attn_soft, attn_logprob = self.aligner(spec, text_emb.permute(0, 2, 1), enc_mask, attn_prior)
             attn_hard = binarize_attention(attn_soft, input_lens, mel_lens)
             attn_hard_dur = attn_hard.sum(2)[:, 0, :]
             len_regulated, dec_lens = regulate_len(attn_hard_dur, enc_out, pace)
+        elif spec is None and durs is not None:
+            len_regulated, dec_lens = regulate_len(durs, enc_out, pace)
         # Use predictions during inference
         elif spec is None:
             len_regulated, dec_lens = regulate_len(durs_predicted, enc_out, pace)
-        elif durs is not None:
-            len_regulated, dec_lens = regulate_len(durs, enc_out, pace)
 
         # Output FFT
         dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens)
