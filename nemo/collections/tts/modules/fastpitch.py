@@ -58,6 +58,8 @@ from nemo.core.neural_types.elements import (
     TokenDurationType,
     TokenIndex,
     TokenLogDurationType,
+    ProbsType,
+    LengthsType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.collections.tts.helpers.helpers import binarize_attention
@@ -177,17 +179,23 @@ class FastPitchModule(NeuralModule):
             "pitch": NeuralType(('B', 'T'), RegressionValuesType()),
             "speaker": NeuralType(('B'), Index()),
             "pace": NeuralType(optional=True),
+            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType(), optional=True),
+            "attn_prior": NeuralType(('B', 'T', 'T'), ProbsType(), optional=True),
+            "mel_lens": NeuralType(('B'), LengthsType(), optional=True),
+            "input_lens": NeuralType(('B'), LengthsType(), optional=True),
         }
 
     @property
     def output_types(self):
         return {
             "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "spect_lens": NeuralType(('B'), SequenceToSequenceAlignmentType()),
-            "spect_mask": NeuralType(('B', 'D', 'T'), MaskType()),
             "durs_predicted": NeuralType(('B', 'T'), TokenDurationType()),
             "log_durs_predicted": NeuralType(('B', 'T'), TokenLogDurationType()),
             "pitch_predicted": NeuralType(('B', 'T'), RegressionValuesType()),
+            "attn_soft": NeuralType(('B', 'T', 'T'), SequenceToSequenceAlignmentType()),
+            "attn_logprob": NeuralType(('B', 'T', 'T'), SequenceToSequenceAlignmentType()),
+            "attn_hard": NeuralType(('B', 'T', 'T'), SequenceToSequenceAlignmentType()),
+            "attn_hard_dur": NeuralType(('B', 'T'), TokenDurationType()),
         }
 
     @typecheck()
@@ -227,7 +235,7 @@ class FastPitchModule(NeuralModule):
 
         log_durs_predicted = self.duration_predictor(enc_out, enc_mask)
         durs_predicted = torch.clamp(torch.exp(log_durs_predicted) - 1, 0, self.max_token_duration)
-        enc_out = enc_out + pitch_emb
+        enc_out = enc_out + pitch_emb.transpose(1, 2)
 
         attn_soft, attn_hard, attn_hard_dur, attn_logprob = None, None, None, None
         if self.learn_alignment and spec is None:
