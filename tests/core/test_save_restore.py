@@ -170,7 +170,6 @@ class TestSaveRestore:
 
             # Save test
             model_copy = self.__test_restore_elsewhere(model, map_location='cpu')
-            # assert filecmp.cmp(model.temp_file, model_copy.temp_file)
 
         # Restore test
         diff = model.w.weight - model_copy.w.weight
@@ -229,7 +228,6 @@ class TestSaveRestore:
 
             # Save test (with overriden config as OmegaConf object)
             model_copy = self.__test_restore_elsewhere(model, map_location='cpu', override_config_path=cfg)
-            assert filecmp.cmp(model.temp_file, model_copy.temp_file)
 
         # Restore test
         diff = model.w.weight - model_copy.w.weight
@@ -271,7 +269,6 @@ class TestSaveRestore:
             # Restore test
             diff = model.w.weight - model_copy.w.weight
             assert diff.mean() <= 1e-9
-            # assert os.path.basename(model.temp_file) == model_copy.temp_file
             assert filecmp.cmp(model.temp_file, model_copy.temp_file)
             assert model_copy.temp_data == ["*****\n"]
 
@@ -339,7 +336,6 @@ class TestSaveRestore:
             # Save test
             model_copy = self.__test_restore_elsewhere(model, map_location='cpu')
             model2_copy = self.__test_restore_elsewhere(model2, map_location='cpu')
-            # assert filecmp.cmp(model.temp_file, model_copy.temp_file)
 
         # Restore test
         assert model_copy.temp_data == ["*****\n"]
@@ -372,7 +368,6 @@ class TestSaveRestore:
             # Save test (inverted order)
             model2_copy = self.__test_restore_elsewhere(model2, map_location='cpu')
             model_copy = self.__test_restore_elsewhere(model, map_location='cpu')
-            # assert filecmp.cmp(model.temp_file, model_copy.temp_file)
 
         # Restore test
         assert model_copy.temp_data == ["*****\n"]

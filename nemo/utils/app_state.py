@@ -14,7 +14,7 @@
 
 from dataclasses import dataclass
 from threading import Lock
-from typing import Optional
+from typing import Dict, Optional
 
 from nemo.utils.metaclasses import Singleton
 
@@ -64,7 +64,7 @@ class AppState(metaclass=Singleton):
         self._model_weights_ckpt = "model_weights.ckpt"
         self._model_restore_path = None
         self._all_model_restore_paths = []
-        self._model_guid_map = {}
+        self._model_guid_map = {}  # type: Dict[str, ModelMetadataRegistry]
 
     @property
     def device_id(self):
@@ -369,7 +369,10 @@ class AppState(metaclass=Singleton):
     def register_model_guid(self, guid: str, restoration_path: Optional[str] = None):
         # Maps a guid to its restore path (None or last absolute path)
         with self.__lock:
-            idx = len(self._model_guid_map)
+            if guid in self._model_guid_map:
+                idx = self._model_guid_map[guid].gidx
+            else:
+                idx = len(self._model_guid_map)
             self._model_guid_map[guid] = ModelMetadataRegistry(guid, idx, restoration_path=restoration_path)
 
     def reset_model_guid_registry(self):
