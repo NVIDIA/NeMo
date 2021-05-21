@@ -156,7 +156,7 @@ class FastPitchModel(SpectrogramGenerator):
         return spect.transpose(1, 2)
 
     def training_step(self, batch, batch_idx):
-        attn_prior, durs, speakers = None, None
+        attn_prior, durs, speakers = None, None, None
         if self.learn_aligntment:
             audio, audio_lens, text, text_lens, attn_prior, pitch = batch
         else:
@@ -192,7 +192,7 @@ class FastPitchModel(SpectrogramGenerator):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        durs, speakers = None, None, None
+        durs, speakers = None, None
         if self.learn_aligntment:
             audio, audio_lens, text, text_lens, _, pitch = batch
         else:
