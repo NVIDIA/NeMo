@@ -69,8 +69,8 @@ class FastPitchModel(SpectrogramGenerator):
         self.learn_aligntment = False
         if "learn_alignment" in cfg:
             self.learn_aligntment = cfg.learn_alignment
-        super().__init__(cfg=cfg, trainer=trainer)
         self._parser = None
+        super().__init__(cfg=cfg, trainer=trainer)
 
         schema = OmegaConf.structured(FastPitchConfig)
         # ModelPT ensures that cfg is a DictConfig, but do this second check in case ModelPT changes
