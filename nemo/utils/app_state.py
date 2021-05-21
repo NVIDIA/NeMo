@@ -357,8 +357,7 @@ class AppState(metaclass=Singleton):
 
     @property
     def model_restore_path(self):
-        with self._lock:
-            restore_path = self._all_model_restore_paths[-1] if len(self._all_model_restore_paths) > 0 else None
+        restore_path = self._all_model_restore_paths[-1] if len(self._all_model_restore_paths) > 0 else None
         return restore_path
 
     @model_restore_path.setter
@@ -382,6 +381,5 @@ class AppState(metaclass=Singleton):
 
     def get_model_metadata_from_guid(self, guid):
         # Returns the global model idx and restoration path
-        with self._lock:
-            metadata = self._model_guid_map[guid]
+        metadata = self._model_guid_map[guid]
         return metadata
