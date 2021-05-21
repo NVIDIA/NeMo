@@ -272,7 +272,7 @@ class ModelPT(LightningModule, Model):
 
         # Process current tarfile artifacts by unpacking the previous tarfile and extract the artifacts
         # that are currently required.
-        if len(tarfile_artifacts) > 0:
+        if len(tarfile_artifacts) > 0 and self._is_model_being_restored():
             # Need to step into nemo archive to extract file
             # Get path where the command is executed - the artifacts will be "retrieved" there
             # (original .nemo behavior)
