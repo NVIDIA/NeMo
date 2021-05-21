@@ -16,6 +16,7 @@ from typing import Optional
 
 import torch
 from omegaconf import DictConfig
+from hydra.utils import instantiate
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dali
 
@@ -31,6 +32,10 @@ def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None)
     Returns:
         An instance of AudioToCharDataset.
     """
+    manifest_line_parser_cfg = config.get('manifest_line_parser', None)
+    if manifest_line_parser_cfg:
+        manifest_line_parser = instantiate(config=manifest_line_parser_cfg).__parse
+
     dataset = audio_to_text.AudioToCharDataset(
         manifest_filepath=config['manifest_filepath'],
         labels=config['labels'],
@@ -45,7 +50,7 @@ def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None)
         normalize=config.get('normalize_transcripts', False),
         trim=config.get('trim_silence', False),
         parser=config.get('parser', 'en'),
-        manifest_line_parser=config.get('manifest_line_parser', None),
+        manifest_line_parser=manifest_line_parser,
     )
     return dataset
 
