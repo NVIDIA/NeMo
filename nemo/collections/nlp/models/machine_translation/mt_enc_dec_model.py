@@ -285,6 +285,9 @@ class MTEncDecModel(EncDecNLPModel):
         # if user specifies one validation dataloader, then PTL reverts to giving a list of dictionary instead of a list of list of dictionary
         if isinstance(outputs[0], dict):
             outputs = [outputs]
+
+        losses = []
+        sb_scores = []
         for dataloader_idx, output in enumerate(outputs):
             if dataloader_idx == 0:
                 eval_loss = getattr(self, f'{mode}_loss').compute()
@@ -339,6 +342,8 @@ class MTEncDecModel(EncDecNLPModel):
             else:
                 sb_score = 0.0
 
+            losses.append(eval_loss.cpu().numpy())
+            sb_scores.append(sb_score)
             if dataloader_idx == 0:
                 self.log(f"{mode}_loss", eval_loss, sync_dist=True)
                 self.log(f"{mode}_sacreBLEU", sb_score, sync_dist=True)
@@ -347,6 +352,10 @@ class MTEncDecModel(EncDecNLPModel):
                 self.log(f"{mode}_loss_dl_index_{dataloader_idx}", eval_loss, sync_dist=True)
                 self.log(f"{mode}_sacreBLEU_dl_index_{dataloader_idx}", sb_score, sync_dist=True)
                 getattr(self, f'{mode}_loss_{dataloader_idx}').reset()
+
+        if len(losses) > 1:
+            self.log(f"{mode}_loss_avg", np.mean(losses), sync_dist=True)
+            self.log(f"{mode}_sacreBLEU_avg", np.mean(sb_scores), sync_dist=True)
 
     def validation_epoch_end(self, outputs):
         """
