@@ -261,10 +261,8 @@ class ModelPT(LightningModule, Model):
                 shutil.copy2(artiitem.path, os.path.join(nemo_file_folder, artifact_uniq_name))
 
                 # Update artifacts registry
-                new_artiitem = model_utils.ArtifactItem()
-                new_artiitem.path = "nemo:" + artifact_uniq_name
-                new_artiitem.path_type = model_utils.ArtifactPathType.TAR_PATH
-                self.artifacts[conf_path] = new_artiitem
+                artiitem.hashed_path = "nemo:" + artifact_uniq_name
+                self.artifacts[conf_path] = artiitem
 
             elif artiitem.path_type == model_utils.ArtifactPathType.TAR_PATH:
                 # process all tarfile artifacts in one go, so preserve key-value pair
@@ -310,7 +308,10 @@ class ModelPT(LightningModule, Model):
         if self.artifacts is not None and len(self.artifacts) > 0:
             conf = OmegaConf.load(path2yaml_file)
             for conf_path, item in self.artifacts.items():
-                conf.update_node(conf_path, item.path)
+                if item.hashed_path is None:
+                    conf.update_node(conf_path, item.path)
+                else:
+                    conf.update_node(conf_path, item.hashed_path)
             with open(path2yaml_file, 'w') as fout:
                 OmegaConf.save(config=conf, f=fout, resolve=True)
 
@@ -337,8 +338,6 @@ class ModelPT(LightningModule, Model):
                 self._update_artifact_paths(path2yaml_file=config_yaml)
             torch.save(self.state_dict(), model_weights)
             self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
-
-            AppState().register_model_guid(self.model_guid, restoration_path=save_path)
 
     @rank_zero_only
     def save_to(self, save_path: str):

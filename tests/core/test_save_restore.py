@@ -424,3 +424,25 @@ class TestSaveRestore:
         metadata = appstate.get_model_metadata_from_guid(model_copy.model_guid)
         assert metadata.guid != model.model_guid
         assert metadata.restoration_path == path
+
+    @pytest.mark.unit
+    def test_mock_save_to_multiple_times(self):
+        with tempfile.NamedTemporaryFile('w') as empty_file, tempfile.TemporaryDirectory() as tmpdir:
+            # Write some data
+            empty_file.writelines(["*****\n"])
+            empty_file.flush()
+
+            # Update config
+            cfg = _mock_model_config()
+            cfg.model.temp_file = empty_file.name
+
+            # Create model
+            model = MockModel(cfg=cfg.model, trainer=None)  # type: MockModel
+            model = model.to('cpu')
+
+            assert model.temp_file == empty_file.name
+
+            # Save test
+            model.save_to(os.path.join(tmpdir, 'save_0.nemo'))
+            model.save_to(os.path.join(tmpdir, 'save_1.nemo'))
+            model.save_to(os.path.join(tmpdir, 'save_2.nemo'))
