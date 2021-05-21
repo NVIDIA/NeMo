@@ -286,9 +286,8 @@ pipeline {
           steps {
             sh 'python examples/asr/speech_to_text.py \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-            +model.train_ds.use_dali=True \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-            +model.validation_ds.use_dali=True \
+            +model.preprocessor.use_dali=True \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_results'
@@ -301,10 +300,9 @@ pipeline {
         //   steps {
         //     sh 'python examples/asr/speech_to_text.py \
         //     model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-        //     +model.train_ds.use_dali=True \
         //     model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-        //     +model.validation_ds.use_dali=True \
         //     model.preprocessor._target_=nemo.collections.asr.modules.AudioToMFCCPreprocessor \
+        //     +model.preprocessor.use_dali=True \
         //     ~model.preprocessor.normalize \
         //     ~model.preprocessor.features \
         //     ~model.preprocessor.frame_splicing \

@@ -153,6 +153,8 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             mag_power (float): The power that the linear spectrogram is raised to
                 prior to multiplication with mel basis.
                 Defaults to 2 for a power spec
+            use_dali (bool): If True, uses NVIDIA DALI for feature extraction (if available)
+                If False, uses pytorch_stft and convolutions or torch.stft
         """
 
     def save_to(self, save_path: str):
@@ -211,6 +213,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         stft_conv=False,
         pad_value=0,
         mag_power=2.0,
+        use_dali=False,
     ):
         super().__init__(n_window_size, n_window_stride)
 
@@ -248,6 +251,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             stft_conv=stft_conv,
             pad_value=pad_value,
             mag_power=mag_power,
+            use_dali=use_dali,
         )
 
     def get_features(self, input_signal, length):
@@ -575,6 +579,7 @@ class AudioToMelSpectrogramPreprocessorConfig:
     stft_conv: bool = False
     pad_value: int = 0
     mag_power: float = 2.0
+    use_dali: bool = False
 
 
 @dataclass

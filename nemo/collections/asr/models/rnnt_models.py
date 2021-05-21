@@ -25,14 +25,13 @@ from pytorch_lightning import Trainer
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
-from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss_name
 from nemo.collections.asr.metrics.rnnt_wer import RNNTWER, RNNTDecoding
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
+from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType
 from nemo.utils import logging
 
 
@@ -395,18 +394,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
         audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='labels')
 
         shuffle = config['shuffle']
-        device = 'gpu' if torch.cuda.is_available() else 'cpu'
-        if config.get('use_dali', False):
-            device_id = self.local_rank if device == 'gpu' else None
-            dataset = audio_to_text_dataset.get_dali_char_dataset(
-                config=config,
-                shuffle=shuffle,
-                device_id=device_id,
-                global_rank=self.global_rank,
-                world_size=self.world_size,
-                preprocessor_cfg=self._cfg.preprocessor,
-            )
-            return dataset
 
         # Instantiate tarred dataset loader or normal dataset loader
         if config.get('is_tarred', False):
@@ -458,7 +445,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
             -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToBPEDataset`
             -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToCharDataset`
             -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
         """
         if 'shuffle' not in train_data_config:
             train_data_config['shuffle'] = True
@@ -494,7 +480,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
             -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToBPEDataset`
             -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToCharDataset`
             -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
         """
         if 'shuffle' not in val_data_config:
             val_data_config['shuffle'] = False
@@ -517,7 +502,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
             -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToBPEDataset`
             -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToCharDataset`
             -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
         """
         if 'shuffle' not in test_data_config:
             test_data_config['shuffle'] = False
@@ -535,10 +519,8 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
             input_signal_eltype = AudioSignal()
 
         return {
-            "input_signal": NeuralType(('B', 'T'), input_signal_eltype, optional=True),
-            "input_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
-            "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType(), optional=True),
-            "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "input_signal": NeuralType(('B', 'T'), input_signal_eltype),
+            "input_signal_length": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
@@ -549,9 +531,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
         }
 
     @typecheck()
-    def forward(
-        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None
-    ):
+    def forward(self, input_signal, input_signal_length):
         """
         Forward pass of the model. Note that for RNNT Models, the forward pass of the model is a 3 step process,
         and this method only performs the first step - forward of the acoustic model.
@@ -570,28 +550,15 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
                 `self.sample_rate` number of floating point values.
             input_signal_length: Vector of length B, that contains the individual lengths of the audio
                 sequences.
-            processed_signal: Tensor that represents a batch of processed audio signals,
-                of shape (B, D, T) that has undergone processing via some DALI preprocessor.
-            processed_signal_length: Vector of length B, that contains the individual lengths of the
-                processed audio sequences.
 
         Returns:
             A tuple of 2 elements -
             1) The log probabilities tensor of shape [B, T, D].
             2) The lengths of the acoustic sequence after propagation through the encoder, of shape [B].
         """
-        has_input_signal = input_signal is not None and input_signal_length is not None
-        has_processed_signal = processed_signal is not None and processed_signal_length is not None
-        if (has_input_signal ^ has_processed_signal) is False:
-            raise ValueError(
-                f"{self} Arguments ``input_signal`` and ``input_signal_length`` are mutually exclusive "
-                " with ``processed_signal`` and ``processed_signal_len`` arguments."
-            )
-
-        if not has_processed_signal:
-            processed_signal, processed_signal_length = self.preprocessor(
-                input_signal=input_signal, length=input_signal_length,
-            )
+        processed_signal, processed_signal_length = self.preprocessor(
+            input_signal=input_signal, length=input_signal_length,
+        )
 
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
@@ -605,10 +572,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
         signal, signal_len, transcript, transcript_len = batch
 
         # forward() only performs encoder forward
-        if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
-            encoded, encoded_len = self.forward(processed_signal=signal, processed_signal_length=signal_len)
-        else:
-            encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
+        encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
         del signal
 
         # During training, loss must be computed, so decoder forward is necessary
@@ -673,10 +637,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
         signal, signal_len, transcript, transcript_len = batch
 
         # forward() only performs encoder forward
-        if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
-            encoded, encoded_len = self.forward(processed_signal=signal, processed_signal_length=signal_len)
-        else:
-            encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
+        encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
         del signal
 
         tensorboard_logs = {}

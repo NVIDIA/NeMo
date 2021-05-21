@@ -22,6 +22,20 @@ from nemo.utils import config_utils
 
 
 class TestASRModulesBasicTests:
+    def compare_features(self, data1, len1, data2, len2, eps_mean_err=1e-3, eps_max_err=1e-2):
+        padded_shape = torch.Size([d1 if d1 > d2 else d2 for d1, d2 in zip(data1.shape, data2.shape)])
+        padded_data1 = torch.zeros(padded_shape)
+        padded_data2 = torch.zeros(padded_shape)
+        for i in range(len(data1)):
+            sample_len1 = len1[i]
+            sample_len2 = len2[i]
+            assert sample_len1 == sample_len2
+            padded_data1[i, :, :sample_len1] = data1[i, :, :sample_len1]
+            padded_data2[i, :, :sample_len2] = data2[i, :, :sample_len2]
+        diff = torch.abs(padded_data1 - padded_data2)
+        assert torch.mean(diff) <= eps_mean_err
+        assert torch.max(diff) <= eps_max_err
+
     @pytest.mark.unit
     def test_AudioToMelSpectrogramPreprocessor1(self):
         # Test 1 that should test the pure stft implementation as much as possible
@@ -38,13 +52,178 @@ class TestASRModulesBasicTests:
             length = torch.randint(low=161, high=500, size=[4])
             res1, length1 = instance1(input_signal=input_signal, length=length)
             res2, length2 = instance2(input_signal=input_signal, length=length)
-            for len1, len2 in zip(length1, length2):
-                assert len1 == len2
-            assert res1.shape == res2.shape
-            diff = torch.mean(torch.abs(res1 - res2))
-            assert diff <= 1e-3
-            diff = torch.max(torch.abs(res1 - res2))
-            assert diff <= 1e-2
+            self.compare_features(res1, length1, res2, length2)
+
+    @pytest.mark.unit
+    def test_AudioToMelSpectrogramPreprocessor_DALI_spectrogram(self):
+        for win_len_sec, n_win_len, win_hop_sec, n_win_hop, n_fft, mag_power, win_func in [
+            (0.02, None, 0.01, None, None, 1.0, 'hann'),
+            (None, 320, None, 160, None, 1.0, 'hann'),
+            (None, 320, None, 160, None, 2.0, 'hann'),
+            (None, 320, None, 320, None, 1.0, 'hann'),
+            (None, 320, None, 160, 512, 1.0, 'hann'),
+            (None, 320, None, 160, 512, 1.0, 'hamming'),
+            (None, 320, None, 160, 512, 1.0, 'blackman'),
+            (None, 320, None, 160, 512, 1.0, 'bartlett'),
+        ]:
+            instance1 = modules.AudioToMelSpectrogramPreprocessor(
+                window_size=win_len_sec,
+                n_window_size=n_win_len,
+                window_stride=win_hop_sec,
+                n_window_stride=n_win_hop,
+                n_fft=n_fft,
+                mag_power=mag_power,
+                window=win_func,
+                dither=0,
+                normalize=False,
+                preemph=0.0,
+                log=False,
+                pad_to=0,
+                use_dali=False,
+            )
+            instance2 = modules.AudioToMelSpectrogramPreprocessor(
+                window_size=win_len_sec,
+                n_window_size=n_win_len,
+                window_stride=win_hop_sec,
+                n_window_stride=n_win_hop,
+                n_fft=n_fft,
+                mag_power=mag_power,
+                window=win_func,
+                dither=0,
+                normalize=False,
+                preemph=0.0,
+                log=False,
+                pad_to=0,
+                use_dali=True,
+            )
+
+            # Ensure that the two functions behave similarily
+            for _ in range(5):
+                input_signal = torch.randn(size=(4, 512))
+                length = torch.randint(low=161, high=500, size=[4])
+                res1, length1 = instance1(input_signal=input_signal, length=length)
+                res2, length2 = instance2(input_signal=input_signal, length=length)
+                self.compare_features(res1, length1, res2, length2)
+
+    @pytest.mark.unit
+    def test_AudioToMelSpectrogramPreprocessor_DALI_melfilterbank(self):
+        for n_fft, features, lowfreq, highfreq in [
+            (512, 64, 0, None),
+            (512, 128, 4000, None),
+            (512, 64, 0, 8000),
+            (512, 64, 4000, 8000),
+        ]:
+            instance1 = modules.AudioToMelSpectrogramPreprocessor(
+                n_fft=n_fft,
+                features=features,
+                lowfreq=lowfreq,
+                highfreq=highfreq,
+                dither=0,
+                normalize=False,
+                preemph=0.0,
+                log=False,
+                pad_to=0,
+                use_dali=False,
+            )
+            instance2 = modules.AudioToMelSpectrogramPreprocessor(
+                n_fft=n_fft,
+                features=features,
+                lowfreq=lowfreq,
+                highfreq=highfreq,
+                dither=0,
+                normalize=False,
+                preemph=0.0,
+                log=False,
+                pad_to=0,
+                use_dali=True,
+            )
+
+            # Ensure that the two functions behave similarily
+            for _ in range(5):
+                input_signal = torch.randn(size=(4, 512))
+                length = torch.randint(low=161, high=500, size=[4])
+                res1, length1 = instance1(input_signal=input_signal, length=length)
+                res2, length2 = instance2(input_signal=input_signal, length=length)
+                self.compare_features(res1, length1, res2, length2)
+
+    @pytest.mark.unit
+    def test_AudioToMelSpectrogramPreprocessor_DALI_log(self):
+        for log_zero_guard_type, log_zero_guard_value in [
+            ("add", 2 ** -24),
+            ("clamp", 2 ** -24),
+            ("add", 1e-4),
+            ("clamp", 1e-4),
+        ]:
+            instance1 = modules.AudioToMelSpectrogramPreprocessor(
+                log=True,
+                log_zero_guard_type=log_zero_guard_type,
+                log_zero_guard_value=log_zero_guard_value,
+                dither=0,
+                normalize=False,
+                preemph=0.0,
+                pad_to=0,
+                use_dali=False,
+            )
+            instance2 = modules.AudioToMelSpectrogramPreprocessor(
+                log=True,
+                log_zero_guard_type=log_zero_guard_type,
+                log_zero_guard_value=log_zero_guard_value,
+                dither=0,
+                normalize=False,
+                preemph=0.0,
+                pad_to=0,
+                use_dali=True,
+            )
+
+            # Ensure that the two functions behave similarily
+            for _ in range(5):
+                input_signal = torch.randn(size=(4, 512))
+                length = torch.randint(low=161, high=500, size=[4])
+                res1, length1 = instance1(input_signal=input_signal, length=length)
+                res2, length2 = instance2(input_signal=input_signal, length=length)
+                self.compare_features(res1, length1, res2, length2)
+
+    @pytest.mark.unit
+    def test_AudioToMelSpectrogramPreprocessor_DALI_normalization(self):
+        for normalize_type, log in [
+            ("per_feature", False),
+            ("all_features", False),
+            ("per_feature", True),
+            ("all_features", True),
+        ]:
+            instance1 = modules.AudioToMelSpectrogramPreprocessor(
+                log=log, normalize=normalize_type, dither=0, preemph=0.0, pad_to=0, use_dali=False
+            )
+            instance2 = modules.AudioToMelSpectrogramPreprocessor(
+                log=log, normalize=normalize_type, dither=0, preemph=0.0, pad_to=0, use_dali=True
+            )
+
+            # Ensure that the two functions behave similarily
+            for _ in range(5):
+                input_signal = torch.randn(size=(4, 512))
+                length = torch.randint(low=161, high=500, size=[4])
+                res1, length1 = instance1(input_signal=input_signal, length=length)
+                res2, length2 = instance2(input_signal=input_signal, length=length)
+                self.compare_features(res1, length1, res2, length2, eps_mean_err=1e-3, eps_max_err=0.5)
+
+    @pytest.mark.unit
+    def test_AudioToMelSpectrogramPreprocessor_DALI_default_pipe(self):
+        instance1 = modules.AudioToMelSpectrogramPreprocessor(dither=0, use_dali=False)
+        instance2 = modules.AudioToMelSpectrogramPreprocessor(dither=0, use_dali=True)
+
+        # Ensure that the two functions behave similarily
+        for _ in range(5):
+            input_signal = torch.randn(size=(4, 512))
+            # DALI has a different border policy for the first sample of preemphasis filter.
+            # In the DALI implementation:   x[0] = x[0] - preemph * x[0]
+            # In the torch implementation:  x[0] = x[0]
+            # TODO: Use border='zero' when available in DALI.
+            # For now, just setting the first sample to 0
+            input_signal[:, 0] = 0
+            length = torch.randint(low=161, high=500, size=[4])
+            res1, length1 = instance1(input_signal=input_signal, length=length)
+            res2, length2 = instance2(input_signal=input_signal, length=length)
+            self.compare_features(res1, length1, res2, length2, eps_mean_err=1e-3, eps_max_err=0.5)
 
     @pytest.mark.unit
     def test_AudioToMelSpectrogramPreprocessor_config(self):
@@ -102,13 +281,7 @@ class TestASRModulesBasicTests:
             length = torch.randint(low=161, high=500, size=[4])
             res1, length1 = instance1(input_signal=input_signal, length=length)
             res2, length2 = instance2(input_signal=input_signal, length=length)
-            for len1, len2 in zip(length1, length2):
-                assert len1 == len2
-            assert res1.shape == res2.shape
-            diff = torch.mean(torch.abs(res1 - res2))
-            assert diff <= 3e-3
-            diff = torch.max(torch.abs(res1 - res2))
-            assert diff <= 3
+            self.compare_features(res1, length1, res2, length2, eps_mean_err=3e-3, eps_max_err=3)
 
     @pytest.mark.unit
     def test_SpectrogramAugmentationr(self):

@@ -32,6 +32,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 # This file contains code artifacts adapted from https://github.com/ryanleary/patter
+
 import math
 
 import librosa
@@ -40,6 +41,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from librosa.util import tiny
+from packaging import version
 from torch.autograd import Variable
 from torch_stft import STFT
 
@@ -47,6 +49,30 @@ from nemo.collections.asr.parts.preprocessing.perturb import AudioAugmentor
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.common.parts.patch_utils import stft_patch
 from nemo.utils import logging
+
+try:
+    import nvidia.dali as dali
+    from nvidia.dali.plugin.pytorch import feed_ndarray as feed_ndarray
+
+    DALI_VERSION = version.parse(dali.__version__)
+    DALI_VERSION_MIN = version.parse('1.0.0')
+
+    HAVE_DALI = True
+except ModuleNotFoundError:
+    HAVE_DALI = False
+
+
+class DALIContext:
+    """
+        Context used keep the DALI pipeline and related parameters
+    """
+
+    def __init__(self):
+        self.pipe = None
+        self.batch_size = None
+        self.device = None
+        self.device_id = None
+
 
 CONSTANT = 1e-5
 
@@ -223,8 +249,22 @@ class FilterbankFeatures(nn.Module):
         pad_value=0,
         mag_power=2.0,
         use_grads=False,
+        use_dali=False,
     ):
         super().__init__()
+        self.use_dali = use_dali
+        if self.use_dali:
+            if not HAVE_DALI:
+                raise ModuleNotFoundError(
+                    "AudioToMelSpectrogramPreprocessor: use_dali was set to True, but NVIDIA DALI is not installed."
+                    "To install, please follow https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html#nvidia-dali"
+                )
+            else:
+                logging.warning(
+                    f'Using NVIDIA DALI for feature extraction is experimental, not ready for production and is not fully supported. Use at your own risk.'
+                )
+        self.dali_ctx = DALIContext()
+
         if stft_conv or stft_exact_pad:
             logging.warning(
                 "Using torch_stft is deprecated and will be removed in 1.1.0. Please set stft_conv and stft_exact_pad "
@@ -251,6 +291,7 @@ class FilterbankFeatures(nn.Module):
             )
         logging.info(f"PADDING: {pad_to}")
 
+        self.sample_rate = sample_rate
         self.win_length = n_window_size
         self.hop_length = n_window_stride
         self.n_fft = n_fft or 2 ** math.ceil(math.log2(self.win_length))
@@ -258,6 +299,8 @@ class FilterbankFeatures(nn.Module):
         self.stft_exact_pad = stft_exact_pad
         self.stft_conv = stft_conv
 
+        if use_dali:
+            logging.info("STFT using NVIDIA DALI")
         if stft_conv:
             logging.info("STFT using conv")
             if stft_exact_pad:
@@ -278,6 +321,7 @@ class FilterbankFeatures(nn.Module):
             }
             window_fn = torch_windows.get(window, None)
             window_tensor = window_fn(self.win_length, periodic=False) if window_fn else None
+            self.window_tensor_lst = window_tensor.numpy().tolist() if window_tensor is not None else None
             self.register_buffer("window", window_tensor)
             self.stft = lambda x: stft_patch(
                 x,
@@ -296,7 +340,8 @@ class FilterbankFeatures(nn.Module):
         self.nfilt = nfilt
         self.preemph = preemph
         self.pad_to = pad_to
-        highfreq = highfreq or sample_rate / 2
+        self.lowfreq = lowfreq
+        self.highfreq = highfreq = highfreq or sample_rate / 2
 
         filterbanks = torch.tensor(
             librosa.filters.mel(sample_rate, self.n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq), dtype=torch.float
@@ -335,12 +380,15 @@ class FilterbankFeatures(nn.Module):
         logging.debug(f"fmax: {highfreq}")
         logging.debug(f"using grads: {use_grads}")
 
-    def log_zero_guard_value_fn(self, x):
+    def can_use_dali(self):
+        return self.use_dali
+
+    def log_zero_guard_value_fn(self, dtype):
         if isinstance(self.log_zero_guard_value, str):
             if self.log_zero_guard_value == "tiny":
-                return torch.finfo(x.dtype).tiny
+                return torch.finfo(dtype).tiny
             elif self.log_zero_guard_value == "eps":
-                return torch.finfo(x.dtype).eps
+                return torch.finfo(dtype).eps
             else:
                 raise ValueError(
                     f"{self} received {self.log_zero_guard_value} for the "
@@ -363,7 +411,7 @@ class FilterbankFeatures(nn.Module):
     def filter_banks(self):
         return self.fb
 
-    def forward(self, x, seq_len):
+    def forward_torch(self, x, seq_len):
         seq_len = self.get_seq_len(seq_len.float())
 
         if self.stft_pad_amount is not None:
@@ -401,9 +449,9 @@ class FilterbankFeatures(nn.Module):
         # log features if required
         if self.log:
             if self.log_zero_guard_type == "add":
-                x = torch.log(x + self.log_zero_guard_value_fn(x))
+                x = torch.log(x + self.log_zero_guard_value_fn(x.dtype))
             elif self.log_zero_guard_type == "clamp":
-                x = torch.log(torch.clamp(x, min=self.log_zero_guard_value_fn(x)))
+                x = torch.log(torch.clamp(x, min=self.log_zero_guard_value_fn(x.dtype)))
             else:
                 raise ValueError("log_zero_guard_type was not understood")
 
@@ -428,5 +476,175 @@ class FilterbankFeatures(nn.Module):
             pad_amt = x.size(-1) % pad_to
             if pad_amt != 0:
                 x = nn.functional.pad(x, (0, pad_to - pad_amt), value=self.pad_value)
-
         return x, seq_len
+
+    def _daligraph_reflect_pad(self, x, x_len, stft_pad_amount):
+        def flip_1d(x):
+            # TODO(janton): remove the layout trick when Flip supports arbitrary data layouts
+            x = dali.fn.reshape(x, shape=(-1, 1, 1), layout="HWC")
+            x = dali.fn.flip(x, vertical=1)
+            x = dali.fn.reshape(x, shape=(-1,), layout="t")
+            return x
+
+        pad_start = dali.fn.slice(x, start=1, shape=stft_pad_amount, axes=(0,))
+        pad_start = flip_1d(pad_start)
+
+        pad_end = dali.fn.slice(x, start=(x_len - stft_pad_amount - 1), shape=stft_pad_amount, axes=(0,))
+        pad_end = flip_1d(pad_end)
+        x = dali.fn.cat(pad_start, x, pad_end, axis=0)
+        return x
+
+    def _daligraph_splice_frames(self, x, nfeatures, x_len, stacking=1, subsampling=1):
+        if stacking > 1:
+            seq = [x]
+            for n in range(1, stacking):
+                f = dali.fn.slice(x, start=n, shape=x_len, axes=(1,), out_of_bounds_policy='pad', fill_values=0)
+                seq.append(f)
+            x = dali.fn.cat(*seq, axis=0)
+            nfeatures = nfeatures * stacking
+        if subsampling > 1:
+            out_len = (x_len + subsampling - 1) // subsampling
+            m = dali.fn.transforms.scale(scale=[subsampling, 1], center=[0.5, 0])
+            x = dali.fn.reshape(x, rel_shape=[1, 1, -1], layout="HWC")  # Layout required by WarpAffine
+            x = dali.fn.warp_affine(
+                x, matrix=m, size=dali.fn.cat(nfeatures, out_len), interp_type=dali.types.INTERP_NN
+            )
+            x = dali.fn.reshape(x, rel_shape=[1, 1], layout="ft")
+        return x
+
+    def init_dali_pipeline(self, batch_size, device, device_id, num_threads=4):
+        pipe = dali.pipeline.Pipeline(
+            batch_size=batch_size,
+            num_threads=num_threads,
+            device_id=device_id,
+            prefetch_queue_depth=1,
+            exec_async=True,
+            exec_pipelined=True,
+        )
+        with pipe:
+            audio = dali.fn.external_source(name="input_signal", device=device)
+            audio_len = dali.fn.external_source(name="length", device='cpu')
+
+            if self.stft_pad_amount is not None:
+                audio = self._daligraph_reflect_pad(audio, audio_len, self.stft_pad_amount)
+                audio_len = audio_len + 2 * self.stft_pad_amount
+
+            spec_len = dali.fn.cast((audio_len // self.hop_length) + 1, dtype=dali.types.INT64)
+
+            # Additive gaussian noise (dither)
+            if self.training and self.dither > 0.0:
+                gaussian_noise = dali.fn.random.normal(device=device)
+                audio = audio + self.dither * gaussian_noise
+
+            # Preemphasis filter
+            if self.preemph > 0.0:
+                audio = dali.fn.preemphasis_filter(audio, preemph_coeff=self.preemph)
+
+            # Power spectrogram
+            spec = dali.fn.spectrogram(
+                audio,
+                nfft=self.n_fft,
+                power=self.mag_power,
+                window_fn=self.window_tensor_lst,
+                window_length=self.win_length,
+                window_step=self.hop_length,
+                center_windows=True,
+                reflect_padding=True,
+            )
+
+            # Spectrogram to Mel Spectrogram
+            spec = dali.fn.mel_filter_bank(
+                spec, sample_rate=self.sample_rate, nfilter=self.nfilt, freq_low=self.lowfreq, freq_high=self.highfreq,
+            )
+
+            # log features if required
+            if self.log:
+                eps = self.log_zero_guard_value_fn(torch.float32)
+                if self.log_zero_guard_type == "add":
+                    spec = spec + eps
+                elif self.log_zero_guard_type == "clamp":
+                    spec = dali.math.max(spec, eps)
+                else:
+                    raise ValueError("log_zero_guard_type was not understood")
+                # Natural Logarithm
+                spec = dali.fn.to_decibels(spec, multiplier=math.log(10), reference=1.0, cutoff_db=-120)
+
+            if self.frame_splicing > 1:
+                spec = self._daligraph_splice_frames(spec, self.nfilt, spec_len, stacking=self.frame_splicing)
+
+            # Trimming Spectrogram to match the reference implementation
+            start = dali.types.Constant(0, shape=[], dtype=dali.types.INT64, device='cpu')
+            spec = dali.fn.slice(spec, start, spec_len, axes=(1,))
+
+            # Normalization
+            normalization_axes = None
+            if self.normalize:
+                if self.normalize == "per_feature":
+                    normalization_axes = [1]
+                elif self.normalize == "all_features":
+                    normalization_axes = [0, 1]
+                elif "fixed_mean" in self.normalize and "fixed_std" in self.normalize:
+                    raise ValueError("Normalization with fixed mean/stddev not yet supported.")
+                    # TODO: implement
+                else:
+                    raise ValueError(f"Unknown normalization type: {self.normalize}")
+
+                # Normalization
+                spec = dali.fn.normalize(spec, axes=normalization_axes, epsilon=1e-5 ** 2, ddof=1)
+
+            # Pads temporal dimension to take the length of the longest sample in the batch, padded up to a multiple of ``pad_to``
+            pad_align = (self.pad_to,) if self.pad_to > 0 else None
+            pad_shape = (self.max_length,) if self.pad_to == 'max' else (-1,)
+            spec = dali.fn.pad(spec, fill_value=self.pad_value, axes=(1,), align=pad_align, shape=pad_shape)
+            if device == 'gpu':
+                spec_len = spec_len.gpu()
+        pipe.set_outputs(spec, spec_len)
+        # Building DALI pipeline
+        pipe.build()
+        return pipe
+
+    def forward_dali(self, x, x_len):
+        device = x.device
+        device_str = str(device)
+        device_str_toks = device_str.split(':')
+        device_type_str = 'gpu' if device_str_toks[0] == 'cuda' else 'cpu'
+        device_id = None
+        if device_type_str == 'gpu':
+            device_id = int(device_str_toks[1])
+            cuda_stream = torch.cuda.current_stream(device=device)
+        else:
+            device_id = None
+            cuda_stream = None
+        batch_size = x.shape[0]
+        if (
+            self.dali_ctx.batch_size != batch_size
+            or self.dali_ctx.device != device_type_str
+            or self.dali_ctx.device_id != device_id
+        ):
+            self.dali_ctx.batch_size = batch_size
+            self.dali_ctx.device = device_type_str
+            self.dali_ctx.device_id = device_id
+            self.dali_ctx.pipe = self.init_dali_pipeline(batch_size, device_type_str, device_id)
+
+        self.dali_ctx.pipe.feed_input("input_signal", x)
+        self.dali_ctx.pipe.feed_input("length", x_len.cpu())
+        out0, out1 = self.dali_ctx.pipe.run()
+
+        out0 = out0.as_tensor()
+        out1 = out1.as_tensor()
+
+        processed_signal = torch.zeros(out0.shape(), dtype=torch.float32, device=device)
+        feed_ndarray(out0, processed_signal, cuda_stream=cuda_stream)
+
+        processed_length = torch.zeros(out1.shape(), dtype=torch.long, device=device)
+        feed_ndarray(out1, processed_length, cuda_stream=cuda_stream)
+        processed_length = processed_length.reshape(-1)
+
+        return processed_signal, processed_length
+
+    def forward(self, input_signal, length):
+        if self.can_use_dali():
+            processed_signal, processed_length = self.forward_dali(input_signal, length)
+        else:
+            processed_signal, processed_length = self.forward_torch(input_signal, length)
+        return processed_signal, processed_length
