@@ -21,30 +21,26 @@ from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
-
-from nemo.collections.asr.data.audio_to_text import FastPitchDataset
+from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursF0Dataset, FastPitchDataset
 from nemo.collections.common.parts.preprocessing import parsers
-from nemo.collections.tts.losses.fastpitchloss import FastPitchLoss
-from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursF0Dataset
-
+from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
-from nemo.collections.tts.losses.fastpitchloss import MelLoss, PitchLoss, DurationLoss
-
+from nemo.collections.tts.losses.fastpitchloss import DurationLoss, MelLoss, PitchLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import FastPitchModule
+from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
+    Index,
+    LengthsType,
     MelSpectrogramType,
+    ProbsType,
     RegressionValuesType,
     TokenDurationType,
     TokenIndex,
-    Index,
-    ProbsType,
-    LengthsType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
-from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 
 
 @dataclass
@@ -57,7 +53,7 @@ class FastPitchConfig:
     pitch_predictor: Dict[Any, Any] = MISSING
 
 
-class FastPitchModel(SpectrogramGenerator):
+class FastPitchModel(SpectrogramGenerator, Exportable):
     """FastPitch Model that is used to generate mel spectrograms from text"""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -350,3 +346,34 @@ class FastPitchModel(SpectrogramGenerator):
 
         return list_of_models
 
+    @property
+    def input_module(self):
+        return self.fastpitch
+
+    @property
+    def output_module(self):
+        return self.fastpitch
+
+    def forward_for_export(self, text):
+        (
+            spect,
+            durs_predicted,
+            log_durs_predicted,
+            pitch_predicted,
+            attn_soft,
+            attn_logprob,
+            attn_hard,
+            attn_hard_dur,
+            pitch,
+        ) = self.fastpitch(text=text)
+        return spect, durs_predicted, log_durs_predicted, pitch_predicted
+
+    @property
+    def disabled_deployment_input_names(self):
+        """Implement this method to return a set of input names disabled for export"""
+        return set(["durs", "pitch", "speaker", "pace", "spec", "attn_prior", "mel_lens", "input_lens"])
+
+    @property
+    def disabled_deployment_output_names(self):
+        """Implement this method to return a set of input names disabled for export"""
+        return set(["attn_soft", "pitch", "attn_logprob", "attn_hard", "attn_hard_dur",])

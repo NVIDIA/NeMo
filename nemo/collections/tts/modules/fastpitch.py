@@ -45,25 +45,24 @@
 import torch
 import torch.nn.functional as F
 from torch import nn as nn
-from torch.nn.utils.rnn import pad_sequence
 
+from nemo.collections.tts.helpers.helpers import binarize_attention_parallel
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types.elements import (
     EncodedRepresentation,
     Index,
+    LengthsType,
+    LogprobsType,
     MaskType,
     MelSpectrogramType,
+    ProbsType,
     RegressionValuesType,
     SequenceToSequenceAlignmentType,
     TokenDurationType,
     TokenIndex,
     TokenLogDurationType,
-    ProbsType,
-    LengthsType,
-    LogprobsType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.collections.tts.helpers.helpers import binarize_attention_parallel
 
 
 def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
@@ -90,9 +89,9 @@ def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
 
 def average_pitch(pitch, durs):
     durs_cums_ends = torch.cumsum(durs, dim=1).long()
-    durs_cums_starts = torch.nn.functional.pad(durs_cums_ends[:, :-1], (1, 0))
-    pitch_nonzero_cums = torch.nn.functional.pad(torch.cumsum(pitch != 0.0, dim=2), (1, 0))
-    pitch_cums = torch.nn.functional.pad(torch.cumsum(pitch, dim=2), (1, 0))
+    durs_cums_starts = F.pad(durs_cums_ends[:, :-1], (1, 0))
+    pitch_nonzero_cums = F.pad(torch.cumsum(pitch != 0.0, dim=2), (1, 0))
+    pitch_cums = F.pad(torch.cumsum(pitch, dim=2), (1, 0))
 
     bs, l = durs_cums_ends.size()
     n_formants = pitch.size(1)
@@ -300,3 +299,13 @@ class FastPitchModule(NeuralModule):
             pitch,
         )
 
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        par = next(self.parameters())
+        inp = torch.randint(0, 146, (1, 44), device=par.device, dtype=torch.int64)
+
+        return ({'text': inp},)

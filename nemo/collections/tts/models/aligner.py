@@ -21,7 +21,7 @@ from pytorch_lightning.loggers import WandbLogger
 from torch import nn
 
 from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursF0Dataset
-from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, plot_alignment_to_numpy, binarize_attention
+from nemo.collections.tts.helpers.helpers import binarize_attention, get_mask_from_lengths, plot_alignment_to_numpy
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import typecheck
