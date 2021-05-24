@@ -462,7 +462,7 @@ class MTDataPreproc:
         encoder_tokenizer_model,
         encoder_bpe_dropout,
         encoder_model_name,
-        encoer_tokenizer_r2l,
+        encoder_tokenizer_r2l,
         decoder_tokenizer_name,
         decoder_tokenizer_model,
         decoder_bpe_dropout,
