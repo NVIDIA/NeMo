@@ -693,7 +693,7 @@ class BeamSearchSequenceGeneratorWithLanguageModel(GreedySequenceGenerator):
             *all args of BeamSearchSequenceGenerator class
             language_model: nemo TransformerLMModel
             fusion_coef: coefficient before language model score, the resulting score is
-                score = log P_NMT(y|x) + fusion_coef * log P_LM(y|x)
+                score = log P_NMT(y|x) + fusion_coef * log P_LM(y)
         Kwargs:
             all remaining parameters of GreedySequenceGenerator class
         """

@@ -271,12 +271,14 @@ class MTDataPreproc:
         out_dir,
         encoder_tokenizer_name,
         encoder_tokenizer_model,
+        encoder_tokenizer_r2l,
         encoder_bpe_dropout,
         encoder_model_name,
         decoder_tokenizer_name,
         decoder_tokenizer_model,
         decoder_bpe_dropout,
         decoder_model_name,
+        decoder_tokenizer_r2l,
         max_seq_length,
         min_seq_length,
         tokens_in_batch,
@@ -350,6 +352,8 @@ class MTDataPreproc:
                         decoder_bpe_dropout=decoder_bpe_dropout,
                         decoder_model_name=decoder_model_name,
                         fragment_index=fragment_index,
+                        encoder_tokenizer_r2l=encoder_tokenizer_r2l,
+                        decoder_tokenizer_r2l=decoder_tokenizer_r2l
                     )
                     for fragment_index, lines_indices in enumerate(lines_partition)
                 )
@@ -458,10 +462,12 @@ class MTDataPreproc:
         encoder_tokenizer_model,
         encoder_bpe_dropout,
         encoder_model_name,
+        encoer_tokenizer_r2l,
         decoder_tokenizer_name,
         decoder_tokenizer_model,
         decoder_bpe_dropout,
         decoder_model_name,
+        decoder_tokenizer_r2l,
         fragment_index,
     ):
         start = lines_indices[0]
@@ -494,10 +500,12 @@ class MTDataPreproc:
             encoder_tokenizer_model=encoder_tokenizer_model,
             encoder_bpe_dropout=encoder_bpe_dropout,
             encoder_model_name=encoder_model_name,
+            encoder_tokenizer_r2l=encoder_tokenizer_r2l,
             decoder_tokenizer_name=decoder_tokenizer_name,
             decoder_tokenizer_model=decoder_tokenizer_model,
             decoder_bpe_dropout=decoder_bpe_dropout,
             decoder_model_name=decoder_model_name,
+            decoder_tokenizer_r2l=decoder_tokenizer_r2l,
             fragment_index=fragment_index,
         )
 
@@ -805,12 +813,14 @@ class MTDataPreproc:
         num_tokens,
         encoder_tokenizer_name,
         encoder_tokenizer_model,
+        encoder_tokenizer_r2l,
         encoder_bpe_dropout,
         encoder_model_name,
         decoder_tokenizer_name,
         decoder_tokenizer_model,
         decoder_bpe_dropout,
         decoder_model_name,
+        decoder_tokenizer_r2l,
         fragment_index,
     ):
         """
@@ -834,14 +844,16 @@ class MTDataPreproc:
             use_cache=False,
         )
         encoder_tokenizer, decoder_tokenizer = MTDataPreproc.get_enc_dec_tokenizers(
-            encoder_tokenizer_name,
-            encoder_tokenizer_model,
-            encoder_bpe_dropout,
-            encoder_model_name,
-            decoder_tokenizer_name,
-            decoder_tokenizer_model,
-            decoder_bpe_dropout,
-            decoder_model_name,
+            encoder_tokenizer_name=encoder_tokenizer_name,
+            encoder_tokenizer_model=encoder_tokenizer_model,
+            encoder_bpe_dropout=encoder_bpe_dropout,
+            encoder_model_name=encoder_model_name,
+            encoder_r2l=encoder_tokenizer_r2l,
+            decoder_tokenizer_name=decoder_tokenizer_name,
+            decoder_tokenizer_model=decoder_tokenizer_model,
+            decoder_bpe_dropout=decoder_bpe_dropout,
+            decoder_model_name=decoder_model_name,
+            decoder_r2l=decoder_tokenizer_r2l
         )
         dataset.batchify(encoder_tokenizer, decoder_tokenizer)
 
