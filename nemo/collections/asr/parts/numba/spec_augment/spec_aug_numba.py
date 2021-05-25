@@ -16,33 +16,62 @@ def spec_augment(
     time_widths: torch.Tensor,
     mask_value: float,
 ):
-    f = cuda.blockIdx.x
-    t = cuda.blockIdx.y
-    tid = cuda.threadIdx.x
+    """
+    Numba CUDA kernel to perform SpecAugment in-place on the GPU.
+
+    Args:
+        x: Pytorch tensor of shape [B, F, T] with the acoustic features.
+        x_len: Pytorch tensor of shape [B] with the lengths of the padded sequence.
+        freq_starts: Pytorch tensor of shape [B] with the start indices of freq masks.
+        freq_widths: Pytorch tensor of shape [B] with the width of freq masks.
+        time_starts: Pytorch tensor of shape [B] with the start indices of time masks.
+        time_widths: Pytorch tensor of shape [B] with the width of time masks.
+        mask_value: Float value that will be used as mask value.
+    """
+    f = cuda.blockIdx.x  # indexes the Freq dim
+    t = cuda.blockIdx.y  # indexes the Time dim
+    tid = cuda.threadIdx.x  # index of the current mask
     threads_per_block = cuda.blockDim.x
 
+    # Compute the number of masks over freq axis
     len_f = freq_starts.shape[0]
+    # For `len_f` number of freq masks that must be applied
     for fidx in range(0, len_f, threads_per_block):
-        ft_idx = fidx * threads_per_block + tid
+        # Resolve the index of the freq mask (case where more masks than THREAD_BUFFER)
+        fm_idx = fidx * threads_per_block + tid
 
-        if ft_idx < len_f:
-            f_start = freq_starts[ft_idx]
-            f_width = freq_widths[ft_idx]
+        # If resolved freq mask index < total number of freq masks
+        if fm_idx < len_f:
+            # Access the start index and width of this freq mask
+            f_start = freq_starts[fm_idx]
+            f_width = freq_widths[fm_idx]
 
+            # If block idx `f` >= start and < (start + width) of this freq mask
             if f >= f_start and f < (f_start + f_width):
+                # For all samples in the batch, apply the freq mask
                 for b in range(x.shape[0]):
                     x[b, f, t] = mask_value
 
+    # Compute the number of masks over time axis
     len_t = time_starts.shape[0]
+    # For `len_t` number of freq masks that must be applied
     for tidx in range(0, len_t, threads_per_block):
-        tt_idx = tidx * threads_per_block + tid
+        # Resolve the index of the freq mask (case where more masks than THREAD_BUFFER)
+        tm_idx = tidx * threads_per_block + tid
 
-        if tt_idx < len_t:
-            t_start = time_starts[tt_idx]
-            t_width = time_widths[tt_idx]
+        # If resolved time mask index < total number of time masks
+        if tm_idx < len_t:
+            # Access the start index and width of this time mask
+            t_start = time_starts[tm_idx]
+            t_width = time_widths[tm_idx]
 
+            # If block idx `t` >= start and < (start + width) of this time mask
             if t >= t_start and t < (t_start + t_width):
-                for b in range(x.shape[0]):  # current t < current max len x_len[b]
+                # For all samples in the batch, apply the time mask
+                for b in range(x.shape[0]):
+                    # Current block idx `t` < current seq length x_len[b]
+                    # This ensure that we mask only upto the length of that sample
+                    # Everything after that index is padded value so unnecessary to mask
                     if t < x_len[b]:
                         x[b, f, t] = mask_value
 
@@ -52,16 +81,20 @@ class SpecAugmentNumba(nn.Module):
     Zeroes out(cuts) random continuous horisontal or
     vertical segments of the spectrogram as described in
     SpecAugment (https://arxiv.org/abs/1904.08779).
-    params:
-    freq_masks - how many frequency segments should be cut
-    time_masks - how many time segments should be cut
-    freq_width - maximum number of frequencies to be cut in one segment
-    time_width - maximum number of time steps to be cut in one segment.
-        Can be a positive integer or a float value in the range [0, 1].
-        If positive integer value, defines maximum number of time steps
-        to be cut in one segment.
-        If a float value, defines maximum percentage of timesteps that
-        are cut adaptively.
+
+    Utilizes a Numba CUDA kernel to perform inplace edit of the input without loops.
+
+    Args:
+        freq_masks - how many frequency segments should be cut
+        time_masks - how many time segments should be cut
+        freq_width - maximum number of frequencies to be cut in one segment
+        time_width - maximum number of time steps to be cut in one segment.
+            Can be a positive integer or a float value in the range [0, 1].
+            If positive integer value, defines maximum number of time steps
+            to be cut in one segment.
+            If a float value, defines maximum percentage of timesteps that
+            are cut adaptively.
+        rng: Ignored.
     """
 
     def __init__(
@@ -76,6 +109,8 @@ class SpecAugmentNumba(nn.Module):
         self.time_width = time_width
 
         self.mask_value = mask_value
+
+        self.rng = rng
 
         if isinstance(time_width, int):
             self.adaptive_temporal_width = False
@@ -94,20 +129,24 @@ class SpecAugmentNumba(nn.Module):
         else:
             time_width = self.time_width
 
+        # Construct the freq and time masks as well as start positions
         freq_starts = torch.randint(0, sh[1] - self.freq_width, size=[self.freq_masks], device=x.device)
         freq_lengths = torch.randint(0, self.freq_width, size=[self.freq_masks], device=x.device)
         time_starts = torch.randint(0, sh[2] - time_width, size=[self.time_masks], device=x.device)
         time_lengths = torch.randint(0, time_width, size=[self.time_masks], device=x.device)
 
+        # Setup CUDA stream
         stream = cuda.external_stream(torch.cuda.current_stream(x.device).cuda_stream)
 
+        # Parallelize over freq and time axis, threads over max(num_freq_masks, num_time_masks)
+        # Sequential (per mask) over batch size.
         blocks_per_grid = [sh[1], sh[2]]
         threads_per_block = min(THREAD_BUFFER, max(self.freq_masks, self.time_masks))
+
+        # Launch CUDA kernel
         spec_augment[blocks_per_grid, threads_per_block, stream, 0](
             x, x_len, freq_starts, freq_lengths, time_starts, time_lengths, self.mask_value
         )
-
-        torch.cuda.synchronize()
 
         return x
 
