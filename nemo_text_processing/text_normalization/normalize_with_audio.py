@@ -15,6 +15,7 @@
 import json
 import os
 import re
+import time
 from argparse import ArgumentParser
 from typing import List, Tuple
 
@@ -28,6 +29,7 @@ from nemo.collections.asr.models import ASRModel
 
 try:
     import pynini
+    from pynini.lib import rewrite
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -83,7 +85,6 @@ class NormalizerWithAudio(Normalizer):
 
         Args:
             text: string that may include semiotic classes
-            transcript: transcription of the audio
             verbose: whether to print intermediate meta information
 
         Returns:
@@ -96,12 +97,7 @@ class NormalizerWithAudio(Normalizer):
             return text
         text = pynini.escape(text)
 
-        def get_tagged_texts(text):
-            tagged_lattice = self.find_tags(text)
-            tagged_texts = self.select_all_semiotic_tags(tagged_lattice)
-            return tagged_texts
-
-        tagged_texts = set(get_tagged_texts(text))
+        tagged_texts = rewrite.rewrites(text, self.tagger.fst)
         normalized_texts = []
 
         for tagged_text in tagged_texts:
@@ -110,23 +106,21 @@ class NormalizerWithAudio(Normalizer):
             tags_reordered = self.generate_permutations(tokens)
             for tagged_text_reordered in tags_reordered:
                 tagged_text_reordered = pynini.escape(tagged_text_reordered)
-
-                verbalizer_lattice = self.find_verbalizer(tagged_text_reordered)
-                if verbalizer_lattice.num_states() == 0:
+                try:
+                    verbalized = rewrite.rewrites(tagged_text_reordered, self.verbalizer.fst)
+                    normalized_texts.extend(verbalized)
+                except pynini.lib.rewrite.Error:
                     continue
-
-                verbalized = self.get_all_verbalizers(verbalizer_lattice)
-                for verbalized_option in verbalized:
-                    normalized_texts.append(verbalized_option)
 
         if len(normalized_texts) == 0:
             raise ValueError()
-
         normalized_texts = [post_process(t) for t in normalized_texts]
         normalized_texts = set(normalized_texts)
         return normalized_texts
 
-    def select_best_match(self, normalized_texts: List[str], transcript: str, verbose: bool = False):
+    def select_best_match(
+        self, normalized_texts: List[str], transcript: str, verbose: bool = False, remove_punct: bool = False
+    ):
         """
         Selects the best normalization option based on the lowest CER
 
@@ -134,11 +128,12 @@ class NormalizerWithAudio(Normalizer):
             normalized_texts: normalized text options
             transcript: ASR model transcript of the audio file corresponding to the normalized text
             verbose: whether to print intermediate meta information
+            remove_punct: whether to remove punctuation before calculating CER
 
         Returns:
             normalized text with the lowest CER and CER value
         """
-        normalized_texts = calculate_cer(normalized_texts, transcript)
+        normalized_texts = calculate_cer(normalized_texts, transcript, remove_punct)
         normalized_texts = sorted(normalized_texts, key=lambda x: x[1])
         normalized_text, cer = normalized_texts[0]
 
@@ -148,16 +143,6 @@ class NormalizerWithAudio(Normalizer):
                 print(option)
             print('-' * 30)
         return normalized_text, cer
-
-    def select_all_semiotic_tags(self, lattice: 'pynini.FstLike', n=100) -> List[str]:
-        tagged_text_options = pynini.shortestpath(lattice, nshortest=n)
-        tagged_text_options = [t[1] for t in tagged_text_options.paths("utf8").items()]
-        return tagged_text_options
-
-    def get_all_verbalizers(self, lattice: 'pynini.FstLike', n=100) -> List[str]:
-        verbalized_options = pynini.shortestpath(lattice, nshortest=n)
-        verbalized_options = [t[1] for t in verbalized_options.paths("utf8").items()]
-        return verbalized_options
 
 
 def calculate_cer(normalized_texts: List[str], transcript: str, remove_punct=False) -> List[Tuple[str, float]]:
@@ -266,6 +251,7 @@ def parse_args():
         '--model', type=str, default='QuartzNet15x5Base-En', help='Pre-trained model name or path to model checkpoint'
     )
     parser.add_argument("--verbose", help="print info for debugging", action='store_true')
+    parser.add_argument("--remove_punct", help="remove punctuation before calculating cer", action='store_true')
     return parser.parse_args()
 
 
@@ -275,7 +261,7 @@ def normalize_manifest(args):
         manifest: path to .json manifest file.
     """
     normalizer = NormalizerWithAudio(input_case=args.input_case)
-    manifest_out = args.audio_data.replace('.json', '_nemo_wfst.json')
+    manifest_out = args.audio_data.replace('.json', '_normalized.json')
     asr_model = None
     with open(args.audio_data, 'r') as f:
         with open(manifest_out, 'w') as f_out:
@@ -289,10 +275,11 @@ def normalize_manifest(args):
                         asr_model = get_asr_model(args.model)
                     transcript = asr_model.transcribe([audio])[0]
                 normalized_texts = normalizer.normalize_with_audio(line['text'], args.verbose)
-                normalized_text, cer = normalizer.select_best_match(normalized_texts, transcript, args.verbose)
-
-                line['nemo_wfst'] = normalized_text
-                line['CER_nemo_wfst'] = cer
+                normalized_text, cer = normalizer.select_best_match(
+                    normalized_texts, transcript, args.verbose, args.remove_punct
+                )
+                line['nemo_normalized'] = normalized_text
+                line['CER_nemo_normalized'] = cer
                 f_out.write(json.dumps(line, ensure_ascii=False) + '\n')
     print(f'Normalized version saved at {manifest_out}')
 
@@ -300,18 +287,25 @@ def normalize_manifest(args):
 if __name__ == "__main__":
     args = parse_args()
 
+    start = time.time()
     if args.text:
         normalizer = NormalizerWithAudio(input_case=args.input_case)
         if os.path.exists(args.text):
             with open(args.text, 'r') as f:
-                args.text = f.read()
+                args.text = f.read().strip()
         normalized_texts = normalizer.normalize_with_audio(args.text, args.verbose)
-        for norm_text in normalized_texts:
-            print(norm_text)
         if args.audio_data:
             asr_model = get_asr_model(args.model)
             transcript = asr_model.transcribe([args.audio_data])[0]
-            normalized_text, cer = normalizer.select_best_match(normalized_texts, transcript, args.verbose)
+            normalized_text, cer = normalizer.select_best_match(
+                normalized_texts, transcript, args.verbose, args.remove_punct
+            )
+            print(f'Transcript: {transcript}')
+            print(f'Normalized: {normalized_text}')
+        else:
+            print('Normalization options:')
+            for norm_text in normalized_texts:
+                print(norm_text)
     elif not os.path.exists(args.audio_data):
         raise ValueError(f'{args.audio_data} not found.')
     elif args.audio_data.endswith('.json'):
@@ -322,3 +316,4 @@ if __name__ == "__main__":
             + "'--audio_data' path to audio file and '--text' path to a text file OR"
             "'--text' string text (for debugging without audio)"
         )
+    print(f'Execution time: {round((time.time() - start)/60, 2)} min.')

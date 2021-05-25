@@ -41,8 +41,14 @@ def get_test_cases_multiple(file_name: str = 'data_text_normalization/test_cases
     """
     test_pairs = []
     with open(os.path.dirname(os.path.abspath(__file__)) + os.path.sep + file_name, 'r') as f:
+        written = None
+        normalized_options = []
         for line in f:
-            written, normalized_options = line.split('~')
-            normalized_options = normalized_options.strip().split('|')
-            test_pairs.append((written, normalized_options))
+            if line.startswith('>>>'):
+                if written:
+                    test_pairs.append((written, normalized_options))
+                    normalized_options = []
+                written = line.strip().replace('>>>', '')
+            else:
+                normalized_options.append(line.strip())
     return test_pairs

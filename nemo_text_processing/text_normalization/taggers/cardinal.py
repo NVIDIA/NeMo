@@ -69,8 +69,18 @@ class CardinalFst(GraphFst):
                     1,
                 )
             )
-
-            self.graph = self.graph | self.single_digits_graph | get_hundreds_graph() | single_digits_graph_with_commas
+            range_graph = (
+                self.graph
+                + (pynini.cross("-", " to ") | pynini.cross("x", " by ") | pynini.cross(" x ", " by "))
+                + self.graph
+            )
+            self.graph = (
+                self.graph
+                | self.single_digits_graph
+                | get_hundreds_graph()
+                | single_digits_graph_with_commas
+                | range_graph
+            )
 
         optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
         final_graph = optional_minus_graph + pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
