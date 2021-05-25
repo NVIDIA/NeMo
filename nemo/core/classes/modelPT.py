@@ -273,14 +273,13 @@ class ModelPT(LightningModule, Model):
 
         # Process current tarfile artifacts by unpacking the previous tarfile and extract the artifacts
         # that are currently required.
-        if len(tarfile_artifacts) > 0 and app_state.model_restore_path is not None:
+        model_metadata = app_state.get_model_metadata_from_guid(self.model_guid)
+        if len(tarfile_artifacts) > 0 and model_metadata.restoration_path is not None:
             # Need to step into nemo archive to extract file
             # Get path where the command is executed - the artifacts will be "retrieved" there
             # (original .nemo behavior)
             cwd = os.getcwd()
             try:
-                model_metadata = app_state.get_model_metadata_from_guid(self.model_guid)
-
                 # Step into the nemo archive to try and find the file
                 with tempfile.TemporaryDirectory() as archive_dir:
                     self._unpack_nemo_file(path2file=model_metadata.restoration_path, out_folder=archive_dir)
