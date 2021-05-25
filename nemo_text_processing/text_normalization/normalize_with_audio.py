@@ -95,9 +95,10 @@ class NormalizerWithAudio(Normalizer):
             if verbose:
                 print(text)
             return text
-        text = pynini.escape(text)
 
-        tagged_texts = rewrite.rewrites(text, self.tagger.fst)
+        text = pynini.escape(text)
+        # TODO add preprocess?
+        tagged_texts = rewrite.top_rewrites(text, self.tagger.fst, nshortest=100)
         normalized_texts = []
 
         for tagged_text in tagged_texts:
@@ -176,10 +177,12 @@ def pre_process(text: str) -> str:
 
     Returns: text with spaces around punctuation marks
     """
+    print(text)
     text = text.replace('--', '-')
     space_right = '!?:;,.-()*+-/<=>@^_'
     space_both = '-()*+-/<=>@^_'
 
+    # TODO
     for punct in space_right:
         text = text.replace(punct, punct + ' ')
     for punct in space_both:
@@ -200,8 +203,7 @@ def post_process(text: str, punctuation='!,.:;?') -> str:
     Returns: text with normalized spaces and quotes
     """
     text = (
-        text.replace('--', '-')
-        .replace('( ', '(')
+        text.replace('( ', '(')
         .replace(' )', ')')
         .replace('  ', ' ')
         .replace('”', '"')
