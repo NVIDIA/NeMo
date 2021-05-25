@@ -283,11 +283,10 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
         if self._cfg.decoder._target_ == "nemo.collections.asr.modules.TransformerDecoderNM":
 
             if self._cfg.encoder._target_ != "nemo.collections.asr.modules.TransformerEncoderNM":
-                encoded, length = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
+                encoded, length = self.encoder(audio_signal=processed_signal, length=processed_signal_length) 
                 src_hiddens = torch.transpose(encoded, 1, 2)
             else:
-                
-                src_hiddens, length, src_mask = self.encoder(input_ids=processed_signal)
+                src_hiddens, length, src_mask = self.encoder(input_ids=processed_signal) # B T D
 
             logits, ys_out = self.decoder(
                 input_ids=label_seq,
@@ -316,8 +315,8 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
         # signal is feature. speaker embedding now
-        signal, signal_len, label_seq, label_seq_len = batch
-        signal = signal.transpose(1, 2)  # convert (B, T, D) to (B, D, T)
+        signal, signal_len, label_seq, label_seq_len = batch  # (B, D, T)
+        # signal = signal.transpose(1, 2)  # convert (B, T, D) to (B, D, T)
 
         log_probs, ys_out = self.forward(input_signal=signal, input_signal_length=signal_len, label_seq=label_seq)
 
@@ -347,8 +346,8 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        signal, signal_len, label_seq, label_seq_len = batch
-        signal = signal.transpose(1, 2)  # convert (B, T, D) to (B, D, T)
+        signal, signal_len, label_seq, label_seq_len = batch # (B, D, T)
+        # signal = signal.transpose(1, 2)  # convert (B, T, D) to (B, D, T)
 
         log_probs, ys_out = self.forward(input_signal=signal, input_signal_length=signal_len, label_seq=label_seq)
         loss_value = self.loss(log_probs=log_probs, labels=ys_out)
@@ -387,9 +386,9 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
         test_correct_counts = torch.stack([x['test_correct_counts'] for x in outputs]).sum()
-        val_total_counts = torch.stack([x['val_total_counts'] for x in outputs]).sum()
-        tensorboard_logs = {'test_loss': test_loss_mean, 'test_wer': test_correct_counts / val_total_counts}
-        return {'test_loss': val_loss_mean, 'log': tensorboard_logs}
+        test_total_counts = torch.stack([x['test_total_counts'] for x in outputs]).sum()
+        tensorboard_logs = {'test_loss': test_loss_mean, 'test_acc': test_correct_counts / test_total_counts}
+        return {'test_loss': test_loss_mean, 'log': tensorboard_logs}
 
     def test_dataloader(self):
         if self._test_dl is not None:
@@ -423,15 +422,17 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
 
     @torch.no_grad()
     def transcribe_one(self, signal, device):
+
         # transformer 
-        enc_output, length, src_mask = self.encoder(input_ids=signal)
+        enc_output, length, src_mask = self.encoder(input_ids=signal) # B T H
         h = enc_output.squeeze(0) # (T/L, H)  (50. 256)
         logging.info('input lengths: ' + str(h.size(0)))
         
         # preprare sos
         y = self.sos
         # sos
-        vy = h.new_zeros(1).long()
+        # vy = h.new_zeros(1).long()
+
         # add back args
         maxlenratio, minlenratio = 1.0, 1.0
         beam_size = 4
@@ -440,6 +441,7 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
         else:
             # maxlen >= 1
             maxlen = max(1, int(maxlenratio * h.size(0)))
+
         minlen = int(minlenratio * h.size(0))
         # sos
         hyp = {'score': 0.0, 'yseq': [y]}
@@ -448,29 +450,29 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
         ended_hyps = []
 
         traced_decoder = None
-        # beam
+        
         for i in range(maxlen):
-            print('position ' + str(i))
+            # print('position ' + str(i))
             hyps_best_kept = []
             for hyp in hyps:
-                print("=== hyp", hyp)
-                vy.unsqueeze(1)
-                vy[0] = hyp['yseq'][i]
-                ys_mask = subsequent_mask(i + 1, device=h.device).unsqueeze(0)
+                # print("=== hyp", hyp)
                 ys = torch.tensor(hyp['yseq']).unsqueeze(0).to(device)
-                # print(ys_mask, ys)
+                log_probs, decoder_mems_list = self.decoder._one_step_forward(
+                    decoder_input_ids=ys, 
+                    encoder_hidden_states=enc_output, 
+                    encoder_input_mask=src_mask,
+                    decoder_mems_list=None
+                 )
 
-                # local_att_scores = self.decoder.recognize(ys, ys_mask, enc_output)
-                logits, ys_out = self.decoder(
-                    input_ids=ys,
-                    encoder_embeddings=enc_output,  # output of the encoder (B x L_enc x H)
-                    encoder_mask=src_mask,  # encoder inputs mask (B x L_enc)
-                )
-                local_att_scores = logits[:, -1] ### add recognize to decoder TODO
+                log_probs= log_probs.squeeze(0) # squeeze out batch dimension
+                local_att_scores = log_probs
+
+                # print(f"local_att_scores: shape {local_att_scores}. value{local_att_scores}")
                 max_local_beam = min(beam_size, local_att_scores.shape[1])
-                local_best_scores, local_best_ids = torch.topk(local_att_scores, max_local_beam, dim=1)
-                # print("=== local", local_best_scores, local_best_ids)
 
+                local_best_scores, local_best_ids = torch.topk(local_att_scores, max_local_beam, dim=1)
+
+                # beam
                 for j in range(max_local_beam):
                     new_hyp = {}
                     # BEAM SEARCH. store top-beamsize best local score 
@@ -478,6 +480,8 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
                     new_hyp['yseq'] = [0] * (1 + len(hyp['yseq']))
                     new_hyp['yseq'][:len(hyp['yseq'])] = hyp['yseq']
                     new_hyp['yseq'][len(hyp['yseq'])] = int(local_best_ids[0, j])
+
+                    # ignore wrong early ending
                     if int(local_best_ids[0, j]) == self.eos and i < minlen:
                         continue
                     else:
@@ -487,7 +491,7 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
 
             # sort and get nbest
             hyps = hyps_best_kept
-            print('number of pruned hypothes: ' + str(len(hyps)))
+            # print('number of pruned hypothes: ' + str(len(hyps)))
 
             # TODO this is one on on tagging so maxlen is not .... TODO
             if i == maxlen - 1:
@@ -498,6 +502,7 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
             # add ended hypothes to a final list, and removed them from current hypothes
             # (this will be a probmlem, number of hyps < beam)
             remained_hyps = []
+
             for hyp in hyps:
                 if hyp['yseq'][-1] == self.eos:
                     # only store the sequence that has more than minlen outputs
@@ -507,40 +512,42 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
                     remained_hyps.append(hyp)
             # end detect here. not need but need to check length TODO
 
-            hyps = remained_hyps
-            if len(hyps) > 0:
-                print('remeined hypothes: ' + str(len(hyps)))
-            else:
+            if len(hyps) <= 0:
                 print('no hypothesis. Finish decoding.')
                 break
 
-            print('number of ended hypothes: ' + str(len(ended_hyps)))
+            # hyps = remained_hyps
+            # if len(hyps) > 0:
+            #     print('remeined hypothes: ' + str(len(hyps)))
+            # else:
+            #     print('no hypothesis. Finish decoding.')
+            #     break
+
+            # print('number of ended hypothes: ' + str(len(ended_hyps)))
         
         nbest = 1
-        
         nbest_hyps = sorted(ended_hyps, key=lambda x: x['score'], reverse=True)[:min(len(ended_hyps), nbest)]
 
         # check number of hypotheis
         if len(nbest_hyps) == 0:
             logging.warning('there is no N-best results, perform recognition again with smaller minlenratio.')
 
-        logging.info('total log probability: ' + str(nbest_hyps[0]['score']))
-        logging.info('normalized log probability: ' + str(nbest_hyps[0]['score'] / len(nbest_hyps[0]['yseq'])))
+        # print('total log probability: ' + str(nbest_hyps[0]['score']))
+        print(nbest_hyps[0])
+        # print('normalized log probability: ' + str(nbest_hyps[0]['score'] / len(nbest_hyps[0]['yseq'])))
         return nbest_hyps[0]['yseq']
 
     # todo change name transcribe to assgin/tagging
     @torch.no_grad()
     def transcribe(
         self,
-        paths2audio_files: List[str]=[],
-        paths2feature_files: List[str]=[],
+        paths2audio_files: List[str] = None,
+        paths2feature_files: List[str] = None,
         batch_size: int = 4,
         logprobs: bool = False,
         return_hypotheses: bool = False,
     ) -> List[str]:
-        print(paths2feature_files)
 
-        # if (path2audio)
         if (paths2audio_files is None and paths2feature_files is None) or (len(paths2feature_files)==0 and len(paths2audio_files) == 0):
             return {}
 
@@ -550,10 +557,8 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
                 "Returned hypotheses will contain the logprobs."
             )
 
-        # We will store transcriptions here
-        hypotheses = []
-        # Model's mode and device
-        mode = self.training
+        hypotheses = []  # We will store transcriptions here
+        mode = self.training # Model's mode and device
         device = next(self.parameters()).device
 
         try:
@@ -571,25 +576,22 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
                         for feature_file in paths2feature_files:
                             entry = {'feature_filepath': feature_file, 'seq_label': 'nothing'}
                             fp.write(json.dumps(entry) + '\n')
-
+                    # add paths2audio_files [TODO]
                     config = {'paths2feature_files': paths2feature_files, 'batch_size': batch_size, 'temp_dir': tmpdir}
                 
                 # transformer
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
-                print(temporary_datalayer)
                 for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
                     # logits, logits_len, greedy_predictions = self.forward(
                     #     input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     # )
-                    signal = test_batch[0].to(device).transpose(1, 2)  # convert (B, T, D) to (B, D, T)
-                    ###### change this in data!!!!
-                
+                    # signal = test_batch[0].to(device).transpose(1, 2)  # convert (B, T, D) to (B, D, T)
+       
+                    signal = test_batch[0].to(device) # B D T
+
                     # transformer 
                     hypothesis = self.transcribe_one(signal, device)
                     hypotheses.append(hypothesis)
-                    # src_hiddens, length, src_mask = self.encoder(input_ids=signal)
-                    # beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
-                    print(hypothesis)
                     del hypothesis
         finally:
             # set mode back to its original value
