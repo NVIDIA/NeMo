@@ -23,6 +23,8 @@ from pytorch_lightning import Trainer
 from nemo.collections.asr.data.audio_to_text import FastPitchDataset
 from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.losses.fastpitchloss import FastPitchLoss
+from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursF0Dataset
+
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.collections.tts.losses.fastpitchloss import MelLoss, PitchLoss, DurationLoss
 
@@ -40,6 +42,7 @@ from nemo.core.neural_types.elements import (
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
+from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 
 
 @dataclass
@@ -121,19 +124,35 @@ class FastPitchModel(SpectrogramGenerator):
         )
 
     @property
+    def tb_logger(self):
+        if self._tb_logger is None:
+            if self.logger is None and self.logger.experiment is None:
+                return None
+            tb_logger = self.logger.experiment
+            if isinstance(self.logger, LoggerCollection):
+                for logger in self.logger:
+                    if isinstance(logger, TensorBoardLogger):
+                        tb_logger = logger.experiment
+                        break
+            self._tb_logger = tb_logger
+        return self._tb_logger
+
+    @property
     def parser(self):
         if self._parser is not None:
             return self._parser
 
-        self._parser = parsers.make_parser(
-            labels=self._cfg.labels,
-            name='en',
-            unk_id=-1,
-            blank_id=-1,
-            do_normalize=True,
-            abbreviation_version="fastpitch",
-            make_table=False,
-        )
+        # self._parser = parsers.make_parser(
+        #     labels=self._cfg.labels,
+        #     name='en',
+        #     unk_id=-1,
+        #     blank_id=-1,
+        #     do_normalize=True,
+        #     abbreviation_version="fastpitch",
+        #     make_table=False,
+        # )
+        vocab = AudioToCharWithDursF0Dataset.make_vocab(**self._cfg.train_ds.dataset.vocab)
+        self._parser = vocab.encode
         return self._parser
 
     def parse(self, str_input: str) -> torch.tensor:
@@ -223,6 +242,14 @@ class FastPitchModel(SpectrogramGenerator):
         pitch_loss = self.pitch_loss(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens)
         loss += pitch_loss
 
+        self.log("t_loss", loss)
+        self.log("t_mel_loss", mel_loss)
+        self.log("t_dur_loss", dur_loss)
+        self.log("t_pitch_loss", pitch_loss)
+        if self.learn_alignment:
+            self.log("t_ctc_loss", ctc_loss)
+            self.log("t_bin_loss", bin_loss)
+
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -257,23 +284,37 @@ class FastPitchModel(SpectrogramGenerator):
         pitch_loss = self.pitch_loss(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens)
         loss += pitch_loss
 
-        ret = {
-            "loss": loss,
+        return {
+            "val_loss": loss,
             "mel_loss": mel_loss,
             "dur_loss": dur_loss,
             "pitch_loss": pitch_loss,
+            "mel_target": mels if batch_idx == 0 else None,
+            "mel_pred": mels_pred if batch_idx == 0 else None,
         }
-        return {**ret, "progress_bar": ret}
 
     def validation_epoch_end(self, outputs):
         collect = lambda key: torch.stack([x[key] for x in outputs]).mean()
-        tb_logs = {
-            'val_loss': collect('loss'),
-            'val_mel_loss': collect('mel_loss'),
-            'val_dur_loss': collect('dur_loss'),
-            'val_pitch_loss': collect('pitch_loss'),
-        }
-        return {'val_loss': tb_logs['val_loss'], 'log': tb_logs}
+        val_loss = collect("val_loss")
+        mel_loss = collect("mel_loss")
+        dur_loss = collect("dur_loss")
+        pitch_loss = collect("pitch_loss")
+        self.log("v_loss", val_loss)
+        self.log("v_mel_loss", mel_loss)
+        self.log("v_dur_loss", dur_loss)
+        self.log("v_pitch_loss", pitch_loss)
+
+        _, _, _, _, spec_target, spec_predict = outputs[0].values()
+        self.tb_logger.add_image(
+            "val_mel_target",
+            plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()),
+            self.global_step,
+            dataformats="HWC",
+        )
+        spec_predict = spec_predict[0].data.cpu().numpy()
+        self.tb_logger.add_image(
+            "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict.T), self.global_step, dataformats="HWC",
+        )
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
