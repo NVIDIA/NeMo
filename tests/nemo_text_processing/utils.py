@@ -44,11 +44,12 @@ def get_test_cases_multiple(file_name: str = 'data_text_normalization/test_cases
         written = None
         normalized_options = []
         for line in f:
-            if line.startswith('>>>'):
+            if line.startswith('~'):
                 if written:
                     test_pairs.append((written, normalized_options))
                     normalized_options = []
-                written = line.strip().replace('>>>', '')
+                written = line.strip().replace('~', '')
             else:
                 normalized_options.append(line.strip())
+    test_pairs.append((written, normalized_options))
     return test_pairs
