@@ -28,7 +28,7 @@ model:
       n_window_stride: ${model.n_window_stride}
       n_window_size: ${model.n_window_size}
       pitch_fmin: 80
-      pitch_fmax: 800
+      pitch_fmax: 640
       vocab:
         notation: phonemes
         punct: true
@@ -41,7 +41,7 @@ model:
     dataloader_params:
       drop_last: false
       shuffle: true
-      batch_size: 48
+      batch_size: 32
       num_workers: 12
 
 
@@ -59,7 +59,7 @@ model:
       n_window_stride: ${model.n_window_stride}
       n_window_size: ${model.n_window_size}
       pitch_fmin: 80
-      pitch_fmax: 800
+      pitch_fmax: 640
       vocab:
         notation: phonemes
         punct: true
@@ -70,7 +70,7 @@ model:
     dataloader_params:
       drop_last: false
       shuffle: false
-      batch_size: 48
+      batch_size: 32
       num_workers: 8
 
   preprocessor:
@@ -173,3 +173,5 @@ exp_manager:
   name: ${name}
   create_tensorboard_logger: True
   create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: v_loss
