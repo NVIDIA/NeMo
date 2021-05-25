@@ -19,6 +19,8 @@ import torch
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
+from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
+
 
 from nemo.collections.asr.parts import parsers
 from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursF0Dataset
@@ -80,6 +82,7 @@ class FastPitchModel(SpectrogramGenerator):
         if "learn_alignment" in cfg:
             self.learn_alignment = cfg.learn_alignment
         self._parser = None
+        self._tb_logger = None
         super().__init__(cfg=cfg, trainer=trainer)
 
         schema = OmegaConf.structured(FastPitchConfig)
