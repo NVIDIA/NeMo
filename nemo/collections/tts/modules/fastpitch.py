@@ -225,6 +225,7 @@ class FastPitchModule(NeuralModule):
             "attn_logprob": NeuralType(('B', 'S', 'T', 'D'), LogprobsType()),
             "attn_hard": NeuralType(('B', 'S', 'T', 'D'), ProbsType()),
             "attn_hard_dur": NeuralType(('B', 'T'), TokenDurationType()),
+            "pitch": NeuralType(('B', 'T'), RegressionValuesType()),
         }
 
     @typecheck()
@@ -269,7 +270,7 @@ class FastPitchModule(NeuralModule):
         pitch_predicted = self.pitch_predictor(enc_out, enc_mask)
         if pitch is not None:
             if self.learn_alignment:
-                pitch = average_pitch(pitch, attn_hard_dur)
+                pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
             pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
         else:
             pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
@@ -296,5 +297,6 @@ class FastPitchModule(NeuralModule):
             attn_logprob,
             attn_hard,
             attn_hard_dur,
+            pitch,
         )
 
