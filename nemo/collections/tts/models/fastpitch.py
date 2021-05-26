@@ -218,7 +218,7 @@ class FastPitchModel(SpectrogramGenerator):
         if self.learn_alignment:
             ctc_loss = self.forward_sum_loss(attn_logprob=attn_logprob, in_lens=text_lens, out_lens=spec_len)
             bin_loss_weight = min(self.current_epoch / self.bin_loss_warmup_epochs, 1.0) * 1.0
-            bin_loss = self.bin_loss(hard_attention=attn_hard, soft_attention=attn_soft)
+            bin_loss = self.bin_loss(hard_attention=attn_hard, soft_attention=attn_soft) * bin_loss_weight
             loss += ctc_loss + bin_loss
 
         pitch_loss = self.pitch_loss(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens)
@@ -246,7 +246,7 @@ class FastPitchModel(SpectrogramGenerator):
         mels_pred, _, log_durs_pred, pitch_pred, _, _, _, attn_hard_dur, pitch = self(
             text=text,
             durs=durs,
-            pitch=None,
+            pitch=pitch,
             speaker=speakers,
             pace=1.0,
             spec=mels if self.learn_alignment else None,
