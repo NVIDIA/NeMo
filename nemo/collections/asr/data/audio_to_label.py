@@ -20,7 +20,7 @@ import braceexpand
 import torch
 import webdataset as wd
 
-from nemo.collections.asr.parts import collections
+from nemo.collections.common.parts.preprocessing import collections
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType, RegressionValuesType
 from nemo.utils import logging

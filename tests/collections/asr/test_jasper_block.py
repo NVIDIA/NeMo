@@ -15,7 +15,7 @@
 import pytest
 import torch
 
-from nemo.collections.asr.parts import jasper
+from nemo.collections.asr.parts.submodules import jasper
 
 
 class TestJasperBlock:

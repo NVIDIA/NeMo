@@ -38,7 +38,7 @@ from argparse import ArgumentParser
 import torch
 
 from nemo.collections.asr.models import EncDecClassificationModel
-from nemo.collections.asr.parts.vad_utils import get_vad_stream_status, prepare_manifest
+from nemo.collections.asr.parts.utils.vad_utils import get_vad_stream_status, prepare_manifest
 from nemo.utils import logging
 
 try:

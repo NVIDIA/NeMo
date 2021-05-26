@@ -14,14 +14,12 @@
 
 
 import random
-import string
 
 import pytest
 import torch
 
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
-from nemo.collections.asr.parts.rnnt_utils import Hypothesis
-from nemo.utils import logging
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
 
 class TestWordErrorRate:

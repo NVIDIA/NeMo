@@ -48,12 +48,12 @@ from omegaconf import DictConfig, OmegaConf
 from scipy import signal
 from torch.utils.data import IterableDataset
 
-from nemo.collections.asr.parts import collections, parsers
-from nemo.collections.asr.parts.segment import AudioSegment
+from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
+from nemo.collections.common.parts.preprocessing import collections, parsers
 from nemo.utils import logging
 
 try:
-    from nemo.collections.asr.parts import numba_utils
+    from nemo.collections.asr.parts.utils import numba_utils
 
     HAVE_NUMBA = True
 except (ImportError, ModuleNotFoundError):

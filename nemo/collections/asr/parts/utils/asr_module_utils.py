@@ -17,7 +17,7 @@ from typing import Optional
 from omegaconf import DictConfig, open_dict
 
 from nemo.collections.asr.modules import conv_asr
-from nemo.collections.asr.parts import jasper
+from nemo.collections.asr.parts.submodules import jasper
 from nemo.utils import logging
 
 

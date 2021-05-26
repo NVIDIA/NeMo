@@ -18,7 +18,7 @@ import editdistance
 import torch
 from torchmetrics import Metric
 
-from nemo.collections.asr.parts.rnnt_utils import Hypothesis
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 

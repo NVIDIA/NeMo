@@ -21,7 +21,7 @@ from torch import Tensor
 from torch.nn.init import _calculate_correct_fan
 from torch.nn.modules.utils import _single
 
-from nemo.collections.asr.parts.activations import Swish
+from nemo.collections.asr.parts.utils.activations import Swish
 from nemo.utils import logging
 
 try:

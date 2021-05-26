@@ -24,7 +24,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
 from nemo.collections.asr.data.audio_to_text import FastPitchDataset
-from nemo.collections.asr.parts import parsers
+from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.fastpitchloss import BaseFastPitchLoss
 from nemo.collections.tts.losses.fastspeech2loss import L1MelLoss

@@ -1041,6 +1041,90 @@ class ModelPT(LightningModule, Model):
         """
         return self._test_names[dataloader_idx]
 
+    @rank_zero_only
+    def maybe_init_from_pretrained_checkpoint(self, cfg: OmegaConf, map_location: str = 'cpu'):
+        """
+        Initializes a given model with the parameters obtained via specific config arguments.
+        The state dict of the provided model will be updated with `strict=False` setting so as to prevent
+        requirement of exact model parameters matching.
+
+        Initializations:
+            init_from_nemo_model: Str path to a .nemo model, which will be instantiated in order
+                to extract the state dict.
+
+            init_from_pretrained_model: Str name of a pretrained model checkpoint (obtained via cloud).
+                The model will be downloaded (or a cached copy will be used), instantiated and then
+                its state dict will be extracted.
+
+            init_from_ptl_ckpt: Str name of a Pytorch Lightning checkpoint file. It will be loaded and
+                the state dict will extracted.
+
+        Args:
+            cfg: The config used to instantiate the model. It need only contain one of the above keys.
+            map_location: str or torch.device() which represents where the intermediate state dict
+                (from the pretrained model or checkpoint) will be loaded.
+
+        """
+        args = ['init_from_nemo_model', 'init_from_pretrained_model', 'init_from_ptl_ckpt']
+        arg_matches = [(1 if arg in cfg and arg is not None else 0) for arg in args]
+
+        if sum(arg_matches) == 0:
+            # model weights do not need to be restored
+            return
+
+        if sum(arg_matches) > 1:
+            raise ValueError(
+                f"Cannot pass more than one model initialization arguments to config!\n"
+                f"Found : {[args[idx] for idx, arg_present in enumerate(arg_matches) if arg_present]}"
+            )
+
+        if 'init_from_nemo_model' in cfg and cfg.init_from_nemo_model is not None:
+            with open_dict(cfg):
+                # Restore model
+                model_path = cfg.pop('init_from_nemo_model')
+                restored_model = self.restore_from(model_path, map_location=map_location, strict=True)
+
+                # Restore checkpoint into current model
+                self.load_state_dict(restored_model.state_dict(), strict=False)
+                logging.info(f'Model checkpoint restored from nemo file with path : `{model_path}`')
+
+                del restored_model
+
+        if 'init_from_pretrained_model' in cfg and cfg.init_from_pretrained_model is not None:
+            with open_dict(cfg):
+                # Restore model
+                model_name = cfg.pop('init_from_pretrained_model')
+
+                # Check if model is being resumed or not - only works if `Trainer` is attached to model
+                if hasattr(self, 'trainer') and self.trainer is not None:
+                    trainer = self.trainer
+                    if hasattr(trainer, 'resume_from_checkpoint') and trainer.resume_from_checkpoint is not None:
+                        logging.info(
+                            "Model training is being resumed via Pytorch Lightning.\n"
+                            "Initialization from pretrained model (via cloud) will be skipped."
+                        )
+                        return
+
+                restored_model = self.from_pretrained(model_name, map_location=map_location, strict=True)
+
+                # Restore checkpoint into current model
+                self.load_state_dict(restored_model.state_dict(), strict=False)
+                logging.info(f'Model checkpoint restored from pretrained chackpoint with name : `{model_name}`')
+
+                del restored_model
+
+        if 'init_from_ptl_ckpt' in cfg and cfg.init_from_ptl_ckpt is not None:
+            with open_dict(cfg):
+                # Restore checkpoint
+                ckpt_path = cfg.pop('init_from_ptl_ckpt')
+                ckpt = torch.load(ckpt_path, map_location=map_location)
+
+                # Restore checkpoint into current model
+                self.load_state_dict(ckpt['state_dict'], strict=False)
+                logging.info(f'Model checkpoint restored from pytorch lightning chackpoint with path : `{ckpt_path}`')
+
+                del ckpt
+
     def teardown(self, stage: str):
         """
         Called at the end of fit and test.

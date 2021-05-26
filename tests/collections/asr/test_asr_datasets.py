@@ -12,14 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import os
 
 import pytest
-import torch
+from omegaconf import OmegaConf
 
 from nemo.collections.asr.data.audio_to_text import TarredAudioToBPEDataset, TarredAudioToCharDataset
-from nemo.collections.asr.parts.features import WaveformFeaturizer
+from nemo.collections.asr.data.audio_to_text_dataset import inject_dataloader_value_from_model_config
 from nemo.collections.common import tokenizers
+from nemo.utils import logging
 
 
 class TestASRDatasets:
@@ -78,6 +80,23 @@ class TestASRDatasets:
         for _ in ds_list_load:
             count += 1
         assert count == 32
+
+    @pytest.mark.unit
+    def test_mismatch_in_model_dataloader_config(self, caplog):
+        logging._logger.propagate = True
+        caplog.set_level(logging.WARNING)
+
+        model_cfg = OmegaConf.create(dict(labels=OmegaConf.create(["a", "b", "c"])))
+        dataloader_cfg = OmegaConf.create(dict(labels=copy.deepcopy(self.labels)))
+
+        inject_dataloader_value_from_model_config(model_cfg, dataloader_cfg, key='labels')
+
+        assert (
+            """`labels` is explicitly provided to the data loader, and is different from the `labels` provided at the model level config."""
+            in caplog.text
+        )
+
+        logging._logger.propagate = False
 
     @pytest.mark.unit
     def test_tarred_bpe_dataset(self, test_data_dir):

@@ -17,8 +17,11 @@ import random
 import torch
 import torch.nn as nn
 
+from nemo.core.classes import Typing, typecheck
+from nemo.core.neural_types import NeuralType, SpectrogramType
 
-class SpecAugment(nn.Module):
+
+class SpecAugment(nn.Module, Typing):
     """
     Zeroes out(cuts) random continuous horisontal or
     vertical segments of the spectrogram as described in
@@ -35,6 +38,18 @@ class SpecAugment(nn.Module):
         If a float value, defines maximum percentage of timesteps that
         are cut adaptively.
     """
+
+    @property
+    def input_types(self):
+        """Returns definitions of module input types
+        """
+        return {"input_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
+
+    @property
+    def output_types(self):
+        """Returns definitions of module output types
+        """
+        return {"augmented_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
 
     def __init__(
         self, freq_masks=0, time_masks=0, freq_width=10, time_width=10, rng=None, mask_value=0.0,
@@ -59,9 +74,10 @@ class SpecAugment(nn.Module):
 
             self.adaptive_temporal_width = True
 
+    @typecheck()
     @torch.no_grad()
-    def forward(self, x):
-        sh = x.shape
+    def forward(self, input_spec):
+        sh = input_spec.shape
 
         if self.adaptive_temporal_width:
             time_width = max(1, int(sh[2] * self.time_width))
@@ -74,19 +90,19 @@ class SpecAugment(nn.Module):
 
                 w = self._rng.randint(0, self.freq_width)
 
-                x[idx, x_left : x_left + w, :] = self.mask_value
+                input_spec[idx, x_left : x_left + w, :] = self.mask_value
 
             for i in range(self.time_masks):
                 y_left = self._rng.randint(0, sh[2] - time_width)
 
                 w = self._rng.randint(0, time_width)
 
-                x[idx, :, y_left : y_left + w] = self.mask_value
+                input_spec[idx, :, y_left : y_left + w] = self.mask_value
 
-        return x
+        return input_spec
 
 
-class SpecCutout(nn.Module):
+class SpecCutout(nn.Module, Typing):
     """
     Zeroes out(cuts) random rectangles in the spectrogram
     as described in (https://arxiv.org/abs/1708.04552).
@@ -97,6 +113,18 @@ class SpecCutout(nn.Module):
     rect_time - maximum size of cut rectangles along the time dimension
     """
 
+    @property
+    def input_types(self):
+        """Returns definitions of module input types
+        """
+        return {"input_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
+
+    @property
+    def output_types(self):
+        """Returns definitions of module output types
+        """
+        return {"augmented_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
+
     def __init__(self, rect_masks=0, rect_time=5, rect_freq=20, rng=None):
         super(SpecCutout, self).__init__()
 
@@ -106,9 +134,10 @@ class SpecCutout(nn.Module):
         self.rect_time = rect_time
         self.rect_freq = rect_freq
 
+    @typecheck()
     @torch.no_grad()
-    def forward(self, x):
-        sh = x.shape
+    def forward(self, input_spec):
+        sh = input_spec.shape
 
         for idx in range(sh[0]):
             for i in range(self.rect_masks):
@@ -118,6 +147,6 @@ class SpecCutout(nn.Module):
                 w_x = self._rng.randint(0, self.rect_freq)
                 w_y = self._rng.randint(0, self.rect_time)
 
-                x[idx, rect_x : rect_x + w_x, rect_y : rect_y + w_y] = 0.0
+                input_spec[idx, rect_x : rect_x + w_x, rect_y : rect_y + w_y] = 0.0
 
-        return x
+        return input_spec

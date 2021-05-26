@@ -12,6 +12,6 @@ Model Classes
 Mixins
 ------
 
-.. autoclass:: nemo.collections.asr.parts.mixins.DiarizationMixin
+.. autoclass:: nemo.collections.asr.parts.mixins.mixins.DiarizationMixin
     :show-inheritance:
     :members:

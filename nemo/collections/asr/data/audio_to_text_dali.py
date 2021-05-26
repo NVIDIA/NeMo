@@ -20,7 +20,7 @@ import numpy as np
 import torch
 from omegaconf import DictConfig
 
-from nemo.collections.asr.parts import parsers
+from nemo.collections.common.parts.preprocessing import parsers
 from nemo.utils.decorators import experimental
 
 try:

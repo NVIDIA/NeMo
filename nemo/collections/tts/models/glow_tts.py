@@ -23,7 +23,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
 from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
-from nemo.collections.asr.parts.perturb import process_augmentations
+from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.tts.helpers.helpers import log_audio_to_tb, plot_alignment_to_numpy, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.glow_tts_loss import GlowTTSLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator

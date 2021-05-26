@@ -342,7 +342,7 @@ configuration is a shortform notation for Citrinet-21x5xC, such that ``B = 21`` 
 not be changed.
 
 To use Citrinet instead of QuartzNet, refer to the ``citrinet_512.yaml`` configuration found inside the ``examples/asr/conf/citrinet``
-directory. Citrinet is primarily comprised of the same :class:`~nemo.collections.asr.parts.jasper.JasperBlock` as ``Jasper`` or
+directory. Citrinet is primarily comprised of the same :class:`~nemo.collections.asr.parts.submodules.jasper.JasperBlock` as ``Jasper`` or
 ``QuartzNet`.
 
 While the configs for Citrinet and QuartzNet are similar, we note the additional flags used for Citrinet below. Refer to the
@@ -442,7 +442,7 @@ changed slightly as Citrinet utilizes sub-word tokenization.
 .. note::
     The following information is relevant to any of the above models that implements its encoder as an :class:`~nemo.collections.asr.modules.conv_asr.ConvASREncoder`, and utilizes the ``SqueezeExcite`` mechanism.
 
-The ``SqueezeExcite`` block within a :class:`~nemo.collections.asr.modules.conv_asr.ConvASREncoder` network can be modified to utilize a different context window after the model has been instantiated (even after the model has been trained) so as to evaluate the model with limited context. This can be achieved using the :meth:`~nemo.collections.asr.parts.mixins.ASRModuleMixin.change_conv_asr_se_context_window`
+The ``SqueezeExcite`` block within a :class:`~nemo.collections.asr.modules.conv_asr.ConvASREncoder` network can be modified to utilize a different context window after the model has been instantiated (even after the model has been trained) so as to evaluate the model with limited context. This can be achieved using the :meth:`~nemo.collections.asr.parts.mixins.mixins.ASRModuleMixin.change_conv_asr_se_context_window`
 
 .. code-block:: python
 
@@ -473,3 +473,56 @@ specify the tokenizer if you want to use sub-word encoding instead of character-
 
 The encoder section includes the details about the Conformer-CTC encoder architecture. You may find more information in the 
 config files and also :doc:`nemo.collections.asr.modules.ConformerEncoder<./api.html#nemo.collections.asr.modules.ConformerEncoder>`.
+
+
+Fine-tuning Configurations
+-------------------------
+
+All ASR scripts support easy fine-tuning by partially/fully loading the pretrained weights from a checkpoint into the currently instantiated model. Pre-trained weights can be provided in multiple ways -
+
+1) Providing a path to a NeMo model (via ``init_from_nemo_model``)
+2) Providing a name of a pretrained NeMo model (which will be downloaded via the cloud) (via ``init_from_pretrained_model``)
+3) Providing a path to a Pytorch Lightning checkpoint file (via ``init_from_ptl_ckpt``)
+
+Fine-tuning via a NeMo model
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: sh
+
+    python examples/asr/script_to_<script_name>.py \
+        --config-path=<path to dir of configs> \
+        --config-name=<name of config without .yaml>) \
+        model.train_ds.manifest_filepath="<path to manifest file>" \
+        model.validation_ds.manifest_filepath="<path to manifest file>" \
+        trainer.gpus=-1 \
+        trainer.max_epochs=50 \
+        +init_from_nemo_model="<path to .nemo model file>"
+
+
+Fine-tuning via a NeMo pretrained model name
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: sh
+
+    python examples/asr/script_to_<script_name>.py \
+        --config-path=<path to dir of configs> \
+        --config-name=<name of config without .yaml>) \
+        model.train_ds.manifest_filepath="<path to manifest file>" \
+        model.validation_ds.manifest_filepath="<path to manifest file>" \
+        trainer.gpus=-1 \
+        trainer.max_epochs=50 \
+        +init_from_pretrained_model="<name of pretrained checkpoint>"
+
+Fine-tuning via a Pytorch Lightning checkpoint
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: sh
+
+    python examples/asr/script_to_<script_name>.py \
+        --config-path=<path to dir of configs> \
+        --config-name=<name of config without .yaml>) \
+        model.train_ds.manifest_filepath="<path to manifest file>" \
+        model.validation_ds.manifest_filepath="<path to manifest file>" \
+        trainer.gpus=-1 \
+        trainer.max_epochs=50 \
+        +init_from_ptl_ckpt="<name of pytorch lightning checkpoint>"

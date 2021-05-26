@@ -41,7 +41,7 @@ mcfg = DictConfig(
 
 pcfg = DictConfig(
     {
-        "_target_": "nemo.collections.asr.parts.features.FilterbankFeatures",
+        "_target_": "nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures",
         "dither": 0.0,
         "nfilt": 80,
         "stft_conv": True,

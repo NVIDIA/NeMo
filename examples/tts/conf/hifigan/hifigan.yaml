@@ -9,7 +9,7 @@ defaults:
 
 model:
   preprocessor:
-    _target_: nemo.collections.asr.parts.features.FilterbankFeatures
+    _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
     dither: 0.0
     frame_splicing: 1
     nfilt: 80

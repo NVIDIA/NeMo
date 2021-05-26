@@ -24,7 +24,7 @@ from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer_bpe import WERBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
-from nemo.collections.asr.parts.perturb import process_augmentations
+from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
 
