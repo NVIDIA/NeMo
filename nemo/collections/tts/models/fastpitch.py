@@ -21,7 +21,7 @@ from omegaconf import MISSING, DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import FastPitchDataset
-from nemo.collections.asr.parts import parsers
+from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.losses.fastpitchloss import FastPitchLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import FastPitchModule

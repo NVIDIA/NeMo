@@ -18,7 +18,7 @@ import editdistance
 import torch
 from torchmetrics import Metric
 
-from nemo.collections.asr.parts.rnnt_utils import Hypothesis
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.utils import logging
 
 __all__ = ['word_error_rate', 'WER']
