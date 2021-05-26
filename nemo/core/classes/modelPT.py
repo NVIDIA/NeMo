@@ -65,7 +65,6 @@ _MODEL_RESTORE_PATH:
 """
 _MODEL_IS_RESTORED = False
 _NEMO_FILE_FOLDER = None
-_MODEL_RESTORE_PATH = None
 
 
 class ModelPT(LightningModule, Model):
@@ -116,6 +115,8 @@ class ModelPT(LightningModule, Model):
         self._scheduler = None
         self.trainer = trainer  # reference required for self.*_rank
         self._trainer = self.trainer  # alias for backward compatibility
+
+        self._set_model_guid()
 
         # Set device_id in AppState
         if torch.cuda.is_available() and torch.cuda.current_device() is not None:
@@ -185,11 +186,13 @@ class ModelPT(LightningModule, Model):
         """
 
         app_state = AppState()
+
         if src is None or src == "":
             return src
 
         if not hasattr(self, 'artifacts'):
             self.artifacts = {}
+
         if self.artifacts is None:
             self.artifacts = {}
 
@@ -258,10 +261,8 @@ class ModelPT(LightningModule, Model):
                 shutil.copy2(artiitem.path, os.path.join(nemo_file_folder, artifact_uniq_name))
 
                 # Update artifacts registry
-                new_artiitem = model_utils.ArtifactItem()
-                new_artiitem.path = "nemo:" + artifact_uniq_name
-                new_artiitem.path_type = model_utils.ArtifactPathType.TAR_PATH
-                self.artifacts[conf_path] = new_artiitem
+                artiitem.hashed_path = "nemo:" + artifact_uniq_name
+                self.artifacts[conf_path] = artiitem
 
             elif artiitem.path_type == model_utils.ArtifactPathType.TAR_PATH:
                 # process all tarfile artifacts in one go, so preserve key-value pair
@@ -272,7 +273,8 @@ class ModelPT(LightningModule, Model):
 
         # Process current tarfile artifacts by unpacking the previous tarfile and extract the artifacts
         # that are currently required.
-        if len(tarfile_artifacts) > 0:
+        model_metadata = app_state.get_model_metadata_from_guid(self.model_guid)
+        if len(tarfile_artifacts) > 0 and model_metadata.restoration_path is not None:
             # Need to step into nemo archive to extract file
             # Get path where the command is executed - the artifacts will be "retrieved" there
             # (original .nemo behavior)
@@ -280,7 +282,7 @@ class ModelPT(LightningModule, Model):
             try:
                 # Step into the nemo archive to try and find the file
                 with tempfile.TemporaryDirectory() as archive_dir:
-                    self._unpack_nemo_file(path2file=app_state.model_restore_path, out_folder=archive_dir)
+                    self._unpack_nemo_file(path2file=model_metadata.restoration_path, out_folder=archive_dir)
                     os.chdir(archive_dir)
                     for conf_path, artiitem in tarfile_artifacts:
                         # Get basename and copy it to nemo_file_folder
@@ -305,7 +307,10 @@ class ModelPT(LightningModule, Model):
         if self.artifacts is not None and len(self.artifacts) > 0:
             conf = OmegaConf.load(path2yaml_file)
             for conf_path, item in self.artifacts.items():
-                conf.update_node(conf_path, item.path)
+                if item.hashed_path is None:
+                    conf.update_node(conf_path, item.path)
+                else:
+                    conf.update_node(conf_path, item.hashed_path)
             with open(path2yaml_file, 'w') as fout:
                 OmegaConf.save(config=conf, f=fout, resolve=True)
 
@@ -473,9 +478,7 @@ class ModelPT(LightningModule, Model):
         if not path.exists(restore_path):
             raise FileNotFoundError(f"Can't find {restore_path}")
 
-        global _MODEL_RESTORE_PATH
-        _MODEL_RESTORE_PATH = os.path.abspath(os.path.expanduser(restore_path))
-        app_state.model_restore_path = _MODEL_RESTORE_PATH
+        app_state.model_restore_path = os.path.abspath(os.path.expanduser(restore_path))
         return cls._default_restore_from(restore_path, override_config_path, map_location, strict, return_config)
 
     @classmethod
@@ -1290,23 +1293,32 @@ class ModelPT(LightningModule, Model):
         _MODEL_IS_RESTORED = is_being_restored
         _NEMO_FILE_FOLDER = folder
 
+    def _set_model_guid(self):
+        if not hasattr(self, 'model_guid'):
+            appstate = AppState()
+
+            # Generate a unique uuid for the instance
+            # also determine if the model is being restored or not, and preserve the path
+            self.model_guid = str(uuid.uuid4())
+            if self._is_model_being_restored():
+                restore_path = appstate.model_restore_path
+            else:
+                restore_path = None
+
+            appstate.register_model_guid(self.model_guid, restoration_path=restore_path)
+
     @staticmethod
     def _is_restore_type_tarfile() -> bool:
         """
         Utility method that checks if the restore path of the underlying Model
         is a tarfile (can be any valid archive)._MODEL_EFF_SAVE
         """
-        global _MODEL_RESTORE_PATH
-
         app_state = AppState()
 
-        if _MODEL_RESTORE_PATH is None and app_state.model_restore_path is None:
+        if app_state.model_restore_path is None:
             return False
         else:
-            if _MODEL_RESTORE_PATH:
-                if tarfile.is_tarfile(_MODEL_RESTORE_PATH):
-                    return True
-            elif app_state.model_restore_path:
+            if app_state.model_restore_path:
                 if tarfile.is_tarfile(app_state.model_restore_path):
                     return True
             else:
