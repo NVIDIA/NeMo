@@ -2,10 +2,10 @@
 ASR Language Modeling
 #####################
 
-Language models have shown to help the accuracy of ASR models. NeMo support the following two approaches to incorporate language models into the ASR models:
+Language models have shown to help the accuracy of ASR models. NeMo supports the following two approaches to incorporate language models into the ASR models:
 
-* :ref:`ngram_modeling`
-* :ref:`neural_rescoring`
+    * :ref:`ngram_modeling`
+    * :ref:`neural_rescoring`
 
 It is possible to use both approaches on the same ASR model.
 
