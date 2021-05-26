@@ -43,8 +43,8 @@ from nemo.core.neural_types import (
     SpectrogramType,
 )
 from nemo.utils import logging
-from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator
 from nemo.collections.asr.parts.transformer_utils import subsequent_mask
+from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TopKSequenceGenerator
 
 __all__ = ['EncDecClusteringModel']
 
@@ -100,8 +100,7 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
 
         if hasattr(self._cfg.decoder, 'restricted') :
             self.restricted=self._cfg.decoder.restricted
-
-
+        
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:
             augmentor = process_augmentations(config['augmentor'])
@@ -348,14 +347,16 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         signal, signal_len, label_seq, label_seq_len = batch # (B, D, T)
         # signal = signal.transpose(1, 2)  # convert (B, T, D) to (B, D, T)
-
+        print("batch", signal.shape, label_seq.shape)
         log_probs, ys_out = self.forward(input_signal=signal, input_signal_length=signal_len, label_seq=label_seq)
         loss_value = self.loss(log_probs=log_probs, labels=ys_out)
 
         log_probs_flatten = torch.flatten(log_probs, start_dim=0, end_dim=-2)
         labels_flatten = torch.flatten(ys_out, start_dim=0, end_dim=-1)
-
+        # pred = log_probs_flatten.argmax(dim=-1, keepdim=False)
+        print(labels_flatten)
         acc = self._accuracy(logits=log_probs_flatten, labels=labels_flatten)
+        print(acc)
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
         acc = [correct_counts.float() / total_counts]
 
@@ -419,6 +420,24 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
 
+    @torch.no_grad()
+    def beam_search(self, local_att_scores, max_local_beam, hyps_best_kept, hyp, i, minlen):
+        local_best_scores, local_best_ids = torch.topk(local_att_scores, max_local_beam, dim=-1)
+        for j in range(max_local_beam):
+            new_hyp = {}
+            # BEAM SEARCH. store top-beamsize best local score 
+            new_hyp['score'] = hyp['score'] + float(local_best_scores[0, j])
+            new_hyp['yseq'] = [0] * (1 + len(hyp['yseq']))
+            new_hyp['yseq'][:len(hyp['yseq'])] = hyp['yseq']
+            new_hyp['yseq'][len(hyp['yseq'])] = int(local_best_ids[0, j])
+
+            # ignore wrong early ending
+            if int(local_best_ids[0, j]) == self.eos and i < minlen:
+                continue
+            else:
+                hyps_best_kept.append(new_hyp)
+
+        return hyps_best_kept
 
     @torch.no_grad()
     def transcribe_one(self, signal, device):
@@ -430,9 +449,6 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
         
         # preprare sos
         y = self.sos
-        # sos
-        # vy = h.new_zeros(1).long()
-
         # add back args
         maxlenratio, minlenratio = 1.0, 1.0
         beam_size = 4
@@ -445,53 +461,35 @@ class EncDecClusteringModel(ASRModel, ExportableEncDecModel):
         minlen = int(minlenratio * h.size(0))
         # sos
         hyp = {'score': 0.0, 'yseq': [y]}
-
+        
         hyps = [hyp]
         ended_hyps = []
 
-        traced_decoder = None
-        
+        decoder_mems_list = None
+
+        # TODO decoder_mems_list fix
+        # Go over sequence
         for i in range(maxlen):
-            # print('position ' + str(i))
             hyps_best_kept = []
             for hyp in hyps:
-                # print("=== hyp", hyp)
                 ys = torch.tensor(hyp['yseq']).unsqueeze(0).to(device)
+                # TODO fix here
                 log_probs, decoder_mems_list = self.decoder._one_step_forward(
                     decoder_input_ids=ys, 
                     encoder_hidden_states=enc_output, 
                     encoder_input_mask=src_mask,
-                    decoder_mems_list=None
+                    decoder_mems_list=None, #decoder_mems_list
                  )
 
                 log_probs= log_probs.squeeze(0) # squeeze out batch dimension
                 local_att_scores = log_probs
-
-                # print(f"local_att_scores: shape {local_att_scores}. value{local_att_scores}")
                 max_local_beam = min(beam_size, local_att_scores.shape[1])
 
-                local_best_scores, local_best_ids = torch.topk(local_att_scores, max_local_beam, dim=1)
-
-                # beam
-                for j in range(max_local_beam):
-                    new_hyp = {}
-                    # BEAM SEARCH. store top-beamsize best local score 
-                    new_hyp['score'] = hyp['score'] + float(local_best_scores[0, j])
-                    new_hyp['yseq'] = [0] * (1 + len(hyp['yseq']))
-                    new_hyp['yseq'][:len(hyp['yseq'])] = hyp['yseq']
-                    new_hyp['yseq'][len(hyp['yseq'])] = int(local_best_ids[0, j])
-
-                    # ignore wrong early ending
-                    if int(local_best_ids[0, j]) == self.eos and i < minlen:
-                        continue
-                    else:
-                        hyps_best_kept.append(new_hyp)
-
+                hyps_best_kept = self.beam_search(local_att_scores, max_local_beam, hyps_best_kept, hyp, i, minlen)
+                # sort and get nbest
                 hyps_best_kept = sorted(hyps_best_kept, key=lambda x: x['score'], reverse=True)[:beam_size]
 
-            # sort and get nbest
             hyps = hyps_best_kept
-            # print('number of pruned hypothes: ' + str(len(hyps)))
 
             # TODO this is one on on tagging so maxlen is not .... TODO
             if i == maxlen - 1:

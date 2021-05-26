@@ -209,12 +209,18 @@ class TransformerDecoderNM(DecoderModule, Exportable):
             decoder_mems_list: list of size num_layers with cached activations
                 of sequence (x[1], ..., x[k-1]) for fast generation of x[k]
             pos: starting position in positional encoding
+
+        input_ids: B D T
+        decoder_mask:  decoder inputs mask (B x L_dec)
+        encoder_embeddings: (B x L_enc x H)
         """
 
         # decoder_hidden_states = self.embedding.forward(decoder_input_ids, start_pos=pos)
         decoder_hidden_states = self._embedding(input_ids=decoder_input_ids)
-        self.pad=0
-        decoder_input_mask = mask_padded_tokens(decoder_input_ids, self.pad).float()
+        # self.pad = 4
+        # decoder_input_mask = mask_padded_tokens(decoder_input_ids, self.pad).float()\
+       
+        decoder_input_mask = target_mask(decoder_input_ids) #(B, L_dec+1)
 
         if encoder_hidden_states is not None:
             decoder_mems_list = self._decoder.forward(
@@ -226,39 +232,15 @@ class TransformerDecoderNM(DecoderModule, Exportable):
                 return_mems=True,
             )
         else:
-            decoder_mems_list = self.decoder.forward(
+            decoder_mems_list = self._decoder.forward(
                 decoder_hidden_states, decoder_input_mask, decoder_mems_list, return_mems=True
             )
 
-        # decoder_hidden_states = decoder_mems_list[-1][:, -1:]
-        decoder_hidden_states = decoder_mems_list[-1]
+        decoder_hidden_states = decoder_mems_list[-1][:, -1:]
+        # decoder_hidden_states = decoder_mems_list[-1]
         logits = self._output_layer(decoder_hidden_states)
         log_probs = torch.nn.functional.log_softmax(logits[:, -1:], dim=2)
         return log_probs, decoder_mems_list
-
-
-    # @typecheck()
-    def recognize(self, input_ids, decoder_mask, encoder_embeddings):
-        """
-        input_ids: B D T
-        decoder_mask:  decoder inputs mask (B x L_dec)
-        encoder_embeddings: (B x L_enc x H)
-        """
-        # prepare pad and mask for output seq of labels
-        # ys_in_pad, ys_out_pad = add_sos_eos(input_ids)
-        # ys_mask = target_mask(ys_in_pad)
-        # ys_mask = target_mask(input_ids)
-
-        decoder_embeddings = self._embedding(input_ids=input_ids)
-        decoder_hidden_states = self._decoder(
-            decoder_states=decoder_embeddings,  # output of the embedding layer (B x L_dec x H)
-            decoder_mask=decoder_mask,  # decoder inputs mask (B x L_dec)
-            encoder_states=encoder_embeddings,  # output of the encoder (B x L_enc x H)
-            encoder_mask=None, # encoder inputs mask (B x L_enc)
-        )
-
-        logits = self._output_layer(decoder_hidden_states[:, -1])
-        return logits, None
 
     @property
     def hidden_size(self):
