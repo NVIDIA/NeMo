@@ -53,24 +53,6 @@ class FastPitchConfig:
     pitch_predictor: Dict[Any, Any] = MISSING
 
 
-def average_pitch(pitch, durs):
-    durs_cums_ends = torch.cumsum(durs, dim=1).long()
-    durs_cums_starts = torch.nn.functional.pad(durs_cums_ends[:, :-1], (1, 0))
-    pitch_nonzero_cums = torch.nn.functional.pad(torch.cumsum(pitch != 0.0, dim=2), (1, 0))
-    pitch_cums = torch.nn.functional.pad(torch.cumsum(pitch, dim=2), (1, 0))
-
-    bs, l = durs_cums_ends.size()
-    n_formants = pitch.size(1)
-    dcs = durs_cums_starts[:, None, :].expand(bs, n_formants, l)
-    dce = durs_cums_ends[:, None, :].expand(bs, n_formants, l)
-
-    pitch_sums = (torch.gather(pitch_cums, 2, dce) - torch.gather(pitch_cums, 2, dcs)).float()
-    pitch_nelems = (torch.gather(pitch_nonzero_cums, 2, dce) - torch.gather(pitch_nonzero_cums, 2, dcs)).float()
-
-    pitch_avg = torch.where(pitch_nelems == 0.0, pitch_nelems, pitch_sums / pitch_nelems)
-    return pitch_avg
-
-
 class FastPitchModel(SpectrogramGenerator):
     """FastPitch Model that is used to generate mel spectrograms from text"""
 
@@ -94,6 +76,7 @@ class FastPitchModel(SpectrogramGenerator):
         # Ensure passed cfg is compliant with schema
         OmegaConf.merge(cfg, schema)
 
+        self.bin_loss_warmup_epochs = 100
         self.aligner = None
         self.mel_loss = MelLoss()
         self.pitch_loss = PitchLoss()
@@ -215,10 +198,10 @@ class FastPitchModel(SpectrogramGenerator):
             audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
         mels, spec_len = self.preprocessor(input_signal=audio, length=audio_lens)
 
-        mels_pred, _, log_durs_pred, pitch_pred, attn_soft, attn_logprob, attn_hard, attn_hard_dur = self(
+        mels_pred, _, log_durs_pred, pitch_pred, attn_soft, attn_logprob, attn_hard, attn_hard_dur, pitch = self(
             text=text,
             durs=durs,
-            pitch=None if self.learn_alignment else pitch,
+            pitch=pitch,
             speaker=speakers,
             pace=1.0,
             spec=mels if self.learn_alignment else None,
@@ -234,9 +217,9 @@ class FastPitchModel(SpectrogramGenerator):
         loss = mel_loss + dur_loss
         if self.learn_alignment:
             ctc_loss = self.forward_sum_loss(attn_logprob=attn_logprob, in_lens=text_lens, out_lens=spec_len)
+            bin_loss_weight = min(self.current_epoch / self.bin_loss_warmup_epochs, 1.0) * 1.0
             bin_loss = self.bin_loss(hard_attention=attn_hard, soft_attention=attn_soft)
             loss += ctc_loss + bin_loss
-            pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
 
         pitch_loss = self.pitch_loss(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens)
         loss += pitch_loss
@@ -260,7 +243,7 @@ class FastPitchModel(SpectrogramGenerator):
         mels, mel_lens = self.preprocessor(input_signal=audio, length=audio_lens)
 
         # Calculate val loss on ground truth durations to better align L2 loss in time
-        mels_pred, _, log_durs_pred, pitch_pred, _, _, _, attn_hard_dur = self(
+        mels_pred, _, log_durs_pred, pitch_pred, _, _, _, attn_hard_dur, pitch = self(
             text=text,
             durs=durs,
             pitch=None,
@@ -276,12 +259,8 @@ class FastPitchModel(SpectrogramGenerator):
 
         mel_loss = self.mel_loss(spect_predicted=mels_pred, spect_tgt=mels)
         dur_loss = self.duration_loss(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=text_lens)
-        loss = mel_loss + dur_loss
-        if self.learn_alignment:
-            pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
-
         pitch_loss = self.pitch_loss(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens)
-        loss += pitch_loss
+        loss = mel_loss + dur_loss + pitch_loss
 
         return {
             "val_loss": loss,
