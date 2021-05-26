@@ -29,6 +29,8 @@ model:
       n_window_size: ${model.n_window_size}
       pitch_fmin: 80
       pitch_fmax: 640
+      pitch_avg: 216.23100173462166
+      pitch_std: 46.24582950436719
       vocab:
         notation: phonemes
         punct: true
@@ -60,6 +62,8 @@ model:
       n_window_size: ${model.n_window_size}
       pitch_fmin: 80
       pitch_fmax: 640
+      pitch_avg: 216.23100173462166
+      pitch_std: 46.24582950436719
       vocab:
         notation: phonemes
         punct: true

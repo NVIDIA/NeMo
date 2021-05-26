@@ -63,19 +63,47 @@ from nemo.core.neural_types.elements import (
     LogprobsType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.collections.tts.helpers.helpers import binarize_attention
+from nemo.collections.tts.helpers.helpers import binarize_attention_parallel
 
 
 def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
     """If target=None, then predicted durations are applied"""
-    reps = torch.round(durations.float() / pace).long()
+    dtype = enc_out.dtype
+    reps = durations.float() / pace
+    reps = (reps + 0.5).long()
     dec_lens = reps.sum(dim=1)
 
-    enc_rep = pad_sequence([torch.repeat_interleave(o, r, dim=0) for o, r in zip(enc_out, reps)], batch_first=True)
+    max_len = dec_lens.max()
+    reps_cumsum = torch.cumsum(F.pad(reps, (1, 0, 0, 0), value=0.0), dim=1)[:, None, :]
+    reps_cumsum = reps_cumsum.to(dtype)
+
+    range_ = torch.arange(max_len).to(enc_out.device)[None, :, None]
+    mult = (reps_cumsum[:, :, :-1] <= range_) & (reps_cumsum[:, :, 1:] > range_)
+    mult = mult.to(dtype)
+    enc_rep = torch.matmul(mult, enc_out)
+
     if mel_max_len:
         enc_rep = enc_rep[:, :mel_max_len]
         dec_lens = torch.clamp_max(dec_lens, mel_max_len)
     return enc_rep, dec_lens
+
+
+def average_pitch(pitch, durs):
+    durs_cums_ends = torch.cumsum(durs, dim=1).long()
+    durs_cums_starts = torch.nn.functional.pad(durs_cums_ends[:, :-1], (1, 0))
+    pitch_nonzero_cums = torch.nn.functional.pad(torch.cumsum(pitch != 0.0, dim=2), (1, 0))
+    pitch_cums = torch.nn.functional.pad(torch.cumsum(pitch, dim=2), (1, 0))
+
+    bs, l = durs_cums_ends.size()
+    n_formants = pitch.size(1)
+    dcs = durs_cums_starts[:, None, :].expand(bs, n_formants, l)
+    dce = durs_cums_ends[:, None, :].expand(bs, n_formants, l)
+
+    pitch_sums = (torch.gather(pitch_cums, 2, dce) - torch.gather(pitch_cums, 2, dcs)).float()
+    pitch_nelems = (torch.gather(pitch_nonzero_cums, 2, dce) - torch.gather(pitch_nonzero_cums, 2, dcs)).float()
+
+    pitch_avg = torch.where(pitch_nelems == 0.0, pitch_nelems, pitch_sums / pitch_nelems)
+    return pitch_avg
 
 
 class ConvReLUNorm(nn.Module):
@@ -227,23 +255,28 @@ class FastPitchModule(NeuralModule):
         # Input FFT
         enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
 
-        # Predict pitch
-        pitch_predicted = self.pitch_predictor(enc_out, enc_mask)
-        if pitch is None:
-            pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
-        else:
-            pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
-
         log_durs_predicted = self.duration_predictor(enc_out, enc_mask)
         durs_predicted = torch.clamp(torch.exp(log_durs_predicted) - 1, 0, self.max_token_duration)
-        enc_out = enc_out + pitch_emb.transpose(1, 2)
 
         attn_soft, attn_hard, attn_hard_dur, attn_logprob = None, None, None, None
         if self.learn_alignment and spec is not None:
             text_emb = self.encoder.word_emb(text)
             attn_soft, attn_logprob = self.aligner(spec, text_emb.permute(0, 2, 1), enc_mask == 0, attn_prior)
-            attn_hard = binarize_attention(attn_soft, input_lens, mel_lens)
+            attn_hard = binarize_attention_parallel(attn_soft, input_lens, mel_lens)
             attn_hard_dur = attn_hard.sum(2)[:, 0, :]
+
+        # Predict pitch
+        pitch_predicted = self.pitch_predictor(enc_out, enc_mask)
+        if pitch is not None:
+            if self.learn_alignment:
+                pitch = average_pitch(pitch, attn_hard_dur)
+            pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
+        else:
+            pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
+
+        enc_out = enc_out + pitch_emb.transpose(1, 2)
+
+        if self.learn_alignment and spec is not None:
             len_regulated, dec_lens = regulate_len(attn_hard_dur, enc_out, pace)
         elif spec is None and durs is not None:
             len_regulated, dec_lens = regulate_len(durs, enc_out, pace)

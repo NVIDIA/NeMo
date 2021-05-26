@@ -606,10 +606,12 @@ class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
             'pitch': NeuralType(('B', 'T'), RegressionValuesType()),
         }
 
-    def __init__(self, sup_data_path, pitch_fmin, pitch_fmax, n_window_size, **kwargs):
+    def __init__(self, sup_data_path, pitch_fmin, pitch_fmax, n_window_size, pitch_avg, pitch_std, **kwargs):
         self.pitch_fmin = pitch_fmin
         self.pitch_fmax = pitch_fmax
         self.n_window_size = n_window_size
+        self.pitch_avg = pitch_avg
+        self.pitch_std = pitch_std
         super().__init__(attn_prior_folder=sup_data_path, **kwargs)
 
     def __getitem__(self, item):
@@ -632,6 +634,9 @@ class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
                 fill_na=0.0,
             )
             np.save(pitch_path, pitch)
+        pitch -= self.pitch_avg
+        pitch[pitch == -self.pitch_avg] = 0.0  # Zero out values that were perviously zero
+        pitch /= self.pitch_std
 
         return audio, audio_len, text, text_len, attn_prior, torch.tensor(pitch)
 
