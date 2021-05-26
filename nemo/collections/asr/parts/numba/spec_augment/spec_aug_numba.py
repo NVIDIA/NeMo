@@ -2,12 +2,14 @@ import torch
 import torch.nn as nn
 from numba import cuda
 
+from nemo.utils import logging
+
 
 THREAD_BUFFER = 128
 
 
 @cuda.jit()
-def spec_augment(
+def spec_augment_kernel(
     x: torch.Tensor,
     x_len: torch.Tensor,
     freq_starts: torch.Tensor,
@@ -76,6 +78,64 @@ def spec_augment(
                         x[b, f, t] = mask_value
 
 
+def launch_spec_augment_kernel(
+    x: torch.Tensor,
+    x_len: torch.Tensor,
+    freq_starts: torch.Tensor,
+    freq_lengths: torch.Tensor,
+    time_starts: torch.Tensor,
+    time_lengths: torch.Tensor,
+    freq_masks: int,
+    time_masks: int,
+    mask_value: float,
+):
+    """
+    Helper method to launch the SpecAugment kernel
+
+    Args:
+        x: Pytorch tensor of shape [B, F, T] with the acoustic features.
+        x_len: Pytorch tensor of shape [B] with the lengths of the padded sequence.
+        freq_starts: Pytorch tensor of shape [B] with the start indices of freq masks.
+        freq_widths: Pytorch tensor of shape [B] with the width of freq masks.
+        time_starts: Pytorch tensor of shape [B] with the start indices of time masks.
+        time_widths: Pytorch tensor of shape [B] with the width of time masks.
+        freq_masks: Int value that determines the number of time masks.
+        time_masks: Int value that determines the number of freq masks.
+        mask_value: Float value that will be used as mask value.
+
+    Returns:
+        The spec augmented tensor 'x'
+    """
+    # Setup CUDA stream
+    sh = x.shape
+    stream = cuda.external_stream(torch.cuda.current_stream(x.device).cuda_stream)
+
+    if time_masks > 0 or freq_masks > 0:
+        # Parallelize over freq and time axis, parallel threads over max(num_freq_masks, num_time_masks)
+        # Sequential over batch size (adaptive in time).
+        blocks_per_grid = [sh[1], sh[2]]
+        threads_per_block = min(THREAD_BUFFER, max(freq_masks, time_masks))
+
+        # Numba does not support fp16, force cast to fp32 temporarily at the expense of memory
+        original_dtype = x.dtype
+        cast_x = False
+        if x.dtype == torch.float16:
+            x = x.float()
+            cast_x = True
+
+        # Launch CUDA kernel
+        spec_augment_kernel[blocks_per_grid, threads_per_block, stream, 0](
+            x, x_len, freq_starts, freq_lengths, time_starts, time_lengths, mask_value
+        )
+        torch.cuda.synchronize()
+
+        # Recast back to original dtype if earlier cast was performed
+        if cast_x:
+            x = x.to(dtype=original_dtype)
+
+    return x
+
+
 class SpecAugmentNumba(nn.Module):
     """
     Zeroes out(cuts) random continuous horisontal or
@@ -110,7 +170,10 @@ class SpecAugmentNumba(nn.Module):
 
         self.mask_value = mask_value
 
+        # Unused
         self.rng = rng
+        if self.rng is not None:
+            logging.warning("`rng` was supplied to SpecAugmentNumba, but it is not used.")
 
         if isinstance(time_width, int):
             self.adaptive_temporal_width = False
@@ -130,43 +193,30 @@ class SpecAugmentNumba(nn.Module):
             time_width = self.time_width
 
         # Construct the freq and time masks as well as start positions
-        freq_starts = torch.randint(0, sh[1] - self.freq_width, size=[self.freq_masks], device=x.device)
-        freq_lengths = torch.randint(0, self.freq_width, size=[self.freq_masks], device=x.device)
-        time_starts = torch.randint(0, sh[2] - time_width, size=[self.time_masks], device=x.device)
-        time_lengths = torch.randint(0, time_width, size=[self.time_masks], device=x.device)
+        if self.freq_masks > 0:
+            freq_starts = torch.randint(0, sh[1] - self.freq_width, size=[self.freq_masks], device=x.device)
+            freq_lengths = torch.randint(0, self.freq_width, size=[self.freq_masks], device=x.device)
+        else:
+            freq_starts = torch.zeros([1], dtype=torch.int64, device=x.device)
+            freq_lengths = torch.zeros([1], dtype=torch.int64, device=x.device)
 
-        # Setup CUDA stream
-        stream = cuda.external_stream(torch.cuda.current_stream(x.device).cuda_stream)
+        if self.time_masks > 0:
+            time_starts = torch.randint(0, sh[2] - time_width, size=[self.time_masks], device=x.device)
+            time_lengths = torch.randint(0, time_width, size=[self.time_masks], device=x.device)
+        else:
+            time_starts = torch.zeros([1], dtype=torch.int64, device=x.device)
+            time_lengths = torch.zeros([1], dtype=torch.int64, device=x.device)
 
-        # Parallelize over freq and time axis, threads over max(num_freq_masks, num_time_masks)
-        # Sequential (per mask) over batch size.
-        blocks_per_grid = [sh[1], sh[2]]
-        threads_per_block = min(THREAD_BUFFER, max(self.freq_masks, self.time_masks))
-
-        # Launch CUDA kernel
-        spec_augment[blocks_per_grid, threads_per_block, stream, 0](
-            x, x_len, freq_starts, freq_lengths, time_starts, time_lengths, self.mask_value
+        x = launch_spec_augment_kernel(
+            x,
+            x_len,
+            freq_starts=freq_starts,
+            freq_lengths=freq_lengths,
+            time_starts=time_starts,
+            time_lengths=time_lengths,
+            freq_masks=self.freq_masks,
+            time_masks=self.time_masks,
+            mask_value=self.mask_value,
         )
 
         return x
-
-
-if __name__ == '__main__':
-
-    shape = [1, 2, 50]
-    x = torch.randn(*shape, device='cuda')
-    x_len = torch.randint(shape[-1], size=[shape[0]], device=x.device)
-
-    spec_aug = SpecAugmentNumba(
-        freq_masks=2, time_masks=10, freq_width=1, time_width=0.05, mask_value=0.0
-    )
-    # Warmup
-    _ = spec_aug(x, x_len)
-
-    with torch.autograd.profiler.profile(use_cuda=True, profile_memory=True) as prof:
-        with torch.autograd.profiler.record_function("spec_aug_cuda"):
-            x_masked = spec_aug(x, x_len)
-
-    print(prof)
-
-    # print(x_masked[0].to('cpu'))
