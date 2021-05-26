@@ -52,7 +52,7 @@ model:
       num_workers: 4
 
   preprocessor:
-    _target_: nemo.collections.asr.parts.features.FilterbankFeatures
+    _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
     dither: 0.0
     nfilt: ${n_mels}
     frame_splicing: 1

@@ -23,7 +23,7 @@ from pyannote.core import Annotation, Segment
 from pyannote.metrics.diarization import DiarizationErrorRate
 from tqdm import tqdm
 
-from nemo.collections.asr.parts.nmse_clustering import COSclustering
+from nemo.collections.asr.parts.utils.nmse_clustering import COSclustering
 from nemo.utils import logging
 
 
