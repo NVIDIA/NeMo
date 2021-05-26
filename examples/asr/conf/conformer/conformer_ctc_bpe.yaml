@@ -17,7 +17,7 @@
 
 # You may find more info about Conformer-CTC here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#conformer-ctc
 # Pre-trained models of Conformer-CTC can be found here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html
-# This recipe of large model would achieve the following WERs if trained/evaluated on LibriSpeech:
+# This recipe of large model would achieve the following WERs if trained and evaluated on LibriSpeech:
 #    2.4 % on dev-clean
 #    6.2 % on dev-other
 #    2.7 % on test-clean
