@@ -46,6 +46,7 @@ class ArtifactPathType(Enum):
 class ArtifactItem:
     path: str
     path_type: ArtifactPathType
+    hashed_path: Optional[str] = None
 
 
 def resolve_dataset_name_from_cfg(cfg: DictConfig) -> str:
