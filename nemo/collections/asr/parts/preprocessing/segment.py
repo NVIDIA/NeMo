@@ -42,6 +42,7 @@ import soundfile as sf
 from kaldiio.matio import read_kaldi
 from kaldiio.utils import open_like_kaldi
 from pydub import AudioSegment as Audio
+from pydub.exceptions import CouldntDecodeError
 
 from nemo.utils import logging
 
@@ -145,7 +146,8 @@ class AudioSegment(object):
                 samples = samples.transpose()
             except RuntimeError as e:
                 logging.error(
-                    f"Loading audio via SoundFile raised RuntimeError: `{e}`. NeMo will fallback to loading via pydub."
+                    f"Loading {audio_file} via SoundFile raised RuntimeError: `{e}`. "
+                    f"NeMo will fallback to loading via pydub."
                 )
         elif isinstance(audio_file, str) and audio_file.strip()[-1] == "|":
             f = open_like_kaldi(audio_file, "rb")
@@ -159,16 +161,19 @@ class AudioSegment(object):
                 samples = np.array(samples, dtype=np.float) / abs_max_value
 
         if samples is None:
-            samples = Audio.from_file(audio_file)
-            sample_rate = samples.frame_rate
-            if offset > 0:
-                # pydub does things in milliseconds
-                seconds = offset * 1000
-                samples = samples[int(seconds * sample_rate) :]
-            if duration > 0:
-                seconds = duration * 1000
-                samples = samples[: int(seconds)]
-            samples = np.array(samples.get_array_of_samples())
+            try:
+                samples = Audio.from_file(audio_file)
+                sample_rate = samples.frame_rate
+                if offset > 0:
+                    # pydub does things in milliseconds
+                    seconds = offset * 1000
+                    samples = samples[int(seconds * sample_rate) :]
+                if duration > 0:
+                    seconds = duration * 1000
+                    samples = samples[: int(seconds)]
+                samples = np.array(samples.get_array_of_samples())
+            except CouldntDecodeError as e:
+                logging.error(f"Loading {audio_file} via pydub raised CouldntDecodeError: `{e}`.")
 
         return cls(samples, sample_rate, target_sr=target_sr, trim=trim, orig_sr=orig_sr)
 
@@ -179,15 +184,19 @@ class AudioSegment(object):
 
         Note that audio_file can be either the file path, or a file-like object.
         """
-        with sf.SoundFile(audio_file, 'r') as f:
-            sample_rate = f.samplerate
-            if n_segments > 0 and len(f) > n_segments:
-                max_audio_start = len(f) - n_segments
-                audio_start = random.randint(0, max_audio_start)
-                f.seek(audio_start)
-                samples = f.read(n_segments, dtype='float32')
-            else:
-                samples = f.read(dtype='float32')
+        try:
+            with sf.SoundFile(audio_file, 'r') as f:
+                sample_rate = f.samplerate
+                if n_segments > 0 and len(f) > n_segments:
+                    max_audio_start = len(f) - n_segments
+                    audio_start = random.randint(0, max_audio_start)
+                    f.seek(audio_start)
+                    samples = f.read(n_segments, dtype='float32')
+                else:
+                    samples = f.read(dtype='float32')
+            samples = samples.transpose()
+        except RuntimeError as e:
+            logging.error(f"Loading {audio_file} via SoundFile raised RuntimeError: `{e}`.")
 
         samples = samples.transpose()
         return cls(samples, sample_rate, target_sr=target_sr, trim=trim, orig_sr=orig_sr)

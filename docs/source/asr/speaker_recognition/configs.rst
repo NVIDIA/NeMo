@@ -80,7 +80,7 @@ minimum and maximum SNR specified with min_snr and max_snr respectively. This se
           max_snr_db: 15        
 
 
-See the :class:`nemo.collections.asr.parts.perturb.AudioAugmentor`  API section for more details.
+See the :class:`nemo.collections.asr.parts.preprocessing.perturb.AudioAugmentor`  API section for more details.
 
 
 Model Architecture Configurations
