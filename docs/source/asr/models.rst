@@ -84,6 +84,9 @@ Conformer-CTC models at `Conformer-CTC <./configs.html#conformer-ctc>`. The vari
 which can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModelBPE` class, while the
 character-based variant is based on :class:`~nemo.collections.asr.models.EncDecCTCModel`.
 
+You may find the example config files of Conformer-CTC model with character-based encoding at
+``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_char.yaml`` and
+with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_bpe.yaml``.
 
 References
 ----------
