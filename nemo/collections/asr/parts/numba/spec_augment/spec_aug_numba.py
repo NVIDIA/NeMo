@@ -5,7 +5,7 @@ from numba import cuda
 from nemo.utils import logging
 
 
-THREAD_BUFFER = 128
+MAX_THREAD_BUFFER = 512
 
 
 @cuda.jit()
@@ -20,6 +20,8 @@ def spec_augment_kernel(
 ):
     """
     Numba CUDA kernel to perform SpecAugment in-place on the GPU.
+    Parallelize over freq and time axis, parallel threads over batch.
+    Sequential over masks (adaptive in time).
 
     Args:
         x: Pytorch tensor of shape [B, F, T] with the acoustic features.
@@ -38,44 +40,44 @@ def spec_augment_kernel(
     # Compute the number of masks over freq axis
     len_f = freq_starts.shape[1]
     # For all samples in the batch, apply the freq mask
-    for b in range(x.shape[0]):
-        # For `len_f` number of freq masks that must be applied
-        for fidx in range(0, len_f, threads_per_block):
-            # Resolve the index of the freq mask (case where more masks than THREAD_BUFFER)
-            fm_idx = fidx * threads_per_block + tid
+    for bidx in range(0, x.shape[0], threads_per_block):
+        # Resolve the index of the batch (case where more masks than MAX_THREAD_BUFFER)
+        bm_idx = bidx * threads_per_block + tid
 
+        # For `len_f` number of freq masks that must be applied
+        for fidx in range(0, len_f):
             # If resolved freq mask index < total number of freq masks
-            if fm_idx < len_f:
+            if fidx < len_f:
                 # Access the start index and width of this freq mask
-                f_start = freq_starts[b, fm_idx]
-                f_width = freq_widths[b, fm_idx]
+                f_start = freq_starts[bm_idx, fidx]
+                f_width = freq_widths[bm_idx, fidx]
 
                 # If block idx `f` >= start and < (start + width) of this freq mask
                 if f >= f_start and f < (f_start + f_width):
-                    x[b, f, t] = mask_value
+                    x[bm_idx, f, t] = mask_value
 
     # Compute the number of masks over time axis
     len_t = time_starts.shape[1]
     # For all samples in the batch, apply the time mask
-    for b in range(x.shape[0]):
-        # For `len_t` number of freq masks that must be applied
-        for tidx in range(0, len_t, threads_per_block):
-            # Resolve the index of the freq mask (case where more masks than THREAD_BUFFER)
-            tm_idx = tidx * threads_per_block + tid
+    for b_idx in range(0, x.shape[0], threads_per_block):
+        # Resolve the index of the batch (case where more masks than MAX_THREAD_BUFFER)
+        bm_idx = bidx * threads_per_block + tid
 
+        # For `len_t` number of freq masks that must be applied
+        for tidx in range(0, len_t):
             # If resolved time mask index < total number of time masks
-            if tm_idx < len_t:
+            if tidx < len_t:
                 # Access the start index and width of this time mask
-                t_start = time_starts[b, tm_idx]
-                t_width = time_widths[b, tm_idx]
+                t_start = time_starts[bm_idx, tidx]
+                t_width = time_widths[bm_idx, tidx]
 
                 # If block idx `t` >= start and < (start + width) of this time mask
                 if t >= t_start and t < (t_start + t_width):
                     # Current block idx `t` < current seq length x_len[b]
                     # This ensure that we mask only upto the length of that sample
                     # Everything after that index is padded value so unnecessary to mask
-                    if t < x_len[b]:
-                        x[b, f, t] = mask_value
+                    if t < x_len[bm_idx]:
+                        x[bm_idx, f, t] = mask_value
 
 
 def launch_spec_augment_kernel(
@@ -111,10 +113,11 @@ def launch_spec_augment_kernel(
     stream = cuda.external_stream(torch.cuda.current_stream(x.device).cuda_stream)
 
     if time_masks > 0 or freq_masks > 0:
-        # Parallelize over freq and time axis, parallel threads over max(num_freq_masks, num_time_masks)
-        # Sequential over batch size (adaptive in time).
+        # Parallelize over freq and time axis, parallel threads over batch
+        # Sequential over masks (adaptive in time).
         blocks_per_grid = [sh[1], sh[2]]
-        threads_per_block = min(THREAD_BUFFER, max(freq_masks, time_masks))
+        # threads_per_block = min(MAX_THREAD_BUFFER, max(freq_masks, time_masks))
+        threads_per_block = min(MAX_THREAD_BUFFER, x.shape[0])
 
         # Numba does not support fp16, force cast to fp32 temporarily at the expense of memory
         original_dtype = x.dtype
@@ -143,6 +146,8 @@ class SpecAugmentNumba(nn.Module):
     SpecAugment (https://arxiv.org/abs/1904.08779).
 
     Utilizes a Numba CUDA kernel to perform inplace edit of the input without loops.
+    Parallelize over freq and time axis, parallel threads over batch.
+    Sequential over masks (adaptive in time).
 
     Args:
         freq_masks - how many frequency segments should be cut

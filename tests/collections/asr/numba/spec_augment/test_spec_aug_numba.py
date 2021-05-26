@@ -48,6 +48,7 @@ def prepare_data(b, f, t, device='cuda', freq_masks=0, time_masks=0, freq_width=
     x_len = torch.randint(t, size=[b], device=x.device)
 
     sh = x.shape
+    bs = sh[0]
 
     if isinstance(time_width, int):
         adaptive_temporal_width = False
@@ -64,18 +65,18 @@ def prepare_data(b, f, t, device='cuda', freq_masks=0, time_masks=0, freq_width=
 
     # Construct the freq and time masks as well as start positions
     if freq_masks > 0:
-        freq_starts = torch.randint(0, sh[1] - freq_width, size=[freq_masks], device=x.device)
-        freq_lengths = torch.randint(0, freq_width, size=[freq_masks], device=x.device)
+        freq_starts = torch.randint(0, sh[1] - freq_width, size=[bs, freq_masks], device=x.device)
+        freq_lengths = torch.randint(0, freq_width, size=[bs, freq_masks], device=x.device)
     else:
-        freq_starts = torch.zeros([1], dtype=torch.int64, device=x.device)
-        freq_lengths = torch.zeros([1], dtype=torch.int64, device=x.device)
+        freq_starts = torch.zeros([bs, 1], dtype=torch.int64, device=x.device)
+        freq_lengths = torch.zeros([bs, 1], dtype=torch.int64, device=x.device)
 
     if time_masks > 0:
-        time_starts = torch.randint(0, sh[2] - time_width, size=[time_masks], device=x.device)
-        time_lengths = torch.randint(0, time_width, size=[time_masks], device=x.device)
+        time_starts = torch.randint(0, sh[2] - time_width, size=[bs, time_masks], device=x.device)
+        time_lengths = torch.randint(0, time_width, size=[bs, time_masks], device=x.device)
     else:
-        time_starts = torch.zeros([1], dtype=torch.int64, device=x.device)
-        time_lengths = torch.zeros([1], dtype=torch.int64, device=x.device)
+        time_starts = torch.zeros([bs, 1], dtype=torch.int64, device=x.device)
+        time_lengths = torch.zeros([bs, 1], dtype=torch.int64, device=x.device)
 
     output = dict(
         x=x,
@@ -102,27 +103,25 @@ def launch_kernel(data, cfg):
     # fmt: on
 
 
-def freq_mask_check(x, x_len, f_start, f_len, mask_value):
+def freq_mask_check(x, x_len, f_start, f_len, mask_value, bidx):
     check_result = True
     for fidx in range(f_start, f_start + f_len):
-        if not (x[:, fidx, :] == mask_value).all():
-            print(fidx, f_start, f_start + f_len, x[:, fidx, :])
+        if not (x[bidx, fidx, :] == mask_value).all():
             check_result = False
             break
     assert check_result
 
 
-def time_mask_check(x, x_len, t_start, t_len, mask_value):
+def time_mask_check(x, x_len, t_start, t_len, mask_value, bidx):
     check_result = True
     for tidx in range(t_start, t_start + t_len):
-        for bidx in range(x.shape[0]):
-            if tidx >= x_len[bidx]:
-                # this sample has smaller length than the time index of mask, ignore
-                continue
+        if tidx >= x_len[bidx]:
+            # this sample has smaller length than the time index of mask, ignore
+            continue
 
-            if not (x[bidx, :, tidx] == mask_value).all():
-                check_result = False
-                break
+        if not (x[bidx, :, tidx] == mask_value).all():
+            check_result = False
+            break
     assert check_result
 
 
@@ -143,12 +142,14 @@ class TestSpecAugmentNumba:
         x, x_len, sh = data['x'], data['x_len'], data['sh']
 
         # Assert freq masks are correct
-        for f_start, f_len in zip(data['freq_starts'], data['freq_lengths']):
-            freq_mask_check(x, x_len, f_start, f_len, mask_value=cfg.mask_value)
+        for bidx in range(sh[0]):
+            for f_start, f_len in zip(data['freq_starts'][bidx], data['freq_lengths'][bidx]):
+                freq_mask_check(x, x_len, f_start, f_len, mask_value=cfg.mask_value, bidx=bidx)
 
         # Assert time masks are correct
-        for t_start, t_len in zip(data['time_starts'], data['time_lengths']):
-            time_mask_check(x, x_len, t_start, t_len, mask_value=cfg.mask_value)
+        for bidx in range(sh[0]):
+            for t_start, t_len in zip(data['time_starts'][bidx], data['time_lengths'][bidx]):
+                time_mask_check(x, x_len, t_start, t_len, mask_value=cfg.mask_value, bidx=bidx)
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
@@ -166,12 +167,14 @@ class TestSpecAugmentNumba:
         x, x_len, sh = data['x'], data['x_len'], data['sh']
 
         # Assert freq masks are correct
-        for f_start, f_len in zip(data['freq_starts'], data['freq_lengths']):
-            freq_mask_check(x, x_len, f_start, f_len, mask_value=cfg.mask_value)
+        for bidx in range(sh[0]):
+            for f_start, f_len in zip(data['freq_starts'][bidx], data['freq_lengths'][bidx]):
+                freq_mask_check(x, x_len, f_start, f_len, mask_value=cfg.mask_value, bidx=bidx)
 
         # Assert time masks are correct
-        for t_start, t_len in zip(data['time_starts'], data['time_lengths']):
-            time_mask_check(x, x_len, t_start, t_len, mask_value=cfg.mask_value)
+        for bidx in range(sh[0]):
+            for t_start, t_len in zip(data['time_starts'][bidx], data['time_lengths'][bidx]):
+                time_mask_check(x, x_len, t_start, t_len, mask_value=cfg.mask_value, bidx=bidx)
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
@@ -208,8 +211,9 @@ class TestSpecAugmentNumba:
         x, x_len, sh = data['x'], data['x_len'], data['sh']
 
         # Assert time masks are correct
-        for t_start, t_len in zip(data['time_starts'], data['time_lengths']):
-            time_mask_check(x, x_len, t_start, t_len, mask_value=cfg.mask_value)
+        for bidx in range(sh[0]):
+            for t_start, t_len in zip(data['time_starts'][bidx], data['time_lengths'][bidx]):
+                time_mask_check(x, x_len, t_start, t_len, mask_value=cfg.mask_value, bidx=bidx)
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
@@ -226,8 +230,9 @@ class TestSpecAugmentNumba:
         x, x_len, sh = data['x'], data['x_len'], data['sh']
 
         # Assert freq masks are correct
-        for f_start, f_len in zip(data['freq_starts'], data['freq_lengths']):
-            freq_mask_check(x, x_len, f_start, f_len, mask_value=cfg.mask_value)
+        for bidx in range(sh[0]):
+            for f_start, f_len in zip(data['freq_starts'][bidx], data['freq_lengths'][bidx]):
+                freq_mask_check(x, x_len, f_start, f_len, mask_value=cfg.mask_value, bidx=bidx)
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
