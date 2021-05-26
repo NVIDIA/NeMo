@@ -79,10 +79,11 @@ Here is the overall architecture of the encoder of Conformer-CTC:
         :alt: Conformer-CTC Model
         :scale: 50%
 
-This model supports both the sub-word level and character level encodings. You can find more details on the config files for the 
-Conformer-CTC models at :doc:`Conformer-CTC <./configs.html#conformer-ctc>`. The variant with sub-word encoding is a BPE-based model 
+This model supports both the sub-word level and character level encodings. You can find more details on the config files for the
+Conformer-CTC models at `Conformer-CTC <./configs.html#conformer-ctc>`. The variant with sub-word encoding is a BPE-based model
 which can be instantiated using the :class:`EncDecCTCModelBPE<nemo.collections.asr.models.EncDecCTCModelBPE>` class, while the
 character-based variant is based on :class:`EncDecCTCModel<nemo.collections.asr.models.EncDecCTCModel>`.
+
 
 References
 ----------
