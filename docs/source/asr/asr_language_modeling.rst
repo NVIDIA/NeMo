@@ -4,8 +4,8 @@ ASR Language Modeling
 
 Language models have shown to help the accuracy of ASR models. NeMo supports the following two approaches to incorporate language models into the ASR models:
 
-    * :ref:`ngram_modeling`
-    * :ref:`neural_rescoring`
+*  :ref:`ngram_modeling`
+*  :ref:`neural_rescoring`
 
 It is possible to use both approaches on the same ASR model.
 
@@ -113,10 +113,9 @@ You may evaluate an ASR model as the following:
 
 It can evaluate a model in the three following modes by setting the argument `--decoding_mode`:
 
-    * greedy: Just greedy decoding is done, and no beam search decoding is performed.
-    * beamsearch: The beam search decoding is done but without using the N-gram language model, final results would be equivalent to setting the weight of LM (beam_beta) to zero.
-    * beamsearch_ngram: The beam search decoding is done with N-gram LM.
-
+*  greedy: Just greedy decoding is done, and no beam search decoding is performed.
+*  beamsearch: The beam search decoding is done but without using the N-gram language model, final results would be equivalent to setting the weight of LM (beam_beta) to zero.
+*  beamsearch_ngram: The beam search decoding is done with N-gram LM.
 
 The `beamsearch` mode would evaluate by beam search decoding without any language model.
 It would report the performances in terms of Word Error Rate (WER) and Character Error Rate (CER). Moreover,
