@@ -36,41 +36,41 @@ def spec_augment_kernel(
     threads_per_block = cuda.blockDim.x
 
     # Compute the number of masks over freq axis
-    len_f = freq_starts.shape[0]
-    # For `len_f` number of freq masks that must be applied
-    for fidx in range(0, len_f, threads_per_block):
-        # Resolve the index of the freq mask (case where more masks than THREAD_BUFFER)
-        fm_idx = fidx * threads_per_block + tid
+    len_f = freq_starts.shape[1]
+    # For all samples in the batch, apply the freq mask
+    for b in range(x.shape[0]):
+        # For `len_f` number of freq masks that must be applied
+        for fidx in range(0, len_f, threads_per_block):
+            # Resolve the index of the freq mask (case where more masks than THREAD_BUFFER)
+            fm_idx = fidx * threads_per_block + tid
 
-        # If resolved freq mask index < total number of freq masks
-        if fm_idx < len_f:
-            # Access the start index and width of this freq mask
-            f_start = freq_starts[fm_idx]
-            f_width = freq_widths[fm_idx]
+            # If resolved freq mask index < total number of freq masks
+            if fm_idx < len_f:
+                # Access the start index and width of this freq mask
+                f_start = freq_starts[b, fm_idx]
+                f_width = freq_widths[b, fm_idx]
 
-            # If block idx `f` >= start and < (start + width) of this freq mask
-            if f >= f_start and f < (f_start + f_width):
-                # For all samples in the batch, apply the freq mask
-                for b in range(x.shape[0]):
+                # If block idx `f` >= start and < (start + width) of this freq mask
+                if f >= f_start and f < (f_start + f_width):
                     x[b, f, t] = mask_value
 
     # Compute the number of masks over time axis
-    len_t = time_starts.shape[0]
-    # For `len_t` number of freq masks that must be applied
-    for tidx in range(0, len_t, threads_per_block):
-        # Resolve the index of the freq mask (case where more masks than THREAD_BUFFER)
-        tm_idx = tidx * threads_per_block + tid
+    len_t = time_starts.shape[1]
+    # For all samples in the batch, apply the time mask
+    for b in range(x.shape[0]):
+        # For `len_t` number of freq masks that must be applied
+        for tidx in range(0, len_t, threads_per_block):
+            # Resolve the index of the freq mask (case where more masks than THREAD_BUFFER)
+            tm_idx = tidx * threads_per_block + tid
 
-        # If resolved time mask index < total number of time masks
-        if tm_idx < len_t:
-            # Access the start index and width of this time mask
-            t_start = time_starts[tm_idx]
-            t_width = time_widths[tm_idx]
+            # If resolved time mask index < total number of time masks
+            if tm_idx < len_t:
+                # Access the start index and width of this time mask
+                t_start = time_starts[b, tm_idx]
+                t_width = time_widths[b, tm_idx]
 
-            # If block idx `t` >= start and < (start + width) of this time mask
-            if t >= t_start and t < (t_start + t_width):
-                # For all samples in the batch, apply the time mask
-                for b in range(x.shape[0]):
+                # If block idx `t` >= start and < (start + width) of this time mask
+                if t >= t_start and t < (t_start + t_width):
                     # Current block idx `t` < current seq length x_len[b]
                     # This ensure that we mask only upto the length of that sample
                     # Everything after that index is padded value so unnecessary to mask
@@ -186,6 +186,7 @@ class SpecAugmentNumba(nn.Module):
     @torch.no_grad()
     def forward(self, x, x_len):
         sh = x.shape
+        bs = sh[0]
 
         if self.adaptive_temporal_width:
             time_width = max(1, int(sh[2] * self.time_width))
@@ -194,18 +195,18 @@ class SpecAugmentNumba(nn.Module):
 
         # Construct the freq and time masks as well as start positions
         if self.freq_masks > 0:
-            freq_starts = torch.randint(0, sh[1] - self.freq_width, size=[self.freq_masks], device=x.device)
-            freq_lengths = torch.randint(0, self.freq_width, size=[self.freq_masks], device=x.device)
+            freq_starts = torch.randint(0, sh[1] - self.freq_width, size=[bs, self.freq_masks], device=x.device)
+            freq_lengths = torch.randint(0, self.freq_width, size=[bs, self.freq_masks], device=x.device)
         else:
-            freq_starts = torch.zeros([1], dtype=torch.int64, device=x.device)
-            freq_lengths = torch.zeros([1], dtype=torch.int64, device=x.device)
+            freq_starts = torch.zeros([bs, 1], dtype=torch.int64, device=x.device)
+            freq_lengths = torch.zeros([bs, 1], dtype=torch.int64, device=x.device)
 
         if self.time_masks > 0:
-            time_starts = torch.randint(0, sh[2] - time_width, size=[self.time_masks], device=x.device)
-            time_lengths = torch.randint(0, time_width, size=[self.time_masks], device=x.device)
+            time_starts = torch.randint(0, sh[2] - time_width, size=[bs, self.time_masks], device=x.device)
+            time_lengths = torch.randint(0, time_width, size=[bs, self.time_masks], device=x.device)
         else:
-            time_starts = torch.zeros([1], dtype=torch.int64, device=x.device)
-            time_lengths = torch.zeros([1], dtype=torch.int64, device=x.device)
+            time_starts = torch.zeros([bs, 1], dtype=torch.int64, device=x.device)
+            time_lengths = torch.zeros([bs, 1], dtype=torch.int64, device=x.device)
 
         x = launch_spec_augment_kernel(
             x,
