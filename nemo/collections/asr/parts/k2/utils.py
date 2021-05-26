@@ -85,7 +85,7 @@ def make_blank_first(blank_idx: int, log_probs: torch.Tensor, targets: torch.Ten
 def load_graph(graph_path):
     errors = []
     try:
-        graph_dict = torch.load(graph_path)
+        graph_dict = torch.load(graph_path, map_location="cpu")
         graph = k2.Fsa.from_dict(graph_dict)
         return graph
     except UnpicklingError as e:
@@ -112,6 +112,10 @@ def graph_to_den(graph: k2.Fsa, replicate_den: bool = False, times: int = 1):
 def intersect_with_self_loops(base_graph: k2.Fsa, aux_graph: k2.Fsa):
     aux_graph_with_self_loops = k2.arc_sort(k2.add_epsilon_self_loops(aux_graph)).to(base_graph.device)
     return k2.intersect(base_graph, aux_graph_with_self_loops, treat_epsilons_specially=False)
+
+def compose_with_self_loops(base_graph: k2.Fsa, aux_graph: k2.Fsa):
+    aux_graph_with_self_loops = k2.arc_sort(k2.add_epsilon_self_loops(aux_graph)).to(base_graph.device)
+    return k2.compose(base_graph, aux_graph_with_self_loops, treat_epsilons_specially=False, inner_labels="phones")
 
 def build_ctc_topo(tokens: List[int]) -> k2.Fsa:
     """Build CTC topology.

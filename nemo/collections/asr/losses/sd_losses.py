@@ -67,6 +67,7 @@ class SDLoss(Loss):
     def forward(self, log_probs, targets, input_lengths, target_lengths):
         # override forward implementation
         # custom logic, if necessary
+        log_probs = log_probs.float()
         input_lengths = input_lengths.long()
         target_lengths = target_lengths.long()
         targets = targets.long()

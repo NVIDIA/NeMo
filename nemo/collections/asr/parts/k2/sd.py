@@ -30,6 +30,7 @@ from typing import Optional, Tuple, Union
 
 import torch
 import k2
+import k2.sparse
 
 from nemo.collections.asr.parts.k2.utils import create_supervision
 from nemo.collections.asr.parts.k2.utils import get_tot_objf_and_num_frames
@@ -55,7 +56,7 @@ class SDLoss(torch.nn.Module):
             den_scale: float = 1.0,
             calc_scores_pruned: bool = False,
             use_mbr: bool = False,
-            decoding_graph_path: Optional[Union[k2.Fsa, str]] = None,
+            decoding_graph: Optional[Union[k2.Fsa, str]] = None,
             **kwargs
     ):
         super().__init__()
@@ -63,6 +64,9 @@ class SDLoss(torch.nn.Module):
         self.num_classes = num_classes
         self.reduction = reduction
         self.den_scale = den_scale
+        self.use_mbr = use_mbr
+        if not calc_scores_pruned and use_mbr:
+            raise NotImplementedError("Not adapted yet")
         self.calc_scores = self._calc_scores_pruned if calc_scores_pruned else self._calc_scores_exact
         if tokel_lm is None:
             raise NotImplementedError("Not adapted yet")
@@ -76,9 +80,13 @@ class SDLoss(torch.nn.Module):
             raise ValueError(f"Invalid value of `sd_type`: {sd_type}.")
         self.graph_compiler = compiler(self.num_classes, aux_graph=self.lm_graph)
         if use_mbr:
-            raise NotImplementedError("Not adapted yet")
+            self.decoding_graph = load_graph(decoding_graph) if isinstance(decoding_graph, str) else decoding_graph
+            if len(self.decoding_graph.shape) == 2:
+                self.decoding_graph = k2.create_fsa_vec([self.decoding_graph])
+        else:
+            self.decoding_graph = None
 
-    def _calc_scores_exact(self, dense_fsa_vec: k2.DenseFsaVec, num_graphs: k2.Fsa, den_graph: k2.Fsa):
+    def _calc_scores_exact(self, dense_fsa_vec: k2.DenseFsaVec, num_graphs: k2.Fsa, den_graph: k2.Fsa, return_lats: bool = False):
         device = num_graphs.device
 
         num_fsas = num_graphs.shape[0]
@@ -123,13 +131,16 @@ class SDLoss(torch.nn.Module):
                                           a_to_b_map=a_to_b_map)
 
         num_den_tot_scores = num_den_lats.get_tot_scores(
-            log_semiring=True, use_double_scores=True)
+            log_semiring=True, use_double_scores=False)
 
         num_tot_scores = num_den_tot_scores[::2]
         den_tot_scores = num_den_tot_scores[1::2]
-        return num_tot_scores, den_tot_scores
+        if return_lats:
+            return num_tot_scores, den_tot_scores, num_den_lats
+        else:
+            return num_tot_scores, den_tot_scores
 
-    def _calc_scores_pruned(self, dense_fsa_vec: k2.DenseFsaVec, num_graphs: k2.Fsa, den_graph: k2.Fsa):
+    def _calc_scores_pruned(self, dense_fsa_vec: k2.DenseFsaVec, num_graphs: k2.Fsa, den_graph: k2.Fsa, return_lats: bool = False):
         num_fsas = num_graphs.shape[0]
         assert dense_fsa_vec.dim0() == num_fsas
 
@@ -137,14 +148,18 @@ class SDLoss(torch.nn.Module):
         # den_graphs = k2.index_fsa(den_graph, indexes).to(den_graph.device)
         den_graphs = den_graph
 
-        num_lats = k2.intersect_dense(num_graphs, dense_fsa_vec, torch.finfo(torch.float32).max)
+        num_lats = k2.intersect_dense(num_graphs,
+                                      dense_fsa_vec,
+                                      output_beam=torch.finfo(torch.float32).max,
+                                      seqframe_idx_name='seqframe_idx')
         # den_lats = k2.intersect_dense(den_graphs, dense_fsa_vec, 10.0)
         den_lats = k2.intersect_dense_pruned(den_graphs,
                                              dense_fsa_vec,
-                                             search_beam=10.0,
-                                             output_beam=10.0,
+                                             search_beam=20.0,
+                                             output_beam=7.0,
                                              min_active_states=30,
-                                             max_active_states=10000)
+                                             max_active_states=10000,
+                                             seqframe_idx_name='seqframe_idx')
 
         num_tot_scores = num_lats.get_tot_scores(
             log_semiring=True,
@@ -154,7 +169,10 @@ class SDLoss(torch.nn.Module):
             log_semiring=True,
             use_double_scores=False
         )
-        return num_tot_scores, den_tot_scores
+        if return_lats:
+            return num_tot_scores, den_tot_scores, num_lats, den_lats
+        else:
+            return num_tot_scores, den_tot_scores
 
     def forward(
             self,
@@ -173,15 +191,48 @@ class SDLoss(torch.nn.Module):
 
         if log_probs.device != self.graph_compiler.device:
             self.graph_compiler.to(log_probs.device)
+        if self.use_mbr and log_probs.device != self.decoding_graph.device:
+            self.decoding_graph = self.decoding_graph.to(log_probs.device)
+
         num_graphs, den_graph = self.graph_compiler.compile(targets, target_lengths)
 
         dense_fsa_vec = k2.DenseFsaVec(log_probs, supervisions)
 
-        num_tot_scores, den_tot_scores = self.calc_scores(dense_fsa_vec, num_graphs, den_graph)
+        if self.use_mbr:
+            den_graph = self.decoding_graph
+        calc_scores_result = self.calc_scores(dense_fsa_vec, num_graphs, den_graph, self.use_mbr)
+        num_tot_scores, den_tot_scores = calc_scores_result[:2]
         tot_scores = num_tot_scores - self.den_scale * den_tot_scores
         tot_scores, _, _ = get_tot_objf_and_num_frames(
             tot_scores,
             supervisions[:, 2],
             self.reduction
         )
-        return -tot_scores
+
+        if self.use_mbr:
+            num_lats, den_lats = calc_scores_result[2:]
+            num_rows = dense_fsa_vec.scores.shape[0]
+            num_cols = dense_fsa_vec.scores.shape[1] - 1
+            mbr_num_sparse = k2.create_sparse(rows=num_lats.seqframe_idx,
+                                              cols=num_lats.phones,
+                                              values=num_lats.get_arc_post(False,
+                                                                           True).exp(),
+                                              size=(num_rows, num_cols),
+                                              min_col_index=0)
+
+            mbr_den_sparse = k2.create_sparse(rows=den_lats.seqframe_idx,
+                                              cols=den_lats.phones,
+                                              values=den_lats.get_arc_post(False,
+                                                                           True).exp(),
+                                              size=(num_rows, num_cols),
+                                              min_col_index=0)
+            # NOTE: Due to limited support of PyTorch's autograd for sparse tensors,
+            # we cannot use (mbr_num_sparse - mbr_den_sparse) here
+            #
+            # The following works only for torch >= 1.7.0
+            mbr_loss = torch.sparse.sum(
+                k2.sparse.abs((mbr_num_sparse + (-mbr_den_sparse)).coalesce()))
+            total_loss = mbr_loss - tot_scores
+        else:
+            total_loss = - tot_scores
+        return total_loss
