@@ -64,7 +64,12 @@ class MegatronBertEncoder(BertModule):
         self._restore_path = None
         self._app_state = None
         self._model_name = model_name
-        self._vocab_size = config.get('vocab_size')
+
+        if 'vocab_size' in config:
+            self._vocab_size = config.pop('vocab_size')
+        else:
+            self._vocab_size = None
+
         self._hidden_size = config.get('hidden_size')
 
         if not os.path.exists(vocab_file):
