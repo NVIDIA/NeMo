@@ -73,13 +73,8 @@ class TalkNetDursModel(ModelPT):
         _, _, text, text_len, durs, *_ = batch
         pred_durs = self(text=text, text_len=text_len)
         loss, acc = self._metrics(true_durs=durs, true_text_len=text_len, pred_durs=pred_durs,)
-        return {'loss': loss, 'acc': acc}
-
-    def validation_epoch_end(self, outputs):
-        loss = torch.stack([x['loss'] for x in outputs]).mean()
-        acc = torch.stack([x['acc'] for x in outputs]).mean()
         val_log = {'val_loss': loss, 'val_acc': acc}
-        return {'val_loss': loss, 'log': val_log}
+        self.log_dict(val_log, prog_bar=False, on_epoch=True, logger=True, sync_dist=True)
 
     @staticmethod
     def _loader(cfg):
@@ -183,14 +178,8 @@ class TalkNetPitchModel(ModelPT):
         loss, sil_acc, body_mae = self._metrics(
             true_f0=f0, true_f0_mask=f0_mask, pred_f0_sil=pred_f0_sil, pred_f0_body=pred_f0_body,
         )
-        return {'loss': loss, 'sil_acc': sil_acc, 'body_mae': body_mae}
-
-    def validation_epoch_end(self, outputs):
-        loss = torch.stack([x['loss'] for x in outputs]).mean()
-        sil_acc = torch.stack([x['sil_acc'] for x in outputs]).mean()
-        body_mae = torch.stack([x['body_mae'] for x in outputs]).mean()
         val_log = {'val_loss': loss, 'val_sil_acc': sil_acc, 'val_body_mae': body_mae}
-        return {'val_loss': loss, 'log': val_log}
+        self.log_dict(val_log, prog_bar=False, on_epoch=True, logger=True, sync_dist=True)
 
     @staticmethod
     def _loader(cfg):
@@ -282,12 +271,8 @@ class TalkNetSpectModel(SpectrogramGenerator):
         mel, mel_len = self.preprocessor(audio, audio_len)
         pred_mel = self(text=text, text_len=text_len, durs=durs, f0=f0)
         loss = self._metrics(true_mel=mel, true_mel_len=mel_len, pred_mel=pred_mel)
-        return {'loss': loss}
-
-    def validation_epoch_end(self, outputs):
-        loss = torch.stack([x['loss'] for x in outputs]).mean()
         val_log = {'val_loss': loss}
-        return {'val_loss': loss, 'log': val_log}
+        self.log_dict(val_log, prog_bar=False, on_epoch=True, logger=True, sync_dist=True)
 
     @staticmethod
     def _loader(cfg):
