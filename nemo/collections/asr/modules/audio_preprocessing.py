@@ -21,7 +21,7 @@ import torch
 from packaging import version
 
 from nemo.collections.asr.parts.numba import __NUMBA_MINIMUM_VERSION__, numba_utils
-from nemo.collections.asr.parts.numba.spec_augment import SpecAugmentNumba
+from nemo.collections.asr.parts.numba.spec_augment import SpecAugmentNumba, spec_augment_launch_heuristics
 from nemo.collections.asr.parts.preprocessing.features import FilterbankFeatures
 from nemo.collections.asr.parts.submodules.spectr_augment import SpecAugment, SpecCutout
 from nemo.core.classes import NeuralModule, typecheck
@@ -494,7 +494,7 @@ class SpectrogramAugmentation(NeuralModule):
 
         # To run the Numba kernel, correct numba version is required as well as
         # tensor must be on GPU and length must be provided
-        if self.spec_augment_numba is not None and augmented_spec.is_cuda and length is not None:
+        if self.spec_augment_numba is not None and spec_augment_launch_heuristics(augmented_spec, length):
             augmented_spec = self.spec_augment_numba(input_spec=augmented_spec, length=length)
         else:
             augmented_spec = self.spec_augment(input_spec=augmented_spec)

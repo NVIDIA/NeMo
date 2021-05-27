@@ -146,8 +146,8 @@ class TestASRModulesBasicTests:
 
         # Make sure forward doesn't throw with expected input
         instance0 = modules.AudioToMelSpectrogramPreprocessor(dither=0)
-        input_signal = torch.randn(size=(4, 512))
-        length = torch.randint(low=161, high=500, size=[4])
+        input_signal = torch.randn(size=(8, 512))
+        length = torch.randint(low=161, high=500, size=[8])
         res0 = instance0(input_signal=input_signal, length=length)
         res = instance1(input_spec=res0[0], length=length)
 

@@ -95,6 +95,30 @@ def spec_augment_kernel(
                         x[bm_idx, f, t] = mask_value
 
 
+def spec_augment_launch_heuristics(x: torch.Tensor, length: torch.Tensor):
+    """
+    Heuristics to determins whether pytorch implementation or numba implementation is selected.
+    Assumes numba cuda is supported.
+
+    Args:
+        x: Torch tensor of shape [B, F, T]
+        length: Optional, Torch of tensor of shape [B] - containing lengths of the tensor.
+
+    Returns:
+        True if numba kernel should be selected, else False
+    """
+    if not x.is_cuda:
+        return False
+
+    if length is None:
+        return False
+
+    if x.shape[0] < 8:
+        return False
+
+    return True
+
+
 def launch_spec_augment_kernel(
     x: torch.Tensor,
     x_len: torch.Tensor,
