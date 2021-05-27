@@ -27,10 +27,10 @@ def spec_augment_kernel(
     Args:
         x: Pytorch tensor of shape [B, F, T] with the acoustic features.
         x_len: Pytorch tensor of shape [B] with the lengths of the padded sequence.
-        freq_starts: Pytorch tensor of shape [B] with the start indices of freq masks.
-        freq_widths: Pytorch tensor of shape [B] with the width of freq masks.
-        time_starts: Pytorch tensor of shape [B] with the start indices of time masks.
-        time_widths: Pytorch tensor of shape [B] with the width of time masks.
+        freq_starts: Pytorch tensor of shape [B, M_f] with the start indices of freq masks.
+        freq_widths: Pytorch tensor of shape [B, M_f] with the width of freq masks.
+        time_starts: Pytorch tensor of shape [B, M_t] with the start indices of time masks.
+        time_widths: Pytorch tensor of shape [B, M_t] with the width of time masks.
         mask_value: Float value that will be used as mask value.
     """
     f = cuda.blockIdx.x  # indexes the Freq dim
@@ -98,10 +98,10 @@ def launch_spec_augment_kernel(
     Args:
         x: Pytorch tensor of shape [B, F, T] with the acoustic features.
         x_len: Pytorch tensor of shape [B] with the lengths of the padded sequence.
-        freq_starts: Pytorch tensor of shape [B] with the start indices of freq masks.
-        freq_widths: Pytorch tensor of shape [B] with the width of freq masks.
-        time_starts: Pytorch tensor of shape [B] with the start indices of time masks.
-        time_widths: Pytorch tensor of shape [B] with the width of time masks.
+        freq_starts: Pytorch tensor of shape [B, M_f] with the start indices of freq masks.
+        freq_widths: Pytorch tensor of shape [B, M_f] with the width of freq masks.
+        time_starts: Pytorch tensor of shape [B, M_t] with the start indices of time masks.
+        time_widths: Pytorch tensor of shape [B, M_t] with the width of time masks.
         freq_masks: Int value that determines the number of time masks.
         time_masks: Int value that determines the number of freq masks.
         mask_value: Float value that will be used as mask value.
@@ -217,18 +217,18 @@ class SpecAugmentNumba(nn.Module, Typing):
 
         # Construct the freq and time masks as well as start positions
         if self.freq_masks > 0:
-            freq_starts = torch.randint(0, sh[1] - self.freq_width, size=[bs, self.freq_masks], device=x.device)
-            freq_lengths = torch.randint(0, self.freq_width, size=[bs, self.freq_masks], device=x.device)
+            freq_starts = torch.randint(0, sh[1] - self.freq_width, size=[bs, self.freq_masks], device=input_spec.device)
+            freq_lengths = torch.randint(0, self.freq_width, size=[bs, self.freq_masks], device=input_spec.device)
         else:
-            freq_starts = torch.zeros([bs, 1], dtype=torch.int64, device=x.device)
-            freq_lengths = torch.zeros([bs, 1], dtype=torch.int64, device=x.device)
+            freq_starts = torch.zeros([bs, 1], dtype=torch.int64, device=input_spec.device)
+            freq_lengths = torch.zeros([bs, 1], dtype=torch.int64, device=input_spec.device)
 
         if self.time_masks > 0:
-            time_starts = torch.randint(0, sh[2] - time_width, size=[bs, self.time_masks], device=x.device)
-            time_lengths = torch.randint(0, time_width, size=[bs, self.time_masks], device=x.device)
+            time_starts = torch.randint(0, sh[2] - time_width, size=[bs, self.time_masks], device=input_spec.device)
+            time_lengths = torch.randint(0, time_width, size=[bs, self.time_masks], device=input_spec.device)
         else:
-            time_starts = torch.zeros([bs, 1], dtype=torch.int64, device=x.device)
-            time_lengths = torch.zeros([bs, 1], dtype=torch.int64, device=x.device)
+            time_starts = torch.zeros([bs, 1], dtype=torch.int64, device=input_spec.device)
+            time_lengths = torch.zeros([bs, 1], dtype=torch.int64, device=input_spec.device)
 
         x = launch_spec_augment_kernel(
             input_spec,
