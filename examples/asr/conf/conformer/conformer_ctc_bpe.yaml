@@ -1,10 +1,11 @@
 # It contains the default values for training a Conformer-CTC ASR model, large size (~120M) with CTC loss and sub-word encoding.
-# Default learning parameters in this config are set for effective batch size of 2K.
-# To train it with smaller effective batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
 
+# Architecture and training config:
+# Default learning parameters in this config are set for effective batch size of 2K. To train it with smaller effective
+# batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
 # Here are the recommended configs for different variants of Conformer-CTC, other parameters are the same as in this config file.
 # One extra layer (compared to original paper) is added to the medium and large variants to compensate for replacing the LSTM decoder with a linear one.
-
+#
 #  +-------------+---------+---------+----------+------------+-----+
 #  | Model       | d_model | n_heads | n_layers | time_masks | lr  |
 #  +=============+=========+========+===========+============+=====+
@@ -14,14 +15,31 @@
 #  +-------------+---------+--------+-----------+------------+-----+
 #  | Large (121M)|   512   |    8   |    18     |     10     | 2.0 |
 #  +---------------------------------------------------------------+
+#
+# If you do not want to train with AMP, you may use weight decay of 0.0 or reduce the number of time maskings to 2
+# with time_width=100. It may help when you want to train for fewer epochs and need faster convergence.
+# With weight_decay=0.0, learning rate may need to get reduced to 2.0.
 
+# Performance:
 # You may find more info about Conformer-CTC here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#conformer-ctc
 # Pre-trained models of Conformer-CTC can be found here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html
-# This recipe of large model would achieve the following WERs if trained and evaluated on LibriSpeech:
+# This recipe of large model would achieve the following WERs if trained and evaluated on LibriSpeech with greedy decoding:
 #    2.4 % on dev-clean
 #    6.2 % on dev-other
 #    2.7 % on test-clean
 #    6.0 % on test-other
+
+# language Modeling:
+# With language modelling, you may improve the accuracy. With N-gram LM and Beam Search decoding, you may get the following WERs:
+# N-gram LM Parameters: N=10, alpha=1.5, beta=1.5, beam size=128
+#    2.4 % on dev-clean
+#    6.2 % on dev-other
+#    2.7 % on test-clean
+#    6.0 % on test-other
+#
+# You can find more detail on how to train and use LM for ASR models here:
+# https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_language_modeling.html
+
 
 name: "Conformer-CTC-BPE"
 
