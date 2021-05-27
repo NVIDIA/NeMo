@@ -36,7 +36,8 @@ to generate audio from a mel spectrogram.
     audio = vocoder.convert_spectrogram_to_audio(spec=spectrogram)
 
     # Save the audio to disk in a file called speech.wav
-    sf.write("speech.wav", audio.to('cpu').numpy(), 22050)
+    # Note vocoder return a batch of audio. In this example, we just take the first and only sample.
+    sf.write("speech.wav", audio.to('cpu').detach().numpy()[0], 22050)
 
 .. note::
 
