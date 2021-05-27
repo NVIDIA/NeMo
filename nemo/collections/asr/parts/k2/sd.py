@@ -63,6 +63,7 @@ class SDLoss(torch.nn.Module):
         self.blank = blank
         self.num_classes = num_classes
         self.reduction = reduction
+        self.sd_type = sd_type
         self.den_scale = den_scale
         self.use_mbr = use_mbr
         if not calc_scores_pruned and use_mbr:
@@ -191,6 +192,7 @@ class SDLoss(torch.nn.Module):
 
         if log_probs.device != self.graph_compiler.device:
             self.graph_compiler.to(log_probs.device)
+            self.lm_graph = self.lm_graph.to(log_probs.device)
         if self.use_mbr and log_probs.device != self.decoding_graph.device:
             self.decoding_graph = self.decoding_graph.to(log_probs.device)
 
@@ -202,6 +204,12 @@ class SDLoss(torch.nn.Module):
             den_graph = self.decoding_graph
         calc_scores_result = self.calc_scores(dense_fsa_vec, num_graphs, den_graph, self.use_mbr)
         num_tot_scores, den_tot_scores = calc_scores_result[:2]
+        if self.sd_type == 'crf':
+            token_ids_list = [t[:l].tolist() for t, l in zip(targets, target_lengths)]
+            label_graph = k2.linear_fsa(token_ids_list).to(num_tot_scores.device)
+            path_weight_graphs = k2.compose(self.lm_graph, label_graph, treat_epsilons_specially=False)
+            path_weight_graphs = k2.arc_sort(path_weight_graphs)
+            num_tot_scores += path_weight_graphs._get_tot_scores(False, True)
         tot_scores = num_tot_scores - self.den_scale * den_tot_scores
         tot_scores, _, _ = get_tot_objf_and_num_frames(
             tot_scores,
