@@ -1377,6 +1377,7 @@ pipeline {
 
     stage('L??: Speech Checkpoints tests') {
       when {
+        anyOf {
           branch 'v1.0.0'
           changeRequest target: 'v1.0.0'
         }
