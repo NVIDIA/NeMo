@@ -1377,16 +1377,14 @@ pipeline {
 
     stage('L??: Speech Checkpoints tests') {
       when {
-        anyOf {
           branch 'v1.0.0'
           changeRequest target: 'v1.0.0'
         }
       }
       failFast true
-      stage('QuartzNet15x5Base-En') {
-        steps {
-          sh 'CUDA_VISIBLE_DEVICES=0 python examples/asr/speech_to_text_infer.py --asr_model QuartzNet15x5Base-En --dataset /home/TestData/librispeech/librivox-dev-other.json --wer_tolerance 0.1012 --batch_size 64'
-        }
+      steps {
+        sh 'CUDA_VISIBLE_DEVICES=0 python examples/asr/speech_to_text_infer.py --asr_model QuartzNet15x5Base-En --dataset /home/TestData/librispeech/librivox-dev-other.json --wer_tolerance 0.1012 --batch_size 64'
+      }
       }
     }
   }
