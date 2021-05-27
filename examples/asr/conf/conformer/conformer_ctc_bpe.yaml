@@ -32,10 +32,7 @@
 # language Modeling:
 # With language modelling, you may improve the accuracy. With N-gram LM and Beam Search decoding, you may get the following WERs:
 # N-gram LM Parameters: N=10, alpha=1.5, beta=1.5, beam size=128
-#    2.4 % on dev-clean
-#    6.2 % on dev-other
-#    2.7 % on test-clean
-#    6.0 % on test-other
+#    4.9 % on test-other
 #
 # You can find more detail on how to train and use LM for ASR models here:
 # https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_language_modeling.html
