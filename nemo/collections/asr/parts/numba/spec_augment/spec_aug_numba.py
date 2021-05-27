@@ -2,8 +2,9 @@ import torch
 import torch.nn as nn
 from numba import cuda
 
+from nemo.core.classes import Typing, typecheck
+from nemo.core.neural_types import NeuralType, SpectrogramType
 from nemo.utils import logging
-
 
 MAX_THREAD_BUFFER = 512
 
@@ -139,7 +140,7 @@ def launch_spec_augment_kernel(
     return x
 
 
-class SpecAugmentNumba(nn.Module):
+class SpecAugmentNumba(nn.Module, Typing):
     """
     Zeroes out(cuts) random continuous horisontal or
     vertical segments of the spectrogram as described in
@@ -162,10 +163,25 @@ class SpecAugmentNumba(nn.Module):
         rng: Ignored.
     """
 
+    @property
+    def input_types(self):
+        """Returns definitions of module input types
+        """
+        return {"input_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
+
+    @property
+    def output_types(self):
+        """Returns definitions of module output types
+        """
+        return {"augmented_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
+
     def __init__(
         self, freq_masks=0, time_masks=0, freq_width=10, time_width=0.1, rng=None, mask_value=0.0,
     ):
         super().__init__()
+        # Message to mention that numba specaugment kernel will be available
+        # if input device is CUDA and lengths are provided
+        logging.debug("Numba SpecAugment kernel is available")
 
         self.freq_masks = freq_masks
         self.time_masks = time_masks
@@ -188,9 +204,10 @@ class SpecAugmentNumba(nn.Module):
 
             self.adaptive_temporal_width = True
 
+    @typecheck()
     @torch.no_grad()
-    def forward(self, x, x_len):
-        sh = x.shape
+    def forward(self, input_spec, length):
+        sh = input_spec.shape
         bs = sh[0]
 
         if self.adaptive_temporal_width:
@@ -214,8 +231,8 @@ class SpecAugmentNumba(nn.Module):
             time_lengths = torch.zeros([bs, 1], dtype=torch.int64, device=x.device)
 
         x = launch_spec_augment_kernel(
-            x,
-            x_len,
+            input_spec,
+            length,
             freq_starts=freq_starts,
             freq_lengths=freq_lengths,
             time_starts=time_starts,

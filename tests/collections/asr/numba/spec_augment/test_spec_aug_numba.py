@@ -12,14 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
 import pytest
 import torch
 from omegaconf import OmegaConf
-from numba import cuda
 
-from nemo.collections.asr.parts.numba.spec_augment import spec_aug_numba
 from nemo.collections.asr.parts.numba import __NUMBA_MINIMUM_VERSION__, numba_utils
+from nemo.collections.asr.parts.numba.spec_augment import spec_aug_numba
 
 
 def get_cfg(seed=0, dtype='float32'):
