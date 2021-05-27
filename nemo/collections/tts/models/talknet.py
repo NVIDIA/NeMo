@@ -81,8 +81,8 @@ class TalkNetDursModel(ModelPT):
     def validation_step(self, batch, batch_idx):
         _, _, text, text_len, durs, *_ = batch
         pred_durs = self(text=text, text_len=text_len)
-        loss, acc, acc_dist_1, acc_dist_3 = self._metrics(true_durs=durs, true_text_len=text_len, pred_durs=pred_durs,)
-        val_log = {'val_loss': loss, 'val_acc': acc, 'val_acc_dist_1': acc_dist_1, 'val_acc_dist_3': acc_dist_3}
+        loss, acc = self._metrics(true_durs=durs, true_text_len=text_len, pred_durs=pred_durs,)
+        val_log = {'val_loss': loss, 'val_acc': acc}
         self.log_dict(val_log, prog_bar=False, on_epoch=True, logger=True, sync_dist=True)
 
     @staticmethod
@@ -187,7 +187,6 @@ class TalkNetPitchModel(ModelPT):
         loss, sil_acc, body_mae = self._metrics(
             true_f0=f0, true_f0_mask=f0_mask, pred_f0_sil=pred_f0_sil, pred_f0_body=pred_f0_body,
         )
-
         val_log = {'val_loss': loss, 'val_sil_acc': sil_acc, 'val_body_mae': body_mae}
         self.log_dict(val_log, prog_bar=False, on_epoch=True, logger=True, sync_dist=True)
 
