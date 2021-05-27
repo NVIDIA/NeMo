@@ -79,8 +79,8 @@ class FastPitchModel(SpectrogramGenerator):
         self.bin_loss_warmup_epochs = 100
         self.aligner = None
         self.mel_loss = MelLoss()
-        self.pitch_loss = PitchLoss()
-        self.duration_loss = DurationLoss()
+        self.pitch_loss = PitchLoss(loss_scale=1.0)
+        self.duration_loss = DurationLoss(loss_scale=1.0)
         if self.learn_alignment:
             self.aligner = instantiate(self._cfg.alignment_module)
             self.forward_sum_loss = ForwardSumLoss()
