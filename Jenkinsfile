@@ -1386,7 +1386,6 @@ pipeline {
       steps {
         sh 'CUDA_VISIBLE_DEVICES=0 python examples/asr/speech_to_text_infer.py --asr_model QuartzNet15x5Base-En --dataset /home/TestData/librispeech/librivox-dev-other.json --wer_tolerance 0.1012 --batch_size 64'
       }
-      }
     }
   }
 
