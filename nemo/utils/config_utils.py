@@ -31,8 +31,8 @@ def update_model_config(model_cls: NemoConfig, update_cfg: DictConfig, drop_miss
     Assumes the `update_cfg` is a DictConfig (either generated manually, via hydra or instantiated via yaml/model.cfg).
     This update_cfg is then used to override the default values preset inside the ModelPT config class.
 
-    If `drop_missing_subconfigs` is set, the certain sub-quartznet of the ModelPT config class will be removed, iff
-    they are not found in the mirrored `update_cfg`. The following sub-quartznet are subject to potential removal:
+    If `drop_missing_subconfigs` is set, the certain sub-configs of the ModelPT config class will be removed, iff
+    they are not found in the mirrored `update_cfg`. The following sub-configs are subject to potential removal:
         -   `train_ds`
         -   `validation_ds`
         -   `test_ds`
@@ -45,7 +45,7 @@ def update_model_config(model_cls: NemoConfig, update_cfg: DictConfig, drop_miss
         update_cfg: A DictConfig that mirrors the structure of the NemoConfig data class. Used to update the
             default values of the config class.
 
-        drop_missing_subconfigs: Bool which determins whether to drop certain sub-quartznet from the NemoConfig
+        drop_missing_subconfigs: Bool which determins whether to drop certain sub-configs from the NemoConfig
             class, if the corresponding sub-config is missing from `update_cfg`.
 
     Returns:
@@ -129,7 +129,7 @@ def _update_subconfig(
 
 def _add_subconfig_keys(model_cfg: DictConfig, update_cfg: DictConfig, subconfig_key: str):
     """
-    For certain sub-quartznet, the default values specified by the NemoConfig class is insufficient.
+    For certain sub-configs, the default values specified by the NemoConfig class is insufficient.
     In order to support every potential value in the merge between the `update_cfg`, it would require
     explicit definition of all possible cases.
 
