@@ -401,8 +401,8 @@ def ln_lstm(
     dropout: Optional[float],
     forget_gate_bias: Optional[float],
     t_max: Optional[int],
-    weights_init_scale: Optional[float] = None,
-    hidden_hidden_bias_scale: Optional[float] = None,
+    weights_init_scale: Optional[float] = None,  # ignored
+    hidden_hidden_bias_scale: Optional[float] = None,  # ignored
 ) -> torch.nn.Module:
     """Returns a ScriptModule that mimics a PyTorch native LSTM."""
     # The following are not implemented.
@@ -411,12 +411,6 @@ def ln_lstm(
 
     if t_max is not None:
         raise ValueError("LayerNormLSTM does not support chrono init")
-
-    if weights_init_scale is not None:
-        raise ValueError("LayerNormLSTM does not support `weight_init_scale`")
-
-    if hidden_hidden_bias_scale is not None:
-        raise ValueError("LayerNormLSTM does not support `hidden_hidden_bias_scale`")
 
     return StackedLSTM(
         num_layers,
