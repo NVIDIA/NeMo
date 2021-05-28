@@ -47,18 +47,3 @@ class TestDecimal:
         assert pred == expected
         pred_non_deterministic = self.normalizer_with_audio.normalize(test_input, verbose=False)
         assert expected in pred_non_deterministic
-
-
-if __name__ == '__main__':
-    test_cases = parse_test_case_file('data_text_normalization/test_cases_decimal.txt')
-    normalizer_with_audio = NormalizerWithAudio(input_case='cased') if PYNINI_AVAILABLE else None
-
-    for test_input, expected in test_cases:
-        import pdb
-
-        pdb.set_trace()
-        pred_non_deterministic = normalizer_with_audio.normalize(test_input)
-        print('input:', test_input)
-        for p in pred_non_deterministic:
-            print(p)
-        print('=' * 30)

@@ -185,6 +185,14 @@ pipeline {
             sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_file.txt'
           }
         }
+        stage('L2: TN with Audio (manifest)') {
+          steps {
+            sh 'cd nemo_text_processing/text_normalization && \
+            python python normalize_with_audio.py --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json \
+            cmp --silent /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json /home/TestData/nlp/text_norm/audio_based/manifest_result.json || exit 1'
+            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/manifest_result.json'
+          }
+        }
       }
     }
 

@@ -102,12 +102,10 @@ class NormalizerWithAudio(Normalizer):
         normalized_texts = []
 
         for tagged_text in tagged_texts:
-            print(tagged_text)
             self.parser(tagged_text)
             tokens = self.parser.parse()
             tags_reordered = self.generate_permutations(tokens)
             for tagged_text_reordered in tags_reordered:
-                print(tagged_text_reordered)
                 tagged_text_reordered = pynini.escape(tagged_text_reordered)
                 try:
                     verbalized = rewrite.rewrites(tagged_text_reordered, self.verbalizer.fst)
@@ -179,12 +177,10 @@ def pre_process(text: str) -> str:
 
     Returns: text with spaces around punctuation marks
     """
-    print(text)
     text = text.replace('--', '-')
     space_right = '!?:;,.-()*+-/<=>@^_'
     space_both = '-()*+-/<=>@^_'
 
-    # TODO
     for punct in space_right:
         text = text.replace(punct, punct + ' ')
     for punct in space_both:

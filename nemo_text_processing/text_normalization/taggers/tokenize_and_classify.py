@@ -88,11 +88,6 @@ class ClassifyFst(GraphFst):
             | pynutil.add_weight(word_graph, 100)
         )
 
-        # if not deterministic:
-        #     serial_graph = SerialFst(cardinal=cardinal, deterministic=deterministic).fst
-        #     classify |= pynutil.add_weight(serial_graph, 1.1)
-        #     classify = classify.optimize()
-
         punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=1.1) + pynutil.insert(" }")
         token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")
         token_plus_punct = (

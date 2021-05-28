@@ -69,7 +69,4 @@ class VerbalizeFst(GraphFst):
             | whitelist_graph
         )
 
-        # if not deterministic:
-        #     serial_graph = SerialFst(measure=measure, deterministic=deterministic).fst
-        #     graph |= serial_graph
         self.fst = graph
