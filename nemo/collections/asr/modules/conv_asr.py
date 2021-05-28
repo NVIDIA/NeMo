@@ -20,7 +20,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from omegaconf import MISSING, ListConfig, OmegaConf
 
-from nemo.collections.asr.parts.jasper import (
+from nemo.collections.asr.parts.submodules.jasper import (
     JasperBlock,
     MaskedConv1d,
     StatsPoolLayer,
@@ -127,6 +127,11 @@ class ConvASREncoder(NeuralModule, Exportable):
             jasper = OmegaConf.to_container(jasper)
 
         activation = jasper_activations[activation]()
+
+        # If the activation can be executed in place, do so.
+        if hasattr(activation, 'inplace'):
+            activation.inplace = True
+
         feat_in = feat_in * frame_splicing
 
         self._feat_in = feat_in

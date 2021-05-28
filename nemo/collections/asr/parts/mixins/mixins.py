@@ -18,7 +18,7 @@ from typing import List
 
 from omegaconf import DictConfig, OmegaConf, open_dict
 
-from nemo.collections.asr.parts import asr_module_utils
+from nemo.collections.asr.parts.utils import asr_module_utils
 from nemo.collections.common import tokenizers
 from nemo.utils import logging
 

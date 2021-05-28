@@ -12,11 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
+from threading import Lock
+from typing import Dict, Optional
+
 from nemo.utils.metaclasses import Singleton
+
+
+@dataclass()
+class ModelMetadataRegistry:
+    guid: str
+    gidx: int
+    restoration_path: Optional[str] = None
 
 
 class AppState(metaclass=Singleton):
     def __init__(self):
+        # method call lock
+        self.__lock = Lock()
 
         # TODO: should we store global config in hydra_runner?
         self._app_cfg = None
@@ -50,6 +63,8 @@ class AppState(metaclass=Singleton):
         self._model_config_yaml = "model_config.yaml"
         self._model_weights_ckpt = "model_weights.ckpt"
         self._model_restore_path = None
+        self._all_model_restore_paths = []
+        self._model_guid_map = {}  # type: Dict[str, ModelMetadataRegistry]
 
     @property
     def device_id(self):
@@ -342,8 +357,30 @@ class AppState(metaclass=Singleton):
 
     @property
     def model_restore_path(self):
-        return self._model_restore_path
+        restore_path = self._all_model_restore_paths[-1] if len(self._all_model_restore_paths) > 0 else None
+        return restore_path
 
     @model_restore_path.setter
     def model_restore_path(self, path):
-        self._model_restore_path = path
+        with self.__lock:
+            self._model_restore_path = path
+            self._all_model_restore_paths.append(path)
+
+    def register_model_guid(self, guid: str, restoration_path: Optional[str] = None):
+        # Maps a guid to its restore path (None or last absolute path)
+        with self.__lock:
+            if guid in self._model_guid_map:
+                idx = self._model_guid_map[guid].gidx
+            else:
+                idx = len(self._model_guid_map)
+            self._model_guid_map[guid] = ModelMetadataRegistry(guid, idx, restoration_path=restoration_path)
+
+    def reset_model_guid_registry(self):
+        # Reset the guid mapping
+        with self.__lock:
+            self._model_guid_map.clear()
+
+    def get_model_metadata_from_guid(self, guid) -> ModelMetadataRegistry:
+        # Returns the global model idx and restoration path
+        metadata = self._model_guid_map[guid]
+        return metadata
