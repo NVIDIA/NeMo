@@ -1,3 +1,4 @@
+torchaudio
 matplotlib
 pypinyin
 attrdict
