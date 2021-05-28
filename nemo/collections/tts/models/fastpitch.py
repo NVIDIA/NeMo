@@ -47,8 +47,8 @@ class FastPitchModel(SpectrogramGenerator):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
 
-        super().__init__(cfg=cfg, trainer=trainer)
         self._parser = None
+        super().__init__(cfg=cfg, trainer=trainer)
 
         schema = OmegaConf.structured(FastPitchConfig)
         # ModelPT ensures that cfg is a DictConfig, but do this second check in case ModelPT changes
