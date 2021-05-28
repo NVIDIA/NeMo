@@ -97,15 +97,15 @@ class ModelConfigBuilder:
             model = nemo.<domain>.models.<ModelName>Model(cfg=model_config, trainer=Trainer())
 
         Supported build methods:
-        -   set_train_ds: All model quartznet can accept a subclass of `DatasetConfig` as their
+        -   set_train_ds: All model configs can accept a subclass of `DatasetConfig` as their
                 training config. Subclasses can override this method to enable auto-complete
                 by replacing `Optional[DatasetConfig]` with `Optional[<subclass of DatasetConfig>]`.
 
-        -   set_validation_ds: All model quartznet can accept a subclass of `DatasetConfig` as their
+        -   set_validation_ds: All model configs can accept a subclass of `DatasetConfig` as their
                 validation config. Subclasses can override this method to enable auto-complete
                 by replacing `Optional[DatasetConfig]` with `Optional[<subclass of DatasetConfig>]`.
 
-        -   set_test_ds: All model quartznet can accept a subclass of `DatasetConfig` as their
+        -   set_test_ds: All model configs can accept a subclass of `DatasetConfig` as their
                 test config. Subclasses can override this method to enable auto-complete
                 by replacing `Optional[DatasetConfig]` with `Optional[<subclass of DatasetConfig>]`.
 

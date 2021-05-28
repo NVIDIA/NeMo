@@ -79,7 +79,7 @@ class ModelPT(LightningModule, Model):
 
         Args:
             cfg (DictConfig):  configuration object.
-                The cfg object should have (optionally) the following sub-quartznet:
+                The cfg object should have (optionally) the following sub-configs:
 
                 * train_ds - to instantiate training dataset
                 * validation_ds - to instantiate validation dataset

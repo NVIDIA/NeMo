@@ -124,7 +124,7 @@ class IntentSlotClassificationModel(NLPModel):
 
         cfg.data_desc.pad_label = data_desc.pad_label
 
-        # for older(pre - 1.0.0.b3) quartznet compatibility
+        # for older(pre - 1.0.0.b3) configs compatibility
         if not hasattr(cfg, "class_labels") or cfg.class_labels is None:
             cfg.class_labels = {}
             cfg.class_labels = OmegaConf.create(

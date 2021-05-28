@@ -261,7 +261,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         if train_data_config is None:
             train_data_config = self._cfg.train_ds
 
-        # for older(pre - 1.0.0.b3) quartznet compatibility
+        # for older(pre - 1.0.0.b3) configs compatibility
         if not hasattr(self._cfg, "class_labels") or self._cfg.class_labels is None:
             OmegaConf.set_struct(self._cfg, False)
             self._cfg.class_labels = {}

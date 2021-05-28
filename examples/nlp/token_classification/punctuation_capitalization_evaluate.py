@@ -28,7 +28,7 @@ This script shows how to perform evaluation and runs inference of a few examples
 
 More details on the task and data format could be found in tutorials/nlp/Punctuation_and_Capitalization.ipynb
 
-*** Setting the quartznet ***
+*** Setting the configs ***
 
 This script uses the `/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml` config file
 by default. You may update the config file from the file directly. 

@@ -57,7 +57,7 @@ examples/nlp/token_classification/data/import_from_iob_format.py on your train a
 
 python examples/nlp/token_classification/data/import_from_iob_format.py --data_file PATH_TO_IOB_FORMAT_DATAFILE
 
-*** Setting the quartznet ***
+*** Setting the configs ***
 
 The model and the PT trainer are defined in a config file which declares multiple important sections.
 The most important ones are:
