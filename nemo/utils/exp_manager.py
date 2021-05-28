@@ -68,7 +68,7 @@ class CallbackParams:
     save_last: Optional[bool] = True
     save_top_k: Optional[int] = 3
     save_weights_only: Optional[bool] = False
-    mode: Optional[str] = "auto"
+    mode: Optional[str] = "min"
     period: Optional[int] = 1
     prefix: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     postfix: str = ".nemo"
@@ -588,6 +588,12 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.save_best_model = save_best_model
         self.postfix = postfix
         self.previous_best_path = ""
+
+        # `prefix` is deprecated
+        if 'prefix' in kwargs:
+            self.prefix = kwargs.pop('prefix')
+        else:
+            self.prefix = ""
 
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(**kwargs)
