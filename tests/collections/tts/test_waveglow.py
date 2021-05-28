@@ -104,6 +104,7 @@ class TestWaveGlow:
                 forward_method=forward_wrapper,
             )
 
+
 if __name__ == "__main__":
     t = TestWaveGlow()
     t.test_export_to_onnx()
