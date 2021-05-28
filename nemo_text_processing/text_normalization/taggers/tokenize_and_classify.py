@@ -71,6 +71,7 @@ class ClassifyFst(GraphFst):
         money_graph = MoneyFst(cardinal=cardinal, decimal=decimal, deterministic=deterministic).fst
         whitelist_graph = WhiteListFst(input_case=input_case, deterministic=deterministic).fst
         punct_graph = PunctuationFst(deterministic=deterministic).fst
+        serial_graph = SerialFst(cardinal=cardinal, deterministic=deterministic).fst
 
         classify = (
             pynutil.add_weight(whitelist_graph, 1.01)
@@ -83,13 +84,14 @@ class ClassifyFst(GraphFst):
             | pynutil.add_weight(money_graph, 1.1)
             | pynutil.add_weight(telephone_graph, 1.1)
             | pynutil.add_weight(electonic_graph, 1.1)
+            | pynutil.add_weight(serial_graph, 1.2)
             | pynutil.add_weight(word_graph, 100)
         )
 
-        if not deterministic:
-            serial_graph = SerialFst(cardinal, deterministic=deterministic).fst
-            classify |= pynutil.add_weight(serial_graph, 1.1)
-            classify = classify.optimize()
+        # if not deterministic:
+        #     serial_graph = SerialFst(cardinal=cardinal, deterministic=deterministic).fst
+        #     classify |= pynutil.add_weight(serial_graph, 1.1)
+        #     classify = classify.optimize()
 
         punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=1.1) + pynutil.insert(" }")
         token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")

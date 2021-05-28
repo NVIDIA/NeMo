@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.graph_utils import GraphFst, delete_space
+from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_SPACE, GraphFst, delete_space
 
 try:
     import pynini
@@ -38,7 +38,9 @@ class SerialFst(GraphFst):
     def __init__(self, measure: GraphFst, deterministic: bool = False):
         super().__init__(name="serial", kind="verbalize", deterministic=deterministic)
 
-        serial = pynutil.delete("units: \"") + pynini.cross("serial", "") + pynutil.delete("\"") + delete_space
-        graph = measure.graph_cardinal + delete_space + serial
+        serial = (
+            pynini.cross("units: \"serial", "") + pynini.closure(NEMO_NOT_SPACE) + pynutil.delete("\"") + delete_space
+        )
+        graph = measure.graph_cardinal + pynini.closure(delete_space) + serial
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

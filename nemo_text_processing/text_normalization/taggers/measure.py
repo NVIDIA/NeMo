@@ -16,6 +16,7 @@
 from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
 from nemo_text_processing.text_normalization.graph_utils import (
     NEMO_NON_BREAKING_SPACE,
+    NEMO_NOT_SPACE,
     NEMO_SIGMA,
     SINGULAR_TO_PLURAL,
     GraphFst,
@@ -101,6 +102,25 @@ class MeasureFst(GraphFst):
             + pynutil.insert(" } ")
             + unit_singular
         )
-        final_graph = subgraph_decimal | subgraph_cardinal
+
+        subgraph_cardinal_dash = (
+            pynutil.insert("cardinal { integer: \"")
+            + cardinal.single_digits_graph
+            + pynini.cross('-', '')
+            + pynutil.insert("\" } units: \"")
+            + pynini.closure(NEMO_NOT_SPACE, 1)
+            + pynutil.insert("\"")
+        )
+
+        subgraph_decimal_dash = (
+            pynutil.insert("decimal { ")
+            + decimal.final_graph_wo_negative
+            + pynini.cross('-', '')
+            + pynutil.insert(" } units: \"")
+            + pynini.closure(NEMO_NOT_SPACE, 1)
+            + pynutil.insert("\"")
+        )
+
+        final_graph = subgraph_decimal | subgraph_cardinal | subgraph_cardinal_dash | subgraph_decimal_dash
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

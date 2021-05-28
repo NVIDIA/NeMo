@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.graph_utils import NEMO_ALPHA, GraphFst, delete_space
+from nemo_text_processing.text_normalization.graph_utils import NEMO_ALPHA, NEMO_NOT_SPACE, GraphFst, delete_space
 
 try:
     import pynini
@@ -40,18 +40,22 @@ class SerialFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal: GraphFst, deterministic: bool = False):
+    def __init__(self, cardinal: GraphFst, deterministic: bool = True):
         super().__init__(name="serial", kind="classify", deterministic=deterministic)
 
-        num_graph = cardinal.graph
+        if deterministic:
+            num_graph = cardinal.single_digits_graph
+        else:
+            num_graph = cardinal.graph
         serial_graph_cardinal_start = (
             pynini.closure((NEMO_ALPHA + pynutil.insert(" ")) | (NEMO_ALPHA + pynini.cross('-', ' ')), 1) + num_graph
         )
         serial_end = pynini.closure(pynutil.insert(" ") + NEMO_ALPHA + pynini.closure(pynutil.insert(" ") + num_graph))
 
         serial_graph_cardinal_end = num_graph + (
-            (pynutil.insert(" ") + NEMO_ALPHA) | (pynini.cross('-', ' ') + NEMO_ALPHA)
+            pynini.closure(pynutil.insert(" ") + NEMO_ALPHA) | (pynini.cross('-', ' ') + NEMO_ALPHA)
         )
+
         serial_end2 = pynini.closure(
             pynutil.insert(" ")
             + num_graph
@@ -62,12 +66,12 @@ class SerialFst(GraphFst):
             serial_end | serial_end2
         )
 
-        graph = (
-            pynutil.insert("cardinal { integer: \"")
-            + serial_graph
-            + delete_space
-            + pynutil.insert("\" } units: \"serial\"")
-        )
+        graph = pynutil.insert("cardinal { integer: \"") + serial_graph
+
+        if not deterministic:
+            graph += pynini.closure(pynini.accep("s"))
+
+        graph += pynutil.insert("\" } units: \"serial\"")
 
         graph = self.add_tokens(graph)
         self.fst = graph.optimize()

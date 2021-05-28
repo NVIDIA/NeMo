@@ -31,7 +31,6 @@ def parse_test_case_file(file_name: str):
         for line in f:
             spoken, written = line.split('~')
             test_pairs.append((spoken, written.strip("\n")))
-    print(test_pairs)
     return test_pairs
 
 

@@ -32,6 +32,7 @@ one pound
 one point o o pounds
 ~t-0t25d12-f
 t zero t twenty five d twelve f
+t zero t two five d one two f
 ~133-A
 one hundred thirty three A
 ~B2A23C
@@ -47,3 +48,10 @@ It seemed to her that the jacket Oswald wore was darker than Commission Exhibit 
 It seemed to her that the jacket Oswald wore was darker than Commission Exhibit number one six two.
 ~"Father, let this cup pass." He prayed--was heard. What cup was it that passed away from him? Sure not the death-cup, now filled to the brim! There was no quailing in the awful word; He still was king of kings, of lords the lord:-- He feared lest, in the suffering waste and grim, His faith might grow too faint and sickly dim."
 "Father, let this cup pass." He prayed--was heard. What cup was it that passed away from him? Sure not the death-cup, now filled to the brim! There was no quailing in the awful word; He still was king of kings, of lords the lord:-- He feared lest, in the suffering waste and grim, His faith might grow too faint and sickly dim."
+~The box was 5 x 7 m.
+The box was five by seven meters.
+~25-30
+twenty five to thirty
+twenty five thirty
+~W2s
+W twos

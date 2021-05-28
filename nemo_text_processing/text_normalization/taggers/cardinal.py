@@ -71,7 +71,12 @@ class CardinalFst(GraphFst):
             )
             range_graph = (
                 self.graph
-                + (pynini.cross("-", " to ") | pynini.cross("x", " by ") | pynini.cross(" x ", " by "))
+                + (
+                    pynini.cross("-", " to ")
+                    | pynini.cross("-", " ")
+                    | pynini.cross("x", " by ")
+                    | pynini.cross(" x ", " by ")
+                )
                 + self.graph
             )
             self.graph = (

@@ -14,6 +14,7 @@
 
 import pytest
 from nemo_text_processing.text_normalization.normalize import Normalizer
+from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
 from parameterized import parameterized
 from utils import PYNINI_AVAILABLE, parse_test_case_file
 
@@ -21,6 +22,7 @@ from utils import PYNINI_AVAILABLE, parse_test_case_file
 class TestBoundary:
 
     normalizer = Normalizer(input_case='lower_cased') if PYNINI_AVAILABLE else None
+    normalizer_with_audio = NormalizerWithAudio(input_case='cased') if PYNINI_AVAILABLE else None
 
     @parameterized.expand(parse_test_case_file('data_text_normalization/test_cases_boundary.txt'))
     @pytest.mark.skipif(
@@ -31,3 +33,5 @@ class TestBoundary:
     def test_norm(self, test_input, expected):
         pred = self.normalizer.normalize(test_input, verbose=False)
         assert pred == expected
+        pred_non_deterministic = self.normalizer_with_audio.normalize(test_input)
+        assert expected in pred_non_deterministic

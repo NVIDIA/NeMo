@@ -78,7 +78,7 @@ class NormalizerWithAudio(Normalizer):
         self.tagger = ClassifyFst(input_case=input_case, deterministic=False)
         self.verbalizer = VerbalizeFinalFst(deterministic=False)
 
-    def normalize_with_audio(self, text: str, verbose: bool = False) -> str:
+    def normalize(self, text: str, verbose: bool = False) -> str:
         """
         Main function. Normalizes tokens from written to spoken form
             e.g. 12 kg -> twelve kilograms
@@ -102,10 +102,12 @@ class NormalizerWithAudio(Normalizer):
         normalized_texts = []
 
         for tagged_text in tagged_texts:
+            print(tagged_text)
             self.parser(tagged_text)
             tokens = self.parser.parse()
             tags_reordered = self.generate_permutations(tokens)
             for tagged_text_reordered in tags_reordered:
+                print(tagged_text_reordered)
                 tagged_text_reordered = pynini.escape(tagged_text_reordered)
                 try:
                     verbalized = rewrite.rewrites(tagged_text_reordered, self.verbalizer.fst)
@@ -115,7 +117,7 @@ class NormalizerWithAudio(Normalizer):
 
         if len(normalized_texts) == 0:
             raise ValueError()
-        normalized_texts = [post_process(t) for t in normalized_texts]
+        normalized_texts = [post_process(t) for t in normalized_texts] + normalized_texts
         normalized_texts = set(normalized_texts)
         return normalized_texts
 
@@ -158,7 +160,7 @@ def calculate_cer(normalized_texts: List[str], transcript: str, remove_punct=Fal
     """
     normalized_options = []
     for text in normalized_texts:
-        text_clean = text.replace('-', ' ').lower().strip()
+        text_clean = text.replace('-', ' ').lower()
         if remove_punct:
             for punct in "!?:;,.-()*+-/<=>@^_":
                 text_clean = text_clean.replace(punct, " ")
@@ -260,7 +262,7 @@ def parse_args():
 def normalize_manifest(args):
     """
     Args:
-        manifest: path to .json manifest file.
+        args.audio_data: path to .json manifest file.
     """
     normalizer = NormalizerWithAudio(input_case=args.input_case)
     manifest_out = args.audio_data.replace('.json', '_normalized.json')
@@ -276,7 +278,7 @@ def normalize_manifest(args):
                     if asr_model is None:
                         asr_model = get_asr_model(args.model)
                     transcript = asr_model.transcribe([audio])[0]
-                normalized_texts = normalizer.normalize_with_audio(line['text'], args.verbose)
+                normalized_texts = normalizer.normalize(line['text'], args.verbose)
                 normalized_text, cer = normalizer.select_best_match(
                     normalized_texts, transcript, args.verbose, args.remove_punct
                 )
@@ -295,7 +297,7 @@ if __name__ == "__main__":
         if os.path.exists(args.text):
             with open(args.text, 'r') as f:
                 args.text = f.read().strip()
-        normalized_texts = normalizer.normalize_with_audio(args.text, args.verbose)
+        normalized_texts = normalizer.normalize(args.text, args.verbose)
         if args.audio_data:
             asr_model = get_asr_model(args.model)
             transcript = asr_model.transcribe([args.audio_data])[0]
