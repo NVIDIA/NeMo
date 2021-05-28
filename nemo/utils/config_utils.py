@@ -61,7 +61,7 @@ def update_model_config(model_cls: NemoConfig, update_cfg: DictConfig, drop_miss
     if is_dataclass(model_cls):
         model_cls = OmegaConf.structured(model_cls)
 
-    # Update optional quartznet
+    # Update optional configs
     model_cls = _update_subconfig(
         model_cls, update_cfg, subconfig_key='train_ds', drop_missing_subconfigs=drop_missing_subconfigs
     )
