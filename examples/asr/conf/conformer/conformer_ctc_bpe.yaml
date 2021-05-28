@@ -20,11 +20,9 @@
 # with time_width=100. It may help when you want to train for fewer epochs and need faster convergence.
 # With weight_decay=0.0, learning rate may need to get reduced to 2.0.
 
-# Performance:
 # You may find more info about Conformer-CTC here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#conformer-ctc
 # Pre-trained models of Conformer-CTC can be found here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html
-# The checkpoint of the large model trained on LibriSpeech with this recipe can be found here:
-# https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_ctc_large_ls
+# The checkpoint of the large model trained on LibriSpeech with this recipe can be found here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_ctc_large_ls
 
 name: "Conformer-CTC-BPE"
 
