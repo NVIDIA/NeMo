@@ -65,7 +65,7 @@ In the following we will show an example for a dialogue. More information at htt
 ***Downloading the dataset***
 #   git clone https://github.com/google-research-datasets/dstc8-schema-guided-dialogue.git
 
-***Setting the quartznet***
+***Setting the configs***
 The model and the PT trainer are defined in a config file that declares multiple important sections.
 The most important ones are:
     model: All arguments that are related to the Model - language model, SGD-QA encoder and decoder, loss, optimizer,

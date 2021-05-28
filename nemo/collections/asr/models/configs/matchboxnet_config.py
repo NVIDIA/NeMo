@@ -106,7 +106,7 @@ class MatchboxNetModelConfig(clf_cfg.EncDecClassificationConfig):
     timesteps: int = 128
     labels: List[str] = MISSING
 
-    # Dataset quartznet
+    # Dataset configs
     train_ds: clf_cfg.EncDecClassificationDatasetConfig = clf_cfg.EncDecClassificationDatasetConfig(
         manifest_filepath=None, shuffle=True, trim_silence=False
     )

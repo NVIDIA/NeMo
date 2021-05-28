@@ -65,7 +65,7 @@ class EncDecCTCConfig(model_cfg.ModelConfig):
     separable: bool = False
     labels: List[str] = MISSING
 
-    # Dataset quartznet
+    # Dataset configs
     train_ds: EncDecCTCDatasetConfig = EncDecCTCDatasetConfig(manifest_filepath=None, shuffle=True)
     validation_ds: EncDecCTCDatasetConfig = EncDecCTCDatasetConfig(manifest_filepath=None, shuffle=False)
     test_ds: EncDecCTCDatasetConfig = EncDecCTCDatasetConfig(manifest_filepath=None, shuffle=False)

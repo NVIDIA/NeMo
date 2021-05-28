@@ -33,7 +33,7 @@ that loves its characters and communicates something rather beautiful about huma
 If your dataset is stored in another format, you need to convert it to this format to use the TextClassificationModel.
 
 
-***Setting the quartznet***
+***Setting the configs***
 The model and the PT trainer are defined in a config file which declares multiple important sections.
 The most important ones are:
     model: All arguments that are related to the Model - language model, tokenizer, head classifier, optimizer,

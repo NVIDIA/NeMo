@@ -65,7 +65,7 @@ class EncDecClassificationConfig(model_cfg.ModelConfig):
     labels: List[str] = MISSING
     timesteps: int = MISSING
 
-    # Dataset quartznet
+    # Dataset configs
     train_ds: EncDecClassificationDatasetConfig = EncDecClassificationDatasetConfig(
         manifest_filepath=None, shuffle=True, trim_silence=False
     )

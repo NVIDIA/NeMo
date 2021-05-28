@@ -173,7 +173,7 @@ class JasperModelConfig(ctc_cfg.EncDecCTCConfig):
     separable: bool = False
     labels: List[str] = MISSING
 
-    # Dataset quartznet
+    # Dataset configs
     train_ds: ctc_cfg.EncDecCTCDatasetConfig = ctc_cfg.EncDecCTCDatasetConfig(
         manifest_filepath=None, shuffle=True, trim_silence=True
     )
