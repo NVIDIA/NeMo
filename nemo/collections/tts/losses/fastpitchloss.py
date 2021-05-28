@@ -140,12 +140,13 @@ class FastPitchLoss(BaseFastPitchLoss):
         mel_loss = loss_fn(spect_predicted, spect_tgt, reduction='none')
         mel_loss = (mel_loss * mel_mask).sum() / mel_mask.sum()
 
-        loss, dur_loss, pitch_loss = super(
-            log_durs_predicted=log_durs_predicted,
-            pitch_predicted=pitch_predicted,
-            durs_tgt=durs_tgt,
-            dur_lens=dur_lens,
-            pitch_tgt=pitch_tgt,
-        )
+        with typecheck.disable_checks():
+            loss, dur_loss, pitch_loss = super().forward(
+                log_durs_predicted=log_durs_predicted,
+                pitch_predicted=pitch_predicted,
+                durs_tgt=durs_tgt,
+                dur_lens=dur_lens,
+                pitch_tgt=pitch_tgt,
+            )
 
         return mel_loss + loss, mel_loss, dur_loss, pitch_loss
