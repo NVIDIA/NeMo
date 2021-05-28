@@ -321,9 +321,9 @@ class TestExpManager:
         model = ExampleModel()
         test_trainer.fit(model)
 
-        assert Path(str(tmp_path / "test" / "checkpoints" / ".nemo")).exists()
+        assert Path(str(tmp_path / "test" / "checkpoints" / "default.nemo")).exists()
 
-        model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / ".nemo"))
+        model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / "default.nemo"))
         assert float(model(torch.tensor([1.0, 1.0], device=model.device))) == 0.0
 
     @pytest.mark.unit
@@ -333,9 +333,9 @@ class TestExpManager:
         model = ExampleModel()
         test_trainer.fit(model)
 
-        assert Path(str(tmp_path / "test" / "checkpoints" / ".nemo")).exists()
+        assert Path(str(tmp_path / "test" / "checkpoints" / "default.nemo")).exists()
 
-        model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / ".nemo"))
+        model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / "default.nemo"))
         assert math.fabs(float(model(torch.tensor([1.0, 1.0], device=model.device))) - 0.03) < 1e-5
 
     @pytest.mark.unit
@@ -351,7 +351,7 @@ class TestExpManager:
         model = ExampleModel()
         test_trainer.fit(model)
 
-        assert Path(str(tmp_path / "test" / "checkpoints" / ".nemo")).exists()
+        assert Path(str(tmp_path / "test" / "checkpoints" / "default.nemo")).exists()
 
-        model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / ".nemo"))
+        model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / "default.nemo"))
         assert float(model(torch.tensor([1.0, 1.0], device=model.device))) == 0.0

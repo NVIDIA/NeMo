@@ -591,9 +591,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         # `prefix` is deprecated
         if 'prefix' in kwargs:
-            self.prefix = kwargs.pop('prefix')
+            self.nemo_prefix = kwargs.pop('prefix')
         else:
-            self.prefix = ""
+            self.nemo_prefix = ""
 
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(**kwargs)
@@ -609,7 +609,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         app_state = AppState()
         # since we are creating tarfile artifacts we need to update .nemo path
         app_state.model_restore_path = os.path.abspath(
-            os.path.expanduser(os.path.join(self.dirpath, self.prefix + self.postfix))
+            os.path.expanduser(os.path.join(self.dirpath, self.nemo_prefix + self.postfix))
         )
         if self.save_best_model:
             if not os.path.exists(self.best_model_path):
@@ -643,7 +643,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         # Load the best model and then re-save it
         if self.save_best_model:
             trainer.checkpoint_connector.restore(self.best_model_path, on_gpu=trainer.on_gpu)
-        pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
+        pl_module.save_to(save_path=os.path.join(self.dirpath, self.nemo_prefix + self.postfix))
 
 
 def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, params: 'DictConfig'):
@@ -675,9 +675,10 @@ def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path,
     if params.dirpath is None:
         params.dirpath = Path(log_dir / 'checkpoints')
     if params.filename is None:
-        params.filename = f'--{{{params.monitor}:.2f}}-{{epoch}}'
+        params.filename = f'{name}--{{{params.monitor}:.2f}}-{{epoch}}'
     if params.prefix is None:
         params.prefix = name
+    NeMoModelCheckpoint.CHECKPOINT_NAME_LAST = params.filename + '-last'
 
     logging.debug(params.dirpath)
     logging.debug(params.filename)
