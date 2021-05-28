@@ -36,6 +36,8 @@ from nemo.collections.asr.parts.k2.utils import create_supervision
 from nemo.collections.asr.parts.k2.utils import get_tot_objf_and_num_frames
 from nemo.collections.asr.parts.k2.utils import make_blank_first
 from nemo.collections.asr.parts.k2.utils import load_graph
+from nemo.collections.asr.parts.k2.utils import GradExpNormalize
+from nemo.collections.asr.parts.k2.utils import GradScale
 
 
 class SDLoss(torch.nn.Module):
@@ -189,6 +191,9 @@ class SDLoss(torch.nn.Module):
         supervisions, order = create_supervision(input_lengths)
         targets = targets[order]
         target_lengths = target_lengths[order]
+        if self.sd_type == 'crf':
+            # Same as for CTC
+            log_probs = GradExpNormalize.apply(log_probs, input_lengths, "mean" if self.reduction != "sum" else "none")
 
         if log_probs.device != self.graph_compiler.device:
             self.graph_compiler.to(log_probs.device)
@@ -210,7 +215,8 @@ class SDLoss(torch.nn.Module):
             path_weight_graphs = k2.compose(self.lm_graph, label_graph, treat_epsilons_specially=False)
             path_weight_graphs = k2.arc_sort(path_weight_graphs)
             num_tot_scores += path_weight_graphs._get_tot_scores(False, True)
-        tot_scores = num_tot_scores - self.den_scale * den_tot_scores
+        # tot_scores = num_tot_scores - self.den_scale * den_tot_scores
+        tot_scores = num_tot_scores - GradScale.apply(den_tot_scores, self.den_scale)
         tot_scores, _, _ = get_tot_objf_and_num_frames(
             tot_scores,
             supervisions[:, 2],

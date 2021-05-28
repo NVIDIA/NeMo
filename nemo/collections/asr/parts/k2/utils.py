@@ -36,6 +36,17 @@ import k2
 import torch
 
 
+class GradScale(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, tensor_with_grad: torch.Tensor, scale: float):
+        ctx.save_for_backward(torch.tensor(scale))
+        return tensor_with_grad
+
+    @staticmethod
+    def backward(ctx, grad_output: torch.Tensor):
+        return grad_output * ctx.saved_tensors[0], None
+
+
 class GradExpNormalize(torch.autograd.Function):
     def make_non_pad_mask(input_lengths: torch.Tensor, seq_len: int):
         batch_size = input_lengths.shape[0]
