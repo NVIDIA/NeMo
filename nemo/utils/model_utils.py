@@ -393,7 +393,7 @@ def _convert_config(cfg: OmegaConf):
 
 def maybe_update_config_version(cfg: DictConfig):
     """
-    Recursively convert Hydra 0.x configs to Hydra 1.x configs.
+    Recursively convert Hydra 0.x quartznet to Hydra 1.x quartznet.
 
     Changes include:
     -   `cls` -> `_target_`.

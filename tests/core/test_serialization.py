@@ -37,7 +37,7 @@ class MockSerializationImplV2(MockSerializationImpl):
 class TestSerialization:
     @pytest.mark.unit
     def test_from_config_dict_with_cls(self):
-        """Here we test that instantiation works for configs with cls class path in them.
+        """Here we test that instantiation works for quartznet with cls class path in them.
         Note that just Serialization.from_config_dict can be used to create an object"""
         config = DictConfig(
             {
@@ -50,7 +50,7 @@ class TestSerialization:
 
     @pytest.mark.unit
     def test_from_config_dict_without_cls(self):
-        """Here we test that instantiation works for configs without cls class path in them.
+        """Here we test that instantiation works for quartznet without cls class path in them.
         IMPORTANT: in this case, correct class type should call from_config_dict. This should work for Models."""
         preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
         encoder = {

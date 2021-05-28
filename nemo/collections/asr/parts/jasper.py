@@ -499,7 +499,7 @@ class JasperBlock(nn.Module):
     multiple such blocks.
 
     For further information about the differences between models which use JasperBlock, please review
-    the configs for ASR models found in the ASR examples directory.
+    the quartznet for ASR models found in the ASR examples directory.
 
     Args:
         inplanes: Number of input channels.

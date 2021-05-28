@@ -30,7 +30,7 @@ python <NEMO_ROOT>/scripts/dataset_processing/process_speech_commands_data.py \
 ## Train to convergence
 ```sh
 python speech_to_label.py \
-    # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
+    # (Optional: --config-path=<path to dir of quartznet> --config-name=<name of config without .yaml>) \
     model.train_ds.manifest_filepath="<path to train manifest>" \
     model.validation_ds.manifest_filepath=["<path to val manifest>","<path to test manifest>"] \
     trainer.gpus=2 \
@@ -62,7 +62,7 @@ python process_vad_data.py \
 ## Train to convergence
 ```sh
 python speech_to_label.py \
-    --config-path=<path to dir of configs e.g. "conf">
+    --config-path=<path to dir of quartznet e.g. "conf">
     --config-name=<name of config without .yaml e.g. "matchboxnet_3x1x64_vad"> \
     model.train_ds.manifest_filepath="<path to train manifest>" \
     model.validation_ds.manifest_filepath=["<path to val manifest>","<path to test manifest>"] \
@@ -86,7 +86,7 @@ python speech_to_label.py \
    For details, please see TarredAudioToClassificationLabelDataset in <NEMO_ROOT>/nemo/collections/asr/data/audio_to_label.py
 
 python speech_to_label.py \
-    --config-path=<path to dir of configs e.g. "conf">
+    --config-path=<path to dir of quartznet e.g. "conf">
     --config-name=<name of config without .yaml e.g. "matchboxnet_3x1x64_vad"> \
     model.train_ds.manifest_filepath=<path to train tarred_audio_manifest.json> \
     model.train_ds.is_tarred=True \

@@ -106,7 +106,7 @@ class MatchboxNetModelConfig(clf_cfg.EncDecClassificationConfig):
     timesteps: int = 128
     labels: List[str] = MISSING
 
-    # Dataset configs
+    # Dataset quartznet
     train_ds: clf_cfg.EncDecClassificationDatasetConfig = clf_cfg.EncDecClassificationDatasetConfig(
         manifest_filepath=None, shuffle=True, trim_silence=False
     )
@@ -120,7 +120,7 @@ class MatchboxNetModelConfig(clf_cfg.EncDecClassificationConfig):
     # Optimizer / Scheduler config
     optim: Optional[model_cfg.OptimConfig] = model_cfg.OptimConfig(sched=model_cfg.SchedConfig())
 
-    # Model general component configs
+    # Model general component quartznet
     preprocessor: AudioToMFCCPreprocessorConfig = AudioToMFCCPreprocessorConfig(window_size=0.025)
     spec_augment: Optional[SpectrogramAugmentationConfig] = SpectrogramAugmentationConfig(
         freq_masks=2, time_masks=2, freq_width=15, time_width=25, rect_masks=5, rect_time=25, rect_freq=15

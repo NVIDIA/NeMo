@@ -65,7 +65,7 @@ class EncDecCTCConfig(model_cfg.ModelConfig):
     separable: bool = False
     labels: List[str] = MISSING
 
-    # Dataset configs
+    # Dataset quartznet
     train_ds: EncDecCTCDatasetConfig = EncDecCTCDatasetConfig(manifest_filepath=None, shuffle=True)
     validation_ds: EncDecCTCDatasetConfig = EncDecCTCDatasetConfig(manifest_filepath=None, shuffle=False)
     test_ds: EncDecCTCDatasetConfig = EncDecCTCDatasetConfig(manifest_filepath=None, shuffle=False)
@@ -73,7 +73,7 @@ class EncDecCTCConfig(model_cfg.ModelConfig):
     # Optimizer / Scheduler config
     optim: Optional[model_cfg.OptimConfig] = model_cfg.OptimConfig(sched=model_cfg.SchedConfig())
 
-    # Model component configs
+    # Model component quartznet
     preprocessor: AudioToMelSpectrogramPreprocessorConfig = AudioToMelSpectrogramPreprocessorConfig()
     spec_augment: Optional[SpectrogramAugmentationConfig] = SpectrogramAugmentationConfig()
     encoder: ConvASREncoderConfig = ConvASREncoderConfig()

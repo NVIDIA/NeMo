@@ -213,7 +213,7 @@ class TokenClassificationModel(NLPModel):
 
         labels_file = os.path.join(self._cfg.dataset.data_dir, train_data_config.labels_file)
 
-        # for older(pre - 1.0.0.b3) configs compatibility
+        # for older(pre - 1.0.0.b3) quartznet compatibility
         if not hasattr(self._cfg, "class_labels") or self._cfg.class_labels is None:
             OmegaConf.set_struct(self._cfg, False)
             self._cfg.class_labels = {}

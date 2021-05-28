@@ -34,7 +34,7 @@ Run ./NeMo/examples/nlp/question_answering/get_squad.py to download the SQuAD da
 
 #   python get_squad.py --destDir=<PATH_TO_DATA>
 
-***Setting the configs***
+***Setting the quartznet***
 The model and the PT trainer are defined in a config file which declares multiple important sections.
 The most important ones are:
     model: All arguments that are related to the Model - language model, tokenizer, token classifier, optimizer,

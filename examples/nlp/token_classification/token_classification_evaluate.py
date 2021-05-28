@@ -28,7 +28,7 @@ This script shows how to perform evaluation and runs inference of a few examples
 
 More details on Token Classification model could be found in tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb
 
-*** Setting the configs ***
+*** Setting the quartznet ***
 
 This script uses the `/examples/nlp/token_classification/conf/token_classification_config.yaml` config file
 by default. You may update the config file from the file directly. 

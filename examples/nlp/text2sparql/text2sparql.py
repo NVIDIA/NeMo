@@ -30,7 +30,7 @@ If your dataset is stored in another format, you need to convert it to this form
 NeuralMachineTranslationModel.
 
 
-***Setting the configs***
+***Setting the quartznet***
 This script uses the `/examples/nlp/text2sparql/conf/text2sparql_config.yaml` config file by default.
 You may update the config file from the file directly or by using the command line arguments.
 Another other option is to set another config file via command line arguments by `--config-name=CONFIG_FILE_PATH'.

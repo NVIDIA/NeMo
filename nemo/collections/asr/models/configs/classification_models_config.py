@@ -65,7 +65,7 @@ class EncDecClassificationConfig(model_cfg.ModelConfig):
     labels: List[str] = MISSING
     timesteps: int = MISSING
 
-    # Dataset configs
+    # Dataset quartznet
     train_ds: EncDecClassificationDatasetConfig = EncDecClassificationDatasetConfig(
         manifest_filepath=None, shuffle=True, trim_silence=False
     )
@@ -79,7 +79,7 @@ class EncDecClassificationConfig(model_cfg.ModelConfig):
     # Optimizer / Scheduler config
     optim: Optional[model_cfg.OptimConfig] = model_cfg.OptimConfig(sched=model_cfg.SchedConfig())
 
-    # Model component configs
+    # Model component quartznet
     preprocessor: AudioToMFCCPreprocessorConfig = AudioToMFCCPreprocessorConfig()
     spec_augment: Optional[SpectrogramAugmentationConfig] = SpectrogramAugmentationConfig()
     crop_or_pad_augment: Optional[CropOrPadSpectrogramAugmentationConfig] = CropOrPadSpectrogramAugmentationConfig(

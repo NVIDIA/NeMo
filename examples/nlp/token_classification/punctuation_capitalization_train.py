@@ -27,7 +27,7 @@ from nemo.utils.exp_manager import exp_manager
 This script show how to train a Punctuation and Capitalization Model.
 More details on the task and data format could be found in tutorials/nlp/Punctuation_and_Capitalization.ipynb
 
-*** Setting the configs ***
+*** Setting the quartznet ***
 
 The model and the PT trainer are defined in a config file which declares multiple important sections.
 The most important ones are:

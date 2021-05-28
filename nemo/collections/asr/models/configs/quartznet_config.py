@@ -173,7 +173,7 @@ class JasperModelConfig(ctc_cfg.EncDecCTCConfig):
     separable: bool = False
     labels: List[str] = MISSING
 
-    # Dataset configs
+    # Dataset quartznet
     train_ds: ctc_cfg.EncDecCTCDatasetConfig = ctc_cfg.EncDecCTCDatasetConfig(
         manifest_filepath=None, shuffle=True, trim_silence=True
     )
@@ -185,7 +185,7 @@ class JasperModelConfig(ctc_cfg.EncDecCTCConfig):
     # Optimizer / Scheduler config
     optim: Optional[model_cfg.OptimConfig] = model_cfg.OptimConfig(sched=model_cfg.SchedConfig())
 
-    # Model general component configs
+    # Model general component quartznet
     preprocessor: AudioToMelSpectrogramPreprocessorConfig = AudioToMelSpectrogramPreprocessorConfig()
     spec_augment: Optional[SpectrogramAugmentationConfig] = SpectrogramAugmentationConfig()
     encoder: ConvASREncoderConfig = ConvASREncoderConfig(activation="relu")

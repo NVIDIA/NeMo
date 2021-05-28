@@ -41,12 +41,12 @@ python transcribe_speech.py \
 
 @dataclass
 class TranscriptionConfig:
-    # Required configs
+    # Required quartznet
     model_path: Optional[str] = None  # Path to a .nemo file
     pretrained_name: Optional[str] = None  # Name of a pretrained model
     audio_dir: str = MISSING  # Path to a directory which contains audio files
 
-    # General configs
+    # General quartznet
     output_filename: str = "speech_to_text_transcriptions.txt"
     batch_size: int = 32
     cuda: Optional[bool] = None  # will switch to cuda if available, defaults to cpu otherwise
