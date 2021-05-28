@@ -123,7 +123,6 @@ class Exportable(ABC):
         use_dynamic_axes: bool = True,
         dynamic_axes=None,
         check_tolerance=0.01,
-        forward_method=None,
     ):
         my_args = locals()
         del my_args['self']
@@ -136,12 +135,12 @@ class Exportable(ABC):
             typecheck.set_typecheck_enabled(enabled=False)
 
             # Allow user to completely override forward method to export
-            if forward_method is None and hasattr(type(self), "forward_for_export"):
+            if hasattr(type(self), "forward_for_export"):
                 forward_method = type(self).forward_for_export
-
-            if forward_method:
                 old_forward_method = type(self).forward
                 type(self).forward = forward_method
+            else:
+                forward_method = None
 
             # Set module to eval mode
             if set_eval:
@@ -187,9 +186,9 @@ class Exportable(ABC):
 
                 if format == ExportFormat.TORCHSCRIPT:
                     if jitted_model is None:
-                        jitted_model = torch.jit.trace(
+                        jitted_model = torch.jit.trace_module(
                             self,
-                            input_example,
+                            {"forward": tuple(input_list) + tuple(input_dict.values())},
                             strict=False,
                             optimize=True,
                             check_trace=check_trace,
