@@ -386,8 +386,9 @@ def _convert_config(cfg: OmegaConf):
         for _, sub_cfg in cfg.items():
             if isinstance(sub_cfg, DictConfig):
                 _convert_config(sub_cfg)
-    except omegaconf_errors.OmegaConfBaseException as e:
-        logging.warning(f"Skipping config conversion for cfg:\n{cfg}\n due to OmegaConf error encountered :\n{e}.")
+    except omegaconf_errors.OmegaConfBaseException:
+        pass
+        # logging.debug(f"Skipping config conversion for cfg:\n{cfg}\n due to OmegaConf error encountered :\n{e}.")
 
 
 def maybe_update_config_version(cfg: DictConfig):
