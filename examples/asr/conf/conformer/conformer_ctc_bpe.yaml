@@ -23,20 +23,8 @@
 # Performance:
 # You may find more info about Conformer-CTC here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#conformer-ctc
 # Pre-trained models of Conformer-CTC can be found here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html
-# This recipe of large model would achieve the following WERs if trained and evaluated on LibriSpeech with greedy decoding:
-#    2.4% on dev-clean
-#    6.2% on dev-other
-#    2.7% on test-clean
-#    6.0% on test-other
-
-# language Modeling:
-# With language modelling, you may improve the accuracy. With N-gram LM and Beam Search decoding, you may get the following WERs:
-# LM Parameters: N=10, alpha=1.5, beta=1.5, beam size=128
-#    4.9% on test-other
-#
-# You can find more detail on how to train and use LM for ASR models here:
-# https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_language_modeling.html
-
+# The checkpoint of the large model trained on LibriSpeech with this recipe can be found here:
+# https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_ctc_large_ls
 
 name: "Conformer-CTC-BPE"
 
