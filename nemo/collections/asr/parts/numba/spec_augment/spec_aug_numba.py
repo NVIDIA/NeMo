@@ -256,16 +256,18 @@ class SpecAugmentNumba(nn.Module, Typing):
         # Construct the freq and time masks as well as start positions
         if self.freq_masks > 0:
             freq_starts = torch.randint(
-                0, sh[1] - self.freq_width, size=[bs, self.freq_masks], device=input_spec.device
+                0, sh[1] - self.freq_width + 1, size=[bs, self.freq_masks], device=input_spec.device
             )
-            freq_lengths = torch.randint(0, self.freq_width, size=[bs, self.freq_masks], device=input_spec.device)
+            freq_lengths = torch.randint(0, self.freq_width + 1, size=[bs, self.freq_masks], device=input_spec.device)
         else:
             freq_starts = torch.zeros([bs, 1], dtype=torch.int64, device=input_spec.device)
             freq_lengths = torch.zeros([bs, 1], dtype=torch.int64, device=input_spec.device)
 
         if self.time_masks > 0:
-            time_starts = torch.randint(0, sh[2] - time_width, size=[bs, self.time_masks], device=input_spec.device)
-            time_lengths = torch.randint(0, time_width, size=[bs, self.time_masks], device=input_spec.device)
+            time_starts = torch.randint(
+                0, sh[2] - time_width + 1, size=[bs, self.time_masks], device=input_spec.device
+            )
+            time_lengths = torch.randint(0, time_width + 1, size=[bs, self.time_masks], device=input_spec.device)
         else:
             time_starts = torch.zeros([bs, 1], dtype=torch.int64, device=input_spec.device)
             time_lengths = torch.zeros([bs, 1], dtype=torch.int64, device=input_spec.device)

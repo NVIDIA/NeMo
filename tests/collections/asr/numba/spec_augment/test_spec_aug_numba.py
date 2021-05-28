@@ -63,15 +63,15 @@ def prepare_data(b, f, t, device='cuda', freq_masks=0, time_masks=0, freq_width=
 
     # Construct the freq and time masks as well as start positions
     if freq_masks > 0:
-        freq_starts = torch.randint(0, sh[1] - freq_width, size=[bs, freq_masks], device=x.device)
-        freq_lengths = torch.randint(0, freq_width, size=[bs, freq_masks], device=x.device)
+        freq_starts = torch.randint(0, sh[1] - freq_width + 1, size=[bs, freq_masks], device=x.device)
+        freq_lengths = torch.randint(0, freq_width + 1, size=[bs, freq_masks], device=x.device)
     else:
         freq_starts = torch.zeros([bs, 1], dtype=torch.int64, device=x.device)
         freq_lengths = torch.zeros([bs, 1], dtype=torch.int64, device=x.device)
 
     if time_masks > 0:
-        time_starts = torch.randint(0, sh[2] - time_width, size=[bs, time_masks], device=x.device)
-        time_lengths = torch.randint(0, time_width, size=[bs, time_masks], device=x.device)
+        time_starts = torch.randint(0, sh[2] - time_width + 1, size=[bs, time_masks], device=x.device)
+        time_lengths = torch.randint(0, time_width + 1, size=[bs, time_masks], device=x.device)
     else:
         time_starts = torch.zeros([bs, 1], dtype=torch.int64, device=x.device)
         time_lengths = torch.zeros([bs, 1], dtype=torch.int64, device=x.device)
