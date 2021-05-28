@@ -287,9 +287,22 @@ pipeline {
             sh 'python examples/asr/speech_to_text.py \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-            +model.preprocessor.use_dali=True \
+            model.preprocessor.use_dali=True \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_results'
+            sh 'rm -rf examples/asr/speech_to_text_results'
+          }
+        }
+        stage('Speech to Text - DALI AudioToMelSpectrogramPreprocessor - precision=16') {
+          steps {
+            sh 'python examples/asr/speech_to_text.py \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            model.preprocessor.use_dali=True \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=True \
+            +trainer.precision=16 \
             exp_manager.exp_dir=examples/asr/speech_to_text_results'
             sh 'rm -rf examples/asr/speech_to_text_results'
           }
@@ -302,7 +315,7 @@ pipeline {
         //     model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
         //     model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
         //     model.preprocessor._target_=nemo.collections.asr.modules.AudioToMFCCPreprocessor \
-        //     +model.preprocessor.use_dali=True \
+        //     model.preprocessor.use_dali=True \
         //     ~model.preprocessor.normalize \
         //     ~model.preprocessor.features \
         //     ~model.preprocessor.frame_splicing \

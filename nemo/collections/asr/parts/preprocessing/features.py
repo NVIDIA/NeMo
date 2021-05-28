@@ -55,10 +55,11 @@ try:
     from nvidia.dali.plugin.pytorch import feed_ndarray as feed_ndarray
 
     DALI_VERSION = version.parse(dali.__version__)
-    DALI_VERSION_MIN = version.parse('1.0.0')
+    DALI_VERSION_MIN = version.parse('0.29.0')
+    DALI_VERSION_MIN_VARIABLE_BATCH = version.parse('0.31.0')
 
     HAVE_DALI = True
-except ModuleNotFoundError:
+except (ModuleNotFoundError, ImportError):
     HAVE_DALI = False
 
 
@@ -109,17 +110,20 @@ def normalize_batch(x, seq_len, normalize_type):
         return x
 
 
-def splice_frames(x, frame_splicing):
-    """ Stacks frames together across feature dim
+def splice_frames(x, stacking=1, subsampling=1):
+    """ Stacks frames together across feature dim, and then subsamples
 
     input is batch_size, feature_dim, num_frames
-    output is batch_size, feature_dim*frame_splicing, num_frames
+    output is batch_size, feature_dim * stacking, num_frames / subsampling
 
     """
     seq = [x]
-    for n in range(1, frame_splicing):
-        seq.append(torch.cat([x[:, :, :n], x[:, :, n:]], dim=2))
-    return torch.cat(seq, dim=1)
+    for n in range(1, stacking):
+        tmp = torch.zeros_like(x)
+        tmp[:, :, :-n] = x[:, :, n:]
+        seq.append(tmp)
+    x = torch.cat(seq, dim=1)[:, :, ::subsampling]
+    return x
 
 
 class WaveformFeaturizer(object):
@@ -256,10 +260,18 @@ class FilterbankFeatures(nn.Module):
         if self.use_dali:
             if not HAVE_DALI:
                 raise ModuleNotFoundError(
-                    "AudioToMelSpectrogramPreprocessor: use_dali was set to True, but NVIDIA DALI is not installed."
+                    "AudioToMelSpectrogramPreprocessor: use_dali was set to True, but NVIDIA DALI is either not installed "
+                    f"or at a lower version than required (Required {DALI_VERSION_MIN} or higher). "
                     "To install, please follow https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html#nvidia-dali"
                 )
+            elif DALI_VERSION < DALI_VERSION_MIN:
+                raise ModuleNotFoundError(
+                    f"AudioToMelSpectrogramPreprocessor: use_dali was set to True, NVIDIA DALI {DALI_VERSION_MIN} or higher is required. "
+                    f"Found version {DALI_VERSION}."
+                )
             else:
+                # TODO: Remove this warning after this implementation has been tested with real models
+                #       and after 2 NeMo or DALI releases, from the time the features are available in a public release.
                 logging.warning(
                     f'Using NVIDIA DALI for feature extraction is experimental, not ready for production and is not fully supported. Use at your own risk.'
                 )
@@ -295,12 +307,20 @@ class FilterbankFeatures(nn.Module):
         self.win_length = n_window_size
         self.hop_length = n_window_stride
         self.n_fft = n_fft or 2 ** math.ceil(math.log2(self.win_length))
+        self.exact_pad = exact_pad
         self.stft_pad_amount = (self.n_fft - self.hop_length) // 2 if exact_pad else None
         self.stft_exact_pad = stft_exact_pad
         self.stft_conv = stft_conv
 
         if use_dali:
             logging.info("STFT using NVIDIA DALI")
+            if exact_pad:
+                # Not supported yet due to inconsistency with DALI's Spectrogram when not centering windows
+                # TODO(janton): To be revisisted after the issue is resolved.
+                raise NotImplementedError("NVIDIA DALI based implementation doesn't support exact_pad=True yet.")
+            if isinstance(normalize, dict) and "fixed_mean" in normalize and "fixed_std" in normalize:
+                # TODO: Implement this
+                raise NotImplementedError("NVIDIA DALI based implementation doesn't support fixed mean/stddev yet.")
         if stft_conv:
             logging.info("STFT using conv")
             if stft_exact_pad:
@@ -455,20 +475,22 @@ class FilterbankFeatures(nn.Module):
             else:
                 raise ValueError("log_zero_guard_type was not understood")
 
-        # frame splicing if required
-        if self.frame_splicing > 1:
-            x = splice_frames(x, self.frame_splicing)
-
-        # normalize if required
-        if self.normalize:
-            x = normalize_batch(x, seq_len, normalize_type=self.normalize)
-
-        # mask to zero any values beyond seq_len in batch, pad to multiple of `pad_to` (for efficiency)
+        # mask to zero any values beyond seq_len in batch
         max_len = x.size(-1)
         mask = torch.arange(max_len).to(x.device)
         mask = mask.expand(x.size(0), max_len) >= seq_len.unsqueeze(1)
         x = x.masked_fill(mask.unsqueeze(1).type(torch.bool).to(device=x.device), self.pad_value)
         del mask
+
+        # frame splicing if required
+        if self.frame_splicing > 1:
+            x = splice_frames(x, stacking=self.frame_splicing)
+
+        # normalize if required
+        if self.normalize:
+            x = normalize_batch(x, seq_len, normalize_type=self.normalize)
+
+        # pad to multiple of `pad_to` (for efficiency)
         pad_to = self.pad_to
         if pad_to == "max":
             x = nn.functional.pad(x, (0, self.max_length - x.size(-1)), value=self.pad_value)
@@ -478,58 +500,75 @@ class FilterbankFeatures(nn.Module):
                 x = nn.functional.pad(x, (0, pad_to - pad_amt), value=self.pad_value)
         return x, seq_len
 
-    def _daligraph_reflect_pad(self, x, x_len, stft_pad_amount):
-        def flip_1d(x):
-            # TODO(janton): remove the layout trick when Flip supports arbitrary data layouts
-            x = dali.fn.reshape(x, shape=(-1, 1, 1), layout="HWC")
-            x = dali.fn.flip(x, vertical=1)
-            x = dali.fn.reshape(x, shape=(-1,), layout="t")
-            return x
-
-        pad_start = dali.fn.slice(x, start=1, shape=stft_pad_amount, axes=(0,))
-        pad_start = flip_1d(pad_start)
-
-        pad_end = dali.fn.slice(x, start=(x_len - stft_pad_amount - 1), shape=stft_pad_amount, axes=(0,))
-        pad_end = flip_1d(pad_end)
-        x = dali.fn.cat(pad_start, x, pad_end, axis=0)
-        return x
-
     def _daligraph_splice_frames(self, x, nfeatures, x_len, stacking=1, subsampling=1):
+        """
+            Implements frame splicing on spectrograms with a layout (nfeatures, nframes), using DALI.
+            This function is meant to be called from within a DALI pipeline definition.
+        """
+        # Frame splicing is achieved by first stacking subsequent frames on the feature dimension, and second
+        # subsampling in the frames dimension. The output shape is (nfeatures*stacking, nframes/subsampling)
+        #
+        # Example: stacking=3, subsampling=2
+        # x =[[ a0, b0, c0, d0, e0 ],
+        #     [ a1, b1, c1, d1, e1 ],
+        #     [ a2, b2, c2, d2, e2 ]]
+        #
+        # Step 1: stack 3 subsequent frames vertically
+        # x =[[ a0, b0, c0, d0, e0 ],
+        #     [ a1, b1, c1, d1, e1 ],
+        #     [ a2, b2, c2, d2, e2 ],
+        #     [ b0, c0, d0, e0, 0 ],
+        #     [ b1, c1, d1, e1, 0 ],
+        #     [ b2, c2, d2, e2, 0 ],
+        #     [ c0, d0, e0, 0 , 0 ],
+        #     [ c1, d1, e1, 0 , 0 ],
+        #     [ c2, d2, e2, 0 , 0 ]]
+        #
+        # Step 2: Subsampling in the horizontal dimension. Taking every second frame horizontally.
+        # x =[[ a0, c0, e0 ],
+        #     [ a1, c1, e1 ],
+        #     [ a2, c2, e2 ],
+        #     [ b0, d0, 0 ],
+        #     [ b1, d1, 0 ],
+        #     [ b2, d2, 0 ],
+        #     [ c0, e0, 0 ],
+        #     [ c1, e1, 0 ],
+        #     [ c2, e2, 0 ]]
+
         if stacking > 1:
             seq = [x]
             for n in range(1, stacking):
-                f = dali.fn.slice(x, start=n, shape=x_len, axes=(1,), out_of_bounds_policy='pad', fill_values=0)
+                start = dali.types.Constant(n, shape=[], dtype=dali.types.INT64, device='cpu')
+                f = dali.fn.slice(x, start, x_len, axes=(1,), out_of_bounds_policy='pad', fill_values=0)
                 seq.append(f)
             x = dali.fn.cat(*seq, axis=0)
             nfeatures = nfeatures * stacking
         if subsampling > 1:
+            # The graph below should be equivalent to
+            # x = x[:, ::subsampling]
             out_len = (x_len + subsampling - 1) // subsampling
+            # In DALI, we can achieve subsampling with a WarpAffine scaling matrix, where the scale represents
+            # the subsampling factor. Note that we set the pixel center needs to 0.5 so that we pixel starts are used,
+            # instead of pixel centers. and not pixel center.
             m = dali.fn.transforms.scale(scale=[subsampling, 1], center=[0.5, 0])
+            # Note: WarpAffine works with image layouts. To be able use it, we are modifying the tensor
+            #       layout to be an image where H=nfeatures, W=nframes, C=1.
+            #       Reshape is an operation on metadata only, and should not affect performance.
             x = dali.fn.reshape(x, rel_shape=[1, 1, -1], layout="HWC")  # Layout required by WarpAffine
             x = dali.fn.warp_affine(
                 x, matrix=m, size=dali.fn.cat(nfeatures, out_len), interp_type=dali.types.INTERP_NN
             )
+            # Restoring the original shape/layout
             x = dali.fn.reshape(x, rel_shape=[1, 1], layout="ft")
         return x
 
     def init_dali_pipeline(self, batch_size, device, device_id, num_threads=4):
         pipe = dali.pipeline.Pipeline(
-            batch_size=batch_size,
-            num_threads=num_threads,
-            device_id=device_id,
-            prefetch_queue_depth=1,
-            exec_async=True,
-            exec_pipelined=True,
+            batch_size=batch_size, num_threads=num_threads, device_id=device_id, prefetch_queue_depth=1,
         )
         with pipe:
             audio = dali.fn.external_source(name="input_signal", device=device)
-            audio_len = dali.fn.external_source(name="length", device='cpu')
-
-            if self.stft_pad_amount is not None:
-                audio = self._daligraph_reflect_pad(audio, audio_len, self.stft_pad_amount)
-                audio_len = audio_len + 2 * self.stft_pad_amount
-
-            spec_len = dali.fn.cast((audio_len // self.hop_length) + 1, dtype=dali.types.INT64)
+            spec_len = dali.fn.external_source(name="length", device='cpu')
 
             # Additive gaussian noise (dither)
             if self.training and self.dither > 0.0:
@@ -569,12 +608,12 @@ class FilterbankFeatures(nn.Module):
                 # Natural Logarithm
                 spec = dali.fn.to_decibels(spec, multiplier=math.log(10), reference=1.0, cutoff_db=-120)
 
-            if self.frame_splicing > 1:
-                spec = self._daligraph_splice_frames(spec, self.nfilt, spec_len, stacking=self.frame_splicing)
-
-            # Trimming Spectrogram to match the reference implementation
+            # Trimming Spectrogram to the actual length to match the reference.
             start = dali.types.Constant(0, shape=[], dtype=dali.types.INT64, device='cpu')
             spec = dali.fn.slice(spec, start, spec_len, axes=(1,))
+
+            if self.frame_splicing > 1:
+                spec = self._daligraph_splice_frames(spec, self.nfilt, spec_len, stacking=self.frame_splicing)
 
             # Normalization
             normalization_axes = None
@@ -583,11 +622,8 @@ class FilterbankFeatures(nn.Module):
                     normalization_axes = [1]
                 elif self.normalize == "all_features":
                     normalization_axes = [0, 1]
-                elif "fixed_mean" in self.normalize and "fixed_std" in self.normalize:
-                    raise ValueError("Normalization with fixed mean/stddev not yet supported.")
-                    # TODO: implement
                 else:
-                    raise ValueError(f"Unknown normalization type: {self.normalize}")
+                    raise ValueError(f"Unexpected normalization type: {self.normalize}")
 
                 # Normalization
                 spec = dali.fn.normalize(spec, axes=normalization_axes, epsilon=1e-5 ** 2, ddof=1)
@@ -596,9 +632,7 @@ class FilterbankFeatures(nn.Module):
             pad_align = (self.pad_to,) if self.pad_to > 0 else None
             pad_shape = (self.max_length,) if self.pad_to == 'max' else (-1,)
             spec = dali.fn.pad(spec, fill_value=self.pad_value, axes=(1,), align=pad_align, shape=pad_shape)
-            if device == 'gpu':
-                spec_len = spec_len.gpu()
-        pipe.set_outputs(spec, spec_len)
+        pipe.set_outputs(spec)
         # Building DALI pipeline
         pipe.build()
         return pipe
@@ -616,31 +650,30 @@ class FilterbankFeatures(nn.Module):
             device_id = None
             cuda_stream = None
         batch_size = x.shape[0]
-        if (
-            self.dali_ctx.batch_size != batch_size
-            or self.dali_ctx.device != device_type_str
-            or self.dali_ctx.device_id != device_id
-        ):
+
+        need_new_pipe = self.dali_ctx.device != device_type_str or self.dali_ctx.device_id != device_id
+        # Variable iter-to-iter batch size is only supported starting from DALI 0.31.
+        if DALI_VERSION < DALI_VERSION_MIN_VARIABLE_BATCH:
+            need_new_pipe = need_new_pipe or self.dali_ctx.batch_size != batch_size
+        else:
+            need_new_pipe = need_new_pipe or self.dali_ctx.batch_size < batch_size
+
+        if need_new_pipe:
             self.dali_ctx.batch_size = batch_size
             self.dali_ctx.device = device_type_str
             self.dali_ctx.device_id = device_id
             self.dali_ctx.pipe = self.init_dali_pipeline(batch_size, device_type_str, device_id)
 
         self.dali_ctx.pipe.feed_input("input_signal", x)
-        self.dali_ctx.pipe.feed_input("length", x_len.cpu())
-        out0, out1 = self.dali_ctx.pipe.run()
+        seq_len = self.get_seq_len(x_len.float())
+        self.dali_ctx.pipe.feed_input("length", seq_len.cpu())
+        outs = self.dali_ctx.pipe.run()
+        out0 = outs[0].as_tensor()
 
-        out0 = out0.as_tensor()
-        out1 = out1.as_tensor()
-
-        processed_signal = torch.zeros(out0.shape(), dtype=torch.float32, device=device)
+        processed_signal = torch.empty(out0.shape(), dtype=torch.float32, device=device)
         feed_ndarray(out0, processed_signal, cuda_stream=cuda_stream)
 
-        processed_length = torch.zeros(out1.shape(), dtype=torch.long, device=device)
-        feed_ndarray(out1, processed_length, cuda_stream=cuda_stream)
-        processed_length = processed_length.reshape(-1)
-
-        return processed_signal, processed_length
+        return processed_signal, seq_len
 
     def forward(self, input_signal, length):
         if self.can_use_dali():

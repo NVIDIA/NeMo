@@ -61,6 +61,7 @@ model:
     window: hann
     window_size: null
     window_stride: null
+    use_dali: False
 
   input_fft:
     _target_: nemo.collections.tts.modules.transformer.FFTransformerEncoder

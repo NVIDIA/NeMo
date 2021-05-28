@@ -64,6 +64,7 @@ model:
     frame_splicing: 1
     dither: 0.00001
     pad_to: 0
+    use_dali: False
 
   spec_augment:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation

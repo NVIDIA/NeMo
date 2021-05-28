@@ -87,6 +87,7 @@ model:
     sample_rate: ${sample_rate}
     stft_conv: false
     window: hann
+    use_dali: False
 
   model:
     _target_: "nemo.collections.asr.modules.ConvASREncoder"

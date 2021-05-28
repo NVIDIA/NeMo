@@ -17,6 +17,7 @@ import torch
 from omegaconf import OmegaConf
 
 from nemo.collections.asr import modules
+from nemo.collections.asr.parts.preprocessing.features import HAVE_DALI
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.utils import config_utils
 
@@ -54,6 +55,7 @@ class TestASRModulesBasicTests:
             res2, length2 = instance2(input_signal=input_signal, length=length)
             self.compare_features(res1, length1, res2, length2)
 
+    @pytest.mark.skipif(not HAVE_DALI, reason='NVIDIA DALI is not available.')
     @pytest.mark.unit
     def test_AudioToMelSpectrogramPreprocessor_DALI_spectrogram(self):
         for win_len_sec, n_win_len, win_hop_sec, n_win_hop, n_fft, mag_power, win_func in [
@@ -65,6 +67,9 @@ class TestASRModulesBasicTests:
             (None, 320, None, 160, 512, 1.0, 'hamming'),
             (None, 320, None, 160, 512, 1.0, 'blackman'),
             (None, 320, None, 160, 512, 1.0, 'bartlett'),
+            (None, 320, None, 160, None, 1.0, 'hann'),
+            (None, 320, None, 160, None, 1.0, 'hann'),
+            (None, 320, None, 160, None, 1.0, 'hann'),
         ]:
             instance1 = modules.AudioToMelSpectrogramPreprocessor(
                 window_size=win_len_sec,
@@ -105,6 +110,7 @@ class TestASRModulesBasicTests:
                 res2, length2 = instance2(input_signal=input_signal, length=length)
                 self.compare_features(res1, length1, res2, length2)
 
+    @pytest.mark.skipif(not HAVE_DALI, reason='NVIDIA DALI is not available.')
     @pytest.mark.unit
     def test_AudioToMelSpectrogramPreprocessor_DALI_melfilterbank(self):
         for n_fft, features, lowfreq, highfreq in [
@@ -146,6 +152,7 @@ class TestASRModulesBasicTests:
                 res2, length2 = instance2(input_signal=input_signal, length=length)
                 self.compare_features(res1, length1, res2, length2)
 
+    @pytest.mark.skipif(not HAVE_DALI, reason='NVIDIA DALI is not available.')
     @pytest.mark.unit
     def test_AudioToMelSpectrogramPreprocessor_DALI_log(self):
         for log_zero_guard_type, log_zero_guard_value in [
@@ -183,6 +190,7 @@ class TestASRModulesBasicTests:
                 res2, length2 = instance2(input_signal=input_signal, length=length)
                 self.compare_features(res1, length1, res2, length2)
 
+    @pytest.mark.skipif(not HAVE_DALI, reason='NVIDIA DALI is not available.')
     @pytest.mark.unit
     def test_AudioToMelSpectrogramPreprocessor_DALI_normalization(self):
         for normalize_type, log in [
@@ -192,10 +200,10 @@ class TestASRModulesBasicTests:
             ("all_features", True),
         ]:
             instance1 = modules.AudioToMelSpectrogramPreprocessor(
-                log=log, normalize=normalize_type, dither=0, preemph=0.0, pad_to=0, use_dali=False
+                log=log, normalize=normalize_type, dither=0, preemph=0.0, pad_to=0, use_dali=False,
             )
             instance2 = modules.AudioToMelSpectrogramPreprocessor(
-                log=log, normalize=normalize_type, dither=0, preemph=0.0, pad_to=0, use_dali=True
+                log=log, normalize=normalize_type, dither=0, preemph=0.0, pad_to=0, use_dali=True,
             )
 
             # Ensure that the two functions behave similarily
@@ -206,6 +214,40 @@ class TestASRModulesBasicTests:
                 res2, length2 = instance2(input_signal=input_signal, length=length)
                 self.compare_features(res1, length1, res2, length2, eps_mean_err=1e-3, eps_max_err=0.5)
 
+    @pytest.mark.skipif(not HAVE_DALI, reason='NVIDIA DALI is not available.')
+    @pytest.mark.unit
+    def test_AudioToMelSpectrogramPreprocessor_DALI_frame_splicing(self):
+        for frame_splicing in [
+            3,
+        ]:
+            instance1 = modules.AudioToMelSpectrogramPreprocessor(
+                log=True,
+                normalize='per_feature',
+                dither=0,
+                preemph=0.0,
+                pad_to=0,
+                use_dali=False,
+                frame_splicing=frame_splicing,
+            )
+            instance2 = modules.AudioToMelSpectrogramPreprocessor(
+                log=True,
+                normalize='per_feature',
+                dither=0,
+                preemph=0.0,
+                pad_to=0,
+                use_dali=True,
+                frame_splicing=frame_splicing,
+            )
+
+            # Ensure that the two functions behave similarily
+            for _ in range(5):
+                input_signal = torch.randn(size=(4, 512))
+                length = torch.randint(low=161, high=500, size=[4])
+                res1, length1 = instance1(input_signal=input_signal, length=length)
+                res2, length2 = instance2(input_signal=input_signal, length=length)
+                self.compare_features(res1, length1, res2, length2, eps_mean_err=1e-3, eps_max_err=0.5)
+
+    @pytest.mark.skipif(not HAVE_DALI, reason='NVIDIA DALI is not available.')
     @pytest.mark.unit
     def test_AudioToMelSpectrogramPreprocessor_DALI_default_pipe(self):
         instance1 = modules.AudioToMelSpectrogramPreprocessor(dither=0, use_dali=False)

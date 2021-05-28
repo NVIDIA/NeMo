@@ -76,6 +76,7 @@ model:
     window: hann
     window_size: null
     window_stride: null
+    use_dali: False
 
   encoder:
     _target_: nemo.collections.tts.modules.glow_tts.TextEncoder

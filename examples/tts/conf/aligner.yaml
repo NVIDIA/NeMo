@@ -83,6 +83,7 @@ model:
     sample_rate: ${sample_rate}
     stft_conv: false
     window: hann
+    use_dali: False
 
   alignment_encoder:
     _target_: "nemo.collections.tts.modules.aligner.AlignmentEncoder"
