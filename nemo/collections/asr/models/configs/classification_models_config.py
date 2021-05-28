@@ -79,7 +79,7 @@ class EncDecClassificationConfig(model_cfg.ModelConfig):
     # Optimizer / Scheduler config
     optim: Optional[model_cfg.OptimConfig] = model_cfg.OptimConfig(sched=model_cfg.SchedConfig())
 
-    # Model component quartznet
+    # Model component configs
     preprocessor: AudioToMFCCPreprocessorConfig = AudioToMFCCPreprocessorConfig()
     spec_augment: Optional[SpectrogramAugmentationConfig] = SpectrogramAugmentationConfig()
     crop_or_pad_augment: Optional[CropOrPadSpectrogramAugmentationConfig] = CropOrPadSpectrogramAugmentationConfig(

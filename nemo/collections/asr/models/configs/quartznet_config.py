@@ -185,7 +185,7 @@ class JasperModelConfig(ctc_cfg.EncDecCTCConfig):
     # Optimizer / Scheduler config
     optim: Optional[model_cfg.OptimConfig] = model_cfg.OptimConfig(sched=model_cfg.SchedConfig())
 
-    # Model general component quartznet
+    # Model general component configs
     preprocessor: AudioToMelSpectrogramPreprocessorConfig = AudioToMelSpectrogramPreprocessorConfig()
     spec_augment: Optional[SpectrogramAugmentationConfig] = SpectrogramAugmentationConfig()
     encoder: ConvASREncoderConfig = ConvASREncoderConfig(activation="relu")
