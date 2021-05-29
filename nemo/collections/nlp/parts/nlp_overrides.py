@@ -98,6 +98,8 @@ class NLPDDPPlugin(DDPPlugin):
                         set_checkpoint_version(0)
                 else:
                     self.lightning_module.restore_megatron_encoder_weights()
+            else:
+                self.lightning_module.restore_megatron_encoder_weights()
 
             self.lightning_module.register_megatron_checkpoint_version()
 
