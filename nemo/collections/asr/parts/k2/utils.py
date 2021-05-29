@@ -27,13 +27,14 @@
 # limitations under the License.
 
 import itertools
-import math
 import re
 from pickle import UnpicklingError
 from typing import List, Tuple
 
 import k2
 import torch
+
+from nemo.utils import logging
 
 
 class GradScale(torch.autograd.Function):
@@ -111,7 +112,7 @@ def load_graph(graph_path):
                 errors.append(e)
     raise Exception(errors)
 
-def graph_to_den(graph: k2.Fsa, replicate_den: bool = False, times: int = 1):
+def graph_to_den(graph: k2.Fsa, replicate_den: bool = False, times: int = 1) -> k2.Fsa:
     graph_vec = k2.create_fsa_vec([graph.detach()])
     if replicate_den:
         indexes = torch.zeros(times, dtype=torch.int32, device=graph.device)
@@ -120,13 +121,31 @@ def graph_to_den(graph: k2.Fsa, replicate_den: bool = False, times: int = 1):
         den = graph_vec.to(graph.device)
     return den
 
-def intersect_with_self_loops(base_graph: k2.Fsa, aux_graph: k2.Fsa):
+def intersect_with_self_loops(base_graph: k2.Fsa, aux_graph: k2.Fsa) -> k2.Fsa:
     aux_graph_with_self_loops = k2.arc_sort(k2.add_epsilon_self_loops(aux_graph)).to(base_graph.device)
     return k2.intersect(base_graph, aux_graph_with_self_loops, treat_epsilons_specially=False)
 
-def compose_with_self_loops(base_graph: k2.Fsa, aux_graph: k2.Fsa):
+def compose_with_self_loops(base_graph: k2.Fsa, aux_graph: k2.Fsa) -> k2.Fsa:
     aux_graph_with_self_loops = k2.arc_sort(k2.add_epsilon_self_loops(aux_graph)).to(base_graph.device)
     return k2.compose(base_graph, aux_graph_with_self_loops, treat_epsilons_specially=False, inner_labels="phones")
+
+def intersect_dense_failsafe(**kwargs):
+    try:
+        return k2.intersect_dense(**kwargs)
+    except RuntimeError as e:
+        if "Some bad things happened" not in str(e):
+            raise e
+        else:
+            assert "b_fsas" in kwargs, "k2.intersect_dense failed and there is no b_fsas"
+            b_fsas = kwargs.get("b_fsas")
+            logging.warning(f"""k2.intersect_dense failed with RuntimeError on device {b_fsas.device}. 
+                            All lattices are set trivial.""")
+            bs = b_fsas.dim0() if "a_to_b_map" not in kwargs else len(kwargs.get("a_to_b_map"))
+            s = "0 1 -1 -1 0.0\n1"
+            fsa = k2.Fsa.from_str(s, acceptor=False)
+            fsa_vec = k2.create_fsa_vec([fsa.clone() for i in range(bs)])
+            fsa_vec.scores = torch.nn.Parameter(torch.full_like(fsa_vec.scores, -float("inf")), requires_grad=b_fsas.scores.requires_grad)
+            return fsa_vec.to(b_fsas.device)
 
 def build_ctc_topo(tokens: List[int]) -> k2.Fsa:
     """Build CTC topology.
@@ -163,7 +182,7 @@ def get_tot_objf_and_num_frames(
         tot_scores: torch.Tensor,
         frames_per_seq: torch.Tensor,
         reduction: str
-    ) -> Tuple[torch.Tensor, int, int]:
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
     """Figures out the total score(log-prob) over all successful supervision segments
     (i.e. those for which the total score wasn't -infinity), and the corresponding
     number of frames of neural net output
@@ -173,20 +192,16 @@ def get_tot_objf_and_num_frames(
             frames_per_seq: a Torch tensor of shape (num_segments,) containing the number of
                            frames for each segment
         Returns:
-             Returns a tuple of 3 scalar tensors:  (tot_score, ok_frames, all_frames)
-        where ok_frames is the frames for successful (finite) segments, and
-       all_frames is the frames for all segments (finite or not).
+             Returns a tuple of 2 scalar tensors: (tot_score, finite_indices)
+        where finite_indices is a tensor containing successful segment indexes, e.g.
+        [ 0 1 3 4 5 ].
     """
-    mask = torch.ne(tot_scores, -math.inf)
-    # finite_indexes is a tensor containing successful segment indexes, e.g.
-    # [ 0 1 3 4 5 ]
-    finite_indexes = torch.nonzero(mask).squeeze(1)
-    ok_frames = frames_per_seq[finite_indexes].sum()
-    all_frames = frames_per_seq.sum()
+    mask = ~torch.isnan(tot_scores) & torch.ne(tot_scores, -float("inf"))
+    finite_indices = torch.nonzero(mask).squeeze(1)
     if reduction == 'mean':
-        tot_scores = tot_scores[finite_indexes].mean()
+        tot_scores = tot_scores[finite_indices].mean()
     elif reduction == 'sum':
-        tot_scores = tot_scores[finite_indexes].sum()
+        tot_scores = tot_scores[finite_indices].sum()
     else:
-        tot_scores = tot_scores[finite_indexes]
-    return tot_scores, ok_frames, all_frames
+        tot_scores = tot_scores[finite_indices]
+    return tot_scores, finite_indices

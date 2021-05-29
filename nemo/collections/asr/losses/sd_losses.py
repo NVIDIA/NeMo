@@ -75,5 +75,6 @@ class SDLoss(Loss):
             log_probs=log_probs, targets=targets, input_lengths=input_lengths, target_lengths=target_lengths
         )
         if self._apply_batch_mean:
-            loss = torch.mean(loss)
+            # torch.mean gives nan if loss is empty
+            loss = torch.mean(loss) if loss.nelement() > 0 else torch.sum(loss)
         return loss

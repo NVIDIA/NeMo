@@ -56,7 +56,7 @@ class CtcTrainingTopologyCompiler(object):
         token_ids_list = [t[:l].tolist() for t, l in zip(targets, target_lengths)]
         label_graph = k2.linear_fsa(token_ids_list, self.device)
         decoding_graphs = compose_with_self_loops(self.base_graph, label_graph)
-        decoding_graphs = k2.arc_sort(decoding_graphs).to(self.device)
+        decoding_graphs = k2.arc_sort(k2.connect(decoding_graphs)).to(self.device)
 
         # make sure the gradient is not accumulated
         decoding_graphs.requires_grad_(False)
