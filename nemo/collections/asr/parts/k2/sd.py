@@ -34,6 +34,7 @@ import k2.sparse
 
 from nemo.collections.asr.parts.k2.utils import create_supervision
 from nemo.collections.asr.parts.k2.utils import get_tot_objf_and_num_frames
+from nemo.collections.asr.parts.k2.utils import intersect_dense_failsafe
 from nemo.collections.asr.parts.k2.utils import make_blank_first
 from nemo.collections.asr.parts.k2.utils import load_graph
 from nemo.collections.asr.parts.k2.utils import GradExpNormalize
@@ -59,6 +60,7 @@ class SDLoss(torch.nn.Module):
             calc_scores_pruned: bool = False,
             use_mbr: bool = False,
             decoding_graph: Optional[Union[k2.Fsa, str]] = None,
+            intersect_fail_recovery: bool = False,
             **kwargs
     ):
         super().__init__()
@@ -71,6 +73,11 @@ class SDLoss(torch.nn.Module):
         if not calc_scores_pruned and use_mbr:
             raise NotImplementedError("Not adapted yet")
         self.calc_scores = self._calc_scores_pruned if calc_scores_pruned else self._calc_scores_exact
+        if intersect_fail_recovery:
+            # With great power comes great responsibility
+            self.intersect_dense = intersect_dense_failsafe
+        else:
+            self.intersect_dense = k2.intersect_dense
         if tokel_lm is None:
             raise NotImplementedError("Not adapted yet")
         else:
@@ -128,10 +135,10 @@ class SDLoss(torch.nn.Module):
         # [[0, 1, 2, ...]] -> [0, 0, 1, 1, 2, 2, ... ]
         a_to_b_map = a_to_b_map.repeat(2, 1).t().reshape(-1).to(device)
 
-        num_den_lats = k2.intersect_dense(num_den_reordered_graphs,
-                                          dense_fsa_vec,
-                                          output_beam=10.0,
-                                          a_to_b_map=a_to_b_map)
+        num_den_lats = self.intersect_dense(a_fsas=num_den_reordered_graphs,
+                                            b_fsas=dense_fsa_vec,
+                                            output_beam=10.0,
+                                            a_to_b_map=a_to_b_map)
 
         num_den_tot_scores = num_den_lats.get_tot_scores(
             log_semiring=True, use_double_scores=False)
@@ -151,14 +158,14 @@ class SDLoss(torch.nn.Module):
         # den_graphs = k2.index_fsa(den_graph, indexes).to(den_graph.device)
         den_graphs = den_graph
 
-        num_lats = k2.intersect_dense(num_graphs,
-                                      dense_fsa_vec,
-                                      output_beam=torch.finfo(torch.float32).max,
-                                      seqframe_idx_name='seqframe_idx')
+        num_lats = self.intersect_dense(a_fsas=num_graphs,
+                                        b_fsas=dense_fsa_vec,
+                                        output_beam=torch.finfo(torch.float32).max,
+                                        seqframe_idx_name='seqframe_idx')
         # den_lats = k2.intersect_dense(den_graphs, dense_fsa_vec, 10.0)
-        den_lats = k2.intersect_dense_pruned(den_graphs,
-                                             dense_fsa_vec,
-                                             search_beam=20.0,
+        den_lats = k2.intersect_dense_pruned(a_fsas=den_graphs,
+                                             b_fsas=dense_fsa_vec,
+                                             search_beam=10.0,
                                              output_beam=7.0,
                                              min_active_states=30,
                                              max_active_states=10000,
@@ -216,12 +223,17 @@ class SDLoss(torch.nn.Module):
             path_weight_graphs = k2.arc_sort(path_weight_graphs)
             num_tot_scores += path_weight_graphs._get_tot_scores(False, True)
         # tot_scores = num_tot_scores - self.den_scale * den_tot_scores
+        # alaptev: I believe it is better to vary only gradients for the sake of comparability
         tot_scores = num_tot_scores - GradScale.apply(den_tot_scores, self.den_scale)
-        tot_scores, _, _ = get_tot_objf_and_num_frames(
+        tot_scores, valid_indices = get_tot_objf_and_num_frames(
             tot_scores,
             supervisions[:, 2],
             self.reduction
         )
+
+        # In crf training den_tot_scores can exceed num_tot_scores.
+        # It means that the model is going to diverge.
+        assert tot_scores.nelement() == 0 or torch.all(tot_scores <= 0.0), "denominator took over"
 
         if self.use_mbr:
             num_lats, den_lats = calc_scores_result[2:]
@@ -244,9 +256,8 @@ class SDLoss(torch.nn.Module):
             # we cannot use (mbr_num_sparse - mbr_den_sparse) here
             #
             # The following works only for torch >= 1.7.0
-            mbr_loss = torch.sparse.sum(
-                k2.sparse.abs((mbr_num_sparse + (-mbr_den_sparse)).coalesce()))
-            total_loss = mbr_loss - tot_scores
+            mbr_loss = torch.sparse.sum(k2.sparse.abs((mbr_num_sparse + (-mbr_den_sparse)).coalesce()))
+            total_loss = mbr_loss[valid_indices] - tot_scores
         else:
             total_loss = - tot_scores
         return total_loss
