@@ -165,7 +165,7 @@ class SDLoss(torch.nn.Module):
         # den_lats = k2.intersect_dense(den_graphs, dense_fsa_vec, 10.0)
         den_lats = k2.intersect_dense_pruned(a_fsas=den_graphs,
                                              b_fsas=dense_fsa_vec,
-                                             search_beam=10.0,
+                                             search_beam=20.0,
                                              output_beam=7.0,
                                              min_active_states=30,
                                              max_active_states=10000,
