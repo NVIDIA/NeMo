@@ -133,7 +133,7 @@ def intersect_dense_failsafe(**kwargs):
     try:
         return k2.intersect_dense(**kwargs)
     except RuntimeError as e:
-        if "Some bad things happened" not in str(e):
+        if "Some bad things" not in str(e):
             raise e
         else:
             assert "b_fsas" in kwargs, "k2.intersect_dense failed and there is no b_fsas"
