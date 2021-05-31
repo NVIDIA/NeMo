@@ -152,7 +152,7 @@ The following is the list of the arguments for the evaluation script:
 | use_amp             | bool   | ``False``        | Whether to use AMP if available to calculate log probabilities.         |
 +---------------------+--------+------------------+-------------------------------------------------------------------------+
 | device              | str    | cuda             | The device to load the model onto to calculate log probabilities.       |
-|                     |        |                  | It can 'cpu', 'cuda', 'cuda:0', 'cuda:1', ...                           |
+|                     |        |                  | It can be 'cpu', 'cuda', 'cuda:0', 'cuda:1', ...                        |
 +---------------------+--------+------------------+-------------------------------------------------------------------------+
 | decoding_mode       | str    | beamsearch_ngram | The decoding scheme to be used for evaluation.                          |
 +---------------------+--------+------------------+-------------------------------------------------------------------------+
@@ -268,7 +268,7 @@ The following is the list of the arguments for the evaluation script:
 | use_amp             | bool   | ``False``        | Whether to use AMP if available calculate the scores                    |
 +---------------------+--------+------------------+-------------------------------------------------------------------------+
 | device              | str    | cuda             | The device to load LM model onto to calculate the scores                |
-|                     |        |                  | It can 'cpu', 'cuda', 'cuda:0', 'cuda:1', ...                           |
+|                     |        |                  | It can be 'cpu', 'cuda', 'cuda:0', 'cuda:1', ...                        |
 +---------------------+--------+------------------+-------------------------------------------------------------------------+
 
 
