@@ -28,6 +28,7 @@ USAGE:
     python eval_neural_rescorer.py
         --lm_model=[path to .nemo file of the LM]
         --beams_file=[path to beams .tsv file]
+        --beam_size=[size of the beams]
         --eval_manifest=[path to eval manifest .json file]
         --batch_size=[batch size used for inference on the LM model]
         --alpha=[the value for the parameter rescorer_alpha]
@@ -35,6 +36,7 @@ USAGE:
 
 You may find more info on how to use this script at:
 https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_language_modeling.html
+
 """
 
 import contextlib
@@ -106,18 +108,18 @@ def compute_wer(dists, scores, total_len):
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--lm_model_file", type=str, required=True, help="path to model .nemo file")
+    parser.add_argument("--lm_model_file", type=str, required=True, help="path to LM model .nemo file")
     parser.add_argument("--beams_file", type=str, required=True, help="path to beams .tsv file")
-    parser.add_argument("--eval_manifest", type=str, required=True, help="path to manifest file")
+    parser.add_argument("--eval_manifest", type=str, required=True, help="path to the evaluation `.json` manifest file")
+    parser.add_argument("--beam_size", type=int, required=True, help="number of beams per candidate")
     parser.add_argument("--batch_size", type=int, default=256, help="inference batch size")
-    parser.add_argument("--beam_size", type=int, default=128, help="number of beams per candidate")
-    parser.add_argument("--alpha", type=float, default=None, help="default alpha")
-    parser.add_argument("--beta", type=float, default=None, help="default beta")
+    parser.add_argument("--alpha", type=float, default=None, help="parameter alpha of the fusion")
+    parser.add_argument("--beta", type=float, default=None, help="parameter beta of the fusion")
     parser.add_argument(
-        "--device", default="cuda", type=str, help="The device to load the model onto to calculate log probabilities"
+        "--device", default="cuda", type=str, help="The device to load the model onto to calculate the scores"
     )
     parser.add_argument(
-        "--use_amp", action="store_true", help="Whether to use AMP if available to calculate log probabilities"
+        "--use_amp", action="store_true", help="Whether to use AMP if available to calculate the scores"
     )
     args = parser.parse_args()
 
