@@ -193,27 +193,26 @@ def main():
     if args.alpha is None:
         logging.info("Linear search for alpha...")
         coef1, _ = line_search_wer(dists=dists, scores1=am_scores, scores2=lm_scores, total_len=total_len)
+        coef1 = np.round(coef1, 3)
         logging.info(f"alpha={coef1} achieved the best WER.")
         logging.info(f"------------------------------------------------")
     else:
         coef1 = args.alpha
-    coef1 = np.round(coef1, 3)
 
     scores = am_scores + coef1 * lm_scores
 
     if args.beta is None:
         logging.info("Linear search for beta...")
         coef2, _ = line_search_wer(dists, scores, lens_in_chars, total_len)
+        coef2 = np.round(coef2, 3)
         logging.info(f"beta={coef2} achieved the best WER.")
         logging.info(f"------------------------------------------------")
     else:
         coef2 = args.beta
-    coef2 = np.round(coef2, 3)
 
     ab_scores = am_scores + coef1 * lm_scores + coef2 * lens_in_chars
     ab_wer = compute_wer(dists, ab_scores, total_len)
 
-    logging.info(f"------------------------------------------------")
     logging.info(f"Input beams WER: {np.round(model_wer.item() * 100, 2)}%")
     logging.info(f"------------------------------------------------")
     logging.info(f"  +LM rescoring WER: {np.round(ab_wer * 100, 2)}%")
