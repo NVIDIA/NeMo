@@ -136,7 +136,7 @@ def main():
             restore_path=args.lm_model_file, map_location=torch.device(device)
         ).eval()
     else:
-        raise NotImplemented(f"Only support .nemo files, but got: {args.model}")
+        raise NotImplementedError(f"Only supports .nemo files, but got: {args.model}")
 
     max_seq_length = model.encoder._embedding.position_embedding.pos_enc.shape[0]
     dataset = BeamSearchDataset(args.beams_file, model.tokenizer, args.eval_manifest, args.beam_size, max_seq_length)
