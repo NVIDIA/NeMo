@@ -25,10 +25,43 @@ USAGE Example:
 from argparse import ArgumentParser
 
 import torch
+import numpy as np
 
 import nemo.collections.nlp as nemo_nlp
+from nemo.collections.nlp.modules.common.transformer.transformer_generators import EnsembleBeamSearchSequenceGenerator
 from nemo.utils import logging
 
+def filter_predicted_ids(tokenizer, ids):
+    ids[ids >= tokenizer.vocab_size] = tokenizer.unk_id
+    return ids
+
+
+def nmt_postprocess(beam_results, model):
+    beam_results = filter_predicted_ids(model.decoder_tokenizer, beam_results)
+    translations = [model.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
+    if model.target_processor is not None:
+        translations = [model.target_processor.detokenize(translation.split(' ')) for translation in translations]
+
+    return translations
+
+
+def input_preprocess(text, model):
+    inputs = []
+    for txt in text:
+        if model.source_processor is not None:
+            txt = model.source_processor.normalize(txt)
+            txt = model.source_processor.tokenize(txt)
+        ids = model.encoder_tokenizer.text_to_ids(txt)
+        ids = [model.encoder_tokenizer.bos_id] + ids + [model.encoder_tokenizer.eos_id]
+        inputs.append(ids)
+    max_len = max(len(txt) for txt in inputs)
+    src_ids_ = np.ones((len(inputs), max_len)) * model.encoder_tokenizer.pad_id
+    for i, txt in enumerate(inputs):
+        src_ids_[i][: len(txt)] = txt
+
+    src_mask = torch.FloatTensor((src_ids_ != model.encoder_tokenizer.pad_id))
+    src = torch.LongTensor(src_ids_)
+    return src, src_mask
 
 def main():
     parser = ArgumentParser()
@@ -46,35 +79,62 @@ def main():
     torch.set_grad_enabled(False)
     if args.model.endswith(".nemo"):
         logging.info("Attempting to initialize from .nemo file")
-        model = nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(restore_path=args.model)
+        models = [
+            nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(restore_path=model_path)
+            for model_path in args.model.split(',')
+        ]
         src_text = []
         src_texts = []
         tgt_text = []
         all_scores = []
     else:
-        raise NotImplemented(f"Only support .nemo files, but got: {args.model}")
+        raise NotImplementedError(f"Only support .nemo files, but got: {args.model}")
 
-    model.beam_search.beam_size = args.beam_size
-    model.beam_search.len_pen = args.len_pen
-    model.beam_search.max_delta_length = args.max_delta_length
-    model.eval()
+    for model in models:
+        model.beam_search.beam_size = args.beam_size
+        model.beam_search.len_pen = args.len_pen
+        model.beam_search.max_delta_length = args.max_delta_length
+        model.eval()
 
     if torch.cuda.is_available():
-        model = model.cuda()
+        models = [model.cuda() for model in models]
 
     logging.info(f"Translating: {args.srctext}")
+
+    if len(models) > 1:
+        ensemble_generator = EnsembleBeamSearchSequenceGenerator(
+            encoders=[model.encoder for model in models],
+            embeddings=[model.decoder.embedding for model in models],
+            decoders=[model.decoder.decoder for model in models],
+            log_softmaxes=[model.log_softmax for model in models],
+            max_sequence_length=512,
+            beam_size=args.beam_size,
+            bos=models[0].decoder_tokenizer.bos_id,
+            pad=models[0].decoder_tokenizer.pad_id,
+            eos=models[0].decoder_tokenizer.eos_id,
+            len_pen=args.len_pen,
+            max_delta_length=args.max_delta_length,
+        )
 
     count = 0
     with open(args.srctext, 'r') as src_f:
         for line in src_f:
             src_text.append(line.strip())
             if len(src_text) == args.batch_size:
-                res, scores = model.translate(
-                    text=src_text,
-                    source_lang=args.source_lang,
-                    target_lang=args.target_lang,
-                    return_beam_scores=True
-                )
+                if len(models) > 1:
+                    src_ids, src_mask = input_preprocess(src_text, models[0])
+                    src_ids = src_ids.to(models[0].device)
+                    src_mask = src_mask.to(models[0].device)
+                    res, scores = ensemble_generator(src_ids, src_mask, return_beam_scores=True)
+                    scores = scores.view(-1).data.cpu().numpy().tolist()
+                    res = nmt_postprocess(res, models[0])
+                else:
+                    res, scores = model.translate(
+                        text=src_text,
+                        source_lang=args.source_lang,
+                        target_lang=args.target_lang,
+                        return_beam_scores=True
+                    )
                 assert len(res) == len(scores) == len(src_text) * args.beam_size
                 tgt_text += res
                 all_scores += scores
@@ -84,12 +144,20 @@ def main():
             # if count % 300 == 0:
             #    print(f"Translated {count} sentences")
         if len(src_text) > 0:
-            res, scores = model.translate(
-                text=src_text,
-                source_lang=args.source_lang,
-                target_lang=args.target_lang,
-                return_beam_scores=True
-            )
+            if len(models) > 1:
+                src_ids, src_mask = input_preprocess(src_text, models[0])
+                src_ids = src_ids.to(models[0].device)
+                src_mask = src_mask.to(models[0].device)
+                res, scores = ensemble_generator(src_ids, src_mask, return_beam_scores=True)
+                scores = scores.view(-1).data.cpu().numpy().tolist()
+                res = nmt_postprocess(res, models[0])
+            else:
+                res, scores = model.translate(
+                    text=src_text,
+                    source_lang=args.source_lang,
+                    target_lang=args.target_lang,
+                    return_beam_scores=True
+                )
             assert len(res) == len(scores) == len(src_text) * args.beam_size
             tgt_text += res
             all_scores += scores
