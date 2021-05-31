@@ -13,9 +13,10 @@
 # limitations under the License.
 
 """
-This script would evaluate a neural language model (Transformer) trained with `examples/nlp/language_modeling/transformer_lm.py'.
-The Transformer LM can be used as a neural rescorer for an ASR system. Given a trained TransformerLMModel `.nemo` file,
-this script can be used to re-score the beams obtained from a beam search decoder of an ASR model.
+This script would evaluate a neural language model (Transformer) trained with
+`examples/nlp/language_modeling/transformer_lm.py' as a rescorer for ASR systems.
+Given a trained TransformerLMModel `.nemo` file, this script can be used to re-score the beams obtained from a beam
+search decoder of an ASR model.
 
 USAGE:
 1. Obtain `.tsv` file with beams and their corresponding scores. Scores can be from a regular beam search decoder or
