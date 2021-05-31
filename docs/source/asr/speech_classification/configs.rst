@@ -62,7 +62,7 @@ Preprocessor Configuration
 Preprocessor helps to compute MFCC or mel spectrogram features that are given as inputs to model. 
 For details on how to write this section, refer to `Preprocessor Configuration <../configs.html#preprocessor-configuration>`__
 
-Check config yaml files in ``<NeMo_git_root>/tutorials/asr/conf`` to find the processors been used by speech classification models. 
+Check config yaml files in ``<NeMo_git_root>/examples/asr/conf`` to find the processors been used by speech classification models.
 
 
 Augmentation Configurations
