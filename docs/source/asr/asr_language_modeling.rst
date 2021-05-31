@@ -275,7 +275,8 @@ The following is the list of the arguments for the evaluation script:
 Hyperparameter Linear Search
 ----------------------------
 
-This script also supports linear search for parameters alpha and beta. If any of the two is not provided, a grid search
-is performed to find the best value for that parameter. In the linear search, initially beta is set to zero and the
-best value for alpha is found, then alpha is fixed with that value and another linear search is done to find the best
-value for beta. If any of the of them is already specified, then search for that one is skipped.
+This script also supports linear search for parameters `rescorer_alpha` and `rescorer_beta`. If any of the two is not
+provided, a linear search is performed to find the best value for that parameter. When linear search is used, initially
+`rescorer_beta` is set to zero and the best value for `rescorer_alpha` is found, then `rescorer_alpha` is fixed with
+that value and another linear search is done to find the best value for `rescorer_beta`.
+If any of the of these two parameters is already specified, then search for that one is skipped.
