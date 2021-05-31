@@ -110,7 +110,9 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("--lm_model_file", type=str, required=True, help="path to LM model .nemo file")
     parser.add_argument("--beams_file", type=str, required=True, help="path to beams .tsv file")
-    parser.add_argument("--eval_manifest", type=str, required=True, help="path to the evaluation `.json` manifest file")
+    parser.add_argument(
+        "--eval_manifest", type=str, required=True, help="path to the evaluation `.json` manifest file"
+    )
     parser.add_argument("--beam_size", type=int, required=True, help="number of beams per candidate")
     parser.add_argument("--batch_size", type=int, default=256, help="inference batch size")
     parser.add_argument("--alpha", type=float, default=None, help="parameter alpha of the fusion")
