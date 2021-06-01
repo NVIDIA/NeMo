@@ -171,7 +171,7 @@ pipeline {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
             python normalize_with_audio.py --text "The total amounts to \$4.76." \
-            --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n 1 > /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt 2>&1 && \
+            --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt 2>&1 && \
             cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt'
           }
@@ -180,7 +180,7 @@ pipeline {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
             python normalize_with_audio.py --text /home/TestData/nlp/text_norm/audio_based/text.txt \
-            --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n 1 > /home/TestData/nlp/text_norm/audio_based/output/out_file.txt 2>&1 && \
+            --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_file.txt 2>&1 && \
             cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_file.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_file.txt'
           }
