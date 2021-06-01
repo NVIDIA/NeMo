@@ -127,6 +127,7 @@ class AudioToCharDALIDataset(Iterator):
         world_size: int = 1,
         preprocessor_cfg: DictConfig = None,
     ):
+        self.drop_last = drop_last  # used by lr_scheduler
         if not HAVE_DALI:
             raise ModuleNotFoundError(
                 f"{self} requires NVIDIA DALI to be installed. "
@@ -309,8 +310,8 @@ class AudioToCharDALIDataset(Iterator):
 
             if not has_preprocessor:
                 # No preprocessing, the output is the audio signal
-                audio = dali.fn.pad(audio)
                 audio_len = dali.fn.shapes(dali.fn.reshape(audio, shape=[-1]))
+                audio = dali.fn.pad(audio)
                 self.pipe.set_outputs(audio, audio_len, transcript, transcript_len)
             else:
                 # Additive gaussian noise (dither)
@@ -357,7 +358,7 @@ class AudioToCharDALIDataset(Iterator):
 
                 # Pads feature dimension to be a multiple of `pad_to` and the temporal dimension to be as big as the largest sample (shape -1)
                 spec = dali.fn.pad(spec, fill_value=self.pad_value, axes=(0, 1), align=(self.pad_to, 1), shape=(1, -1))
-            self.pipe.set_outputs(spec, spec_len, transcript, transcript_len)
+                self.pipe.set_outputs(spec, spec_len, transcript, transcript_len)
         # Building DALI pipeline
         self.pipe.build()
 
@@ -405,9 +406,15 @@ class AudioToCharDALIDataset(Iterator):
     def __next__(self):
         outputs = self._iter.next()
         assert len(outputs) == 1
-        out = outputs[0]
-        text_raw_len = out['transcript_raw_len'].numpy()
-        text_raw = out['transcript_raw'].numpy()
+        dali_out = outputs[0]
+        text_raw_len = dali_out['transcript_raw_len'].numpy()
+        text_raw = dali_out['transcript_raw'].numpy()
+
+        out = {}
+        out_names = ['processed_signal', 'processed_signal_len', 'audio', 'audio_len']
+        for out_name in out_names:
+            if out_name in dali_out:
+                out[out_name] = dali_out[out_name].detach().clone()
 
         text_tokens = []
         text_tokens_len = []
