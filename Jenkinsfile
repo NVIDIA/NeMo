@@ -190,33 +190,7 @@ pipeline {
             sh 'rm -rf examples/asr/speech_to_text_results'
           }
         }
-        //         stage('Speech to Text - DALI AudioToMelSpectrogramPreprocessor') {
-        //           steps {
-        //             sh 'python examples/asr/speech_to_text.py \
-        //             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-        //             +model.train_ds.use_dali=True \
-        //             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-        //             +model.validation_ds.use_dali=True \
-        //             trainer.gpus=[0] \
-        //             +trainer.fast_dev_run=True \
-        //             exp_manager.exp_dir=examples/asr/speech_to_text_results'
-        //             sh 'rm -rf examples/asr/speech_to_text_results'
-        //           }
-        //         }
-        //         stage('Speech to Text - DALI AudioToMFCCPreprocessor') {
-        //           steps {
-        //             sh 'python examples/asr/speech_to_text.py \
-        //             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-        //             +model.train_ds.use_dali=True \
-        //             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-        //             +model.validation_ds.use_dali=True \
-        //             model.preprocessor._target_=nemo.collections.asr.modules.AudioToMFCCPreprocessor \
-        //             trainer.gpus=[0] \
-        //             +trainer.fast_dev_run=True \
-        //             exp_manager.exp_dir=examples/asr/speech_to_text_results'
-        //             sh 'rm -rf examples/asr/speech_to_text_results'
-        //           }
-        //         }
+
         stage('Speech to Label') {
           steps {
             sh 'python examples/asr/speech_to_label.py \
@@ -296,6 +270,54 @@ pipeline {
             sh 'rm -rf examples/asr/speech_to_text_wpe_conformer_results'
           }
         }
+      }
+    }
+
+    stage('L2: ASR DALI dev run') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('Speech to Text - DALI AudioToMelSpectrogramPreprocessor') {
+          steps {
+            sh 'python examples/asr/speech_to_text.py \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            +model.train_ds.use_dali=True \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            +model.validation_ds.use_dali=True \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_results'
+            sh 'rm -rf examples/asr/speech_to_text_results'
+          }
+        }
+        // TODO: This would fail due to an unnecessary torchaudio import.
+        //       To be enabled once torchaudio is available in the container used for CI
+        // stage('Speech to Text - DALI AudioToMFCCPreprocessor') {
+        //   steps {
+        //     sh 'python examples/asr/speech_to_text.py \
+        //     model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+        //     +model.train_ds.use_dali=True \
+        //     model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+        //     +model.validation_ds.use_dali=True \
+        //     model.preprocessor._target_=nemo.collections.asr.modules.AudioToMFCCPreprocessor \
+        //     ~model.preprocessor.normalize \
+        //     ~model.preprocessor.features \
+        //     ~model.preprocessor.frame_splicing \
+        //     ~model.preprocessor.dither \
+        //     ~model.preprocessor.stft_conv \
+        //     +model.n_mels=64 \
+        //     +model.n_mfcc=64 \
+        //     trainer.gpus=[0] \
+        //     +trainer.fast_dev_run=True \
+        //     exp_manager.exp_dir=examples/asr/speech_to_text_results'
+        //     sh 'rm -rf examples/asr/speech_to_text_results'
+        //   }
+        // }
       }
     }
 
