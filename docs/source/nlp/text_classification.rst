@@ -83,9 +83,9 @@ You may find an example of a config file to be used for training of the Text Cla
 You can change any of these parameters directly from the config file or update them with the command-line arguments.
 
 The config file of the Text Classification model contains three main sections of ``trainer``, ``exp_manager``, and ``model``. You can
-find more details about the ``trainer`` and ``exp_manager`` at :doc:`./nlp_model.html`. Some sub-sections of the model section including
+find more details about the ``trainer`` and ``exp_manager`` at :doc:`./nlp_model`. Some sub-sections of the model section including
 ``tokenizer``, ``language_model``, and ``optim`` are shared among most of the NLP models. The details of these sections can be found
-at :doc:`./nlp_model.html`.
+at :doc:`./nlp_model`.
 
 Example of a command for training a Text Classification model on two GPUs for 50 epochs:
 
