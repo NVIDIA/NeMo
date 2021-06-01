@@ -54,7 +54,7 @@ def get_args():
 
 def translate(rank, world_size, args):
     logging.info("Attempting to initialize from .nemo file")
-    model = MTEncDecModel.restore_from(restore_path=args.model, map_location=f'cuda:{ranl}')
+    model = MTEncDecModel.restore_from(restore_path=args.model, map_location=f'cuda:{rank}')
     model.replace_beam_with_sampling(topk=args.topk)
     model.eval()
     if args.twoside:
