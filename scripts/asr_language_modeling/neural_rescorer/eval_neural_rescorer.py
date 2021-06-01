@@ -94,7 +94,9 @@ class BeamScoresDataset(torch.utils.data.Dataset):
         return input_ids, input_mask, acoustic_score, dist, ref_len, len_in_chars, idx
 
 
-def linear_search_wer(dists, scores1, scores2, total_len, coef_range=[0, 10], coef_steps=10000, param_name='parameter'):
+def linear_search_wer(
+    dists, scores1, scores2, total_len, coef_range=[0, 10], coef_steps=10000, param_name='parameter'
+):
     """
     performs linear search to find the best coefficient when two set of scores are getting linearly fused.
 
@@ -196,6 +198,7 @@ def main():
             logging.info("AMP is enabled!\n")
             autocast = torch.cuda.amp.autocast
     else:
+
         @contextlib.contextmanager
         def autocast():
             yield
