@@ -268,6 +268,8 @@ The following is the list of the arguments for the evaluation script:
 +---------------------+--------+------------------+-------------------------------------------------------------------------+
 | batch_size          | int    | 16               | The batch size used to calculate the scores                             |
 +---------------------+--------+------------------+-------------------------------------------------------------------------+
+| scores_output_file  | str    | None             | The optional file to store the rescored beams                           |
++---------------------+--------+------------------+-------------------------------------------------------------------------+
 | use_amp             | bool   | ``False``        | Whether to use AMP if available calculate the scores                    |
 +---------------------+--------+------------------+-------------------------------------------------------------------------+
 | device              | str    | cuda             | The device to load LM model onto to calculate the scores                |
