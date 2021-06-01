@@ -51,6 +51,9 @@ class MeasureFst(GraphFst):
         super().__init__(name="measure", kind="classify", deterministic=deterministic)
         cardinal_graph = cardinal.graph
 
+        if not deterministic:
+            cardinal_graph |= cardinal.range_graph
+
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
         graph_unit_plural = convert_space(graph_unit @ SINGULAR_TO_PLURAL)
         graph_unit = convert_space(graph_unit)

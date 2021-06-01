@@ -66,19 +66,26 @@ class CardinalFst(GraphFst):
                 + single_digits_graph,
                 1,
             )
-
             self.graph |= self.single_digits_graph | get_hundreds_graph() | single_digits_graph_with_commas
-            range_graph = (
+            self.range_graph = (
                 pynini.closure(pynutil.insert("from "), 0, 1)
                 + self.graph
                 + (pynini.cross("-", " to ") | pynini.cross("-", " "))
                 + self.graph
             )
 
-            range_graph |= self.graph + (pynini.cross("x", " by ") | pynini.cross(" x ", " by ")) + self.graph
-            self.graph |= range_graph
+            self.range_graph |= self.graph + (pynini.cross("x", " by ") | pynini.cross(" x ", " by ")) + self.graph
+            self.range_graph = self.range_graph.optimize()
 
         optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
-        final_graph = optional_minus_graph + pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
+        if deterministic:
+            final_graph = optional_minus_graph + pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
+        else:
+            final_graph = (
+                optional_minus_graph
+                + pynutil.insert("integer: \"")
+                + (self.graph | self.range_graph)
+                + pynutil.insert("\"")
+            )
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

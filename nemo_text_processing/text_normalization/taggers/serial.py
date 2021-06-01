@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path, load_labels
-from nemo_text_processing.text_normalization.graph_utils import NEMO_ALPHA, GraphFst
+from nemo_text_processing.text_normalization.graph_utils import NEMO_ALPHA, GraphFst, insert_space
 
 try:
     import pynini
@@ -53,17 +53,15 @@ class SerialFst(GraphFst):
         if not deterministic:
             letter_pronunciation = pynini.string_map(load_labels(get_abs_path("data/letter_pronunciation.tsv")))
             alpha |= letter_pronunciation
-        letter_num = pynini.closure((alpha + pynutil.insert(" ")) | (alpha + pynini.cross('-', ' ')), 1) + num_graph
-        serial_end = pynini.closure(pynutil.insert(" ") + alpha + pynini.closure(pynutil.insert(" ") + num_graph))
 
-        num_letter = num_graph + (pynini.closure((pynutil.insert(" ") + alpha) | (pynini.cross('-', ' ') + alpha), 1))
+        delimiter = insert_space | pynini.cross("-", " ")
 
-        serial_end2 = pynini.closure(
-            pynutil.insert(" ") + num_graph + pynini.closure((pynutil.insert(" ") | pynini.cross("-", " ")) + alpha)
-        )
+        letter_num = pynini.closure(alpha + delimiter, 1) + num_graph
+        num_letter = num_graph + pynini.closure(delimiter + alpha, 1)
 
-        serial_graph = (letter_num | num_letter) + pynini.closure(serial_end | serial_end2)
+        next_alpha_or_num = pynini.closure(delimiter + (alpha | num_graph))
 
+        serial_graph = (letter_num | num_letter) + next_alpha_or_num
         graph = pynutil.insert("cardinal { integer: \"") + serial_graph
 
         if not deterministic:
