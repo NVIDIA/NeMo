@@ -210,12 +210,14 @@ It trains a TransformerLMModel which can be used as a neural rescorer for an ASR
 Evaluation
 ==========
 
-Given a trained TransformerLMModel `.nemo` file, this script can be used to re-score beams obtained with ASR model.
-You also need the .tsv file containing the candidates produced by the acoustic model by beam search decoding.
-The candidates could be the result of just the beam search decoding or in fusion with an N-gram LM.
-You may produce this file by specifying `--preds_output_folder' for the `/scripts/asr_language_modeling/ngram_lm/eval_beamsearch_ngram.py`.
-More detail can be found here: `https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_language_modeling.html`.
-The neural rescorer can be used to rescore these candidates with two parameters of alpha and beta as the following:
+Given a trained TransformerLMModel `.nemo` file, the script available at
+`scripts/asr_language_modeling/neural_rescorer/eval_neural_rescorer.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/asr_language_modeling/neural_rescorer/eval_neural_rescorer.py>`__
+can be used to re-score beams obtained with ASR model. You need the `.tsv` file containing the candidates produced
+by the acoustic model and the beam search decoding to use this script. The candidates can be the result of just the beam
+search decoding or the result of fusion with an N-gram LM. You may generate this file by specifying `--preds_output_folder' for
+`scripts/asr_language_modeling/ngram_lm/eval_beamsearch_ngram.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/asr_language_modeling/ngram_lm/eval_beamsearch_ngram.py>`__.
+
+The neural rescorer would rescore the beams/candidates by using two parameters of `rescorer_alpha` and `rescorer_beta` as the following:
 
 .. code::
 
