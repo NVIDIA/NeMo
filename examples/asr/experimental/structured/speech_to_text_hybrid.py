@@ -22,7 +22,7 @@ from nemo.utils.exp_manager import exp_manager
 
 """
 python speech_to_text_hybrid.py \
-    --config-path="conf" \
+    --config-path="conf/quartznet" \
     --config-name="quartznet_15x5" \
     model.train_ds.manifest_filepath="/home/smajumdar/PycharmProjects/NeMo-som/examples/asr/an4/train_manifest.json" \
     model.validation_ds.manifest_filepath="/home/smajumdar/PycharmProjects/NeMo-som/examples/asr/an4/test_manifest.json" \
@@ -30,7 +30,7 @@ python speech_to_text_hybrid.py \
 """
 
 
-@hydra_runner(config_path="conf", config_name="quartznet_15x5")
+@hydra_runner(config_path="conf/quartznet", config_name="quartznet_15x5")
 def main(cfg):
     # Generate default asr model config
     asr_model_config = configs.EncDecCTCModelConfig()
