@@ -170,7 +170,7 @@ pipeline {
         stage('L2: TN with Audio (audio and raw text)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python python normalize_with_audio.py --text "The total amounts to \$4.76." \
+            python normalize_with_audio.py --text "The total amounts to \$4.76." \
             --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n 1 > /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt 2>&1 && \
             cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt'
@@ -179,7 +179,7 @@ pipeline {
         stage('L2: TN with Audio (audio and text file)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python python normalize_with_audio.py --text /home/TestData/nlp/text_norm/audio_based/text.txt \
+            python normalize_with_audio.py --text /home/TestData/nlp/text_norm/audio_based/text.txt \
             --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n 1 > /home/TestData/nlp/text_norm/audio_based/output/out_file.txt 2>&1 && \
             cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_file.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_file.txt'
@@ -188,7 +188,7 @@ pipeline {
         stage('L2: TN with Audio (manifest)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python python normalize_with_audio.py --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json \
+            python normalize_with_audio.py --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 \
             cmp --silent /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json /home/TestData/nlp/text_norm/audio_based/manifest_result.json || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/manifest_result.json'
           }

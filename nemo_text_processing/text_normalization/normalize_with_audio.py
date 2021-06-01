@@ -78,13 +78,15 @@ class NormalizerWithAudio(Normalizer):
         self.tagger = ClassifyFst(input_case=input_case, deterministic=False)
         self.verbalizer = VerbalizeFinalFst(deterministic=False)
 
-    def normalize(self, text: str, verbose: bool = False) -> str:
+    def normalize(self, text: str, n_tagged: int, punct_post_process: bool = True, verbose: bool = False) -> str:
         """
         Main function. Normalizes tokens from written to spoken form
             e.g. 12 kg -> twelve kilograms
 
         Args:
             text: string that may include semiotic classes
+            n_tagged: number of tagged options to consider, -1 - to get all possible tagged options
+            punct_post_process: whether to normalize punctuation
             verbose: whether to print intermediate meta information
 
         Returns:
@@ -97,27 +99,46 @@ class NormalizerWithAudio(Normalizer):
             return text
 
         text = pynini.escape(text)
-        # TODO add preprocess?
-        tagged_texts = rewrite.top_rewrites(text, self.tagger.fst, nshortest=100)
-        normalized_texts = []
+        if n_tagged == -1:
+            tagged_texts = rewrite.rewrites(text, self.tagger.fst)
+        else:
+            tagged_texts = rewrite.top_rewrites(text, self.tagger.fst, nshortest=n_tagged)
 
+        normalized_texts = []
         for tagged_text in tagged_texts:
+            self._verbalize(tagged_text, normalized_texts)
+
+        if len(normalized_texts) == 0:
+            raise ValueError()
+        if punct_post_process:
+            normalized_texts = [post_process(t) for t in normalized_texts]
+        normalized_texts = set(normalized_texts)
+        return normalized_texts
+
+    def _verbalize(self, tagged_text: str, normalized_texts: List[str]):
+        """
+        Verbalizes tagged text
+
+        Args:
+            tagged_text: text with tags
+            normalized_texts: list of possible normalization options
+        """
+
+        def get_verbalized_text(tagged_text):
+            tagged_text = pynini.escape(tagged_text)
+            return rewrite.rewrites(tagged_text, self.verbalizer.fst)
+
+        try:
+            normalized_texts.extend(get_verbalized_text(tagged_text))
+        except pynini.lib.rewrite.Error:
             self.parser(tagged_text)
             tokens = self.parser.parse()
             tags_reordered = self.generate_permutations(tokens)
             for tagged_text_reordered in tags_reordered:
-                tagged_text_reordered = pynini.escape(tagged_text_reordered)
                 try:
-                    verbalized = rewrite.rewrites(tagged_text_reordered, self.verbalizer.fst)
-                    normalized_texts.extend(verbalized)
+                    normalized_texts.extend(get_verbalized_text(tagged_text_reordered))
                 except pynini.lib.rewrite.Error:
                     continue
-
-        if len(normalized_texts) == 0:
-            raise ValueError()
-        normalized_texts = [post_process(t) for t in normalized_texts] + normalized_texts
-        normalized_texts = set(normalized_texts)
-        return normalized_texts
 
     def select_best_match(
         self, normalized_texts: List[str], transcript: str, verbose: bool = False, remove_punct: bool = False
@@ -250,8 +271,17 @@ def parse_args():
     parser.add_argument(
         '--model', type=str, default='QuartzNet15x5Base-En', help='Pre-trained model name or path to model checkpoint'
     )
-    parser.add_argument("--verbose", help="print info for debugging", action='store_true')
-    parser.add_argument("--remove_punct", help="remove punctuation before calculating cer", action='store_true')
+    parser.add_argument(
+        "--n_tagged",
+        type=int,
+        default=1000,
+        help="number of tagged options to consider, -1 - return all possible tagged options",
+    )
+    parser.add_argument("--verbose", help="print info for debugging", action="store_true")
+    parser.add_argument("--remove_punct", help="remove punctuation before calculating cer", action="store_true")
+    parser.add_argument(
+        "--no_punct_post_process", help="set to True to disable punctuation post processing", action="store_true"
+    )
     return parser.parse_args()
 
 
@@ -274,7 +304,12 @@ def normalize_manifest(args):
                     if asr_model is None:
                         asr_model = get_asr_model(args.model)
                     transcript = asr_model.transcribe([audio])[0]
-                normalized_texts = normalizer.normalize(line['text'], args.verbose)
+                normalized_texts = normalizer.normalize(
+                    text=line['text'],
+                    verbose=args.verbose,
+                    n_tagged=args.n_tagged,
+                    punct_post_process=not args.no_punct_post_process,
+                )
                 normalized_text, cer = normalizer.select_best_match(
                     normalized_texts, transcript, args.verbose, args.remove_punct
                 )
@@ -293,7 +328,12 @@ if __name__ == "__main__":
         if os.path.exists(args.text):
             with open(args.text, 'r') as f:
                 args.text = f.read().strip()
-        normalized_texts = normalizer.normalize(args.text, args.verbose)
+        normalized_texts = normalizer.normalize(
+            text=args.text,
+            verbose=args.verbose,
+            n_tagged=args.n_tagged,
+            punct_post_process=not args.no_punct_post_process,
+        )
         if args.audio_data:
             asr_model = get_asr_model(args.model)
             transcript = asr_model.transcribe([args.audio_data])[0]

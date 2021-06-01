@@ -45,5 +45,5 @@ class TestDecimal:
     def test_norm(self, test_input, expected):
         pred = self.normalizer.normalize(test_input, verbose=False)
         assert pred == expected
-        pred_non_deterministic = self.normalizer_with_audio.normalize(test_input, verbose=False)
+        pred_non_deterministic = self.normalizer_with_audio.normalize(test_input, n_tagged=100)
         assert expected in pred_non_deterministic

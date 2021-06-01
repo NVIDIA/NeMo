@@ -105,7 +105,7 @@ class MeasureFst(GraphFst):
 
         subgraph_cardinal_dash = (
             pynutil.insert("cardinal { integer: \"")
-            + cardinal.single_digits_graph
+            + cardinal_graph
             + pynini.cross('-', '')
             + pynutil.insert("\" } units: \"")
             + pynini.closure(NEMO_NOT_SPACE, 1)

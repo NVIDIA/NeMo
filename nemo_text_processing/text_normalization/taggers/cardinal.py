@@ -55,37 +55,28 @@ class CardinalFst(GraphFst):
         self.single_digits_graph = single_digits_graph + pynini.closure(pynutil.insert(" ") + single_digits_graph)
 
         if not deterministic:
-            single_digits_graph_with_commas = (
-                pynini.closure(self.single_digits_graph, 1, 3)
+            single_digits_graph_with_commas = pynini.closure(
+                self.single_digits_graph + pynutil.insert(" "), 1, 3
+            ) + pynini.closure(
+                pynutil.delete(",")
+                + single_digits_graph
                 + pynutil.insert(" ")
-                + pynini.closure(
-                    pynutil.delete(",")
-                    + pynutil.insert(" ")
-                    + single_digits_graph
-                    + pynutil.insert(" ")
-                    + single_digits_graph
-                    + pynutil.insert(" ")
-                    + single_digits_graph,
-                    1,
-                )
+                + single_digits_graph
+                + pynutil.insert(" ")
+                + single_digits_graph,
+                1,
             )
+
+            self.graph |= self.single_digits_graph | get_hundreds_graph() | single_digits_graph_with_commas
             range_graph = (
-                self.graph
-                + (
-                    pynini.cross("-", " to ")
-                    | pynini.cross("-", " ")
-                    | pynini.cross("x", " by ")
-                    | pynini.cross(" x ", " by ")
-                )
+                pynini.closure(pynutil.insert("from "), 0, 1)
+                + self.graph
+                + (pynini.cross("-", " to ") | pynini.cross("-", " "))
                 + self.graph
             )
-            self.graph = (
-                self.graph
-                | self.single_digits_graph
-                | get_hundreds_graph()
-                | single_digits_graph_with_commas
-                | range_graph
-            )
+
+            range_graph |= self.graph + (pynini.cross("x", " by ") | pynini.cross(" x ", " by ")) + self.graph
+            self.graph |= range_graph
 
         optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
         final_graph = optional_minus_graph + pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
