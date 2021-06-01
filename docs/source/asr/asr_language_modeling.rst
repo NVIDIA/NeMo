@@ -286,4 +286,8 @@ This script also supports linear search for parameters `rescorer_alpha` and `res
 provided, a linear search is performed to find the best value for that parameter. When linear search is used, initially
 `rescorer_beta` is set to zero and the best value for `rescorer_alpha` is found, then `rescorer_alpha` is fixed with
 that value and another linear search is done to find the best value for `rescorer_beta`.
-If any of the of these two parameters is already specified, then search for that one is skipped.
+If any of the of these two parameters is already specified, then search for that one is skipped. After each search for a
+parameter, the plot of WER% for different values of the parameter is also shown.
+
+It is recommended to first use the linear search for both parameters on a validation set by not providing any values for `--alpha` and `--beta`.
+Then check the WER curves and decide on the best values for each parameter. Finally, evaluate the best values on the test set.
