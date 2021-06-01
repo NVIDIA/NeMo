@@ -24,7 +24,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
 from nemo.collections.asr.data.audio_to_text import FastPitchDataset
-from nemo.collections.asr.parts import parsers
+from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.fastpitchloss import BaseFastPitchLoss
 from nemo.collections.tts.losses.fastspeech2loss import L1MelLoss
@@ -32,7 +32,7 @@ from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, Featur
 from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.modules.fastpitch import regulate_len
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
-from nemo.core.classes.common import typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     MelSpectrogramType,
     RegressionValuesType,
@@ -202,7 +202,7 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
             "splice": NeuralType(optional=True),
         },
         output_types={
-            "audio": NeuralType(('B', 'T'), MelSpectrogramType()),
+            "audio": NeuralType(('B', 'S', 'T'), MelSpectrogramType()),
             "splices": NeuralType(),
             "log_dur_preds": NeuralType(('B', 'T'), TokenLogDurationType()),
             "pitch_preds": NeuralType(('B', 'T'), RegressionValuesType()),
@@ -248,7 +248,7 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
                 splices.append(start)
             gen_in = torch.stack(output)
 
-        output = self.generator(gen_in.transpose(1, 2))
+        output = self.generator(x=gen_in.transpose(1, 2))
 
         return output, splices, log_durs_predicted, pitch_predicted
 
@@ -410,13 +410,13 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
             List of available pre-trained models.
         """
         list_of_models = []
-        # model = PretrainedModelInfo(
-        #     pretrained_model_name="",
-        #     location="",
-        #     description="",
-        #     class_=cls,
-        # )
-        # list_of_models.append(model)
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_e2e_fastpitchhifigan",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_e2e_fastpitchhifigan/versions/1.0.0/files/tts_en_e2e_fastpitchhifigan.nemo",
+            description="This model is trained on LJSpeech sampled at 22050Hz with and can be used to generate female English voices with an American accent.",
+            class_=cls,
+        )
+        list_of_models.append(model)
 
         return list_of_models
 
@@ -427,8 +427,8 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
         """
         self.eval()
         audio, _, log_dur_pred, _ = self(text=tokens, splice=False)
-        audio = audio.squeeze()
-        durations = torch.sum(torch.clamp(torch.exp(log_dur_pred) - 1, 0, self.max_token_duration), 1)
+        audio = audio.squeeze(1)
+        durations = torch.sum(torch.clamp(torch.exp(log_dur_pred) - 1, 0, self.max_token_duration), 1).to(torch.int)
         audio_list = []
         for i, sample in enumerate(audio):
             audio_list.append(sample[: durations[i] * self.hop_size])

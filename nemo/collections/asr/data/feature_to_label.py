@@ -15,7 +15,7 @@ from typing import Dict, List, Optional
 
 import torch
 
-from nemo.collections.asr.parts import collections
+from nemo.collections.common.parts.preprocessing import collections
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import AcousticEncodedRepresentation, LabelsType, LengthsType, NeuralType
 from nemo.utils import logging

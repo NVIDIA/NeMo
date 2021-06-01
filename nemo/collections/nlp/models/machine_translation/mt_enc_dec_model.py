@@ -28,13 +28,14 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
 
+from nemo.collections.common.data import ConcatDataset
 from nemo.collections.common.losses import NLLLoss, SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.tokenizers.chinese_tokenizers import ChineseProcessor
 from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaProcessor
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
-from nemo.collections.nlp.data import ConcatTranslationDataset, TarredTranslationDataset, TranslationDataset
+from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.modules.common import TokenClassifier
@@ -128,7 +129,12 @@ class MTEncDecModel(EncDecNLPModel):
         model_name = encoder_cfg_dict.pop('model_name', None)
         pretrained = encoder_cfg_dict.pop('pretrained', False)
         self.encoder = get_transformer(
-            library=library, model_name=model_name, pretrained=pretrained, config_dict=encoder_cfg_dict, encoder=True,
+            library=library,
+            model_name=model_name,
+            pretrained=pretrained,
+            config_dict=encoder_cfg_dict,
+            encoder=True,
+            pre_ln_final_layer_norm=encoder_cfg_dict.get('pre_ln_final_layer_norm', False),
         )
 
         # decoder from NeMo, Megatron-LM, or HuggingFace
@@ -139,7 +145,12 @@ class MTEncDecModel(EncDecNLPModel):
         pretrained = decoder_cfg_dict.pop('pretrained', False)
         decoder_cfg_dict['hidden_size'] = self.encoder.hidden_size
         self.decoder = get_transformer(
-            library=library, model_name=model_name, pretrained=pretrained, config_dict=decoder_cfg_dict, encoder=False,
+            library=library,
+            model_name=model_name,
+            pretrained=pretrained,
+            config_dict=decoder_cfg_dict,
+            encoder=False,
+            pre_ln_final_layer_norm=decoder_cfg_dict.get('pre_ln_final_layer_norm', False),
         )
 
         self.log_softmax = TokenClassifier(
@@ -274,6 +285,9 @@ class MTEncDecModel(EncDecNLPModel):
         # if user specifies one validation dataloader, then PTL reverts to giving a list of dictionary instead of a list of list of dictionary
         if isinstance(outputs[0], dict):
             outputs = [outputs]
+
+        loss_list = []
+        sb_score_list = []
         for dataloader_idx, output in enumerate(outputs):
             if dataloader_idx == 0:
                 eval_loss = getattr(self, f'{mode}_loss').compute()
@@ -328,6 +342,8 @@ class MTEncDecModel(EncDecNLPModel):
             else:
                 sb_score = 0.0
 
+            loss_list.append(eval_loss.cpu().numpy())
+            sb_score_list.append(sb_score)
             if dataloader_idx == 0:
                 self.log(f"{mode}_loss", eval_loss, sync_dist=True)
                 self.log(f"{mode}_sacreBLEU", sb_score, sync_dist=True)
@@ -336,6 +352,10 @@ class MTEncDecModel(EncDecNLPModel):
                 self.log(f"{mode}_loss_dl_index_{dataloader_idx}", eval_loss, sync_dist=True)
                 self.log(f"{mode}_sacreBLEU_dl_index_{dataloader_idx}", sb_score, sync_dist=True)
                 getattr(self, f'{mode}_loss_{dataloader_idx}').reset()
+
+        if len(loss_list) > 1:
+            self.log(f"{mode}_loss_avg", np.mean(loss_list), sync_dist=True)
+            self.log(f"{mode}_sacreBLEU_avg", np.mean(sb_score_list), sync_dist=True)
 
     def validation_epoch_end(self, outputs):
         """
@@ -470,7 +490,7 @@ class MTEncDecModel(EncDecNLPModel):
                     datasets.append(dataset)
 
                 if self.multilingual:
-                    dataset = ConcatTranslationDataset(
+                    dataset = ConcatDataset(
                         datasets=datasets,
                         sampling_technique=cfg.get('concat_sampling_technique'),
                         sampling_temperature=cfg.get('concat_sampling_temperature'),
@@ -522,7 +542,7 @@ class MTEncDecModel(EncDecNLPModel):
                 datasets.append(dataset)
 
             if self.multilingual:
-                dataset = ConcatTranslationDataset(
+                dataset = ConcatDataset(
                     datasets=datasets,
                     shuffle=cfg.get('shuffle'),
                     sampling_technique=cfg.get('concat_sampling_technique'),

@@ -17,7 +17,7 @@ import torch
 from omegaconf import OmegaConf
 
 from nemo.collections.asr import modules
-from nemo.collections.asr.parts.rnnt_utils import Hypothesis
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.utils import config_utils
 
 

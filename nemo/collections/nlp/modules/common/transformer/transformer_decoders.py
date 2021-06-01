@@ -134,6 +134,11 @@ class TransformerDecoder(nn.Module):
     ):
         super().__init__()
 
+        if pre_ln and pre_ln_final_layer_norm:
+            self.final_layer_norm = nn.LayerNorm(hidden_size, eps=1e-5)
+        else:
+            self.final_layer_norm = None
+
         layer = TransformerDecoderBlock(
             hidden_size,
             inner_size,

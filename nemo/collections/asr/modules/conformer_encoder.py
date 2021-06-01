@@ -18,9 +18,9 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 
-from nemo.collections.asr.parts.conformer_modules import ConformerLayer
-from nemo.collections.asr.parts.multi_head_attention import PositionalEncoding, RelPositionalEncoding
-from nemo.collections.asr.parts.subsampling import ConvSubsampling
+from nemo.collections.asr.parts.submodules.conformer_modules import ConformerLayer
+from nemo.collections.asr.parts.submodules.multi_head_attention import PositionalEncoding, RelPositionalEncoding
+from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule

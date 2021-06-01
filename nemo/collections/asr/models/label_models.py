@@ -26,8 +26,8 @@ from pytorch_lightning import Trainer
 from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataset
 from nemo.collections.asr.losses.angularloss import AngularSoftmaxLoss
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
-from nemo.collections.asr.parts.features import WaveformFeaturizer
-from nemo.collections.asr.parts.perturb import process_augmentations
+from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
+from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.common.losses import CrossEntropyLoss as CELoss
 from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.core.classes import ModelPT
@@ -205,6 +205,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
         self._accuracy(logits=logits, labels=labels)
         top_k = self._accuracy.compute()
+        self._accuracy.reset()
         for i, top_i in enumerate(top_k):
             self.log(f'training_batch_accuracy_top@{i}', top_i)
 
@@ -232,6 +233,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self._accuracy.correct_counts_k = correct_counts
         self._accuracy.total_counts_k = total_counts
         topk_scores = self._accuracy.compute()
+        self._accuracy.reset()
 
         logging.info("val_loss: {:.3f}".format(val_loss_mean))
         self.log('val_loss', val_loss_mean)
@@ -265,6 +267,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self._accuracy.correct_counts_k = correct_counts
         self._accuracy.total_counts_k = total_counts
         topk_scores = self._accuracy.compute()
+        self._accuracy.reset()
 
         logging.info("test_loss: {:.3f}".format(test_loss_mean))
         self.log('test_loss', test_loss_mean)
