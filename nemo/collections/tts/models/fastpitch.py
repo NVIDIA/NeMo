@@ -86,10 +86,11 @@ class FastPitchModel(SpectrogramGenerator):
             self.aligner = instantiate(self._cfg.alignment_module)
             self.forward_sum_loss = ForwardSumLoss()
             self.bin_loss = BinLoss()
+            self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**self._cfg.train_ds.dataset.vocab)
 
         self.preprocessor = instantiate(self._cfg.preprocessor)
 
-        input_fft = instantiate(self._cfg.input_fft)
+        input_fft = instantiate(self._cfg.input_fft, n_embed=len(self.vocab.labels), padding_idx=self.vocab.pad)
         output_fft = instantiate(self._cfg.output_fft)
         duration_predictor = instantiate(self._cfg.duration_predictor)
         pitch_predictor = instantiate(self._cfg.pitch_predictor)
