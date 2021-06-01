@@ -55,6 +55,17 @@ from nemo.utils import logging
 
 
 class BeamScoresDataset(torch.utils.data.Dataset):
+    """
+    Dataset to read the score file containing the beams and their score
+
+    Args:
+        data_path: path to the beams file
+        tokenizer: tokenizer of the LM model
+        manifest_path: manifest `.json` file which contains the ground truths transcripts
+        beam_size: the number of beams per sample
+        max_seq_length: the maximum length of sequences
+    """
+
     def __init__(self, data_path, tokenizer, manifest_path, beam_size=128, max_seq_length=256):
         self.data = pd.read_csv(data_path, delimiter="\t", header=None)
         self.tokenizer = tokenizer
