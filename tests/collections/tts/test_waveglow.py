@@ -104,18 +104,6 @@ class TestWaveGlow:
                 forward_method=forward_wrapper,
             )
 
-            try:
-                test_runtime = True
-                import onnxruntime
-            except (ImportError, ModuleNotFoundError):
-                test_runtime = False
-            if test_runtime:
-                omodel = onnx.load(tmp_file_name)
-                output_names = ['audio']
-                sess = onnxruntime.InferenceSession(omodel.SerializeToString())
-                output = sess.run(None, {"spec": inp[0].cpu().numpy(), "z": inp[1].cpu().numpy()})[0]
-                assert torch.allclose(torch.from_numpy(output), res2.cpu(), rtol=1, atol=100)
-
 
 if __name__ == "__main__":
     t = TestWaveGlow()
