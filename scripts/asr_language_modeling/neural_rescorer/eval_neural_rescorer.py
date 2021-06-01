@@ -44,6 +44,7 @@ import json
 from argparse import ArgumentParser
 
 import editdistance
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
@@ -53,7 +54,7 @@ from nemo.collections.nlp.models.language_modeling import TransformerLMModel
 from nemo.utils import logging
 
 
-class BeamSearchDataset(torch.utils.data.Dataset):
+class BeamScoresDataset(torch.utils.data.Dataset):
     def __init__(self, data_path, tokenizer, manifest_path, beam_size=128, max_seq_length=256):
         self.data = pd.read_csv(data_path, delimiter="\t", header=None)
         self.tokenizer = tokenizer
@@ -82,7 +83,22 @@ class BeamSearchDataset(torch.utils.data.Dataset):
         return input_ids, input_mask, acoustic_score, dist, ref_len, len_in_chars, idx
 
 
-def line_search_wer(dists, scores1, scores2, total_len, coef_range=[0, 10], coef_steps=10000):
+def line_search_wer(dists, scores1, scores2, total_len, coef_range=[0, 10], coef_steps=10000, param_name='parameter'):
+    """
+    performs linear search to find the best coefficient when two set of scores are getting linearly fused.
+
+    Args:
+        dists: Tesnor of the distances between the ground truth and the candidates with shape of [number of samples, beam size]
+        scores1: Tensor of the first set of scores with shape of [number of samples, beam size]
+        scores2: Tensor of the second set of scores with shape of [number of samples, beam size]
+        total_len: The total length of all samples
+        coef_range: the search range for the coefficient
+        coef_steps: the number of steps that the search range would get divided into
+        param_name: the name of the parameter to be used in the figure
+
+    Output:
+        (best coefficient found, best WER achived)
+    """
     scale = scores1.mean().abs().item() / scores2.mean().abs().item()
     left = coef_range[0] * scale
     right = coef_range[1] * scale
@@ -90,16 +106,35 @@ def line_search_wer(dists, scores1, scores2, total_len, coef_range=[0, 10], coef
 
     best_wer = 10000
     best_coef = left
+    wers = []
     for coef in coefs:
         scores = scores1 + coef * scores2
         wer = compute_wer(dists, scores, total_len)
+        wers.append(wer)
         if wer < best_wer:
             best_wer = wer
             best_coef = coef
+
+    plt.plot(coefs, wers)
+    plt.title(f'WER% after rescoring with different values of {param_name}')
+    plt.ylabel('WER%')
+    plt.xlabel(param_name)
+    plt.show()
     return best_coef, best_wer
 
 
 def compute_wer(dists, scores, total_len):
+    """
+    Sorts the candidates based on the scores and calculates the WER with the new top candidates.
+
+    Args:
+        dists: Tensor of the distances between the ground truth and the candidates with shape of [number of samples, beam size]
+        scores: Tensor of the scores for candidates with shape of [number of samples, beam size]
+        total_len: The total length of all samples
+
+    Output:
+        WER with the new scores
+    """
     indices = scores.max(dim=1, keepdim=True)[1]
     wer = dists.gather(dim=1, index=indices).sum() / total_len
     wer = wer.item()
@@ -117,6 +152,9 @@ def main():
     parser.add_argument("--batch_size", type=int, default=256, help="inference batch size")
     parser.add_argument("--alpha", type=float, default=None, help="parameter alpha of the fusion")
     parser.add_argument("--beta", type=float, default=None, help="parameter beta of the fusion")
+    parser.add_argument(
+        "--scores_output_file", default=None, type=str, help="The optional path to store the rescored beams"
+    )
     parser.add_argument(
         "--device", default="cuda", type=str, help="The device to load the model onto to calculate the scores"
     )
@@ -139,7 +177,7 @@ def main():
         raise NotImplementedError(f"Only supports .nemo files, but got: {args.model}")
 
     max_seq_length = model.encoder._embedding.position_embedding.pos_enc.shape[0]
-    dataset = BeamSearchDataset(args.beams_file, model.tokenizer, args.eval_manifest, args.beam_size, max_seq_length)
+    dataset = BeamScoresDataset(args.beams_file, model.tokenizer, args.eval_manifest, args.beam_size, max_seq_length)
     data_loader = torch.utils.data.DataLoader(dataset=dataset, batch_size=args.batch_size)
 
     if args.use_amp:
@@ -192,7 +230,9 @@ def main():
 
     if args.alpha is None:
         logging.info("Linear search for alpha...")
-        coef1, _ = line_search_wer(dists=dists, scores1=am_scores, scores2=lm_scores, total_len=total_len)
+        coef1, _ = line_search_wer(
+            dists=dists, scores1=am_scores, scores2=lm_scores, total_len=total_len, param_name='alpha'
+        )
         coef1 = np.round(coef1, 3)
         logging.info(f"alpha={coef1} achieved the best WER.")
         logging.info(f"------------------------------------------------")
@@ -203,23 +243,32 @@ def main():
 
     if args.beta is None:
         logging.info("Linear search for beta...")
-        coef2, _ = line_search_wer(dists, scores, lens_in_chars, total_len)
+        coef2, _ = line_search_wer(
+            dists=dists, scores1=scores, scores2=lens_in_chars, total_len=total_len, param_name='beta'
+        )
         coef2 = np.round(coef2, 3)
         logging.info(f"beta={coef2} achieved the best WER.")
         logging.info(f"------------------------------------------------")
     else:
         coef2 = args.beta
 
-    ab_scores = am_scores + coef1 * lm_scores + coef2 * lens_in_chars
-    ab_wer = compute_wer(dists, ab_scores, total_len)
+    new_scores = am_scores + coef1 * lm_scores + coef2 * lens_in_chars
+    rescored_wer = compute_wer(dists, new_scores, total_len)
 
     logging.info(f"Input beams WER: {np.round(model_wer.item() * 100, 2)}%")
     logging.info(f"------------------------------------------------")
-    logging.info(f"  +LM rescoring WER: {np.round(ab_wer * 100, 2)}%")
+    logging.info(f"  +LM rescoring WER: {np.round(rescored_wer * 100, 2)}%")
     logging.info(f"  with alpha={coef1}, beta={coef2}")
     logging.info(f"------------------------------------------------")
     logging.info(f"Best possible WER: {np.round(ideal_wer.item() * 100, 2)}%")
     logging.info(f"------------------------------------------------")
+
+    new_scores_flatten = new_scores.flatten()
+    if args.scores_output_file is not None:
+        logging.info(f'Saving the candidates with their new scores at `{args.scores_output_file}`...')
+        with open(args.scores_output_file, "w") as fout:
+            for sample_id in range(len(dataset)):
+                fout.write(f"{dataset.data[0][sample_id]}\t{new_scores_flatten[sample_id]}\n")
 
 
 if __name__ == '__main__':

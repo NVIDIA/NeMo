@@ -20,3 +20,4 @@ pyannote.core
 pyannote.metrics
 pyamg
 torch-stft
+matplotlib
