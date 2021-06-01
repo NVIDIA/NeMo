@@ -39,6 +39,9 @@ class TimeFst(GraphFst):
         e.g. twelve thirty -> time { hours: "12" minutes: "30" }
         e.g. twelve past one -> time { minutes: "12" hours: "1" }
         e.g. two o clock a m -> time { hours: "2" suffix: "a.m." }
+        e.g. quarter to two -> time { hours: "1" minutes: "45" }
+        e.g. quarter past two -> time { hours: "2" minutes: "15" }
+        e.g. half past two -> time { hours: "2" minutes: "30" }
     """
 
     def __init__(self):
@@ -47,6 +50,7 @@ class TimeFst(GraphFst):
 
         suffix_graph = pynini.string_file(get_abs_path("data/time_suffix.tsv"))
         time_zone_graph = pynini.invert(pynini.string_file(get_abs_path("data/time_zone.tsv")))
+        quarter_time_graph = pynini.string_file(get_abs_path("data/quarter_time.tsv"))
 
         # only used for < 1000 thousand -> 0 weight
         cardinal = pynutil.add_weight(CardinalFst().graph_no_exception, weight=-0.7)
@@ -99,7 +103,17 @@ class TimeFst(GraphFst):
             + delete_extra_space
             + final_graph_hour
         )
-        final_graph = ((graph_hm | graph_mh) + final_suffix_optional + final_time_zone_optional).optimize()
+        quater_time_graph = (
+            pynutil.insert("minutes: \"")
+            + pynini.cross("quarter to", "45")
+            + pynini.cross("quarter till", "45")
+            + pynutil.insert("\"")
+            + delete_space
+            + pynutil.insert("hours: \"")
+            + quarter_time_graph
+            + pynutil.insert("\"")
+        )
+        final_graph = ((graph_hm | graph_mh | quarter_time_graph ) + final_suffix_optional + final_time_zone_optional).optimize()
 
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
