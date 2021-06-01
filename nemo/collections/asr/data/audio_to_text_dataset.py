@@ -14,9 +14,10 @@
 
 from typing import Optional
 
-from omegaconf import open_dict
+import torch
+from omegaconf import DictConfig, open_dict
 
-from nemo.collections.asr.data import audio_to_text
+from nemo.collections.asr.data import audio_to_text, audio_to_text_dali
 from nemo.utils import logging
 
 
@@ -197,5 +198,50 @@ def get_tarred_bpe_dataset(
         shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
         global_rank=global_rank,
         world_size=world_size,
+    )
+    return dataset
+
+
+def get_dali_char_dataset(
+    config: dict,
+    shuffle: bool,
+    device_id: int,
+    global_rank: int,
+    world_size: int,
+    preprocessor_cfg: Optional[DictConfig] = None,
+) -> audio_to_text_dali.AudioToCharDALIDataset:
+    """
+    Instantiates a Character Encoding based AudioToCharDALIDataset.
+
+    Args:
+        config: Config of the AudioToCharDALIDataset.
+        shuffle: Bool flag whether to shuffle the dataset.
+        device_id: Index of the GPU to be used (local_rank). Only applicable when device == 'gpu'. Defaults to 0.
+        global_rank: Global rank of this device.
+        world_size: Global world size in the training method.
+        augmentor: Optional AudioAugmentor object for augmentations on audio data.
+
+    Returns:
+        An instance of AudioToCharDALIDataset.
+    """
+    device = 'gpu' if torch.cuda.is_available() else 'cpu'
+    dataset = audio_to_text_dali.AudioToCharDALIDataset(
+        manifest_filepath=config['manifest_filepath'],
+        device=device,
+        batch_size=config['batch_size'],
+        labels=config['labels'],
+        sample_rate=config['sample_rate'],
+        max_duration=config.get('max_duration', None),
+        min_duration=config.get('min_duration', None),
+        blank_index=config.get('blank_index', -1),
+        unk_index=config.get('unk_index', -1),
+        normalize=config.get('normalize_transcripts', False),
+        trim=config.get('trim_silence', False),
+        parser=config.get('parser', 'en'),
+        shuffle=shuffle,
+        device_id=device_id,
+        global_rank=global_rank,
+        world_size=world_size,
+        preprocessor_cfg=preprocessor_cfg,
     )
     return dataset
