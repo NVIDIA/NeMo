@@ -80,17 +80,21 @@ class FastPitchModel(SpectrogramGenerator):
         self.aligner = None
         self.log_train_images = False
         self.mel_loss = MelLoss()
-        self.pitch_loss = PitchLoss(loss_scale=1.0)
-        self.duration_loss = DurationLoss(loss_scale=1.0)
+        loss_scale = 0.1 if self.learn_alignment else 1.0
+        self.pitch_loss = PitchLoss(loss_scale=loss_scale)
+        self.duration_loss = DurationLoss(loss_scale=loss_scale)
+        input_fft_kwargs = {}
         if self.learn_alignment:
             self.aligner = instantiate(self._cfg.alignment_module)
             self.forward_sum_loss = ForwardSumLoss()
             self.bin_loss = BinLoss()
             self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**self._cfg.train_ds.dataset.vocab)
+            input_fft_kwargs["n_embed"] = len(self.vocab.labels)
+            input_fft_kwargs["padding_idx"] = self.vocab.pad
 
         self.preprocessor = instantiate(self._cfg.preprocessor)
 
-        input_fft = instantiate(self._cfg.input_fft, n_embed=len(self.vocab.labels), padding_idx=self.vocab.pad)
+        input_fft = instantiate(self._cfg.input_fft, **input_fft_kwargs)
         output_fft = instantiate(self._cfg.output_fft)
         duration_predictor = instantiate(self._cfg.duration_predictor)
         pitch_predictor = instantiate(self._cfg.pitch_predictor)
@@ -126,17 +130,19 @@ class FastPitchModel(SpectrogramGenerator):
         if self._parser is not None:
             return self._parser
 
-        # self._parser = parsers.make_parser(
-        #     labels=self._cfg.labels,
-        #     name='en',
-        #     unk_id=-1,
-        #     blank_id=-1,
-        #     do_normalize=True,
-        #     abbreviation_version="fastpitch",
-        #     make_table=False,
-        # )
-        vocab = AudioToCharWithDursF0Dataset.make_vocab(**self._cfg.train_ds.dataset.vocab)
-        self._parser = vocab.encode
+        if self.learn_alignment:
+            vocab = AudioToCharWithDursF0Dataset.make_vocab(**self._cfg.train_ds.dataset.vocab)
+            self._parser = vocab.encode
+        else:
+            self._parser = parsers.make_parser(
+                labels=self._cfg.labels,
+                name='en',
+                unk_id=-1,
+                blank_id=-1,
+                do_normalize=True,
+                abbreviation_version="fastpitch",
+                make_table=False,
+            )
         return self._parser
 
     def parse(self, str_input: str) -> torch.tensor:
