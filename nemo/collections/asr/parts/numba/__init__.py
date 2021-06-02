@@ -14,7 +14,11 @@
 
 import logging
 
-from nemo.collections.asr.parts.numba.numba_utils import numba_cuda_is_supported
+from nemo.collections.asr.parts.numba.numba_utils import (
+    NUMBA_INSTALLATION_MESSAGE,
+    numba_cuda_is_supported,
+    skip_numba_cuda_test_if_unsupported,
+)
 from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_pytorch import RNNTLossNumba
 
 # Prevent Numba CUDA logs from showing at info level

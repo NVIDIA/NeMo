@@ -33,6 +33,7 @@ from typing import Optional
 
 import torch
 
+from nemo.collections.asr.parts.numba.numba_utils import NUMBA_INSTALLATION_MESSAGE
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
 from nemo.utils import logging, model_utils
@@ -58,15 +59,6 @@ WARP_RNNT_INSTALLATION_MESSAGE = (
     "and follow the steps in the readme to build and install the "
     "pytorch bindings for RNNT Loss, or use the provided docker "
     "container that supports RNN-T loss."
-)
-
-NUMBA_INSTALLATION_MESSAGE = (
-    "Could not import `numba`.\n"
-    "To use transducer loss, please install numba in one of the following ways."
-    "1) If using conda, simply install `conda install -c numba numba`\n"
-    "2) If using pip, `pip install --upgrade --ignore-installed numba`\n"
-    "followed by `export NUMBAPRO_LIBDEVICE='/usr/local/cuda/nvvm/libdevice/'` and \n"
-    "`export NUMBAPRO_NVVM='/usr/local/cuda/nvvm/lib64/libnvvm.so'`"
 )
 
 
