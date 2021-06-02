@@ -22,7 +22,7 @@ from omegaconf.errors import ConfigAttributeError
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 from torch import nn
 
-from nemo.collections.asr.parts import parsers
+from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, tacotron2_log_to_tb_func
 from nemo.collections.tts.losses.tacotron2loss import Tacotron2Loss
 from nemo.collections.tts.models.base import SpectrogramGenerator
