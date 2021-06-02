@@ -243,7 +243,7 @@ class ModelPT(LightningModule, Model):
         # we were called by ModelPT
         if hasattr(self, "cfg"):
             with open_dict(self._cfg):
-                self.cfg.update_node(config_path, return_path)
+                OmegaConf.update(self.cfg, config_path, return_path)
         return return_path
 
     def _handle_artifacts(self, nemo_file_folder):

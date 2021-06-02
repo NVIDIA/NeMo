@@ -16,6 +16,19 @@ import operator
 
 from nemo.utils import model_utils
 
+NUMBA_INSTALLATION_MESSAGE = (
+    "Could not import `numba`.\n"
+    "Please install numba in one of the following ways."
+    "1) If using conda, simply install it with conda using `conda install -c numba numba`\n"
+    "2) If using pip (not recommended), `pip install --upgrade numba`\n"
+    "followed by `export NUMBAPRO_LIBDEVICE='/usr/local/cuda/nvvm/libdevice/'` and \n"
+    "`export NUMBAPRO_NVVM='/usr/local/cuda/nvvm/lib64/libnvvm.so'`.\n"
+    "It is advised to always install numba using conda only, "
+    "as pip installations might interfere with other libraries such as llvmlite.\n"
+    "If pip install does not work, you can also try adding `--ignore-installed` to the pip command,\n"
+    "but this is not advised."
+)
+
 
 def numba_cuda_is_supported(min_version: str) -> bool:
     """

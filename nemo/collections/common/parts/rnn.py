@@ -19,6 +19,8 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 import torch
 
+from nemo.utils import logging
+
 
 def rnn(
     input_size: int,
@@ -401,8 +403,8 @@ def ln_lstm(
     dropout: Optional[float],
     forget_gate_bias: Optional[float],
     t_max: Optional[int],
-    weights_init_scale: Optional[float] = None,
-    hidden_hidden_bias_scale: Optional[float] = None,
+    weights_init_scale: Optional[float] = None,  # ignored
+    hidden_hidden_bias_scale: Optional[float] = None,  # ignored
 ) -> torch.nn.Module:
     """Returns a ScriptModule that mimics a PyTorch native LSTM."""
     # The following are not implemented.
@@ -410,13 +412,13 @@ def ln_lstm(
         raise ValueError('`dropout` not supported with LayerNormLSTM')
 
     if t_max is not None:
-        raise ValueError("LayerNormLSTM does not support chrono init")
+        logging.warning("LayerNormLSTM does not support chrono init via `t_max`")
 
     if weights_init_scale is not None:
-        raise ValueError("LayerNormLSTM does not support `weight_init_scale`")
+        logging.warning("`weights_init_scale` is ignored for LayerNormLSTM")
 
     if hidden_hidden_bias_scale is not None:
-        raise ValueError("LayerNormLSTM does not support `hidden_hidden_bias_scale`")
+        logging.warning("`hidden_hidden_bias_scale` is ignored for LayerNormLSTM")
 
     return StackedLSTM(
         num_layers,
