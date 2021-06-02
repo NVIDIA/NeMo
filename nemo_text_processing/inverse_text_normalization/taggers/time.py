@@ -106,7 +106,7 @@ class TimeFst(GraphFst):
 
         graph_quarter_time = (
             pynutil.insert("minutes: \"")
-            + (pynini.cross("quarter", "45") | pynini.cross("quarter", "45"))
+            + pynini.cross("quarter", "45")
             + pynutil.insert("\"")
             + delete_space
             + pynutil.delete(pynini.union("to", "till"))
