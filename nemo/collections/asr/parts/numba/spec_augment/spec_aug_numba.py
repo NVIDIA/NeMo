@@ -17,7 +17,7 @@ import torch.nn as nn
 from numba import cuda
 
 from nemo.core.classes import Typing, typecheck
-from nemo.core.neural_types import NeuralType, SpectrogramType
+from nemo.core.neural_types import LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
 
 MAX_THREAD_BUFFER = 512
@@ -205,7 +205,10 @@ class SpecAugmentNumba(nn.Module, Typing):
     def input_types(self):
         """Returns definitions of module input types
         """
-        return {"input_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
+        return {
+            "input_spec": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "length": NeuralType(tuple('B'), LengthsType()),
+        }
 
     @property
     def output_types(self):
