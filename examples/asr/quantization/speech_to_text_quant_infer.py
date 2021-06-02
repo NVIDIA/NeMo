@@ -60,7 +60,13 @@ def main():
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--wer_tolerance", type=float, default=1.0, help="used by test")
     parser.add_argument(
-        "--normalize_text", default=True, type=bool, help="Normalize transcripts or not. Set to False for non-English."
+        "--dont_normalize_text",
+        default=False,
+        action='store_true',
+        help="Turn off trasnscript normalization. Recommended for non-English.",
+    )
+    parser.add_argument(
+        "--use_cer", default=False, action='store_true', help="Use Character Error Rate as the evaluation metric"
     )
     parser.add_argument('--sensitivity', action="store_true", help="Perform sensitivity analysis")
     parser.add_argument('--onnx', action="store_true", help="Export to ONNX")
@@ -89,9 +95,11 @@ def main():
             'manifest_filepath': args.dataset,
             'labels': asr_model.decoder.vocabulary,
             'batch_size': args.batch_size,
-            'normalize_transcripts': args.normalize_text,
+            'normalize_transcripts': args.dont_normalize_text,
         }
     )
+    asr_model.preprocessor.featurizer.dither = 0.0
+    asr_model.preprocessor.featurizer.pad_to = 0
     if can_gpu:
         asr_model = asr_model.cuda()
     asr_model.eval()
@@ -105,7 +113,7 @@ def main():
                         module.disable()
 
     labels_map = dict([(i, asr_model.decoder.vocabulary[i]) for i in range(len(asr_model.decoder.vocabulary))])
-    wer = WER(vocabulary=asr_model.decoder.vocabulary)
+    wer = WER(vocabulary=asr_model.decoder.vocabulary, use_cer=args.use_cer)
     wer_quant = evaluate(asr_model, labels_map, wer)
     logging.info(f'Got WER of {wer_quant}. Tolerance was {args.wer_tolerance}')
 
@@ -194,10 +202,12 @@ def evaluate(asr_model, labels_map, wer):
             )
         hypotheses += wer.ctc_decoder_predictions_tensor(greedy_predictions)
         for batch_ind in range(greedy_predictions.shape[0]):
-            reference = ''.join([labels_map[c] for c in test_batch[2][batch_ind].cpu().detach().numpy()])
+            seq_len = test_batch[3][batch_ind].cpu().detach().numpy()
+            seq_ids = test_batch[2][batch_ind].cpu().detach().numpy()
+            reference = ''.join([labels_map[c] for c in seq_ids[0:seq_len]])
             references.append(reference)
         del test_batch
-    wer_value = word_error_rate(hypotheses=hypotheses, references=references)
+    wer_value = word_error_rate(hypotheses=hypotheses, references=references, use_cer=wer.use_cer)
 
     return wer_value
 

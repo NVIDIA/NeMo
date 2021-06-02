@@ -56,7 +56,10 @@ def main():
     parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
     parser.add_argument("--batch_size", type=int, default=256)
     parser.add_argument(
-        "--normalize_text", default=True, type=bool, help="Normalize transcripts or not. Set to False for non-English."
+        "--dont_normalize_text",
+        default=False,
+        action='store_true',
+        help="Turn off trasnscript normalization. Recommended for non-English.",
     )
     parser.add_argument('--num_calib_batch', default=1, type=int, help="Number of batches for calibration.")
     parser.add_argument('--calibrator', type=str, choices=["max", "histogram"], default="max")
@@ -93,11 +96,12 @@ def main():
             'manifest_filepath': args.dataset,
             'labels': asr_model.decoder.vocabulary,
             'batch_size': args.batch_size,
-            'normalize_transcripts': args.normalize_text,
+            'normalize_transcripts': args.dont_normalize_text,
             'shuffle': True,
         }
     )
-
+    asr_model.preprocessor.featurizer.dither = 0.0
+    asr_model.preprocessor.featurizer.pad_to = 0
     if can_gpu:
         asr_model = asr_model.cuda()
     asr_model.eval()
