@@ -22,7 +22,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
-from nemo.collections.nlp.models import PunctuationCapitalizationModel
+from nemo.collections.nlp.models import PunctuationCapitalizationModel, TransformerLMModel
 from nemo.core.classes import ModelPT
 
 
@@ -140,6 +140,13 @@ class TestSaveRestore:
         # TODO: Switch to using named configs because here we don't really care about weights
         cn = EncDecCTCModelBPE.from_pretrained(model_name="stt_en_conformer_ctc_small")
         self.__test_restore_elsewhere(model=cn, attr_for_eq_check=set(["decoder._feat_in", "decoder._num_classes"]))
+
+    @pytest.mark.with_downloads()
+    @pytest.mark.unit
+    def test_TransformerLMModel(self):
+        # TODO: Switch to using named configs because here we don't really care about weights
+        asrlm = TransformerLMModel.from_pretrained(model_name="asrlm_en_transformer_large_ls")
+        self.__test_restore_elsewhere(model=asrlm, attr_for_eq_check=set(["encoder.log_softmax", "encoder.log_softmax"]))
 
     @pytest.mark.with_downloads()
     @pytest.mark.unit
