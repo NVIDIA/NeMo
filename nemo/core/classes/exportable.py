@@ -119,7 +119,7 @@ class Exportable(ABC):
         onnx_opset_version: int = 13,
         try_script: bool = False,
         set_eval: bool = True,
-        check_trace: bool = True,
+        check_trace: bool = False,
         use_dynamic_axes: bool = True,
         dynamic_axes=None,
         check_tolerance=0.01,
@@ -241,8 +241,8 @@ class Exportable(ABC):
 
                         ort_out = sess.run(None, to_onnxrt_input(input_names, input_list, input_dict))
                         all_good = True
-                        for i, out in enumerate(ort_out):
-                            expected = output_example[i].cpu()
+                        for out_name, out in enumerate(ort_out):
+                            expected = output_example[out_name].cpu()
                             if not torch.allclose(
                                 torch.from_numpy(out), expected, rtol=check_tolerance, atol=100 * check_tolerance
                             ):
