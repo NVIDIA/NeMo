@@ -67,7 +67,7 @@ class SerialFst(GraphFst):
         if not deterministic:
             graph += pynini.closure(pynini.accep("s") | pynini.cross("s", "es"), 0, 1)
 
-        graph += pynutil.insert("\" } units: \"serial\"")
+        graph += pynutil.insert("\" }")
 
         graph = self.add_tokens(graph)
         self.fst = graph.optimize()
