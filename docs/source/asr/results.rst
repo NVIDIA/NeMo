@@ -80,6 +80,14 @@ Automatic Speech Recognition Models
    :widths: 30, 30, 40
    :header-rows: 1
 
+Language Models for ASR
+^^^^^^^^^^^^^^^^^^^^^^^
+
+.. csv-table::
+   :file: data/asrlm_results.csv
+   :align: left
+   :widths: 30, 30, 40
+   :header-rows: 1
 
    
 Speech Recognition (Languages)
