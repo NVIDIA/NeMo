@@ -190,7 +190,7 @@ pipeline {
             sh 'cd nemo_text_processing/text_normalization && \
             python normalize_with_audio.py --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 && \
             cmp --silent /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json /home/TestData/nlp/text_norm/audio_based/manifest_result.json || exit 1'
-            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/manifest_result.json'
+            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json'
           }
         }
       }
