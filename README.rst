@@ -34,8 +34,6 @@ Introduction
 
 NeMo is a toolkit for creating `Conversational AI <https://developer.nvidia.com/conversational-ai#started>`_ applications.
 
-`NeMo product page. <https://developer.nvidia.com/nvidia-nemo>`_
-
 `Introductory video. <https://www.youtube.com/embed/wBgpMf_KQVw>`_
 
 The toolkit comes with extendable collections of pre-built modules and ready-to-use models for:
