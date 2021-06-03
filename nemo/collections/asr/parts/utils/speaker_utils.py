@@ -21,6 +21,7 @@ import numpy as np
 from omegaconf import ListConfig
 from pyannote.core import Annotation, Segment
 from pyannote.metrics.diarization import DiarizationErrorRate
+from spectralcluster import SpectralClusterer
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.utils.nmse_clustering import COSclustering
@@ -230,7 +231,9 @@ def get_time_stamps(embeddings_file, reco2num, manifest_path, sample_rate, windo
     return embeddings, time_stamps, speakers
 
 
-def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rttm_dir, max_num_speakers=8):
+def perform_clustering(
+    embeddings, time_stamps, speakers, audio_rttm_map, out_rttm_dir, max_num_speakers=8, clustering_type='basic'
+):
     """
     performs spectral clustering on embeddings with time stamps generated from VAD output
     Args:
@@ -256,9 +259,13 @@ def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rt
         emb = embeddings[uniq_key]
         emb = np.asarray(emb)
 
-        cluster_labels = COSclustering(
-            uniq_key, emb, oracle_num_speakers=NUM_speakers, max_num_speaker=max_num_speakers
-        )
+        if clustering_type == 'nme':
+            cluster_labels = COSclustering(
+                uniq_key, emb, oracle_num_speakers=NUM_speakers, max_num_speaker=max_num_speakers
+            )
+        else:
+            cluster_labels = cluster_method = SpectralClusterer(min_clusters=2, max_clusters=NUM_speakers)
+            cluster_labels = cluster_method.predict(emb)
 
         lines = time_stamps[uniq_key]
         assert len(cluster_labels) == len(lines)
@@ -321,22 +328,25 @@ def perform_diarization(
     reco2num=2,
     manifest_path=None,
     sample_rate=16000,
-    window=1.5,
-    shift=0.75,
     audio_rttm_map=None,
     out_rttm_dir=None,
     max_num_speakers=8,
+    diarize_cfg=None,
 ):
     """
     Performs diarization with embeddings generated based on VAD time stamps with recording 2 num of speakers (reco2num)
     for spectral clustering 
     """
+    window = diarize_cfg.speaker_embeddings.get('window_length_in_sec', 1.5)
+    shift = diarize_cfg.speaker_embeddings.get('shift_length_in_sec', 0.75)
+    clustering_type = diarize_cfg.get('clustering_type', 'basic')
+
     embeddings, time_stamps, speakers = get_time_stamps(
         embeddings_file, reco2num, manifest_path, sample_rate, window, shift
     )
     logging.info("Performing Clustering")
     all_reference, all_hypothesis = perform_clustering(
-        embeddings, time_stamps, speakers, audio_rttm_map, out_rttm_dir, max_num_speakers
+        embeddings, time_stamps, speakers, audio_rttm_map, out_rttm_dir, max_num_speakers, clustering_type
     )
 
     if len(all_reference) and len(all_hypothesis):

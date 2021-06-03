@@ -352,11 +352,10 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             reco2num=self._num_speakers,
             manifest_path=self._speaker_manifest_path,
             sample_rate=self._cfg.sample_rate,
-            window=self._cfg.diarizer.speaker_embeddings.window_length_in_sec,
-            shift=self._cfg.diarizer.speaker_embeddings.shift_length_in_sec,
             audio_rttm_map=self.AUDIO_RTTM_MAP,
             out_rttm_dir=out_rttm_dir,
             max_num_speakers=self.max_num_speakers,
+            diarize_cfg=self._cfg.diarizer,
         )
 
     @staticmethod

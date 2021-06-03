@@ -9,6 +9,7 @@ diarizer:
   out_dir: ???
   paths2audio_files: ??? #file containing paths to audio files for inference
   path2groundtruth_rttm_files: null #file containing paths to ground truth rttm files for score computation or null if no reference rttms are present
+  clustering_type: 'basic' #use "nme" for large audio files
 
   vad:
     model_path: null #.nemo local model path or pretrained model name or none
