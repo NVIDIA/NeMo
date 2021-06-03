@@ -21,7 +21,7 @@ from typing import Optional
 
 import pytorch_lightning as pl
 import torch
-from omegaconf import MISSING, OmegaConf
+from omegaconf import OmegaConf
 
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.collections.asr.models import ASRModel
