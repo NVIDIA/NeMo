@@ -45,16 +45,13 @@
 import torch
 import torch.nn.functional as F
 from torch import nn as nn
-from torch.nn.utils.rnn import pad_sequence
 
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types.elements import (
     EncodedRepresentation,
     Index,
-    MaskType,
     MelSpectrogramType,
     RegressionValuesType,
-    SequenceToSequenceAlignmentType,
     TokenDurationType,
     TokenIndex,
     TokenLogDurationType,
@@ -63,7 +60,7 @@ from nemo.core.neural_types.elements import (
     LogprobsType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.collections.tts.helpers.helpers import binarize_attention_parallel, binarize_attention
+from nemo.collections.tts.helpers.helpers import binarize_attention_parallel
 
 
 def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
