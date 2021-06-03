@@ -46,7 +46,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn as nn
 
-from nemo.collections.tts.helpers.helpers import binarize_attention_parallel
+from nemo.collections.tts.helpers.helpers import binarize_attention, binarize_attention_parallel
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types.elements import (
     EncodedRepresentation,
@@ -89,6 +89,7 @@ def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
 
 def average_pitch(pitch, durs):
     durs_cums_ends = torch.cumsum(durs, dim=1).long()
+
     durs_cums_starts = F.pad(durs_cums_ends[:, :-1], (1, 0))
     pitch_nonzero_cums = F.pad(torch.cumsum(pitch != 0.0, dim=2), (1, 0))
     pitch_cums = F.pad(torch.cumsum(pitch, dim=2), (1, 0))

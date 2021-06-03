@@ -111,9 +111,9 @@ model:
     dropout: 0.1
     dropatt: 0.1
     dropemb: 0.0
-    n_embed: 148  # NOTE Should match # of tokens in `symbol_set`
+    # n_embed: 148  # NOTE Should match # of tokens in `symbol_set`
     d_embed: ${model.symbols_embedding_dim}
-    padding_idx: 0
+    # padding_idx: 0
 
   output_fft:
     _target_: nemo.collections.tts.modules.transformer.FFTransformerDecoder

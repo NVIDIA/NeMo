@@ -23,7 +23,7 @@ from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
 from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursF0Dataset, FastPitchDataset
 from nemo.collections.common.parts.preprocessing import parsers
-from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
+from nemo.collections.tts.helpers.helpers import plot_alignment_to_numpy, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, MelLoss, PitchLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
@@ -78,17 +78,23 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
         self.bin_loss_warmup_epochs = 100
         self.aligner = None
+        self.log_train_images = False
         self.mel_loss = MelLoss()
-        self.pitch_loss = PitchLoss()
-        self.duration_loss = DurationLoss()
+        loss_scale = 0.1 if self.learn_alignment else 1.0
+        self.pitch_loss = PitchLoss(loss_scale=loss_scale)
+        self.duration_loss = DurationLoss(loss_scale=loss_scale)
+        input_fft_kwargs = {}
         if self.learn_alignment:
             self.aligner = instantiate(self._cfg.alignment_module)
             self.forward_sum_loss = ForwardSumLoss()
             self.bin_loss = BinLoss()
+            self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**self._cfg.train_ds.dataset.vocab)
+            input_fft_kwargs["n_embed"] = len(self.vocab.labels)
+            input_fft_kwargs["padding_idx"] = self.vocab.pad
 
         self.preprocessor = instantiate(self._cfg.preprocessor)
 
-        input_fft = instantiate(self._cfg.input_fft)
+        input_fft = instantiate(self._cfg.input_fft, **input_fft_kwargs)
         output_fft = instantiate(self._cfg.output_fft)
         duration_predictor = instantiate(self._cfg.duration_predictor)
         pitch_predictor = instantiate(self._cfg.pitch_predictor)
@@ -124,17 +130,19 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         if self._parser is not None:
             return self._parser
 
-        # self._parser = parsers.make_parser(
-        #     labels=self._cfg.labels,
-        #     name='en',
-        #     unk_id=-1,
-        #     blank_id=-1,
-        #     do_normalize=True,
-        #     abbreviation_version="fastpitch",
-        #     make_table=False,
-        # )
-        vocab = AudioToCharWithDursF0Dataset.make_vocab(**self._cfg.train_ds.dataset.vocab)
-        self._parser = vocab.encode
+        if self.learn_alignment:
+            vocab = AudioToCharWithDursF0Dataset.make_vocab(**self._cfg.train_ds.dataset.vocab)
+            self._parser = vocab.encode
+        else:
+            self._parser = parsers.make_parser(
+                labels=self._cfg.labels,
+                name='en',
+                unk_id=-1,
+                blank_id=-1,
+                do_normalize=True,
+                abbreviation_version="fastpitch",
+                make_table=False,
+            )
         return self._parser
 
     def parse(self, str_input: str) -> torch.tensor:
@@ -232,6 +240,30 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             self.log("t_ctc_loss", ctc_loss)
             self.log("t_bin_loss", bin_loss)
 
+        # Log images to tensorboard
+        if self.log_train_images:
+            self.log_train_images = False
+
+            self.tb_logger.add_image(
+                "train_mel_target",
+                plot_spectrogram_to_numpy(mels[0].data.cpu().numpy()),
+                self.global_step,
+                dataformats="HWC",
+            )
+            spec_predict = mels_pred[0].data.cpu().numpy().T
+            self.tb_logger.add_image(
+                "train_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
+            )
+            if self.learn_alignment:
+                attn = attn_hard[0].data.cpu().numpy().squeeze()
+                self.tb_logger.add_image(
+                    "train_attn", plot_alignment_to_numpy(attn.T), self.global_step, dataformats="HWC",
+                )
+                soft_attn = attn_soft[0].data.cpu().numpy().squeeze()
+                self.tb_logger.add_image(
+                    "train_soft_attn", plot_alignment_to_numpy(soft_attn.T), self.global_step, dataformats="HWC",
+                )
+
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -293,6 +325,31 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         self.tb_logger.add_image(
             "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict.T), self.global_step, dataformats="HWC",
         )
+        self.log_train_images = True
+
+    def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
+        if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
+            raise ValueError(f"No dataset for {name}")
+        if "dataloader_params" not in cfg or not isinstance(cfg.dataloader_params, DictConfig):
+            raise ValueError(f"No dataloder_params for {name}")
+        if shuffle_should_be:
+            if 'shuffle' not in cfg.dataloader_params:
+                logging.warning(
+                    f"Shuffle should be set to True for {self}'s {name} dataloader but was not found in its "
+                    "config. Manually setting to True"
+                )
+                with open_dict(cfg.dataloader_params):
+                    cfg.dataloader_params.shuffle = True
+            elif not cfg.dataloader_params.shuffle:
+                logging.error(f"The {name} dataloader for {self} has shuffle set to False!!!")
+        elif not shuffle_should_be and cfg.dataloader_params.shuffle:
+            logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
+
+        kwargs_dict = {}
+        if cfg.dataset._target_ == "nemo.collections.asr.data.audio_to_text.FastPitchDataset":
+            kwargs_dict["parser"] = self.parser
+        dataset = instantiate(cfg.dataset, **kwargs_dict)
+        return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
