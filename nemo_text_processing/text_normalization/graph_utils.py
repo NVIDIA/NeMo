@@ -154,12 +154,15 @@ class GraphFst:
     Args:
         name: name of grammar class
         kind: either 'classify' or 'verbalize'
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, name: str, kind: str):
+    def __init__(self, name: str, kind: str, deterministic: bool = True):
         self.name = name
         self.kind = str
         self._fst = None
+        self.deterministic = deterministic
 
         self.far_path = Path(os.path.dirname(__file__) + '/grammars/' + kind + '/' + name + '.far')
         if self.far_exist():
@@ -186,7 +189,8 @@ class GraphFst:
         Args: 
             fst: input fst
         
-        Returns Fst
+        Returns:
+            Fst: fst
         """
         return pynutil.insert(f"{self.name} {{ ") + fst + pynutil.insert(" }")
 
@@ -194,10 +198,11 @@ class GraphFst:
         """
         Deletes class name wrap around output of given fst
 
-        Args
+        Args:
             fst: input fst
 
-        Returns Fst
+        Returns:
+            Fst: fst
         """
         res = (
             pynutil.delete(f"{self.name}")

@@ -64,6 +64,8 @@ WORKDIR /tmp/nemo
 COPY requirements .
 RUN for f in $(ls requirements*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
 
+RUN pip install wandb==0.10.21
+
 # install nemo_text_processing dependencies
 COPY nemo_text_processing /tmp/nemo/nemo_text_processing/
 RUN /bin/bash /tmp/nemo/nemo_text_processing/setup.sh

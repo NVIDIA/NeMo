@@ -37,18 +37,20 @@ class DateFst(GraphFst):
 
     Args:
         ordinal: OrdinalFst
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, ordinal: GraphFst):
-        super().__init__(name="date", kind="verbalize")
+    def __init__(self, ordinal: GraphFst, deterministic: bool = True):
+        super().__init__(name="date", kind="verbalize", deterministic=deterministic)
 
-        month = (
-            pynutil.delete("month:")
-            + delete_space
-            + pynutil.delete("\"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
-        )
+        month = pynini.closure(NEMO_NOT_QUOTE, 1)
+
+        if not deterministic:
+            month |= pynutil.insert(" of ") + month
+
+        month = pynutil.delete("month:") + delete_space + pynutil.delete("\"") + month + pynutil.delete("\"")
+
         day = (
             pynutil.delete("day:")
             + delete_space

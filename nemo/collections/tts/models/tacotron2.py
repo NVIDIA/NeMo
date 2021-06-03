@@ -22,7 +22,7 @@ from omegaconf.errors import ConfigAttributeError
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 from torch import nn
 
-from nemo.collections.asr.parts import parsers
+from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, tacotron2_log_to_tb_func
 from nemo.collections.tts.losses.tacotron2loss import Tacotron2Loss
 from nemo.collections.tts.models.base import SpectrogramGenerator
@@ -312,7 +312,7 @@ class Tacotron2Model(SpectrogramGenerator):
         list_of_models = []
         model = PretrainedModelInfo(
             pretrained_model_name="tts_en_tacotron2",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_tacotron2/versions/1.0.0rc1/files/tts_en_tacotron2.nemo",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_tacotron2/versions/1.0.0/files/tts_en_tacotron2.nemo",
             description="This model is trained on LJSpeech sampled at 22050Hz, and can be used to generate female English voices with an American accent.",
             class_=cls,
             aliases=["Tacotron2-22050Hz"],

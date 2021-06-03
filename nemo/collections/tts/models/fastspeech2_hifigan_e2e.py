@@ -22,13 +22,13 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
-from nemo.collections.asr.parts import parsers
+from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.fastspeech2loss import DurationLoss, L1MelLoss
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
-from nemo.core.classes.common import typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     LengthsType,
     MaskType,
@@ -85,7 +85,14 @@ class FastSpeech2HifiGanE2EModel(TextToWaveform):
 
         # Parser and mappings are used for inference only.
         self.parser = parsers.make_parser(name='en')
-        with open(cfg.mappings_filepath, 'r') as f:
+        if 'mappings_filepath' in cfg:
+            mappings_filepath = cfg.get('mappings_filepath')
+        else:
+            logging.error(
+                "ERROR: You must specify a mappings.json file in the config file under model.mappings_filepath."
+            )
+        mappings_filepath = self.register_artifact('mappings_filepath', mappings_filepath)
+        with open(mappings_filepath, 'r') as f:
             mappings = json.load(f)
             self.word2phones = mappings['word2phones']
             self.phone2idx = mappings['phone2idx']
@@ -138,7 +145,7 @@ class FastSpeech2HifiGanE2EModel(TextToWaveform):
             "energies": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
         },
         output_types={
-            "audio": NeuralType(('B', 'T'), MelSpectrogramType()),
+            "audio": NeuralType(('B', 'S', 'T'), MelSpectrogramType()),
             "splices": NeuralType(),
             "log_dur_preds": NeuralType(('B', 'T'), TokenLogDurationType()),
             "pitch_preds": NeuralType(('B', 'T'), RegressionValuesType()),
@@ -170,7 +177,7 @@ class FastSpeech2HifiGanE2EModel(TextToWaveform):
                 splices.append(start)
             gen_in = torch.stack(output)
 
-        output = self.generator(gen_in.transpose(1, 2))
+        output = self.generator(x=gen_in.transpose(1, 2))
 
         return output, splices, log_dur_preds, pitch_preds, energy_preds, encoded_text_mask
 
@@ -348,9 +355,6 @@ class FastSpeech2HifiGanE2EModel(TextToWaveform):
     def setup_training_data(self, cfg):
         self._train_dl = self.__setup_dataloader_from_config(cfg)
 
-    def list_available_models(self):
-        pass
-
     def setup_validation_data(self, cfg):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
 
@@ -399,10 +403,28 @@ class FastSpeech2HifiGanE2EModel(TextToWaveform):
         self.eval()
         token_len = torch.tensor([len(i) for i in tokens]).to(self.device)
         audio, _, log_dur_pred, _, _, _ = self(text=tokens, text_length=token_len, splice=False)
-        audio = audio.squeeze()
-        durations = torch.sum(torch.exp(log_dur_pred) - 1, 1)
+        audio = audio.squeeze(1)
+        durations = torch.sum(torch.exp(log_dur_pred) - 1, 1).to(torch.int)
         audio_list = []
         for i, sample in enumerate(audio):
             audio_list.append(sample[: durations[i] * self.hop_size])
 
         return audio_list
+
+    @classmethod
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        list_of_models = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_e2e_fastspeech2hifigan",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_e2e_fastspeech2hifigan/versions/1.0.0/files/tts_en_e2e_fastspeech2hifigan.nemo",
+            description="This model is trained on LJSpeech sampled at 22050Hz with and can be used to generate female English voices with an American accent.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
+        return list_of_models

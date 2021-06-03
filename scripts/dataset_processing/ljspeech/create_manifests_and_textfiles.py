@@ -23,7 +23,7 @@ import os
 import sox
 import wget
 
-from nemo.collections.asr.parts import parsers
+from nemo.collections.common.parts.preprocessing import parsers
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--ljspeech_base', required=True, default=None, type=str)

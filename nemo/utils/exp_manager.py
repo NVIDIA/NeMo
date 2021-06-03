@@ -480,9 +480,9 @@ def get_log_dir(
                 else:
                     tensorboard_logger = TensorBoardLogger(save_dir=Path(_exp_dir), name=name, version=version)
                     version = f"version_{tensorboard_logger.version}"
-                os.environ[NEMO_ENV_VARNAME_VERSION] = version
+                os.environ[NEMO_ENV_VARNAME_VERSION] = "" if version is None else version
 
-    log_dir = Path(_exp_dir) / Path(str(name)) / Path(str(version))
+    log_dir = Path(_exp_dir) / Path(str(name)) / Path("" if version is None else str(version))
     return log_dir, str(_exp_dir), name, version
 
 
@@ -646,9 +646,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
 
 
-def configure_checkpointing(
-    trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, params: 'DictConfig',
-):
+def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, params: 'DictConfig'):
     """ Adds ModelCheckpoint to trainer. Raises CheckpointMisconfigurationError if trainer already has a ModelCheckpoint
     callback or if trainer.weights_save_path was passed to Trainer.
     """
@@ -706,6 +704,7 @@ def configure_checkpointing(
             )
 
     checkpoint_callback = NeMoModelCheckpoint(**params)
+    checkpoint_callback.last_model_path = trainer.resume_from_checkpoint or ""
     trainer.callbacks.append(checkpoint_callback)
 
 

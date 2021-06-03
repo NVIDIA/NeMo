@@ -19,14 +19,30 @@ import time
 from argparse import ArgumentParser
 from typing import Dict
 
-import pynini
 from nemo_text_processing.inverse_text_normalization.taggers.tokenize_and_classify import ClassifyFst as ITNClassifyFst
 from nemo_text_processing.inverse_text_normalization.verbalizers.verbalize import VerbalizeFst as ITNVerbalizeFst
 from nemo_text_processing.text_normalization.taggers.tokenize_and_classify import ClassifyFst as TNClassifyFst
 from nemo_text_processing.text_normalization.verbalizers.verbalize import VerbalizeFst as TNVerbalizeFst
-from pynini.export import export
 
-# This script exports OpenFst finite state archive files tokenize_and_classify_tmp.far and verbalize_tmp.far from compiled grammars inside NeMo inverse text normalization for  production purposes
+from nemo.utils import logging
+
+try:
+    import pynini
+    from pynini.export import export
+
+    PYNINI_AVAILABLE = True
+except (ModuleNotFoundError, ImportError):
+
+    logging.warning(
+        "`pynini` is not installed ! \n"
+        "Please run the `nemo_text_processing/setup.sh` script"
+        "prior to usage of this toolkit."
+    )
+
+    PYNINI_AVAILABLE = False
+
+
+# This script exports compiled grammars inside nemo_text_processing into OpenFst finite state archive files tokenize_and_classify.far and verbalize.far for production purposes
 
 
 def _generator_main(file_name: str, graphs: Dict[str, pynini.FstLike]):
@@ -55,8 +71,8 @@ def itn_grammars(**kwargs):
 
 def tn_grammars(**kwargs):
     d = {}
-    d['classify'] = {'TOKENIZE_AND_CLASSIFY': TNClassifyFst(input_case=kwargs["input_case"]).fst}
-    d['verbalize'] = {'ALL': TNVerbalizeFst().fst, 'REDUP': pynini.accep("REDUP")}
+    d['classify'] = {'TOKENIZE_AND_CLASSIFY': TNClassifyFst(input_case=kwargs["input_case"], deterministic=True).fst}
+    d['verbalize'] = {'ALL': TNVerbalizeFst(deterministic=True).fst, 'REDUP': pynini.accep("REDUP")}
     return d
 
 
