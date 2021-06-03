@@ -91,7 +91,7 @@ class TestWaveGlow:
             res1 = model.waveglow(*inp1)
             res2 = model.waveglow(*inp2)
             assert torch.allclose(res1, res2, rtol=0.01, atol=0.1)
-
+            WaveGlowModel.forward_for_export = forward_wrapper
             model.export(
                 tmp_file_name,
                 verbose=True,
@@ -101,7 +101,6 @@ class TestWaveGlow:
                 check_trace=False,
                 do_constant_folding=True,
                 dynamic_axes={"spec": [0], "z": [0], "audio": [0]},
-                forward_method=forward_wrapper,
             )
 
 
