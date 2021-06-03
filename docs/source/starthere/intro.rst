@@ -34,7 +34,7 @@ Before you begin using NeMo, it's assumed you meet the following prerequisites.
 
 #. You have Python version 3.6, 3.7 or 3.8.
 
-#. You have Pytorch version 1.7.1.
+#. You have Pytorch version 1.8.1.
 
 #. You have access to a Volta, Turing, or an NVIDIA Ampere architecture-based A100 GPU for training.
 
@@ -105,7 +105,7 @@ Use this installation mode if you want the latest released version.
 
     apt-get update && apt-get install -y libsndfile1 ffmpeg
     pip install Cython
-    pip install nemo_toolkit[all]==1.0.0rc1
+    pip install nemo_toolkit[all]
 
 Pip from source
 ~~~~~~~~~~~~~~~
