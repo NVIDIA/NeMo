@@ -339,7 +339,7 @@ We can specify configuration files using the ``--config-path`` and ``--config-na
 .. code-block:: bash
 
     python examples/asr/speech_to_text.py \
-        --config-path=conf \
+        --config-path=conf/quartznet \
         --config-name=quartznet_15x5 \
         model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
         model.validation_ds.manifest_filepath=/path/to/my/validation/manifest.json \
@@ -409,7 +409,7 @@ Optimizers can be configured from the CLI as well:
 .. code-block:: bash
 
     python examples/asr/speech_to_text.py \
-        --config-path=conf \
+        --config-path=conf/quartznet \
         --config-name=quartznet_15x5 \
         ...
         # train with the adam optimizer
