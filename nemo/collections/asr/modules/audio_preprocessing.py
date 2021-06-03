@@ -20,8 +20,8 @@ from typing import Any, Optional
 import torch
 from packaging import version
 
-from nemo.collections.asr.parts.features import FilterbankFeatures
-from nemo.collections.asr.parts.spectr_augment import SpecAugment, SpecCutout
+from nemo.collections.asr.parts.preprocessing.features import FilterbankFeatures
+from nemo.collections.asr.parts.submodules.spectr_augment import SpecAugment, SpecCutout
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import (
     AudioSignal,
@@ -425,13 +425,6 @@ class SpectrogramAugmentation(NeuralModule):
             Defaults to 25.
     """
 
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
-
     @property
     def input_types(self):
         """Returns definitions of module input types
@@ -462,7 +455,7 @@ class SpectrogramAugmentation(NeuralModule):
             self.spec_cutout = SpecCutout(rect_masks=rect_masks, rect_time=rect_time, rect_freq=rect_freq, rng=rng,)
             # self.spec_cutout.to(self._device)
         else:
-            self.spec_cutout = lambda x: x
+            self.spec_cutout = lambda input_spec: input_spec
 
         if freq_masks + time_masks > 0:
             self.spec_augment = SpecAugment(
@@ -474,12 +467,12 @@ class SpectrogramAugmentation(NeuralModule):
                 mask_value=mask_value,
             )
         else:
-            self.spec_augment = lambda x: x
+            self.spec_augment = lambda input_spec: input_spec
 
     @typecheck()
     def forward(self, input_spec):
-        augmented_spec = self.spec_cutout(input_spec)
-        augmented_spec = self.spec_augment(augmented_spec)
+        augmented_spec = self.spec_cutout(input_spec=input_spec)
+        augmented_spec = self.spec_augment(input_spec=augmented_spec)
         return augmented_spec
 
 

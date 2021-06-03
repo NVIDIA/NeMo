@@ -21,18 +21,8 @@ from builtins import str as unicode
 from typing import List
 
 import nltk
-from nltk.corpus import cmudict
 
-from nemo.collections.asr.parts import parsers
-
-try:
-    nltk.data.find('taggers/averaged_perceptron_tagger.zip')
-except LookupError:
-    nltk.download('averaged_perceptron_tagger', quiet=True)
-try:
-    nltk.data.find('corpora/cmudict.zip')
-except LookupError:
-    nltk.download('cmudict', quiet=True)
+from nemo.collections.common.parts.preprocessing import parsers
 
 try:
     import g2p_en  # noqa
@@ -70,6 +60,16 @@ class G2p:
         text_preprocessing_func=_text_preprocessing,
         word_tokenize_func=_word_tokenize,
     ):
+        # Download NLTK datasets if this class is to be instantiated
+        try:
+            nltk.data.find('taggers/averaged_perceptron_tagger.zip')
+        except LookupError:
+            nltk.download('averaged_perceptron_tagger', quiet=True)
+        try:
+            nltk.data.find('corpora/cmudict.zip')
+        except LookupError:
+            nltk.download('cmudict', quiet=True)
+
         self.homograph2features = _g2p.homograph2features
         self.g2p_dict = self._construct_grapheme2phoneme_dict(phoneme_dict_path)
         self.use_seq2seq_for_oov = use_seq2seq_for_oov
@@ -81,6 +81,8 @@ class G2p:
     @staticmethod
     def _construct_grapheme2phoneme_dict(phoneme_dict_path=None, encoding='latin-1'):
         if phoneme_dict_path is None:
+            from nltk.corpus import cmudict
+
             return cmudict.dict()
 
         _alt_re = re.compile(r'\([0-9]+\)')
