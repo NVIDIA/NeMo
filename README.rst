@@ -74,7 +74,7 @@ Documentation
 +=========+=============+==================================================================================================================================+
 | Latest  | |main|      | `Documentation of the latest (i.e. main) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/>`_          |
 +---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
-| Next    | |v1.0.0| | `Documentation of the most recent release: v1.0.0 <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.0/>`_ |
+| Next    | |v1.0.0|    | `Documentation of the most recent release: v1.0.0 <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.0/>`_       |
 +---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
 | Stable  | |stable|    | `Documentation of the stable (i.e. stable) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/>`_      |
 +---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
