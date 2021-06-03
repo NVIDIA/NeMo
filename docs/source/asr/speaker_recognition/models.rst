@@ -40,7 +40,7 @@ N for the larger (L) model, and a single linear layer of output size 256 to the 
 of fixed size 512, 256 for SpeakerNet-L and SpeakerNet-M
 models respectively.
 
-SpeakerNet models can be instantiated using the :class:`EncDecSpeakerLabelModel<nemo.collections.asr.models.EncDecSpeakerLabelModel>` class.
+SpeakerNet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecSpeakerLabelModel` class.
 
 
 References
