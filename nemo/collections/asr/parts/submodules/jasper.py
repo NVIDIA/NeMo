@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import contextlib
 import math
 from typing import Callable, List, Optional, Tuple
 
@@ -414,7 +414,7 @@ class SqueezeExcite(nn.Module):
         # The use of negative indices on the transpose allow for expanded SqueezeExcite
         batch, channels, timesteps = x.size()[:3]
         # Computes in float32 to avoid instabilities during training with AMP.
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.cuda.amp.autocast(enabled=False) if self.training else contextlib.nullcontext():
             x = x.float()
             if timesteps < self.context_window:
                 y = self.gap(x)
