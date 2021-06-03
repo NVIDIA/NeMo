@@ -28,7 +28,7 @@ ReLU, and dropout:
         :alt: japer model
         :scale: 50%
 
-Jasper models can be instantiated using the :class:`EncDecCTCModel<nemo.collections.asr.models.EncDecCTCModel>` class.
+Jasper models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModel` class.
 
 QuartzNet
 ---------
@@ -44,7 +44,7 @@ ReLU, and dropout:
         :alt: quartznet model
         :scale: 40%
 
-QuartzNet models can be instantiated using the :class:`EncDecCTCModel<nemo.collections.asr.models.EncDecCTCModel>` class.
+QuartzNet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModel` class.
 
 Citrinet
 --------
@@ -58,7 +58,7 @@ obtain highly accurate audio transcripts while utilizing a non-autoregressive CT
         :alt: citrinet model
         :scale: 50%
 
-Citrinet models can be instantiated using the :class:`EncDecCTCModelBPE<nemo.collections.asr.models.EncDecCTCModelBPE>` class.
+Citrinet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModelBPE` class.
 
 .. _Conformer-CTC_model:
 
@@ -79,10 +79,14 @@ Here is the overall architecture of the encoder of Conformer-CTC:
         :alt: Conformer-CTC Model
         :scale: 50%
 
-This model supports both the sub-word level and character level encodings. You can find more details on the config files for the 
-Conformer-CTC models at :doc:`Conformer-CTC <./configs.html#conformer-ctc>`. The variant with sub-word encoding is a BPE-based model 
-which can be instantiated using the :class:`EncDecCTCModelBPE<nemo.collections.asr.models.EncDecCTCModelBPE>` class, while the
-character-based variant is based on :class:`EncDecCTCModel<nemo.collections.asr.models.EncDecCTCModel>`.
+This model supports both the sub-word level and character level encodings. You can find more details on the config files for the
+Conformer-CTC models at `Conformer-CTC <./configs.html#conformer-ctc>`. The variant with sub-word encoding is a BPE-based model
+which can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModelBPE` class, while the
+character-based variant is based on :class:`~nemo.collections.asr.models.EncDecCTCModel`.
+
+You may find the example config files of Conformer-CTC model with character-based encoding at
+``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_char.yaml`` and
+with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_bpe.yaml``.
 
 References
 ----------
