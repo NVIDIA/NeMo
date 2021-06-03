@@ -54,7 +54,7 @@ class TestExportable:
         model = hifigan_model.cuda()
         assert hifigan_model.generator is not None
         with tempfile.TemporaryDirectory() as tmpdir:
-            filename = os.path.join(tmpdir, 'hfg.onnx')
+            filename = os.path.join(tmpdir, 'hfg.pt')
             model.export(output=filename, verbose=True, check_trace=True)
 
 
