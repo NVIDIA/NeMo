@@ -19,7 +19,6 @@ pydub
 pyannote.core
 pyannote.metrics
 pyamg
-spectralcluster
 torch-stft
 ipywidgets
 matplotlib

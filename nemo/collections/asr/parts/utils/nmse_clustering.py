@@ -239,12 +239,15 @@ def COSclustering(key, emb, oracle_num_speakers=None, max_num_speaker=8):
     """
     est_num_spks_out_list = []
     mat = get_eigen_matrix(emb)
+    if emb.shape[0] > 6:
 
-    if oracle_num_speakers:
-        max_num_speaker = oracle_num_speakers
+        if oracle_num_speakers:
+            max_num_speaker = oracle_num_speakers
 
-    X_conn_spkcount, rp_thres_spkcount, est_num_of_spk, lambdas, p_neigh = NMEanalysis(mat, max_num_speaker)
-    X_conn_from_dist = get_X_conn_from_dist(mat, p_neigh)
+        X_conn_spkcount, rp_thres_spkcount, est_num_of_spk, lambdas, p_neigh = NMEanalysis(mat, max_num_speaker)
+        X_conn_from_dist = get_X_conn_from_dist(mat, p_neigh)
+    else:
+        X_conn_from_dist = mat
 
     if oracle_num_speakers:
         est_num_of_spk = oracle_num_speakers

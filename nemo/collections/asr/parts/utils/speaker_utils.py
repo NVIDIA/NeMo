@@ -21,7 +21,6 @@ import numpy as np
 from omegaconf import ListConfig
 from pyannote.core import Annotation, Segment
 from pyannote.metrics.diarization import DiarizationErrorRate
-from spectralcluster import SpectralClusterer
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.utils.nmse_clustering import COSclustering
@@ -259,15 +258,12 @@ def perform_clustering(
         emb = embeddings[uniq_key]
         emb = np.asarray(emb)
 
-        if clustering_type == 'nme':
-            cluster_labels = COSclustering(
-                uniq_key, emb, oracle_num_speakers=NUM_speakers, max_num_speaker=max_num_speakers
-            )
-        else:
-            cluster_labels = cluster_method = SpectralClusterer(min_clusters=2, max_clusters=NUM_speakers)
-            cluster_labels = cluster_method.predict(emb)
+        cluster_labels = COSclustering(
+            uniq_key, emb, oracle_num_speakers=NUM_speakers, max_num_speaker=max_num_speakers
+        )
 
         lines = time_stamps[uniq_key]
+
         assert len(cluster_labels) == len(lines)
         for idx, label in enumerate(cluster_labels):
             tag = 'speaker_' + str(label)
