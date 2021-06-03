@@ -48,7 +48,7 @@ Requirements
 ------------
 
 1) Python 3.6, 3.7 or 3.8
-2) Pytorch 1.8.0 or above
+2) Pytorch 1.8.1 or above
 3) NVIDIA GPU for training
 
 Documentation
@@ -99,7 +99,7 @@ Use this installation mode if you want the latest released version.
 
     apt-get update && apt-get install -y libsndfile1 ffmpeg
     pip install Cython
-    pip install nemo_toolkit['all']==1.0.0rc1
+    pip install nemo_toolkit['all']
 
 Pip from source
 ~~~~~~~~~~~~~~~
