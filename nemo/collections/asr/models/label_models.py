@@ -342,7 +342,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
     def get_embedding(self, path2audio_file):
         audio, sr = librosa.load(path2audio_file, sr=None)
         if sr != 16000:
-            raise ValueError("Make sure input audio has sample rate of 16Khz")
+            audio = librosa.core.resample(audio, sr, 16000)
         audio_length = audio.shape[0]
         device = self.device
         audio_signal, audio_signal_len = (
@@ -352,7 +352,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self.eval()
         self.freeze()
         _, embs = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-
+        del audio_signal, audio_signal_len
         return embs
 
 
