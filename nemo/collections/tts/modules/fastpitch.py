@@ -46,21 +46,21 @@ import torch
 import torch.nn.functional as F
 from torch import nn as nn
 
+from nemo.collections.tts.helpers.helpers import binarize_attention_parallel
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types.elements import (
     EncodedRepresentation,
     Index,
+    LengthsType,
+    LogprobsType,
     MelSpectrogramType,
+    ProbsType,
     RegressionValuesType,
     TokenDurationType,
     TokenIndex,
     TokenLogDurationType,
-    ProbsType,
-    LengthsType,
-    LogprobsType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.collections.tts.helpers.helpers import binarize_attention_parallel
 
 
 def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
@@ -296,4 +296,3 @@ class FastPitchModule(NeuralModule):
             attn_hard_dur,
             pitch,
         )
-
