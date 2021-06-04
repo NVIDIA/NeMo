@@ -307,6 +307,6 @@ class FastPitchModule(NeuralModule):
             A tuple of input examples.
         """
         par = next(self.parameters())
-        inp = torch.randint(0, 146, (1, 44), device=par.device, dtype=torch.int64)
+        inp = torch.randint(0, 16, (1, 44), device=par.device, dtype=torch.int64)
 
         return ({'text': inp},)
