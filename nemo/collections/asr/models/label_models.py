@@ -341,8 +341,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
     @torch.no_grad()
     def get_embedding(self, path2audio_file):
         audio, sr = librosa.load(path2audio_file, sr=None)
-        if sr != 16000:
-            audio = librosa.core.resample(audio, sr, 16000)
+        target_sr = self._cfg.train_ds.get('sample_rate', 16000)
+        if sr != target_sr:
+            audio = librosa.core.resample(audio, sr, target_sr)
         audio_length = audio.shape[0]
         device = self.device
         audio_signal, audio_signal_len = (
