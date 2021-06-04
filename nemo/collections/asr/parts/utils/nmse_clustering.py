@@ -237,7 +237,7 @@ def COSclustering(key, emb, oracle_num_speakers=None, max_num_speaker=8):
     output:
     Y (List[int]): speaker labels
     """
-    MIN_SAMPLES = 6
+    MIN_SAMPLES = 6 # minimum number of samples required for NME clustering
     est_num_spks_out_list = []
     mat = get_eigen_matrix(emb)
     if oracle_num_speakers:
