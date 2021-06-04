@@ -1,5 +1,5 @@
 name: "FastPitch"
-sample_rate: 44100
+sample_rate: 22050
 train_dataset: ???
 validation_datasets: ???
 prior_folder: ???
@@ -11,8 +11,12 @@ model:
   max_token_duration: 75
   n_mel_channels: 80
   pitch_embedding_kernel_size: 3
-  n_window_size: 2048
-  n_window_stride: 512
+  n_window_size: 1024
+  n_window_stride: 256
+  pitch_fmin: 80
+  pitch_fmax: 640
+  pitch_avg: 211.27540199742586
+  pitch_std: 52.1851002822779
 
   train_ds:
     dataset:
@@ -27,10 +31,10 @@ model:
       sup_data_path: ${prior_folder}
       n_window_stride: ${model.n_window_stride}
       n_window_size: ${model.n_window_size}
-      pitch_fmin: 80
-      pitch_fmax: 640
-      pitch_avg: 216.23100173462166
-      pitch_std: 46.24582950436719
+      pitch_fmin: ${model.pitch_fmin}
+      pitch_fmax: ${model.pitch_fmax}
+      pitch_avg: ${model.pitch_avg}
+      pitch_std: ${model.pitch_std}
       vocab:
         notation: phonemes
         punct: true
@@ -60,10 +64,10 @@ model:
       sup_data_path: ${prior_folder}
       n_window_stride: ${model.n_window_stride}
       n_window_size: ${model.n_window_size}
-      pitch_fmin: 80
-      pitch_fmax: 640
-      pitch_avg: 216.23100173462166
-      pitch_std: 46.24582950436719
+      pitch_fmin: ${model.pitch_fmin}
+      pitch_fmax: ${model.pitch_fmax}
+      pitch_avg: ${model.pitch_avg}
+      pitch_std: ${model.pitch_std}
       vocab:
         notation: phonemes
         punct: true
@@ -100,7 +104,7 @@ model:
     window_size: null
     window_stride: null
 
-  input_fft:
+  input_fft: #n_embed and padding_idx are added by the model
     _target_: nemo.collections.tts.modules.transformer.FFTransformerEncoder
     n_layer: 6
     n_head: 1
@@ -111,9 +115,7 @@ model:
     dropout: 0.1
     dropatt: 0.1
     dropemb: 0.0
-    # n_embed: 148  # NOTE Should match # of tokens in `symbol_set`
     d_embed: ${model.symbols_embedding_dim}
-    # padding_idx: 0
 
   output_fft:
     _target_: nemo.collections.tts.modules.transformer.FFTransformerDecoder

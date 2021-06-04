@@ -46,18 +46,16 @@ import torch
 import torch.nn.functional as F
 from torch import nn as nn
 
-from nemo.collections.tts.helpers.helpers import binarize_attention, binarize_attention_parallel
+from nemo.collections.tts.helpers.helpers import binarize_attention_parallel
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types.elements import (
     EncodedRepresentation,
     Index,
     LengthsType,
     LogprobsType,
-    MaskType,
     MelSpectrogramType,
     ProbsType,
     RegressionValuesType,
-    SequenceToSequenceAlignmentType,
     TokenDurationType,
     TokenIndex,
     TokenLogDurationType,
