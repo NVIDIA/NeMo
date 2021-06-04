@@ -5,15 +5,15 @@ Model NLP
 
 The config file for NLP models contain three main sections:
 
-    - ``trainer``: contains the configs for PTL training. For more information, refer to :doc:`../core/core.html#model-training` and `PTL Trainer class API <https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html#trainer-class-api>'.
-    - ``exp_manager``: the configs of the experiment manager. For more information, refer to :doc:`../core/core.html#experiment-manager`.
+    - ``trainer``: contains the configs for PTL training. For more information, refer to :doc:`../core/core` and `PTL Trainer class API <https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html#trainer-class-api>'.
+    - ``exp_manager``: the configs of the experiment manager. For more information, refer to :doc:`../core/core`.
     - ``model``: contains the configs of the datasets, model architecture, tokenizer, optimizer, scheduler, etc.
 
 The following sub-sections of the model section are shared among most of the NLP models.
 
     - ``tokenizer``: specifies the tokenizer
     - ``language_model``: specifies the underlying model to be used as the encoder
-    - ``optim``: the configs of the optimizer and scheduler :doc:`../core/core.html`
+    - ``optim``: the configs of the optimizer and scheduler :doc:`../core/core`
 
 The ``tokenizer`` and ``language_model`` sections have the following parameters:
 
