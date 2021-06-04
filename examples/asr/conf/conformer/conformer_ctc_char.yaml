@@ -1,20 +1,7 @@
 # It contains the default values for training a Conformer-CTC ASR model, large size (~120M) with CTC loss and char-based vocabulary.
-# Char-based encoding may give worse results than sub-word encoding (conformer_ctc_bpe.yaml) due to the 4x sub-sampling.
-# Default learning parameters in this config are set for effective batch size of 2K.
-# To train it with smaller effective batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
+# Char-based encoding may give lower accuracy than sub-word encoding (conformer_ctc_bpe.yaml).
 
-# Here are the recommended configs for different variants of Conformer-CTC, other parameters are the same as in this config file.
-# One extra layer (compared to original paper) is added to the medium and large variants to compensate for replacing the LSTM decoder with a linear one.
-
-#  +-------------+---------+---------+----------+------------+
-#  | Model       | d_model | n_heads | n_layers | time_masks |
-#  +=============+=========+========+===========+============+
-#  | Small  (13M)|   176   |    4   |    16     |     5      |
-#  +-------------+---------+--------+-----------+------------+
-#  | Medium (30M)|   256   |    4   |    17     |     10     |
-#  +-------------+---------+--------+-----------+------------+
-#  | Large (121M)|   512   |    8   |    18     |     10     |
-#  +----------------------------------------------------------
+# You may find more detail on Conformer-CTC at `examples/asr/conf/conformer/conformer_ctc_bpe.yaml`
 
 name: "Conformer-CTC-Char"
 
@@ -117,13 +104,14 @@ model:
     vocabulary: ${model.labels}
 
   optim:
-    name: adam
-    lr: 2
+    name: adamw
+    lr: 2.0
     # optimizer arguments
     betas: [0.9, 0.98]
-    # less need for weight_decay as we already have large augmentations with SpecAug
-    # you may need weight_decay for large models, small datasets, or when lower augmentation is used
-    weight_decay: 0.0
+    # less necessity for weight_decay as we already have large augmentations with SpecAug
+    # you may need weight_decay for large models, stable AMP training, small datasets, or when lower augmentations are used
+    # weight decay of 0.0 with lr of 2.0 also works fine
+    weight_decay: 1e-3
 
     # scheduler setup
     sched:
