@@ -261,7 +261,6 @@ def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rt
         )
 
         lines = time_stamps[uniq_key]
-
         assert len(cluster_labels) == len(lines)
         for idx, label in enumerate(cluster_labels):
             tag = 'speaker_' + str(label)
