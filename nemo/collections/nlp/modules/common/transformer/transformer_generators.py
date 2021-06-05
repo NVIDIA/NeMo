@@ -513,7 +513,7 @@ class EnsembleBeamSearchSequenceGenerator:
         # probs = torch.stack(probs_list) # Ens x B x T x V
         # return torch.log(probs.sum(0) / probs.sum(-1).sum(0).unsqueeze(-1))
 
-    def _forward(self, src_ids, encoder_input_mask, decoder_input_ids=None):
+    def _forward(self, src_ids, encoder_input_mask, decoder_input_ids=None, return_beam_scores=False):
         encoder_hidden_states = [
             self._get_encoder_hidden_states(src_ids, encoder_input_mask, i) for i in range(self.num_models)
         ]
@@ -624,15 +624,18 @@ class EnsembleBeamSearchSequenceGenerator:
         # select best performing hypotheses in each element of the batch
         len_penalties = self.compute_len_penalty(prefixes_len, self.len_pen)
         scores = scores / len_penalties
-        best_guesses = (
-            torch.argmax(scores.view(-1, self.beam_size), dim=1, keepdim=True).repeat(1, prefixes.size(1)).unsqueeze(1)
-        )
-        tgt = prefixes.view(batch_size, self.beam_size, -1).gather(1, best_guesses)
-        return tgt.squeeze(1)
+        if return_beam_scores:
+            return prefixes, scores
+        else:
+            best_guesses = (
+                torch.argmax(scores.view(-1, self.beam_size), dim=1, keepdim=True).repeat(1, prefixes.size(1)).unsqueeze(1)
+            )
+            tgt = prefixes.view(batch_size, self.beam_size, -1).gather(1, best_guesses)
+            return tgt.squeeze(1)
 
-    def __call__(self, src_ids, encoder_input_mask, decoder_input_ids=None):
+    def __call__(self, src_ids, encoder_input_mask, decoder_input_ids=None, return_beam_scores=False):
         with self.as_frozen():
-            return self._forward(src_ids, encoder_input_mask, decoder_input_ids)
+            return self._forward(src_ids, encoder_input_mask, decoder_input_ids, return_beam_scores)
 
     def freeze(self) -> None:
         """Freeze weights of embedding, decoder, and classification layers to prevent memory leak.
