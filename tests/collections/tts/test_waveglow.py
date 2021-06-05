@@ -41,7 +41,7 @@ mcfg = DictConfig(
 
 pcfg = DictConfig(
     {
-        "_target_": "nemo.collections.asr.parts.features.FilterbankFeatures",
+        "_target_": "nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures",
         "dither": 0.0,
         "nfilt": 80,
         "stft_conv": True,
@@ -91,7 +91,7 @@ class TestWaveGlow:
             res1 = model.waveglow(*inp1)
             res2 = model.waveglow(*inp2)
             assert torch.allclose(res1, res2, rtol=0.01, atol=0.1)
-
+            WaveGlowModel.forward_for_export = forward_wrapper
             model.export(
                 tmp_file_name,
                 verbose=True,
@@ -101,20 +101,7 @@ class TestWaveGlow:
                 check_trace=False,
                 do_constant_folding=True,
                 dynamic_axes={"spec": [0], "z": [0], "audio": [0]},
-                forward_method=forward_wrapper,
             )
-
-            try:
-                test_runtime = True
-                import onnxruntime
-            except (ImportError, ModuleNotFoundError):
-                test_runtime = False
-            if test_runtime:
-                omodel = onnx.load(tmp_file_name)
-                output_names = ['audio']
-                sess = onnxruntime.InferenceSession(omodel.SerializeToString())
-                output = sess.run(None, {"spec": inp[0].cpu().numpy(), "z": inp[1].cpu().numpy()})[0]
-                assert torch.allclose(torch.from_numpy(output), res2.cpu(), rtol=1, atol=100)
 
 
 if __name__ == "__main__":

@@ -20,8 +20,10 @@ from typing import Any, Optional
 import torch
 from packaging import version
 
-from nemo.collections.asr.parts.features import FilterbankFeatures
-from nemo.collections.asr.parts.spectr_augment import SpecAugment, SpecCutout
+from nemo.collections.asr.parts.numba import __NUMBA_MINIMUM_VERSION__, numba_utils
+from nemo.collections.asr.parts.numba.spec_augment import SpecAugmentNumba, spec_augment_launch_heuristics
+from nemo.collections.asr.parts.preprocessing.features import FilterbankFeatures
+from nemo.collections.asr.parts.submodules.spectr_augment import SpecAugment, SpecCutout
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import (
     AudioSignal,
@@ -425,18 +427,14 @@ class SpectrogramAugmentation(NeuralModule):
             Defaults to 25.
     """
 
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
-
     @property
     def input_types(self):
         """Returns definitions of module input types
         """
-        return {"input_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
+        return {
+            "input_spec": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "length": NeuralType(tuple('B'), LengthsType(), optional=True),
+        }
 
     @property
     def output_types(self):
@@ -455,6 +453,7 @@ class SpectrogramAugmentation(NeuralModule):
         rect_freq=20,
         rng=None,
         mask_value=0.0,
+        use_numba_spec_augment: bool = True,
     ):
         super().__init__()
 
@@ -462,7 +461,7 @@ class SpectrogramAugmentation(NeuralModule):
             self.spec_cutout = SpecCutout(rect_masks=rect_masks, rect_time=rect_time, rect_freq=rect_freq, rng=rng,)
             # self.spec_cutout.to(self._device)
         else:
-            self.spec_cutout = lambda x: x
+            self.spec_cutout = lambda input_spec: input_spec
 
         if freq_masks + time_masks > 0:
             self.spec_augment = SpecAugment(
@@ -474,12 +473,31 @@ class SpectrogramAugmentation(NeuralModule):
                 mask_value=mask_value,
             )
         else:
-            self.spec_augment = lambda x: x
+            self.spec_augment = lambda input_spec: input_spec
+
+        # Check if numba is supported, and use a Numba kernel if it is
+        if use_numba_spec_augment and numba_utils.numba_cuda_is_supported(__NUMBA_MINIMUM_VERSION__):
+            self.spec_augment_numba = SpecAugmentNumba(
+                freq_masks=freq_masks,
+                time_masks=time_masks,
+                freq_width=freq_width,
+                time_width=time_width,
+                rng=rng,
+                mask_value=mask_value,
+            )
+        else:
+            self.spec_augment_numba = None
 
     @typecheck()
-    def forward(self, input_spec):
-        augmented_spec = self.spec_cutout(input_spec)
-        augmented_spec = self.spec_augment(augmented_spec)
+    def forward(self, input_spec, length=None):
+        augmented_spec = self.spec_cutout(input_spec=input_spec)
+
+        # To run the Numba kernel, correct numba version is required as well as
+        # tensor must be on GPU and length must be provided
+        if self.spec_augment_numba is not None and spec_augment_launch_heuristics(augmented_spec, length):
+            augmented_spec = self.spec_augment_numba(input_spec=augmented_spec, length=length)
+        else:
+            augmented_spec = self.spec_augment(input_spec=augmented_spec)
         return augmented_spec
 
 
@@ -615,6 +633,7 @@ class SpectrogramAugmentationConfig:
     rect_freq: int = 0
     mask_value: float = 0
     rng: Optional[Any] = None  # random.Random() type
+    use_numba_spec_augment: bool = True
 
 
 @dataclass

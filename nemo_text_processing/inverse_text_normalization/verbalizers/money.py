@@ -28,7 +28,7 @@ except (ModuleNotFoundError, ImportError):
 class MoneyFst(GraphFst):
     """
     Finite state transducer for verbalizing money, e.g.
-        money { integer_part: "12" fractional_part: 05 currency: "$" } -> $12.05
+        money { integer_part: "12" fractional_part: "05" currency: "$" } -> $12.05
 
     Args:
         decimal: DecimalFst

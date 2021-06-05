@@ -17,8 +17,9 @@ import torch
 from omegaconf import OmegaConf
 
 from nemo.collections.asr import modules
-from nemo.collections.asr.parts.rnnt_utils import Hypothesis
-from nemo.utils import config_utils
+from nemo.collections.asr.parts.numba import __NUMBA_MINIMUM_VERSION__, numba_utils
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
+from nemo.utils import config_utils, logging
 
 
 class TestASRModulesBasicTests:
@@ -113,7 +114,9 @@ class TestASRModulesBasicTests:
     @pytest.mark.unit
     def test_SpectrogramAugmentationr(self):
         # Make sure constructor works
-        instance1 = modules.SpectrogramAugmentation(freq_masks=10, time_masks=3, rect_masks=3)
+        instance1 = modules.SpectrogramAugmentation(
+            freq_masks=10, time_masks=3, rect_masks=3, use_numba_spec_augment=False
+        )
         assert isinstance(instance1, modules.SpectrogramAugmentation)
 
         # Make sure forward doesn't throw with expected input
@@ -124,6 +127,37 @@ class TestASRModulesBasicTests:
         res = instance1(input_spec=res0[0])
 
         assert res.shape == res0[0].shape
+
+    @pytest.mark.unit
+    @pytest.mark.run_only_on('GPU')
+    def test_SpectrogramAugmentationr_numba_kernel(self, caplog):
+        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+
+        logging._logger.propagate = True
+        original_verbosity = logging.get_verbosity()
+        logging.set_verbosity(logging.DEBUG)
+        caplog.set_level(logging.DEBUG)
+
+        # Make sure constructor works
+        instance1 = modules.SpectrogramAugmentation(
+            freq_masks=10, time_masks=3, rect_masks=3, use_numba_spec_augment=True
+        )
+        assert isinstance(instance1, modules.SpectrogramAugmentation)
+
+        # Make sure forward doesn't throw with expected input
+        instance0 = modules.AudioToMelSpectrogramPreprocessor(dither=0)
+        input_signal = torch.randn(size=(8, 512))
+        length = torch.randint(low=161, high=500, size=[8])
+        res0 = instance0(input_signal=input_signal, length=length)
+        res = instance1(input_spec=res0[0], length=length)
+
+        assert res.shape == res0[0].shape
+
+        # check tha numba kernel debug message indicates that it is available for use
+        assert """Numba SpecAugment kernel is available""" in caplog.text
+
+        logging._logger.propagate = False
+        logging.set_verbosity(original_verbosity)
 
     @pytest.mark.unit
     def test_SpectrogramAugmentationr_config(self):

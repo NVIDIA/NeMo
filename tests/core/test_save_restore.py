@@ -22,8 +22,9 @@ import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
-from nemo.collections.nlp.models import PunctuationCapitalizationModel
+from nemo.collections.nlp.models import PunctuationCapitalizationModel, TransformerLMModel
 from nemo.core.classes import ModelPT
+from nemo.utils.app_state import AppState
 
 
 def getattr2(object, attr):
@@ -169,7 +170,6 @@ class TestSaveRestore:
 
             # Save test
             model_copy = self.__test_restore_elsewhere(model, map_location='cpu')
-            # assert filecmp.cmp(model.temp_file, model_copy.temp_file)
 
         # Restore test
         diff = model.w.weight - model_copy.w.weight
@@ -228,7 +228,6 @@ class TestSaveRestore:
 
             # Save test (with overriden config as OmegaConf object)
             model_copy = self.__test_restore_elsewhere(model, map_location='cpu', override_config_path=cfg)
-            assert filecmp.cmp(model.temp_file, model_copy.temp_file)
 
         # Restore test
         diff = model.w.weight - model_copy.w.weight
@@ -270,7 +269,6 @@ class TestSaveRestore:
             # Restore test
             diff = model.w.weight - model_copy.w.weight
             assert diff.mean() <= 1e-9
-            # assert os.path.basename(model.temp_file) == model_copy.temp_file
             assert filecmp.cmp(model.temp_file, model_copy.temp_file)
             assert model_copy.temp_data == ["*****\n"]
 
@@ -310,3 +308,136 @@ class TestSaveRestore:
         assert diff.mean() <= 1e-9
         assert isinstance(model_copy, MockModel)
         assert model_copy.temp_data == ["*****\n"]
+
+    @pytest.mark.unit
+    def test_mock_save_to_restore_from_multiple_models(self):
+        with tempfile.NamedTemporaryFile('w') as empty_file, tempfile.NamedTemporaryFile('w') as empty_file2:
+            # Write some data
+            empty_file.writelines(["*****\n"])
+            empty_file.flush()
+            empty_file2.writelines(["+++++\n"])
+            empty_file2.flush()
+
+            # Update config + create ,pde;s
+            cfg = _mock_model_config()
+            cfg.model.temp_file = empty_file.name
+            cfg2 = _mock_model_config()
+            cfg2.model.temp_file = empty_file2.name
+
+            # Create models
+            model = MockModel(cfg=cfg.model, trainer=None)
+            model = model.to('cpu')
+            model2 = MockModel(cfg=cfg2.model, trainer=None)
+            model2 = model2.to('cpu')
+
+            assert model.temp_file == empty_file.name
+            assert model2.temp_file == empty_file2.name
+
+            # Save test
+            model_copy = self.__test_restore_elsewhere(model, map_location='cpu')
+            model2_copy = self.__test_restore_elsewhere(model2, map_location='cpu')
+
+        # Restore test
+        assert model_copy.temp_data == ["*****\n"]
+        assert model2_copy.temp_data == ["+++++\n"]
+
+    @pytest.mark.unit
+    def test_mock_save_to_restore_from_multiple_models_inverted_order(self):
+        with tempfile.NamedTemporaryFile('w') as empty_file, tempfile.NamedTemporaryFile('w') as empty_file2:
+            # Write some data
+            empty_file.writelines(["*****\n"])
+            empty_file.flush()
+            empty_file2.writelines(["+++++\n"])
+            empty_file2.flush()
+
+            # Update config + create ,pde;s
+            cfg = _mock_model_config()
+            cfg.model.temp_file = empty_file.name
+            cfg2 = _mock_model_config()
+            cfg2.model.temp_file = empty_file2.name
+
+            # Create models
+            model = MockModel(cfg=cfg.model, trainer=None)
+            model = model.to('cpu')
+            model2 = MockModel(cfg=cfg2.model, trainer=None)
+            model2 = model2.to('cpu')
+
+            assert model.temp_file == empty_file.name
+            assert model2.temp_file == empty_file2.name
+
+            # Save test (inverted order)
+            model2_copy = self.__test_restore_elsewhere(model2, map_location='cpu')
+            model_copy = self.__test_restore_elsewhere(model, map_location='cpu')
+
+        # Restore test
+        assert model_copy.temp_data == ["*****\n"]
+        assert model2_copy.temp_data == ["+++++\n"]
+
+    @pytest.mark.unit
+    def test_mock_save_to_restore_chained(self):
+        with tempfile.NamedTemporaryFile('w') as empty_file, tempfile.NamedTemporaryFile('w') as empty_file2:
+            # Write some data
+            empty_file.writelines(["*****\n"])
+            empty_file.flush()
+
+            # Update config + create ,pde;s
+            cfg = _mock_model_config()
+            cfg.model.temp_file = empty_file.name
+
+            # Create models
+            model = MockModel(cfg=cfg.model, trainer=None)
+            model = model.to('cpu')
+
+            assert model.temp_file == empty_file.name
+
+            def save_copy(model, save_folder, restore_folder):
+                # Where model will be saved
+                model_save_path = os.path.join(save_folder, f"{model.__class__.__name__}.nemo")
+                model.save_to(save_path=model_save_path)
+                # Where model will be restored from
+                model_restore_path = os.path.join(restore_folder, f"{model.__class__.__name__}.nemo")
+                shutil.copy(model_save_path, model_restore_path)
+                return model_restore_path
+
+            # Save test
+            with tempfile.TemporaryDirectory() as level4:
+                with tempfile.TemporaryDirectory() as level3:
+                    with tempfile.TemporaryDirectory() as level2:
+                        with tempfile.TemporaryDirectory() as level1:
+                            path = save_copy(model, level1, level2)
+                        model_copy2 = model.__class__.restore_from(path)
+                        path = save_copy(model_copy2, level2, level3)
+                    model_copy3 = model.__class__.restore_from(path)
+                    path = save_copy(model_copy3, level3, level4)
+                model_copy = model.__class__.restore_from(path)
+
+        # Restore test
+        assert model_copy.temp_data == ["*****\n"]
+
+        # AppState test
+        appstate = AppState()
+        metadata = appstate.get_model_metadata_from_guid(model_copy.model_guid)
+        assert metadata.guid != model.model_guid
+        assert metadata.restoration_path == path
+
+    @pytest.mark.unit
+    def test_mock_save_to_multiple_times(self):
+        with tempfile.NamedTemporaryFile('w') as empty_file, tempfile.TemporaryDirectory() as tmpdir:
+            # Write some data
+            empty_file.writelines(["*****\n"])
+            empty_file.flush()
+
+            # Update config
+            cfg = _mock_model_config()
+            cfg.model.temp_file = empty_file.name
+
+            # Create model
+            model = MockModel(cfg=cfg.model, trainer=None)  # type: MockModel
+            model = model.to('cpu')
+
+            assert model.temp_file == empty_file.name
+
+            # Save test
+            model.save_to(os.path.join(tmpdir, 'save_0.nemo'))
+            model.save_to(os.path.join(tmpdir, 'save_1.nemo'))
+            model.save_to(os.path.join(tmpdir, 'save_2.nemo'))

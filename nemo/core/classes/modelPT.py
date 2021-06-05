@@ -65,7 +65,6 @@ _MODEL_RESTORE_PATH:
 """
 _MODEL_IS_RESTORED = False
 _NEMO_FILE_FOLDER = None
-_MODEL_RESTORE_PATH = None
 
 
 class ModelPT(LightningModule, Model):
@@ -117,6 +116,8 @@ class ModelPT(LightningModule, Model):
         self.trainer = trainer  # reference required for self.*_rank
         self._trainer = self.trainer  # alias for backward compatibility
 
+        self._set_model_guid()
+
         # Set device_id in AppState
         if torch.cuda.is_available() and torch.cuda.current_device() is not None:
             app_state = AppState()
@@ -135,14 +136,14 @@ class ModelPT(LightningModule, Model):
         else:
             if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
                 logging.warning(
-                    f"Please call the ModelPT.setup_training_data() method "
+                    f"If you intend to do training or fine-tuning, please call the ModelPT.setup_training_data() method "
                     f"and provide a valid configuration file to setup the train data loader.\n"
                     f"Train config : \n{OmegaConf.to_yaml(self._cfg.train_ds)}"
                 )
 
             if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
                 logging.warning(
-                    f"Please call the ModelPT.setup_validation_data() or ModelPT.setup_multiple_validation_data() method "
+                    f"If you intend to do validation, please call the ModelPT.setup_validation_data() or ModelPT.setup_multiple_validation_data() method "
                     f"and provide a valid configuration file to setup the validation data loader(s). \n"
                     f"Validation config : \n{OmegaConf.to_yaml(self._cfg.validation_ds)}"
                 )
@@ -185,11 +186,13 @@ class ModelPT(LightningModule, Model):
         """
 
         app_state = AppState()
+
         if src is None or src == "":
             return src
 
         if not hasattr(self, 'artifacts'):
             self.artifacts = {}
+
         if self.artifacts is None:
             self.artifacts = {}
 
@@ -240,7 +243,7 @@ class ModelPT(LightningModule, Model):
         # we were called by ModelPT
         if hasattr(self, "cfg"):
             with open_dict(self._cfg):
-                self.cfg.update_node(config_path, return_path)
+                OmegaConf.update(self.cfg, config_path, return_path)
         return return_path
 
     def _handle_artifacts(self, nemo_file_folder):
@@ -258,10 +261,8 @@ class ModelPT(LightningModule, Model):
                 shutil.copy2(artiitem.path, os.path.join(nemo_file_folder, artifact_uniq_name))
 
                 # Update artifacts registry
-                new_artiitem = model_utils.ArtifactItem()
-                new_artiitem.path = "nemo:" + artifact_uniq_name
-                new_artiitem.path_type = model_utils.ArtifactPathType.TAR_PATH
-                self.artifacts[conf_path] = new_artiitem
+                artiitem.hashed_path = "nemo:" + artifact_uniq_name
+                self.artifacts[conf_path] = artiitem
 
             elif artiitem.path_type == model_utils.ArtifactPathType.TAR_PATH:
                 # process all tarfile artifacts in one go, so preserve key-value pair
@@ -272,7 +273,8 @@ class ModelPT(LightningModule, Model):
 
         # Process current tarfile artifacts by unpacking the previous tarfile and extract the artifacts
         # that are currently required.
-        if len(tarfile_artifacts) > 0:
+        model_metadata = app_state.get_model_metadata_from_guid(self.model_guid)
+        if len(tarfile_artifacts) > 0 and model_metadata.restoration_path is not None:
             # Need to step into nemo archive to extract file
             # Get path where the command is executed - the artifacts will be "retrieved" there
             # (original .nemo behavior)
@@ -280,7 +282,7 @@ class ModelPT(LightningModule, Model):
             try:
                 # Step into the nemo archive to try and find the file
                 with tempfile.TemporaryDirectory() as archive_dir:
-                    self._unpack_nemo_file(path2file=app_state.model_restore_path, out_folder=archive_dir)
+                    self._unpack_nemo_file(path2file=model_metadata.restoration_path, out_folder=archive_dir)
                     os.chdir(archive_dir)
                     for conf_path, artiitem in tarfile_artifacts:
                         # Get basename and copy it to nemo_file_folder
@@ -305,7 +307,10 @@ class ModelPT(LightningModule, Model):
         if self.artifacts is not None and len(self.artifacts) > 0:
             conf = OmegaConf.load(path2yaml_file)
             for conf_path, item in self.artifacts.items():
-                conf.update_node(conf_path, item.path)
+                if item.hashed_path is None:
+                    conf.update_node(conf_path, item.path)
+                else:
+                    conf.update_node(conf_path, item.hashed_path)
             with open(path2yaml_file, 'w') as fout:
                 OmegaConf.save(config=conf, f=fout, resolve=True)
 
@@ -473,9 +478,7 @@ class ModelPT(LightningModule, Model):
         if not path.exists(restore_path):
             raise FileNotFoundError(f"Can't find {restore_path}")
 
-        global _MODEL_RESTORE_PATH
-        _MODEL_RESTORE_PATH = os.path.abspath(os.path.expanduser(restore_path))
-        app_state.model_restore_path = _MODEL_RESTORE_PATH
+        app_state.model_restore_path = os.path.abspath(os.path.expanduser(restore_path))
         return cls._default_restore_from(restore_path, override_config_path, map_location, strict, return_config)
 
     @classmethod
@@ -1038,6 +1041,90 @@ class ModelPT(LightningModule, Model):
         """
         return self._test_names[dataloader_idx]
 
+    @rank_zero_only
+    def maybe_init_from_pretrained_checkpoint(self, cfg: OmegaConf, map_location: str = 'cpu'):
+        """
+        Initializes a given model with the parameters obtained via specific config arguments.
+        The state dict of the provided model will be updated with `strict=False` setting so as to prevent
+        requirement of exact model parameters matching.
+
+        Initializations:
+            init_from_nemo_model: Str path to a .nemo model, which will be instantiated in order
+                to extract the state dict.
+
+            init_from_pretrained_model: Str name of a pretrained model checkpoint (obtained via cloud).
+                The model will be downloaded (or a cached copy will be used), instantiated and then
+                its state dict will be extracted.
+
+            init_from_ptl_ckpt: Str name of a Pytorch Lightning checkpoint file. It will be loaded and
+                the state dict will extracted.
+
+        Args:
+            cfg: The config used to instantiate the model. It need only contain one of the above keys.
+            map_location: str or torch.device() which represents where the intermediate state dict
+                (from the pretrained model or checkpoint) will be loaded.
+
+        """
+        args = ['init_from_nemo_model', 'init_from_pretrained_model', 'init_from_ptl_ckpt']
+        arg_matches = [(1 if arg in cfg and arg is not None else 0) for arg in args]
+
+        if sum(arg_matches) == 0:
+            # model weights do not need to be restored
+            return
+
+        if sum(arg_matches) > 1:
+            raise ValueError(
+                f"Cannot pass more than one model initialization arguments to config!\n"
+                f"Found : {[args[idx] for idx, arg_present in enumerate(arg_matches) if arg_present]}"
+            )
+
+        if 'init_from_nemo_model' in cfg and cfg.init_from_nemo_model is not None:
+            with open_dict(cfg):
+                # Restore model
+                model_path = cfg.pop('init_from_nemo_model')
+                restored_model = self.restore_from(model_path, map_location=map_location, strict=True)
+
+                # Restore checkpoint into current model
+                self.load_state_dict(restored_model.state_dict(), strict=False)
+                logging.info(f'Model checkpoint restored from nemo file with path : `{model_path}`')
+
+                del restored_model
+
+        if 'init_from_pretrained_model' in cfg and cfg.init_from_pretrained_model is not None:
+            with open_dict(cfg):
+                # Restore model
+                model_name = cfg.pop('init_from_pretrained_model')
+
+                # Check if model is being resumed or not - only works if `Trainer` is attached to model
+                if hasattr(self, 'trainer') and self.trainer is not None:
+                    trainer = self.trainer
+                    if hasattr(trainer, 'resume_from_checkpoint') and trainer.resume_from_checkpoint is not None:
+                        logging.info(
+                            "Model training is being resumed via Pytorch Lightning.\n"
+                            "Initialization from pretrained model (via cloud) will be skipped."
+                        )
+                        return
+
+                restored_model = self.from_pretrained(model_name, map_location=map_location, strict=True)
+
+                # Restore checkpoint into current model
+                self.load_state_dict(restored_model.state_dict(), strict=False)
+                logging.info(f'Model checkpoint restored from pretrained chackpoint with name : `{model_name}`')
+
+                del restored_model
+
+        if 'init_from_ptl_ckpt' in cfg and cfg.init_from_ptl_ckpt is not None:
+            with open_dict(cfg):
+                # Restore checkpoint
+                ckpt_path = cfg.pop('init_from_ptl_ckpt')
+                ckpt = torch.load(ckpt_path, map_location=map_location)
+
+                # Restore checkpoint into current model
+                self.load_state_dict(ckpt['state_dict'], strict=False)
+                logging.info(f'Model checkpoint restored from pytorch lightning chackpoint with path : `{ckpt_path}`')
+
+                del ckpt
+
     def teardown(self, stage: str):
         """
         Called at the end of fit and test.
@@ -1290,23 +1377,32 @@ class ModelPT(LightningModule, Model):
         _MODEL_IS_RESTORED = is_being_restored
         _NEMO_FILE_FOLDER = folder
 
+    def _set_model_guid(self):
+        if not hasattr(self, 'model_guid'):
+            appstate = AppState()
+
+            # Generate a unique uuid for the instance
+            # also determine if the model is being restored or not, and preserve the path
+            self.model_guid = str(uuid.uuid4())
+            if self._is_model_being_restored():
+                restore_path = appstate.model_restore_path
+            else:
+                restore_path = None
+
+            appstate.register_model_guid(self.model_guid, restoration_path=restore_path)
+
     @staticmethod
     def _is_restore_type_tarfile() -> bool:
         """
         Utility method that checks if the restore path of the underlying Model
         is a tarfile (can be any valid archive)._MODEL_EFF_SAVE
         """
-        global _MODEL_RESTORE_PATH
-
         app_state = AppState()
 
-        if _MODEL_RESTORE_PATH is None and app_state.model_restore_path is None:
+        if app_state.model_restore_path is None:
             return False
         else:
-            if _MODEL_RESTORE_PATH:
-                if tarfile.is_tarfile(_MODEL_RESTORE_PATH):
-                    return True
-            elif app_state.model_restore_path:
+            if app_state.model_restore_path:
                 if tarfile.is_tarfile(app_state.model_restore_path):
                     return True
             else:

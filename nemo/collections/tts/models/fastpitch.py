@@ -21,7 +21,7 @@ from omegaconf import MISSING, DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import FastPitchDataset
-from nemo.collections.asr.parts import parsers
+from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.losses.fastpitchloss import FastPitchLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import FastPitchModule
@@ -47,8 +47,8 @@ class FastPitchModel(SpectrogramGenerator):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
 
-        super().__init__(cfg=cfg, trainer=trainer)
         self._parser = None
+        super().__init__(cfg=cfg, trainer=trainer)
 
         schema = OmegaConf.structured(FastPitchConfig)
         # ModelPT ensures that cfg is a DictConfig, but do this second check in case ModelPT changes
