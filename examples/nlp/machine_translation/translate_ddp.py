@@ -53,6 +53,7 @@ def get_args():
 
 
 def translate(rank, world_size, args):
+    torch.cuda.set_device(rank)
     if args.model.endswith(".nemo"):
         logging.info("Attempting to initialize from .nemo file")
         model = MTEncDecModel.restore_from(restore_path=args.model)
@@ -61,7 +62,6 @@ def translate(rank, world_size, args):
         model = MTEncDecModel.load_from_checkpoint(checkpoint_path=args.model)
     model.replace_beam_with_sampling(topk=args.topk)
     model.eval()
-    model.to(rank)
     if args.twoside:
         dataset = TarredTranslationDataset(
             text_tar_filepaths=args.text2translate,
