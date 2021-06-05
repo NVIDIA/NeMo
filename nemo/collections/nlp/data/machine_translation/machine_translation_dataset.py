@@ -63,9 +63,9 @@ class TranslationDataConfig:
     tar_shuffle_n: int = 100
     n_preproc_jobs: int = -2
     tar_file_prefix: str = 'parallel'
-    backtranslated_tar_files: Optional[str] = None
-    backtranslated_metadata_file: Optional[str] = None
-    parallel_oversampling_factor: Optional[float] = 1
+    concat_sampling_technique: Optional[str] = 'temperature'
+    concat_sampling_temperature: Optional[int] = 5
+    concat_sampling_probabilities: Optional[List[float]] = None
 
 
 class TranslationDataset(Dataset):
