@@ -18,6 +18,7 @@ import os
 import pickle as pkl
 from typing import Dict, List, Optional, Union
 
+import librosa
 import torch
 from omegaconf import DictConfig
 from omegaconf.omegaconf import open_dict
@@ -336,6 +337,29 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             self._cfg.decoder = new_decoder_config
 
         logging.info(f"Changed decoder output to # {self.decoder._num_classes} classes.")
+
+    @torch.no_grad()
+    def get_embedding(self, path2audio_file):
+        audio, sr = librosa.load(path2audio_file, sr=None)
+        target_sr = self._cfg.train_ds.get('sample_rate', 16000)
+        if sr != target_sr:
+            audio = librosa.core.resample(audio, sr, target_sr)
+        audio_length = audio.shape[0]
+        device = self.device
+        audio_signal, audio_signal_len = (
+            torch.tensor([audio], device=device),
+            torch.tensor([audio_length], device=device),
+        )
+        mode = self.training
+        self.freeze()
+
+        _, embs = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+
+        self.train(mode=mode)
+        if mode is True:
+            self.unfreeze()
+        del audio_signal, audio_signal_len
+        return embs
 
 
 class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
