@@ -350,9 +350,14 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             torch.tensor([audio], device=device),
             torch.tensor([audio_length], device=device),
         )
-        self.eval()
+        mode = self.training
         self.freeze()
+
         _, embs = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+
+        self.train(mode=mode)
+        if mode is True:
+            self.unfreeze()
         del audio_signal, audio_signal_len
         return embs
 
