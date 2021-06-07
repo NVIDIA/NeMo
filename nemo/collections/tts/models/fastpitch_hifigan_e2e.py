@@ -26,7 +26,7 @@ from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 from nemo.collections.asr.data.audio_to_text import FastPitchDataset
 from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
-from nemo.collections.tts.losses.fastpitchloss import BaseFastPitchLoss
+from nemo.collections.tts.losses.fastpitchloss import DurationLoss, PitchLoss
 from nemo.collections.tts.losses.fastspeech2loss import L1MelLoss
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.models.base import TextToWaveform
@@ -113,7 +113,8 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
         self.register_buffer('pitch_mean', torch.zeros(1))
         self.register_buffer('pitch_std', torch.zeros(1))
 
-        self.loss = BaseFastPitchLoss()
+        self.pitchloss = PitchLoss()
+        self.durationloss = DurationLoss()
 
         self.mel_loss_coeff = cfg.mel_loss_coeff
 
@@ -286,13 +287,8 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
                 real_audio.append(audio[i, splice * self.hop_size : (splice + self.splice_length) * self.hop_size])
             real_audio = torch.stack(real_audio).unsqueeze(1)
 
-            _, dur_loss, pitch_loss = self.loss(
-                log_durs_predicted=log_dur_preds,
-                pitch_predicted=pitch_preds,
-                durs_tgt=durs,
-                dur_lens=text_lens,
-                pitch_tgt=pitch,
-            )
+            dur_loss = self.durationloss(log_durs_predicted=log_dur_preds, durs_tgt=durs, len=text_lens)
+            pitch_loss = self.pitchloss(pitch_predicted=pitch_preds, pitch_tgt=pitch,)
 
             # Do HiFiGAN generator loss
             audio_length = torch.tensor([self.splice_length * self.hop_size for _ in range(real_audio.shape[0])]).to(
