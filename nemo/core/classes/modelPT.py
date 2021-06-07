@@ -307,10 +307,7 @@ class ModelPT(LightningModule, Model):
         if self.artifacts is not None and len(self.artifacts) > 0:
             conf = OmegaConf.load(path2yaml_file)
             for conf_path, item in self.artifacts.items():
-                if item.hashed_path is None:
-                    conf.update_node(conf_path, item.path)
-                else:
-                    conf.update_node(conf_path, item.hashed_path)
+                OmegaConf.update(conf, conf_path, item.path)
             with open(path2yaml_file, 'w') as fout:
                 OmegaConf.save(config=conf, f=fout, resolve=True)
 
