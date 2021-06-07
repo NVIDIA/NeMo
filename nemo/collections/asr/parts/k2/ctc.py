@@ -84,7 +84,6 @@ class CTCLoss(torch.nn.Module):
         target_lengths = target_lengths[order]
         # PyTorch is doing the log-softmax normalization as part of the CTC computation.
         # More: https://github.com/k2-fsa/k2/issues/575
-        # It would be nice to have dense_fsa_vec.get_tot_scores() instead.
         log_probs = GradExpNormalize.apply(log_probs, input_lengths, "mean" if self.reduction != "sum" else "none")
 
         if log_probs.device != self.graph_compiler.device:
@@ -95,9 +94,11 @@ class CTCLoss(torch.nn.Module):
 
         num_lats = k2.intersect_dense(num_graphs, dense_fsa_vec, torch.finfo(torch.float32).max)
 
+        # use_double_scores=True does matter
+        # since otherwise it sometimes makes rounding errors
         num_tot_scores = num_lats.get_tot_scores(
             log_semiring=True,
-            use_double_scores=False
+            use_double_scores=True
         )
         tot_scores = num_tot_scores
         tot_scores, _ = get_tot_objf_and_num_frames(

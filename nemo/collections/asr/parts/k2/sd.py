@@ -26,7 +26,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Tuple, Union
+from typing import Optional, Union
 
 import torch
 import k2
@@ -34,7 +34,6 @@ import k2.sparse
 
 from nemo.collections.asr.parts.k2.utils import create_supervision
 from nemo.collections.asr.parts.k2.utils import get_tot_objf_and_num_frames
-from nemo.collections.asr.parts.k2.utils import intersect_dense_failsafe
 from nemo.collections.asr.parts.k2.utils import make_blank_first
 from nemo.collections.asr.parts.k2.utils import load_graph
 from nemo.collections.asr.parts.k2.utils import GradExpNormalize
@@ -54,18 +53,17 @@ class SDLoss(torch.nn.Module):
             blank: int,
             reduction: str = 'mean',
             sd_type: str = 'mmi',
-            tokel_lm: Optional[Union[k2.Fsa, str]] = None,
-            tokel_lm_order: int = 2,
+            token_lm: Optional[Union[k2.Fsa, str]] = None,
+            token_lm_order: int = 2,
             den_scale: float = 1.0,
             calc_scores_pruned: bool = False,
             use_mbr: bool = False,
             decoding_graph: Optional[Union[k2.Fsa, str]] = None,
-            intersect_fail_recovery: bool = False,
             **kwargs
     ):
         super().__init__()
-        self.blank = blank
         self.num_classes = num_classes
+        self.blank = blank
         self.reduction = reduction
         self.sd_type = sd_type
         self.den_scale = den_scale
@@ -73,15 +71,10 @@ class SDLoss(torch.nn.Module):
         if not calc_scores_pruned and use_mbr:
             raise NotImplementedError("Not adapted yet")
         self.calc_scores = self._calc_scores_pruned if calc_scores_pruned else self._calc_scores_exact
-        if intersect_fail_recovery:
-            # With great power comes great responsibility
-            self.intersect_dense = intersect_dense_failsafe
-        else:
-            self.intersect_dense = k2.intersect_dense
-        if tokel_lm is None:
+        if token_lm is None:
             raise NotImplementedError("Not adapted yet")
         else:
-            self.lm_graph = load_graph(tokel_lm) if isinstance(tokel_lm, str) else tokel_lm
+            self.lm_graph = load_graph(token_lm) if isinstance(token_lm, str) else token_lm
         if sd_type == 'mmi':
             from nemo.collections.asr.parts.k2.graph_compilers import MmiTrainingGraphCompiler as compiler
         elif sd_type == 'crf':
@@ -135,13 +128,15 @@ class SDLoss(torch.nn.Module):
         # [[0, 1, 2, ...]] -> [0, 0, 1, 1, 2, 2, ... ]
         a_to_b_map = a_to_b_map.repeat(2, 1).t().reshape(-1).to(device)
 
-        num_den_lats = self.intersect_dense(a_fsas=num_den_reordered_graphs,
-                                            b_fsas=dense_fsa_vec,
-                                            output_beam=10.0,
-                                            a_to_b_map=a_to_b_map)
+        num_den_lats = k2.intersect_dense(a_fsas=num_den_reordered_graphs,
+                                          b_fsas=dense_fsa_vec,
+                                          output_beam=10.0,
+                                          a_to_b_map=a_to_b_map)
 
+        # use_double_scores=True does matter
+        # since otherwise it sometimes makes rounding errors
         num_den_tot_scores = num_den_lats.get_tot_scores(
-            log_semiring=True, use_double_scores=False)
+            log_semiring=True, use_double_scores=True)
 
         num_tot_scores = num_den_tot_scores[::2]
         den_tot_scores = num_den_tot_scores[1::2]
@@ -158,10 +153,10 @@ class SDLoss(torch.nn.Module):
         # den_graphs = k2.index_fsa(den_graph, indexes).to(den_graph.device)
         den_graphs = den_graph
 
-        num_lats = self.intersect_dense(a_fsas=num_graphs,
-                                        b_fsas=dense_fsa_vec,
-                                        output_beam=torch.finfo(torch.float32).max,
-                                        seqframe_idx_name='seqframe_idx')
+        num_lats = k2.intersect_dense(a_fsas=num_graphs,
+                                      b_fsas=dense_fsa_vec,
+                                      output_beam=torch.finfo(torch.float32).max,
+                                      seqframe_idx_name='seqframe_idx')
         # den_lats = k2.intersect_dense(den_graphs, dense_fsa_vec, 10.0)
         den_lats = k2.intersect_dense_pruned(a_fsas=den_graphs,
                                              b_fsas=dense_fsa_vec,
@@ -171,13 +166,15 @@ class SDLoss(torch.nn.Module):
                                              max_active_states=10000,
                                              seqframe_idx_name='seqframe_idx')
 
+        # use_double_scores=True does matter
+        # since otherwise it sometimes makes rounding errors
         num_tot_scores = num_lats.get_tot_scores(
             log_semiring=True,
-            use_double_scores=False
+            use_double_scores=True
         )
         den_tot_scores = den_lats.get_tot_scores(
             log_semiring=True,
-            use_double_scores=False
+            use_double_scores=True
         )
         if return_lats:
             return num_tot_scores, den_tot_scores, num_lats, den_lats

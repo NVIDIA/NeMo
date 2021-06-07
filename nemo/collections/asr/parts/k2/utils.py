@@ -87,12 +87,17 @@ def create_supervision(input_lengths: torch.Tensor):
     order = torch.argsort(supervisions[:, -1], descending=True)
     return supervisions[order], order
 
+def invert_permutation(indices: torch.Tensor) -> torch.Tensor:
+    ans = torch.zeros(indices.shape, device=indices.device, dtype=torch.long)
+    ans[indices] = torch.arange(0, indices.shape[0], device=indices.device)
+    return ans
+
 def make_blank_first(blank_idx: int, log_probs: torch.Tensor, targets: torch.Tensor):
     index = list(range(log_probs.shape[-1]))
     del index[blank_idx]
     index = torch.tensor([blank_idx] + index).to(log_probs.device)
     # TODO: fix this to work in general
-    return torch.index_select(log_probs, -1, index), targets + 1
+    return torch.index_select(log_probs, -1, index), None if targets is None else targets + 1
 
 def load_graph(graph_path):
     errors = []

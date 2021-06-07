@@ -18,6 +18,7 @@ from torch import nn
 
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
+from nemo.utils import logging
 
 
 class SDLoss(Loss):
@@ -67,6 +68,9 @@ class SDLoss(Loss):
     def forward(self, log_probs, targets, input_lengths, target_lengths):
         # override forward implementation
         # custom logic, if necessary
+
+        assert not (torch.isnan(log_probs).any() or torch.isinf(log_probs).any())
+
         log_probs = log_probs.float()
         input_lengths = input_lengths.long()
         target_lengths = target_lengths.long()
