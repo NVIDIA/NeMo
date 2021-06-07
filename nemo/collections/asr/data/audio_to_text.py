@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
 import braceexpand
+import librosa
 import numpy as np
 import torch
 import webdataset as wd
@@ -551,8 +552,10 @@ class AudioToCharWithPriorDataset(AudioToCharDataset):
 
         text = self.id2enc_text[item]
 
-        tag = Path(self.collection[item].audio_file).stem
-        attn_prior_path = Path(self.attn_prior_folder) / f"{tag}.npy"
+        attn_prior_path = (
+            Path(self.attn_prior_folder)
+            / f"ap_tl{len(text)}_al_{math.ceil((audio_len.item() + 1) / self.n_window_stride)}.npy"
+        )
 
         if attn_prior_path.exists():
             attn_prior = np.load(attn_prior_path)
@@ -587,6 +590,66 @@ class AudioToCharWithPriorDataset(AudioToCharDataset):
             attn_prior[i, : attn_prior_i.shape[0], : attn_prior_i.shape[1]] = attn_prior_i
 
         return audio, audio_len, text, text_len, attn_prior
+
+
+class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports."""
+        return {
+            'audio': NeuralType(('B', 'T'), AudioSignal()),
+            'audio_len': NeuralType(('B',), LengthsType()),
+            'text': NeuralType(('B', 'T'), LabelsType()),
+            'text_len': NeuralType(('B',), LengthsType()),
+            'attn_prior': NeuralType(('B', 'T', 'D'), ProbsType()),
+            'pitch': NeuralType(('B', 'T'), RegressionValuesType()),
+        }
+
+    def __init__(self, sup_data_path, pitch_fmin, pitch_fmax, n_window_size, pitch_avg, pitch_std, **kwargs):
+        self.pitch_fmin = pitch_fmin
+        self.pitch_fmax = pitch_fmax
+        self.n_window_size = n_window_size
+        self.pitch_avg = pitch_avg
+        self.pitch_std = pitch_std
+        super().__init__(attn_prior_folder=sup_data_path, **kwargs)
+
+    def __getitem__(self, item):
+        audio, audio_len, text, text_len, attn_prior = super().__getitem__(item)
+        tag = Path(self.collection[item].audio_file).stem
+        pitch_path = (
+            Path(self.attn_prior_folder)
+            / f"{tag}_pitch_pyin_fmin{self.pitch_fmin}_fmax{self.pitch_fmax}_fl{self.n_window_size}.npy"
+        )
+
+        if pitch_path.exists():
+            pitch = np.load(pitch_path)
+        else:
+            pitch, _, _ = librosa.pyin(
+                audio.numpy(),
+                fmin=self.pitch_fmin,
+                fmax=self.pitch_fmax,
+                frame_length=self.n_window_size,
+                sr=self.featurizer.sample_rate,
+                fill_na=0.0,
+            )
+            np.save(pitch_path, pitch)
+        pitch -= self.pitch_avg
+        pitch[pitch == -self.pitch_avg] = 0.0  # Zero out values that were perviously zero
+        pitch /= self.pitch_std
+
+        return audio, audio_len, text, text_len, attn_prior, torch.tensor(pitch)
+
+    def _collate_fn(self, batch):
+        batch = list(zip(*batch))
+        audio, audio_len, text, text_len, attn_prior = super()._collate_fn(list(zip(*batch[:5])))
+        pitch_list = batch[5]
+
+        pitch = torch.zeros(len(pitch_list), max([pitch.shape[0] for pitch in pitch_list]))
+
+        for i, pitch_i in enumerate(pitch_list):
+            pitch[i, : pitch_i.shape[0]] = pitch_i
+
+        return audio, audio_len, text, text_len, attn_prior, pitch
 
 
 class FastPitchDataset(_AudioTextDataset):
