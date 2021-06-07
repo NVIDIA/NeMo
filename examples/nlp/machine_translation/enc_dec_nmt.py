@@ -15,7 +15,6 @@
 from dataclasses import dataclass
 from typing import Optional
 
-from omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTDataPreproc
@@ -105,7 +104,7 @@ def main(cfg: MTEncDecConfig) -> None:
     default_cfg = MTEncDecConfig()
     cfg = update_model_config(default_cfg, cfg)
     logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
+    logging.info(f'Config: {cfg.pretty()}')
 
     # training is managed by PyTorch Lightning
     trainer = Trainer(**cfg.trainer)

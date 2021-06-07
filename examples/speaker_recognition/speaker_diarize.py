@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from omegaconf import OmegaConf
 from pytorch_lightning import seed_everything
 
 from nemo.collections.asr.models import ClusteringDiarizer
@@ -40,7 +39,7 @@ seed_everything(42)
 @hydra_runner(config_path="conf", config_name="speaker_diarization.yaml")
 def main(cfg):
 
-    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+    logging.info(f'Hydra config: {cfg.pretty()}')
     sd_model = ClusteringDiarizer(cfg=cfg)
     sd_model.diarize()
 
