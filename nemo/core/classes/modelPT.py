@@ -240,7 +240,7 @@ class ModelPT(LightningModule, Model):
         # we were called by ModelPT
         if hasattr(self, "cfg"):
             with open_dict(self._cfg):
-                self.cfg.update_node(config_path, return_path)
+                OmegaConf.update(self.cfg, config_path, return_path)
         return return_path
 
     def _handle_artifacts(self, nemo_file_folder):
@@ -305,7 +305,7 @@ class ModelPT(LightningModule, Model):
         if self.artifacts is not None and len(self.artifacts) > 0:
             conf = OmegaConf.load(path2yaml_file)
             for conf_path, item in self.artifacts.items():
-                conf.update_node(conf_path, item.path)
+                OmegaConf.update(conf, conf_path, item.path)
             with open(path2yaml_file, 'w') as fout:
                 OmegaConf.save(config=conf, f=fout, resolve=True)
 
