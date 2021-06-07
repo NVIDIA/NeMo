@@ -457,20 +457,26 @@ class MTEncDecModel(EncDecNLPModel):
             if cfg.get("metadata_file") is None:
                 raise FileNotFoundError("Trying to use tarred data set but could not find metadata path in config.")
             metadata_file_list = cfg.get('metadata_file')
+            tar_files_list = cfg.get('tar_files', None)
             if isinstance(metadata_file_list, str):
                 metadata_file_list = [metadata_file_list]
+            if tar_files_list is not None and isinstance(tar_files_list, str):
+                tar_files_list = [tar_files_list]
+            if tar_files_list is not None and len(tar_files_list) != len(metadata_file_list):
+                raise ValueError(
+                    'The config must have the same number of tarfile paths and metadata file paths.'
+                )
 
             datasets = []
             for idx, metadata_file in enumerate(metadata_file_list):
                 with open(metadata_file) as metadata_reader:
                     metadata = json.load(metadata_reader)
-                if cfg.get('tar_files') is None:
+                if tar_files_list is None:
                     tar_files = metadata.get('tar_files')
                     if tar_files is not None:
                         logging.info(f'Loading from tarred dataset {tar_files}')
                 else:
-                    tar_files = cfg.get('tar_files')
-                    tar_files = tar_files[idx]
+                    tar_files = tar_files_list[idx]
                     if metadata.get('tar_files') is not None:
                         logging.info(
                             f'Tar file paths found in both cfg and metadata using one in cfg by default - {tar_files}'
