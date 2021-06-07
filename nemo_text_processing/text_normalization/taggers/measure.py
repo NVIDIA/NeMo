@@ -15,8 +15,8 @@
 
 from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
 from nemo_text_processing.text_normalization.graph_utils import (
+    NEMO_ALPHA,
     NEMO_NON_BREAKING_SPACE,
-    NEMO_NOT_SPACE,
     NEMO_SIGMA,
     SINGULAR_TO_PLURAL,
     GraphFst,
@@ -106,24 +106,61 @@ class MeasureFst(GraphFst):
             + unit_singular
         )
 
-        subgraph_cardinal_dash = (
+        cardinal_dash_alpha = (
             pynutil.insert("cardinal { integer: \"")
             + cardinal_graph
             + pynini.cross('-', '')
             + pynutil.insert("\" } units: \"")
-            + pynini.closure(NEMO_NOT_SPACE, 1)
+            + pynini.closure(NEMO_ALPHA, 1)
             + pynutil.insert("\"")
         )
 
-        subgraph_decimal_dash = (
+        # alpha_dash_cardinal = (
+        #         pynutil.insert("units: \"")
+        #         + pynini.closure(NEMO_ALPHA, 1)
+        #         + pynini.cross('-', '')
+        #         + pynutil.insert("\" preserve_order: true")
+        #         + pynutil.insert(" cardinal { integer: \"")
+        #         + cardinal_graph
+        #         + pynutil.insert("\" }")
+        # )
+
+        alpha_dash_cardinal = (
+            pynutil.insert("units: \"")
+            + pynini.closure(NEMO_ALPHA, 1)
+            + pynini.cross('-', '')
+            + pynutil.insert("\"")
+            + pynutil.insert(" cardinal { integer: \"")
+            + cardinal_graph
+            + pynutil.insert("\" }" + pynutil.insert(" preserve_order: true"))
+        )
+
+        decimal_dash_alpha = (
             pynutil.insert("decimal { ")
             + decimal.final_graph_wo_negative
             + pynini.cross('-', '')
-            + pynutil.insert(" } units: \"")
-            + pynini.closure(NEMO_NOT_SPACE, 1)
+            + pynutil.insert("\" } units: \"")
+            + pynini.closure(NEMO_ALPHA, 1)
             + pynutil.insert("\"")
         )
 
-        final_graph = subgraph_decimal | subgraph_cardinal | subgraph_cardinal_dash | subgraph_decimal_dash
+        alpha_dash_decimal = (
+            pynutil.insert("units: \"")
+            + pynini.closure(NEMO_ALPHA, 1)
+            + pynini.cross('-', '')
+            + pynutil.insert("\"")
+            + pynutil.insert(" decimal { ")
+            + decimal.final_graph_wo_negative
+            + pynutil.insert(" } ")
+        )
+
+        final_graph = (
+            subgraph_decimal
+            | subgraph_cardinal
+            | cardinal_dash_alpha
+            | alpha_dash_cardinal
+            | decimal_dash_alpha
+            | alpha_dash_decimal
+        )
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
