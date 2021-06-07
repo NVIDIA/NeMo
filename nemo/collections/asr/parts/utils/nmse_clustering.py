@@ -227,17 +227,18 @@ def get_eigen_matrix(emb):
     return sim_d
 
 
-def COSclustering(key, emb, oracle_num_speakers=None, max_num_speaker=8):
+def COSclustering(key, emb, oracle_num_speakers=None, max_num_speaker=8, MIN_SAMPLES=6):
     """
     input:
     key (str): speaker uniq name
     emb (np array): speaker embedding
     oracle_num_speaker (int or None): oracle number of speakers if known else None
     max_num_speakers (int): maximum number of clusters to consider for each session
+    MIN_SAMPLES (int): minimum number of samples required for NME clustering, this avoids
+    zero p_neighbour_lists 
     output:
     Y (List[int]): speaker labels
     """
-    MIN_SAMPLES = 6  # minimum number of samples required for NME clustering
     est_num_spks_out_list = []
     mat = get_eigen_matrix(emb)
     if oracle_num_speakers:
