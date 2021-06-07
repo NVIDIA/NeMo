@@ -16,28 +16,35 @@ model:
   pitch_embedding_kernel_size: 3
 
   train_ds:
-    manifest_filepath: ${train_dataset}
-    max_duration: null
-    min_duration: 0.1
-    sample_rate: ${sample_rate}
-    trim: false
-    parser: null
-    drop_last: true
-    shuffle: true
-    batch_size: 48
-    num_workers: 12
+    dataset:
+      _target_: "nemo.collections.asr.data.audio_to_text.FastPitchDataset"
+      manifest_filepath: ${train_dataset}
+      max_duration: null
+      min_duration: 0.1
+      trim: false
+      int_values: false
+      sample_rate: ${sample_rate}
+    dataloader_params:
+      drop_last: false
+      shuffle: true
+      batch_size: 48
+      num_workers: 12
+
 
   validation_ds:
-    manifest_filepath: ${validation_datasets}
-    max_duration: null
-    min_duration: 0.1
-    sample_rate: ${sample_rate}
-    trim: false
-    parser: null
-    drop_last: false
-    shuffle: false
-    batch_size: 48
-    num_workers: 8
+    dataset:
+      _target_: "nemo.collections.asr.data.audio_to_text.FastPitchDataset"
+      manifest_filepath: ${validation_datasets}
+      max_duration: null
+      min_duration: null
+      int_values: false
+      sample_rate: ${sample_rate}
+      trim: false
+    dataloader_params:
+      drop_last: false
+      shuffle: false
+      batch_size: 48
+      num_workers: 8
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor

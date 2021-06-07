@@ -136,14 +136,14 @@ class ModelPT(LightningModule, Model):
         else:
             if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
                 logging.warning(
-                    f"Please call the ModelPT.setup_training_data() method "
+                    f"If you intend to do training or fine-tuning, please call the ModelPT.setup_training_data() method "
                     f"and provide a valid configuration file to setup the train data loader.\n"
                     f"Train config : \n{OmegaConf.to_yaml(self._cfg.train_ds)}"
                 )
 
             if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
                 logging.warning(
-                    f"Please call the ModelPT.setup_validation_data() or ModelPT.setup_multiple_validation_data() method "
+                    f"If you intend to do validation, please call the ModelPT.setup_validation_data() or ModelPT.setup_multiple_validation_data() method "
                     f"and provide a valid configuration file to setup the validation data loader(s). \n"
                     f"Validation config : \n{OmegaConf.to_yaml(self._cfg.validation_ds)}"
                 )
@@ -243,7 +243,7 @@ class ModelPT(LightningModule, Model):
         # we were called by ModelPT
         if hasattr(self, "cfg"):
             with open_dict(self._cfg):
-                self.cfg.update_node(config_path, return_path)
+                OmegaConf.update(self.cfg, config_path, return_path)
         return return_path
 
     def _handle_artifacts(self, nemo_file_folder):
