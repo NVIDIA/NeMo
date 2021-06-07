@@ -51,7 +51,9 @@ class CardinalFst(GraphFst):
 
         graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
         graph_zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
-        single_digits_graph = pynini.invert(graph_digit | graph_zero) | pynini.cross("0", "oh")
+        single_digits_graph = pynutil.add_weight(pynini.invert(graph_digit | graph_zero), 1.2) | pynutil.add_weight(
+            pynini.cross("0", "oh"), 1.1
+        )
         self.single_digits_graph = single_digits_graph + pynini.closure(pynutil.insert(" ") + single_digits_graph)
 
         if not deterministic:
