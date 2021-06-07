@@ -58,78 +58,84 @@ from nemo.core.neural_types.elements import (
 from nemo.core.neural_types.neural_type import NeuralType
 
 
-class BaseFastPitchLoss(Loss):
-    """ A base loss that computes duration and pitch loss. Used in both FastPitchHifiGanE2EModel and FastPitchModel.
-    """
-
-    def __init__(self, dur_predictor_loss_scale=0.1, pitch_predictor_loss_scale=0.1):
+class DurationLoss(Loss):
+    def __init__(self, loss_scale=0.1):
         super().__init__()
-        self.dur_predictor_loss_scale = dur_predictor_loss_scale
-        self.pitch_predictor_loss_scale = pitch_predictor_loss_scale
+        self.loss_scale = loss_scale
 
     @property
     def input_types(self):
         return {
             "log_durs_predicted": NeuralType(('B', 'T'), TokenLogDurationType()),
-            "pitch_predicted": NeuralType(('B', 'T'), RegressionValuesType()),
             "durs_tgt": NeuralType(('B', 'T'), TokenDurationType()),
-            "dur_lens": NeuralType(('B'), LengthsType()),
-            "pitch_tgt": NeuralType(('B', 'T'), RegressionValuesType()),
+            "len": NeuralType(('B'), LengthsType()),
         }
 
     @property
     def output_types(self):
         return {
             "loss": NeuralType(elements_type=LossType()),
-            "dur_loss": NeuralType(elements_type=LossType()),
-            "pitch_loss": NeuralType(elements_type=LossType()),
         }
 
     @typecheck()
-    def forward(self, log_durs_predicted, pitch_predicted, durs_tgt, dur_lens, pitch_tgt):
-        dur_mask = mask_from_lens(dur_lens, max_len=durs_tgt.size(1))
+    def forward(self, log_durs_predicted, durs_tgt, len):
+        dur_mask = mask_from_lens(len, max_len=durs_tgt.size(1))
         log_durs_tgt = torch.log(durs_tgt.float() + 1)
         loss_fn = F.mse_loss
         dur_loss = loss_fn(log_durs_predicted, log_durs_tgt, reduction='none')
         dur_loss = (dur_loss * dur_mask).sum() / dur_mask.sum()
-        dur_loss *= self.dur_predictor_loss_scale
+        dur_loss *= self.loss_scale
 
-        ldiff = pitch_tgt.size(1) - pitch_predicted.size(1)
-        pitch_predicted = F.pad(pitch_predicted, (0, ldiff, 0, 0), value=0.0)
-        pitch_loss = F.mse_loss(pitch_tgt, pitch_predicted, reduction='none')
-        pitch_loss = (pitch_loss * dur_mask).sum() / dur_mask.sum()
-        pitch_loss *= self.pitch_predictor_loss_scale
-
-        return pitch_loss + dur_loss, dur_loss, pitch_loss
+        return dur_loss
 
 
-class FastPitchLoss(BaseFastPitchLoss):
-    """ FastPitchLoss that computes spectrogram, pitch, and duration loss.
-    """
+class PitchLoss(Loss):
+    def __init__(self, loss_scale=0.1):
+        super().__init__()
+        self.loss_scale = loss_scale
 
     @property
     def input_types(self):
         return {
-            "spect_predicted": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "log_durs_predicted": NeuralType(('B', 'T'), TokenLogDurationType()),
             "pitch_predicted": NeuralType(('B', 'T'), RegressionValuesType()),
-            "spect_tgt": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "durs_tgt": NeuralType(('B', 'T'), TokenDurationType()),
-            "dur_lens": NeuralType(('B'), LengthsType()),
             "pitch_tgt": NeuralType(('B', 'T'), RegressionValuesType()),
+            "len": NeuralType(('B'), LengthsType()),
         }
 
     @property
     def output_types(self):
         return {
             "loss": NeuralType(elements_type=LossType()),
-            "mel_loss": NeuralType(elements_type=LossType()),
-            "dur_loss": NeuralType(elements_type=LossType()),
-            "pitch_loss": NeuralType(elements_type=LossType()),
         }
 
     @typecheck()
-    def forward(self, spect_predicted, log_durs_predicted, pitch_predicted, spect_tgt, durs_tgt, dur_lens, pitch_tgt):
+    def forward(self, pitch_predicted, pitch_tgt, len):
+        dur_mask = mask_from_lens(len, max_len=pitch_tgt.size(1))
+        ldiff = pitch_tgt.size(1) - pitch_predicted.size(1)
+        pitch_predicted = F.pad(pitch_predicted, (0, ldiff, 0, 0), value=0.0)
+        pitch_loss = F.mse_loss(pitch_tgt, pitch_predicted, reduction='none')
+        pitch_loss = (pitch_loss * dur_mask).sum() / dur_mask.sum()
+        pitch_loss *= self.loss_scale
+
+        return pitch_loss
+
+
+class MelLoss(Loss):
+    @property
+    def input_types(self):
+        return {
+            "spect_predicted": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "spect_tgt": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "loss": NeuralType(elements_type=LossType()),
+        }
+
+    @typecheck()
+    def forward(self, spect_predicted, spect_tgt):
         spect_tgt.requires_grad = False
         spect_tgt = spect_tgt.transpose(1, 2)  # (B, T, H)
 
@@ -140,13 +146,4 @@ class FastPitchLoss(BaseFastPitchLoss):
         mel_loss = loss_fn(spect_predicted, spect_tgt, reduction='none')
         mel_loss = (mel_loss * mel_mask).sum() / mel_mask.sum()
 
-        with typecheck.disable_checks():
-            loss, dur_loss, pitch_loss = super().forward(
-                log_durs_predicted=log_durs_predicted,
-                pitch_predicted=pitch_predicted,
-                durs_tgt=durs_tgt,
-                dur_lens=dur_lens,
-                pitch_tgt=pitch_tgt,
-            )
-
-        return mel_loss + loss, mel_loss, dur_loss, pitch_loss
+        return mel_loss

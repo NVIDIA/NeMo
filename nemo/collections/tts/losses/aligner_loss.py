@@ -85,5 +85,5 @@ class BinLoss(Loss):
 
     @typecheck()
     def forward(self, hard_attention, soft_attention):
-        log_sum = torch.log(soft_attention[hard_attention == 1] + 1e-16).sum()
+        log_sum = torch.log(torch.clamp(soft_attention[hard_attention == 1], min=1e-12)).sum()
         return -log_sum / hard_attention.sum()

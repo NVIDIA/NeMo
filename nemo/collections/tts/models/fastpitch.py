@@ -13,21 +13,33 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import torch
 from hydra.utils import instantiate
-from omegaconf import MISSING, DictConfig, OmegaConf
+from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
+from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
-from nemo.collections.asr.data.audio_to_text import FastPitchDataset
+from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursF0Dataset
 from nemo.collections.common.parts.preprocessing import parsers
-from nemo.collections.tts.losses.fastpitchloss import FastPitchLoss
+from nemo.collections.tts.helpers.helpers import plot_alignment_to_numpy, plot_spectrogram_to_numpy
+from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
+from nemo.collections.tts.losses.fastpitchloss import DurationLoss, MelLoss, PitchLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import FastPitchModule
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types.elements import MelSpectrogramType, RegressionValuesType, TokenDurationType, TokenIndex
+from nemo.core.neural_types.elements import (
+    Index,
+    LengthsType,
+    MelSpectrogramType,
+    ProbsType,
+    RegressionValuesType,
+    TokenDurationType,
+    TokenIndex,
+)
 from nemo.core.neural_types.neural_type import NeuralType
+from nemo.utils import logging
 
 
 @dataclass
@@ -47,7 +59,11 @@ class FastPitchModel(SpectrogramGenerator):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
 
+        self.learn_alignment = False
+        if "learn_alignment" in cfg:
+            self.learn_alignment = cfg.learn_alignment
         self._parser = None
+        self._tb_logger = None
         super().__init__(cfg=cfg, trainer=trainer)
 
         schema = OmegaConf.structured(FastPitchConfig)
@@ -59,9 +75,25 @@ class FastPitchModel(SpectrogramGenerator):
         # Ensure passed cfg is compliant with schema
         OmegaConf.merge(cfg, schema)
 
+        self.bin_loss_warmup_epochs = 100
+        self.aligner = None
+        self.log_train_images = False
+        self.mel_loss = MelLoss()
+        loss_scale = 0.1 if self.learn_alignment else 1.0
+        self.pitch_loss = PitchLoss(loss_scale=loss_scale)
+        self.duration_loss = DurationLoss(loss_scale=loss_scale)
+        input_fft_kwargs = {}
+        if self.learn_alignment:
+            self.aligner = instantiate(self._cfg.alignment_module)
+            self.forward_sum_loss = ForwardSumLoss()
+            self.bin_loss = BinLoss()
+            self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**self._cfg.train_ds.dataset.vocab)
+            input_fft_kwargs["n_embed"] = len(self.vocab.labels)
+            input_fft_kwargs["padding_idx"] = self.vocab.pad
+
         self.preprocessor = instantiate(self._cfg.preprocessor)
 
-        input_fft = instantiate(self._cfg.input_fft)
+        input_fft = instantiate(self._cfg.input_fft, **input_fft_kwargs)
         output_fft = instantiate(self._cfg.output_fft)
         duration_predictor = instantiate(self._cfg.duration_predictor)
         pitch_predictor = instantiate(self._cfg.pitch_predictor)
@@ -71,27 +103,45 @@ class FastPitchModel(SpectrogramGenerator):
             output_fft,
             duration_predictor,
             pitch_predictor,
+            self.aligner,
             cfg.n_speakers,
             cfg.symbols_embedding_dim,
             cfg.pitch_embedding_kernel_size,
             cfg.n_mel_channels,
         )
-        self.loss = FastPitchLoss()
+
+    @property
+    def tb_logger(self):
+        if self._tb_logger is None:
+            if self.logger is None and self.logger.experiment is None:
+                return None
+            tb_logger = self.logger.experiment
+            if isinstance(self.logger, LoggerCollection):
+                for logger in self.logger:
+                    if isinstance(logger, TensorBoardLogger):
+                        tb_logger = logger.experiment
+                        break
+            self._tb_logger = tb_logger
+        return self._tb_logger
 
     @property
     def parser(self):
         if self._parser is not None:
             return self._parser
 
-        self._parser = parsers.make_parser(
-            labels=self._cfg.labels,
-            name='en',
-            unk_id=-1,
-            blank_id=-1,
-            do_normalize=True,
-            abbreviation_version="fastpitch",
-            make_table=False,
-        )
+        if self.learn_alignment:
+            vocab = AudioToCharWithDursF0Dataset.make_vocab(**self._cfg.train_ds.dataset.vocab)
+            self._parser = vocab.encode
+        else:
+            self._parser = parsers.make_parser(
+                labels=self._cfg.labels,
+                name='en',
+                unk_id=-1,
+                blank_id=-1,
+                do_normalize=True,
+                abbreviation_version="fastpitch",
+                make_table=False,
+            )
         return self._parser
 
     def parse(self, str_input: str) -> torch.tensor:
@@ -106,14 +156,40 @@ class FastPitchModel(SpectrogramGenerator):
     @typecheck(
         input_types={
             "text": NeuralType(('B', 'T'), TokenIndex()),
-            "durs": NeuralType(('B', 'T'), TokenDurationType(), optional=True),
-            "pitch": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
-            "speaker": NeuralType(optional=True),  # NeuralType(('B'), IntType(), optional=True),
+            "durs": NeuralType(('B', 'T'), TokenDurationType()),
+            "pitch": NeuralType(('B', 'T'), RegressionValuesType()),
+            "speaker": NeuralType(('B'), Index()),
             "pace": NeuralType(optional=True),
+            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType(), optional=True),
+            "attn_prior": NeuralType(('B', 'T', 'T'), ProbsType(), optional=True),
+            "mel_lens": NeuralType(('B'), LengthsType(), optional=True),
+            "input_lens": NeuralType(('B'), LengthsType(), optional=True),
         }
     )
-    def forward(self, *, text, durs=None, pitch=None, speaker=0, pace=1.0):
-        return self.fastpitch(text=text, durs=durs, pitch=pitch, speaker=speaker, pace=pace)
+    def forward(
+        self,
+        *,
+        text,
+        durs=None,
+        pitch=None,
+        speaker=0,
+        pace=1.0,
+        spec=None,
+        attn_prior=None,
+        mel_lens=None,
+        input_lens=None,
+    ):
+        return self.fastpitch(
+            text=text,
+            durs=durs,
+            pitch=pitch,
+            speaker=speaker,
+            pace=pace,
+            spec=spec,
+            attn_prior=attn_prior,
+            mel_lens=mel_lens,
+            input_lens=input_lens,
+        )
 
     @typecheck(output_types={"spect": NeuralType(('B', 'C', 'T'), MelSpectrogramType())})
     def generate_spectrogram(self, tokens: 'torch.tensor', speaker: int = 0, pace: float = 1.0) -> torch.tensor:
@@ -122,94 +198,163 @@ class FastPitchModel(SpectrogramGenerator):
         return spect.transpose(1, 2)
 
     def training_step(self, batch, batch_idx):
-        audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
-        mels, mel_lens = self.preprocessor(input_signal=audio, length=audio_lens)
+        attn_prior, durs, speakers = None, None, None
+        if self.learn_alignment:
+            audio, audio_lens, text, text_lens, attn_prior, pitch = batch
+        else:
+            audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
+        mels, spec_len = self.preprocessor(input_signal=audio, length=audio_lens)
 
-        mels_pred, mel_lens, _, _, log_durs_pred, pitch_pred = self(
-            text=text, durs=durs, pitch=pitch, speaker=speakers, pace=1.0
+        mels_pred, _, log_durs_pred, pitch_pred, attn_soft, attn_logprob, attn_hard, attn_hard_dur, pitch = self(
+            text=text,
+            durs=durs,
+            pitch=pitch,
+            speaker=speakers,
+            pace=1.0,
+            spec=mels if self.learn_alignment else None,
+            attn_prior=attn_prior,
+            mel_lens=spec_len,
+            input_lens=text_lens,
         )
+        if durs is None:
+            durs = attn_hard_dur
 
-        loss, mel_loss, dur_loss, pitch_loss = self.loss(
-            spect_predicted=mels_pred,
-            log_durs_predicted=log_durs_pred,
-            pitch_predicted=pitch_pred,
-            spect_tgt=mels,
-            durs_tgt=durs,
-            dur_lens=text_lens,
-            pitch_tgt=pitch,
-        )
+        mel_loss = self.mel_loss(spect_predicted=mels_pred, spect_tgt=mels)
+        dur_loss = self.duration_loss(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=text_lens)
+        loss = mel_loss + dur_loss
+        if self.learn_alignment:
+            ctc_loss = self.forward_sum_loss(attn_logprob=attn_logprob, in_lens=text_lens, out_lens=spec_len)
+            bin_loss_weight = min(self.current_epoch / self.bin_loss_warmup_epochs, 1.0) * 1.0
+            bin_loss = self.bin_loss(hard_attention=attn_hard, soft_attention=attn_soft) * bin_loss_weight
+            loss += ctc_loss + bin_loss
 
-        losses = {
-            "mel_loss": mel_loss,
-            "dur_loss": dur_loss,
-            "pitch_loss": pitch_loss,
-        }
-        all_losses = {"loss": loss, **losses}
-        return {**all_losses, "progress_bar": losses, "log": all_losses}
+        pitch_loss = self.pitch_loss(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens)
+        loss += pitch_loss
+
+        self.log("t_loss", loss)
+        self.log("t_mel_loss", mel_loss)
+        self.log("t_dur_loss", dur_loss)
+        self.log("t_pitch_loss", pitch_loss)
+        if self.learn_alignment:
+            self.log("t_ctc_loss", ctc_loss)
+            self.log("t_bin_loss", bin_loss)
+
+        # Log images to tensorboard
+        if self.log_train_images:
+            self.log_train_images = False
+
+            self.tb_logger.add_image(
+                "train_mel_target",
+                plot_spectrogram_to_numpy(mels[0].data.cpu().numpy()),
+                self.global_step,
+                dataformats="HWC",
+            )
+            spec_predict = mels_pred[0].data.cpu().numpy().T
+            self.tb_logger.add_image(
+                "train_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
+            )
+            if self.learn_alignment:
+                attn = attn_hard[0].data.cpu().numpy().squeeze()
+                self.tb_logger.add_image(
+                    "train_attn", plot_alignment_to_numpy(attn.T), self.global_step, dataformats="HWC",
+                )
+                soft_attn = attn_soft[0].data.cpu().numpy().squeeze()
+                self.tb_logger.add_image(
+                    "train_soft_attn", plot_alignment_to_numpy(soft_attn.T), self.global_step, dataformats="HWC",
+                )
+
+        return loss
 
     def validation_step(self, batch, batch_idx):
-        audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
+        attn_prior, durs, speakers = None, None, None
+        if self.learn_alignment:
+            audio, audio_lens, text, text_lens, attn_prior, pitch = batch
+        else:
+            audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
         mels, mel_lens = self.preprocessor(input_signal=audio, length=audio_lens)
 
         # Calculate val loss on ground truth durations to better align L2 loss in time
-        mels_pred, mel_lens, _, _, log_durs_pred, pitch_pred = self(
-            text=text, durs=durs, pitch=None, speaker=speakers, pace=1.0
+        mels_pred, _, log_durs_pred, pitch_pred, _, _, _, attn_hard_dur, pitch = self(
+            text=text,
+            durs=durs,
+            pitch=pitch,
+            speaker=speakers,
+            pace=1.0,
+            spec=mels if self.learn_alignment else None,
+            attn_prior=attn_prior,
+            mel_lens=mel_lens,
+            input_lens=text_lens,
         )
+        if durs is None:
+            durs = attn_hard_dur
 
-        loss, mel_loss, dur_loss, pitch_loss = self.loss(
-            spect_predicted=mels_pred,
-            log_durs_predicted=log_durs_pred,
-            pitch_predicted=pitch_pred,
-            spect_tgt=mels,
-            durs_tgt=durs,
-            dur_lens=text_lens,
-            pitch_tgt=pitch,
-        )
+        mel_loss = self.mel_loss(spect_predicted=mels_pred, spect_tgt=mels)
+        dur_loss = self.duration_loss(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=text_lens)
+        pitch_loss = self.pitch_loss(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens)
+        loss = mel_loss + dur_loss + pitch_loss
 
-        ret = {
-            "loss": loss,
+        return {
+            "val_loss": loss,
             "mel_loss": mel_loss,
             "dur_loss": dur_loss,
             "pitch_loss": pitch_loss,
+            "mel_target": mels if batch_idx == 0 else None,
+            "mel_pred": mels_pred if batch_idx == 0 else None,
         }
-        return {**ret, "progress_bar": ret}
 
     def validation_epoch_end(self, outputs):
         collect = lambda key: torch.stack([x[key] for x in outputs]).mean()
-        tb_logs = {
-            'val_loss': collect('loss'),
-            'val_mel_loss': collect('mel_loss'),
-            'val_dur_loss': collect('dur_loss'),
-            'val_pitch_loss': collect('pitch_loss'),
-        }
-        return {'val_loss': tb_logs['val_loss'], 'log': tb_logs}
+        val_loss = collect("val_loss")
+        mel_loss = collect("mel_loss")
+        dur_loss = collect("dur_loss")
+        pitch_loss = collect("pitch_loss")
+        self.log("v_loss", val_loss)
+        self.log("v_mel_loss", mel_loss)
+        self.log("v_dur_loss", dur_loss)
+        self.log("v_pitch_loss", pitch_loss)
 
-    def _loader(self, cfg):
-        dataset = FastPitchDataset(
-            manifest_filepath=cfg['manifest_filepath'],
-            parser=self.parser,
-            sample_rate=cfg['sample_rate'],
-            int_values=cfg.get('int_values', False),
-            max_duration=cfg.get('max_duration', None),
-            min_duration=cfg.get('min_duration', None),
-            max_utts=cfg.get('max_utts', 0),
-            trim=cfg.get('trim_silence', True),
+        _, _, _, _, spec_target, spec_predict = outputs[0].values()
+        self.tb_logger.add_image(
+            "val_mel_target",
+            plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()),
+            self.global_step,
+            dataformats="HWC",
         )
+        spec_predict = spec_predict[0].data.cpu().numpy()
+        self.tb_logger.add_image(
+            "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict.T), self.global_step, dataformats="HWC",
+        )
+        self.log_train_images = True
 
-        return torch.utils.data.DataLoader(
-            dataset=dataset,
-            batch_size=cfg['batch_size'],
-            collate_fn=dataset.collate_fn,
-            drop_last=cfg.get('drop_last', True),
-            shuffle=cfg['shuffle'],
-            num_workers=cfg.get('num_workers', 16),
-        )
+    def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
+        if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
+            raise ValueError(f"No dataset for {name}")
+        if "dataloader_params" not in cfg or not isinstance(cfg.dataloader_params, DictConfig):
+            raise ValueError(f"No dataloder_params for {name}")
+        if shuffle_should_be:
+            if 'shuffle' not in cfg.dataloader_params:
+                logging.warning(
+                    f"Shuffle should be set to True for {self}'s {name} dataloader but was not found in its "
+                    "config. Manually setting to True"
+                )
+                with open_dict(cfg.dataloader_params):
+                    cfg.dataloader_params.shuffle = True
+            elif not cfg.dataloader_params.shuffle:
+                logging.error(f"The {name} dataloader for {self} has shuffle set to False!!!")
+        elif not shuffle_should_be and cfg.dataloader_params.shuffle:
+            logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
+
+        kwargs_dict = {}
+        if cfg.dataset._target_ == "nemo.collections.asr.data.audio_to_text.FastPitchDataset":
+            kwargs_dict["parser"] = self.parser
+        dataset = instantiate(cfg.dataset, **kwargs_dict)
+        return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
 
     def setup_training_data(self, cfg):
-        self._train_dl = self._loader(cfg)
+        self._train_dl = self.__setup_dataloader_from_config(cfg)
 
     def setup_validation_data(self, cfg):
-        self._validation_dl = self._loader(cfg)
+        self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="val")
 
     def setup_test_data(self, cfg):
         """Omitted."""
