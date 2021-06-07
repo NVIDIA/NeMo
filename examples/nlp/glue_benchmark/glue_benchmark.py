@@ -36,7 +36,7 @@ Note, MNLI task includes both matched and mismatched dev sets
 import os
 
 import pytorch_lightning as pl
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models import GLUEModel
 from nemo.core.config import hydra_runner
@@ -46,7 +46,7 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_name="glue_benchmark_config")
 def main(cfg: DictConfig) -> None:
-    logging.info(f'Config: {cfg.pretty()}')
+    logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager_cfg = cfg.get("exp_manager", None)
 
