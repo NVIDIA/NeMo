@@ -456,7 +456,10 @@ class MTEncDecModel(EncDecNLPModel):
         if cfg.get("use_tarred_dataset", False):
             if cfg.get("metadata_file") is None:
                 raise FileNotFoundError("Trying to use tarred data set but could not find metadata path in config.")
-            metadata_file_list = cfg.get('metadata_file')            
+            metadata_file_list = cfg.get('metadata_file')
+            if isinstance(metadata_file_list, str):
+                metadata_file_list = [metadata_file_list]
+
             datasets = []
             for idx, metadata_file in enumerate(metadata_file_list):
                 with open(metadata_file) as metadata_reader:
@@ -465,38 +468,6 @@ class MTEncDecModel(EncDecNLPModel):
                     tar_files = metadata.get('tar_files')
                     if tar_files is not None:
                         logging.info(f'Loading from tarred dataset {tar_files}')
-                    else:
-                        tar_files = cfg.get('tar_files')
-                        if self.multilingual:
-                            tar_files = tar_files[idx]
-                        if metadata.get('tar_files') is not None:
-                            logging.info(
-                                f'Tar file paths found in both cfg and metadata using one in cfg by default - {tar_files}'
-                            )
-
-                    dataset = TarredTranslationDataset(
-                        text_tar_filepaths=tar_files,
-                        metadata_path=metadata_file,
-                        encoder_tokenizer=self.encoder_tokenizer,
-                        decoder_tokenizer=self.decoder_tokenizer,
-                        shuffle_n=cfg.get("tar_shuffle_n", 100),
-                        shard_strategy=cfg.get("shard_strategy", "scatter"),
-                        global_rank=self.global_rank,
-                        world_size=self.world_size,
-                        reverse_lang_direction=cfg.get("reverse_lang_direction", False),
-                        prepend_id=self.multilingual_ids[idx],
-                    )
-                    datasets.append(dataset)
-
-                if self.multilingual:
-                    dataset = ConcatDataset(
-                        datasets=datasets,
-                        sampling_technique=cfg.get('concat_sampling_technique'),
-                        sampling_temperature=cfg.get('concat_sampling_temperature'),
-                        sampling_probabilities=cfg.get('concat_sampling_probabilities'),
-                        global_rank=self.global_rank,
-                        world_size=self.world_size,
-                    )
                 else:
                     tar_files = cfg.get('tar_files')
                     tar_files = tar_files[idx]
@@ -515,7 +486,7 @@ class MTEncDecModel(EncDecNLPModel):
                     global_rank=self.global_rank,
                     world_size=self.world_size,
                     reverse_lang_direction=cfg.get("reverse_lang_direction", False),
-                    prepend_id=self.multilingual_ids[idx],
+                    prepend_id=self.multilingual_ids[idx] if self.multilingual else None,
                 )
                 datasets.append(dataset)
 
@@ -531,12 +502,12 @@ class MTEncDecModel(EncDecNLPModel):
             else:
                 dataset = datasets[0]
         else:
-            if not self.multilingual:
-                src_file_list = [cfg.src_file_name]
-                tgt_file_list = [cfg.tgt_file_name]
-            else:
-                src_file_list = cfg.src_file_name
-                tgt_file_list = cfg.tgt_file_name
+            src_file_list = cfg.src_file_name
+            tgt_file_list = cfg.tgt_file_name
+            if isinstance(src_file_list, str):
+                src_file_list,  = [src_file_list]
+            if isinstance(tgt_file_list, str):
+                tgt_file_list = [tgt_file_list]
 
             if len(src_file_list) != len(tgt_file_list):
                 raise ValueError(
@@ -558,12 +529,12 @@ class MTEncDecModel(EncDecNLPModel):
                     cache_data_per_node=cfg.get("cache_data_per_node", False),
                     use_cache=cfg.get("use_cache", False),
                     reverse_lang_direction=cfg.get("reverse_lang_direction", False),
-                    prepend_id=self.multilingual_ids[idx],
+                    prepend_id=self.multilingual_ids[idx] if self.multilingual else None,
                 )
                 dataset.batchify(self.encoder_tokenizer, self.decoder_tokenizer)
                 datasets.append(dataset)
 
-            if self.multilingual:
+            if len(datasets) > 1:
                 dataset = ConcatDataset(
                     datasets=datasets,
                     shuffle=cfg.get('shuffle'),
@@ -572,13 +543,6 @@ class MTEncDecModel(EncDecNLPModel):
                     sampling_probabilities=cfg.get('concat_sampling_probabilities'),
                     global_rank=self.global_rank,
                     world_size=self.world_size,
-                )
-                return torch.utils.data.DataLoader(
-                    dataset=dataset,
-                    batch_size=1,
-                    num_workers=cfg.get("num_workers", 2),
-                    pin_memory=cfg.get("pin_memory", False),
-                    drop_last=cfg.get("drop_last", False),
                 )
             else:
                 dataset = datasets[0]
@@ -590,7 +554,7 @@ class MTEncDecModel(EncDecNLPModel):
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=1,
-            sampler=sampler,
+            sampler=None if cfg.get("use_tarred_dataset", False) else sampler,
             num_workers=cfg.get("num_workers", 2),
             pin_memory=cfg.get("pin_memory", False),
             drop_last=cfg.get("drop_last", False),
@@ -651,7 +615,7 @@ class MTEncDecModel(EncDecNLPModel):
                 cache_data_per_node=cfg.get("cache_data_per_node", False),
                 use_cache=cfg.get("use_cache", False),
                 reverse_lang_direction=cfg.get("reverse_lang_direction", False),
-                prepend_id=self.multilingual_ids[prepend_idx],
+                prepend_id=self.multilingual_ids[idx] if self.multilingual else None,
             )
             dataset.batchify(self.encoder_tokenizer, self.decoder_tokenizer)
 
