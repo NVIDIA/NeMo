@@ -511,7 +511,7 @@ class MTEncDecModel(EncDecNLPModel):
             src_file_list = cfg.src_file_name
             tgt_file_list = cfg.tgt_file_name
             if isinstance(src_file_list, str):
-                src_file_list,  = [src_file_list]
+                src_file_list = [src_file_list]
             if isinstance(tgt_file_list, str):
                 tgt_file_list = [tgt_file_list]
 
