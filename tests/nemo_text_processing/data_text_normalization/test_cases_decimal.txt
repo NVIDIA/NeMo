@@ -6,4 +6,3 @@
 0.1 billion~zero point one billion
 .1 trillion~point one trillion
 -0.1~minus zero point one
-7.2-millimeter bullet~seven point two millimeter bullet

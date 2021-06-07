@@ -9,3 +9,6 @@ a 4-kilogram bag~a four kilogram bag
 55-millimeters long~fifty five millimeters long
 a 123.2-millimeters long~a one hundred twenty three point two millimeters long
 covid-19.5~covid nineteen point five
+covid-19~covid nineteen
+a 4-kilogram bag~a four kilogram bag
+7.2-millimeter bullet~seven point two millimeter bullet
