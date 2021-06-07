@@ -115,16 +115,6 @@ class MeasureFst(GraphFst):
             + pynutil.insert("\"")
         )
 
-        # alpha_dash_cardinal = (
-        #         pynutil.insert("units: \"")
-        #         + pynini.closure(NEMO_ALPHA, 1)
-        #         + pynini.cross('-', '')
-        #         + pynutil.insert("\" preserve_order: true")
-        #         + pynutil.insert(" cardinal { integer: \"")
-        #         + cardinal_graph
-        #         + pynutil.insert("\" }")
-        # )
-
         alpha_dash_cardinal = (
             pynutil.insert("units: \"")
             + pynini.closure(NEMO_ALPHA, 1)
@@ -132,7 +122,7 @@ class MeasureFst(GraphFst):
             + pynutil.insert("\"")
             + pynutil.insert(" cardinal { integer: \"")
             + cardinal_graph
-            + pynutil.insert("\" }" + pynutil.insert(" preserve_order: true"))
+            + pynutil.insert("\" } preserve_order: true")
         )
 
         decimal_dash_alpha = (
@@ -151,7 +141,7 @@ class MeasureFst(GraphFst):
             + pynutil.insert("\"")
             + pynutil.insert(" decimal { ")
             + decimal.final_graph_wo_negative
-            + pynutil.insert(" } ")
+            + pynutil.insert(" } preserve_order: true")
         )
 
         final_graph = (
