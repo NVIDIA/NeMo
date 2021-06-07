@@ -72,9 +72,11 @@ model:
         notation: phonemes
         punct: true
         spaces: true
-        stresses: false
+        stresses: true
         add_blank_at: None
         pad_with_space: True
+        chars: true
+        improved_version_g2p: true
     dataloader_params:
       drop_last: false
       shuffle: false

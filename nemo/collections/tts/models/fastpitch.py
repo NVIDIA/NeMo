@@ -351,30 +351,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         dataset = instantiate(cfg.dataset, **kwargs_dict)
         return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
 
-    def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
-        if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
-            raise ValueError(f"No dataset for {name}")
-        if "dataloader_params" not in cfg or not isinstance(cfg.dataloader_params, DictConfig):
-            raise ValueError(f"No dataloder_params for {name}")
-        if shuffle_should_be:
-            if 'shuffle' not in cfg.dataloader_params:
-                logging.warning(
-                    f"Shuffle should be set to True for {self}'s {name} dataloader but was not found in its "
-                    "config. Manually setting to True"
-                )
-                with open_dict(cfg.dataloader_params):
-                    cfg.dataloader_params.shuffle = True
-            elif not cfg.dataloader_params.shuffle:
-                logging.error(f"The {name} dataloader for {self} has shuffle set to False!!!")
-        elif not shuffle_should_be and cfg.dataloader_params.shuffle:
-            logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
-
-        kwargs_dict = {}
-        if cfg.dataset._target_ == "nemo.collections.asr.data.audio_to_text.FastPitchDataset":
-            kwargs_dict["parser"] = self.parser
-        dataset = instantiate(cfg.dataset, **kwargs_dict)
-        return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
-
     def setup_training_data(self, cfg):
         self._train_dl = self.__setup_dataloader_from_config(cfg)
 
