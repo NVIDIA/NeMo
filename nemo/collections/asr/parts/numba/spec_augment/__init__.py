@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,16 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-import torch.nn as nn
-
-__all__ = ['Swish']
-
-
-class Swish(nn.Module):
-    """
-    Swish activation function introduced in 'https://arxiv.org/abs/1710.05941'
-    """
-
-    def forward(self, x):
-        return x * torch.sigmoid(x)
+from nemo.collections.asr.parts.numba.spec_augment.spec_aug_numba import (
+    SpecAugmentNumba,
+    spec_augment_launch_heuristics,
+)

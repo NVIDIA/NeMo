@@ -20,7 +20,6 @@ from abc import abstractmethod
 from math import ceil
 from typing import Dict, List, Optional, Union
 
-import onnx
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -28,8 +27,8 @@ from pytorch_lightning.metrics.regression import MeanAbsoluteError, MeanSquaredE
 
 from nemo.collections.asr.data import audio_to_label_dataset
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
-from nemo.collections.asr.parts.features import WaveformFeaturizer
-from nemo.collections.asr.parts.perturb import process_augmentations
+from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
+from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.common.losses import CrossEntropyLoss, MSELoss
 from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -145,7 +144,7 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
             )
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
-            processed_signal = self.spec_augmentation(input_spec=processed_signal)
+            processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_len)
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
         logits = self.decoder(encoder_output=encoded)
         return logits

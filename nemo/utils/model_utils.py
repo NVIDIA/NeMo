@@ -46,6 +46,7 @@ class ArtifactPathType(Enum):
 class ArtifactItem:
     path: str
     path_type: ArtifactPathType
+    hashed_path: Optional[str] = None
 
 
 def resolve_dataset_name_from_cfg(cfg: DictConfig) -> str:
@@ -387,7 +388,7 @@ def _convert_config(cfg: OmegaConf):
             if isinstance(sub_cfg, DictConfig):
                 _convert_config(sub_cfg)
     except omegaconf_errors.OmegaConfBaseException as e:
-        logging.warning(f"Skipping config conversion for cfg:\n{cfg}\n due to OmegaConf error encountered :\n{e}.")
+        logging.warning(f"Skipped conversion for config/subconfig:\n{cfg}\n Reason: {e}.")
 
 
 def maybe_update_config_version(cfg: DictConfig):

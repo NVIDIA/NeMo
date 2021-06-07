@@ -30,7 +30,7 @@ from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss
 from nemo.collections.asr.metrics.rnnt_wer import RNNTWER, RNNTDecoding
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
-from nemo.collections.asr.parts.perturb import process_augmentations
+from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
@@ -340,6 +340,12 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
             with open_dict(self.cfg.decoding):
                 self.cfg.decoding = decoding_cfg
 
+            ds_keys = ['train_ds', 'validation_ds', 'test_ds']
+            for key in ds_keys:
+                if key in self.cfg:
+                    with open_dict(self.cfg[key]):
+                        self.cfg[key]['labels'] = OmegaConf.create(new_vocabulary)
+
             logging.info(f"Changed decoder to output to {self.joint.vocabulary} vocabulary.")
 
     def change_decoding_strategy(self, decoding_cfg: DictConfig):
@@ -383,6 +389,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
             augmentor = process_augmentations(config['augmentor'])
         else:
             augmentor = None
+
+        # Automatically inject args from model config to dataloader config
+        audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
+        audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='labels')
 
         shuffle = config['shuffle']
         device = 'gpu' if torch.cuda.is_available() else 'cpu'
@@ -585,7 +595,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
 
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
-            processed_signal = self.spec_augmentation(input_spec=processed_signal)
+            processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
 
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         return encoded, encoded_len

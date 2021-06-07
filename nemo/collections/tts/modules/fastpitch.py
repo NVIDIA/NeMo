@@ -45,16 +45,17 @@
 import torch
 import torch.nn.functional as F
 from torch import nn as nn
-from torch.nn.utils.rnn import pad_sequence
 
+from nemo.collections.tts.helpers.helpers import binarize_attention_parallel
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types.elements import (
     EncodedRepresentation,
     Index,
-    MaskType,
+    LengthsType,
+    LogprobsType,
     MelSpectrogramType,
+    ProbsType,
     RegressionValuesType,
-    SequenceToSequenceAlignmentType,
     TokenDurationType,
     TokenIndex,
     TokenLogDurationType,
@@ -64,14 +65,42 @@ from nemo.core.neural_types.neural_type import NeuralType
 
 def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
     """If target=None, then predicted durations are applied"""
-    reps = torch.round(durations.float() / pace).long()
+    dtype = enc_out.dtype
+    reps = durations.float() / pace
+    reps = (reps + 0.5).long()
     dec_lens = reps.sum(dim=1)
 
-    enc_rep = pad_sequence([torch.repeat_interleave(o, r, dim=0) for o, r in zip(enc_out, reps)], batch_first=True)
+    max_len = dec_lens.max()
+    reps_cumsum = torch.cumsum(F.pad(reps, (1, 0, 0, 0), value=0.0), dim=1)[:, None, :]
+    reps_cumsum = reps_cumsum.to(dtype)
+
+    range_ = torch.arange(max_len).to(enc_out.device)[None, :, None]
+    mult = (reps_cumsum[:, :, :-1] <= range_) & (reps_cumsum[:, :, 1:] > range_)
+    mult = mult.to(dtype)
+    enc_rep = torch.matmul(mult, enc_out)
+
     if mel_max_len:
         enc_rep = enc_rep[:, :mel_max_len]
         dec_lens = torch.clamp_max(dec_lens, mel_max_len)
     return enc_rep, dec_lens
+
+
+def average_pitch(pitch, durs):
+    durs_cums_ends = torch.cumsum(durs, dim=1).long()
+    durs_cums_starts = torch.nn.functional.pad(durs_cums_ends[:, :-1], (1, 0))
+    pitch_nonzero_cums = torch.nn.functional.pad(torch.cumsum(pitch != 0.0, dim=2), (1, 0))
+    pitch_cums = torch.nn.functional.pad(torch.cumsum(pitch, dim=2), (1, 0))
+
+    bs, l = durs_cums_ends.size()
+    n_formants = pitch.size(1)
+    dcs = durs_cums_starts[:, None, :].expand(bs, n_formants, l)
+    dce = durs_cums_ends[:, None, :].expand(bs, n_formants, l)
+
+    pitch_sums = (torch.gather(pitch_cums, 2, dce) - torch.gather(pitch_cums, 2, dcs)).float()
+    pitch_nelems = (torch.gather(pitch_nonzero_cums, 2, dce) - torch.gather(pitch_nonzero_cums, 2, dcs)).float()
+
+    pitch_avg = torch.where(pitch_nelems == 0.0, pitch_nelems, pitch_sums / pitch_nelems)
+    return pitch_avg
 
 
 class ConvReLUNorm(nn.Module):
@@ -130,6 +159,7 @@ class FastPitchModule(NeuralModule):
         decoder_module: NeuralModule,
         duration_predictor: NeuralModule,
         pitch_predictor: NeuralModule,
+        aligner: NeuralModule,
         n_speakers: int,
         symbols_embedding_dim: int,
         pitch_embedding_kernel_size: int,
@@ -142,6 +172,10 @@ class FastPitchModule(NeuralModule):
         self.decoder = decoder_module
         self.duration_predictor = duration_predictor
         self.pitch_predictor = pitch_predictor
+        self.aligner = aligner
+        self.learn_alignment = aligner is not None
+        self.use_duration_predictor = True
+        self.binarize = False
 
         if n_speakers > 1:
             self.speaker_emb = nn.Embedding(n_speakers, symbols_embedding_dim)
@@ -171,23 +205,42 @@ class FastPitchModule(NeuralModule):
             "pitch": NeuralType(('B', 'T'), RegressionValuesType()),
             "speaker": NeuralType(('B'), Index()),
             "pace": NeuralType(optional=True),
+            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType(), optional=True),
+            "attn_prior": NeuralType(('B', 'T', 'T'), ProbsType(), optional=True),
+            "mel_lens": NeuralType(('B'), LengthsType(), optional=True),
+            "input_lens": NeuralType(('B'), LengthsType(), optional=True),
         }
 
     @property
     def output_types(self):
         return {
             "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "spect_lens": NeuralType(('B'), SequenceToSequenceAlignmentType()),
-            "spect_mask": NeuralType(('B', 'D', 'T'), MaskType()),
             "durs_predicted": NeuralType(('B', 'T'), TokenDurationType()),
             "log_durs_predicted": NeuralType(('B', 'T'), TokenLogDurationType()),
             "pitch_predicted": NeuralType(('B', 'T'), RegressionValuesType()),
+            "attn_soft": NeuralType(('B', 'S', 'T', 'D'), ProbsType()),
+            "attn_logprob": NeuralType(('B', 'S', 'T', 'D'), LogprobsType()),
+            "attn_hard": NeuralType(('B', 'S', 'T', 'D'), ProbsType()),
+            "attn_hard_dur": NeuralType(('B', 'T'), TokenDurationType()),
+            "pitch": NeuralType(('B', 'T'), RegressionValuesType()),
         }
 
     @typecheck()
-    def forward(self, *, text, durs=None, pitch=None, speaker=None, pace=1.0):
+    def forward(
+        self,
+        *,
+        text,
+        durs=None,
+        pitch=None,
+        speaker=None,
+        pace=1.0,
+        spec=None,
+        attn_prior=None,
+        mel_lens=None,
+        input_lens=None,
+    ):
 
-        if self.training:
+        if not self.learn_alignment and self.training:
             assert durs is not None
             assert pitch is not None
 
@@ -195,34 +248,51 @@ class FastPitchModule(NeuralModule):
         if self.speaker_emb is None or speaker is None:
             spk_emb = 0
         else:
-            # if type(speaker) is int:
-            #     speaker = torch.zeros_like(text[:, 0]).fill_(speaker)
             spk_emb = self.speaker_emb(speaker).unsqueeze(1)
 
         # Input FFT
         enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
 
-        # Embedded for predictors
-        pred_enc_out, pred_enc_mask = enc_out, enc_mask
-
-        # Predict durations
-        log_durs_predicted = self.duration_predictor(pred_enc_out, pred_enc_mask)
+        log_durs_predicted = self.duration_predictor(enc_out, enc_mask)
         durs_predicted = torch.clamp(torch.exp(log_durs_predicted) - 1, 0, self.max_token_duration)
+
+        attn_soft, attn_hard, attn_hard_dur, attn_logprob = None, None, None, None
+        if self.learn_alignment and spec is not None:
+            text_emb = self.encoder.word_emb(text)
+            attn_soft, attn_logprob = self.aligner(spec, text_emb.permute(0, 2, 1), enc_mask == 0, attn_prior)
+            attn_hard = binarize_attention_parallel(attn_soft, input_lens, mel_lens)
+            attn_hard_dur = attn_hard.sum(2)[:, 0, :]
 
         # Predict pitch
         pitch_predicted = self.pitch_predictor(enc_out, enc_mask)
-        if pitch is None:
-            pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
-        else:
+        if pitch is not None:
+            if self.learn_alignment:
+                pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
             pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
+        else:
+            pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
+
         enc_out = enc_out + pitch_emb.transpose(1, 2)
 
-        if durs is None:
-            len_regulated, dec_lens = regulate_len(durs_predicted, enc_out, pace)
-        else:
+        if self.learn_alignment and spec is not None:
+            len_regulated, dec_lens = regulate_len(attn_hard_dur, enc_out, pace)
+        elif spec is None and durs is not None:
             len_regulated, dec_lens = regulate_len(durs, enc_out, pace)
+        # Use predictions during inference
+        elif spec is None:
+            len_regulated, dec_lens = regulate_len(durs_predicted, enc_out, pace)
 
         # Output FFT
-        dec_out, dec_mask = self.decoder(input=len_regulated, seq_lens=dec_lens)
+        dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens)
         spect = self.proj(dec_out)
-        return (spect, dec_lens, dec_mask, durs_predicted, log_durs_predicted, pitch_predicted)
+        return (
+            spect,
+            durs_predicted,
+            log_durs_predicted,
+            pitch_predicted,
+            attn_soft,
+            attn_logprob,
+            attn_hard,
+            attn_hard_dur,
+            pitch,
+        )

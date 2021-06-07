@@ -20,10 +20,14 @@ import braceexpand
 import torch
 import webdataset as wd
 
-from nemo.collections.asr.parts import collections
+from nemo.collections.asr.parts.preprocessing.segment import available_formats as valid_sf_formats
+from nemo.collections.common.parts.preprocessing import collections
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType, RegressionValuesType
 from nemo.utils import logging
+
+# List of valid file formats (prioritized by order of importance)
+VALID_FILE_FORMATS = ';'.join(['wav', 'mp3', 'flac'] + [fmt.lower() for fmt in valid_sf_formats.keys()])
 
 
 def repeat_signal(signal, sig_len, required_length):
@@ -638,7 +642,7 @@ class _TarredAudioLabelDataset(IterableDataset):
             logging.info("WebDataset will not shuffle files within the tar files.")
 
         self._dataset = (
-            self._dataset.rename(audio='wav', key='__key__')
+            self._dataset.rename(audio=VALID_FILE_FORMATS, key='__key__')
             .to_tuple('audio', 'key')
             .pipe(self._filter)
             .map(f=self._build_sample)

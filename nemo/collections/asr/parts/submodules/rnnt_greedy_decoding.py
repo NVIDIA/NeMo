@@ -32,7 +32,7 @@ from typing import List, Optional, Union
 import torch
 
 from nemo.collections.asr.modules import rnnt_abstract
-from nemo.collections.asr.parts import rnnt_utils
+from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.common.parts.rnn import label_collate
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
