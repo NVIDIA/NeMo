@@ -14,8 +14,8 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
-from nemo_text_processing.text_normalization.graph_utils import NEMO_DIGIT, GraphFst
+from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path, load_labels
+from nemo_text_processing.text_normalization.graph_utils import NEMO_ALPHA, NEMO_DIGIT, GraphFst, insert_space
 from nemo_text_processing.text_normalization.taggers.date import get_hundreds_graph
 
 try:
@@ -78,14 +78,36 @@ class CardinalFst(GraphFst):
             self.range_graph = self.range_graph.optimize()
 
         optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
-        if deterministic:
-            final_graph = optional_minus_graph + pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
-        else:
-            final_graph = (
-                optional_minus_graph
-                + pynutil.insert("integer: \"")
-                + (self.graph | self.range_graph)
-                + pynutil.insert("\"")
-            )
+        final_graph = self.graph | pynutil.add_weight(self.get_serial_graph(), 1.2)
+
+        if not deterministic:
+            final_graph |= self.range_graph
+
+        final_graph = optional_minus_graph + pynutil.insert("integer: \"") + final_graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
+
+    def get_serial_graph(self):
+        """
+        Finite state transducer for classifying serial.
+            The serial is a combination of digits, letters and dashes, e.g.:
+            c325-b -> tokens { serial { value: "c three two five b" } }
+        """
+        alpha = NEMO_ALPHA
+
+        if self.deterministic:
+            num_graph = self.single_digits_graph
+        else:
+            num_graph = self.graph
+            letter_pronunciation = pynini.string_map(load_labels(get_abs_path("data/letter_pronunciation.tsv")))
+            alpha |= letter_pronunciation
+
+        delimiter = insert_space | pynini.cross("-", " ")
+        letter_num = pynini.closure(alpha + delimiter, 1) + num_graph
+        num_letter = pynini.closure(num_graph + delimiter, 1) + alpha
+        next_alpha_or_num = pynini.closure(delimiter + (alpha | num_graph))
+        serial_graph = (letter_num | num_letter) + next_alpha_or_num
+
+        if not self.deterministic:
+            serial_graph += pynini.closure(pynini.accep("s") | pynini.cross("s", "es"), 0, 1)
+        return serial_graph
