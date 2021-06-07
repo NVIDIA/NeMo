@@ -23,11 +23,20 @@ MOUNTS=""
 MOUNTS+=" -v $CLASSIFY_DIR:/workspace/sparrowhawk/documentation/grammars/en_toy/classify"
 MOUNTS+=" -v $VERBALIZE_DIR:/workspace/sparrowhawk/documentation/grammars/en_toy/verbalize"
 
-echo $MOUNTS
+#echo $MOUNTS
+#docker run -it --rm \
+#  --shm-size=4g \
+#  --ulimit memlock=-1 \
+#  --ulimit stack=67108864 \
+#  $MOUNTS \
+#  -w /workspace/sparrowhawk/documentation/grammars \
+#  sparrowhawk:latest $CMD
+
 docker run -it --rm \
   --shm-size=4g \
   --ulimit memlock=-1 \
   --ulimit stack=67108864 \
   $MOUNTS \
+  -v $SCRIPT_DIR/../../../tests/nemo_text_processing/:/workspace/tests \
   -w /workspace/sparrowhawk/documentation/grammars \
   sparrowhawk:latest $CMD
