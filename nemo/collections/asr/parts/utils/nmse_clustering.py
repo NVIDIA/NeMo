@@ -235,7 +235,7 @@ def COSclustering(key, emb, oracle_num_speakers=None, max_num_speaker=8, MIN_SAM
     oracle_num_speaker (int or None): oracle number of speakers if known else None
     max_num_speakers (int): maximum number of clusters to consider for each session
     MIN_SAMPLES (int): minimum number of samples required for NME clustering, this avoids
-    zero p_neighbour_lists. Deafult of 6 is selected since  (1/rp_threshold) >= 4.
+    zero p_neighbour_lists. Default of 6 is selected since  (1/rp_threshold) >= 4.
     output:
     Y (List[int]): speaker labels
     """
