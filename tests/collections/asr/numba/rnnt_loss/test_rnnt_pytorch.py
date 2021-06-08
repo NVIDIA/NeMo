@@ -52,8 +52,7 @@ class TestRNNTLossPytorch:
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
     def test_case_small(self, device):
-        if device == 'cuda':
-            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
         acts = np.array(
             [
@@ -97,8 +96,7 @@ class TestRNNTLossPytorch:
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
     def test_case_small_random(self, device):
-        if device == 'cuda':
-            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
         rng = np.random.RandomState(0)
         acts = rng.randn(1, 4, 3, 3)
@@ -116,8 +114,7 @@ class TestRNNTLossPytorch:
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
     def big_test(self, device):
-        if device == 'cuda':
-            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
         # minibatch x T x U x alphabet_size
         activations = [
@@ -233,8 +230,7 @@ class TestRNNTLossPytorch:
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
     def test_case_large_random(self, device):
-        if device == 'cuda':
-            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
         rng = np.random.RandomState(0)
         acts = rng.randn(4, 8, 11, 5)
