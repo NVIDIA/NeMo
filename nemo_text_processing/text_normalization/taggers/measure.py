@@ -15,6 +15,7 @@
 
 from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
 from nemo_text_processing.text_normalization.graph_utils import (
+    NEMO_ALPHA,
     NEMO_NON_BREAKING_SPACE,
     NEMO_SIGMA,
     SINGULAR_TO_PLURAL,
@@ -49,6 +50,9 @@ class MeasureFst(GraphFst):
     def __init__(self, cardinal: GraphFst, decimal: GraphFst, deterministic: bool = True):
         super().__init__(name="measure", kind="classify", deterministic=deterministic)
         cardinal_graph = cardinal.graph
+
+        if not deterministic:
+            cardinal_graph |= cardinal.range_graph
 
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
         graph_unit_plural = convert_space(graph_unit @ SINGULAR_TO_PLURAL)
@@ -101,6 +105,52 @@ class MeasureFst(GraphFst):
             + pynutil.insert(" } ")
             + unit_singular
         )
-        final_graph = subgraph_decimal | subgraph_cardinal
+
+        cardinal_dash_alpha = (
+            pynutil.insert("cardinal { integer: \"")
+            + cardinal_graph
+            + pynini.cross('-', '')
+            + pynutil.insert("\" } units: \"")
+            + pynini.closure(NEMO_ALPHA, 1)
+            + pynutil.insert("\"")
+        )
+
+        alpha_dash_cardinal = (
+            pynutil.insert("units: \"")
+            + pynini.closure(NEMO_ALPHA, 1)
+            + pynini.cross('-', '')
+            + pynutil.insert("\"")
+            + pynutil.insert(" cardinal { integer: \"")
+            + cardinal_graph
+            + pynutil.insert("\" } preserve_order: true")
+        )
+
+        decimal_dash_alpha = (
+            pynutil.insert("decimal { ")
+            + decimal.final_graph_wo_negative
+            + pynini.cross('-', '')
+            + pynutil.insert(" } units: \"")
+            + pynini.closure(NEMO_ALPHA, 1)
+            + pynutil.insert("\"")
+        )
+
+        alpha_dash_decimal = (
+            pynutil.insert("units: \"")
+            + pynini.closure(NEMO_ALPHA, 1)
+            + pynini.cross('-', '')
+            + pynutil.insert("\"")
+            + pynutil.insert(" decimal { ")
+            + decimal.final_graph_wo_negative
+            + pynutil.insert(" } preserve_order: true")
+        )
+
+        final_graph = (
+            subgraph_decimal
+            | subgraph_cardinal
+            | cardinal_dash_alpha
+            | alpha_dash_cardinal
+            | decimal_dash_alpha
+            | alpha_dash_decimal
+        )
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
