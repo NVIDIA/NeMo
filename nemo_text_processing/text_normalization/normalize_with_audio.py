@@ -244,7 +244,7 @@ def parse_args():
     parser.add_argument(
         "--n_tagged",
         type=int,
-        default=300,
+        default=1000,
         help="number of tagged options to consider, -1 - return all possible tagged options",
     )
     parser.add_argument("--verbose", help="print info for debugging", action="store_true")
