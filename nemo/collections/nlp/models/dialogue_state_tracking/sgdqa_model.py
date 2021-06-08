@@ -544,7 +544,7 @@ class SGDQAModel(NLPModel):
 
         self.data_prepared = True
 
-    def update_data_dirs(self, data_dir: str, dialogues_example_dir: str) -> None:
+    def update_data_dirs(self, data_dir: str, dialogues_example_dir: str):
         """
         Update data directories
 
