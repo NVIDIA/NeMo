@@ -197,7 +197,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         # FIXME: return masks as well?
         self.eval()
         spect, *_ = self(text=tokens, durs=None, pitch=None, speaker=speaker, pace=pace)
-        return spect.transpose(1, 2)
+        return spect
 
     def training_step(self, batch, batch_idx):
         attn_prior, durs, speakers = None, None, None
