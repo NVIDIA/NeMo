@@ -36,6 +36,7 @@ from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import NeuralType
+from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
 __all__ = ['SGDQAModel']
@@ -542,6 +543,19 @@ class SGDQAModel(NLPModel):
             self.dialogues_processor.save_dialog_examples(overwrite_dial_files=overwrite_dial_files)
 
         self.data_prepared = True
+
+    def update_data_dirs(self, data_dir: str, dialogues_example_dir: str) -> None:
+        """
+        Update data directories
+
+        Args:
+            data_dir: path to data directory
+            dialogues_example_dir: path to preprocessed dialogues example directory, if not exists will be created.
+        """
+        self._cfg.dataset.data_dir = data_dir
+        self._cfg.dataset.dialogues_example_dir = dialogues_example_dir
+        logging.info(f'Setting model.dataset.data_dir to {data_dir}.')
+        logging.info(f'Setting model.dataset.dialogues_example_dir to {dialogues_example_dir}.')
 
     def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
         self.prepare_data()
