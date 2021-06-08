@@ -16,7 +16,7 @@
 # Please see tutorial at Nemo/tutorials/nlp/Entity_Linking_Medical.ipynb for
 # more information on entity linking and self alignment pretraining.
 
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.models import EntityLinkingModel
@@ -27,7 +27,7 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="conf", config_name="umls_medical_entity_linking_config.yaml")
 def main(cfg: DictConfig) -> None:
-    logging.info(f"\nConfig Params:\n{cfg.pretty()}")
+    logging.info(f"\nConfig Params:\n{OmegaConf.to_yaml(cfg)}")
     trainer = Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
