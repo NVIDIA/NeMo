@@ -15,7 +15,7 @@
 import os
 
 import pytorch_lightning as pl
-from omegaconf.listconfig import ListConfig
+from omegaconf import ListConfig, OmegaConf
 from pytorch_lightning import seed_everything
 
 from nemo.collections.asr.models import EncDecSpeakerLabelModel
@@ -53,7 +53,7 @@ seed_everything(42)
 @hydra_runner(config_path="conf", config_name="SpeakerNet_recognition_3x2x512.yaml")
 def main(cfg):
 
-    logging.info(f'Hydra config: {cfg.pretty()}')
+    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     trainer = pl.Trainer(**cfg.trainer)
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
     speaker_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
