@@ -7,7 +7,7 @@ It uses `Sparrowhawk <https://github.com/google/sparrowhawk>`_ :cite:`tools-itn_
 Requirements
 ------------------------
 
-1) :doc:`nemo_text_processing <../nemo_text_processing/intro>` package
+:doc:`nemo_text_processing <../nemo_text_processing/intro>` package
 
 
 Usage
@@ -17,9 +17,9 @@ Starts docker container with production backend with plugged in grammars. This i
 
 Arguments:
 ^^^^^^^^^
-* ``GRAMMARS`` - `tn_grammars` or ``itn_grammars`` to export either TN or ITN grammars from :doc:`nemo_text_processing <../nemo_text_processing/intro>`.
-* ``INPUT_CASE`` - `cased` or `lower_cased` (lower_cased is supported only in TN grammars).
-* ``MODE`` - choose `test` to run test on the grammars inside the container.
+* ``GRAMMARS`` - ``tn_grammars`` or ``itn_grammars`` to export either TN or ITN grammars from :doc:`nemo_text_processing <../nemo_text_processing/intro>`.
+* ``INPUT_CASE`` - ``cased`` or ``lower_cased`` (lower_cased is supported only in TN grammars).
+* ``MODE`` - choose ``test`` to run test on the grammars inside the container.
 
 For example:
 

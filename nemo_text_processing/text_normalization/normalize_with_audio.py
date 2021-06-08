@@ -19,6 +19,7 @@ import time
 from argparse import ArgumentParser
 from typing import List, Tuple
 
+from nemo_text_processing.text_normalization.data_loader_utils import post_process_punctuation
 from nemo_text_processing.text_normalization.normalize import Normalizer
 from nemo_text_processing.text_normalization.taggers.tokenize_and_classify import ClassifyFst
 from nemo_text_processing.text_normalization.verbalizers.verbalize_final import VerbalizeFinalFst
@@ -111,7 +112,7 @@ class NormalizerWithAudio(Normalizer):
         if len(normalized_texts) == 0:
             raise ValueError()
         if punct_post_process:
-            normalized_texts = [post_process(t) for t in normalized_texts]
+            normalized_texts = [post_process_punctuation(t) for t in normalized_texts]
         normalized_texts = set(normalized_texts)
         return normalized_texts
 
@@ -210,37 +211,6 @@ def pre_process(text: str) -> str:
     # remove extra space
     text = re.sub(r' +', ' ', text)
     return text
-
-
-def post_process(text: str, punctuation='!,.:;?') -> str:
-    """
-    Normalized quotes and spaces
-
-    Args:
-        text: text
-
-    Returns: text with normalized spaces and quotes
-    """
-    text = (
-        text.replace('( ', '(')
-        .replace(' )', ')')
-        .replace('  ', ' ')
-        .replace('”', '"')
-        .replace("’", "'")
-        .replace("»", '"')
-        .replace("«", '"')
-        .replace("\\", "")
-        .replace("„", '"')
-        .replace("´", "'")
-        .replace("’", "'")
-        .replace('“', '"')
-        .replace("‘", "'")
-        .replace('`', "'")
-    )
-
-    for punct in punctuation:
-        text = text.replace(f' {punct}', punct)
-    return text.strip()
 
 
 def get_asr_model(asr_model: ASRModel):

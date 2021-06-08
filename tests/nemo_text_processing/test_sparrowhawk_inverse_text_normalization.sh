@@ -8,11 +8,11 @@ runtest () {
 
   # read test file
   while read testcase; do
-    IFS='~' read written spoken <<< $testcase
+    IFS='~' read spoken written <<< $testcase
     denorm_pred=$(echo $spoken | normalizer_main --config=sparrowhawk_configuration.ascii_proto 2>&1 | tail -n 1)
 
     # trim white space
-    written="$(echo -e "${spoken}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    written="$(echo -e "${written}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
     denorm_pred="$(echo -e "${denorm_pred}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 
     # input expected actual
