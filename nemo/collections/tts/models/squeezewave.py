@@ -119,7 +119,7 @@ class SqueezeWaveModel(GlowVocoder):
 
     @typecheck(
         input_types={
-            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "spec": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
             "sigma": NeuralType(optional=True),
             "denoise": NeuralType(optional=True),
             "denoiser_strength": NeuralType(optional=True),
@@ -129,6 +129,7 @@ class SqueezeWaveModel(GlowVocoder):
     def convert_spectrogram_to_audio(
         self, spec: torch.Tensor, sigma: bool = 1.0, denoise: bool = True, denoiser_strength: float = 0.01
     ) -> torch.Tensor:
+        spec = spec.transpose(1, 2)
         with self.nemo_infer():
             audio = self.squeezewave(spec=spec, run_inverse=True, audio=None, sigma=sigma)
             if denoise:

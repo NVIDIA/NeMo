@@ -194,7 +194,7 @@ class Tacotron2Model(SpectrogramGenerator):
 
     @typecheck(
         input_types={"tokens": NeuralType(('B', 'T'), EmbeddedTextType())},
-        output_types={"spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType())},
+        output_types={"spec": NeuralType(('B', 'T', 'D'), MelSpectrogramType())},
     )
     def generate_spectrogram(self, *, tokens):
         self.eval()
@@ -210,7 +210,7 @@ class Tacotron2Model(SpectrogramGenerator):
             mask = mask.permute(1, 0, 2)
             spectrogram_pred.data.masked_fill_(mask, self.pad_value)
 
-        return spectrogram_pred
+        return spectrogram_pred.transpose(2, 1)
 
     def training_step(self, batch, batch_idx):
         audio, audio_len, tokens, token_len = batch

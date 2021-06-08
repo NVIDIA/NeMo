@@ -249,6 +249,7 @@ class GlowTTSModel(SpectrogramGenerator):
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
+    @typecheck(output_types={"spect": NeuralType(('B', 'T', 'D'), MelSpectrogramType())})
     def generate_spectrogram(
         self, tokens: 'torch.tensor', noise_scale: float = 0.0, length_scale: float = 1.0
     ) -> torch.tensor:
@@ -258,7 +259,7 @@ class GlowTTSModel(SpectrogramGenerator):
         token_len = torch.tensor([tokens.shape[1]]).to(self.device)
         spect, _ = self(x=tokens, x_lengths=token_len, gen=True, noise_scale=noise_scale, length_scale=length_scale)
 
-        return spect
+        return spect.tranpose(1, 2)
 
     @classmethod
     def list_available_models(cls) -> 'List[PretrainedModelInfo]':

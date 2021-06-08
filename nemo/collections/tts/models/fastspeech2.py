@@ -243,13 +243,13 @@ class FastSpeech2Model(SpectrogramGenerator):
         x = torch.tensor(tokens).unsqueeze_(0).long().to(self.device)
         return x
 
-    @typecheck(output_types={"spect": NeuralType(('B', 'C', 'T'), MelSpectrogramType())})
+    @typecheck(output_types={"spect": NeuralType(('B', 'T', 'D'), MelSpectrogramType())})
     def generate_spectrogram(self, tokens: torch.Tensor) -> torch.Tensor:
         self.eval()
         token_len = torch.tensor([tokens.shape[1]]).to(self.device)
         spect, *_ = self(text=tokens, text_length=token_len)
 
-        return spect.transpose(1, 2)
+        return spect
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):

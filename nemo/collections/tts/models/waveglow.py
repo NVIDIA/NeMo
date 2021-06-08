@@ -119,7 +119,7 @@ class WaveGlowModel(GlowVocoder, Exportable):
 
     @typecheck(
         input_types={
-            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "spec": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
             "sigma": NeuralType(optional=True),
             "denoise": NeuralType(optional=True),
             "denoiser_strength": NeuralType(optional=True),
@@ -129,6 +129,7 @@ class WaveGlowModel(GlowVocoder, Exportable):
     def convert_spectrogram_to_audio(
         self, spec: torch.Tensor, sigma: float = 1.0, denoise: bool = True, denoiser_strength: float = 0.01
     ) -> torch.Tensor:
+        spec = spec.transpose(1, 2)
         with self.nemo_infer():
             self.waveglow.remove_weightnorm()
             audio = self.waveglow(

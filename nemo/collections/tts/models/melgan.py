@@ -90,8 +90,12 @@ class MelGanModel(Vocoder):
         """
         return self.generator(spec=spec)
 
-    @typecheck(output_types={"audio": NeuralType(('B', 'T'), AudioSignal())})
+    @typecheck(
+        output_types={"audio": NeuralType(('B', 'T'), AudioSignal())},
+        input_types={"spec": NeuralType(('B', 'T', 'C'), MelSpectrogramType())},
+    )
     def convert_spectrogram_to_audio(self, spec: 'torch.tensor') -> 'torch.tensor':
+        spec = spec.transpose(1, 2)
         return self(spec=spec).squeeze(1)
 
     def training_step(self, batch, batch_idx, optimizer_idx):

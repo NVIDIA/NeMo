@@ -117,10 +117,11 @@ class HifiGanModel(Vocoder, Exportable):
         return self.generator(x=spec)
 
     @typecheck(
-        input_types={"spec": NeuralType(('B', 'C', 'T'), MelSpectrogramType())},
+        input_types={"spec": NeuralType(('B', 'T', 'C'), MelSpectrogramType())},
         output_types={"audio": NeuralType(('B', 'T'), AudioSignal())},
     )
     def convert_spectrogram_to_audio(self, spec: 'torch.tensor') -> 'torch.tensor':
+        spec = spec.transpose(1, 2)
         return self(spec=spec).squeeze(1)
 
     def training_step(self, batch, batch_idx, optimizer_idx):

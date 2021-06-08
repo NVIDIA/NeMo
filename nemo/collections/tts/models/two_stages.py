@@ -159,6 +159,7 @@ class TwoStagesModel(Vocoder):
         pass
 
     def convert_spectrogram_to_audio(self, spec: torch.Tensor, **kwargs) -> torch.Tensor:
+
         self.eval()
         try:
             self.mel2spec.mode = OperationMode.infer

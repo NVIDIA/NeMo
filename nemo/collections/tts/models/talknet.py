@@ -311,6 +311,7 @@ class TalkNetSpectModel(SpectrogramGenerator, Exportable):
     def parse(self, text: str, **kwargs) -> torch.Tensor:
         return torch.tensor(self.vocab.encode(text)).long().unsqueeze(0).to(self.device)
 
+    @typecheck(output_types={"spec": NeuralType(('B', 'T', 'D'), MelSpectrogramType())})
     def generate_spectrogram(self, tokens: torch.Tensor, **kwargs) -> torch.Tensor:
         assert hasattr(self, '_durs_model') and hasattr(self, '_pitch_model')
 
@@ -338,7 +339,7 @@ class TalkNetSpectModel(SpectrogramGenerator, Exportable):
         # Spect
         mel = self(tokens, text_len, durs, f0)
 
-        return mel
+        return mel.tranpose(1, 2)
 
     def forward_for_export(self, tokens: torch.Tensor, text_len: torch.Tensor):
         durs = self._durs_model(tokens, text_len)

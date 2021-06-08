@@ -181,7 +181,7 @@ class GlowVocoder(Vocoder):
         self.check_children_attributes()  # Ensure stft parameters are defined
 
         with self.nemo_infer():
-            spect = torch.zeros((1, self.n_mel, 88)).to(self.device)
+            spect = torch.zeros((1, 88, self.n_mel)).to(self.device)
             bias_audio = self.convert_spectrogram_to_audio(spec=spect, sigma=0.0, denoise=False)
             bias_spect, _ = self.stft(bias_audio)
             self.bias_spect = bias_spect[..., 0][..., None]
