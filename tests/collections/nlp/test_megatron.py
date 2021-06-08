@@ -68,7 +68,7 @@ class TestMegatron:
         with tempfile.TemporaryDirectory() as tmpdir:
             # Generate filename in the temporary directory.
             # Test export.
-            model.export(os.path.join(tmpdir, "megatron.onnx"))
+            model.export(os.path.join(".", "megatron.onnx"))
 
 
 if __name__ == "__main__":
