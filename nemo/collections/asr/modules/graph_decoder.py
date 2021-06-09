@@ -54,6 +54,8 @@ class ViterbiDecoderWithGraph(NeuralModule):
                 from nemo.collections.asr.parts.k2.graph_decoders import TokenLMDecoder as Decoder
             elif dec_type == 'tlg':
                 from nemo.collections.asr.parts.k2.graph_decoders import TLGDecoder as Decoder
+            else:
+                raise ValueError(f"Unsupported dec_type: {dec_type}")
 
             self._decoder = Decoder(num_classes=self._blank+1, blank=self._blank, **decode_kwargs)
         elif backend == 'gtn':

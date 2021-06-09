@@ -38,6 +38,7 @@ from nemo.collections.asr.parts.k2.utils import make_blank_first
 from nemo.collections.asr.parts.k2.utils import load_graph
 from nemo.collections.asr.parts.k2.utils import GradExpNormalize
 from nemo.collections.asr.parts.k2.utils import GradScale
+from nemo.utils import logging
 
 
 class SDLoss(torch.nn.Module):
@@ -72,7 +73,10 @@ class SDLoss(torch.nn.Module):
             raise NotImplementedError("Not adapted yet")
         self.calc_scores = self._calc_scores_pruned if calc_scores_pruned else self._calc_scores_exact
         if token_lm is None:
-            raise NotImplementedError("Not adapted yet")
+            logging.warning(f"""token_lm is empty. 
+                            Using loss without token_lm will result in error.""")
+            # raise NotImplementedError("Not adapted yet")
+            self.lm_graph = token_lm
         else:
             self.lm_graph = load_graph(token_lm) if isinstance(token_lm, str) else token_lm
         if sd_type == 'mmi':

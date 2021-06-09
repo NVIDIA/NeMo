@@ -74,6 +74,35 @@ class GradExpNormalize(torch.autograd.Function):
         return grad_output + ctx.saved_tensors[0], None, None
 
 
+def compose_L_G(L: k2.Fsa, G: k2.Fsa):
+    assert L.device == G.device
+    LG = k2.connect(k2.compose(k2.arc_sort(L), k2.arc_sort(G)))
+    LG = k2.connect(k2.determinize(LG))
+    return LG.to(L.device)
+
+
+def compose_T_LG(T: k2.Fsa, LG: k2.Fsa, labels_disambig_num: int = 2, aux_labels_disambig_num: int = 0):
+    LG = LG.clone()
+    T = T.clone()
+    LG.convert_attr_to_ragged_(name='aux_labels')
+    labels_disambig_id_start = LG.labels.max() - labels_disambig_num
+    LG.labels[LG.labels > labels_disambig_id_start] = 0
+    # LG.labels[LG.labels > 0] -= 1
+    T.aux_labels[T.aux_labels > 0] += 1
+    aux_labels_disambig_id_start = LG.aux_labels.values().max() - aux_labels_disambig_num
+    LG.aux_labels.values()[LG.aux_labels.values() > aux_labels_disambig_id_start] = 0
+    LG = k2.connect(k2.remove_epsilon(LG))
+    LG.aux_labels = k2.ragged.remove_values_eq(LG.aux_labels, 0)
+    TLG = k2.compose(T, k2.arc_sort(LG), inner_labels='phones')
+    TLG = k2.arc_sort(k2.connect(TLG))
+    # make blank_id = 0
+    #if isinstance(TLG.phones, torch.Tensor):
+    #    TLG.phones[TLG.phones > 0] -= 1
+    #else:
+    #    TLG.phones.values()[TLG.phones.values() > 0] -= 1
+    return TLG
+
+
 def create_supervision(input_lengths: torch.Tensor):
     supervisions = torch.stack(
         (
@@ -127,8 +156,12 @@ def graph_to_den(graph: k2.Fsa, replicate_den: bool = False, times: int = 1) -> 
     return den
 
 def intersect_with_self_loops(base_graph: k2.Fsa, aux_graph: k2.Fsa) -> k2.Fsa:
+    base_graph = base_graph.clone().to(base_graph.device)
+    base_graph.rename_tensor_attribute_('aux_labels', 'left_labels')
     aux_graph_with_self_loops = k2.arc_sort(k2.add_epsilon_self_loops(aux_graph)).to(base_graph.device)
-    return k2.intersect(base_graph, aux_graph_with_self_loops, treat_epsilons_specially=False)
+    result, a_arc_map, _ = k2.intersect(base_graph, aux_graph_with_self_loops, treat_epsilons_specially=False, ret_arc_maps=True)
+    result.labels = k2.index(base_graph.left_labels, a_arc_map)
+    return result
 
 def compose_with_self_loops(base_graph: k2.Fsa, aux_graph: k2.Fsa) -> k2.Fsa:
     aux_graph_with_self_loops = k2.arc_sort(k2.add_epsilon_self_loops(aux_graph)).to(base_graph.device)
