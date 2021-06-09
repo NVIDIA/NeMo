@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.graph_utils import NEMO_CHAR, GraphFst, delete_space
+from nemo_text_processing.text_normalization.graph_utils import NEMO_CHAR, GraphFst, delete_space, insert_space
 
 try:
     import pynini
@@ -29,6 +29,7 @@ class MeasureFst(GraphFst):
     Finite state transducer for verbalizing measure, e.g.
         measure { negative: "true" cardinal { integer: "twelve" } units: "kilograms" } -> minus twelve kilograms
         measure { decimal { integer_part: "twelve" fractional_part: "five" } units: "kilograms" } -> twelve point five kilograms
+        tokens { measure { units: "covid" decimal { integer_part: "nineteen"  fractional_part: "five" }  } } -> covid nineteen point five
     
     Args:
         decimal: DecimalFst
@@ -40,9 +41,8 @@ class MeasureFst(GraphFst):
     def __init__(self, decimal: GraphFst, cardinal: GraphFst, deterministic: bool = True):
         super().__init__(name="measure", kind="verbalize", deterministic=deterministic)
         optional_sign = cardinal.optional_sign
-        unit = pynutil.insert(" ") + pynini.closure(NEMO_CHAR - " ", 1)
+        unit = pynutil.delete("units: \"") + pynini.closure(NEMO_CHAR - " ", 1) + pynutil.delete("\"") + delete_space
 
-        unit = pynutil.delete("units: \"") + unit + pynutil.delete("\"") + delete_space
         graph_decimal = (
             pynutil.delete("decimal {")
             + delete_space
@@ -52,7 +52,7 @@ class MeasureFst(GraphFst):
             + delete_space
             + pynutil.delete("}")
         )
-        self.graph_cardinal = (
+        graph_cardinal = (
             pynutil.delete("cardinal {")
             + delete_space
             + optional_sign
@@ -61,6 +61,10 @@ class MeasureFst(GraphFst):
             + delete_space
             + pynutil.delete("}")
         )
-        graph = (self.graph_cardinal | graph_decimal) + delete_space + unit
+        graph = (graph_cardinal | graph_decimal) + delete_space + insert_space + unit
+
+        # SH adds "preserve_order: true" by default
+        preserve_order = pynutil.delete("preserve_order:") + delete_space + pynutil.delete("true") + delete_space
+        graph |= unit + insert_space + (graph_cardinal | graph_decimal) + delete_space + pynini.closure(preserve_order)
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
