@@ -475,7 +475,7 @@ class EnsembleBeamSearchSequenceGenerator:
                 decoder_hidden_states, decoder_input_mask, decoder_mems_list, return_mems=True
             )
         log_probs = self.log_softmaxes[ensemble_index].forward(hidden_states=decoder_mems_list[-1][:, -1:])
-        return log_probs.exp(), decoder_mems_list
+        return log_probs, decoder_mems_list
 
     def _prepare_for_search(self, decoder_input_ids=None, encoder_hidden_states=None):
         """
@@ -509,7 +509,8 @@ class EnsembleBeamSearchSequenceGenerator:
         return self.encoders[ensemble_index](input_ids=src_ids, encoder_mask=encoder_input_mask)
 
     def _average_probs(self, probs_list):
-        return torch.log(torch.stack(probs_list).mean(0))
+        probs_list = torch.stack(probs_list)
+        return torch.log(torch.exp(probs_list).mean(0))
         # probs = torch.stack(probs_list) # Ens x B x T x V
         # return torch.log(probs.sum(0) / probs.sum(-1).sum(0).unsqueeze(-1))
 
@@ -840,9 +841,12 @@ class BeamSearchSequenceGeneratorWithLanguageModel(GreedySequenceGenerator):
         # select best performing hypotheses in each element of the batch
         len_penalties = self.compute_len_penalty(prefixes_len, self.len_pen)
         scores = scores / len_penalties
-        best_guesses = (
-            torch.argmax(scores.view(-1, self.beam_size), dim=1, keepdim=True).repeat(1, prefixes.size(1)).unsqueeze(1)
-        )
-        tgt = prefixes.view(batch_size, self.beam_size, -1).gather(1, best_guesses)
+        if return_beam_scores:
+            return prefixes, scores
+        else:
+            best_guesses = (
+                torch.argmax(scores.view(-1, self.beam_size), dim=1, keepdim=True).repeat(1, prefixes.size(1)).unsqueeze(1)
+            )
+            tgt = prefixes.view(batch_size, self.beam_size, -1).gather(1, best_guesses)
 
-        return tgt.squeeze(1)
+            return tgt.squeeze(1)

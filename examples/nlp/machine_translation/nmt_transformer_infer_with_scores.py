@@ -28,7 +28,11 @@ import torch
 import numpy as np
 
 import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp.modules.common.transformer.transformer_generators import EnsembleBeamSearchSequenceGenerator
+from nemo.collections.nlp.modules.common.transformer.transformer_generators import (
+    EnsembleBeamSearchSequenceGenerator,
+    BeamSearchSequenceGenerator,
+    BeamSearchSequenceGeneratorWithLanguageModel
+)
 from nemo.utils import logging
 
 def filter_predicted_ids(tokenizer, ids):
@@ -74,6 +78,9 @@ def main():
     parser.add_argument("--max_delta_length", type=int, default=5, help="")
     parser.add_argument("--target_lang", type=str, default=None, help="")
     parser.add_argument("--source_lang", type=str, default=None, help="")
+    # shallow fusion specific parameters
+    parser.add_argument("--lm_model", type=str, default=None, help="")
+    parser.add_argument("--fusion_coef", type=float, default=0.0, help="")
 
     args = parser.parse_args()
     torch.set_grad_enabled(False)
@@ -115,6 +122,36 @@ def main():
             len_pen=args.len_pen,
             max_delta_length=args.max_delta_length,
         )
+    else:
+        if args.lm_model is not None:
+            lm_model = nemo_nlp.models.language_modeling.TransformerLMModel.restore_from(restore_path=args.lm_model).eval()
+            model.beam_search = BeamSearchSequenceGeneratorWithLanguageModel(
+                embedding=model.decoder.embedding,
+                decoder=model.decoder.decoder,
+                log_softmax=model.log_softmax,
+                bos=model.decoder_tokenizer.bos_id,
+                pad=model.decoder_tokenizer.pad_id,
+                eos=model.decoder_tokenizer.eos_id,
+                language_model=lm_model,
+                fusion_coef=args.fusion_coef,
+                max_sequence_length=model.decoder.max_sequence_length,
+                beam_size=args.beam_size,
+                len_pen=args.len_pen,
+                max_delta_length=args.max_delta_length,
+            )
+        else:
+            model.beam_search = BeamSearchSequenceGenerator(
+                embedding=model.decoder.embedding,
+                decoder=model.decoder.decoder,
+                log_softmax=model.log_softmax,
+                bos=model.decoder_tokenizer.bos_id,
+                pad=model.decoder_tokenizer.pad_id,
+                eos=model.decoder_tokenizer.eos_id,
+                max_sequence_length=model.decoder.max_sequence_length,
+                beam_size=args.beam_size,
+                len_pen=args.len_pen,
+                max_delta_length=args.max_delta_length,
+            )
 
     count = 0
     with open(args.srctext, 'r') as src_f:
