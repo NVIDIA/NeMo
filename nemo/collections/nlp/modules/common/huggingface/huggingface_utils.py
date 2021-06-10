@@ -19,17 +19,20 @@ from transformers import (
     ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     ALL_PRETRAINED_CONFIG_ARCHIVE_MAP,
     BERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+    CAMEMBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
     AlbertConfig,
     AutoModel,
     BertConfig,
+    CamembertConfig,
     DistilBertConfig,
     RobertaConfig,
 )
 
 from nemo.collections.nlp.modules.common.huggingface.albert import AlbertEncoder
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
+from nemo.collections.nlp.modules.common.huggingface.camembert import CamembertEncoder
 from nemo.collections.nlp.modules.common.huggingface.distilbert import DistilBertEncoder
 from nemo.collections.nlp.modules.common.huggingface.roberta import RobertaEncoder
 from nemo.utils import logging
@@ -62,6 +65,12 @@ HUGGINGFACE_MODELS = {
         "config": AlbertConfig,
         "pretrained_model_list": ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     },
+    "CamembertModel": {
+        "default": "camembert-base",
+        "class": CamembertEncoder,
+        "config": CamembertConfig,
+        "pretrained_model_list": CAMEMBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+    }
 }
 
 
