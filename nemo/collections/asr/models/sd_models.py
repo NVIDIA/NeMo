@@ -78,8 +78,8 @@ class EncDecCTCSDModel(EncDecCTCModel):
             decode_kwargs=self._cfg.get("graph_decode", {})
             self.transcribe_decoder = ViterbiDecoderWithGraph(num_classes=self.decoder.num_classes_with_blank - 1, **decode_kwargs)
 
-    def _calc_cer_loc(self, transcript, transcript_len, predictions):
-        return torch.tensor([editdistance.eval(tran[:tran_len].tolist(), pred.tolist()) / tran_len for tran, tran_len, pred in zip(transcript, transcript_len, predictions)], dtype=torch.float).mean()
+    def _calc_cer_loc(self, transcript, transcript_len, predictions, pred_lengths):
+        return torch.tensor([editdistance.eval(tran[:tran_len].tolist(), pred[:pred_len].tolist()) / tran_len for tran, tran_len, pred, pred_len in zip(transcript, transcript_len, predictions, pred_lengths)], dtype=torch.float).mean()
 
     def _make_fake_aligned_predictions(self, predictions):
         # we assume that self._blank == self.decoder.num_classes_with_blank - 1
@@ -195,16 +195,16 @@ class EncDecCTCSDModel(EncDecCTCModel):
                 wer_greedy, _, _ = self._wer.compute()
                 tensorboard_logs.update({'training_batch_wer_greedy': wer_greedy})
 
-                predictions, _ = self.transcribe_decoder.forward(log_probs=log_probs, log_probs_length=encoded_len)
-                cer = self._calc_cer_loc(transcript, transcript_len, predictions)
-                tensorboard_logs.update({'training_batch_cer': cer})
+                predictions, pred_lengths, _ = self.transcribe_decoder.forward(log_probs=log_probs, log_probs_length=encoded_len)
+                # cer = self._calc_cer_loc(transcript, transcript_len, predictions, pred_lengths)
+                # tensorboard_logs.update({'training_batch_cer': cer})
 
-                fake_predictions, fake_lengths = self._make_fake_aligned_predictions(predictions)
+                # fake_predictions, fake_lengths = self._make_fake_aligned_predictions(predictions)
                 self._wer.update(
-                    predictions=fake_predictions,
+                    predictions=predictions,
                     targets=transcript,
                     target_lengths=transcript_len,
-                    predictions_lengths=fake_lengths,
+                    predictions_lengths=pred_lengths,
                 )
                 wer, _, _ = self._wer.compute()
                 tensorboard_logs.update({'training_batch_wer': wer})
@@ -230,16 +230,15 @@ class EncDecCTCSDModel(EncDecCTCModel):
                 predictions=greedy_predictions, targets=transcript, target_lengths=transcript_len, predictions_lengths=encoded_len
             )
             wer_greedy, wer_num_greedy, wer_denom_greedy = self._wer.compute()
-            
-            predictions, _ = self.transcribe_decoder.forward(log_probs=log_probs, log_probs_length=encoded_len)
-            cer = self._calc_cer_loc(transcript, transcript_len, predictions)
 
-            fake_predictions, fake_lengths = self._make_fake_aligned_predictions(predictions)
-            self._wer.update(predictions=fake_predictions, targets=transcript, target_lengths=transcript_len, predictions_lengths=fake_lengths)
+            predictions, pred_lengths, _ = self.transcribe_decoder.forward(log_probs=log_probs, log_probs_length=encoded_len)
+            # cer = self._calc_cer_loc(transcript, transcript_len, predictions, pred_lengths)
+
+            # fake_predictions, fake_lengths = self._make_fake_aligned_predictions(predictions)
+            self._wer.update(predictions=predictions, targets=transcript, target_lengths=transcript_len, predictions_lengths=pred_lengths)
             wer, wer_num, wer_denom = self._wer.compute()
             return {
                 'val_loss': loss_value,
-                'val_cer': cer,
                 'val_wer_num_greedy': wer_num_greedy,
                 'val_wer_denom_greedy': wer_denom_greedy,
                 'val_wer_greedy': wer_greedy,
@@ -255,7 +254,6 @@ class EncDecCTCSDModel(EncDecCTCModel):
             logs = self.validation_step(batch, batch_idx, dataloader_idx=dataloader_idx)
             test_logs = {
                 'test_loss': logs['val_loss'],
-                'test_cer': logs['val_cer'],
                 'test_wer_num_greedy': logs['val_wer_num_greedy'],
                 'test_wer_denom_greedy': logs['val_wer_denom_greedy'],
                 'test_wer_greedy': logs['val_wer_greedy'],
@@ -303,8 +301,8 @@ class EncDecCTCSDModelBPE(EncDecCTCModelBPE):
             decode_kwargs=self._cfg.get("graph_decode", {})
             self.transcribe_decoder = ViterbiDecoderWithGraph(num_classes=self.decoder.num_classes_with_blank - 1, **decode_kwargs)
 
-    def _calc_ter_loc(self, transcript, transcript_len, predictions):
-        return torch.tensor([editdistance.eval(tran[:tran_len].tolist(), pred.tolist()) / tran_len for tran, tran_len, pred in zip(transcript, transcript_len, predictions)], dtype=torch.float).mean()
+    def _calc_ter_loc(self, transcript, transcript_len, predictions, pred_lengths):
+        return torch.tensor([editdistance.eval(tran[:tran_len].tolist(), pred[:pred_len].tolist()) / tran_len for tran, tran_len, pred, pred_len in zip(transcript, transcript_len, predictions, pred_lengths)], dtype=torch.float).mean()
 
     def _make_fake_aligned_predictions(self, predictions):
         # we assume that self._blank == self.decoder.num_classes_with_blank - 1
@@ -427,16 +425,16 @@ class EncDecCTCSDModelBPE(EncDecCTCModelBPE):
                 wer_greedy, _, _ = self._wer.compute()
                 tensorboard_logs.update({'training_batch_wer_greedy': wer_greedy})
 
-                predictions, _ = self.transcribe_decoder.forward(log_probs=log_probs, log_probs_length=encoded_len)
-                ter = self._calc_ter_loc(transcript, transcript_len, predictions)
-                tensorboard_logs.update({'training_batch_ter': ter})
+                predictions, pred_lengths, _ = self.transcribe_decoder.forward(log_probs=log_probs, log_probs_length=encoded_len)
+                # ter = self._calc_ter_loc(transcript, transcript_len, predictions, pred_lengths)
+                # tensorboard_logs.update({'training_batch_ter': ter})
 
-                fake_predictions, fake_lengths = self._make_fake_aligned_predictions(predictions)
+                # fake_predictions, fake_lengths = self._make_fake_aligned_predictions(predictions)
                 self._wer.update(
-                    predictions=fake_predictions,
+                    predictions=predictions,
                     targets=transcript,
                     target_lengths=transcript_len,
-                    predictions_lengths=fake_lengths,
+                    predictions_lengths=pred_lengths,
                 )
                 wer, _, _ = self._wer.compute()
                 tensorboard_logs.update({'training_batch_wer': wer})
@@ -462,16 +460,15 @@ class EncDecCTCSDModelBPE(EncDecCTCModelBPE):
                 predictions=greedy_predictions, targets=transcript, target_lengths=transcript_len, predictions_lengths=encoded_len
             )
             wer_greedy, wer_num_greedy, wer_denom_greedy = self._wer.compute()
-            
-            predictions, _ = self.transcribe_decoder.forward(log_probs=log_probs, log_probs_length=encoded_len)
-            ter = self._calc_ter_loc(transcript, transcript_len, predictions)
 
-            fake_predictions, fake_lengths = self._make_fake_aligned_predictions(predictions)
-            self._wer.update(predictions=fake_predictions, targets=transcript, target_lengths=transcript_len, predictions_lengths=fake_lengths)
+            predictions, pred_lengths, _ = self.transcribe_decoder.forward(log_probs=log_probs, log_probs_length=encoded_len)
+            # ter = self._calc_ter_loc(transcript, transcript_len, predictions, pred_lengths)
+
+            # fake_predictions, fake_lengths = self._make_fake_aligned_predictions(predictions)
+            self._wer.update(predictions=predictions, targets=transcript, target_lengths=transcript_len, predictions_lengths=pred_lengths)
             wer, wer_num, wer_denom = self._wer.compute()
             return {
                 'val_loss': loss_value,
-                'val_ter': ter,
                 'val_wer_num_greedy': wer_num_greedy,
                 'val_wer_denom_greedy': wer_denom_greedy,
                 'val_wer_greedy': wer_greedy,
@@ -487,7 +484,6 @@ class EncDecCTCSDModelBPE(EncDecCTCModelBPE):
             logs = self.validation_step(batch, batch_idx, dataloader_idx=dataloader_idx)
             test_logs = {
                 'test_loss': logs['val_loss'],
-                'test_ter': logs['val_ter'],
                 'test_wer_num_greedy': logs['val_wer_num_greedy'],
                 'test_wer_denom_greedy': logs['val_wer_denom_greedy'],
                 'test_wer_greedy': logs['val_wer_greedy'],

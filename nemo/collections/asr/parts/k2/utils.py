@@ -156,10 +156,11 @@ def graph_to_den(graph: k2.Fsa, replicate_den: bool = False, times: int = 1) -> 
     return den
 
 def intersect_with_self_loops(base_graph: k2.Fsa, aux_graph: k2.Fsa) -> k2.Fsa:
-    base_graph = base_graph.clone().to(base_graph.device)
+    base_graph = base_graph.clone()
     base_graph.rename_tensor_attribute_('aux_labels', 'left_labels')
+    base_graph = k2.arc_sort(base_graph).to(base_graph.device)
     aux_graph_with_self_loops = k2.arc_sort(k2.add_epsilon_self_loops(aux_graph)).to(base_graph.device)
-    result, a_arc_map, _ = k2.intersect(base_graph, aux_graph_with_self_loops, treat_epsilons_specially=False, ret_arc_maps=True)
+    result, a_arc_map, _ = k2.intersect(k2.arc_sort(base_graph), aux_graph_with_self_loops, treat_epsilons_specially=False, ret_arc_maps=True)
     result.labels = k2.index(base_graph.left_labels, a_arc_map)
     return result
 

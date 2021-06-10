@@ -44,7 +44,7 @@ class CtcTrainingTopologyCompiler(object):
         phone_ids_with_blank = list(range(num_classes))
         self.ctc_topo_inv = k2.arc_sort(build_ctc_topo(phone_ids_with_blank).to(device).invert_())
         self.device = device
-        self.base_graph = self.ctc_topo_inv.invert()
+        self.base_graph = self.ctc_topo_inv.invert_()
 
     def to(self, device: torch.device):
         self.ctc_topo_inv = self.ctc_topo_inv.to(device)
@@ -71,14 +71,14 @@ class CtcTrainingNumGraphCompiler(CtcTrainingTopologyCompiler):
         if aux_graph is None:
             self.base_graph = None
         else:
-            self.base_graph = intersect_with_self_loops(self.ctc_topo_inv, aux_graph).invert_()
+            self.base_graph = intersect_with_self_loops(self.ctc_topo_inv, aux_graph)
             self.base_graph = k2.arc_sort(self.base_graph).to(self.device)
 
     def compile(self, targets: torch.Tensor, target_lengths: torch.Tensor, aux_graph: Optional[k2.Fsa] = None) -> k2.Fsa:
         if aux_graph is None and self.base_graph is None:
             raise ValueError(f"At least one of aux_graph and self.base_graph must be set: {aux_graph}, {self.base_graph}")
         elif aux_graph is not None:
-            self.base_graph = intersect_with_self_loops(self.ctc_topo_inv, aux_graph).invert_()
+            self.base_graph = intersect_with_self_loops(self.ctc_topo_inv, aux_graph)
             self.base_graph = k2.arc_sort(self.base_graph).to(self.device)
         return super().compile(targets, target_lengths)
 
@@ -90,7 +90,7 @@ class CtcCrfTrainingGraphCompiler(CtcTrainingTopologyCompiler):
         if aux_graph is None:
             self.den_graph = None
         else:
-            self.den_graph = intersect_with_self_loops(self.ctc_topo_inv, aux_graph).invert_()
+            self.den_graph = intersect_with_self_loops(self.ctc_topo_inv, aux_graph)
             self.den_graph = k2.create_fsa_vec([self.den_graph.detach()]).to(self.device)
 
     def to(self, device: torch.device):
@@ -102,7 +102,7 @@ class CtcCrfTrainingGraphCompiler(CtcTrainingTopologyCompiler):
         if aux_graph is None and self.den_graph is None:
             raise ValueError(f"At least one of aux_graph and self.den_graph must be set: {aux_graph}, {self.den_graph}")
         elif aux_graph is not None:
-            self.den_graph = intersect_with_self_loops(self.ctc_topo_inv, aux_graph).invert_()
+            self.den_graph = intersect_with_self_loops(self.ctc_topo_inv, aux_graph)
             self.den_graph = k2.create_fsa_vec([self.den_graph.detach()]).to(self.device)
         return super().compile(targets, target_lengths), self.den_graph
 

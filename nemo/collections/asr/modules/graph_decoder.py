@@ -65,4 +65,10 @@ class ViterbiDecoderWithGraph(NeuralModule):
 
     @torch.no_grad()
     def forward(self, log_probs, log_probs_length):
-        return self._decoder.decode(log_probs, log_probs_length, return_lattices=self.return_lattices, return_ilabels=self.output_aligned)
+        # do not use self.return_lattices and self.output_aligned for now
+        predictions, scores = self._decoder.decode(log_probs, log_probs_length, return_lattices=False, return_ilabels=True)
+        lengths = torch.tensor([len(pred) for pred in predictions], device=predictions[0].device)
+        predictions_tensor = torch.full((len(predictions), lengths.max()), self._blank).to(device=predictions[0].device)
+        for i, pred in enumerate(predictions):
+            predictions_tensor[i,:lengths[i]] = pred
+        return predictions_tensor, lengths, scores
