@@ -57,16 +57,11 @@ Plugs in grammars into production backend by mounting grammar directory `classif
     # to launch container with the exported grammars and run tests on TN grammars
     bash docker/launch.sh test_tn_grammars
 
+    # to launch container with the exported grammars and run tests on ITN grammars
+    bash docker/launch.sh test_itn_grammars
+
 
 Runs TN or ITN in docker container:
-
-.. code-block:: bash
-
-    echo "two dollars fifty" | ../../src/bin/normalizer_main --config=sparrowhawk_configuration.ascii_proto
-
-This returns $2.50 for ITN.
-
-To run TN or ITN test in docker container:
 
 .. code-block:: bash
 
