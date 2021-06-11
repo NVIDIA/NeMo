@@ -537,16 +537,12 @@ class EnsembleBeamSearchSequenceGenerator:
             for j in range(len(decoder_mems_lists[i])):
                 decoder_mems_lists[i][j] = decoder_mems_lists[i][j].repeat(self.beam_size, 1, 1)
 
-        # repeat source sequence beam_size times for beam search
-        if encoder_hidden_states is not None:
-            encoder_input_mask = encoder_input_mask.repeat(1, self.beam_size).view(-1, encoder_input_mask.size(1))
-            for i in range(self.num_models):
-                _, src_length, hidden_size = encoder_hidden_states[i].size()
-                encoder_hidden_states[i] = (
-                    encoder_hidden_states[i].repeat(1, self.beam_size, 1).view(-1, src_length, hidden_size)
-                )
-        else:
-            hidden_size = decoder_mems_lists[0][0].size(2)
+        encoder_input_mask = encoder_input_mask.repeat(1, self.beam_size).view(-1, encoder_input_mask.size(1))
+        for i in range(self.num_models):
+            _, src_length, hidden_size = encoder_hidden_states[i].size()
+            encoder_hidden_states[i] = (
+                encoder_hidden_states[i].repeat(1, self.beam_size, 1).view(-1, src_length, hidden_size)
+            )
 
         # pad_profile tracks finished hypotheses to generate only <pad> tokens
         # if <eos> or <pad> has been generated
@@ -605,7 +601,7 @@ class EnsembleBeamSearchSequenceGenerator:
             # of hypotheses broken after top-k selection
             mems_ids = indices_i.unsqueeze(2).unsqueeze(3).repeat(1, 1, p_len - 1, hidden_size) // self.beam_size
             for model_num in range(self.num_models):
-                for j in range(len(decoder_mems_lists)):
+                for j in range(len(decoder_mems_lists[model_num])):
                     decoder_mems_lists[model_num][j] = (
                         decoder_mems_lists[model_num][j]
                         .view(-1, self.beam_size, p_len - 1, hidden_size)
