@@ -43,8 +43,8 @@ The full documentation tree is as follows:
 Resources and Documentation
 ---------------------------
 
-Hands-on speech recognition tutorial notebooks can be found under `the ASR tutorials folder <https://github.com/NVIDIA/NeMo/tree/v1.0.0/tutorials/asr/>`_.
-If you are a beginner to NeMo, consider trying out the `ASR with NeMo <https://github.com/NVIDIA/NeMo/tree/v1.0.0/tutorials/asr/01_ASR_with_NeMo.ipynb>`_ tutorial.
+Hands-on speech recognition tutorial notebooks can be found under `the ASR tutorials folder <https://github.com/NVIDIA/NeMo/tree/v1.0.2/tutorials/asr/>`_.
+If you are a beginner to NeMo, consider trying out the `ASR with NeMo <https://github.com/NVIDIA/NeMo/tree/v1.0.2/tutorials/asr/01_ASR_with_NeMo.ipynb>`_ tutorial.
 This and most other tutorials can be run on Google Colab by specifying the link to the notebooks' GitHub pages on Colab.
 
 If you are looking for information about a particular ASR model, or would like to find out more about the model
