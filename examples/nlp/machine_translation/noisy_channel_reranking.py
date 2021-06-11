@@ -134,6 +134,7 @@ def main():
                 fused_scores = []
                 #mean_source_length = np.mean(src_lengths)
                 #stddev_source_length = np.std(src_lengths)
+                lm_scores = [None] * len(rev_nmt_scores) if lm_scores is None else lm_scores
                 for s, r, l, sl, tl in zip(scores, rev_nmt_scores, lm_scores, src_lengths, tgt_lengths):
                     # len_pen = ((5 + sl) / 6) ** 0.6
                     # len_pen = 1 + ((sl - mean_source_length) / stddev_source_length)
