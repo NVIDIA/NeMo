@@ -5,8 +5,8 @@ Machine Translation Models
 Machine translation is the task of translating text from one language to another. For example, from English to Spanish. Models are 
 based on the Transformer sequence-to-sequence architecture :cite:`nlp-machine_translation-vaswani2017attention`.
 
-An example script on how to train the model can be found here: `NeMo/examples/nlp/machine_translation/enc_dec_nmt.py <https://github.com/NVIDIA/NeMo/blob/v1.0.0/examples/nlp/machine_translation/enc_dec_nmt.py>`__.
-The default configuration file for the model can be found at: `NeMo/examples/nlp/machine_translation/conf/aayn_base.yaml <https://github.com/NVIDIA/NeMo/blob/v1.0.0/examples/nlp/machine_translation/conf/aayn_base.yaml>`__.
+An example script on how to train the model can be found here: `NeMo/examples/nlp/machine_translation/enc_dec_nmt.py <https://github.com/NVIDIA/NeMo/blob/v1.0.2/examples/nlp/machine_translation/enc_dec_nmt.py>`__.
+The default configuration file for the model can be found at: `NeMo/examples/nlp/machine_translation/conf/aayn_base.yaml <https://github.com/NVIDIA/NeMo/blob/v1.0.2/examples/nlp/machine_translation/conf/aayn_base.yaml>`__.
 
 Quick Start Guide
 -----------------
@@ -213,7 +213,7 @@ as follows:
 Applying BPE Tokenization, Batching, Bucketing and Padding
 ----------------------------------------------------------
 
-Given BPE tokenizers, and a cleaned parallel corpus, the following steps are applied to create a `TranslationDataset <https://github.com/NVIDIA/NeMo/blob/v1.0.0/nemo/collections/nlp/data/machine_translation/machine_translation_dataset.py#L64>`__ object.
+Given BPE tokenizers, and a cleaned parallel corpus, the following steps are applied to create a `TranslationDataset <https://github.com/NVIDIA/NeMo/blob/v1.0.2/nemo/collections/nlp/data/machine_translation/machine_translation_dataset.py#L64>`__ object.
 
 #. Text to IDs - This performs subword tokenization with the BPE model on an input string and maps it to a sequence of tokens for the 
    source and target text.
@@ -285,7 +285,7 @@ Tarred datasets can be configured as follows:
 
 Tarred datasets can be created in two ways:
 
-#. Using the Hydra config and `training script <https://github.com/NVIDIA/NeMo/blob/v1.0.0/examples/nlp/machine_translation/enc_dec_nmt.py>`__.
+#. Using the Hydra config and `training script <https://github.com/NVIDIA/NeMo/blob/v1.0.2/examples/nlp/machine_translation/enc_dec_nmt.py>`__.
 
    For example:
 

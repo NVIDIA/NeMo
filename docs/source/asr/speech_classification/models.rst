@@ -32,7 +32,7 @@ It can reach state-of-the art accuracy on the Google Speech Commands dataset whi
 The `_v1` and `_v2` are denoted for models trained on `v1` (30-way classification) and `v2` (35-way classification) datasets; 
 And we use _subset_task to represent (10+2)-way subset (10 specific classes + other remaining classes + silence) classification task.
 
-MatchboxNet models can be instantiated using the :class:`EncDecClassificationModel<nemo.collections.asr.models.EncDecClassificationModel>` class.
+MatchboxNet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecClassificationModel` class.
 
 .. note::
   For model details and deep understanding about Speech Command Detedction training, inference, finetuning and etc., 
@@ -55,7 +55,7 @@ Similarly to MatchboxNet, the MarbleNet family of models are denoted as MarbleNe
         :scale: 30%
 
 It can reach state-of-the art performance on the difficult `AVA speech dataset <https://research.google.com/ava/download.html#ava_speech_download>`_ while having significantly fewer parameters than similar models even training on simple data.
-MarbleNet models can be instantiated using the :class:`EncDecClassificationModel<nemo.collections.asr.models.EncDecClassificationModel>` class.
+MarbleNet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecClassificationModel` class.
 
 .. note::
   For model details and deep understanding about VAD training, inference, postprocessing, threshold tuning and etc., 

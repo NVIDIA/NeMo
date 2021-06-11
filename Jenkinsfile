@@ -167,6 +167,32 @@ pipeline {
             sh 'rm -rf /home/TestData/nlp/text_denorm/output/*'
           }
         }
+        stage('L2: TN with Audio (audio and raw text)') {
+          steps {
+            sh 'cd nemo_text_processing/text_normalization && \
+            python normalize_with_audio.py --text "The total amounts to \\$4.76." \
+            --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt 2>&1 && \
+            cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
+            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt'
+          }
+        }
+        stage('L2: TN with Audio (audio and text file)') {
+          steps {
+            sh 'cd nemo_text_processing/text_normalization && \
+            python normalize_with_audio.py --text /home/TestData/nlp/text_norm/audio_based/text.txt \
+            --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_file.txt 2>&1 && \
+            cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_file.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
+            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_file.txt'
+          }
+        }
+        stage('L2: TN with Audio (manifest)') {
+          steps {
+            sh 'cd nemo_text_processing/text_normalization && \
+            python normalize_with_audio.py --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 && \
+            cmp --silent /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json /home/TestData/nlp/text_norm/audio_based/manifest_result.json || exit 1'
+            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json'
+          }
+        }
       }
     }
 
@@ -190,33 +216,7 @@ pipeline {
             sh 'rm -rf examples/asr/speech_to_text_results'
           }
         }
-        //         stage('Speech to Text - DALI AudioToMelSpectrogramPreprocessor') {
-        //           steps {
-        //             sh 'python examples/asr/speech_to_text.py \
-        //             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-        //             +model.train_ds.use_dali=True \
-        //             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-        //             +model.validation_ds.use_dali=True \
-        //             trainer.gpus=[0] \
-        //             +trainer.fast_dev_run=True \
-        //             exp_manager.exp_dir=examples/asr/speech_to_text_results'
-        //             sh 'rm -rf examples/asr/speech_to_text_results'
-        //           }
-        //         }
-        //         stage('Speech to Text - DALI AudioToMFCCPreprocessor') {
-        //           steps {
-        //             sh 'python examples/asr/speech_to_text.py \
-        //             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-        //             +model.train_ds.use_dali=True \
-        //             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-        //             +model.validation_ds.use_dali=True \
-        //             model.preprocessor._target_=nemo.collections.asr.modules.AudioToMFCCPreprocessor \
-        //             trainer.gpus=[0] \
-        //             +trainer.fast_dev_run=True \
-        //             exp_manager.exp_dir=examples/asr/speech_to_text_results'
-        //             sh 'rm -rf examples/asr/speech_to_text_results'
-        //           }
-        //         }
+
         stage('Speech to Label') {
           steps {
             sh 'python examples/asr/speech_to_label.py \
@@ -296,6 +296,54 @@ pipeline {
             sh 'rm -rf examples/asr/speech_to_text_wpe_conformer_results'
           }
         }
+      }
+    }
+
+    stage('L2: ASR DALI dev run') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('Speech to Text - DALI AudioToMelSpectrogramPreprocessor') {
+          steps {
+            sh 'python examples/asr/speech_to_text.py \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            +model.train_ds.use_dali=True \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            +model.validation_ds.use_dali=True \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_results'
+            sh 'rm -rf examples/asr/speech_to_text_results'
+          }
+        }
+        // TODO: This would fail due to an unnecessary torchaudio import.
+        //       To be enabled once torchaudio is available in the container used for CI
+        // stage('Speech to Text - DALI AudioToMFCCPreprocessor') {
+        //   steps {
+        //     sh 'python examples/asr/speech_to_text.py \
+        //     model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+        //     +model.train_ds.use_dali=True \
+        //     model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+        //     +model.validation_ds.use_dali=True \
+        //     model.preprocessor._target_=nemo.collections.asr.modules.AudioToMFCCPreprocessor \
+        //     ~model.preprocessor.normalize \
+        //     ~model.preprocessor.features \
+        //     ~model.preprocessor.frame_splicing \
+        //     ~model.preprocessor.dither \
+        //     ~model.preprocessor.stft_conv \
+        //     +model.n_mels=64 \
+        //     +model.n_mfcc=64 \
+        //     trainer.gpus=[0] \
+        //     +trainer.fast_dev_run=True \
+        //     exp_manager.exp_dir=examples/asr/speech_to_text_results'
+        //     sh 'rm -rf examples/asr/speech_to_text_results'
+        //   }
+        // }
       }
     }
 
@@ -398,9 +446,10 @@ pipeline {
             sh 'python examples/asr/transcribe_speech.py \
             pretrained_name="QuartzNet15x5Base-En" \
             audio_dir="/home/TestData/an4_transcribe/test_subset/" \
+            output_filename="stt_test_res.json" \
             cuda=true \
             amp=true'
-            sh 'rm -rf examples/asr/speech_to_text_transcriptions.txt'
+            sh 'rm -rf stt_test_res.json'
           }
         }
       }
@@ -1383,17 +1432,8 @@ pipeline {
         }
       }
       failFast true
-      parallel {
-        stage('QuartzNet15x5Base-En') {
-          steps {
-            sh 'CUDA_VISIBLE_DEVICES=0 python examples/asr/speech_to_text_infer.py --asr_model QuartzNet15x5Base-En --dataset /home/TestData/librispeech/librivox-dev-other.json --wer_tolerance 0.1012 --batch_size 64'
-          }
-        }
-        stage('Tacotron2_WaveGlow_Jasper') {
-          steps {
-            sh 'CUDA_VISIBLE_DEVICES=1 python examples/tts/test_tts_infer.py --wer_tolerance 0.25 --debug --trim'
-          }
-        }
+      steps {
+        sh 'CUDA_VISIBLE_DEVICES=0 python examples/asr/speech_to_text_infer.py --asr_model QuartzNet15x5Base-En --dataset /home/TestData/librispeech/librivox-dev-other.json --wer_tolerance 0.1012 --batch_size 64'
       }
     }
   }

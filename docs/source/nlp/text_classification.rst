@@ -12,7 +12,7 @@ An example script on how to train the model can be found here: `NeMo/examples/nl
 The default configuration file for the model can be found at: `NeMo/examples/nlp/text_classification/conf/text_classification_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/text_classification/conf/text_classification_config.yaml>`__.
 
 There is also a Jupyter notebook which explains how to work with this model. We recommend you try this model in the Jupyter notebook (can run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.):
-`NeMo/tutorials/nlp/Text_Classification_Sentiment_Analysis.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.0/tutorials/nlp/Text_Classification_Sentiment_Analysis.ipynb>`__.
+`NeMo/tutorials/nlp/Text_Classification_Sentiment_Analysis.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.2/tutorials/nlp/Text_Classification_Sentiment_Analysis.ipynb>`__.
 This tutorial shows an example of how run the Text Classification model on a sentiment analysis task. You may connect to an instance with a GPU (**Runtime** -> **Change runtime type** -> select **GPU** for the hardware accelerator) to run the notebook.
 
 Data Format
@@ -83,9 +83,9 @@ You may find an example of a config file to be used for training of the Text Cla
 You can change any of these parameters directly from the config file or update them with the command-line arguments.
 
 The config file of the Text Classification model contains three main sections of ``trainer``, ``exp_manager``, and ``model``. You can
-find more details about the ``trainer`` and ``exp_manager`` at :doc:`./nlp_model.html`. Some sub-sections of the model section including
+find more details about the ``trainer`` and ``exp_manager`` at :doc:`./nlp_model`. Some sub-sections of the model section including
 ``tokenizer``, ``language_model``, and ``optim`` are shared among most of the NLP models. The details of these sections can be found
-at :doc:`./nlp_model.html`.
+at :doc:`./nlp_model`.
 
 Example of a command for training a Text Classification model on two GPUs for 50 epochs:
 
