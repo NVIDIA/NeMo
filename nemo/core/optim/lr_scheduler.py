@@ -454,7 +454,8 @@ def prepare_lr_scheduler(
         A dictionary containing the LR Scheduler implementation if the config was successfully parsed
         along with other parameters required by Pytorch Lightning, otherwise None.
     """
-    scheduler_config = maybe_update_config_version(scheduler_config)
+    if scheduler_config is not None:
+        scheduler_config = maybe_update_config_version(scheduler_config)
 
     # Build nested dictionary for convenience out of structured objects
     if isinstance(scheduler_config, DictConfig):
