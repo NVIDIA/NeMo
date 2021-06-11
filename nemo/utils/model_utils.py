@@ -397,8 +397,8 @@ def maybe_update_config_version(cfg: DictConfig):
 
     Changes include:
     -   `cls` -> `_target_`.
-    -   `target` -> `_target_`
     -   `params` -> drop params and shift all arguments to parent.
+    -   `target` -> `_target_` cannot be performed due to ModelPT injecting `target` inside class.
 
     Args:
         cfg: Any Hydra compatible DictConfig
