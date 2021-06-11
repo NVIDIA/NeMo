@@ -169,7 +169,7 @@ Width of the beam search (`--beam_width`) specifies the number of top candidates
 would search for. Larger beams result in more accurate but slower predictions.
 
 There is also a tutorial to learn more about evaluating the ASR models with N-gram LM here:
-`Offline ASR Inference with Beam Search and External Language Model Rescoring <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.0/tutorials/asr/Offline_ASR.ipynb>`_
+`Offline ASR Inference with Beam Search and External Language Model Rescoring <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.2/tutorials/asr/Offline_ASR.ipynb>`_
 
 Hyperparameter Grid Search
 --------------------------
