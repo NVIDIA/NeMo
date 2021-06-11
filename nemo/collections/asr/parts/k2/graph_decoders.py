@@ -108,9 +108,9 @@ class BaseDecoder(object):
             shortest_paths_fsa = k2.shortest_path(lats, True)
             shortest_paths_fsa = k2.index_fsa(shortest_paths_fsa, invert_permutation(order).to(dtype=torch.int32, device=input_lengths.device))
             scores = shortest_paths_fsa._get_tot_scores(True, False)
-            assert torch.all(shortest_paths_fsa[0].labels[:-1] == shortest_paths_fsa[0].aux_labels[:-1]), (shortest_paths_fsa[0].labels[:-1], shortest_paths_fsa[0].aux_labels[:-1])
-            print((shortest_paths_fsa[0].labels[:-1], shortest_paths_fsa[0].aux_labels[:-1]), torch.all(shortest_paths_fsa[0].labels[:-1] == shortest_paths_fsa[0].aux_labels[:-1]))
-            raise
+            # assert torch.all(shortest_paths_fsa[0].labels[:-1] == shortest_paths_fsa[0].aux_labels[:-1]), (shortest_paths_fsa[0].labels[:-1], shortest_paths_fsa[0].aux_labels[:-1])
+            # print((shortest_paths_fsa[0].labels[:-1], shortest_paths_fsa[0].aux_labels[:-1]), torch.all(shortest_paths_fsa[0].labels[:-1] == shortest_paths_fsa[0].aux_labels[:-1]))
+            # raise
             if return_ilabels:
                 shortest_paths = []
                 # direct iterating is bugged
