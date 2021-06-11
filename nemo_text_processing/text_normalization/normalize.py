@@ -17,6 +17,7 @@ from argparse import ArgumentParser
 from collections import OrderedDict
 from typing import List
 
+from nemo_text_processing.text_normalization.data_loader_utils import post_process_punctuation
 from nemo_text_processing.text_normalization.taggers.tokenize_and_classify import ClassifyFst
 from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
 from nemo_text_processing.text_normalization.verbalizers.verbalize_final import VerbalizeFinalFst
@@ -66,7 +67,7 @@ class Normalizer:
             res.append(text)
         return res
 
-    def normalize(self, text: str, verbose: bool) -> str:
+    def normalize(self, text: str, verbose: bool, punct_post_process: bool = False) -> str:
         """
         Main function. Normalizes tokens from written to spoken form
             e.g. 12 kg -> twelve kilograms
@@ -74,6 +75,7 @@ class Normalizer:
         Args:
             text: string that may include semiotic classes
             verbose: whether to print intermediate meta information
+            punct_post_process: set to True to normalize punctuation
 
         Returns: spoken form
         """
@@ -96,6 +98,8 @@ class Normalizer:
             if verbalizer_lattice.num_states() == 0:
                 continue
             output = self.select_verbalizer(verbalizer_lattice)
+            if punct_post_process:
+                output = post_process_punctuation(output)
             return output
         raise ValueError()
 
@@ -215,10 +219,13 @@ def parse_args():
         "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )
     parser.add_argument("--verbose", help="print info for debugging", action='store_true')
+    parser.add_argument(
+        "--punct_post_process", help="set to True to enable punctuation post processing", action="store_true"
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
     normalizer = Normalizer(input_case=args.input_case)
-    print(normalizer.normalize(args.input_string, verbose=args.verbose))
+    print(normalizer.normalize(args.input_string, verbose=args.verbose, punct_post_process=args.punct_post_process))
