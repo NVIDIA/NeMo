@@ -7,19 +7,30 @@ It uses `Sparrowhawk <https://github.com/google/sparrowhawk>`_ :cite:`tools-itn_
 Requirements
 ------------------------
 
-1) :doc:`nemo_text_processing <../nemo_text_processing/intro>` package
+:doc:`nemo_text_processing <../nemo_text_processing/intro>` package
 
 
 Usage
 ------------
 
-Starts docker container with production backend with plugged in grammars. This is entry point script. 
-Set ``GRAMMARS=tn_grammars`` or ``GRAMMARS=itn_grammars`` to export either TN or ITN grammars from :doc:`nemo_text_processing <../nemo_text_processing/intro>`.
+Starts docker container with production backend with plugged in grammars. This is entry point script.
+
+Arguments:
+^^^^^^^^^
+* ``GRAMMARS`` - ``tn_grammars`` or ``itn_grammars`` to export either TN or ITN grammars from :doc:`nemo_text_processing <../nemo_text_processing/intro>`.
+* ``INPUT_CASE`` - ``cased`` or ``lower_cased`` (lower_cased is supported only in TN grammars).
+* ``MODE`` - choose ``test`` to run test on the grammars inside the container.
+
+For example:
 
 
 .. code-block:: bash
 
-    bash export_grammar.sh <GRAMMARS> [INPUT_CASE]
+    # to export ITN grammars
+    bash export_grammar.sh --GRAMMARS=itn_grammars
+
+    # to export and test TN grammars
+    bash export_grammar.sh --GRAMMARS=itn_grammars --INPUT_CASE=cased --MODE=test
 
 This script runs the following steps in sequence:
 
@@ -40,7 +51,14 @@ Plugs in grammars into production backend by mounting grammar directory `classif
 
 .. code-block:: bash
 
+    # to launch container with the exported grammars
     bash docker/launch.sh
+
+    # to launch container with the exported grammars and run tests on TN grammars
+    bash docker/launch.sh test_tn_grammars
+
+    # to launch container with the exported grammars and run tests on ITN grammars
+    bash docker/launch.sh test_itn_grammars
 
 
 Runs TN or ITN in docker container:
