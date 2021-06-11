@@ -27,8 +27,8 @@ from omegaconf import DictConfig, OmegaConf
 from torch.optim.lr_scheduler import _LRScheduler
 
 from nemo.core.config import SchedulerParams, get_scheduler_config, register_scheduler_params
-from nemo.utils.model_utils import maybe_update_config_version
 from nemo.utils import logging
+from nemo.utils.model_utils import maybe_update_config_version
 
 
 class WarmupPolicy(_LRScheduler):

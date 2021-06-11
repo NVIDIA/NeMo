@@ -24,8 +24,8 @@ from torch.optim.optimizer import Optimizer
 
 from nemo.core.config import OptimizerParams, get_optimizer_config, register_optimizer_params
 from nemo.core.optim.novograd import Novograd
-from nemo.utils.model_utils import maybe_update_config_version
 from nemo.utils import logging
+from nemo.utils.model_utils import maybe_update_config_version
 
 AVAILABLE_OPTIMIZERS = {
     'sgd': optim.SGD,
