@@ -74,10 +74,14 @@ def get_lm_and_nmt_score(src_texts, tgt_texts, model, lm_model):
     tgt_mask = tgt_mask[:, :-1]
     tgt_labels = tgt[:, 1:]
 
-    nmt_log_probs = model(src, src_mask, tgt_inp, tgt_mask)
-    nmt_nll = model.eval_loss_fn(log_probs=nmt_log_probs, labels=tgt_labels)
-    nmt_ll = nmt_nll.view(nmt_log_probs.size(0), nmt_log_probs.size(1)).sum(1) * -1.0
-    nmt_ll = nmt_ll.data.cpu().numpy().tolist()
+    nmt_lls = []
+    for model in models:
+        nmt_log_probs = model(src, src_mask, tgt_inp, tgt_mask)
+        nmt_nll = model.eval_loss_fn(log_probs=nmt_log_probs, labels=tgt_labels)
+        nmt_ll = nmt_nll.view(nmt_log_probs.size(0), nmt_log_probs.size(1)).sum(1) * -1.0
+        nmt_ll = nmt_ll.data.cpu().numpy().tolist()
+        nmt_lls.append(nmt_ll)
+    nmt_ll = np.mean(nmt_lls)
 
     if lm_model is not None:
         lm_log_probs = lm_model(src[:, :-1], src_mask[:, :-1])
@@ -105,17 +109,22 @@ def main():
     torch.set_grad_enabled(False)
     if args.model.endswith(".nemo"):
         logging.info("Attempting to initialize from .nemo file")
-        model = nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(restore_path=args.model)
-        model.eval_loss_fn.reduction = 'none'
+        models = [
+            nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(restore_path=model_path)
+            for model_path in args.model.split(',')
+        ]
+        for model in models:
+            model.eval_loss_fn.reduction = 'none'
         if args.source_lang or args.target_lang:
-            model.setup_pre_and_post_processing_utils(args.target_lang, args.source_lang)    
+            for model in models:
+                model.setup_pre_and_post_processing_utils(args.target_lang, args.source_lang)    
         src_text = []
         tgt_text = []
     else:
         raise NotImplemented(f"Only support .nemo files, but got: {args.model}")
 
     if torch.cuda.is_available():
-        model = model.cuda()
+        models = [model.cuda() for model in models]
 
     if args.lm_model is not None:
         lm_model = nemo_nlp.models.language_modeling.TransformerLMModel.restore_from(restore_path=args.lm_model).eval()
@@ -130,7 +139,7 @@ def main():
                 src_texts = [item[1] for item in src_text]
                 tgt_texts = [item[0] for item in src_text]
                 scores = [float(item[2]) for item in src_text]
-                rev_nmt_scores, lm_scores, src_lengths, tgt_lengths = get_lm_and_nmt_score(src_texts, tgt_texts, model, lm_model)
+                rev_nmt_scores, lm_scores, src_lengths, tgt_lengths = get_lm_and_nmt_score(src_texts, tgt_texts, models, lm_model)
                 fused_scores = []
                 #mean_source_length = np.mean(src_lengths)
                 #stddev_source_length = np.std(src_lengths)
