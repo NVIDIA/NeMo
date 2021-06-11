@@ -82,7 +82,7 @@ def get_lm_and_nmt_score(src_texts, tgt_texts, models, lm_model):
         nmt_ll = nmt_nll.view(nmt_log_probs.size(0), nmt_log_probs.size(1)).sum(1) * -1.0
         nmt_ll = nmt_ll.data.cpu().numpy().tolist()
         nmt_lls.append(nmt_ll)
-    nmt_ll = np.mean(nmt_lls)
+    nmt_ll = np.stack(nmt_lls).mean(0)
 
     if lm_model is not None:
         lm_log_probs = lm_model(src[:, :-1], src_mask[:, :-1])
