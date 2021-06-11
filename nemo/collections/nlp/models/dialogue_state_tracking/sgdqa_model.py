@@ -552,6 +552,8 @@ class SGDQAModel(NLPModel):
             data_dir: path to data directory
             dialogues_example_dir: path to preprocessed dialogues example directory, if not exists will be created.
         """
+        if not os.path.exists(data_dir):
+            raise ValueError(f"{data_dir} is not found")
         self._cfg.dataset.data_dir = data_dir
         self._cfg.dataset.dialogues_example_dir = dialogues_example_dir
         logging.info(f'Setting model.dataset.data_dir to {data_dir}.')
