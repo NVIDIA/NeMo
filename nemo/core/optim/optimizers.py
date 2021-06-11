@@ -115,7 +115,6 @@ def parse_optimizer_args(
             # If we are provided just a Config object, simply return the dictionary of that object
             if optimizer_params_name is None:
                 optimizer_params = optimizer_params_cls
-                optimizer_params = vars(optimizer_params)
                 return optimizer_params
 
             else:
