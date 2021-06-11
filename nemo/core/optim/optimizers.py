@@ -24,6 +24,7 @@ from torch.optim.optimizer import Optimizer
 
 from nemo.core.config import OptimizerParams, get_optimizer_config, register_optimizer_params
 from nemo.core.optim.novograd import Novograd
+from nemo.utils.model_utils import maybe_update_config_version
 from nemo.utils import logging
 
 AVAILABLE_OPTIMIZERS = {
@@ -74,6 +75,7 @@ def parse_optimizer_args(
         return kwargs
 
     optimizer_kwargs = copy.deepcopy(optimizer_kwargs)
+    optimizer_kwargs = maybe_update_config_version(optimizer_kwargs)
 
     if isinstance(optimizer_kwargs, DictConfig):
         optimizer_kwargs = OmegaConf.to_container(optimizer_kwargs, resolve=True)
@@ -81,13 +83,11 @@ def parse_optimizer_args(
     # If it is a dictionary, perform stepwise resolution
     if hasattr(optimizer_kwargs, 'keys'):
         # Attempt class path resolution
-        try:
+        if '_target_' in optimizer_kwargs:  # captures (target, _target_)
             optimizer_kwargs_config = OmegaConf.create(optimizer_kwargs)
             optimizer_instance = hydra.utils.instantiate(optimizer_kwargs_config)  # type: DictConfig
             optimizer_instance = vars(optimizer_instance)
             return optimizer_instance
-        except Exception:
-            pass
 
         # If class path was not provided, perhaps `name` is provided for resolution
         if 'name' in optimizer_kwargs:
@@ -114,7 +114,8 @@ def parse_optimizer_args(
 
             # If we are provided just a Config object, simply return the dictionary of that object
             if optimizer_params_name is None:
-                optimizer_params = vars(optimizer_params_cls)
+                optimizer_params = optimizer_params_cls
+                optimizer_params = vars(optimizer_params)
                 return optimizer_params
 
             else:
