@@ -33,6 +33,7 @@ from nemo.collections.common.losses import NLLLoss, SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.tokenizers.chinese_tokenizers import ChineseProcessor
+from nemo.collections.common.tokenizers.indic_tokenizers import IndicProcessor
 from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaProcessor
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
@@ -663,10 +664,15 @@ class MTEncDecModel(EncDecNLPModel):
                 self.source_processor = ChineseProcessor()
             if target_lang == 'zh':
                 self.target_processor = ChineseProcessor()
-            if source_lang is not None and source_lang not in ['ja', 'zh']:
+            if source_lang == 'hi':
+                self.source_processor = IndicProcessor(source_lang)
+            if target_lang == 'hi':
+                self.target_processor = IndicProcessor(target_lang)
+            if source_lang is not None and source_lang not in ['ja', 'zh', 'hi']:
                 self.source_processor = MosesProcessor(source_lang)
-            if target_lang is not None and target_lang not in ['ja', 'zh']:
+            if target_lang is not None and target_lang not in ['ja', 'zh', 'hi']:
                 self.target_processor = MosesProcessor(target_lang)
+            #TODO for Hindi
 
         return self.source_processor, self.target_processor
 
