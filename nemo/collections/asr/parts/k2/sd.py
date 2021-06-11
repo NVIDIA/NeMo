@@ -79,6 +79,8 @@ class SDLoss(torch.nn.Module):
             self.lm_graph = token_lm
         else:
             self.lm_graph = load_graph(token_lm) if isinstance(token_lm, str) else token_lm
+            if hasattr(self.lm_graph, 'aux_labels'):
+                delattr(self.lm_graph, 'aux_labels')
         if sd_type == 'mmi':
             from nemo.collections.asr.parts.k2.graph_compilers import MmiTrainingGraphCompiler as compiler
         elif sd_type == 'crf':

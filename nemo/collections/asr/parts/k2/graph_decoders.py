@@ -108,7 +108,9 @@ class BaseDecoder(object):
             shortest_paths_fsa = k2.shortest_path(lats, True)
             shortest_paths_fsa = k2.index_fsa(shortest_paths_fsa, invert_permutation(order).to(dtype=torch.int32, device=input_lengths.device))
             scores = shortest_paths_fsa._get_tot_scores(True, False)
-            # assert torch.all(shortest_paths_fsa[0].labels[:-1] == shortest_paths_fsa[0].aux_labels[:-1]), (shortest_paths_fsa[0].labels[:-1], shortest_paths_fsa[0].aux_labels[:-1])
+            assert torch.all(shortest_paths_fsa[0].labels[:-1] == shortest_paths_fsa[0].aux_labels[:-1]), (shortest_paths_fsa[0].labels[:-1], shortest_paths_fsa[0].aux_labels[:-1])
+            print((shortest_paths_fsa[0].labels[:-1], shortest_paths_fsa[0].aux_labels[:-1]), torch.all(shortest_paths_fsa[0].labels[:-1] == shortest_paths_fsa[0].aux_labels[:-1]))
+            raise
             if return_ilabels:
                 shortest_paths = []
                 # direct iterating is bugged
@@ -147,10 +149,14 @@ class TokenLMDecoder(BaseDecoder):
             self.decode_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert_()]).to(device)
         else:
             self.token_lm = load_graph(token_lm) if isinstance(token_lm, str) else token_lm
+            if hasattr(self.token_lm, 'aux_labels'):
+                delattr(self.token_lm, 'aux_labels')
             labels = self.token_lm.labels if isinstance(self.token_lm.labels, torch.Tensor) else self.token_lm.labels.values()
             if labels.max() != self.ctc_topo_inv.labels.max():
                 raise ValueError(f"token_lm is not compatible with the topo: {labels.unique()}, {self.ctc_topo_inv.labels.unique()}")
-            self.decode_graph = k2.create_fsa_vec([intersect_with_self_loops(self.ctc_topo_inv, self.token_lm)]).to(device)
+            self.decode_graph = k2.create_fsa_vec([intersect_with_self_loops(self.ctc_topo_inv, self.token_lm).invert_()]).to(device)
+            # self.decode_graph = k2.create_fsa_vec([intersect_with_self_loops(self.ctc_topo_inv, self.token_lm)]).to(device)
+            # self.decode_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert_()]).to(device)
 
 '''
 class TLGDecoder(BaseDecoder):
