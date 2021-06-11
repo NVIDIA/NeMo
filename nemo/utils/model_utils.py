@@ -376,10 +376,6 @@ def _convert_config(cfg: OmegaConf):
     if 'cls' in cfg and '_target_' not in cfg:
         cfg._target_ = cfg.pop('cls')
 
-    # Get rid of target -> _target_.
-    if 'target' in cfg and '_target_' not in cfg:
-        cfg._target_ = cfg.pop('target')
-
     # Get rid of params.
     if 'params' in cfg:
         params = cfg.pop('params')
