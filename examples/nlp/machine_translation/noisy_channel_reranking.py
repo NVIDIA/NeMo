@@ -34,10 +34,11 @@ from nemo.collections.nlp.modules.common.transformer import (
 )
 from nemo.utils import logging
 
-def get_lm_and_nmt_score(src_texts, tgt_texts, model, lm_model):
+def get_lm_and_nmt_score(src_texts, tgt_texts, models, lm_model):
     inputs = []
     src_lengths = []
     tgt_lengths = []
+    model = models[0]
     for txt in src_texts:
         if model.source_processor is not None:
             txt = model.source_processor.normalize(txt)
