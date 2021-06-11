@@ -211,3 +211,38 @@ def get_abs_path(rel_path):
     Returns absolute path
     """
     return os.path.dirname(os.path.abspath(__file__)) + '/' + rel_path
+
+
+def post_process_punctuation(text: str) -> str:
+    """
+    Normalized quotes and spaces
+
+    Args:
+        text: text
+
+    Returns: text with normalized spaces and quotes
+    """
+    text = (
+        text.replace('( ', '(')
+        .replace(' )', ')')
+        .replace('{ ', '{')
+        .replace(' }', '}')
+        .replace('[ ', '[')
+        .replace(' ]', ']')
+        .replace('  ', ' ')
+        .replace('”', '"')
+        .replace("’", "'")
+        .replace("»", '"')
+        .replace("«", '"')
+        .replace("\\", "")
+        .replace("„", '"')
+        .replace("´", "'")
+        .replace("’", "'")
+        .replace('“', '"')
+        .replace("‘", "'")
+        .replace('`', "'")
+    )
+
+    for punct in "!,.:;?":
+        text = text.replace(f' {punct}', punct)
+    return text.strip()
