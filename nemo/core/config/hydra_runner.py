@@ -24,7 +24,7 @@ from omegaconf import DictConfig
 
 
 def hydra_runner(
-    config_path: Optional[str] = None, config_name: Optional[str] = None, schema: Optional[Any] = None
+    config_path: Optional[str] = ".", config_name: Optional[str] = None, schema: Optional[Any] = None
 ) -> Callable[[TaskFunction], Any]:
     """
     Decorator used for passing the Config paths to main function.
@@ -32,6 +32,9 @@ def hydra_runner(
 
     Args:
         config_path: Optional path that will be added to config search directory.
+            NOTE: The default value of `config_path` has changed between Hydra 1.0 and Hydra 1.1+.
+            Please refer to https://hydra.cc/docs/next/upgrades/1.0_to_1.1/changes_to_hydra_main_config_path/
+            for details.
         config_name: Pathname of the config file.
         schema: Structured config  type representing the schema used for validation/providing default values.
     """
@@ -100,7 +103,6 @@ def hydra_runner(
                     task_function=task_function,
                     config_path=config_path,
                     config_name=config_name,
-                    strict=None,
                 )
 
         return wrapper
