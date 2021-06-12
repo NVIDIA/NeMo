@@ -22,6 +22,8 @@ from nemo.utils import model_utils
 cuda_logger = pylogger.getLogger('numba.cuda.cudadrv.driver')
 cuda_logger.setLevel(pylogger.ERROR)  # only show error
 
+__NUMBA_MINIMUM_VERSION__ = "0.53.0"
+
 
 NUMBA_INSTALLATION_MESSAGE = (
     "Could not import `numba`.\n"
@@ -128,6 +130,3 @@ def skip_numba_cuda_test_if_unsupported(min_version: str):
         import pytest
 
         pytest.skip(f"Numba cuda test is being skipped. Minimum version required : {min_version}")
-
-
-__NUMBA_MINIMUM_VERSION__ = "0.53.0"

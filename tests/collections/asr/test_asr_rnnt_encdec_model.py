@@ -24,8 +24,6 @@ from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 from nemo.utils.config_utils import assert_dataclass_signature_match
 
-numba_utils.set_numba_compat_strictness(strict=False)
-
 NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cuda_is_supported(__NUMBA_MINIMUM_VERSION__)
 
 
