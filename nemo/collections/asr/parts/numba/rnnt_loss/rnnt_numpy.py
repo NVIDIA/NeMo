@@ -170,12 +170,13 @@ def compute_gradient(log_probs, alphas, betas, labels, blank, fastemit_lambda):
     """
     T, U, _ = log_probs.shape
     grads = np.full(log_probs.shape, -float("inf"))
-    log_like = betas[0, 0]
+    log_like = betas[0, 0]  # == alphas[T - 1, U - 1] + betas[T - 1, U - 1]
 
     # // grad to last blank transition
     grads[T - 1, U - 1, blank] = alphas[T - 1, U - 1]
-
     grads[: T - 1, :, blank] = alphas[: T - 1, :] + betas[1:, :]
+
+    # // grad to label transition
     for u, l in enumerate(labels):
         grads[:, u, l] = alphas[:, u] + betas[:, u + 1]
 
@@ -202,27 +203,23 @@ def fastemit_regularization(log_probs, labels, alphas, betas, blank, fastemit_la
         and the log likelihood of this forward step.
     """
     T, U, _ = log_probs.shape
-    alignment = np.zeros((T, U), dtype='f')
+    alignment = np.zeros((T, U), dtype='float32')
 
-    for u in range(U):
-        for n in range(0, T + U):
-            t = n - u
+    for t in range(0, T):
+        alignment[t, U - 1] = alphas[t, U - 1] + betas[t, U - 1]
 
+    for t in range(0, T):
+        for u in range(0, U - 1):
+            emit = alphas[t, u] + log_probs[t, u, labels[u]] + betas[t, u + 1]
+            alignment[t, u] = emit
 
+    # to compute likelihood.
+    # loglike = betas[0, 0]
+    # a = np.exp(alignment - loglike)
+    # print(a)
 
-    # log_like = betas[0, 0]
-
-    # // grad to last blank transition
-    # grads[T - 1, U - 1, blank] = alphas[T - 1, U - 1]
-    #
-    # grads[: T - 1, :, blank] = alphas[: T - 1, :] + betas[1:, :]
-    # for u, l in enumerate(labels):
-    #     grads[:, u, l] = alphas[:, u] + betas[:, u + 1]
-    #
-    # grads = -np.exp(grads + log_probs - log_like)
-
-    loglike = alphas[T - 1, U - 1] + log_probs[T - 1, U - 1, blank]
-    return alphas, loglike
+    reg = fastemit_lambda * (alignment[T - 1, U - 1])
+    return alignment, reg
 
 
 def transduce(log_probs, labels, blank=0, fastemit_lambda=0.0):
@@ -319,9 +316,11 @@ class RNNTLoss(Module):
 if __name__ == '__main__':
     loss = RNNTLoss(fastemit_lambda=0.01)
 
-    acts = torch.randn(1, 10, 11, 3)
+    torch.manual_seed(0)
+
+    acts = torch.randn(1, 3, 11, 3)
     labels = torch.tensor([[0, 1, 1, 2, 1, 1, 2, 1, 1, 2]], dtype=torch.int32)
-    act_lens = torch.tensor([10], dtype=torch.int32)
+    act_lens = torch.tensor([3], dtype=torch.int32)
     label_lens = torch.tensor([len(labels[0])], dtype=torch.int32)
 
     loss_val = loss(acts, labels, act_lens, label_lens)
