@@ -299,6 +299,12 @@ class MTDataPreproc:
         # if encoder_tokenizer_name != 'yttm' or decoder_tokenizer_name != 'yttm':
         #     raise NotImplementedError(f"Currently we only support yttm tokenizer.")
 
+        if encoder_bpe_dropout is None:
+            encoder_bpe_dropout = 0.0
+
+        if decoder_bpe_dropout is None:
+            decoder_bpe_dropout = 0.0
+
         encoder_tokenizer = get_nmt_tokenizer(
             library=encoder_tokenizer_name,
             model_name=encoder_model_name,
@@ -320,6 +326,9 @@ class MTDataPreproc:
     ):
         if tokenizer_name != 'yttm':
             raise NotImplementedError(f"Currently we only support yttm tokenizer.")
+
+        if bpe_dropout is None:
+            bpe_dropout = 0.0
 
         tokenizer = get_tokenizer(
             tokenizer_name=tokenizer_name, tokenizer_model=tokenizer_model, bpe_dropout=bpe_dropout,
