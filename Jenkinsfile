@@ -66,7 +66,7 @@ pipeline {
 
     stage('L0: Unit Tests GPU') {
       steps {
-        sh 'pytest -m "not pleasefixme" --with_downloads'
+        sh 'pytest -m "not pleasefixme" --with_downloads --relax_numba_compat'
       }
     }
 
@@ -78,7 +78,7 @@ pipeline {
         }
       }
       steps {
-        sh 'CUDA_VISIBLE_DEVICES="" pytest -m "not pleasefixme" --cpu --with_downloads'
+        sh 'CUDA_VISIBLE_DEVICES="" pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
       }
     }
 
@@ -288,8 +288,8 @@ pipeline {
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
             model.tokenizer.type="wpe" \
-            model.train_ds.batch_size=10 \
-            model.validation_ds.batch_size=10 \
+            model.train_ds.batch_size=4 \
+            model.validation_ds.batch_size=4 \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_wpe_conformer_results'

@@ -16,8 +16,9 @@ import pytest
 import torch
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.parts.numba import __NUMBA_MINIMUM_VERSION__, numba_utils
 from nemo.collections.asr.parts.numba.spec_augment import spec_aug_numba
+from nemo.core.utils import numba_utils
+from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 
 
 def get_cfg(seed=0, dtype='float32'):
