@@ -103,7 +103,7 @@ def numba_cuda_is_supported(min_version: str) -> bool:
                 if cuda_available:
                     cuda_compatible = cuda.is_supported_version()
                 else:
-                    cuda_available = False
+                    cuda_compatible = False
 
                 if is_numba_compat_strict():
                     return cuda_available and cuda_compatible
