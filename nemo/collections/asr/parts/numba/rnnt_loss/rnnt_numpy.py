@@ -219,7 +219,8 @@ def fastemit_regularization(log_probs, labels, alphas, betas, blank, fastemit_la
     # print(a)
 
     reg = fastemit_lambda * (alignment[T - 1, U - 1])
-    return alignment, reg
+    # reg = fastemit_lambda * (alphas[T - 1, U - 1] + betas[T - 1, U - 1])
+    return -reg
 
 
 def transduce(log_probs, labels, blank=0, fastemit_lambda=0.0):
@@ -258,11 +259,12 @@ def transduce_batch(log_probs, labels, flen, glen, blank=0, fastemit_lambda=0.0)
     for b in range(log_probs.shape[0]):
         t = int(flen[b])
         u = int(glen[b]) + 1
+
         ll, g, alphas, betas = transduce(log_probs[b, :t, :u, :], labels[b, : u - 1], blank, fastemit_lambda)
         grads[b, :t, :u, :] = g
 
-        _ = fastemit_regularization(log_probs[b, :t, :u, :], labels[b, : u - 1], alphas, betas, blank, fastemit_lambda)
-
+        reg = fastemit_regularization(log_probs[b, :t, :u, :], labels[b, : u - 1], alphas, betas, blank, fastemit_lambda)
+        ll += reg
         costs.append(ll)
     return costs, grads
 
@@ -318,9 +320,9 @@ if __name__ == '__main__':
 
     torch.manual_seed(0)
 
-    acts = torch.randn(1, 3, 11, 3)
-    labels = torch.tensor([[0, 1, 1, 2, 1, 1, 2, 1, 1, 2]], dtype=torch.int32)
-    act_lens = torch.tensor([3], dtype=torch.int32)
+    acts = torch.randn(1, 2, 5, 3)
+    labels = torch.tensor([[0, 2, 1, 2]], dtype=torch.int32)
+    act_lens = torch.tensor([2], dtype=torch.int32)
     label_lens = torch.tensor([len(labels[0])], dtype=torch.int32)
 
     loss_val = loss(acts, labels, act_lens, label_lens)
