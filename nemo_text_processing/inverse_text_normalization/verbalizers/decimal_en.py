@@ -28,7 +28,6 @@ class DecimalFst(GraphFst):
     """
     Finite state transducer for verbalizing decimal, e.g.
         decimal { negative: "true" integer_part: "12"  fractional_part: "5006" quantity: "billion" } -> -12.5006 billion
-        #TODO: update comment for Spanish? ie with comma?
     """
 
     def __init__(self):
@@ -43,7 +42,7 @@ class DecimalFst(GraphFst):
         )
         optional_integer = pynini.closure(integer + delete_space, 0, 1)
         fractional = (
-            pynutil.insert(",")
+            pynutil.insert(".")
             + pynutil.delete("fractional_part:")
             + delete_space
             + pynutil.delete("\"")
