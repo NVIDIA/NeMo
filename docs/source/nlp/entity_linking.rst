@@ -8,7 +8,7 @@ in a knowledge based. For example, an entity linking model might match the phras
 to the knowledge base concept UID45623 anticoagulant. Entity linking applications range from helping automate ingestion of 
 large amounts of data to assisting in real time concept normalization.
 
-Within NeMo we use the entity linking approach described in Liu et. al's NAACL 2021 "Self-alignment Pre-training for Biomedical Entity Representations". 
+Within NeMo we use the entity linking approach described in Liu et. al's NAACL 2021 "`Self-alignment Pre-training for Biomedical Entity Representations <https://arxiv.org/abs/2010.11784v2>`_". 
 The main idea behind this approach is to reshape an initial concept embedding space such that synonyms of the same concept are 
 pulled closer together and unrelated concepts are pushed further apart. The concept embeddings from this reshaped space can then 
 be used to build a knowledge base embedding index. 
@@ -17,7 +17,7 @@ be used to build a knowledge base embedding index.
   :alt: Entity-Linking-Overview
 
 Our BERT-based + Self Alignment Pretraining implementation allows you to train an entity linking encoder. We also provide example code
-on building an index with Medical UMLS concepts `NeMo/examples/nlp/entity_linking/build_index.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/entity_linking/build_index.py>`__.
+on building an index with `Medical UMLS <https://www.nlm.nih.gov/research/umls/index.html>`_ concepts `NeMo/examples/nlp/entity_linking/build_index.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/entity_linking/build_index.py>`__.
 
 Please try the example Entity Linking model in a Jupyter notebook (can run on `Google's Colab <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.2/tutorials/nlp/Entity_Linking_Medical.ipynb>`__).
 
