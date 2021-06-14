@@ -21,7 +21,6 @@ from nemo_text_processing.text_normalization.taggers.cardinal import CardinalFst
 try:
     import pynini
     from pynini.lib import pynutil
-    from pynini.lib import rewrite
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):

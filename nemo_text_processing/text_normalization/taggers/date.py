@@ -19,7 +19,6 @@ from nemo_text_processing.text_normalization.graph_utils import (
     NEMO_DIGIT,
     NEMO_SIGMA,
     TO_LOWER,
-    TO_UPPER,
     GraphFst,
     delete_extra_space,
     delete_space,

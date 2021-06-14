@@ -14,7 +14,6 @@
 
 import json
 import os
-import re
 import time
 from argparse import ArgumentParser
 from typing import List, Tuple
