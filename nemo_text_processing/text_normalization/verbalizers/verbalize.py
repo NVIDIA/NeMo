@@ -18,9 +18,11 @@ from nemo_text_processing.text_normalization.verbalizers.cardinal import Cardina
 from nemo_text_processing.text_normalization.verbalizers.date import DateFst
 from nemo_text_processing.text_normalization.verbalizers.decimal import DecimalFst
 from nemo_text_processing.text_normalization.verbalizers.electronic import ElectronicFst
+from nemo_text_processing.text_normalization.verbalizers.fraction import FractionFst
 from nemo_text_processing.text_normalization.verbalizers.measure import MeasureFst
 from nemo_text_processing.text_normalization.verbalizers.money import MoneyFst
 from nemo_text_processing.text_normalization.verbalizers.ordinal import OrdinalFst
+from nemo_text_processing.text_normalization.verbalizers.roman import RomanFst
 from nemo_text_processing.text_normalization.verbalizers.telephone import TelephoneFst
 from nemo_text_processing.text_normalization.verbalizers.time import TimeFst
 from nemo_text_processing.text_normalization.verbalizers.whitelist import WhiteListFst
@@ -53,6 +55,7 @@ class VerbalizeFst(GraphFst):
         date_graph = DateFst(ordinal=ordinal, deterministic=deterministic).fst
         money_graph = MoneyFst(decimal=decimal, deterministic=deterministic).fst
         whitelist_graph = WhiteListFst(deterministic=deterministic).fst
+        fraction_graph = FractionFst(deterministic=deterministic).fst
         graph = (
             time_graph
             | date_graph
@@ -63,7 +66,12 @@ class VerbalizeFst(GraphFst):
             | cardinal_graph
             | telephone_graph
             | electronic_graph
+            | fraction_graph
             | whitelist_graph
         )
+
+        if not deterministic:
+            roman_graph = RomanFst(deterministic=deterministic).fst
+            graph |= roman_graph
 
         self.fst = graph

@@ -15,16 +15,36 @@
 
 from nemo_text_processing.text_normalization.graph_utils import GraphFst
 
+try:
+    import pynini
+    from pynini.lib import pynutil
+
+    PYNINI_AVAILABLE = True
+except (ModuleNotFoundError, ImportError):
+    PYNINI_AVAILABLE = False
+
 
 class FractionFst(GraphFst):
     """
     Finite state transducer for classifying fraction
+    "23 4/5" ->
+    tokens { fraction { numerator: "four" denominator: "five" } }
 
     Args:
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, deterministic: bool = True):
+    def __init__(self, cardinal, deterministic: bool = True):
         super().__init__(name="fraction", kind="classify", deterministic=deterministic)
-        # integer_part # numerator # denominator
+        cardinal_graph = cardinal.graph
+
+        integer = pynutil.insert("integer: \"") + cardinal_graph + pynutil.insert("\"") + pynini.accep(" ")
+        numerator = (
+            pynutil.insert("numerator: \"") + cardinal_graph + (pynini.cross("/", "\" ") | pynini.cross(" / ", "\" "))
+        )
+        denominator = pynutil.insert("denominator: \"") + cardinal_graph + pynutil.insert("\"")
+
+        graph = pynini.closure(integer, 0, 1) + numerator + denominator
+        graph = self.add_tokens(graph)
+        self.fst = graph.optimize()
