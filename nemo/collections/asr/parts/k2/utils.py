@@ -189,67 +189,6 @@ def intersect_dense_failsafe(**kwargs):
             fsa_vec.scores = torch.nn.Parameter(torch.full_like(fsa_vec.scores, -float("inf")), requires_grad=b_fsas.scores.requires_grad)
             return fsa_vec.to(b_fsas.device)
 
-def build_ctc_topo(tokens: List[int]) -> k2.Fsa:
-    """Build CTC topology.
-    A token which appears once on the right side (i.e. olabels) may
-    appear multiple times on the left side (ilabels), possibly with
-    epsilons in between.
-    When 0 appears on the left side, it represents the blank symbol;
-    when it appears on the right side, it indicates an epsilon. That
-    is, 0 has two meanings here.
-    Args:
-      tokens:
-        A list of tokens, e.g., phones, characters, etc.
-    Returns:
-      Returns an FST that converts repeated tokens to a single token.
-    """
-    assert 0 in tokens, "We assume 0 is ID of the blank symbol"
-
-    num_states = len(tokens)
-    final_state = num_states
-    arcs = ""
-    for i in range(num_states):
-        for j in range(num_states):
-            if i == j:
-                arcs += f"{i} {i} {tokens[i]} 0 0.0\n"
-            else:
-                arcs += f"{i} {j} {tokens[j]} {tokens[j]} 0.0\n"
-        arcs += f"{i} {final_state} -1 -1 0.0\n"
-    arcs += f"{final_state}"
-    ans = k2.Fsa.from_str(arcs, num_aux_labels=1)
-    ans = k2.arc_sort(ans)
-    return ans
-
-def build_ctc_topo_no_selfloops(tokens: List[int]) -> k2.Fsa:
-    assert 0 in tokens, "We assume 0 is ID of the blank symbol"
-
-    num_states = len(tokens)
-    final_state = num_states
-    arcs = "0 0 0 0 0.0\n"
-    for i in range(num_states):
-        for j in range(num_states):
-            if i != j:
-                arcs += f"{i} {j} {tokens[j]} {tokens[j]} 0.0\n"
-        arcs += f"{i} {final_state} -1 -1 0.0\n"
-    arcs += f"{final_state}"
-    ans = k2.Fsa.from_str(arcs, num_aux_labels=1)
-    ans = k2.arc_sort(ans)
-    return ans
-
-def build_identity_topo(tokens: List[int]) -> k2.Fsa:
-    assert 0 in tokens, "We assume 0 is ID of the blank symbol"
-
-    num_tokens = len(tokens)
-    final_state = 1
-    arcs = ""
-    for i in range(num_tokens):
-        arcs += f"0 0 {tokens[i]} {tokens[i]} 0.0\n"
-    arcs += f"0 {final_state} -1 -1 0.0\n"
-    arcs += f"{final_state}"
-    ans = k2.Fsa.from_str(arcs, num_aux_labels=1)
-    ans = k2.arc_sort(ans)
-    return ans
-
 def get_tot_objf_and_num_frames(
         tot_scores: torch.Tensor,
         frames_per_seq: torch.Tensor,
