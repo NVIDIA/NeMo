@@ -17,7 +17,7 @@ from typing import List, Optional, Tuple, Union
 import torch
 import k2
 
-from nemo.collections.asr.parts.k2.utils import build_ctc_topo
+from nemo.collections.asr.parts.k2.topologies import build_topo
 from nemo.collections.asr.parts.k2.utils import compose_L_G
 from nemo.collections.asr.parts.k2.utils import compose_T_LG
 from nemo.collections.asr.parts.k2.utils import create_supervision
@@ -47,7 +47,7 @@ class BaseDecoder(object):
                  num_classes: int,
                  blank: int,
                  pruned: bool = False,
-                 topo_type: str = "full",
+                 topo_type: str = "ctc_default",
                  device: torch.device = torch.device("cpu"),
                  **kwargs
     ):
@@ -55,10 +55,8 @@ class BaseDecoder(object):
         self.blank = blank
         self.pruned = pruned
         self.device = device
-        if topo_type != "full":
-            raise NotImplementedError("Not implemented yet")
-        else:
-            self.ctc_topo_inv = k2.arc_sort(build_ctc_topo(list(range(num_classes))).invert_())
+        self.topo_type = topo_type
+        self.ctc_topo_inv = k2.arc_sort(build_topo(topo_type, list(range(num_classes))).invert_())
         self.decode_graph = None
         self.conf = DecoderConf(**kwargs)
 
@@ -98,7 +96,7 @@ class BaseDecoder(object):
             lats = k2.intersect_dense(dec_graphs, dense_fsa_vec, self.conf.output_beam)
 
         if return_lattices:
-            lats = k2.index_fsa(lattice_orig_med, invert_permutation(order).to(dtype=torch.int32, device=input_lengths.device))
+            lats = k2.index_fsa(lats, invert_permutation(order).to(dtype=torch.int32, device=input_lengths.device))
             if self.blank != 0:
                 # change only ilabels
                 # suppose self.blank == self.num_classes - 1
@@ -138,7 +136,7 @@ class TokenLMDecoder(BaseDecoder):
                  blank: int,
                  token_lm: Optional[Union[k2.Fsa, str]] = None,
                  pruned: bool = False,
-                 topo_type: str = "full",
+                 topo_type: str = "ctc_default",
                  device: torch.device = torch.device("cpu"),
                  **kwargs
     ):
@@ -146,7 +144,7 @@ class TokenLMDecoder(BaseDecoder):
         if token_lm is None:
             logging.warning(f"""token_lm was set to None. Use this for debug purposes only.""")
             self.token_lm = token_lm
-            self.decode_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert_()]).to(device)
+            self.decode_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert()]).to(device)
         else:
             self.token_lm = load_graph(token_lm) if isinstance(token_lm, str) else token_lm
             if hasattr(self.token_lm, 'aux_labels'):
@@ -154,8 +152,8 @@ class TokenLMDecoder(BaseDecoder):
             labels = self.token_lm.labels if isinstance(self.token_lm.labels, torch.Tensor) else self.token_lm.labels.values()
             if labels.max() != self.ctc_topo_inv.labels.max():
                 raise ValueError(f"token_lm is not compatible with the topo: {labels.unique()}, {self.ctc_topo_inv.labels.unique()}")
-            self.decode_graph = k2.create_fsa_vec([intersect_with_self_loops(self.ctc_topo_inv, self.token_lm).invert_()]).to(device)
-            # self.decode_graph = k2.create_fsa_vec([intersect_with_self_loops(self.ctc_topo_inv, self.token_lm)]).to(device)
+            self.decode_graph = k2.create_fsa_vec([k2.arc_sort(intersect_with_self_loops(self.ctc_topo_inv, self.token_lm).invert_())]).to(device)
+            # self.decode_graph = k2.create_fsa_vec([k2.arc_sort(intersect_with_self_loops(self.ctc_topo_inv, self.token_lm))]).to(device)
             # self.decode_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert_()]).to(device)
 
 '''
@@ -165,7 +163,7 @@ class TLGDecoder(BaseDecoder):
                  blank: int,
                  LG: Union[Tuple[Union[k2.Fsa, str]], k2.Fsa, str],
                  token_lm: Optional[Union[k2.Fsa, str]],
-                 topo_type: str = "full",
+                 topo_type: str = "ctc_default",
                  device: torch.device = torch.device("cpu"),
                  **kwargs
     ):
@@ -210,7 +208,7 @@ class TLGDecoder(BaseDecoder):
                  blank: int,
                  decode_graph: Optional[Union[k2.Fsa, str]],
                  pruned: bool = False,
-                 topo_type: str = "full",
+                 topo_type: str = "ctc_default",
                  device: torch.device = torch.device("cpu"),
                  **kwargs
     ):

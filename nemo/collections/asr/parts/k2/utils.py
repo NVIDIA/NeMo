@@ -220,6 +220,36 @@ def build_ctc_topo(tokens: List[int]) -> k2.Fsa:
     ans = k2.arc_sort(ans)
     return ans
 
+def build_ctc_topo_no_selfloops(tokens: List[int]) -> k2.Fsa:
+    assert 0 in tokens, "We assume 0 is ID of the blank symbol"
+
+    num_states = len(tokens)
+    final_state = num_states
+    arcs = "0 0 0 0 0.0\n"
+    for i in range(num_states):
+        for j in range(num_states):
+            if i != j:
+                arcs += f"{i} {j} {tokens[j]} {tokens[j]} 0.0\n"
+        arcs += f"{i} {final_state} -1 -1 0.0\n"
+    arcs += f"{final_state}"
+    ans = k2.Fsa.from_str(arcs, num_aux_labels=1)
+    ans = k2.arc_sort(ans)
+    return ans
+
+def build_identity_topo(tokens: List[int]) -> k2.Fsa:
+    assert 0 in tokens, "We assume 0 is ID of the blank symbol"
+
+    num_tokens = len(tokens)
+    final_state = 1
+    arcs = ""
+    for i in range(num_tokens):
+        arcs += f"0 0 {tokens[i]} {tokens[i]} 0.0\n"
+    arcs += f"0 {final_state} -1 -1 0.0\n"
+    arcs += f"{final_state}"
+    ans = k2.Fsa.from_str(arcs, num_aux_labels=1)
+    ans = k2.arc_sort(ans)
+    return ans
+
 def get_tot_objf_and_num_frames(
         tot_scores: torch.Tensor,
         frames_per_seq: torch.Tensor,

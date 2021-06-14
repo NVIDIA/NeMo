@@ -48,6 +48,7 @@ class CTCLoss(torch.nn.Module):
             num_classes: int,
             blank: int,
             reduction: str = 'mean',
+            topo_type: str = 'ctc_default',
             graph_type: str = 'topo',
             aux_graph: Optional[Union[k2.Fsa, str]] = None,
             **kwargs
@@ -58,13 +59,13 @@ class CTCLoss(torch.nn.Module):
         self.reduction = reduction
         if graph_type == 'topo':
             from nemo.collections.asr.parts.k2.graph_compilers import CtcTrainingTopologyCompiler as compiler
-            self.graph_compiler = compiler(self.num_classes)
+            self.graph_compiler = compiler(self.num_classes, topo_type)
         elif graph_type == 'graph':
             from nemo.collections.asr.parts.k2.graph_compilers import CtcTrainingNumGraphCompiler as compiler
             raise NotImplementedError("Not tested yet")
             if isinstance(aux_graph, str):
                 aux_graph = load_graph(aux_graph)
-            self.graph_compiler = compiler(self.num_classes, aux_graph=aux_graph)
+            self.graph_compiler = compiler(self.num_classes, topo_type, aux_graph=aux_graph)
         else:
             raise ValueError(f"Invalid value of `graph_type`: {graph_type}.")
 

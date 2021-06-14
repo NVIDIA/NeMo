@@ -53,6 +53,7 @@ class SDLoss(torch.nn.Module):
             num_classes: int,
             blank: int,
             reduction: str = 'mean',
+            topo_type: str = 'ctc_default',
             sd_type: str = 'mmi',
             token_lm: Optional[Union[k2.Fsa, str]] = None,
             token_lm_order: int = 2,
@@ -87,7 +88,7 @@ class SDLoss(torch.nn.Module):
             from nemo.collections.asr.parts.k2.graph_compilers import CtcCrfTrainingGraphCompiler as compiler
         else:
             raise ValueError(f"Invalid value of `sd_type`: {sd_type}.")
-        self.graph_compiler = compiler(self.num_classes, aux_graph=self.lm_graph)
+        self.graph_compiler = compiler(self.num_classes, topo_type, aux_graph=self.lm_graph)
         if use_mbr:
             self.decoding_graph = load_graph(decoding_graph) if isinstance(decoding_graph, str) else decoding_graph
             if len(self.decoding_graph.shape) == 2:

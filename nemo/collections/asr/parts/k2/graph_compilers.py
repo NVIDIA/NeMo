@@ -33,18 +33,18 @@ import torch
 
 import k2
 
-from nemo.collections.asr.parts.k2.utils import build_ctc_topo
+from nemo.collections.asr.parts.k2.topologies import build_topo
 from nemo.collections.asr.parts.k2.utils import compose_with_self_loops
 from nemo.collections.asr.parts.k2.utils import intersect_with_self_loops
 
 
 class CtcTrainingTopologyCompiler(object):
 
-    def __init__(self, num_classes: int, device: torch.device = torch.device("cpu")):
-        phone_ids_with_blank = list(range(num_classes))
-        self.ctc_topo_inv = k2.arc_sort(build_ctc_topo(phone_ids_with_blank).to(device).invert_())
+    def __init__(self, num_classes: int, topo_type: str = "ctc_default", device: torch.device = torch.device("cpu")):
+        self.topo_type = topo_type
         self.device = device
-        self.base_graph = k2.arc_sort(self.ctc_topo_inv.invert_())
+        self.base_graph = k2.arc_sort(build_topo(topo_type, list(range(num_classes)))).to(self.device)
+        self.ctc_topo_inv = k2.arc_sort(self.base_graph.invert())
 
     def to(self, device: torch.device):
         self.ctc_topo_inv = self.ctc_topo_inv.to(device)
@@ -66,8 +66,8 @@ class CtcTrainingTopologyCompiler(object):
 
 class CtcTrainingNumGraphCompiler(CtcTrainingTopologyCompiler):
 
-    def __init__(self, num_classes: int, device: torch.device = torch.device("cpu"), aux_graph: Optional[k2.Fsa] = None):
-        super().__init__(num_classes, device)
+    def __init__(self, num_classes: int, topo_type: str = "ctc_default", device: torch.device = torch.device("cpu"), aux_graph: Optional[k2.Fsa] = None):
+        super().__init__(num_classes, topo_type, device)
         if aux_graph is None:
             self.base_graph = None
         else:
@@ -85,8 +85,8 @@ class CtcTrainingNumGraphCompiler(CtcTrainingTopologyCompiler):
 
 class CtcCrfTrainingGraphCompiler(CtcTrainingTopologyCompiler):
 
-    def __init__(self, num_classes: int, device: torch.device = torch.device("cpu"), aux_graph: Optional[k2.Fsa] = None):
-        super().__init__(num_classes, device)
+    def __init__(self, num_classes: int, topo_type: str = "ctc_default", device: torch.device = torch.device("cpu"), aux_graph: Optional[k2.Fsa] = None):
+        super().__init__(num_classes, topo_type, device)
         if aux_graph is None:
             self.den_graph = None
         else:
@@ -109,8 +109,8 @@ class CtcCrfTrainingGraphCompiler(CtcTrainingTopologyCompiler):
 
 class MmiTrainingGraphCompiler(CtcTrainingNumGraphCompiler):
 
-    def __init__(self, num_classes: int, device: torch.device = torch.device("cpu"), aux_graph: Optional[k2.Fsa] = None):
-        super().__init__(num_classes, device, aux_graph)
+    def __init__(self, num_classes: int, topo_type: str = "ctc_default", device: torch.device = torch.device("cpu"), aux_graph: Optional[k2.Fsa] = None):
+        super().__init__(num_classes, topo_type, device, aux_graph)
         if aux_graph is None:
             self.den_graph = None
         else:
