@@ -8,7 +8,7 @@ in a knowledge based. For example, an entity linking model might match the phras
 to the knowledge base concept UID45623 anticoagulant. Entity linking applications range from helping automate ingestion of 
 large amounts of data to assisting in real time concept normalization.
 
-Within NeMo we use the entity linking approach described in Liu et. al's NAACL 2021 "`Self-alignment Pre-training for Biomedical Entity Representations <https://arxiv.org/abs/2010.11784v2>`_" :cite:`liu2021selfalignment`. 
+Within NeMo we use the entity linking approach described in Liu et. al's NAACL 2021 "`Self-alignment Pre-training for Biomedical Entity Representations <https://arxiv.org/abs/2010.11784v2>`_" :cite:`nlp-entity_linking-liu2021selfalignment`. 
 The main idea behind this approach is to reshape an initial concept embedding space such that synonyms of the same concept are 
 pulled closer together and unrelated concepts are pushed further apart. The concept embeddings from this reshaped space can then 
 be used to build a knowledge base embedding index. 
@@ -31,5 +31,5 @@ References
 
 .. bibliography:: nlp_all.bib
     :style: plain
-    :labelprefix: NLP-JIS
-    :keyprefix: nlp-jis-
+    :labelprefix: nlp-entity_linking
+    :keyprefix: nlp-entity_linking-
