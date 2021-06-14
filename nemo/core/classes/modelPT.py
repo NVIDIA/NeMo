@@ -308,9 +308,9 @@ class ModelPT(LightningModule, Model):
             conf = OmegaConf.load(path2yaml_file)
             for conf_path, item in self.artifacts.items():
                 if item.hashed_path is None:
-                    conf.update_node(conf_path, item.path)
+                    OmegaConf.update(conf, conf_path, item.path)
                 else:
-                    conf.update_node(conf_path, item.hashed_path)
+                    OmegaConf.update(conf, conf_path, item.hashed_path)
             with open(path2yaml_file, 'w') as fout:
                 OmegaConf.save(config=conf, f=fout, resolve=True)
 
@@ -436,7 +436,7 @@ class ModelPT(LightningModule, Model):
                     instance = instance.to(map_location)
                     instance.load_state_dict(torch.load(model_weights, map_location=map_location), strict=strict)
 
-                    logging.info(f'Model {cls.__name__} was successfully restored from {restore_path}.')
+                    logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
             finally:
                 cls._set_model_restore_state(is_being_restored=False)
                 os.chdir(cwd)

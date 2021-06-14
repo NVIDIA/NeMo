@@ -21,7 +21,6 @@ from nemo_text_processing.text_normalization.verbalizers.electronic import Elect
 from nemo_text_processing.text_normalization.verbalizers.measure import MeasureFst
 from nemo_text_processing.text_normalization.verbalizers.money import MoneyFst
 from nemo_text_processing.text_normalization.verbalizers.ordinal import OrdinalFst
-from nemo_text_processing.text_normalization.verbalizers.serial import SerialFst
 from nemo_text_processing.text_normalization.verbalizers.telephone import TelephoneFst
 from nemo_text_processing.text_normalization.verbalizers.time import TimeFst
 from nemo_text_processing.text_normalization.verbalizers.whitelist import WhiteListFst
@@ -67,7 +66,4 @@ class VerbalizeFst(GraphFst):
             | whitelist_graph
         )
 
-        if not deterministic:
-            serial_graph = SerialFst(measure, deterministic=deterministic).fst
-            graph |= serial_graph
         self.fst = graph

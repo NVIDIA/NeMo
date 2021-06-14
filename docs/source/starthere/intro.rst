@@ -36,7 +36,7 @@ Before you begin using NeMo, it's assumed you meet the following prerequisites.
 
 #. You have Pytorch version 1.8.1.
 
-#. You have access to a Volta, Turing, or an NVIDIA Ampere architecture-based A100 GPU for training.
+#. You have access to an NVIDIA GPU for training.
 
 .. _quick_start_guide:
 
@@ -116,8 +116,8 @@ Use this installation mode if you want the version from a particular GitHub bran
     apt-get update && apt-get install -y libsndfile1 ffmpeg
     pip install Cython
     python -m pip install git+https://github.com/NVIDIA/NeMo.git@{BRANCH}#egg=nemo_toolkit[all]
-    # For v1.0.0, replace {BRANCH} with v1.0.0 like so:
-    # python -m pip install git+https://github.com/NVIDIA/NeMo.git@v1.0.0#egg=nemo_toolkit[all]
+    # For v1.0.2, replace {BRANCH} with v1.0.2 like so:
+    # python -m pip install git+https://github.com/NVIDIA/NeMo.git@v1.0.2#egg=nemo_toolkit[all]
 
 From source
 ~~~~~~~~~~~
