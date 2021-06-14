@@ -18,5 +18,6 @@ NeMo's NLP collection supports the following models:
    sgd_qa
    glue_benchmark
    information_retrieval
+   entity_linking
    nlp_model
    machine_translation
