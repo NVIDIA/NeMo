@@ -17,8 +17,9 @@ import torch
 from omegaconf import OmegaConf
 
 from nemo.collections.asr import modules
-from nemo.collections.asr.parts.numba import __NUMBA_MINIMUM_VERSION__, numba_utils
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
+from nemo.core.utils import numba_utils
+from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 from nemo.utils import config_utils, logging
 
 
