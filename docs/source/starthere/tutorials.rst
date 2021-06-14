@@ -92,11 +92,11 @@ To run a tutorial:
      - Punctuation and Capitalization
      - `Punctuation and Capitalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.2/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
    * - NLP
+     - Entity Linking
+     - `Entity Linking <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.2/tutorials/nlp/Entity_Linking_Medical.ipynb>`_
+   * - NLP
      - Named Entity Recognition - BioMegatron
      - `Named Entity Recognition - BioMegatron <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.2/tutorials/nlp/Token_Classification-BioMegatron.ipynb>`_
-   * - NLP
-     - Entity Linking
-     - `Entity Linking <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.2/tutorials/nlp/Entity_Linking_Medical.ipynb>`
    * - NLP
      - Relation Extraction - BioMegatron
      - `Relation Extraction - BioMegatron <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.2/tutorials/nlp/Relation_Extraction-BioMegatron.ipynb>`_
