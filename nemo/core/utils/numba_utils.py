@@ -12,9 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
+import logging as pylogger
 import operator
+import os
 
 from nemo.utils import model_utils
+
+# Prevent Numba CUDA logs from showing at info level
+cuda_logger = pylogger.getLogger('numba.cuda.cudadrv.driver')
+cuda_logger.setLevel(pylogger.ERROR)  # only show error
+
+__NUMBA_MINIMUM_VERSION__ = "0.53.0"
+
 
 NUMBA_INSTALLATION_MESSAGE = (
     "Could not import `numba`.\n"
@@ -28,6 +38,48 @@ NUMBA_INSTALLATION_MESSAGE = (
     "If pip install does not work, you can also try adding `--ignore-installed` to the pip command,\n"
     "but this is not advised."
 )
+
+STRICT_NUMBA_COMPAT_CHECK = True
+
+# Get environment key if available
+if 'STRICT_NUMBA_COMPAT_CHECK' in os.environ:
+    check_str = os.environ.get('STRICT_NUMBA_COMPAT_CHECK')
+    check_bool = str(check_str).lower() in ("yes", "true", "t", "1")
+    STRICT_NUMBA_COMPAT_CHECK = check_bool
+
+
+def is_numba_compat_strict() -> bool:
+    """
+    Returns strictness level of numba cuda compatibility checks.
+
+    If value is true, numba cuda compatibility matrix must be satisfied.
+    If value is false, only cuda availability is checked, not compatibility.
+    Numba Cuda may still compile and run without issues in such a case, or it may fail.
+    """
+    return STRICT_NUMBA_COMPAT_CHECK
+
+
+def set_numba_compat_strictness(strict: bool):
+    """
+    Sets the strictness level of numba cuda compatibility checks.
+
+    If value is true, numba cuda compatibility matrix must be satisfied.
+    If value is false, only cuda availability is checked, not compatibility.
+    Numba Cuda may still compile and run without issues in such a case, or it may fail.
+
+    Args:
+        strict: bool value, whether to enforce strict compatibility checks or relax them.
+    """
+    global STRICT_NUMBA_COMPAT_CHECK
+    STRICT_NUMBA_COMPAT_CHECK = strict
+
+
+@contextlib.contextmanager
+def with_numba_compat_strictness(strict: bool):
+    initial_strictness = is_numba_compat_strict()
+    set_numba_compat_strictness(strict=strict)
+    yield
+    set_numba_compat_strictness(strict=initial_strictness)
 
 
 def numba_cuda_is_supported(min_version: str) -> bool:
@@ -54,7 +106,17 @@ def numba_cuda_is_supported(min_version: str) -> bool:
         # this method first arrived in 0.53, and that's the minimum version required
         if hasattr(cuda, 'is_supported_version'):
             try:
-                return cuda.is_available() and cuda.is_supported_version()
+                cuda_available = cuda.is_available()
+                if cuda_available:
+                    cuda_compatible = cuda.is_supported_version()
+                else:
+                    cuda_compatible = False
+
+                if is_numba_compat_strict():
+                    return cuda_available and cuda_compatible
+                else:
+                    return cuda_available
+
             except OSError:
                 # dlopen(libcudart.dylib) might fail if CUDA was never installed in the first place.
                 return False
