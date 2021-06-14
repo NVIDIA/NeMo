@@ -61,8 +61,10 @@ class ClassifyFst(GraphFst):
 
         decimal = DecimalFst(cardinal=cardinal, deterministic=deterministic)
         decimal_graph = decimal.fst
+        fraction = FractionFst(deterministic=deterministic, cardinal=cardinal)
+        fraction_graph = fraction.fst
 
-        measure = MeasureFst(cardinal=cardinal, decimal=decimal, deterministic=deterministic)
+        measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=deterministic)
         measure_graph = measure.fst
         date_graph = DateFst(cardinal=cardinal, deterministic=deterministic).fst
         word_graph = WordFst(deterministic=deterministic).fst
@@ -72,7 +74,7 @@ class ClassifyFst(GraphFst):
         money_graph = MoneyFst(cardinal=cardinal, decimal=decimal, deterministic=deterministic).fst
         whitelist_graph = WhiteListFst(input_case=input_case, deterministic=deterministic).fst
         punct_graph = PunctuationFst(deterministic=deterministic).fst
-        fraction_graph = FractionFst(deterministic=deterministic, cardinal=cardinal).fst
+
         classify = (
             pynutil.add_weight(whitelist_graph, 1.01)
             | pynutil.add_weight(time_graph, 1.1)

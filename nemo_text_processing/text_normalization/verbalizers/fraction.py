@@ -67,5 +67,6 @@ class FractionFst(GraphFst):
         graph |= pynini.cross("numerator: \"one\" denominator: \"two\"", "one half")
         graph |= (numerator | numerator_one) + insert_space + denominator_one_two
 
-        delete_tokens = self.delete_tokens(graph)
+        self.graph = graph
+        delete_tokens = self.delete_tokens(self.graph)
         self.fst = delete_tokens.optimize()

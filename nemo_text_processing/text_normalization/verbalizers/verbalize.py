@@ -47,15 +47,17 @@ class VerbalizeFst(GraphFst):
         decimal_graph = decimal.fst
         ordinal = OrdinalFst(deterministic=deterministic)
         ordinal_graph = ordinal.fst
+        fraction = FractionFst(deterministic=deterministic)
+        fraction_graph = fraction.fst
         telephone_graph = TelephoneFst(deterministic=deterministic).fst
         electronic_graph = ElectronicFst(deterministic=deterministic).fst
-        measure = MeasureFst(decimal=decimal, cardinal=cardinal, deterministic=deterministic)
+        measure = MeasureFst(decimal=decimal, cardinal=cardinal, fraction=fraction, deterministic=deterministic)
         measure_graph = measure.fst
         time_graph = TimeFst(deterministic=deterministic).fst
         date_graph = DateFst(ordinal=ordinal, deterministic=deterministic).fst
         money_graph = MoneyFst(decimal=decimal, deterministic=deterministic).fst
         whitelist_graph = WhiteListFst(deterministic=deterministic).fst
-        fraction_graph = FractionFst(deterministic=deterministic).fst
+
         graph = (
             time_graph
             | date_graph

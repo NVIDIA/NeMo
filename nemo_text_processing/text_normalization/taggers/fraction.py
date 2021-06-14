@@ -45,6 +45,6 @@ class FractionFst(GraphFst):
         )
         denominator = pynutil.insert("denominator: \"") + cardinal_graph + pynutil.insert("\"")
 
-        graph = pynini.closure(integer, 0, 1) + numerator + denominator
-        graph = self.add_tokens(graph)
-        self.fst = graph.optimize()
+        self.graph = pynini.closure(integer, 0, 1) + numerator + denominator
+        final_graph = self.add_tokens(self.graph)
+        self.fst = final_graph.optimize()
