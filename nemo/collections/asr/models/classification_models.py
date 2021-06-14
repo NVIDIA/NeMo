@@ -23,7 +23,7 @@ from typing import Dict, List, Optional, Union
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
-from pytorch_lightning.metrics.regression import MeanAbsoluteError, MeanSquaredError
+from torchmetrics.regression import MeanAbsoluteError, MeanSquaredError
 
 from nemo.collections.asr.data import audio_to_label_dataset
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
