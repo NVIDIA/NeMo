@@ -559,6 +559,11 @@ class EnsembleBeamSearchSequenceGenerator:
             for j in range(len(decoder_mems_lists[i])):
                 decoder_mems_lists[i][j] = decoder_mems_lists[i][j].repeat(self.beam_size, 1, 1)
 
+        if self.language_model is not None:
+            for j in range(len(lm_mems_list)):
+                lm_mems_list[j] = lm_mems_list[j].repeat(self.beam_size, 1, 1)
+            lm_hidden_size = lm_mems_list[0].size(2)
+
         encoder_input_mask = encoder_input_mask.repeat(1, self.beam_size).view(-1, encoder_input_mask.size(1))
         for i in range(self.num_models):
             _, src_length, hidden_size = encoder_hidden_states[i].size()
@@ -634,6 +639,15 @@ class EnsembleBeamSearchSequenceGenerator:
                         .view(-1, self.beam_size, p_len - 1, hidden_size)
                         .gather(1, mems_ids)
                         .view(-1, p_len - 1, hidden_size)
+                    )
+            if self.language_model is not None:
+                lm_mems_ids = indices_i.unsqueeze(2).unsqueeze(3).repeat(1, 1, p_len - 1, lm_hidden_size) // self.beam_size
+                for j in range(len(lm_mems_list)):
+                    lm_mems_list[j] = (
+                        lm_mems_list[j]
+                        .view(-1, self.beam_size, p_len - 1, lm_hidden_size)
+                        .gather(1, lm_mems_ids)
+                        .view(-1, p_len - 1, lm_hidden_size)
                     )
 
             # update prefixes_len and pad_profile
