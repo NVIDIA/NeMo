@@ -289,6 +289,8 @@ class EncDecCTCSDModelBPE(EncDecCTCModelBPE):
             reduction=self._cfg.get("ctc_reduction", "mean_batch"),
             **loss_kwargs
         )
+        remove_consecutive = loss_kwargs.get("topo_type", "ctc_default") != "identity"
+        self._wer.remove_consecutive = remove_consecutive
 
         transcribe_decode = self._cfg.get("transcribe_decode", False)
         loss_type = loss_kwargs.get("loss_type", "ctc")
