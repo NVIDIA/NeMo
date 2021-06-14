@@ -15,6 +15,7 @@
 import contextlib
 import logging as pylogger
 import operator
+import os
 
 from nemo.utils import model_utils
 
@@ -39,6 +40,12 @@ NUMBA_INSTALLATION_MESSAGE = (
 )
 
 STRICT_NUMBA_COMPAT_CHECK = True
+
+# Get environment key if available
+if 'STRICT_NUMBA_COMPAT_CHECK' in os.environ:
+    check_str = os.environ.get('STRICT_NUMBA_COMPAT_CHECK')
+    check_bool = str(check_str).lower() in ("yes", "true", "t", "1")
+    STRICT_NUMBA_COMPAT_CHECK = check_bool
 
 
 def is_numba_compat_strict() -> bool:
