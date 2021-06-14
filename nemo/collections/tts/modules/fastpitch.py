@@ -213,6 +213,7 @@ class FastPitchModule(NeuralModule):
     def output_types(self):
         return {
             "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "num_frames": NeuralType(('B'), TokenDurationType()),
             "durs_predicted": NeuralType(('B', 'T'), TokenDurationType()),
             "log_durs_predicted": NeuralType(('B', 'T'), TokenLogDurationType()),
             "pitch_predicted": NeuralType(('B', 'T'), RegressionValuesType()),
@@ -282,9 +283,10 @@ class FastPitchModule(NeuralModule):
 
         # Output FFT
         dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens)
-        spect = self.proj(dec_out)
+        spect = self.proj(dec_out).transpose(1, 2)
         return (
             spect,
+            dec_lens,
             durs_predicted,
             log_durs_predicted,
             pitch_predicted,
