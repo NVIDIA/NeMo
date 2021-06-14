@@ -396,6 +396,8 @@ class EnsembleBeamSearchSequenceGenerator:
         max_sequence_length=512,
         max_delta_length=20,
         batch_size=1,
+        language_model=None,
+        fusion_coef=None
     ):
         """
         Ensemble Beam Search sequence generator based on the decoder followed by
@@ -428,11 +430,27 @@ class EnsembleBeamSearchSequenceGenerator:
         self.batch_size = batch_size
         assert len(embeddings) == len(decoders) == len(log_softmaxes) == len(encoders)
         self.num_models = len(encoders)
+        self.language_model = language_model
+        self.fusion_coef = fusion_coef
 
     @staticmethod
     def compute_len_penalty(lengths, alpha):
         """Returns length penalty according to https://arxiv.org/pdf/1609.08144.pdf"""
         return ((5 + lengths) / 6).pow(alpha)
+    
+    def _one_step_forward_lm(
+        self,
+        decoder_input_ids=None,
+        lm_mems_list=None,
+        pos=0
+    ):
+        input_mask = mask_padded_tokens(decoder_input_ids, self.pad).float()
+        lm_hidden_states = self.language_model.encoder.embedding.forward(decoder_input_ids, start_pos=pos)
+        lm_mems_list = self.language_model.encoder.encoder.forward(
+            lm_hidden_states, input_mask, lm_mems_list, return_mems=True,
+        )
+        lm_log_probs = self.language_model.log_softmax.forward(hidden_states=lm_mems_list[-1][:, -1:])
+        return lm_log_probs, lm_mems_list
 
     def _one_step_forward(
         self,
@@ -528,6 +546,10 @@ class EnsembleBeamSearchSequenceGenerator:
         log_probs = self._average_probs([x[0] for x in outputs])
         decoder_mems_lists = [x[1] for x in outputs]
 
+        if self.language_model is not None:
+            lm_log_probs, lm_mems_list = self._one_step_forward_lm(src_ids, None, 0)
+            log_probs = log_probs + self.fusion_coef * lm_log_probs
+
         scores, prefixes = torch.topk(log_probs.permute(0, 2, 1), self.beam_size, dim=1)
         scores, prefixes = scores.view(-1, 1), prefixes.view(-1, 1)
 
@@ -571,6 +593,11 @@ class EnsembleBeamSearchSequenceGenerator:
             ]
             log_probs = self._average_probs([x[0] for x in outputs])
             decoder_mems_lists = [x[1] for x in outputs]
+
+            if self.language_model is not None:
+                lm_log_probs, lm_mems_list = self._one_step_forward_lm(src_ids, lm_mems_list, i + 1)
+                log_probs = log_probs + self.fusion_coef * lm_log_probs
+
             scores_i, prefixes_i = torch.topk(log_probs[:, -1, :], self.beam_size, dim=-1)
 
             # for all prefixes ending with <eos> or <pad> replace generated

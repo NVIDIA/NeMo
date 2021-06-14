@@ -78,6 +78,8 @@ def main():
     )
     parser.add_argument("--target_lang", type=str, default=None, help="Target language ID")
     parser.add_argument("--source_lang", type=str, default=None, help="Source language ID")
+    parser.add_argument("--lm_model", type=str, default=None, help="")
+    parser.add_argument("--fusion_coef", type=float, default=0.0, help="")
 
     args = parser.parse_args()
     torch.set_grad_enabled(False)
@@ -91,6 +93,11 @@ def main():
     if torch.cuda.is_available():
         models = [model.cuda() for model in models]
 
+    if args.lm_model is not None:
+        lm_model = nemo_nlp.models.language_modeling.TransformerLMModel.restore_from(restore_path=args.lm_model).eval()
+    else:
+        lm_model = None
+
     ensemble_generator = EnsembleBeamSearchSequenceGenerator(
         encoders=[model.encoder for model in models],
         embeddings=[model.decoder.embedding for model in models],
@@ -103,6 +110,8 @@ def main():
         eos=models[0].decoder_tokenizer.eos_id,
         len_pen=args.len_pen,
         max_delta_length=args.max_delta_length,
+        language_model=lm_model,
+        fusion_coef=args.fusion_coef
     )
     logging.info(f"Translating: {args.srctext}")
 

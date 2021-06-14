@@ -109,6 +109,8 @@ def main():
     logging.info(f"Translating: {args.srctext}")
 
     if len(models) > 1:
+        if args.lm_model is not None:
+            lm_model = nemo_nlp.models.language_modeling.TransformerLMModel.restore_from(restore_path=args.lm_model).eval()
         ensemble_generator = EnsembleBeamSearchSequenceGenerator(
             encoders=[model.encoder for model in models],
             embeddings=[model.decoder.embedding for model in models],
@@ -121,6 +123,8 @@ def main():
             eos=models[0].decoder_tokenizer.eos_id,
             len_pen=args.len_pen,
             max_delta_length=args.max_delta_length,
+            language_model=lm_model,
+            fusion_coef=args.fusion_coef
         )
     else:
         if args.lm_model is not None:
