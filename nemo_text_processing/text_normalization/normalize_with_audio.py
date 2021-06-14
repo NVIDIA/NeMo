@@ -245,7 +245,8 @@ def parse_args():
     return parser.parse_args()
 
 
-def _normalize_line(normalizer: NormalizerWithAudio, line: dict, asr_model: ASRModel = None):
+def _normalize_line(normalizer: NormalizerWithAudio, line: str, asr_model: ASRModel = None):
+    line = json.loads(line)
     audio = line['audio_filepath']
     if 'transcript' in line:
         transcript = line['transcript']
@@ -279,7 +280,7 @@ def normalize_manifest(args):
             first_line = json.loads(lines[0])
             if 'transcript' not in first_line:
                 asr_model = get_asr_model(args.model)
-            normalized_lines = Parallel(n_jobs=2)(
+            normalized_lines = Parallel(n_jobs=-1)(
                 delayed(_normalize_line)(normalizer, line, asr_model) for line in lines
             )
 
