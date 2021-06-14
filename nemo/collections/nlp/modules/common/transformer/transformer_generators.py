@@ -547,7 +547,7 @@ class EnsembleBeamSearchSequenceGenerator:
         decoder_mems_lists = [x[1] for x in outputs]
 
         if self.language_model is not None:
-            lm_log_probs, lm_mems_list = self._one_step_forward_lm(src_ids, None, 0)
+            lm_log_probs, lm_mems_list = self._one_step_forward_lm(tgt, None, 0)
             log_probs = log_probs + self.fusion_coef * lm_log_probs
 
         scores, prefixes = torch.topk(log_probs.permute(0, 2, 1), self.beam_size, dim=1)
@@ -595,7 +595,7 @@ class EnsembleBeamSearchSequenceGenerator:
             decoder_mems_lists = [x[1] for x in outputs]
 
             if self.language_model is not None:
-                lm_log_probs, lm_mems_list = self._one_step_forward_lm(src_ids, lm_mems_list, i + 1)
+                lm_log_probs, lm_mems_list = self._one_step_forward_lm(prefixes[:, -1:], lm_mems_list, i + 1)
                 log_probs = log_probs + self.fusion_coef * lm_log_probs
 
             scores_i, prefixes_i = torch.topk(log_probs[:, -1, :], self.beam_size, dim=-1)
