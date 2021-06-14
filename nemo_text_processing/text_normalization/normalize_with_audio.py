@@ -118,7 +118,6 @@ class NormalizerWithAudio(Normalizer):
         normalized_texts = []
         for tagged_text in tagged_texts:
             self._verbalize(tagged_text, normalized_texts)
-
         if len(normalized_texts) == 0:
             raise ValueError()
         if punct_post_process:
@@ -193,8 +192,7 @@ def calculate_cer(normalized_texts: List[str], transcript: str, remove_punct=Fal
         text_clean = text.replace('-', ' ').lower()
         if remove_punct:
             for punct in "!?:;,.-()*+-/<=>@^_":
-                text_clean = text_clean.replace(punct, " ")
-        text_clean = re.sub(r' +', ' ', text_clean)
+                text_clean = text_clean.replace(punct, "")
         cer = round(word_error_rate([transcript], [text_clean], use_cer=True) * 100, 2)
         normalized_options.append((text, cer))
     return normalized_options

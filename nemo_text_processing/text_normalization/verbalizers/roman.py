@@ -27,12 +27,12 @@ except (ModuleNotFoundError, ImportError):
 
 class RomanFst(GraphFst):
     """
-    Finite state transducer for verbalizing electronic
-        e.g. tokens { electronic { username: "cdf1" domain: "abc.edu" } } -> c d f one at a b c dot e d u
+    Finite state transducer for verbalizing roman numerals
+        e.g. tokens { roman { integer: "one" } } -> one
 
     Args:
         deterministic: if True will provide a single transduction option,
-        for False multiple transduction are generated (used for audio-based normalization)
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
     def __init__(self, deterministic: bool = True):

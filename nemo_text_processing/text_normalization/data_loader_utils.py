@@ -242,6 +242,7 @@ def post_process_punctuation(text: str) -> str:
         .replace('“', '"')
         .replace("‘", "'")
         .replace('`', "'")
+        .replace('- -', "--")
     )
 
     for punct in "!,.:;?":

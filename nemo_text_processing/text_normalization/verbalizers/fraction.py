@@ -28,6 +28,8 @@ except (ModuleNotFoundError, ImportError):
 class FractionFst(GraphFst):
     """
     Finite state transducer for verbalizing fraction
+        e.g. tokens { fraction { integer: "twenty three" numerator: "four" denominator: "five" } } ->
+        twenty three four fifth
 
     Args:
         deterministic: if True will provide a single transduction option,
