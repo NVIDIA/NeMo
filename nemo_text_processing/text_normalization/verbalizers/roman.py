@@ -13,7 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.graph_utils import GraphFst
+from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_QUOTE, GraphFst
+from nemo_text_processing.text_normalization.verbalizers.ordinal import OrdinalFst
 
 try:
     import pynini
@@ -24,27 +25,22 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-class FractionFst(GraphFst):
+class RomanFst(GraphFst):
     """
-    Finite state transducer for classifying fraction
-    "23 4/5" ->
-    tokens { fraction { integer: "twenty three" numerator: "four" denominator: "five" } }
+    Finite state transducer for verbalizing roman numerals
+        e.g. tokens { roman { integer: "one" } } -> one
 
     Args:
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal, deterministic: bool = True):
-        super().__init__(name="fraction", kind="classify", deterministic=deterministic)
-        cardinal_graph = cardinal.graph
+    def __init__(self, deterministic: bool = True):
+        super().__init__(name="roman", kind="verbalize", deterministic=deterministic)
+        suffix = OrdinalFst().suffix
 
-        integer = pynutil.insert("integer: \"") + cardinal_graph + pynutil.insert("\"") + pynini.accep(" ")
-        numerator = (
-            pynutil.insert("numerator: \"") + cardinal_graph + (pynini.cross("/", "\" ") | pynini.cross(" / ", "\" "))
-        )
-        denominator = pynutil.insert("denominator: \"") + cardinal_graph + pynutil.insert("\"")
-
-        self.graph = pynini.closure(integer, 0, 1) + numerator + denominator
-        final_graph = self.add_tokens(self.graph)
-        self.fst = final_graph.optimize()
+        integer = pynini.closure(NEMO_NOT_QUOTE)
+        integer |= pynini.closure(pynutil.insert("the "), 0, 1) + integer @ suffix
+        graph = pynutil.delete("integer: \"") + integer + pynutil.delete("\"")
+        delete_tokens = self.delete_tokens(graph)
+        self.fst = delete_tokens.optimize()

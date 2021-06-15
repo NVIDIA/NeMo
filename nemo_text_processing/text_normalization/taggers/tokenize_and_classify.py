@@ -18,10 +18,12 @@ from nemo_text_processing.text_normalization.taggers.cardinal import CardinalFst
 from nemo_text_processing.text_normalization.taggers.date import DateFst
 from nemo_text_processing.text_normalization.taggers.decimal import DecimalFst
 from nemo_text_processing.text_normalization.taggers.electronic import ElectronicFst
+from nemo_text_processing.text_normalization.taggers.fraction import FractionFst
 from nemo_text_processing.text_normalization.taggers.measure import MeasureFst
 from nemo_text_processing.text_normalization.taggers.money import MoneyFst
 from nemo_text_processing.text_normalization.taggers.ordinal import OrdinalFst
 from nemo_text_processing.text_normalization.taggers.punctuation import PunctuationFst
+from nemo_text_processing.text_normalization.taggers.roman import RomanFst
 from nemo_text_processing.text_normalization.taggers.telephone import TelephoneFst
 from nemo_text_processing.text_normalization.taggers.time import TimeFst
 from nemo_text_processing.text_normalization.taggers.whitelist import WhiteListFst
@@ -59,8 +61,10 @@ class ClassifyFst(GraphFst):
 
         decimal = DecimalFst(cardinal=cardinal, deterministic=deterministic)
         decimal_graph = decimal.fst
+        fraction = FractionFst(deterministic=deterministic, cardinal=cardinal)
+        fraction_graph = fraction.fst
 
-        measure = MeasureFst(cardinal=cardinal, decimal=decimal, deterministic=deterministic)
+        measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=deterministic)
         measure_graph = measure.fst
         date_graph = DateFst(cardinal=cardinal, deterministic=deterministic).fst
         word_graph = WordFst(deterministic=deterministic).fst
@@ -82,8 +86,14 @@ class ClassifyFst(GraphFst):
             | pynutil.add_weight(money_graph, 1.1)
             | pynutil.add_weight(telephone_graph, 1.1)
             | pynutil.add_weight(electonic_graph, 1.1)
+            | pynutil.add_weight(fraction_graph, 1.1)
             | pynutil.add_weight(word_graph, 100)
         )
+
+        if not deterministic:
+            roman_graph = RomanFst(deterministic=deterministic).fst
+            # the weight matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
+            classify |= pynutil.add_weight(roman_graph, 100)
 
         punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=1.1) + pynutil.insert(" }")
         token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")

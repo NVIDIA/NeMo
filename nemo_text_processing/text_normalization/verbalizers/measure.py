@@ -34,11 +34,12 @@ class MeasureFst(GraphFst):
     Args:
         decimal: DecimalFst
         cardinal: CardinalFst
+        fraction: FractionFst
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, decimal: GraphFst, cardinal: GraphFst, deterministic: bool = True):
+    def __init__(self, decimal: GraphFst, cardinal: GraphFst, fraction: GraphFst, deterministic: bool = True):
         super().__init__(name="measure", kind="verbalize", deterministic=deterministic)
         optional_sign = cardinal.optional_sign
         unit = pynutil.delete("units: \"") + pynini.closure(NEMO_CHAR - " ", 1) + pynutil.delete("\"") + delete_space
@@ -61,7 +62,12 @@ class MeasureFst(GraphFst):
             + delete_space
             + pynutil.delete("}")
         )
-        graph = (graph_cardinal | graph_decimal) + delete_space + insert_space + unit
+
+        graph_fraction = (
+            pynutil.delete("fraction {") + delete_space + fraction.graph + delete_space + pynutil.delete("}")
+        )
+
+        graph = (graph_cardinal | graph_decimal | graph_fraction) + delete_space + insert_space + unit
 
         # SH adds "preserve_order: true" by default
         preserve_order = pynutil.delete("preserve_order:") + delete_space + pynutil.delete("true") + delete_space

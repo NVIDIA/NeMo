@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
+from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path, load_labels
 from nemo_text_processing.text_normalization.graph_utils import (
     NEMO_CHAR,
     NEMO_DIGIT,
@@ -96,7 +96,13 @@ def _get_year_graph(deterministic: bool = True):
     2000 - 2009 will be verbalized as two thousand.
     """
     graph = get_hundreds_graph(deterministic)
-    graph = (pynini.union("1", "2") + NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT + pynini.closure("s", 0, 1)) @ graph
+    graph = (
+        pynini.union("1", "2")
+        + NEMO_DIGIT
+        + NEMO_DIGIT
+        + NEMO_DIGIT
+        + pynini.closure(pynini.cross(" s", "s") | "s", 0, 1)
+    ) @ graph
     return graph
 
 
@@ -128,8 +134,14 @@ class DateFst(GraphFst):
         ) + pynini.closure(pynutil.delete("."), 0, 1)
         month_graph |= month_abbr_graph
 
-        month_numbers_graph = pynini.string_file(get_abs_path("data/months/numbers.tsv")).optimize()
+        # to support all caps names
+        names_all_caps = [[x[0].upper()] for x in load_labels(get_abs_path("data/months/names.tsv"))]
+        abbr_all_caps = [(x.upper(), y) for x, y in load_labels(get_abs_path("data/months/abbr.tsv"))]
+        month_graph |= pynini.string_map(names_all_caps) | (
+            pynini.string_map(abbr_all_caps) + pynini.closure(pynutil.delete("."), 0, 1)
+        )
 
+        month_numbers_graph = pynini.string_file(get_abs_path("data/months/numbers.tsv")).optimize()
         cardinal_graph = cardinal.graph_hundred_component_at_least_one_none_zero_digit
 
         year_graph = _get_year_graph(deterministic)
