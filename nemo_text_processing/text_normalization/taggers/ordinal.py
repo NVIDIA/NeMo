@@ -39,9 +39,10 @@ class OrdinalFst(GraphFst):
         super().__init__(name="ordinal", kind="classify", deterministic=deterministic)
 
         cardinal_graph = cardinal.graph
+        endings = ["rd", "th", "st", "nd"]
+        endings += [x.upper() for x in endings]
         self.graph = (
-            (pynini.closure(NEMO_DIGIT | pynini.accep(",")) + pynutil.delete(pynini.union("rd", "th", "st", "nd")))
-            @ cardinal_graph
+            (pynini.closure(NEMO_DIGIT | pynini.accep(",")) + pynutil.delete(pynini.union(*endings))) @ cardinal_graph
         ).optimize()
         final_graph = pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)

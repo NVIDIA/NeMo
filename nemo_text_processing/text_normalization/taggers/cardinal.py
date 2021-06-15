@@ -104,7 +104,7 @@ class CardinalFst(GraphFst):
             letter_pronunciation = pynini.string_map(load_labels(get_abs_path("data/letter_pronunciation.tsv")))
             alpha |= letter_pronunciation
 
-        delimiter = insert_space | pynini.cross("-", " ")
+        delimiter = insert_space | pynini.cross("-", " ") | pynini.cross("/", " ")
         letter_num = pynini.closure(alpha + delimiter, 1) + num_graph
         num_letter = pynini.closure(num_graph + delimiter, 1) + alpha
         next_alpha_or_num = pynini.closure(delimiter + (alpha | num_graph))
