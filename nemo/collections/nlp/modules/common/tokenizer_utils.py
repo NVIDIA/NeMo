@@ -18,6 +18,7 @@ from os import path
 from typing import Dict, List, Optional
 
 import nemo
+from nemo.collections.common.tokenizers.bytelevel_tokenizer import ByteLevelTokenizer
 from nemo.collections.common.tokenizers.char_tokenizer import CharTokenizer
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
@@ -138,7 +139,10 @@ def get_nmt_tokenizer(
         return nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
             model_path=tokenizer_model, special_tokens=special_tokens_dict
         )
+    elif library == 'byte-level':
+        logging.info(f'Using byte-level tokenization')
+        return nemo.collections.common.tokenizers.bytelevel_tokenizer.ByteLevelTokenizer()
     else:
         raise NotImplementedError(
-            'Currently we only support "yttm", "huggingface", and "sentencepiece" tokenizer library.'
+            'Currently we only support "yttm", "huggingface", "sentencepiece", and "byte-level" tokenizer libraries.'
         )
