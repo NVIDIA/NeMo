@@ -83,7 +83,7 @@ def get_lm_and_nmt_score(src_texts, tgt_texts, models, lm_model, len_penalty):
         nmt_ll = nmt_ll.data.cpu().numpy().tolist()
         nmt_lls.append(nmt_ll)
     nmt_ll = np.stack(nmt_lls).mean(0)
-    len_penalties = ((5 + tgt_inp.size(1)) / 6).pow(len_penalty)
+    len_penalties = ((5 + tgt_inp.size(1)) / 6) ** len_penalty
     nmt_ll = nmt_ll / len_penalties
 
     if lm_model is not None:
