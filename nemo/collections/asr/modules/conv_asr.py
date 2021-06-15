@@ -35,6 +35,7 @@ from nemo.collections.asr.parts.submodules.tdnn_attention import (
     TDNNSEModule,
 )
 from nemo.core.classes.common import typecheck
+from nemo.core.classes.distillation import DistillationMixin
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import (
@@ -392,7 +393,7 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
         return s_input[-1], length
 
 
-class ConvASRDecoder(NeuralModule, Exportable):
+class ConvASRDecoder(NeuralModule, Exportable, DistillationMixin):
     """Simple ASR Decoder for use with CTC-based models such as JasperNet and QuartzNet
 
      Based on these papers:
@@ -436,7 +437,13 @@ class ConvASRDecoder(NeuralModule, Exportable):
 
     @typecheck()
     def forward(self, encoder_output):
-        return torch.nn.functional.log_softmax(self.decoder_layers(encoder_output).transpose(1, 2), dim=-1)
+        logits = self.decoder_layers(encoder_output).transpose(1, 2)
+
+        if self.is_being_distilled():
+            temperature = self.distill_cfg.get('temperature', 1.0)
+            logits = logits / temperature
+
+        return torch.nn.functional.log_softmax(logits, dim=-1)
 
     def input_example(self):
         """

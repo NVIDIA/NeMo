@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Optional, Union
 from math import ceil
+from typing import Dict, List, Optional, Union
+
 from nemo.core.classes.mixins import DistillationMixin
 from nemo.utils import logging
 
 
 class CTCDistillationMixin(DistillationMixin):
-
     def _validate_distillation_encoder_match(self, other_model: 'EncDecCTCModel'):
         if 'ConvASREncoder' in self.cfg.encoder._target_ and 'ConvASREncoder' in other_model.cfg.encoder._target_:
             self._distillation_encoder_match = 'ConvASREncoder'
