@@ -147,7 +147,10 @@ def get_nmt_tokenizer(
             f'Getting Megatron tokenizer with pretrained model name: {model_name} and custom vocab file: {vocab_file}'
         )
         return get_tokenizer(tokenizer_name=model_name, vocab_file=vocab_file)
+    elif library == 'byte-level':
+        logging.info(f'Using byte-level tokenization')
+        return nemo.collections.common.tokenizers.bytelevel_tokenizer.ByteLevelTokenizer()
     else:
         raise NotImplementedError(
-            'Currently we only support "yttm", "huggingface", "megatron", and "sentencepiece" tokenizer library.'
+            'Currently we only support "yttm", "huggingface", "sentencepiece", "megatron", and "byte-level" tokenizer libraries.'
         )
