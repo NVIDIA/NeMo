@@ -373,8 +373,8 @@ def _convert_config(cfg: OmegaConf):
     """ Recursive function convertint the configuration from old hydra format to the new one. """
 
     # Get rid of cls -> _target_.
-    if 'cls' in cfg and "_target_" not in cfg:
-        cfg._target_ = cfg.pop("cls")
+    if 'cls' in cfg and '_target_' not in cfg:
+        cfg._target_ = cfg.pop('cls')
 
     # Get rid of params.
     if 'params' in cfg:
@@ -398,6 +398,7 @@ def maybe_update_config_version(cfg: DictConfig):
     Changes include:
     -   `cls` -> `_target_`.
     -   `params` -> drop params and shift all arguments to parent.
+    -   `target` -> `_target_` cannot be performed due to ModelPT injecting `target` inside class.
 
     Args:
         cfg: Any Hydra compatible DictConfig
@@ -405,6 +406,14 @@ def maybe_update_config_version(cfg: DictConfig):
     Returns:
         An updated DictConfig that conforms to Hydra 1.x format.
     """
+    if cfg is not None and not isinstance(cfg, DictConfig):
+        try:
+            temp_cfg = OmegaConf.create(cfg)
+            cfg = temp_cfg
+        except omegaconf_errors.OmegaConfBaseException:
+            # Cannot be cast to DictConfig, skip updating.
+            return cfg
+
     # Make a copy of model config.
     cfg = copy.deepcopy(cfg)
     OmegaConf.set_struct(cfg, False)
