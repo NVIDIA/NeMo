@@ -14,3 +14,4 @@
 
 from nemo.collections.asr.parts.mixins.ctc_distillation_mixins import CTCDistillationMixin
 from nemo.collections.asr.parts.mixins.mixins import ASRBPEMixin, ASRModuleMixin, DiarizationMixin
+from nemo.collections.asr.parts.mixins.ctc_distillation_mixins import CTCDistillationMixin
