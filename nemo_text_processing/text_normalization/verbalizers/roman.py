@@ -13,7 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.graph_utils import GraphFst, delete_space
+from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_QUOTE, GraphFst
+from nemo_text_processing.text_normalization.verbalizers.ordinal import OrdinalFst
 
 try:
     import pynini
@@ -24,21 +25,22 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-class SerialFst(GraphFst):
+class RomanFst(GraphFst):
     """
-    Finite state transducer for verbalizing serial, e.g.
-        tokens { serial { value: "c thirty two five" } } -> c thirty two five
+    Finite state transducer for verbalizing roman numerals
+        e.g. tokens { roman { integer: "one" } } -> one
 
     Args:
-        measure: MeasureFst
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, measure: GraphFst, deterministic: bool = False):
-        super().__init__(name="serial", kind="verbalize", deterministic=deterministic)
+    def __init__(self, deterministic: bool = True):
+        super().__init__(name="roman", kind="verbalize", deterministic=deterministic)
+        suffix = OrdinalFst().suffix
 
-        serial = pynutil.delete("units: \"") + pynini.cross("serial", "") + pynutil.delete("\"") + delete_space
-        graph = measure.graph_cardinal + delete_space + serial
+        integer = pynini.closure(NEMO_NOT_QUOTE)
+        integer |= pynini.closure(pynutil.insert("the "), 0, 1) + integer @ suffix
+        graph = pynutil.delete("integer: \"") + integer + pynutil.delete("\"")
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

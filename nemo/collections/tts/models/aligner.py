@@ -21,7 +21,7 @@ from pytorch_lightning.loggers import WandbLogger
 from torch import nn
 
 from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursF0Dataset
-from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, mas, plot_alignment_to_numpy
+from nemo.collections.tts.helpers.helpers import binarize_attention, get_mask_from_lengths, plot_alignment_to_numpy
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import typecheck
@@ -64,27 +64,6 @@ class AlignerModel(ModelPT):
 
         return attn_soft, attn_logprob
 
-    @staticmethod
-    def binarize_attention(attn, in_len, out_len):
-        """Convert soft attention matrix to hard attention matrix.
-
-        Args:
-            attn (torch.Tensor): B x 1 x max_mel_len x max_text_len. Soft attention matrix.
-            in_len (torch.Tensor): B. Lengths of texts.
-            out_len (torch.Tensor): B. Lengths of spectrograms.
-
-        Output:
-            attn_out (torch.Tensor): B x 1 x max_mel_len x max_text_len. Hard attention matrix, final dim max_text_len should sum to 1.
-        """
-        b_size = attn.shape[0]
-        with torch.no_grad():
-            attn_cpu = attn.data.cpu().numpy()
-            attn_out = torch.zeros_like(attn)
-            for ind in range(b_size):
-                hard_attn = mas(attn_cpu[ind, 0, : out_len[ind], : in_len[ind]])
-                attn_out[ind, 0, : out_len[ind], : in_len[ind]] = torch.tensor(hard_attn, device=attn.device)
-        return attn_out
-
     def _metrics(self, attn_soft, attn_logprob, spec_len, text_len):
         loss, bin_loss, attn_hard = 0.0, 0.0, None
 
@@ -92,7 +71,7 @@ class AlignerModel(ModelPT):
         loss += forward_sum_loss
 
         if self.add_bin_loss:
-            attn_hard = AlignerModel.binarize_attention(attn_soft, text_len, spec_len)
+            attn_hard = binarize_attention(attn_soft, text_len, spec_len)
             bin_loss = self.bin_loss(attn_hard, attn_soft)
             loss += bin_loss
 
@@ -128,7 +107,7 @@ class AlignerModel(ModelPT):
         # plot once per epoch
         if batch_idx == 0 and isinstance(self.logger, WandbLogger) and HAVE_WANDB:
             if attn_hard is None:
-                attn_hard = AlignerModel.binarize_attention(attn_soft, text_len, spec_len)
+                attn_hard = binarize_attention(attn_soft, text_len, spec_len)
 
             attn_matrices = []
             for i in range(min(5, audio.shape[0])):

@@ -41,7 +41,6 @@ def hifigan_model():
 class TestExportable:
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    @pytest.mark.skip('Fastpitch export PR pending')
     def test_FastPitchModel_export_to_onnx(self, fastpitch_model):
         model = fastpitch_model.cuda()
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -54,7 +53,7 @@ class TestExportable:
         model = hifigan_model.cuda()
         assert hifigan_model.generator is not None
         with tempfile.TemporaryDirectory() as tmpdir:
-            filename = os.path.join(tmpdir, 'hfg.onnx')
+            filename = os.path.join(tmpdir, 'hfg.pt')
             model.export(output=filename, verbose=True, check_trace=True)
 
 
