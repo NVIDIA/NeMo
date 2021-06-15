@@ -111,6 +111,8 @@ def main():
     if len(models) > 1:
         if args.lm_model is not None:
             lm_model = nemo_nlp.models.language_modeling.TransformerLMModel.restore_from(restore_path=args.lm_model).eval()
+        else:
+            lm_model = None
         ensemble_generator = EnsembleBeamSearchSequenceGenerator(
             encoders=[model.encoder for model in models],
             embeddings=[model.decoder.embedding for model in models],
