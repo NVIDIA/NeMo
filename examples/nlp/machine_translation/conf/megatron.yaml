@@ -105,7 +105,7 @@ model:
     # If not using a model parallel checkpoint, then use the full path to the checkpoint:
 
     # /path/to/my/checkpoint/model_optim_rng.pt
-    checkpoint_file: ???
+    checkpoint_file: null
 
     pretrained: true # only pretrained=true supported for now
 

@@ -63,9 +63,9 @@ class MegatronEncoderModule(EncoderModule):
             )
 
         if model_name or checkpoint_file:
-            model = get_megatron_lm_model(
+            model, checkpoint_file = get_megatron_lm_model(
                 pretrained_model_name=model_name, config_dict=config_dict, checkpoint_file=checkpoint_file
-            )[0]
+            )
 
         self._checkpoint_file = checkpoint_file
         self._hidden_size = model.hidden_size
