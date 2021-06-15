@@ -44,6 +44,9 @@ To run a tutorial:
      - Online ASR inference with Microphone
      - `Online ASR Microphone <https://github.com/NVIDIA/NeMo/blob/v1.0.2/tutorials/asr/02_Online_ASR_Microphone_Demo.ipynb>`_
    * - ASR
+     - Fine-tuning CTC Models on New Languages
+     - `ASR CTC Language Fine-Tuning <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.1.0/tutorials/asr/10_ASR_CTC_Language_Finetuning.ipynb.ipynb>`_
+   * - ASR
      - Speech Commands
      - `Speech Commands <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.2/tutorials/asr/03_Speech_Commands.ipynb>`_
    * - ASR
