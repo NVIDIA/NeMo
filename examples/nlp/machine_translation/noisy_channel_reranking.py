@@ -83,8 +83,6 @@ def get_lm_and_nmt_score(src_texts, tgt_texts, models, lm_model, len_penalty):
         nmt_ll = nmt_ll.data.cpu().numpy().tolist()
         nmt_lls.append(nmt_ll)
     nmt_ll = np.stack(nmt_lls).mean(0)
-    len_penalties = ((5 + tgt_inp.size(1)) / 6) ** len_penalty
-    nmt_ll = nmt_ll / len_penalties
 
     if lm_model is not None:
         lm_log_probs = lm_model(src[:, :-1], src_mask[:, :-1])
@@ -162,7 +160,7 @@ def main():
             src_texts = [item[1] for item in src_text]
             tgt_texts = [item[0] for item in src_text]
             scores = [float(item[2]) for item in src_text]
-            rev_nmt_scores, lm_scores, src_lengths, tgt_lengths = get_lm_and_nmt_score(src_texts, tgt_texts, model, lm_model)
+            rev_nmt_scores, lm_scores, src_lengths, tgt_lengths = get_lm_and_nmt_score(src_texts, tgt_texts, model, lm_model, args.len_pen)
             fused_scores = []
             for s, r, l, sl, tl in zip(scores, rev_nmt_scores, lm_scores, src_lengths, tgt_lengths):
                 score = s + args.noisy_channel_coef * (r + l)
