@@ -45,19 +45,21 @@ class DateFst(GraphFst):
         super().__init__(name="date", kind="verbalize", deterministic=deterministic)
 
         month = pynini.closure(NEMO_NOT_QUOTE, 1)
-
-        if not deterministic:
-            month |= pynutil.insert(" of ") + month
-
-        month = pynutil.delete("month:") + delete_space + pynutil.delete("\"") + month + pynutil.delete("\"")
-
-        day = (
+        day_cardinal = (
             pynutil.delete("day:")
             + delete_space
             + pynutil.delete("\"")
             + pynini.closure(NEMO_NOT_QUOTE, 1)
             + pynutil.delete("\"")
-        ) @ ordinal.suffix
+        )
+        day = day_cardinal @ ordinal.suffix
+
+        if not deterministic:
+            month |= pynutil.insert(" of ") + month
+            day |= day_cardinal
+
+        month = pynutil.delete("month:") + delete_space + pynutil.delete("\"") + month + pynutil.delete("\"")
+
         year = (
             pynutil.delete("year:")
             + delete_space
