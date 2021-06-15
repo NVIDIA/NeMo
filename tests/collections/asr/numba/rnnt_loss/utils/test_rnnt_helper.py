@@ -16,8 +16,9 @@ import numpy as np
 import pytest
 from numba import cuda
 
-from nemo.collections.asr.parts.numba import __NUMBA_MINIMUM_VERSION__, numba_utils
 from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants, rnnt_helper
+from nemo.core.utils import numba_utils
+from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 
 
 class TestRNNTHelper:
