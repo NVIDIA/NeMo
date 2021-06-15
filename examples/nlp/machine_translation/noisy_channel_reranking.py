@@ -34,7 +34,7 @@ from nemo.collections.nlp.modules.common.transformer import (
 )
 from nemo.utils import logging
 
-def get_lm_and_nmt_score(src_texts, tgt_texts, models, lm_model):
+def get_lm_and_nmt_score(src_texts, tgt_texts, models, lm_model, len_penalty):
     inputs = []
     src_lengths = []
     tgt_lengths = []
@@ -83,6 +83,8 @@ def get_lm_and_nmt_score(src_texts, tgt_texts, models, lm_model):
         nmt_ll = nmt_ll.data.cpu().numpy().tolist()
         nmt_lls.append(nmt_ll)
     nmt_ll = np.stack(nmt_lls).mean(0)
+    len_penalties = ((5 + tgt_inp.size(1)) / 6).pow(len_penalty)
+    nmt_ll = nmt_ll / len_penalties
 
     if lm_model is not None:
         lm_log_probs = lm_model(src[:, :-1], src_mask[:, :-1])
@@ -101,6 +103,7 @@ def main():
     parser.add_argument("--beam_size", type=int, required=True, help="")
     parser.add_argument("--source_lang", type=str, required=True, help="")
     parser.add_argument("--target_lang", type=str, required=True, help="")
+    parser.add_argument("--len_pen", type=float, default=0.6, help="")
 
     # shallow fusion specific parameters
     parser.add_argument("--lm_model", type=str, default=None, help="")
@@ -140,7 +143,7 @@ def main():
                 src_texts = [item[1] for item in src_text]
                 tgt_texts = [item[0] for item in src_text]
                 scores = [float(item[2]) for item in src_text]
-                rev_nmt_scores, lm_scores, src_lengths, tgt_lengths = get_lm_and_nmt_score(src_texts, tgt_texts, models, lm_model)
+                rev_nmt_scores, lm_scores, src_lengths, tgt_lengths = get_lm_and_nmt_score(src_texts, tgt_texts, models, lm_model, args.len_pen)
                 fused_scores = []
                 #mean_source_length = np.mean(src_lengths)
                 #stddev_source_length = np.std(src_lengths)
