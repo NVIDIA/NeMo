@@ -16,6 +16,7 @@
 import csv
 import json
 import os
+import re
 from collections import defaultdict, namedtuple
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -241,8 +242,28 @@ def post_process_punctuation(text: str) -> str:
         .replace('“', '"')
         .replace("‘", "'")
         .replace('`', "'")
+        .replace('- -', "--")
     )
 
     for punct in "!,.:;?":
         text = text.replace(f' {punct}', punct)
     return text.strip()
+
+
+def pre_process(text: str) -> str:
+    """
+    Adds space around punctuation marks
+
+    Args:
+        text: string that may include semiotic classes
+
+    Returns: text with spaces around punctuation marks
+    """
+    space_both = '*<=>^[]{}'
+    for punct in space_both:
+        text = text.replace(punct, ' ' + punct + ' ')
+
+    text = text.replace('--', ' ' + '--' + ' ')
+    # remove extra space
+    text = re.sub(r' +', ' ', text)
+    return text
