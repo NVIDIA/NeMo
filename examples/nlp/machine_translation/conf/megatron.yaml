@@ -114,6 +114,7 @@ model:
     num_attention_heads: 16
     num_layers: 24
     max_position_embeddings: 512
+    num_tokentypes: 0
 
   decoder:
     library: nemo

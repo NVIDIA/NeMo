@@ -83,6 +83,8 @@ class MegatronBertEncoder(BertModule):
         config['lazy_mpu_init'] = True
         config['onnx_safe'] = True
 
+        num_tokentypes = config.pop('num_tokentypes', 2)
+
         # if 'model_parallel_size' in config:
         if self._model_parallel_size is not None:
             app_state = AppState()
@@ -116,7 +118,7 @@ class MegatronBertEncoder(BertModule):
         logging.info(f'Megatron-lm argparse args: {args}')
 
         self.language_model, self._language_model_key = get_language_model(
-            attention_mask_func=bert_attention_mask_func, num_tokentypes=0, add_pooler=False
+            attention_mask_func=bert_attention_mask_func, num_tokentypes=num_tokentypes, add_pooler=False
         )
 
         self.config = OmegaConf.create(config)
