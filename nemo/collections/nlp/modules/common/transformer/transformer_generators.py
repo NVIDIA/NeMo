@@ -633,8 +633,10 @@ class EnsembleBeamSearchSequenceGenerator:
 
             # reshuffle cached decoder memory states to restore the order
             # of hypotheses broken after top-k selection
-            mems_ids = indices_i.unsqueeze(2).unsqueeze(3).repeat(1, 1, p_len - 1, hidden_size) // self.beam_size
             for model_num in range(self.num_models):
+                hidden_size = decoder_mems_lists[model_num][0].size(2)
+                print(hidden_size)
+                mems_ids = indices_i.unsqueeze(2).unsqueeze(3).repeat(1, 1, p_len - 1, hidden_size) // self.beam_size
                 for j in range(len(decoder_mems_lists[model_num])):
                     decoder_mems_lists[model_num][j] = (
                         decoder_mems_lists[model_num][j]
