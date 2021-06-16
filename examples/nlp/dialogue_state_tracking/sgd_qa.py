@@ -137,9 +137,9 @@ def main(cfg: DictConfig) -> None:
         dialogues_example_dir = cfg.model.dataset.get('dialogues_example_dir', None)
 
         if data_dir is None or dialogues_example_dir is None:
-            ValueError('No dataset directory provided. Skipping evaluation. ')
+            raise ValueError('No dataset directory provided. Skipping evaluation. ')
         elif not os.path.exists(data_dir):
-            ValueError(f'{data_dir} is not found, skipping evaluation on the test set.')
+            raise ValueError(f'{data_dir} is not found, skipping evaluation on the test set.')
         else:
             model.update_data_dirs(data_dir=data_dir, dialogues_example_dir=dialogues_example_dir)
             model._cfg.dataset = cfg.model.dataset

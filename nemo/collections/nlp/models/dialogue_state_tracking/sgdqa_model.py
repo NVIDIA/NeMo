@@ -593,4 +593,19 @@ class SGDQAModel(NLPModel):
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
-        pass
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        result = []
+
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="sgdqa_bertbasecased",
+                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/sgdqa_bertbasecased/versions/1.0.0/files/sgdqa_bertbasecased.nemo",
+                description="Dialogue State Tracking model finetuned from NeMo BERT Base Cased on Google SGD dataset which has a joint goal accuracy of 59.72% on dev set and 45.85% on test set.",
+            )
+        )
+        return result
