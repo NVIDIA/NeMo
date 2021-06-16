@@ -25,9 +25,7 @@ from nemo.collections.nlp.modules.common.transformer.transformer import (
     NeMoTransformerConfig,
     NeMoTransformerEncoderConfig,
 )
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
-from nemo.core.config.modelPT import ModelConfig, OptimConfig, SchedConfig
-from nemo.core.config.pytorch_lightning import TrainerConfig
+from nemo.core.config.modelPT import OptimConfig, SchedConfig
 
 
 @dataclass
