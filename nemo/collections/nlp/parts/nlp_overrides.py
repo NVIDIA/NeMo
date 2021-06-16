@@ -73,12 +73,8 @@ class NLPDDPPlugin(DDPPlugin):
                     if not hasattr(p, 'model_parallel'):
                         p.model_parallel = False
 
-                # TODO: figure out how to override clip gradients again
-                # Update PTL trainer to use our _clip_gradients
-                # self._trainer.accelerator_backend._clip_gradients = self._clip_gradients
-
-                if get_checkpoint_version():
-                    # Restored from .nemo, checkpoint_version will already be set
+                if get_checkpoint_version() is not None:
+                    # megatron checkpoint already restored
                     pass
                 elif trainer.resume_from_checkpoint is not None:
                     # PTL auto-resuming, need to update checkpoint name
@@ -99,7 +95,11 @@ class NLPDDPPlugin(DDPPlugin):
                 else:
                     self.lightning_module.restore_megatron_encoder_weights()
             else:
-                self.lightning_module.restore_megatron_encoder_weights()
+                if get_checkpoint_version() is not None:
+                    # megatron checkpoint already restored
+                    pass
+                else:
+                    self.lightning_module.restore_megatron_encoder_weights()
 
             self.lightning_module.register_megatron_checkpoint_version()
 
