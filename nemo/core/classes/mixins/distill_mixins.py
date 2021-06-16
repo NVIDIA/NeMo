@@ -13,10 +13,9 @@
 # limitations under the License.
 
 from abc import ABC
-from collections import defaultdict
 from contextlib import contextmanager
 from enum import Enum
-from typing import Dict, List, Optional, Type, Union
+from typing import Dict, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig
@@ -57,14 +56,20 @@ def set_distill_loss_dict(loss_dict: dict):
 
 
 class DistillationMixin(ABC):
+    """
+    Mixin class to add Distillation support to Models or Pytorch/Neural Modules.
+    """
+
     def __init__(self):
         super().__init__()
         self._distillation_registry = {}
 
     def setup_distillation_loss(self) -> Optional['torch.nn._Loss']:
         """
-        If implemented by base class, in case the distillation config does not contain the 'loss' subconfig,
-        the model itself can provide a default loss which will be used in its place.
+        Setup of distillation losses that are used during distillation training.
+
+        If implemented by base class, in case the distillation config does not contain the 'loss' sub-config,
+        the model itself can provide a default loss here, which will be used in place of the config.
 
         Returns:
             A dictionary of Loss object(s) that will be used as the distillation loss function.
@@ -81,12 +86,29 @@ class DistillationMixin(ABC):
     def register_distillation_tensor(
         self, loss_key: str = None, tensor: torch.Tensor = None, loss_name: str = "primary",
     ):
+        """
+        Method to register a tensor to a certain loss (via the loss_name), binding the tensor to a keyword argument
+        for that loss (via loss_key).
+
+        At least one loss key must be present - `primary`. There can be any number of secondary loss keys.
+
+        Args:
+            loss_key: An optional string, used to bind the tensor via keyword argument to the loss.
+                If None, assumed the loss is a binary function which does not require named keyword arguments.
+            tensor: A pytorch tensor. If the distillation config has a key `preserve_distillation_memory`, and it
+                is set to True, then the tensor will be moved onto the CPU. This may significantly impact training
+                speed, so if memory is available, ensure the flag is set to False.
+            loss_name: String name of the loss function that was provided in `setup_distillation_loss`.
+                There must be at least one key - `primary`. There can be any number of secondary keys.
+                By default, if nothing is provided, assumed as the `primary` key.
+        """
         if not self.is_being_distilled():
-            raise RuntimeError("Model is not being distilled, yet tensors are being registered for distillation")
+            raise RuntimeError("Model is not being distilled, yet tensors are being registered for distillation!")
 
         if tensor is None:
             raise ValueError("Distillation `tensor` cannot be None !")
 
+        # Check that the loss exists
         if loss_name not in self.distill_loss_dict:
             raise KeyError(
                 f"Available distillation loss keys are : {list(self.distill_loss_dict.keys())}, "
@@ -98,7 +120,7 @@ class DistillationMixin(ABC):
             self._distillation_registry = {}
 
         if loss_name not in self._distillation_registry:
-            # If this is a similarity match loss, create a list of tensors to register (unnamed args)
+            # If this is a binary argument loss function, create a list of tensors to register (unnamed args)
             # Positional arg losses can only take binary arguments and are designated by passing None to loss_key
             # For positional arg losses, create a list.
             if loss_key is None:
@@ -113,19 +135,25 @@ class DistillationMixin(ABC):
                 f"loss named : {loss_name}!"
             )
 
+        # If the distillation config has `preserve_distillation_memory` set to True, force tensor to CPU.
+        # Note that this might severely impact training speed.
+        if self.distill_cfg.get('preserve_distillation_memory', False):
+            tensor = tensor.cpu()
+
         if loss_key is None:
             # This is a positional binary loss
-            self._distillation_registry[loss_name].append(tensor.detach())
+            self._distillation_registry[loss_name].append(tensor)
         else:
             # This is a kwarg based name
-            self._distillation_registry[loss_name][loss_key] = tensor.detach()
+            self._distillation_registry[loss_name][loss_key] = tensor
 
     def distillation_registration_step(self, log_prob: torch.Tensor):
         """
         Helper method to register tensors inside of `training_step`. Subclasses should overwrite
         this method (and its signature) to suit their requirements.
 
-        The default implementation assumes that the input is a tensor which represents log probabilities.
+        The default implementation assumes that the input is a tensor which represents log probabilities
+        and the primary distillation loss is KLDivergence.
 
         Args:
             log_prob: A tensor of any shape (B, *) that represents log probabilities.
@@ -139,12 +167,21 @@ class DistillationMixin(ABC):
         self.register_distillation_tensor(loss_key=loss_key, tensor=log_prob)
 
     def reset_distillation_registry(self):
+        """
+        Recursively reset the registry of distillation tensors to clear up memory.
+        """
         self._distillation_registry.clear()
         for _, m in self.named_modules():
             if hasattr(m, '_distillation_registry') and len(m._distillation_registry) > 0:
                 m.reset_distillation_registry()
 
     def is_being_distilled(self) -> bool:
+        """
+        Utility method to check if the model is being distilled or not.
+
+        Returns:
+            True if the model distillation type is neither `student` or `teacher`, False otherwise.
+        """
         return self.distill_type is not None
 
     def is_student_model(self) -> Optional[bool]:
@@ -164,12 +201,14 @@ class DistillationMixin(ABC):
         """
         Optionally, perform validations on student model (self) and the teacher model (argument),
         such that this function must execute just after creation of the student and teacher models.
+        It is called before training, at the moment after creation of both student and teacher models.
 
         If there is a fundamental incompatibility between the models, raise an appropriate error when
         overriding this method.
 
         Args:
             other_model: An instance of a ModelPT subclass that also inherits the DistillationMixin.
+                When self is the `student` model, other_model is the `teacher` model and vice-versa.
 
         Returns:
             Nothing needs to be returned, however if there is some fundamental incompatibility between
@@ -178,7 +217,16 @@ class DistillationMixin(ABC):
         pass
 
     def prehook_primary_distillation_loss(self, loss_dict: dict, teacher_model: 'ModelPT'):
-        pass
+        """
+        Pre-hook when computing the primary distillation loss. Modifications to the `loss_dict` here is utilized
+        when computing the primary distillation loss.
+
+        Note that the pre-hook is called only for the student model. Therefore, `self` refers to the student.
+
+        Args:
+            loss_dict: Dictionary of arguments that will be passed to the primary loss function as kwargs.
+            teacher_model: The teacher model in the distillation training. To reference the student model, use `self`.
+        """
 
     def prehook_additional_distillation_losses(
         self,
@@ -187,20 +235,55 @@ class DistillationMixin(ABC):
         teacher_registry: Union[list, dict],
         teacher_model: 'ModelPT',
     ):
-        pass
+        """
+        Pre-hook when computing additional distillation losses. Modifications to the registry here is utilized
+        when computing additional losses.
+
+        Note that the pre-hook is called only for the student model. Therefore, `self` refers to the student.
+
+        Args:
+            loss_name: str name of the loss function which will be used.
+            student_registry: Can be a list or a dictionary.
+                When it is a list, items in it represent a tensor that will be paired with the corresponding teacher
+                list, and passed to a loss function that accepts binary arguments as its input. Used primarily for
+                similarity based losses.
+                When it is a dictionary, represents a key-value entry that is merged with between student and teacher.
+                Student and teacher should have unique keys, otherwise the merge step will overwrite either the student
+                or teacher's values. The dictionary is then passed as a kwarg to the corresponding loss function.
+            teacher_registry: Can be a list or a dictionary.
+                When it is a list, items in it represent a tensor that will be paired with the corresponding teacher
+                list, and passed to a loss function that accepts binary arguments as its input. Used primarily for
+                similarity based losses.
+                When it is a dictionary, represents a key-value entry that is merged with between student and teacher.
+                Student and teacher should have unique keys, otherwise the merge step will overwrite either the student
+                or teacher's values. The dictionary is then passed as a kwarg to the corresponding loss function.
+            teacher_model: The teacher model in the distillation training. To reference the student model, use `self`.
+        """
 
     @property
     def distill_type(self):
+        """
+        Returns:
+            Returns None if model is not being distilled, otherwise returns a DistillationType value.
+        """
         global _DISTILLATION_TYPE
         return _DISTILLATION_TYPE
 
     @property
     def distill_cfg(self):
+        """
+        Returns:
+            The global distillation config shared across all distillation modules.
+        """
         global _DISTILLATION_CFG
         return _DISTILLATION_CFG
 
     @property
     def distill_loss_dict(self):
+        """
+        Returns:
+            The global resolved dictionary of loss objects that are bound to their `loss_name`.
+        """
         global _DISTILLATION_LOSS_DICT
         return _DISTILLATION_LOSS_DICT
 
@@ -208,6 +291,24 @@ class DistillationMixin(ABC):
     def get_distillation_module_registry(
         cls, module: torch.nn.Module
     ) -> Dict[str, Dict[str, Union[List[Dict[str, torch.Tensor]], List[List[torch.Tensor]]]]]:
+        """
+        Given a module, will recursively extract in nested lists, all of the distillation registries that may exist.
+        The keys of this dictionary are the flattened module names, the values are the internal distillation registry
+        of each such module.
+
+        Args:
+            module: Any PyTorch Module that extends DistillationMixin.
+
+        Returns:
+            A nested dictionary with the following format:
+                Dict[Key=module_flattented_name,
+                     Value=Dict[Key=loss_name,
+                                Value=<list of dictionaries (loss_key: tensor)>  # if keyword loss function
+                                      OR
+                                      <list of list of tensors>  # if binary loss function
+                                ]
+                     ]
+        """
         module_registry = {}
         for name, m in module.named_modules():
             if hasattr(m, '_distillation_registry'):
@@ -217,7 +318,29 @@ class DistillationMixin(ABC):
     @classmethod
     def flatten_distillation_module_registry(
         cls, registry: dict, loss_name: str, loss_key: Optional[str] = None,
-    ) -> (Union[List[Dict[str, torch.Tensor]], List[List[torch.Tensor]]], Type):
+    ) -> (Union[List[Dict[str, torch.Tensor]], List[List[torch.Tensor]]]):
+        """
+        Flatten the nested distillation registry obtained from a module using `get_distillation_module_registry()`.
+
+        Args:
+            registry: A nested dictionary obtained by using `get_distillation_module_registry()` on a module.
+            loss_name: Name of the loss that will be be flattened out from the dictionary.
+            loss_key: (Optional) The loss key that can be extracted for a given loss_name. If not provided,
+                all of the loss_keys that belong to a certain loss_name will be returned.
+
+        Returns:
+            A flattened list of values represented as :
+                List[
+                    <dictionaries (loss_key: tensor)>  # if keyword loss function
+                    OR
+                    <list of tensors>  # if binary loss function
+                    ]
+
+            if the optional `loss_key` is provided and the loss_name refers to a dictionary of (loss_key: tensor),
+            then the returned value is :
+                List[List[tensors]]
+            This is useful for cases where each module may have same key but different number of registered tensors.
+        """
         flattented_registry = []
         for module_name, module_registry in registry.items():  # type: (str, dict)
             if loss_name in module_registry:

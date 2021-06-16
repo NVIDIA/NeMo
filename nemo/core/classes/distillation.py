@@ -45,6 +45,7 @@ class DistillationModelPT(ModelPT):
                 "which will be used as the teacher (via `model_name`)."
             )
 
+        # Check that correct keys are used for teacher models
         if 'model_path' in cfg.distillation and 'model_name' in cfg.distillation:
             raise ValueError("Only one of `model_path` or `model_name` should be passed to the teacher config !")
 
@@ -52,12 +53,12 @@ class DistillationModelPT(ModelPT):
         with open_dict(cfg):
             self.distillation_cfg = cfg.pop('distillation')
 
-        # prevent data loaders from being loaded for either student of teacher model
+        # Prevent data loaders from being loaded for either student of teacher model
         original_state_value = ModelPT._is_model_being_restored()
         ModelPT._set_model_restore_state(is_being_restored=True)
         logging.setLevel(logging.ERROR)
 
-        # initialize model config (from here on out, self.cfg == self.student.cfg)
+        # Initialize model config (from here on out, self.cfg == self.student.cfg)
         super().__init__(cfg=cfg, trainer=trainer)
 
         # Initialize teacher model and freeze it
@@ -69,7 +70,7 @@ class DistillationModelPT(ModelPT):
             # Assume pretrained model name
             raise NotImplementedError("model_name is not supported yet as a teacher value.")
 
-        # Freeze the
+        # Freeze the teacher to prevent gradients
         self.teacher.set_trainer(self._trainer)
         self.teacher.freeze()
 
@@ -79,10 +80,11 @@ class DistillationModelPT(ModelPT):
         else:
             target_cls = self.teacher.__class__
 
+        # Instantiate the student model
         self.student = target_cls(cfg=cfg, trainer=self._trainer)  # type: ModelPT
 
         # Test that the two classes implement the `TeacherStudentMixin`
-        # If they do implement it, initialize their internal parameters.
+        # If they do implement it.
         if not isinstance(self.teacher, DistillationMixin):
             raise TypeError(
                 f"Teacher model ({self.teacher.__class__.__name__}) must inherit {DistillationMixin.__name__}"
@@ -96,17 +98,17 @@ class DistillationModelPT(ModelPT):
         # If both checks passed, add mixin type information and config information
         distill_mixins.set_distill_cfg(self.distillation_cfg)
 
-        # setup up delegation of DistillationModelPT to self.student
+        # Setup up delegation of DistillationModelPT to self.student
         self._setup_delegates()
 
-        # reset model restoration state
+        # Reset model restoration state
         ModelPT._set_model_restore_state(is_being_restored=original_state_value)
         logging.setLevel(logging.INFO)
 
-        # setup loss function
+        # Setup Distillation loss function
         self._setup_distillation_loss()
 
-        # restore delegated data loaders (of student model only)
+        # Restore delegated data loaders (of student model only)
         if self._cfg is not None and not self._is_model_being_restored():
             with distill_mixins.as_distill_type(DistillationType.STUDENT):
                 if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
@@ -129,11 +131,17 @@ class DistillationModelPT(ModelPT):
             self.student.validate_distillation_model(other_model=self.teacher)
 
     def _setup_distillation_loss(self):
+        """
+        Setup the distillation loss, either via config or via the student model's method setup_distillation_loss().
+        """
+        # Get the loss subsection from the distillation config.
         loss_config = self.distillation_cfg.get('loss', None)
 
+        # Extract the student's distillation config override (if any).
         with distill_mixins.as_distill_type(DistillationType.STUDENT):
             loss_obj = self.student.setup_distillation_loss()
 
+        # Both student's setup_distillation_loss() and config cannot be None
         if loss_config is None and loss_obj is None:
             raise ValueError(
                 "Distillation loss could not be setup. Either override `setup_distillation_loss()` in model"
@@ -151,25 +159,30 @@ class DistillationModelPT(ModelPT):
                 """
             )
 
-        # prioritize config over the default loss implementation
+        # Prioritize config over the default loss implementation of student
         if loss_config is not None:
+            # Ensure that `primary` loss is set in config.
             if 'primary' not in loss_config:
                 raise ValueError(
                     "`loss` config must have `primary` subsection to denote the primary "
                     "knowledge distillation loss."
                 )
 
+            # Instantiate primary distillation loss
             self.transfer_loss_primary = self.from_config_dict(loss_config.primary)
 
+            # Register primary distillation loss
             self.loss_dict = {'primary': self.transfer_loss_primary}
 
+            # Register all other distillation losses.
             for loss_key in loss_config.keys():
                 if loss_key != 'primary':
                     self.loss_dict[loss_key] = self.from_config_dict(loss_config[loss_key])
-
         else:
+            # Use the student's setup_distillation_loss() defaults
+            # Assume implementation correctly returns a dictionary of losses
             if type(loss_obj) == dict:
-                # Assume implementation correctly returns a dictionary of losses
+                # Ensure that `primary` loss is set in returned dict.
                 if 'primary' not in loss_obj:
                     raise ValueError(
                         "setup_distillation_loss() must return a dictionary with at least one key - `primary` "
@@ -186,18 +199,23 @@ class DistillationModelPT(ModelPT):
                     "has the key - `primary`, and any number of additional losses."
                 )
 
+            # Setup the losses and register them
             self.transfer_loss_primary = loss_obj['primary']
             self.loss_dict = {'primary': self.transfer_loss_primary}
 
+            # Register all other losses
             for loss_key in loss_obj.keys():
                 if loss_key != 'primary':
                     self.loss_dict[loss_key] = loss_obj[loss_key]
 
-        # Attach the loss dict to teacher and student
+        # Attach the loss dict to teacher and student and all modules which extend DistillationMixin
         distill_mixins.set_distill_loss_dict(self.loss_dict)
         logging.info(f"Distillation losses registered : {list(self.loss_dict.keys())}")
 
     def forward_delegate(self, fn):
+        """
+        Internal forward delegation performed to forward all calls to self.X to self.student.X instead.
+        """
         fn_name = fn.__name__
         # preserve original self function
         setattr(self, fn_name + "_base", getattr(self, fn_name))
@@ -243,8 +261,11 @@ class DistillationModelPT(ModelPT):
         self.student.log = self.log
         self.student.log_dict = self.log_dict
 
-    # PTL-specific methods
     def training_step(self, batch, batch_nb):
+        """
+        Generalized Distillation training loop.
+        """
+        # Freeze teacher model to prevent gradients and reset all registries recursively
         self.teacher.freeze()
         self.teacher.reset_distillation_registry()
         self.student.reset_distillation_registry()
@@ -262,29 +283,39 @@ class DistillationModelPT(ModelPT):
             # Compute primary loss (required) and additional losses (optional)
             primary_loss_value, additional_losses = self._compute_loss()
 
-        self.log('distillation_train_loss', primary_loss_value)
+        # Log the primary distillation training loss
+        self.log('distillation_primary_loss', primary_loss_value)
 
-        # Add similarity matching losses to primary loss with weighted term
+        # Add secondary losses to primary loss with weighted term
         if additional_losses is not None and len(additional_losses) > 0:
             # For all additional losses
-            similarity_loss_log_idx = 1
-            similarity_loss_weight = self.distillation_cfg.get('similarity_loss_weight', 1.0)
+            secondary_loss_log_idx = 1
 
             for ix, (additional_loss_name, additional_loss_val) in enumerate(additional_losses.items()):
+                # Find loss name from within additional_loss_name
+                original_loss_name = ''
+                for loss_name in self.student.distill_loss_dict.keys():
+                    if loss_name in additional_loss_name:
+                        original_loss_name = loss_name
+                        break
 
-                # if additional loss is a similarity loss (a positional loss)
+                # Compute secondary loss weight
+                secondary_loss_weight = self.distillation_cfg.get(f'{original_loss_name}_loss_weight', 1.0)
+
+                # If multiple loss values are present for single loss key - represented as a list of more than losses
+                # Then provide a subid to each loss for logging
                 if len(additional_loss_val) > 1:
-                    for jx, similarity_loss_val in enumerate(additional_loss_val):
-                        similarity_loss_val = similarity_loss_weight * similarity_loss_val
-                        primary_loss_value += similarity_loss_val
+                    for jx, secondary_loss_val in enumerate(additional_loss_val):
+                        secondary_loss_val = secondary_loss_weight * secondary_loss_val
+                        primary_loss_value += secondary_loss_val
 
-                        self.log(f'{additional_loss_name}_subid_{similarity_loss_log_idx}', similarity_loss_val)
-                        similarity_loss_log_idx += 1
+                        self.log(f'{additional_loss_name}_subid_{secondary_loss_log_idx}', secondary_loss_val)
+                        secondary_loss_log_idx += 1
 
                 else:
-                    # if additional loss is a kwarg type loss
-                    additional_loss_val = additional_loss_val[0]  # only 1 item for dictionary based losses
-                    primary_loss_value += additional_loss_val
+                    # if additional loss is a single loss value, directly log it
+                    secondary_loss_val = secondary_loss_weight * additional_loss_val[0]
+                    primary_loss_value += secondary_loss_val
 
                     self.log(f'{additional_loss_name}', additional_loss_val)
 
@@ -303,7 +334,7 @@ class DistillationModelPT(ModelPT):
         ):
             if student_outputs is None:
                 raise RuntimeError(
-                    "During distillation, student did not return any loss value for its " "`training_step`"
+                    "During distillation, student did not return any loss value for its `training_step`"
                 )
 
             student_train_loss = student_outputs['loss']
@@ -314,9 +345,15 @@ class DistillationModelPT(ModelPT):
                 distillation_loss_weight * primary_loss_value + student_train_loss_weight * student_train_loss
             )
 
+        # Log the primary distillation training loss
+        self.log('distillation_total_loss', primary_loss_value)
+
         return {'loss': primary_loss_value}
 
     def _compute_loss(self):
+        """
+        Inner method which resolves and computes primary and secondary losses.
+        """
         # Update the registry from both student and teacher models
         teacher_registry = self.teacher._distillation_registry
         student_registry = self.student._distillation_registry
@@ -346,10 +383,10 @@ class DistillationModelPT(ModelPT):
 
         for loss_name in teacher_registry.keys():
             if loss_name not in student_registry:
-                raise KeyError(f"Student distillation registry did not contain loss named {loss_name}")
+                raise KeyError(f"Student distillation registry did not contain loss named : {loss_name}")
 
             # Assign new key name for this additional loss
-            additional_loss_key = f"distillation_additional_loss_{loss_name}_id_{len(additional_losses) + 1}"
+            additional_loss_key = f"distillation_secondary_loss_{loss_name}_id_{len(additional_losses) + 1}"
 
             # Additional loss can hold 1 or more loss results
             additional_losses[additional_loss_key] = []
@@ -394,7 +431,6 @@ class DistillationModelPT(ModelPT):
 
             else:
                 # This is a kwarg loss
-
                 # Extract dict of tensors from teacher and student
                 teacher_tensor_dict = teacher_loss_obj
                 student_tensor_dict = student_loss_obj
@@ -407,12 +443,14 @@ class DistillationModelPT(ModelPT):
                     teacher_model=self.teacher,
                 )
 
+                # Merge the loss dictionaries between student and teacher
                 additional_loss_dict = teacher_tensor_dict
                 additional_loss_dict.update(student_tensor_dict)
 
                 if len(additional_loss_dict) > 0:
                     # Compute additional distillation loss
-                    additional_loss = self.transfer_loss_primary(**additional_loss_dict)
+                    kwarg_loss_fn = self.loss_dict[loss_name]
+                    additional_loss = kwarg_loss_fn(**additional_loss_dict)
 
                     additional_losses[additional_loss_key].append(additional_loss)
 
