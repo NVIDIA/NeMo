@@ -129,9 +129,14 @@ def get_megatron_transformer(
     checkpoint_file: str = None,
 ) -> MegatronEncoderModule:
 
+    vocab_file = config_dict.pop('vocab_file', None)
     if encoder:
         model = MegatronEncoderModule(
-            model_name=model_name, pretrained=pretrained, config_dict=config_dict, checkpoint_file=checkpoint_file,
+            model_name=model_name,
+            pretrained=pretrained,
+            config_dict=config_dict,
+            checkpoint_file=checkpoint_file,
+            vocab_file=vocab_file,
         )
     else:
         raise ValueError('Megatron decoders are not currently supported.')

@@ -139,8 +139,10 @@ def get_nmt_tokenizer(
             model_path=tokenizer_model, special_tokens=special_tokens_dict
         )
     elif library == 'megatron':
-        logging.info(f'Getting Megatron tokenizer with pretrained model name: {model_name}')
-        return get_tokenizer(tokenizer_name=model_name)
+        logging.info(
+            f'Getting Megatron tokenizer with pretrained model name: {model_name} and vocab_file: {vocab_file}'
+        )
+        return get_tokenizer(tokenizer_name=model_name, vocab_file=vocab_file)
     else:
         raise NotImplementedError(
             'Currently we only support "yttm", "huggingface", "megatron", and "sentencepiece" tokenizer library.'

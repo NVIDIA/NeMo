@@ -29,6 +29,7 @@ class MegatronEncoderModule(EncoderModule):
         pretrained: bool = True,
         config_dict: Optional[dict] = None,
         checkpoint_file: Optional[str] = None,
+        vocab_file: Optional[str] = None,
     ):
         """Gets Megatron BERT based model to be used as an Encoder in NeMo NLP.
         Use the model_name arg to get a named model architecture. 
@@ -64,7 +65,10 @@ class MegatronEncoderModule(EncoderModule):
 
         if model_name or checkpoint_file:
             model, checkpoint_file = get_megatron_lm_model(
-                pretrained_model_name=model_name, config_dict=config_dict, checkpoint_file=checkpoint_file
+                pretrained_model_name=model_name,
+                config_dict=config_dict,
+                checkpoint_file=checkpoint_file,
+                vocab_file=vocab_file,
             )
 
         self._checkpoint_file = checkpoint_file

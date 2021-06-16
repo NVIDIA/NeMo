@@ -77,6 +77,7 @@ model:
     vocab_file: null
     special_tokens: null
     vocab_size: null
+    model_name: null
 
   decoder_tokenizer:
     library: yttm
@@ -106,6 +107,7 @@ model:
 
     # /path/to/my/checkpoint/model_optim_rng.pt
     checkpoint_file: null
+    vocab_file : null
 
     pretrained: true # only pretrained=true supported for now
 
