@@ -140,7 +140,7 @@ def get_nmt_tokenizer(
         )
     elif library == 'megatron':
         logging.info(
-            f'Getting Megatron tokenizer with pretrained model name: {model_name} and vocab_file: {vocab_file}'
+            f'Getting Megatron tokenizer with pretrained model name: {model_name} and custom vocab file: {vocab_file}'
         )
         return get_tokenizer(tokenizer_name=model_name, vocab_file=vocab_file)
     else:
