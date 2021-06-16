@@ -227,6 +227,7 @@ class DistillationMixin(ABC):
             loss_dict: Dictionary of arguments that will be passed to the primary loss function as kwargs.
             teacher_model: The teacher model in the distillation training. To reference the student model, use `self`.
         """
+        pass
 
     def prehook_additional_distillation_losses(
         self,
@@ -259,6 +260,18 @@ class DistillationMixin(ABC):
                 or teacher's values. The dictionary is then passed as a kwarg to the corresponding loss function.
             teacher_model: The teacher model in the distillation training. To reference the student model, use `self`.
         """
+        pass
+
+    @property
+    def distillation_registry(self):
+        """
+        Returns:
+            Returns the distillation registry or an empty dictionary if None exists
+        """
+        if hasattr(self, '_distillation_registry'):
+            return self._distillation_registry
+        else:
+            return {}
 
     @property
     def distill_type(self):
