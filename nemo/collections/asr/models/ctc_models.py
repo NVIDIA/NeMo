@@ -574,7 +574,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, CTCDistill
 
             if self._distillation_decoder_match:
                 for param in self.decoder.parameters():
-                    self.register_distillation_tensor(tensor=param.detach().cpu(), loss_name="cosine")
+                    self.register_distillation_tensor(tensor=param, loss_name="cosine")
 
             if self.distill_cfg.get('student_train_loss_weight', 0.0) <= 0.0:
                 return
