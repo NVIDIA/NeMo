@@ -36,6 +36,7 @@ from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import NeuralType
+from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
 __all__ = ['SGDQAModel']
@@ -543,6 +544,21 @@ class SGDQAModel(NLPModel):
 
         self.data_prepared = True
 
+    def update_data_dirs(self, data_dir: str, dialogues_example_dir: str):
+        """
+        Update data directories
+
+        Args:
+            data_dir: path to data directory
+            dialogues_example_dir: path to preprocessed dialogues example directory, if not exists will be created.
+        """
+        if not os.path.exists(data_dir):
+            raise ValueError(f"{data_dir} is not found")
+        self._cfg.dataset.data_dir = data_dir
+        self._cfg.dataset.dialogues_example_dir = dialogues_example_dir
+        logging.info(f'Setting model.dataset.data_dir to {data_dir}.')
+        logging.info(f'Setting model.dataset.dialogues_example_dir to {dialogues_example_dir}.')
+
     def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
         self.prepare_data()
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, split=train_data_config.ds_item)
@@ -577,4 +593,19 @@ class SGDQAModel(NLPModel):
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
-        pass
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        result = []
+
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="sgdqa_bertbasecased",
+                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/sgdqa_bertbasecased/versions/1.0.0/files/sgdqa_bertbasecased.nemo",
+                description="Dialogue State Tracking model finetuned from NeMo BERT Base Cased on Google SGD dataset which has a joint goal accuracy of 59.72% on dev set and 45.85% on test set.",
+            )
+        )
+        return result
