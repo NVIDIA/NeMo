@@ -568,7 +568,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, CTCDistill
 
         # Distillation support
         if self.is_being_distilled():
-            self.distillation_registration_step(log_prob=log_probs)
+            # Register distillation tensors for primary loss
+            self.distillation_registration_step(decoder=self.decoder)
 
             if self._distillation_decoder_match:
                 for param in self.decoder.parameters():

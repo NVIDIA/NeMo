@@ -15,6 +15,8 @@
 from math import ceil
 from typing import Union
 
+import torch
+
 from nemo.core.classes.mixins import DistillationMixin
 from nemo.utils import logging
 
@@ -23,6 +25,29 @@ class CTCDistillationMixin(DistillationMixin):
     """
     Distillation Mixin specialization for CTC based ASR models.
     """
+
+    def distillation_registration_step(self, decoder: DistillationMixin):
+        """
+        Helper method to register tensors inside of `training_step`.
+
+        Args:
+            decoder: A ConvASRDecoder decoder which implements DistillationMixin and registers
+                a `target` and `input` tensors during distillation.
+        """
+        if not isinstance(decoder, DistillationMixin):
+            raise RuntimeError(
+                f"Decoder {decoder.__class__.__name__}` does not implement DistillationMixin."
+                f"PLease extend it and return `target` and `input` tensors for KLDivergence loss."
+            )
+
+        # Extract the registry from the decoder, then flatten its `primary` loss dictionary.
+        # Flatten method always returns a list, even for single items, so remove the first element.
+        registry = decoder.get_distillation_module_registry(decoder)
+        registry = self.flatten_distillation_module_registry(registry, loss_name='primary')[0]
+
+        for loss_key, tensor in registry.items():
+            # Register the tensor for the loss function
+            self.register_distillation_tensor(loss_key=loss_key, tensor=tensor)
 
     def _validate_distillation_encoder_match(self, other_model: 'EncDecCTCModel'):
         """
