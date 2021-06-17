@@ -58,7 +58,7 @@ Data Format
 -----------
 
 Supervised machine translation models require parallel corpora which comprises many examples of sentences in a source language and 
-their corresponding translation in a target language. We use parallel data formatted as sepatate text files for source and target 
+their corresponding translation in a target language. We use parallel data formatted as separate text files for source and target 
 languages where sentences in corresponding files are aligned like in the table below.
 
 .. list-table:: *Parallel Coprus*
