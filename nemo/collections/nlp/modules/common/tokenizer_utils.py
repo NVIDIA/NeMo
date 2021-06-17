@@ -18,7 +18,7 @@ from os import path
 from typing import Dict, List, Optional
 
 import nemo
-from nemo.collections.common.tokenizers.bytelevel_tokenizer import ByteLevelTokenizer
+from nemo.collections.common.tokenizers.bytelevel_tokenizers import ByteLevelTokenizer
 from nemo.collections.common.tokenizers.char_tokenizer import CharTokenizer
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
@@ -112,7 +112,7 @@ def get_nmt_tokenizer(
 ):
     """
     Args:
-        model_name: if using a pretrained model from NeMo or HuggingFace
+        model_name: if using a pretrained model from NeMo, HuggingFace, or Megatron
         tokenizer_model: tokenizer model file of sentencepiece or youtokentome
         special_tokens: dict of special tokens
         vocab_file: path to vocab file
@@ -141,8 +141,13 @@ def get_nmt_tokenizer(
         )
     elif library == 'byte-level':
         logging.info(f'Using byte-level tokenization')
-        return nemo.collections.common.tokenizers.bytelevel_tokenizer.ByteLevelTokenizer()
+        return ByteLevelTokenizer()
+    elif library == 'megatron':
+        logging.info(
+            f'Getting Megatron tokenizer with pretrained model name: {model_name} and custom vocab file: {vocab_file}'
+        )
+        return get_tokenizer(tokenizer_name=model_name, vocab_file=vocab_file)
     else:
         raise NotImplementedError(
-            'Currently we only support "yttm", "huggingface", "sentencepiece", and "byte-level" tokenizer libraries.'
+            'Currently we only support "yttm", "huggingface", "megatron", and "sentencepiece" tokenizer library.'
         )
