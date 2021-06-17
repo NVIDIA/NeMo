@@ -25,7 +25,7 @@ from nemo.collections.nlp.modules.common.transformer.transformer import (
     NeMoTransformerConfig,
     NeMoTransformerEncoderConfig,
 )
-from nemo.core.config.modelPT import ModelConfig, OptimConfig, SchedConfig
+from nemo.core.config.modelPT import OptimConfig, SchedConfig
 
 
 @dataclass
