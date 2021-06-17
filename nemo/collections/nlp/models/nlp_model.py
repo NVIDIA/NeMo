@@ -32,6 +32,7 @@ from transformers import TRANSFORMERS_CACHE
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
+from nemo.collections.nlp.modules.common.megatron.megatron_encoder import MegatronEncoderModule
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector
@@ -430,21 +431,19 @@ class NLPModel(ModelPT, Exportable):
     @rank_zero_only
     def register_megatron_checkpoint_version(self):
         """ Adds checkpoint version to .nemo archive """
-        if self.bert_model is None:
-            raise ValueError('Instantiate self.bert_model before registering megatron checkpoint version.')
+        if self.has_megatron_encoder:
+            checkpoint_version = get_checkpoint_version()
+            if checkpoint_version is None:
+                raise ValueError('Unable to get megatron checkpoint version.')
+            else:
+                checkpoint_version_dict = {'checkpoint_version': checkpoint_version}
+                checkpoint_version_path = 'megatron_checkpoint_version.json'
+                checkpoint_version_src = os.path.join(NEMO_NLP_TMP, checkpoint_version_path)
+                with open(checkpoint_version_src, 'w') as f:
+                    f.write(json.dumps(checkpoint_version_dict))
+                self.register_artifact(checkpoint_version_path, checkpoint_version_src)
         else:
-            # get encoder config and create source for artifact
-            if isinstance(self.bert_model, MegatronBertEncoder):
-                checkpoint_version = get_checkpoint_version()
-                if checkpoint_version is None:
-                    raise ValueError('Unable to get megatron checkpoint version.')
-                else:
-                    checkpoint_version_dict = {'checkpoint_version': checkpoint_version}
-                    checkpoint_version_path = 'megatron_checkpoint_version.json'
-                    checkpoint_version_src = os.path.join(NEMO_NLP_TMP, checkpoint_version_path)
-                    with open(checkpoint_version_src, 'w') as f:
-                        f.write(json.dumps(checkpoint_version_dict))
-                    self.register_artifact(checkpoint_version_path, checkpoint_version_src)
+            raise ValueError('Registering Megatron checkpoint version but no Megatron encoder detected.')
 
     @staticmethod
     def _unpack_nemo_file(path2file: str, out_folder: str) -> str:
@@ -461,3 +460,39 @@ class NLPModel(ModelPT, Exportable):
     @property
     def output_module(self):
         return self.classifier
+
+    @property
+    def has_megatron_encoder(self):
+        if hasattr(self, 'bert_model'):
+            if isinstance(self.bert_model, MegatronBertEncoder):
+                return True
+            else:
+                return False
+        elif hasattr(self, 'encoder'):
+            if isinstance(self.encoder, MegatronEncoderModule):
+                return True
+            else:
+                return False
+        else:
+            return False
+
+    @property
+    def is_model_parallel_initialized(self):
+        app_state = AppState()
+        if app_state.model_parallel_group is not None:
+            return True
+        else:
+            return False
+
+    def restore_megatron_encoder_weights(self):
+        """ Model parallel weights need to be restored after DDP is initialized and 
+            model parallel ranks are known.
+        """
+        if hasattr(self, 'bert_model'):
+            if isinstance(self.bert_model, MegatronBertEncoder):
+                logging.info(f"Restoring from pretrained model parallel checkpoint: {self.bert_model._restore_path}")
+                self.bert_model.restore_weights(self.bert_model._restore_path)
+        elif hasattr(self, 'encoder'):
+            if isinstance(self.encoder, MegatronEncoderModule):
+                logging.info(f"Restoring from pretrained model parallel checkpoint: {self.encoder.checkpoint_file}")
+                self.encoder._encoder.restore_weights(self.encoder.checkpoint_file)

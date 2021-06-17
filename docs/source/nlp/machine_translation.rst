@@ -457,6 +457,111 @@ can be used to compute sacreBLEU scores.
 
     cat test.en-es.translations | sacrebleu test.es
 
+Pretrained Encoders
+-------------------
+
+Pretrained BERT encoders from either `HuggingFace Transformers <https://huggingface.co/models>`__ 
+or `Megatron-LM <https://github.com/NVIDIA/Megatron-LM>`__ 
+can be used to to train NeMo NMT models.
+
+The ``library`` flag takes values: ``huggingface``, ``megatron``, and ``nemo``.
+
+The ``model_name`` flag is used to indicate a *named* model architecture.
+For example, we can use ``bert_base_cased`` from HuggingFace or ``megatron-bert-345m-cased`` from Megatron-LM.
+
+The ``pretrained`` flag indicates whether or not to download the pretrained weights (``pretrained=True``) or 
+instantiate the same model architecture with random weights (``pretrained=False``).
+
+To use a custom model architecture from a specific library, use ``model_name=null`` and then add the 
+custom configuration under the ``encoder`` configuration.
+
+HuggingFace
+^^^^^^^^^^^
+
+We have provided a `HuggingFace config file <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/machine_translation/conf/huggingface.yaml>`__
+to use with HuggingFace encoders. 
+
+To use the config file from CLI:
+
+.. code ::
+
+  --config-path=conf \
+  --config-name=huggingface \
+
+As an example, we can configure the NeMo NMT encoder to use ``bert-base-cased`` from HuggingFace 
+by using the ``huggingface`` config file and setting
+
+.. code ::
+
+  model.encoder.pretrained=true \
+  model.encoder.model_name=bert-base-cased \
+
+To use a custom architecture from HuggingFace we can use
+
+.. code ::
+
+  +model.encoder._target_=transformers.BertConfig \
+  +model.encoder.hidden_size=1536 \
+
+Note the ``+`` symbol is needed if we're not adding the arguments to the YAML config file.
+
+Megatron
+^^^^^^^^
+
+We have provided a `Megatron config file <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/machine_translation/conf/megatron.yaml>`__
+to use with Megatron encoders. 
+
+To use the config file from CLI:
+
+.. code ::
+
+  --config-path=conf \
+  --config-name=megatron \
+
+The ``checkpoint_file`` should be the path to Megatron-LM checkpoint:
+
+.. code ::
+
+  /path/to/your/megatron/checkpoint/model_optim_rng.pt
+
+In case your megatron model requires model parallelism, then ``checkpoint_file`` should point to the directory containing the
+standard Megatron-LM checkpoint format:
+
+.. code ::
+
+  3.9b_bert_no_rng
+  ├── mp_rank_00
+  │   └── model_optim_rng.pt
+  ├── mp_rank_01
+  │   └── model_optim_rng.pt
+  ├── mp_rank_02
+  │   └── model_optim_rng.pt
+  └── mp_rank_03
+      └── model_optim_rng.pt
+
+As an example, to train a NeMo NMT model with a 3.9B Megatron BERT encoder,
+we would use the following encoder configuration:
+
+.. code ::
+
+  model.encoder.checkpoint_file=/path/to/megatron/checkpoint/3.9b_bert_no_rng \
+  model.encoder.hidden_size=2560 \
+  model.encoder.num_attention_heads=40 \
+  model.encoder.num_layers=48 \
+  model.encoder.max_position_embeddings=512 \
+
+To train a Megatron 345M BERT, we would use
+
+.. code ::
+
+  model.encoder.model_name=megatron-bert-cased \
+  model.encoder.checkpoint_file=/path/to/your/megatron/checkpoint/model_optim_rng.pt \
+  model.encoder.hidden_size=1024 \
+  model.encoder.num_attention_heads=16 \
+  model.encoder.num_layers=24 \
+  model.encoder.max_position_embeddings=512 \
+
+
 References
 ----------
 
