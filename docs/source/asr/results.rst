@@ -78,13 +78,9 @@ There are multiple ASR tutorials provided in the :ref:`Tutorials <tutorials>` se
 
 
 Automatic Speech Recognition Models
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+-----------------------------------
 
-.. csv-table::
-   :file: data/asr_results.csv
-   :align: left
-   :widths: 30, 30, 40
-   :header-rows: 1
+Below is a list of all the ASR models that are available in NeMo for specific languages, as well as auxiliary language models for certain languages.
 
 Language Models for ASR
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -95,7 +91,8 @@ Language Models for ASR
    :widths: 30, 30, 40
    :header-rows: 1
 
-   
+|
+
 Speech Recognition (Languages)
 ------------------------------
 
