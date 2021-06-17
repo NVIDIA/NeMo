@@ -33,14 +33,16 @@ class MegatronEncoderModule(EncoderModule):
     ):
         """Gets Megatron BERT based model to be used as an Encoder in NeMo NLP.
         Use the model_name arg to get a named model architecture. 
-        Available model names can be found with get_megatron_lm_models_list() or
+        Available model names can be found with get_megatron_lm_models_list(). 
         Use the pretrained arg to get the named model architecture with or without pretrained weights.
 
-        If not using a pretrained model, then model_name is None, then we can pass in a custom configuration via the config_dict.
-        For example, to instantiate a Megatron BERT model with custom configuration we would do:
+        Use config_dict to pass in arguments needed for Megatron-LM.
+        For example, to instantiate a Megatron BERT large model we would do:
             config_dict={
-                'hidden_size': 1536,
-                ...
+                'hidden_size': 1024,
+	            'num_attention_heads': 16,
+                'num_layers': 24,
+                'max_position_embeddings: 512, 
             } 
 
 
@@ -48,10 +50,12 @@ class MegatronEncoderModule(EncoderModule):
             model_name (Optional[str]): Named model Megatron architecture from NeMo. Defaults to None.
             pretrained (bool): Use True to get pretrained weights. 
                                         False will use the same architecture but with randomly initialized weights.
-                                        Defaults to False.
-            config_dict (Optional[dict], optional): Use for custom configuration of the HuggingFace model. Defaults to None.
+                                        Not implemented yet for Megatron encoders.
+                                        Defaults to True.
+            config_dict (Optional[dict], optional): Use for configuration of the Megatron model. Defaults to None.
             checkpoint_file (Optional[str], optional): Provide weights for the transformer from a local checkpoint.
                                                        If using model parallel then this should be a directory. Defaults to None.
+            vocab_file (Optional[str], optional): Path to vocab file that was used when pretraining the Megatron model.
         """
         super().__init__()
 
