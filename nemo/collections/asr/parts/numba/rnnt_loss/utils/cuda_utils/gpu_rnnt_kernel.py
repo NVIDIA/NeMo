@@ -349,22 +349,23 @@ def compute_grad_kernel(
                 if u < U - 1:
                     fastemit_grad = fastemit_lambda * math.exp(
                         alphas[col]
+                        + (denom[col] + acts[col * alphabet_size + labels[u]])
                         + betas[col + 1]
                         + logpk
                         - logll[mb]
-                        + logp(denom, acts, maxT, maxU, alphabet_size, mb, t, u, u + 1)
                     )
                 else:
                     fastemit_grad = 0.0
             else:
                 fastemit_grad = 0.0
 
+            if mb == 0 and t == 0 and u == 1:
+                print(mb, t, u, idx, "grad", grad, "fastemit grad", fastemit_grad)
+
             # // grad to last blank transition
             # grad[b, T-1, U-1, v=blank] -= exp(alphas[b, t, u) + logpk - logll[b])
             if (idx == blank_) and (t == T - 1) and (u == U - 1):
-
                 grad -= math.exp(alphas[col] + logpk - logll[mb])
-                pass
 
             # grad of blank across t < T;
             # grad[b, t<T-1, u, v=blank] -= exp(alphas[b, t, u] + logpk - logll[b] betas[b, t + 1, u])
@@ -377,6 +378,9 @@ def compute_grad_kernel(
                 # grad -= fastemit_lambda * (math.exp(alphas[col] + betas[col + 1] + logpk - logll[mb]))
                 grad += fastemit_grad
                 grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + maxU])
+
+                if mb == 0 and t == 0 and u == 1:
+                    print(mb, t, u, idx, " final t grad", grad)
 
                 # if mb == 0 and t == 0 and u == 0 and idx == 0:
                 #     print("cuda", alphas[col], betas[col + maxU], logpk, logll[mb], "final ", grad)
@@ -395,6 +399,9 @@ def compute_grad_kernel(
                 # math.log1p(fastemit_lambda) +
                 grad += fastemit_grad
                 grad -= math.exp(math.log1p(fastemit_lambda) + alphas[col] + logpk - logll[mb] + betas[col + 1])
+
+                if mb == 0 and t == 0 and u == 1:
+                    print(mb, t, u, idx, " final u grad", grad)
 
                 # print("LABEL", mb, t, u, idx, "label", labels[u], "grad", grad)
 
