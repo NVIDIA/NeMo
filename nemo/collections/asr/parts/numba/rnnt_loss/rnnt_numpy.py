@@ -186,6 +186,8 @@ def compute_gradient(log_probs, alphas, betas, labels, blank, fastemit_lambda):
         for u, l in enumerate(labels):
             grads[:, u, l] = (1.0 + fastemit_lambda) * grads[:, u, l]
 
+    print("numpy", alphas[0, 0], betas[1, 0], log_probs[0, 0, 0], log_like, "final ", grads[0, 0, 0])
+
     return grads
 
 

@@ -92,6 +92,7 @@ class TestRNNTLossPytorch:
                 ]
             ]
         )
+
         assert np.allclose(pt_cost, expected_cost, rtol=1e-6), "small_test costs mismatch."
         assert np.allclose(pt_grads, expected_grads), "small_test gradient mismatch."
 
@@ -121,7 +122,7 @@ class TestRNNTLossPytorch:
     def test_case_small_random_fastemit_reg(self, device):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
-        fastemit_lambda = 10.0
+        fastemit_lambda = 1.0
 
         rng = np.random.RandomState(0)
         acts = rng.randn(1, 4, 3, 3)

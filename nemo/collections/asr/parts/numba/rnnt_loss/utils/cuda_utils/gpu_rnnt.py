@@ -229,7 +229,8 @@ class GPURNNT:
         # compute negative log likelihood.
         for mb in range(self.minibatch_):
             # Scale llForward by FastEmit lambda
-            costs[mb] = (1.0 + self.fastemit_lambda_) * -costs[mb]
+            costs[mb] = -costs[mb]
+            costs[mb] = (1.0 + self.fastemit_lambda_) * costs[mb]
 
         return global_constants.RNNTStatus.RNNT_STATUS_SUCCESS
 

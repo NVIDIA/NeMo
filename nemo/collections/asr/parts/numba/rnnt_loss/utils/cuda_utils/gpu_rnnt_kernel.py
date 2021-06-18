@@ -349,6 +349,7 @@ def compute_grad_kernel(
             # grad[b, T-1, U-1, v=blank] -= exp(alphas[b, t, u) + logpk - logll[b])
             if (idx == blank_) and (t == T - 1) and (u == U - 1):
                 grad -= math.exp(alphas[col] + logpk - logll[mb])
+                pass
 
             # grad of blank across t < T;
             # grad[b, t<T-1, u, v=blank] -= exp(alphas[b, t, u] + logpk - logll[b] betas[b, t + 1, u])
@@ -356,7 +357,12 @@ def compute_grad_kernel(
                 # if mb == 0 and t == 0 and u == 0 and idx == 0:
                 #     print(mb, t, u, idx, "init t grad", grad)
 
-                grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + maxU])
+                grad_t = math.exp(alphas[col] + logpk - logll[mb] + betas[col + maxU])
+                grad += -grad_t
+
+                if mb == 0 and t == 0 and u == 0 and idx == 0:
+                    print("cuda", alphas[col], betas[col + maxU], logpk, logll[mb], "final ", grad)
+                    # print("cuda check",  -math.exp(alphas[col] + logpk - logll[mb] + betas[col + maxU]))
 
                 # if mb == 0 and t == 0 and u == 0 and idx == 0:
                 #     print(mb, t, u, idx, "init t grad", grad)

@@ -76,6 +76,7 @@ class _RNNTNumba(Function):
                 if grads is not None:
                     grads /= minibatch_size
 
+        print("final cuda grad", grads[0, 0, 0, 0])
         # costs = costs.to(log_probs.device)
         ctx.grads = grads
 
