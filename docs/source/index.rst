@@ -17,6 +17,7 @@ NVIDIA NeMo User Guide
    :name: core
 
    core/core
+   core/export
 
 
 .. toctree::
