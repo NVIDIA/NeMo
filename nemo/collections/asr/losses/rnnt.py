@@ -33,9 +33,9 @@ from typing import Optional
 
 import torch
 
-from nemo.collections.asr.parts.numba.numba_utils import NUMBA_INSTALLATION_MESSAGE
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
+from nemo.core.utils.numba_utils import NUMBA_INSTALLATION_MESSAGE
 from nemo.utils import logging, model_utils
 
 try:

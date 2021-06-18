@@ -76,11 +76,15 @@ class MTEncDecModel(EncDecNLPModel):
         self.setup_enc_dec_tokenizers(
             encoder_tokenizer_library=cfg.encoder_tokenizer.get('library', 'yttm'),
             encoder_tokenizer_model=cfg.encoder_tokenizer.get('tokenizer_model'),
-            encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0),
+            encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0)
+            if cfg.encoder_tokenizer.get('bpe_dropout', 0.0) is not None
+            else 0.0,
             encoder_model_name=cfg.encoder.get('model_name') if hasattr(cfg.encoder, 'model_name') else None,
             decoder_tokenizer_library=cfg.decoder_tokenizer.get('library', 'yttm'),
             decoder_tokenizer_model=cfg.decoder_tokenizer.tokenizer_model,
-            decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
+            decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0)
+            if cfg.decoder_tokenizer.get('bpe_dropout', 0.0) is not None
+            else 0.0,
             decoder_model_name=cfg.decoder.get('model_name') if hasattr(cfg.decoder, 'model_name') else None,
         )
 
@@ -128,6 +132,7 @@ class MTEncDecModel(EncDecNLPModel):
         library = encoder_cfg_dict.pop('library', 'nemo')
         model_name = encoder_cfg_dict.pop('model_name', None)
         pretrained = encoder_cfg_dict.pop('pretrained', False)
+        checkpoint_file = encoder_cfg_dict.pop('checkpoint_file', None)
         self.encoder = get_transformer(
             library=library,
             model_name=model_name,
@@ -135,6 +140,7 @@ class MTEncDecModel(EncDecNLPModel):
             config_dict=encoder_cfg_dict,
             encoder=True,
             pre_ln_final_layer_norm=encoder_cfg_dict.get('pre_ln_final_layer_norm', False),
+            checkpoint_file=checkpoint_file,
         )
 
         # decoder from NeMo, Megatron-LM, or HuggingFace
@@ -379,7 +385,7 @@ class MTEncDecModel(EncDecNLPModel):
         decoder_model_name=None,
     ):
 
-        supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece']
+        supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece', 'megatron']
         if (
             encoder_tokenizer_library not in supported_tokenizers
             or decoder_tokenizer_library not in supported_tokenizers

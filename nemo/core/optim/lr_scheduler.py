@@ -28,6 +28,7 @@ from torch.optim.lr_scheduler import _LRScheduler
 
 from nemo.core.config import SchedulerParams, get_scheduler_config, register_scheduler_params
 from nemo.utils import logging
+from nemo.utils.model_utils import maybe_update_config_version
 
 
 class WarmupPolicy(_LRScheduler):
@@ -453,6 +454,9 @@ def prepare_lr_scheduler(
         A dictionary containing the LR Scheduler implementation if the config was successfully parsed
         along with other parameters required by Pytorch Lightning, otherwise None.
     """
+    if scheduler_config is not None:
+        scheduler_config = maybe_update_config_version(scheduler_config)
+
     # Build nested dictionary for convenience out of structured objects
     if isinstance(scheduler_config, DictConfig):
         scheduler_config = OmegaConf.to_container(scheduler_config, resolve=True)
@@ -493,7 +497,7 @@ def prepare_lr_scheduler(
         return None
 
     # Try instantiation of scheduler params from config class path
-    try:
+    if '_target_' in scheduler_args:
         scheduler_args_cfg = OmegaConf.create(scheduler_args)
         scheduler_conf = hydra.utils.instantiate(scheduler_args_cfg)
         scheduler_args = vars(scheduler_conf)
@@ -504,7 +508,7 @@ def prepare_lr_scheduler(
         if 'Params' in scheduler_name:
             scheduler_name = scheduler_name.replace('Params', '')
 
-    except Exception:
+    else:
         # Class path instantiation failed; try resolving "name" component
 
         # Get name of the scheduler

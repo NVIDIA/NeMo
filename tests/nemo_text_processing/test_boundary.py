@@ -34,6 +34,6 @@ class TestBoundary:
         pred = self.normalizer.normalize(test_input, verbose=False)
         assert pred == expected
         pred_non_deterministic = self.normalizer_with_audio.normalize(
-            test_input, n_tagged=100, punct_post_process=False
+            test_input, n_tagged=100, punct_pre_process=False, punct_post_process=False
         )
         assert expected in pred_non_deterministic
