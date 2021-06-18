@@ -99,7 +99,7 @@ def get_wer_feat(mfst, frame_bufferer, asr, frame_len, tokens_per_chunk, delay, 
             frame_reader = AudioFeatureIterator(samples, frame_len, preprocessor, device)
             frame_bufferer.set_frame_reader(frame_reader)
             asr.infer_logits()
-            hyp = asr.decode_final(tokens_per_chunk, delay)
+            hyp = asr.transcribe(tokens_per_chunk, delay)
             hyps[(tokens_per_chunk, delay)].append(hyp)
             refs.append(row['text'])
 
@@ -154,20 +154,14 @@ def main():
     mid_delay = math.ceil((chunk_len + (total_buffer - chunk_len) / 2) / model_stride_in_secs)
     print(tokens_per_chunk, mid_delay)
 
-    frame_bufferer = FeatureFrameBufferer(model_definition={
-        'sample_rate': cfg.sample_rate,
-        'AudioToMelSpectrogramPreprocessor': cfg.preprocessor,
-        'JasperEncoder': cfg.encoder,
-
-    },
+    frame_bufferer = FeatureFrameBufferer(
         asr_model=asr_model,
         frame_len=chunk_len,
-        pad=0, batch_size=64,
-        total_buffer=args.total_buffer_in_secs,
-        use_buffer_norm=True)
+        batch_size=64,
+        total_buffer=args.total_buffer_in_secs)
+
     frame_asr = FrameBatchASR(frame_bufferer,
                         asr_model=asr_model,
-                        tokenizer=asr_model.tokenizer,
                         )
 
     hyps, refs, wer_dict = get_wer_feat(args.test_manifest, frame_bufferer, frame_asr, chunk_len, tokens_per_chunk, mid_delay,

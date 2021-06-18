@@ -131,38 +131,34 @@ def get_samples(audio_file, target_sr=16000):
 
 
 class FeatureFrameBufferer:
+    """
+    Class to append each feature frame to a buffer and return
+    an array of buffers.
+    """
 
-    def __init__(self, model_definition, asr_model,
-                 frame_len=2, frame_overlap=2.5,
-                 offset=10, pad=10, batch_size=4,
-                 total_buffer=2.16, tokenizer=None, labels_per_chunk=0,
-                 plot=False, globs=None, norm_buffer_time=3.0, use_glob=False, alpha=0.9, use_model_norm=True,
-                 use_buffer_norm=False):
+    def __init__(self,asr_model,
+                 frame_len=1.6,
+                 batch_size=4,
+                 total_buffer=4.0):
         '''
         Args:
           frame_len: frame's duration, seconds
           frame_overlap: duration of overlaps before and after current frame, seconds
           offset: number of symbols to drop for smooth streaming
         '''
-
+        self.ZERO_LEVEL_SPEC_DB_VAL = -16.635
         self.asr_model = asr_model
-        self.global_mean = None
-        self.global_stdev = None
-        if globs is not None and not use_model_norm:
-            self.global_mean = np.asarray(globs['fixed_mean'])
-            self.global_stdev = np.asarray(globs['fixed_std'])
-        self.prev_mean = self.global_mean
-        self.prev_stdev = self.global_stdev
-        self.sr = model_definition['sample_rate']
+        self.sr = asr_model._cfg.sample_rate
         self.frame_len = frame_len
-
-        timestep_duration = model_definition['AudioToMelSpectrogramPreprocessor']['window_stride']
+        timestep_duration = asr_model._cfg.preprocessor.window_stride
+         # ['AudioToMelSpectrogramPreprocessor']['window_stride']
         self.n_frame_len = int(frame_len / timestep_duration)
 
         total_buffer_len = int(total_buffer / timestep_duration)
-        self.n_feat = model_definition['AudioToMelSpectrogramPreprocessor']['features']
+        self.n_feat = asr_model._cfg.preprocessor.features
+        # model_definition['AudioToMelSpectrogramPreprocessor']['features']
         self.buffer = np.ones([self.n_feat, total_buffer_len],
-                              dtype=np.float32) * -16.635
+                              dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
 
         self.batch_size = batch_size
 
@@ -170,35 +166,25 @@ class FeatureFrameBufferer:
         self.data_loader = DataLoader(self.data_layer, batch_size=self.batch_size, collate_fn=speech_collate_fn)
         self.signal_end = False
         self.frame_reader = None
-        self.feature_norm_buffer_time = norm_buffer_time
-        if use_buffer_norm:
-            self.feature_buffer_len = total_buffer_len
-        else:
-            self.feature_buffer_len = math.ceil(self.feature_norm_buffer_time / timestep_duration)
-        self.feature_buffer = np.ones([self.n_feat, self.feature_buffer_len], dtype=np.float32) * -16.635
+        self.feature_buffer_len = total_buffer_len
+        self.feature_buffer = np.ones([self.n_feat, self.feature_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
         self.frame_buffers = []
         self.buffered_features_size = 0
         self.reset()
-        self.use_glob = use_glob
-        self.N = self.feature_buffer_len
-        self.alpha = alpha
-        self.first = True
         self.buffered_len = 0
-        self.use_buffer_norm = use_buffer_norm
 
     def reset(self):
         '''
         Reset frame_history and decoder's state
         '''
-        self.buffer = np.ones(shape=self.buffer.shape, dtype=np.float32) * -16.635
+        self.buffer = np.ones(shape=self.buffer.shape, dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
         self.prev_char = ''
         self.unmerged = []
         self.data_layer = AudioBuffersDataLayer()
         self.data_loader = DataLoader(self.data_layer, batch_size=self.batch_size, collate_fn=speech_collate_fn)
         self.frame_buffers = []
-        self.first = True
         self.buffered_len = 0
-        self.feature_buffer = np.ones([self.n_feat, self.feature_buffer_len], dtype=np.float32) * -16.635
+        self.feature_buffer = np.ones([self.n_feat, self.feature_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
 
     def get_batch_frames(self):
         if self.signal_end:
@@ -234,21 +220,12 @@ class FeatureFrameBufferer:
 
     def get_norm_consts_per_frame(self, batch_frames):
         norm_consts = []
-
         for i, frame in enumerate(batch_frames):
             self._update_feature_buffer(frame)
-            if self.use_buffer_norm:
-                #                 mean_from_buffer = np.mean(self.feature_buffer , axis=1)
-                #                 stdev_from_buffer = np.std(self.feature_buffer, axis=1)
-                mean_from_buffer = np.mean(self.frame_buffers[i], axis=1)
-                stdev_from_buffer = np.std(self.frame_buffers[i], axis=1)
-            else:
-
-                if self.buffered_features_size > self.feature_buffer_len:
-                    self.buffered_features_size = self.feature_buffer_len
-                feat_buf_len = self.buffered_features_size
-                mean_from_buffer = np.mean(self.feature_buffer[:, -feat_buf_len:], axis=1)
-                stdev_from_buffer = np.std(self.feature_buffer[:, -feat_buf_len:], axis=1)
+            mean_from_buffer = np.mean(self.feature_buffer, axis=1)
+            stdev_from_buffer = np.std(self.feature_buffer, axis=1)
+            # mean_from_buffer = np.mean(self.frame_buffers[i], axis=1)
+            # stdev_from_buffer = np.std(self.frame_buffers[i], axis=1)
             norm_consts.append((mean_from_buffer.reshape(self.n_feat, 1), stdev_from_buffer.reshape(self.n_feat, 1)))
         return norm_consts
 
@@ -262,23 +239,14 @@ class FeatureFrameBufferer:
 
         while (len(batch_frames) > 0):
 
-            #             print("here")
-            #             print(len(batch_frames))
-            # get norm constants
             frame_buffers = self.get_frame_buffers(batch_frames)
-            #             print(len(frame_buffers))
-
-            if self.global_mean is not None or self.use_buffer_norm:
-                #                 print("normalizing")
-                norm_consts = self.get_norm_consts_per_frame(batch_frames)
+            norm_consts = self.get_norm_consts_per_frame(batch_frames)
             if len(frame_buffers) == 0:
                 continue
-
-            if self.global_mean is not None or self.use_buffer_norm:
-                # normalize frame buffers
-                self.normalize_frame_buffers(frame_buffers, norm_consts)
+            self.normalize_frame_buffers(frame_buffers, norm_consts)
             return frame_buffers
         return []
+
 
 
 # class for streaming frame-based ASR
@@ -287,8 +255,7 @@ class FeatureFrameBufferer:
 #    contiguous signal's frames
 class FrameBatchASR:
 
-    def __init__(self, frame_bufferer, asr_model, batch_size=4,
-                 tokenizer=None, labels_per_chunk=0):
+    def __init__(self, frame_bufferer, asr_model, batch_size=4,):
         '''
         Args:
           frame_len: frame's duration, seconds
@@ -308,7 +275,7 @@ class FrameBatchASR:
         self.data_loader = DataLoader(self.data_layer, batch_size=self.batch_size, collate_fn=speech_collate_fn)
 
         self.blank_id = len(asr_model.decoder.vocabulary)
-        self.tokenizer = tokenizer
+        self.tokenizer = asr_model.tokenizer
         self.toks_unmerged = []
         self.frame_buffers = []
         self.reset()
@@ -326,6 +293,7 @@ class FrameBatchASR:
         self.toks_unmerged = []
         self.frame_buffers = []
 
+
     @torch.no_grad()
     def infer_logits(self):
         frame_buffers = self.frame_bufferer.get_buffers_batch()
@@ -338,6 +306,7 @@ class FrameBatchASR:
         # print(self.frame_buffers)
 
 
+    @torch.no_grad()
     def _get_batch_preds(self):
 
         device = self.asr_model.device
@@ -352,7 +321,7 @@ class FrameBatchASR:
             for pred in preds:
                 self.all_preds.append(pred.cpu().numpy())
 
-    def decode_final(self, labels_per_chunk=1, delay=1):
+    def transcribe(self, tokens_per_chunk: int, delay: int, ):
         self.unmerged = []
         self.toks_unmerged = []
 
@@ -364,14 +333,10 @@ class FrameBatchASR:
             all_toks.append(toks)
 
         for decoded in decoded_frames:
-            self.unmerged += decoded[len(decoded) - 1 - delay:len(decoded) - 1 - delay + labels_per_chunk ]
-            #self.unmerged += decoded[len(decoded) // 2:len(decoded) // 2 + 1 + labels_per_chunk]
+            self.unmerged += decoded[len(decoded) - 1 - delay:len(decoded) - 1 - delay + tokens_per_chunk]
 
         for i, tok in enumerate(all_toks):
-            # print(tok)
-            self.toks_unmerged += tok[len(tok) // 2:len(tok) // 2 + 1 + labels_per_chunk]
-            #print(self.toks_unmerged)
-        #print(self.unmerged)
+            self.toks_unmerged += tok[len(tok) // 2:len(tok) // 2 + 1 + tokens_per_chunk]
 
         return self.greedy_merge(self.unmerged)
 
@@ -388,14 +353,11 @@ class FrameBatchASR:
         return ids, s
 
     def greedy_merge(self, preds):
-        #         print("in greedy merge")
         decoded_prediction = []
         previous = self.blank_id
         for p in preds:
             if (p != previous or previous == self.blank_id) and p != self.blank_id:
                 decoded_prediction.append(p.item())
             previous = p
-            #print(decoded_prediction)
-
         hypothesis = self.tokenizer.ids_to_text(decoded_prediction)
         return hypothesis
