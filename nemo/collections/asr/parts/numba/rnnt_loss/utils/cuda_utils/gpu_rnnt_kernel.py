@@ -345,9 +345,24 @@ def compute_grad_kernel(
             # initialize the grad of the sample acts[b, t, u, v]
             grad = math.exp(alphas[col] + betas[col] + logpk - logll[mb])
 
+            if fastemit_lambda > 0.0:
+                if u < U - 1:
+                    fastemit_grad = fastemit_lambda * math.exp(
+                        alphas[col]
+                        + betas[col + 1]
+                        + logpk
+                        - logll[mb]
+                        + logp(denom, acts, maxT, maxU, alphabet_size, mb, t, u, u + 1)
+                    )
+                else:
+                    fastemit_grad = 0.0
+            else:
+                fastemit_grad = 0.0
+
             # // grad to last blank transition
             # grad[b, T-1, U-1, v=blank] -= exp(alphas[b, t, u) + logpk - logll[b])
             if (idx == blank_) and (t == T - 1) and (u == U - 1):
+
                 grad -= math.exp(alphas[col] + logpk - logll[mb])
                 pass
 
@@ -360,10 +375,7 @@ def compute_grad_kernel(
                 #           math.exp(logll[mb]), "final ", grad)
 
                 # grad -= fastemit_lambda * (math.exp(alphas[col] + betas[col + 1] + logpk - logll[mb]))
-                if fastemit_lambda > 0.0:
-                    grad += math.exp(alphas[col] + betas[col + 1] + logpk - logll[mb] +
-                                     logp(denom, acts, maxT, maxU, alphabet_size, mb, t, u, u + 1))
-
+                grad += fastemit_grad
                 grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + maxU])
 
                 # if mb == 0 and t == 0 and u == 0 and idx == 0:
@@ -381,10 +393,7 @@ def compute_grad_kernel(
                 #     print(mb, t, u, idx, "init u grad", grad)
 
                 # math.log1p(fastemit_lambda) +
-                if fastemit_lambda > 0.0:
-                    grad += math.exp(alphas[col] + betas[col + 1] + logpk - logll[mb] +
-                                     logp(denom, acts, maxT, maxU, alphabet_size, mb, t, u, u + 1))
-
+                grad += fastemit_grad
                 grad -= math.exp(math.log1p(fastemit_lambda) + alphas[col] + logpk - logll[mb] + betas[col + 1])
 
                 # print("LABEL", mb, t, u, idx, "label", labels[u], "grad", grad)
