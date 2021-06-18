@@ -37,8 +37,8 @@ class ElectronicFst(GraphFst):
         delete_extra_space = pynutil.delete(" ")
         alpha_num = (
             NEMO_ALPHA
-            | pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
-            | pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
+            | pynini.string_file(get_abs_path("en/data/numbers/digit.tsv"))
+            | pynini.string_file(get_abs_path("en/data/numbers/zero.tsv"))
         )
         username = (
             pynutil.insert("username: \"")
@@ -49,8 +49,8 @@ class ElectronicFst(GraphFst):
             + pynutil.insert("\"")
         )
         single_alphanum = pynini.closure(alpha_num + delete_extra_space) + alpha_num
-        server = single_alphanum | pynini.string_file(get_abs_path("data/electronic/server_name.tsv")).invert()
-        domain = single_alphanum | pynini.string_file(get_abs_path("data/electronic/domain.tsv")).invert()
+        server = single_alphanum | pynini.string_file(get_abs_path("en/data/electronic/server_name.tsv")).invert()
+        domain = single_alphanum | pynini.string_file(get_abs_path("en/data/electronic/domain.tsv")).invert()
         domain_graph = (
             pynutil.insert("domain: \"")
             + server

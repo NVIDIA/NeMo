@@ -51,7 +51,7 @@ class MoneyFst(GraphFst):
         cardinal_graph = cardinal.graph_no_exception
         graph_decimal_final = decimal.final_graph_wo_negative
 
-        unit = pynini.string_file(get_abs_path("data/currency.tsv"))
+        unit = pynini.string_file(get_abs_path("en/data/currency.tsv"))
         unit_singular = pynini.invert(unit)
         unit_plural = get_singulars(unit_singular)
 

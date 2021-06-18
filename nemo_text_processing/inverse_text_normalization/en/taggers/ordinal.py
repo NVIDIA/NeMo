@@ -38,8 +38,8 @@ class OrdinalFst(GraphFst):
         super().__init__(name="ordinal", kind="classify")
 
         cardinal_graph = cardinal.graph_no_exception
-        graph_digit = pynini.string_file(get_abs_path("data/ordinals/digit.tsv"))
-        graph_teens = pynini.string_file(get_abs_path("data/ordinals/teen.tsv"))
+        graph_digit = pynini.string_file(get_abs_path("en/data/ordinals/digit.tsv"))
+        graph_teens = pynini.string_file(get_abs_path("en/data/ordinals/teen.tsv"))
         graph = pynini.closure(NEMO_CHAR) + pynini.union(
             graph_digit, graph_teens, pynini.cross("tieth", "ty"), pynini.cross("th", "")
         )

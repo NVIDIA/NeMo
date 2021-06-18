@@ -15,8 +15,6 @@
 from argparse import ArgumentParser
 from typing import List
 
-from nemo_text_processing.inverse_text_normalization.taggers.tokenize_and_classify import ClassifyFst
-from nemo_text_processing.inverse_text_normalization.verbalizers.verbalize_final import VerbalizeFinalFst
 from nemo_text_processing.text_normalization.normalize import Normalizer
 from nemo_text_processing.text_normalization.token_parser import TokenParser
 
@@ -27,7 +25,18 @@ class InverseNormalizer(Normalizer):
     Input is expected to have no punctuation and be lower cased.
     """
 
-    def __init__(self):
+    def __init__(self, lang='en'):
+        if lang == 'en':
+            from nemo_text_processing.inverse_text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.inverse_text_normalization.en.verbalizers.verbalize_final import (
+                VerbalizeFinalFst,
+            )
+        elif lang == 'es':
+            from nemo_text_processing.inverse_text_normalization.es.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.inverse_text_normalization.es.verbalizers.verbalize_final import (
+                VerbalizeFinalFst,
+            )
+
         self.tagger = ClassifyFst()
         self.verbalizer = VerbalizeFinalFst()
         self.parser = TokenParser()

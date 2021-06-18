@@ -41,14 +41,14 @@ class CardinalFst(GraphFst):
 
     def __init__(self):
         super().__init__(name="cardinal", kind="classify")
-        graph_zero = pynini.string_file(get_abs_path("data/numbers/es/zero.tsv"))
-        graph_digit = pynini.string_file(get_abs_path("data/numbers/es/digit.tsv"))
-        graph_ties = pynini.string_file(get_abs_path("data/numbers/es/ties.tsv"))
-        graph_teen = pynini.string_file(get_abs_path("data/numbers/es/teen.tsv"))
-        graph_twenties = pynini.string_file(get_abs_path("data/numbers/es/twenties.tsv"))
-        graph_hundreds = pynini.string_file(get_abs_path("data/numbers/es/hundreds.tsv"))
+        graph_zero = pynini.string_file(get_abs_path("es/datanumbers/zero.tsv"))
+        graph_digit = pynini.string_file(get_abs_path("es/data/numbers/digit.tsv"))
+        graph_ties = pynini.string_file(get_abs_path("es/data/numbers/ties.tsv"))
+        graph_teen = pynini.string_file(get_abs_path("es/data/numbers/teen.tsv"))
+        graph_twenties = pynini.string_file(get_abs_path("es/data/numbers/twenties.tsv"))
+        graph_hundreds = pynini.string_file(get_abs_path("es/data/numbers/hundreds.tsv"))
 
-        graph_hundred_component =  graph_hundreds | pynutil.insert("0")
+        graph_hundred_component = graph_hundreds | pynutil.insert("0")
         graph_hundred_component += delete_space
         graph_hundred_component += pynini.union(
             graph_twenties | graph_teen | pynutil.insert("00"),
@@ -69,15 +69,15 @@ class CardinalFst(GraphFst):
         )
 
         graph_million = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit + delete_space + 
-                                            (pynutil.delete("millones") | pynutil.delete("millón")),
+            graph_hundred_component_at_least_one_none_zero_digit
+            + delete_space
+            + (pynutil.delete("millones") | pynutil.delete("millón")),
             # for mil millones:
             pynutil.delete('millones') + pynutil.insert("000", weight=0.1),
-
-            # weight=0.9 prevents 
+            # weight=0.9 prevents
             # "ochocientos treinta y cuatro mil cincuenta" (834050)
             # ----> 834000000050
-            pynutil.insert("000", weight=0.1), 
+            pynutil.insert("000", weight=0.1),
         )
 
         graph_billion = pynini.union(
@@ -86,10 +86,7 @@ class CardinalFst(GraphFst):
         )
 
         graph = pynini.union(
-            pynini.closure(graph_billion
-            + delete_space
-            + graph_million
-            + delete_space)
+            pynini.closure(graph_billion + delete_space + graph_million + delete_space)
             + graph_thousands
             + delete_space
             + graph_hundred_component,

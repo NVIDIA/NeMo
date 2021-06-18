@@ -47,7 +47,7 @@ class MeasureFst(GraphFst):
 
         cardinal_graph = cardinal.graph_no_exception
 
-        graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
+        graph_unit = pynini.string_file(get_abs_path("en/data/measurements.tsv"))
         graph_unit_singular = pynini.invert(graph_unit)  # singular -> abbr
         graph_unit_plural = get_singulars(graph_unit_singular)  # plural -> abbr
 

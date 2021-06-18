@@ -26,9 +26,9 @@ try:
     import pynini
     from pynini.lib import pynutil
 
-    graph_teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv")).optimize()
-    graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).optimize()
-    ties_graph = pynini.string_file(get_abs_path("data/numbers/ties.tsv")).optimize()
+    graph_teen = pynini.string_file(get_abs_path("en/data/numbers/teen.tsv")).optimize()
+    graph_digit = pynini.string_file(get_abs_path("en/data/numbers/digit.tsv")).optimize()
+    ties_graph = pynini.string_file(get_abs_path("en/data/numbers/ties.tsv")).optimize()
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -43,7 +43,7 @@ def _get_month_graph():
     """
     Transducer for month, e.g. march -> march
     """
-    month_graph = pynini.string_file(get_abs_path("data/months.tsv"))
+    month_graph = pynini.string_file(get_abs_path("en/data/months.tsv"))
     return month_graph
 
 

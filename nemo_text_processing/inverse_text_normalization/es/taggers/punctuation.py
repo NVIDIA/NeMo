@@ -1,4 +1,5 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,21 +13,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
-from nemo_text_processing.inverse_text_normalization.en.verbalizers.verbalize import VerbalizeFst
-from nemo_text_processing.inverse_text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
-
-from nemo.utils import logging
+from nemo_text_processing.text_normalization.graph_utils import GraphFst
 
 try:
     import pynini
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    logging.warning(
-        "`pynini` is not installed ! \n"
-        "Please run the `nemo_text_processing/setup.sh` script"
-        "prior to usage of this toolkit."
-    )
+    from pynini.lib import pynutil
 
     PYNINI_AVAILABLE = False
+except (ModuleNotFoundError, ImportError):
+    PYNINI_AVAILABLE = False
+
+
+class PunctuationFst(GraphFst):
+    """
+    Finite state transducer for classifying punctuation
+        e.g. a, -> tokens { name: "a" } tokens { name: "," }
+    """
+
+    def __init__(self):
+        super().__init__(name="punctuation", kind="classify")
+
+        s = "!#$%&\'()*+,-./:;<=>?@^_`{|}~"
+        punct = pynini.union(*s)
+
+        graph = pynutil.insert("name: \"") + punct + pynutil.insert("\"")
+
+        self.fst = graph.optimize()

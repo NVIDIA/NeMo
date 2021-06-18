@@ -21,9 +21,9 @@ from utils import PYNINI_AVAILABLE, parse_test_case_file
 
 
 class TestDate:
-    inverse_normalizer = InverseNormalizer() if PYNINI_AVAILABLE else None
+    inverse_normalizer = InverseNormalizer(lang='en') if PYNINI_AVAILABLE else None
 
-    @parameterized.expand(parse_test_case_file('data_inverse_text_normalization/test_cases_date.txt'))
+    @parameterized.expand(parse_test_case_file('data_inverse_text_normalization/en/test_cases_date.txt'))
     @pytest.mark.skipif(
         not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
     )

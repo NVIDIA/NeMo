@@ -14,7 +14,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.inverse_text_normalization.taggers.cardinal import CardinalFst
+from nemo_text_processing.inverse_text_normalization.en.taggers.cardinal import CardinalFst
 from nemo_text_processing.inverse_text_normalization.utils import get_abs_path, num_to_word
 from nemo_text_processing.text_normalization.graph_utils import (
     GraphFst,
@@ -48,9 +48,9 @@ class TimeFst(GraphFst):
         super().__init__(name="time", kind="classify")
         # hours, minutes, seconds, suffix, zone, style, speak_period
 
-        suffix_graph = pynini.string_file(get_abs_path("data/time/time_suffix.tsv"))
-        time_zone_graph = pynini.invert(pynini.string_file(get_abs_path("data/time/time_zone.tsv")))
-        time_to_graph = pynini.string_file(get_abs_path("data/time/time_to.tsv"))
+        suffix_graph = pynini.string_file(get_abs_path("en/data/time/time_suffix.tsv"))
+        time_zone_graph = pynini.invert(pynini.string_file(get_abs_path("en/data/time/time_zone.tsv")))
+        time_to_graph = pynini.string_file(get_abs_path("en/data/time/time_to.tsv"))
 
         # only used for < 1000 thousand -> 0 weight
         cardinal = pynutil.add_weight(CardinalFst().graph_no_exception, weight=-0.7)

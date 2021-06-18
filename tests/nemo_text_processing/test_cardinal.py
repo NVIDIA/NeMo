@@ -21,9 +21,9 @@ from utils import PYNINI_AVAILABLE, parse_test_case_file
 
 
 class TestCardinal:
-    inverse_normalizer = InverseNormalizer() if PYNINI_AVAILABLE else None
+    inverse_normalizer = InverseNormalizer(lang='en') if PYNINI_AVAILABLE else None
 
-    @parameterized.expand(parse_test_case_file('data_inverse_text_normalization/test_cases_cardinal.txt'))
+    @parameterized.expand(parse_test_case_file('data_inverse_text_normalization/en/test_cases_cardinal.txt'))
     @pytest.mark.skipif(
         not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
     )
@@ -47,3 +47,16 @@ class TestCardinal:
         assert pred == expected
         pred_non_deterministic = self.normalizer_with_audio.normalize(test_input, n_tagged=100)
         assert expected in pred_non_deterministic
+
+    # ----------------------------- SPANISH TESTS ---------------------------
+    inverse_normalizer_es = InverseNormalizer(lang='es') if PYNINI_AVAILABLE else None
+
+    @parameterized.expand(parse_test_case_file('data_inverse_text_normalization/es/test_cases_cardinal.txt'))
+    @pytest.mark.skipif(
+        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
+    )
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_denorm_es(self, test_input, expected):
+        pred = self.inverse_normalizer_es.inverse_normalize(test_input, verbose=False)
+        assert pred == expected

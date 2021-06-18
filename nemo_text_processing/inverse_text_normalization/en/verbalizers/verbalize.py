@@ -13,16 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.verbalizers.cardinal import CardinalFst
-from nemo_text_processing.inverse_text_normalization.verbalizers.date import DateFst
-from nemo_text_processing.inverse_text_normalization.verbalizers.decimal import DecimalFst
-from nemo_text_processing.inverse_text_normalization.verbalizers.electronic import ElectronicFst
-from nemo_text_processing.inverse_text_normalization.verbalizers.measure import MeasureFst
-from nemo_text_processing.inverse_text_normalization.verbalizers.money import MoneyFst
-from nemo_text_processing.inverse_text_normalization.verbalizers.ordinal import OrdinalFst
-from nemo_text_processing.inverse_text_normalization.verbalizers.telephone import TelephoneFst
-from nemo_text_processing.inverse_text_normalization.verbalizers.time import TimeFst
-from nemo_text_processing.inverse_text_normalization.verbalizers.whitelist import WhiteListFst
+from nemo_text_processing.inverse_text_normalization.en.verbalizers.cardinal import CardinalFst
+from nemo_text_processing.inverse_text_normalization.en.verbalizers.date import DateFst
+from nemo_text_processing.inverse_text_normalization.en.verbalizers.decimal import DecimalFst
+from nemo_text_processing.inverse_text_normalization.en.verbalizers.electronic import ElectronicFst
+from nemo_text_processing.inverse_text_normalization.en.verbalizers.measure import MeasureFst
+from nemo_text_processing.inverse_text_normalization.en.verbalizers.money import MoneyFst
+from nemo_text_processing.inverse_text_normalization.en.verbalizers.ordinal import OrdinalFst
+from nemo_text_processing.inverse_text_normalization.en.verbalizers.telephone import TelephoneFst
+from nemo_text_processing.inverse_text_normalization.en.verbalizers.time import TimeFst
+from nemo_text_processing.inverse_text_normalization.en.verbalizers.whitelist import WhiteListFst
 from nemo_text_processing.text_normalization.graph_utils import GraphFst
 
 

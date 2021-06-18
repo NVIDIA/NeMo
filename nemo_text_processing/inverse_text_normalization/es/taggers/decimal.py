@@ -66,8 +66,8 @@ class DecimalFst(GraphFst):
 
         cardinal_graph = cardinal.graph_no_exception | pynini.string_file(get_abs_path("data/numbers/es/zero.tsv"))
 
-        graph_decimal = pynini.string_file(get_abs_path("data/numbers/es/digit.tsv"))
-        graph_decimal |= pynini.string_file(get_abs_path("data/numbers/es/zero.tsv")) | pynini.cross("o", "0")
+        graph_decimal = pynini.string_file(get_abs_path("es/data/numbers/digit.tsv"))
+        graph_decimal |= pynini.string_file(get_abs_path("es/data/numbers/zero.tsv")) | pynini.cross("o", "0")
 
         graph_decimal = pynini.closure(graph_decimal + delete_space) + graph_decimal
         graph_decimal |= cardinal_graph
