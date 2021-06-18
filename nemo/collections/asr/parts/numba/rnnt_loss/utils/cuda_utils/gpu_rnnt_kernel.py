@@ -99,6 +99,8 @@ def compute_alphas_kernel(
         maxU: The maximum possible target sequence length. Represents U in the logprobs tensor.
         alphabet_size: The vocabulary dimension V+1 (inclusive of RNNT blank).
         blank_: Index of the RNNT blank token in the vocabulary. Generally the first or last token in the vocab.
+        fastemit_lambda: Float scaling factor for FastEmit regularization. Refer to
+            FastEmit: Low-latency Streaming ASR with Sequence-level Emission Regularization.
 
     Updates:
         Kernel inplace updates the following inputs:
@@ -277,6 +279,7 @@ def compute_grad_kernel(
     maxU: int,
     alphabet_size: int,
     blank_: int,
+    fastemit_lambda: float,
 ):
     """
     Compute gradients over the transduction step.
@@ -302,6 +305,8 @@ def compute_grad_kernel(
         maxU: The maximum possible target sequence length. Represents U in the logprobs tensor.
         alphabet_size: The vocabulary dimension V+1 (inclusive of RNNT blank).
         blank_: Index of the RNNT blank token in the vocabulary. Generally the first or last token in the vocab.
+        fastemit_lambda: Float scaling factor for FastEmit regularization. Refer to
+            FastEmit: Low-latency Streaming ASR with Sequence-level Emission Regularization.
 
     Updates:
         Kernel inplace updates the following inputs:
@@ -350,12 +355,26 @@ def compute_grad_kernel(
             # grad of blank across t < T;
             # grad[b, t<T-1, u, v=blank] -= exp(alphas[b, t, u] + logpk - logll[b] betas[b, t + 1, u])
             if (idx == blank_) and (t < T - 1):
+                # if mb == 0 and t == 0 and u == 0 and idx == 0:
+                #     print(mb, t, u, idx, "init t grad", grad)
+
                 grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + maxU])
+
+                # if mb == 0 and t == 0 and u == 0 and idx == 0:
+                #     print(mb, t, u, idx, "init t grad", grad)
 
             # grad of correct token across u < U;
             # grad[b, t, u<U-1, v=label[u]] -= exp(alphas[b, t, u] + logpk - logll[b] + betas[b, t, u+1])
+            # Scale the gradient by 1.0 + FastEmit_lambda
             if (u < U - 1) and (idx == labels[u]):
-                grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + 1])
+                # if mb == 0 and t == 0 and u == 0:
+                #     print(mb, t, u, idx, "init u grad", grad)
+
+                # math.log1p(fastemit_lambda) +
+                grad -= math.exp(math.log1p(fastemit_lambda) + alphas[col] + logpk - logll[mb] + betas[col + 1])
+
+                # if mb == 0 and t == 0 and u == 0:
+                #     print(mb, t, u, idx, "final u grad", grad)
 
             # update grads[b, t, u, v] = grad
             grads[col * alphabet_size + idx] = grad

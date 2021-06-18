@@ -191,35 +191,38 @@ def compute_gradient(log_probs, alphas, betas, labels, blank, fastemit_lambda):
 
 def fastemit_regularization(log_probs, labels, alphas, betas, blank, fastemit_lambda):
     """
-    Computes probability of the forward variable alpha.
+    Describes the computation of FastEmit regularization from the paper -
+    [FastEmit: Low-latency Streaming ASR with Sequence-level Emission Regularization](https://arxiv.org/abs/2010.11148)
 
     Args:
         log_probs: Tensor of shape [T, U, V+1]
-        labels: Labels of shape [B, U]
+        labels: Unused. Labels of shape [B, U]
+        alphas: Tensor of shape [T, U] which represents the forward variable.
+        betas: Unused. Tensor of shape [T, U] which represents the backward variable.
         blank: Index of the blank token.
+        fastemit_lambda: Float scaling factor for FastEmit regularization.
 
     Returns:
-        A tuple of the forward variable probabilities - alpha of shape [T, U]
-        and the log likelihood of this forward step.
+        The regularized negative log likelihood - lambda * P˜(At, u|x)
     """
+    # General calculation of the fastemit regularization alignments
     T, U, _ = log_probs.shape
-    alignment = np.zeros((T, U), dtype='float32')
+    # alignment = np.zeros((T, U), dtype='float32')
+    #
+    # for t in range(0, T):
+    #     alignment[t, U - 1] = alphas[t, U - 1] + betas[t, U - 1]
+    #
+    # for t in range(0, T):
+    #     for u in range(0, U - 1):
+    #         emit = alphas[t, u] + log_probs[t, u, labels[u]] + betas[t, u + 1]
+    #         alignment[t, u] = emit
+    # reg = fastemit_lambda * (alignment[T - 1, U - 1])
 
-    for t in range(0, T):
-        alignment[t, U - 1] = alphas[t, U - 1] + betas[t, U - 1]
-
-    for t in range(0, T):
-        for u in range(0, U - 1):
-            emit = alphas[t, u] + log_probs[t, u, labels[u]] + betas[t, u + 1]
-            alignment[t, u] = emit
-
-    # to compute likelihood.
-    # loglike = betas[0, 0]
-    # a = np.exp(alignment - loglike)
-    # print(a)
-
-    reg = fastemit_lambda * (alignment[T - 1, U - 1])
+    # The above is equivalent to below, without need of computing above
     # reg = fastemit_lambda * (alphas[T - 1, U - 1] + betas[T - 1, U - 1])
+
+    # The above is also equivalent to below, without need of computing the betas alignment matrix
+    reg = fastemit_lambda * (alphas[T - 1, U - 1] + log_probs[T - 1, U - 1, blank])
     return -reg
 
 
@@ -229,10 +232,15 @@ def transduce(log_probs, labels, blank=0, fastemit_lambda=0.0):
         log_probs: 3D array with shape
               [input len, output len + 1, vocab size]
         labels: 1D array with shape [output time steps]
+        blank: Index of the blank token.
+        fastemit_lambda: Float scaling factor for FastEmit regularization.
+
     Returns:
         float: The negative log-likelihood
         3D array: Gradients with respect to the
                     unnormalized input actications
+        2d arrays: Alphas matrix (TxU)
+        2d array: Betas matrix (TxU)
     """
     alphas, ll_forward = forward_pass(log_probs, labels, blank)
     betas, ll_backward = backward_pass(log_probs, labels, blank)
@@ -250,6 +258,7 @@ def transduce_batch(log_probs, labels, flen, glen, blank=0, fastemit_lambda=0.0)
         flen: Length vector of the acoustic sequence.
         glen: Length vector of the target sequence.
         blank: Id of the blank token.
+        fastemit_lambda: Float scaling factor for FastEmit regularization.
 
     Returns:
         Batch of transducer forward log probabilities (loss) and the gradients of the activation matrix.
@@ -296,6 +305,7 @@ class RNNTLoss(Module):
     """
     Parameters:
         `blank_label` (int): default 0 - label index of blank token
+        fastemit_lambda: Float scaling factor for FastEmit regularization.
     """
 
     def __init__(self, blank: int = 0, fastemit_lambda: float = 0.0):
