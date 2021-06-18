@@ -295,7 +295,7 @@ class _RNNT(Function):
         costs = torch.FloatTensor([sum(costs)])
         grads = torch.Tensor(grads).to(acts)
 
-        ctx.grads = Variable(grads)
+        ctx.grads = grads
         return costs
 
     @staticmethod
