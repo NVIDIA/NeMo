@@ -23,8 +23,6 @@ from argparse import ArgumentParser
 
 import torch
 
-from nemo.collections.asr.metrics.wer import WER, word_error_rate
-from nemo.collections.asr.models import EncDecCTCModel
 from nemo.utils import logging
 
 try:
@@ -39,73 +37,38 @@ except ImportError:
 
 can_gpu = torch.cuda.is_available()
 import json
-import time
 import os
 from omegaconf import OmegaConf
 import copy
-import collections
 import nemo.collections.asr as nemo_asr
 import torch
 from nemo.collections.asr.metrics.wer import word_error_rate
 
-import numpy as np
 import math
-from nemo.collections.asr.parts.utils.streaming_utils import FeatureFrameBufferer, FrameBatchASR, get_samples, AudioFeatureIterator
-
-def clean_label(_str):
-    """
-    Remove unauthorized characters in a string, lower it and remove unneeded spaces
-    Parameters
-    ----------
-    _str : the original string
-    Returns
-    -------
-    string
-    """
-    if _str is None:
-        return
-    _str = _str.strip()
-    _str = _str.lower()
-    _str = _str.replace(".", "")
-    _str = _str.replace(",", "")
-    _str = _str.replace("?", "")
-    _str = _str.replace("!", "")
-    _str = _str.replace(":", "")
-    _str = _str.replace("-", " ")
-    _str = _str.replace("_", " ")
-    _str = _str.replace("  ", " ")
-    return _str
+from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
 
 
-def get_wer_feat(mfst, frame_bufferer, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg, model_stride_in_secs, device):
+def get_wer_feat(mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg, model_stride_in_secs, device):
     # Create a preprocessor to convert audio samples into raw features,
     # Normalization will be done per buffer in frame_bufferer
     # Do not normalize whatever the model's preprocessor setting is
     preprocessor_cfg.normalize = "None"
     preprocessor = nemo_asr.models.EncDecCTCModelBPE.from_config_dict(preprocessor_cfg)
     preprocessor.to(device)
-    hyps = collections.defaultdict(list)
+    hyps = []
     refs = []
-    wer_dict = {}
 
-    first = True
     with open(mfst, "r") as mfst_f:
         for l in mfst_f:
-            frame_bufferer.reset()
             asr.reset()
             row = json.loads(l.strip())
-            samples = get_samples(row['audio_filepath'])
-            samples = np.pad(samples, (0, int(delay * model_stride_in_secs * preprocessor_cfg.sample_rate)))
-            frame_reader = AudioFeatureIterator(samples, frame_len, preprocessor, device)
-            frame_bufferer.set_frame_reader(frame_reader)
-            asr.infer_logits()
+            asr.read_audio_file(row['audio_filepath'], delay, model_stride_in_secs)
             hyp = asr.transcribe(tokens_per_chunk, delay)
-            hyps[(tokens_per_chunk, delay)].append(hyp)
+            hyps.append(hyp)
             refs.append(row['text'])
 
-    for key in hyps.keys():
-        wer_dict[key] = word_error_rate(hypotheses=hyps[key], references=refs)
-    return hyps[(tokens_per_chunk, delay)], refs, wer_dict
+    wer = word_error_rate(hypotheses=hyps, references=refs)
+    return hyps, refs, wer
 
 def main():
     parser = ArgumentParser()
@@ -113,7 +76,7 @@ def main():
         "--asr_model", type=str, required=True, help="Path to asr model .nemo file",
     )
     parser.add_argument("--test_manifest", type=str, required=True, help="path to evaluation data")
-    parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--total_buffer_in_secs", type=float, default=4.0, help="Length of buffer (chunk + left and right padding) in seconds ")
     parser.add_argument("--chunk_len_in_ms", type=int, default=1600, help="Chunk length in milliseconds")
     parser.add_argument("--output_path", type=str, help="path to output file", default=None)
@@ -154,20 +117,15 @@ def main():
     mid_delay = math.ceil((chunk_len + (total_buffer - chunk_len) / 2) / model_stride_in_secs)
     print(tokens_per_chunk, mid_delay)
 
-    frame_bufferer = FeatureFrameBufferer(
-        asr_model=asr_model,
-        frame_len=chunk_len,
-        batch_size=64,
-        total_buffer=args.total_buffer_in_secs)
-
-    frame_asr = FrameBatchASR(frame_bufferer,
+    frame_asr = FrameBatchASR(
                         asr_model=asr_model,
-                        )
+                        frame_len=chunk_len,
+                        total_buffer=args.total_buffer_in_secs,
+                        batch_size=args.batch_size,)
 
-    hyps, refs, wer_dict = get_wer_feat(args.test_manifest, frame_bufferer, frame_asr, chunk_len, tokens_per_chunk, mid_delay,
+    hyps, refs, wer = get_wer_feat(args.test_manifest, frame_asr, chunk_len, tokens_per_chunk, mid_delay,
                                         cfg.preprocessor, model_stride_in_secs, asr_model.device)
-    for key in wer_dict.keys():
-        logging.info(f"WER is {wer_dict[key]} when decoded with a delay of {mid_delay*model_stride_in_secs}s")
+    logging.info(f"WER is {round(wer, 2)} when decoded with a delay of {round(mid_delay*model_stride_in_secs, 2)}s")
 
     if args.output_path is not None:
 

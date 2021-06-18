@@ -18,7 +18,9 @@ import torch
 from torch.utils.data import DataLoader
 import numpy as np
 import soundfile as sf
-import math
+from omegaconf import OmegaConf
+import copy
+from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 
 class AudioFeatureIterator(IterableDataset):
 
@@ -64,9 +66,7 @@ def speech_collate_fn(batch):
                encoded tokens, and encoded tokens length.  This collate func
                assumes the signals are 1d torch tensors (i.e. mono audio).
     """
-    #     print(batch[0][1])
     _, audio_lengths = zip(*batch)
-    #     print(audio_lengths)
     max_audio_len = 0
     has_audio = audio_lengths[0] is not None
     if has_audio:
@@ -151,22 +151,19 @@ class FeatureFrameBufferer:
         self.sr = asr_model._cfg.sample_rate
         self.frame_len = frame_len
         timestep_duration = asr_model._cfg.preprocessor.window_stride
-         # ['AudioToMelSpectrogramPreprocessor']['window_stride']
         self.n_frame_len = int(frame_len / timestep_duration)
 
         total_buffer_len = int(total_buffer / timestep_duration)
         self.n_feat = asr_model._cfg.preprocessor.features
-        # model_definition['AudioToMelSpectrogramPreprocessor']['features']
         self.buffer = np.ones([self.n_feat, total_buffer_len],
                               dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
 
         self.batch_size = batch_size
 
-        self.data_layer = AudioBuffersDataLayer()
-        self.data_loader = DataLoader(self.data_layer, batch_size=self.batch_size, collate_fn=speech_collate_fn)
         self.signal_end = False
         self.frame_reader = None
         self.feature_buffer_len = total_buffer_len
+
         self.feature_buffer = np.ones([self.n_feat, self.feature_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
         self.frame_buffers = []
         self.buffered_features_size = 0
@@ -180,8 +177,6 @@ class FeatureFrameBufferer:
         self.buffer = np.ones(shape=self.buffer.shape, dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
         self.prev_char = ''
         self.unmerged = []
-        self.data_layer = AudioBuffersDataLayer()
-        self.data_loader = DataLoader(self.data_layer, batch_size=self.batch_size, collate_fn=speech_collate_fn)
         self.frame_buffers = []
         self.buffered_len = 0
         self.feature_buffer = np.ones([self.n_feat, self.feature_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
@@ -206,7 +201,6 @@ class FeatureFrameBufferer:
             self.buffer[:, -self.n_frame_len:] = frame
             self.buffered_len += frame.shape[1]
             self.frame_buffers.append(np.copy(self.buffer))
-        #         print(frame_buffers[0])
         return self.frame_buffers
 
     def set_frame_reader(self, frame_reader):
@@ -224,8 +218,6 @@ class FeatureFrameBufferer:
             self._update_feature_buffer(frame)
             mean_from_buffer = np.mean(self.feature_buffer, axis=1)
             stdev_from_buffer = np.std(self.feature_buffer, axis=1)
-            # mean_from_buffer = np.mean(self.frame_buffers[i], axis=1)
-            # stdev_from_buffer = np.std(self.frame_buffers[i], axis=1)
             norm_consts.append((mean_from_buffer.reshape(self.n_feat, 1), stdev_from_buffer.reshape(self.n_feat, 1)))
         return norm_consts
 
@@ -254,15 +246,24 @@ class FeatureFrameBufferer:
 # 2) call transcribe(frame) to do ASR on
 #    contiguous signal's frames
 class FrameBatchASR:
+    """
+    class for streaming frame-based ASR use reset() method to reset FrameASR's
+    state call transcribe(frame) to do ASR on contiguous signal's frames
+    """
 
-    def __init__(self, frame_bufferer, asr_model, batch_size=4,):
+    def __init__(self, asr_model, frame_len=1.6, total_buffer=4.0, batch_size=4,):
         '''
         Args:
           frame_len: frame's duration, seconds
           frame_overlap: duration of overlaps before and after current frame, seconds
           offset: number of symbols to drop for smooth streaming
         '''
-        self.frame_bufferer = frame_bufferer
+        self.frame_bufferer = FeatureFrameBufferer(
+                                asr_model=asr_model,
+                                frame_len=frame_len,
+                                batch_size=batch_size,
+                                total_buffer=total_buffer)
+
         self.asr_model = asr_model
 
         self.batch_size = batch_size
@@ -271,19 +272,26 @@ class FrameBatchASR:
 
         self.unmerged = []
 
-        self.data_layer = AudioBuffersDataLayer()
-        self.data_loader = DataLoader(self.data_layer, batch_size=self.batch_size, collate_fn=speech_collate_fn)
-
         self.blank_id = len(asr_model.decoder.vocabulary)
         self.tokenizer = asr_model.tokenizer
         self.toks_unmerged = []
         self.frame_buffers = []
         self.reset()
+        cfg = copy.deepcopy(asr_model._cfg)
+        self.frame_len = frame_len
+        OmegaConf.set_struct(cfg.preprocessor, False)
+
+        # some changes for streaming scenario
+        cfg.preprocessor.dither = 0.0
+        cfg.preprocessor.pad_to = 0
+        cfg.preprocessor.normalize = "None"
+        self.raw_preprocessor = EncDecCTCModelBPE.from_config_dict(cfg.preprocessor)
+        self.raw_preprocessor.to(asr_model.device)
 
     def reset(self):
-        '''
+        """
         Reset frame_history and decoder's state
-        '''
+        """
         self.prev_char = ''
         self.unmerged = []
         self.data_layer = AudioBuffersDataLayer()
@@ -292,7 +300,17 @@ class FrameBatchASR:
         self.all_preds = []
         self.toks_unmerged = []
         self.frame_buffers = []
+        self.frame_bufferer.reset()
 
+    def read_audio_file(self, audio_filepath:str, delay, model_stride_in_secs):
+        samples = get_samples(audio_filepath)
+        samples = np.pad(samples, (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)))
+        frame_reader = AudioFeatureIterator(samples, self.frame_len, self.raw_preprocessor, self.asr_model.device)
+        self.set_frame_reader(frame_reader)
+
+
+    def set_frame_reader(self, frame_reader):
+        self.frame_bufferer.set_frame_reader(frame_reader)
 
     @torch.no_grad()
     def infer_logits(self):
@@ -303,61 +321,38 @@ class FrameBatchASR:
             self.data_layer.set_signal(frame_buffers[:])
             self._get_batch_preds()
             frame_buffers = self.frame_bufferer.get_buffers_batch()
-        # print(self.frame_buffers)
 
 
     @torch.no_grad()
     def _get_batch_preds(self):
-
         device = self.asr_model.device
         for batch in iter(self.data_loader):
 
             feat_signal, feat_signal_len = batch
             feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
-
             log_probs, encoded_len, predictions = self.asr_model(processed_signal=feat_signal,
                                                                  processed_signal_length=feat_signal_len)
             preds = torch.unbind(predictions)
             for pred in preds:
                 self.all_preds.append(pred.cpu().numpy())
+            del log_probs
+            del encoded_len
+            del predictions
 
     def transcribe(self, tokens_per_chunk: int, delay: int, ):
+        self.infer_logits()
         self.unmerged = []
-        self.toks_unmerged = []
-
-        decoded_frames = []
-        all_toks = []
         for pred in self.all_preds:
-            ids, toks = self._greedy_decoder(pred, self.tokenizer)
-            decoded_frames.append(ids)
-            all_toks.append(toks)
-
-        for decoded in decoded_frames:
+            decoded = pred.tolist()
             self.unmerged += decoded[len(decoded) - 1 - delay:len(decoded) - 1 - delay + tokens_per_chunk]
-
-        for i, tok in enumerate(all_toks):
-            self.toks_unmerged += tok[len(tok) // 2:len(tok) // 2 + 1 + tokens_per_chunk]
-
         return self.greedy_merge(self.unmerged)
-
-    def _greedy_decoder(self, preds, tokenizer):
-        s = []
-        ids = []
-        for i in range(preds.shape[0]):
-            if preds[i] == self.blank_id:
-                s.append("_")
-            else:
-                pred = preds[i]
-                s.append(tokenizer.ids_to_tokens([pred.item()])[0])
-            ids.append(preds[i])
-        return ids, s
 
     def greedy_merge(self, preds):
         decoded_prediction = []
         previous = self.blank_id
         for p in preds:
             if (p != previous or previous == self.blank_id) and p != self.blank_id:
-                decoded_prediction.append(p.item())
+                decoded_prediction.append(p)
             previous = p
         hypothesis = self.tokenizer.ids_to_text(decoded_prediction)
         return hypothesis
