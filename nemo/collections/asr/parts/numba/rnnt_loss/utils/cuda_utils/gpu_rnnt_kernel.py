@@ -99,8 +99,6 @@ def compute_alphas_kernel(
         maxU: The maximum possible target sequence length. Represents U in the logprobs tensor.
         alphabet_size: The vocabulary dimension V+1 (inclusive of RNNT blank).
         blank_: Index of the RNNT blank token in the vocabulary. Generally the first or last token in the vocab.
-        fastemit_lambda: Float scaling factor for FastEmit regularization. Refer to
-            FastEmit: Low-latency Streaming ASR with Sequence-level Emission Regularization.
 
     Updates:
         Kernel inplace updates the following inputs:
@@ -371,7 +369,9 @@ def compute_grad_kernel(
                 #     print(mb, t, u, idx, "init u grad", grad)
 
                 # math.log1p(fastemit_lambda) +
-                grad -= math.exp(math.log1p(fastemit_lambda) + alphas[col] + logpk - logll[mb] + betas[col + 1])
+                grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + 1])
+
+                # print("LABEL", mb, t, u, idx, "label", labels[u], "grad", grad)
 
                 # if mb == 0 and t == 0 and u == 0:
                 #     print(mb, t, u, idx, "final u grad", grad)
