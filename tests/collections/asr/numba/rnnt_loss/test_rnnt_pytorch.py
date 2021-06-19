@@ -119,10 +119,9 @@ class TestRNNTLossPytorch:
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
-    def test_case_small_random_fastemit_reg(self, device):
+    @pytest.mark.parametrize('fastemit_lambda', [1.0, 0.01, 0.00001])
+    def test_case_small_random_fastemit_reg(self, device, fastemit_lambda):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
-
-        fastemit_lambda = 1.0
 
         rng = np.random.RandomState(0)
         acts = rng.randn(1, 4, 3, 3)
@@ -133,11 +132,6 @@ class TestRNNTLossPytorch:
 
         fn_np = RNNTLoss_Numpy(fastemit_lambda=fastemit_lambda)
         np_cost, np_grads = wrap_and_call(fn_np, acts, labels, device)
-
-        if device == 'cuda':
-            print("pt grad\n", pt_grads)
-            print("np grad\n", np_grads)
-            print('diff\n', np.abs(pt_grads - np_grads))
 
         assert np.allclose(pt_cost, np_cost, rtol=1e-6), "small_random_test costs mismatch."
         assert np.allclose(pt_grads, np_grads, atol=1e-5, rtol=1e-5), "small_random_test gradient mismatch."

@@ -345,22 +345,24 @@ def compute_grad_kernel(
             # initialize the grad of the sample acts[b, t, u, v]
             grad = math.exp(alphas[col] + betas[col] + logpk - logll[mb])
 
-            if fastemit_lambda > 0.0:
-                if u < U - 1:
-                    fastemit_grad = fastemit_lambda * math.exp(
-                        alphas[col]
-                        + (denom[col] + acts[col * alphabet_size + labels[u]])
-                        + betas[col + 1]
-                        + logpk
-                        - logll[mb]
-                    )
-                else:
-                    fastemit_grad = 0.0
+            # If FastEmit regularization is enabled, calculate the gradeint of probability of predicting the next label
+            # at the current timestep.
+            # The formula for this is Equation 9 in https://arxiv.org/abs/2010.11148, multiplied by the log probability
+            # of the current step (t, u), normalized by the total log likelihood.
+            # Once the gradient has been calculated, scale it by `fastemit_lambda`, as in Equation 10.
+            if fastemit_lambda > 0.0 and u < U - 1:
+                fastemit_grad = fastemit_lambda * math.exp(
+                    alphas[col]  # alphas(t, u)
+                    + (denom[col] + acts[col * alphabet_size + labels[u]])  # y_hat(t, u)
+                    + betas[col + 1]  # betas(t, u+1)
+                    + logpk  # log Pr(k|t, u)
+                    - logll[mb]  # total log likelihood for normalization
+                )
             else:
                 fastemit_grad = 0.0
 
-            if mb == 0 and t == 0 and u == 1:
-                print(mb, t, u, idx, "grad", grad, "fastemit grad", fastemit_grad)
+            # Update the gradient of act[b, t, u, v] with the gradient from FastEmit regularization
+            grad = grad + fastemit_grad
 
             # // grad to last blank transition
             # grad[b, T-1, U-1, v=blank] -= exp(alphas[b, t, u) + logpk - logll[b])
@@ -370,43 +372,15 @@ def compute_grad_kernel(
             # grad of blank across t < T;
             # grad[b, t<T-1, u, v=blank] -= exp(alphas[b, t, u] + logpk - logll[b] betas[b, t + 1, u])
             if (idx == blank_) and (t < T - 1):
-                # if mb == 0 and t == 0 and u == 0 and idx == 0:
-                #     print("cuda pre", alphas[col], betas[col + maxU], logpk, logll[mb], "final ", grad)
-                #     print("cuda pre exp", math.exp(alphas[col]), math.exp(betas[col + maxU]), math.exp(logpk),
-                #           math.exp(logll[mb]), "final ", grad)
-
-                # grad -= fastemit_lambda * (math.exp(alphas[col] + betas[col + 1] + logpk - logll[mb]))
-                grad += fastemit_grad
                 grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + maxU])
-
-                if mb == 0 and t == 0 and u == 1:
-                    print(mb, t, u, idx, " final t grad", grad)
-
-                # if mb == 0 and t == 0 and u == 0 and idx == 0:
-                #     print("cuda", alphas[col], betas[col + maxU], logpk, logll[mb], "final ", grad)
-                #     print("cuda check",  -math.exp(alphas[col] + logpk - logll[mb] + betas[col + maxU]))
-
-                # if mb == 0 and t == 0 and u == 0 and idx == 0:
-                #     print(mb, t, u, idx, "init t grad", grad)
 
             # grad of correct token across u < U;
             # grad[b, t, u<U-1, v=label[u]] -= exp(alphas[b, t, u] + logpk - logll[b] + betas[b, t, u+1])
-            # Scale the gradient by 1.0 + FastEmit_lambda
+            # Scale the gradient by (1.0 + FastEmit_lambda) in log space, then exponentiate
             if (u < U - 1) and (idx == labels[u]):
-                # if mb == 0 and t == 0 and u == 0:
-                #     print(mb, t, u, idx, "init u grad", grad)
-
-                # math.log1p(fastemit_lambda) +
-                grad += fastemit_grad
+                # exp(log(1 + fastemit_lambda) + ...) is numerically more stable than
+                # multiplying (1.0 + fastemit_lambda) with result.
                 grad -= math.exp(math.log1p(fastemit_lambda) + alphas[col] + logpk - logll[mb] + betas[col + 1])
-
-                if mb == 0 and t == 0 and u == 1:
-                    print(mb, t, u, idx, " final u grad", grad)
-
-                # print("LABEL", mb, t, u, idx, "label", labels[u], "grad", grad)
-
-                # if mb == 0 and t == 0 and u == 0:
-                #     print(mb, t, u, idx, "final u grad", grad)
 
             # update grads[b, t, u, v] = grad
             grads[col * alphabet_size + idx] = grad

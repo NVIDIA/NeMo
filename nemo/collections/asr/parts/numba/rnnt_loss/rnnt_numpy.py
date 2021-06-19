@@ -186,8 +186,6 @@ def compute_gradient(log_probs, alphas, betas, labels, blank, fastemit_lambda):
         for u, l in enumerate(labels):
             grads[:, u, l] = (1.0 + fastemit_lambda) * grads[:, u, l]
 
-    print("numpy", alphas[0, 0], betas[1, 0], log_probs[0, 0, 0], log_like, "final ", grads[0, 0, 0])
-
     return grads
 
 
@@ -274,7 +272,9 @@ def transduce_batch(log_probs, labels, flen, glen, blank=0, fastemit_lambda=0.0)
         ll, g, alphas, betas = transduce(log_probs[b, :t, :u, :], labels[b, : u - 1], blank, fastemit_lambda)
         grads[b, :t, :u, :] = g
 
-        reg = fastemit_regularization(log_probs[b, :t, :u, :], labels[b, : u - 1], alphas, betas, blank, fastemit_lambda)
+        reg = fastemit_regularization(
+            log_probs[b, :t, :u, :], labels[b, : u - 1], alphas, betas, blank, fastemit_lambda
+        )
         ll += reg
         costs.append(ll)
     return costs, grads

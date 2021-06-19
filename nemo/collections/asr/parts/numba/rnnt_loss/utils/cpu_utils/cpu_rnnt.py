@@ -204,8 +204,8 @@ class CPURNNT:
         )
 
         # Scale llForward by FastEmit lambda
-        llForward *= (1.0 + self.fastemit_lambda_)
-        llBackward *= (1.0 + self.fastemit_lambda_)
+        llForward *= 1.0 + self.fastemit_lambda_
+        llBackward *= 1.0 + self.fastemit_lambda_
 
         diff = (llForward - llBackward).abs()
         if diff > 0.1:
