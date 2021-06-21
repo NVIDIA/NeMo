@@ -21,6 +21,7 @@ from pytorch_lightning import Trainer
 
 from nemo.core import typecheck
 from nemo.core.classes.mixins import DistillationMixin, DistillationType, distill_mixins
+from nemo.core.classes.mixins.distill_mixins import ScaledDistillationLossMixin
 from nemo.core.classes.modelPT import ModelPT
 from nemo.utils import logging, model_utils
 
@@ -377,6 +378,10 @@ class DistillationModelPT(ModelPT):
 
         # Clear memory of primary loss
         del primary_loss_dict
+
+        # If the loss function inherits a Distillation Loss mixin, execute the mixin's operation on the gradient.
+        if isinstance(self.transfer_loss_primary, ScaledDistillationLossMixin):
+            loss_value = self.transfer_loss_primary.scale_gradients(self.student.parameters(), loss=loss_value)
 
         # For all subsequent loss tensors that may have been registered
         additional_losses = {}
