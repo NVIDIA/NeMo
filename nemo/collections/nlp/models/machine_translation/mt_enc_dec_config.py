@@ -60,6 +60,7 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
     shared_tokenizer: Optional[bool] = True
     multilingual: Optional[bool] = False
     preproc_out_dir: Optional[str] = None
+    retrieval: Optional[bool] = False
 
     # network architecture configuration
     encoder_tokenizer: Any = MISSING

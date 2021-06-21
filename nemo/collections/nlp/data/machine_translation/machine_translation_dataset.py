@@ -30,7 +30,7 @@ from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_i
 from nemo.core import Dataset
 from nemo.utils import logging
 
-__all__ = ['TranslationDataset', 'TarredTranslationDataset']
+__all__ = ['TranslationDataset', 'TarredTranslationDataset', 'RetrievalTranslationDataset']
 
 
 @dataclass
@@ -64,6 +64,8 @@ class TranslationDataConfig:
     concat_sampling_technique: Optional[str] = 'temperature'
     concat_sampling_temperature: Optional[int] = 5
     concat_sampling_probabilities: Optional[List[float]] = None
+    retrieval_file_name: Optional[str] = None
+    number_nearest_neighbors: int = 3
 
 
 class TranslationDataset(Dataset):
@@ -290,6 +292,89 @@ class TranslationDataset(Dataset):
             src_ids_.append(src_ids[i])
             tgt_ids_.append(tgt_ids[i])
         return src_ids_, tgt_ids_
+
+
+class RetrievalTranslationDataset(TranslationDataset):
+    """
+    A dataset for retrieval models
+    """
+    def __init__(
+        self,
+        dataset_src: str,
+        dataset_tgt: str,
+        dataset_retrieval: str,
+        tokens_in_batch: int = 1024,
+        clean: bool = False,
+        max_seq_length: int = 512,
+        min_seq_length: int = 1,
+        max_seq_length_diff: int = 512,
+        max_seq_length_ratio: int = 512,
+        cache_ids: bool = False,
+        cache_data_per_node: bool = False,
+        use_cache: bool = False,
+        reverse_lang_direction: bool = False,
+        prepend_id: int = None,
+        number_nearest_neighbors: int = 3
+    ):
+        super(RetrievalTranslationDataset, self).__init__(
+            dataset_src=dataset_src,
+            dataset_tgt=dataset_tgt,
+            tokens_in_batch=tokens_in_batch,
+            clean=clean,
+            max_seq_length=max_seq_length,
+            min_seq_length=min_seq_length,
+            max_seq_length_diff=max_seq_length_diff,
+            max_seq_length_ratio=max_seq_length_ratio,
+            cache_ids=cache_ids,
+            cache_data_per_node=cache_data_per_node,
+            use_cache=use_cache,
+            reverse_lang_direction=reverse_lang_direction,
+            prepend_id=prepend_id)
+        # Select only the number of nns specified
+        self.nn_list = np.load(dataset_retrieval)[:,:number_nearest_neighbors]
+
+    def batchify(self, tokenizer_src, tokenizer_tgt):
+        src_ids = dataset_to_ids(
+            self.dataset_src,
+            tokenizer_src,
+            cache_ids=self.cache_ids,
+            cache_data_per_node=self.cache_data_per_node,
+            use_cache=self.use_cache,
+        )
+        tgt_ids = dataset_to_ids(
+            self.dataset_tgt,
+            tokenizer_tgt,
+            cache_ids=self.cache_ids,
+            cache_data_per_node=self.cache_data_per_node,
+            use_cache=self.use_cache,
+        )
+        if self.clean:
+            src_ids, tgt_ids = self.clean_src_and_target(
+                src_ids,
+                tgt_ids,
+                max_tokens=self.max_seq_length,
+                min_tokens=self.min_seq_length,
+                max_tokens_diff=self.max_seq_length_diff,
+                max_tokens_ratio=self.max_seq_length_ratio,
+            )
+        self.src_pad_id = tokenizer_src.pad_id
+        self.tgt_pad_id = tokenizer_tgt.pad_id
+
+        src_ids_extend = []
+        for i in range(len(src_ids)):
+            to_add = []
+            for nn_id in self.nn_list[i].tolist():
+                to_add.append(self.src_pad_id)
+                to_add.extend(src_ids[nn_id])
+                to_add.append(self.src_pad_id)
+                to_add.extend(tgt_ids[nn_id])
+            src_ids_extend.append(to_add)
+        
+        for i in range(len(src_ids)):
+            src_ids[i].extend(src_ids_extend[i])
+
+        self.batch_indices = self.pack_data_into_batches(src_ids, tgt_ids)
+        self.batches = self.pad_batches(src_ids, tgt_ids, self.batch_indices)
 
 
 class TarredTranslationDataset(IterableDataset):

@@ -35,7 +35,7 @@ from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.tokenizers.chinese_tokenizers import ChineseProcessor
 from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaProcessor
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
-from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
+from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset, RetrievalTranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.modules.common import TokenClassifier
@@ -69,6 +69,8 @@ class MTEncDecModel(EncDecNLPModel):
 
         self.multilingual = cfg.get("multilingual", False)
         self.multilingual_ids = []
+
+        self.retrieval = cfg.get("retrieval", False)
 
         # Instantiates tokenizers and register to be saved with NeMo Model archive
         # After this call, ther will be self.encoder_tokenizer and self.decoder_tokenizer
@@ -518,6 +520,8 @@ class MTEncDecModel(EncDecNLPModel):
             if not self.multilingual:
                 src_file_list = [cfg.src_file_name]
                 tgt_file_list = [cfg.tgt_file_name]
+                if self.retrieval:
+                    retrieval_file_list = [cfg.retrieval_file_name]
             else:
                 src_file_list = cfg.src_file_name
                 tgt_file_list = cfg.tgt_file_name
@@ -529,21 +533,40 @@ class MTEncDecModel(EncDecNLPModel):
 
             datasets = []
             for idx, src_file in enumerate(src_file_list):
-                dataset = TranslationDataset(
-                    dataset_src=str(Path(src_file).expanduser()),
-                    dataset_tgt=str(Path(tgt_file_list[idx]).expanduser()),
-                    tokens_in_batch=cfg.tokens_in_batch,
-                    clean=cfg.get("clean", False),
-                    max_seq_length=cfg.get("max_seq_length", 512),
-                    min_seq_length=cfg.get("min_seq_length", 1),
-                    max_seq_length_diff=cfg.get("max_seq_length_diff", 512),
-                    max_seq_length_ratio=cfg.get("max_seq_length_ratio", 512),
-                    cache_ids=cfg.get("cache_ids", False),
-                    cache_data_per_node=cfg.get("cache_data_per_node", False),
-                    use_cache=cfg.get("use_cache", False),
-                    reverse_lang_direction=cfg.get("reverse_lang_direction", False),
-                    prepend_id=self.multilingual_ids[idx],
-                )
+                if not self.retrieval:
+                    dataset = TranslationDataset(
+                        dataset_src=str(Path(src_file).expanduser()),
+                        dataset_tgt=str(Path(tgt_file_list[idx]).expanduser()),
+                        tokens_in_batch=cfg.tokens_in_batch,
+                        clean=cfg.get("clean", False),
+                        max_seq_length=cfg.get("max_seq_length", 512),
+                        min_seq_length=cfg.get("min_seq_length", 1),
+                        max_seq_length_diff=cfg.get("max_seq_length_diff", 512),
+                        max_seq_length_ratio=cfg.get("max_seq_length_ratio", 512),
+                        cache_ids=cfg.get("cache_ids", False),
+                        cache_data_per_node=cfg.get("cache_data_per_node", False),
+                        use_cache=cfg.get("use_cache", False),
+                        reverse_lang_direction=cfg.get("reverse_lang_direction", False),
+                        prepend_id=self.multilingual_ids[idx],
+                    )
+                else:
+                    dataset = RetrievalTranslationDataset(
+                        dataset_src=str(Path(src_file).expanduser()),
+                        dataset_tgt=str(Path(tgt_file_list[idx]).expanduser()),
+                        dataset_retrieval=str(Path(retrieval_file_list[idx]).expanduser()),
+                        tokens_in_batch=cfg.tokens_in_batch,
+                        clean=cfg.get("clean", False),
+                        max_seq_length=cfg.get("max_seq_length", 512),
+                        min_seq_length=cfg.get("min_seq_length", 1),
+                        max_seq_length_diff=cfg.get("max_seq_length_diff", 512),
+                        max_seq_length_ratio=cfg.get("max_seq_length_ratio", 512),
+                        cache_ids=cfg.get("cache_ids", False),
+                        cache_data_per_node=cfg.get("cache_data_per_node", False),
+                        use_cache=cfg.get("use_cache", False),
+                        reverse_lang_direction=cfg.get("reverse_lang_direction", False),
+                        prepend_id=self.multilingual_ids[idx],
+                        number_nearest_neighbors=cfg.get("number_nearest_neighbors", 3)
+                    )
                 dataset.batchify(self.encoder_tokenizer, self.decoder_tokenizer)
                 datasets.append(dataset)
 
