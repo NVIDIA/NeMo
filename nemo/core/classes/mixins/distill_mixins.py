@@ -15,12 +15,10 @@
 from abc import ABC
 from contextlib import contextmanager
 from enum import Enum
-from typing import Dict, List, Optional, Union
+from typing import Dict, Iterator, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig
-
-from nemo.collections.common.losses import CosineEmbeddingLossWrapper
 
 _DISTILLATION_TYPE = None
 _DISTILLATION_LOSS_DICT = {}
@@ -78,7 +76,11 @@ class DistillationMixin(ABC):
             By default, this function returns KLDivergence loss (primary) and CosineEmbeddingLossWrapper (cosine).
             If None is returned, the distillation config must have an appropriate loss function defined.
         """
-        primary = torch.nn.KLDivLoss(log_target=True, reduction='batchmean')
+        # Lazy import to avoid circular dependency between imports
+        from nemo.collections.common.losses import CosineEmbeddingLossWrapper, ScaledKLDivLoss
+
+        temperature = self.distill_cfg.get('temperature', 1.0)
+        primary = ScaledKLDivLoss(temperature, log_target=True, reduction='batchmean')
         cosine = CosineEmbeddingLossWrapper()
         loss_dict = {'primary': primary, 'cosine': cosine}
         return loss_dict
@@ -369,3 +371,40 @@ class DistillationMixin(ABC):
                     flattented_registry.append(loss_item)
 
         return flattented_registry
+
+
+class ScaledDistillationLossMixin:
+    """
+    Mixin class used for Distillation losses, so as to manipulate the gradient of the loss function.
+    This mixin will reset the loss to 0 after it is done, so that no further gradient from the loss will be calculated
+    from subsequent .backward() - say from Pytorch Lightning call.
+
+    Refer `Distilling the Knowledge in a Neural Network` - Section 2.1 - https://arxiv.org/abs/1503.02531
+    which notes gradient scaling required for KLDivergence Loss by temperature ^ 2.
+    """
+
+    def scale_gradients(self, parameters: Iterator[torch.nn.Parameter], loss: torch.Tensor) -> torch.Tensor:
+        """
+        Compute the gradients, then scale them, while preserving the computation graph.
+
+        Args:
+            parameters: The parameters whose gradients need to be scaled
+            loss:
+
+        Returns:
+
+        """
+        loss.backward(retain_graph=True)
+
+        # Scale the gradients from this loss' backward pass
+        for p in parameters:
+            if p.requires_grad and p.grad is not None:
+                p.grad.data *= self.grad_scale
+
+        return loss
+
+    @property
+    def grad_scale(self):
+        raise NotImplementedError(
+            "The class that inherits ScaledDistillationLossMixin must override the propertyb`grad_scale`."
+        )

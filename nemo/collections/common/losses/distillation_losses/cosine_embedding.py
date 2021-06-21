@@ -43,6 +43,7 @@ class CosineEmbeddingLossWrapper(nn.CosineEmbeddingLoss, Serialization, Typing):
         x1 = x1.view(1, -1)
         x2 = x2.view(1, -1)
 
+        # Cache the value of _target
         if hasattr(self, '_target'):
             target = self._target
 

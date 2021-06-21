@@ -82,7 +82,7 @@ class CTCDistillationMixin(DistillationMixin):
         teacher_decoder_params = list(other_model.decoder.parameters())
         student_decoder_params = list(self.decoder.parameters())
 
-        if len(teacher_decoder_params) == len(student_decoder_params):
+        if len(teacher_decoder_params) == len(student_decoder_params) and 'cosine' in self.distill_cfg:
             # If number of weight matrices is same, attempt to perform decoder weight matrix distillation
             self._distillation_decoder_match = True
 
