@@ -184,7 +184,9 @@ class NLPDDPPlugin(DDPPlugin):
             return distributed_sampler_kwargs
 
         else:
-            logging.info(f'distributed_sampler_kwargs: {super(NLPDDPPlugin, self).distributed_sampler_kwargs}')
+            logging.info(
+                f'self.num_nodes: {self.num_nodes}, self.num_processes: {self.num_processes}, self.global_rank: {self.global_rank}, distributed_sampler_kwargs: {super(NLPDDPPlugin, self).distributed_sampler_kwargs}'
+            )
             return super(NLPDDPPlugin, self).distributed_sampler_kwargs
 
 
