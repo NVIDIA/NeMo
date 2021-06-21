@@ -627,7 +627,7 @@ class MTEncDecModel(EncDecNLPModel):
                 cache_data_per_node=cfg.get("cache_data_per_node", False),
                 use_cache=cfg.get("use_cache", False),
                 reverse_lang_direction=cfg.get("reverse_lang_direction", False),
-                prepend_id=self.multilingual_ids[idx] if self.multilingual else None,
+                prepend_id=self.multilingual_ids[prepend_idx] if self.multilingual else None,
             )
             dataset.batchify(self.encoder_tokenizer, self.decoder_tokenizer)
 

@@ -159,9 +159,8 @@ def main():
                 max_delta_length=args.max_delta_length,
             )
 
-    count = 0
     with open(args.srctext, 'r') as src_f:
-        for line in src_f:
+        for sent_idx, line in enumerate(src_f):
             src_text.append(line.strip())
             if len(src_text) == args.batch_size:
                 if len(models) > 1:
@@ -183,9 +182,7 @@ def main():
                 all_scores += scores
                 src_texts += [item for item in src_text for i in range(args.beam_size)]
                 src_text = []
-            count += 1
-            # if count % 300 == 0:
-            #    print(f"Translated {count} sentences")
+            print(f'Translated {sent_idx} sentences')
         if len(src_text) > 0:
             if len(models) > 1:
                 src_ids, src_mask = input_preprocess(src_text, models[0])
