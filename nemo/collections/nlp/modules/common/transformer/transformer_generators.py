@@ -23,7 +23,7 @@ __all__ = [
     "TopKSequenceGenerator",
     "BeamSearchSequenceGenerator",
     "BeamSearchSequenceGeneratorWithLanguageModel",
-    "EnsembleBeamSearchSequenceGenerator"
+    "EnsembleBeamSearchSequenceGenerator",
 ]
 
 
@@ -138,7 +138,9 @@ class GreedySequenceGenerator:
 
         return tgt, batch_size, max_generation_length
 
-    def _forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None, return_beam_scores=False):
+    def _forward(
+        self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None, return_beam_scores=False
+    ):
         assert not return_beam_scores
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
 
@@ -165,9 +167,13 @@ class GreedySequenceGenerator:
 
         return tgt
 
-    def __call__(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None, return_beam_scores=False):
+    def __call__(
+        self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None, return_beam_scores=False
+    ):
         with self.as_frozen():
-            return self._forward(decoder_input_ids, encoder_hidden_states, encoder_input_mask, return_beam_scores=return_beam_scores)
+            return self._forward(
+                decoder_input_ids, encoder_hidden_states, encoder_input_mask, return_beam_scores=return_beam_scores
+            )
 
     def freeze(self) -> None:
         """Freeze weights of embedding, decoder, and classification layers to prevent memory leak.
@@ -281,7 +287,9 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         """Returns length penalty according to https://arxiv.org/pdf/1609.08144.pdf"""
         return ((5 + lengths) / 6).pow(alpha)
 
-    def _forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None, return_beam_scores=False):
+    def _forward(
+        self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None, return_beam_scores=False
+    ):
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
 
         # generate initial buffer of beam_size prefixes-hypotheses
@@ -374,7 +382,9 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
             return prefixes, scores
         else:
             best_guesses = (
-                torch.argmax(scores.view(-1, self.beam_size), dim=1, keepdim=True).repeat(1, prefixes.size(1)).unsqueeze(1)
+                torch.argmax(scores.view(-1, self.beam_size), dim=1, keepdim=True)
+                .repeat(1, prefixes.size(1))
+                .unsqueeze(1)
             )
             tgt = prefixes.view(batch_size, self.beam_size, -1).gather(1, best_guesses)
 
@@ -397,7 +407,7 @@ class EnsembleBeamSearchSequenceGenerator:
         max_delta_length=20,
         batch_size=1,
         language_model=None,
-        fusion_coef=None
+        fusion_coef=None,
     ):
         """
         Ensemble Beam Search sequence generator based on the decoder followed by
@@ -437,13 +447,8 @@ class EnsembleBeamSearchSequenceGenerator:
     def compute_len_penalty(lengths, alpha):
         """Returns length penalty according to https://arxiv.org/pdf/1609.08144.pdf"""
         return ((5 + lengths) / 6).pow(alpha)
-    
-    def _one_step_forward_lm(
-        self,
-        decoder_input_ids=None,
-        lm_mems_list=None,
-        pos=0
-    ):
+
+    def _one_step_forward_lm(self, decoder_input_ids=None, lm_mems_list=None, pos=0):
         input_mask = mask_padded_tokens(decoder_input_ids, self.pad).float()
         lm_hidden_states = self.language_model.encoder.embedding.forward(decoder_input_ids, start_pos=pos)
         lm_mems_list = self.language_model.encoder.encoder.forward(
@@ -644,7 +649,9 @@ class EnsembleBeamSearchSequenceGenerator:
                         .view(-1, p_len - 1, hidden_size)
                     )
             if self.language_model is not None:
-                lm_mems_ids = indices_i.unsqueeze(2).unsqueeze(3).repeat(1, 1, p_len - 1, lm_hidden_size) // self.beam_size
+                lm_mems_ids = (
+                    indices_i.unsqueeze(2).unsqueeze(3).repeat(1, 1, p_len - 1, lm_hidden_size) // self.beam_size
+                )
                 for j in range(len(lm_mems_list)):
                     lm_mems_list[j] = (
                         lm_mems_list[j]
@@ -669,7 +676,9 @@ class EnsembleBeamSearchSequenceGenerator:
             return prefixes, scores
         else:
             best_guesses = (
-                torch.argmax(scores.view(-1, self.beam_size), dim=1, keepdim=True).repeat(1, prefixes.size(1)).unsqueeze(1)
+                torch.argmax(scores.view(-1, self.beam_size), dim=1, keepdim=True)
+                .repeat(1, prefixes.size(1))
+                .unsqueeze(1)
             )
             tgt = prefixes.view(batch_size, self.beam_size, -1).gather(1, best_guesses)
             return tgt.squeeze(1)
@@ -778,7 +787,9 @@ class BeamSearchSequenceGeneratorWithLanguageModel(GreedySequenceGenerator):
         """Returns length penalty according to https://arxiv.org/pdf/1609.08144.pdf"""
         return ((5 + lengths) / 6).pow(alpha)
 
-    def _forward(self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None, return_beam_scores=False):
+    def _forward(
+        self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None, return_beam_scores=False
+    ):
 
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
 
@@ -885,7 +896,9 @@ class BeamSearchSequenceGeneratorWithLanguageModel(GreedySequenceGenerator):
             return prefixes, scores
         else:
             best_guesses = (
-                torch.argmax(scores.view(-1, self.beam_size), dim=1, keepdim=True).repeat(1, prefixes.size(1)).unsqueeze(1)
+                torch.argmax(scores.view(-1, self.beam_size), dim=1, keepdim=True)
+                .repeat(1, prefixes.size(1))
+                .unsqueeze(1)
             )
             tgt = prefixes.view(batch_size, self.beam_size, -1).gather(1, best_guesses)
 

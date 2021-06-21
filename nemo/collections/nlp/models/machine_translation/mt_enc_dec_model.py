@@ -35,7 +35,7 @@ from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.tokenizers.chinese_tokenizers import ChineseProcessor
 from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaProcessor
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
-from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset, ConcatTranslationDataset
+from nemo.collections.nlp.data import ConcatTranslationDataset, TarredTranslationDataset, TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.modules.common import TokenClassifier
@@ -87,7 +87,7 @@ class MTEncDecModel(EncDecNLPModel):
             if cfg.decoder_tokenizer.get('bpe_dropout', 0.0) is not None
             else 0.0,
             decoder_model_name=cfg.decoder.get('model_name') if hasattr(cfg.decoder, 'model_name') else None,
-            decoder_r2l=cfg.decoder_tokenizer.get('r2l', False)
+            decoder_r2l=cfg.decoder_tokenizer.get('r2l', False),
         )
 
         if self.multilingual:
@@ -386,7 +386,7 @@ class MTEncDecModel(EncDecNLPModel):
         decoder_tokenizer_model=None,
         decoder_bpe_dropout=0.0,
         decoder_model_name=None,
-        decoder_r2l=False
+        decoder_r2l=False,
     ):
 
         supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece', 'megatron']
@@ -404,7 +404,7 @@ class MTEncDecModel(EncDecNLPModel):
             vocab_file=None,
             special_tokens=None,
             use_fast=False,
-            r2l=encoder_r2l
+            r2l=encoder_r2l,
         )
         self.decoder_tokenizer = get_nmt_tokenizer(
             library=decoder_tokenizer_library,
@@ -414,7 +414,7 @@ class MTEncDecModel(EncDecNLPModel):
             vocab_file=None,
             special_tokens=None,
             use_fast=False,
-            r2l=decoder_r2l
+            r2l=decoder_r2l,
         )
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
@@ -469,9 +469,7 @@ class MTEncDecModel(EncDecNLPModel):
             if tar_files_list is not None and isinstance(tar_files_list, str):
                 tar_files_list = [tar_files_list]
             if tar_files_list is not None and len(tar_files_list) != len(metadata_file_list):
-                raise ValueError(
-                    'The config must have the same number of tarfile paths and metadata file paths.'
-                )
+                raise ValueError('The config must have the same number of tarfile paths and metadata file paths.')
 
             datasets = []
             for idx, metadata_file in enumerate(metadata_file_list):
@@ -669,9 +667,7 @@ class MTEncDecModel(EncDecNLPModel):
         return self.source_processor, self.target_processor
 
     @torch.no_grad()
-    def batch_translate(
-        self, src: torch.LongTensor, src_mask: torch.LongTensor, return_beam_scores: bool = False
-    ):
+    def batch_translate(self, src: torch.LongTensor, src_mask: torch.LongTensor, return_beam_scores: bool = False):
         """	
         Translates a minibatch of inputs from source language to target language.	
         Args:	
@@ -685,7 +681,9 @@ class MTEncDecModel(EncDecNLPModel):
         try:
             self.eval()
             src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
-            beam_ids = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask, return_beam_scores=return_beam_scores)
+            beam_ids = self.beam_search(
+                encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask, return_beam_scores=return_beam_scores
+            )
             if return_beam_scores:
                 beam_ids, scores = beam_ids
                 scores = scores.view(-1)
@@ -709,7 +707,9 @@ class MTEncDecModel(EncDecNLPModel):
 
     # TODO: We should drop source/target_lang arguments in favor of using self.src/tgt_language
     @torch.no_grad()
-    def translate(self, text: List[str], source_lang: str = None, target_lang: str = None, return_beam_scores: bool = False) -> List[str]:
+    def translate(
+        self, text: List[str], source_lang: str = None, target_lang: str = None, return_beam_scores: bool = False
+    ) -> List[str]:
         """
         Translates list of sentences from source language to target language.
         Should be regular text, this method performs its own tokenization/de-tokenization

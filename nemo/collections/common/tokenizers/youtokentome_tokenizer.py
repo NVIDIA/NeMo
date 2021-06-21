@@ -32,13 +32,17 @@ class YouTokenToMeTokenizer(TokenizerSpec):
         self.r2l = r2l
 
     def text_to_tokens(self, text):
-        return self.tokenizer.encode(text, output_type=yttm.OutputType.SUBWORD, dropout_prob=self.bpe_dropout, reverse=self.r2l)
+        return self.tokenizer.encode(
+            text, output_type=yttm.OutputType.SUBWORD, dropout_prob=self.bpe_dropout, reverse=self.r2l
+        )
 
     def tokens_to_text(self, tokens):
         return self.ids_to_text(self.tokens_to_ids(tokens))
 
     def text_to_ids(self, text):
-        return self.tokenizer.encode(text, output_type=yttm.OutputType.ID, dropout_prob=self.bpe_dropout, reverse=self.r2l)
+        return self.tokenizer.encode(
+            text, output_type=yttm.OutputType.ID, dropout_prob=self.bpe_dropout, reverse=self.r2l
+        )
 
     def ids_to_text(self, ids):
         ids_ = [id_ for id_ in ids if id_ not in self.special_tokens]

@@ -24,8 +24,8 @@ USAGE Example:
 
 from argparse import ArgumentParser
 
-import torch
 import numpy as np
+import torch
 
 import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.modules.common.transformer import (
@@ -33,6 +33,7 @@ from nemo.collections.nlp.modules.common.transformer import (
     BeamSearchSequenceGeneratorWithLanguageModel,
 )
 from nemo.utils import logging
+
 
 def get_lm_and_nmt_score(src_texts, tgt_texts, models, lm_model, len_penalty):
     inputs = []
@@ -93,6 +94,7 @@ def get_lm_and_nmt_score(src_texts, tgt_texts, models, lm_model, len_penalty):
         lm_ll = None
     return nmt_ll, lm_ll, src_lengths, tgt_lengths
 
+
 def main():
     parser = ArgumentParser()
     parser.add_argument("--model", type=str, required=True, help="")
@@ -119,7 +121,7 @@ def main():
             model.eval_loss_fn.reduction = 'none'
         if args.source_lang or args.target_lang:
             for model in models:
-                model.setup_pre_and_post_processing_utils(args.target_lang, args.source_lang)    
+                model.setup_pre_and_post_processing_utils(args.target_lang, args.source_lang)
         src_text = []
         tgt_text = []
     else:
@@ -141,10 +143,12 @@ def main():
                 src_texts = [item[1] for item in src_text]
                 tgt_texts = [item[0] for item in src_text]
                 scores = [float(item[2]) for item in src_text]
-                rev_nmt_scores, lm_scores, src_lengths, tgt_lengths = get_lm_and_nmt_score(src_texts, tgt_texts, models, lm_model, args.len_pen)
+                rev_nmt_scores, lm_scores, src_lengths, tgt_lengths = get_lm_and_nmt_score(
+                    src_texts, tgt_texts, models, lm_model, args.len_pen
+                )
                 fused_scores = []
-                #mean_source_length = np.mean(src_lengths)
-                #stddev_source_length = np.std(src_lengths)
+                # mean_source_length = np.mean(src_lengths)
+                # stddev_source_length = np.std(src_lengths)
                 lm_scores = [None] * len(rev_nmt_scores) if lm_scores is None else lm_scores
                 for s, r, l, sl, tl in zip(scores, rev_nmt_scores, lm_scores, src_lengths, tgt_lengths):
                     # len_pen = ((5 + sl) / 6) ** 0.6
@@ -160,7 +164,9 @@ def main():
             src_texts = [item[1] for item in src_text]
             tgt_texts = [item[0] for item in src_text]
             scores = [float(item[2]) for item in src_text]
-            rev_nmt_scores, lm_scores, src_lengths, tgt_lengths = get_lm_and_nmt_score(src_texts, tgt_texts, model, lm_model, args.len_pen)
+            rev_nmt_scores, lm_scores, src_lengths, tgt_lengths = get_lm_and_nmt_score(
+                src_texts, tgt_texts, model, lm_model, args.len_pen
+            )
             fused_scores = []
             for s, r, l, sl, tl in zip(scores, rev_nmt_scores, lm_scores, src_lengths, tgt_lengths):
                 score = s + args.noisy_channel_coef * (r + l)

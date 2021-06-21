@@ -109,7 +109,7 @@ def get_nmt_tokenizer(
     special_tokens: Optional[Dict[str, str]] = None,
     use_fast: Optional[bool] = False,
     bpe_dropout: Optional[float] = 0.0,
-    r2l: Optional[bool] = False
+    r2l: Optional[bool] = False,
 ):
     """
     Args:

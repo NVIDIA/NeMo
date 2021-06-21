@@ -298,7 +298,7 @@ class MTDataPreproc:
         decoder_tokenizer_model=None,
         decoder_bpe_dropout=0.0,
         decoder_model_name=None,
-        decoder_r2l=False
+        decoder_r2l=False,
     ):
 
         # if encoder_tokenizer_name != 'yttm' or decoder_tokenizer_name != 'yttm':
@@ -315,14 +315,14 @@ class MTDataPreproc:
             model_name=encoder_model_name,
             tokenizer_model=encoder_tokenizer_model,
             bpe_dropout=encoder_bpe_dropout,
-            r2l=encoder_r2l
+            r2l=encoder_r2l,
         )
         decoder_tokenizer = get_nmt_tokenizer(
             library=decoder_tokenizer_name,
             model_name=decoder_model_name,
             tokenizer_model=decoder_tokenizer_model,
             bpe_dropout=decoder_bpe_dropout,
-            r2l=decoder_r2l
+            r2l=decoder_r2l,
         )
 
         return encoder_tokenizer, decoder_tokenizer
@@ -434,7 +434,7 @@ class MTDataPreproc:
                         decoder_model_name=decoder_model_name,
                         fragment_index=fragment_index,
                         encoder_tokenizer_r2l=encoder_tokenizer_r2l,
-                        decoder_tokenizer_r2l=decoder_tokenizer_r2l
+                        decoder_tokenizer_r2l=decoder_tokenizer_r2l,
                     )
                     for fragment_index, lines_indices in enumerate(lines_partition)
                 )
@@ -944,7 +944,7 @@ class MTDataPreproc:
             decoder_tokenizer_model=decoder_tokenizer_model,
             decoder_bpe_dropout=decoder_bpe_dropout,
             decoder_model_name=decoder_model_name,
-            decoder_r2l=decoder_tokenizer_r2l
+            decoder_r2l=decoder_tokenizer_r2l,
         )
         dataset.batchify(encoder_tokenizer, decoder_tokenizer)
 
