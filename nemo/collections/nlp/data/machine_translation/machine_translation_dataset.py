@@ -23,6 +23,7 @@ from typing import Any, List, Optional
 
 import braceexpand
 import numpy as np
+from tqdm.auto import tqdm
 import webdataset as wd
 from torch.utils.data import IterableDataset
 
@@ -348,30 +349,29 @@ class RetrievalTranslationDataset(TranslationDataset):
             cache_data_per_node=self.cache_data_per_node,
             use_cache=self.use_cache,
         )
+        src_ids_extended = []
+        for i in tqdm(range(len(src_ids)), desc='Adding retrieved sentences to src'):
+            to_add = []
+            to_add.extend(src_ids[i])
+            for nn_id in self.nn_list[i].tolist():
+                if nn_id != i:
+                    # avoid adding the same sentence
+                    to_add.extend(src_ids[nn_id])
+                    to_add.extend(tgt_ids[nn_id])
+            src_ids_extended.append(to_add)
+        src_ids = src_ids_extended
+
         if self.clean:
             src_ids, tgt_ids = self.clean_src_and_target(
                 src_ids,
                 tgt_ids,
                 max_tokens=self.max_seq_length,
                 min_tokens=self.min_seq_length,
-                max_tokens_diff=self.max_seq_length_diff,
-                max_tokens_ratio=self.max_seq_length_ratio,
+                # max_tokens_diff=self.max_seq_length_diff,
+                # max_tokens_ratio=self.max_seq_length_ratio,
             )
         self.src_pad_id = tokenizer_src.pad_id
         self.tgt_pad_id = tokenizer_tgt.pad_id
-
-        src_ids_extend = []
-        for i in range(len(src_ids)):
-            to_add = []
-            for nn_id in self.nn_list[i].tolist():
-                to_add.append(self.src_pad_id)
-                to_add.extend(src_ids[nn_id])
-                to_add.append(self.src_pad_id)
-                to_add.extend(tgt_ids[nn_id])
-            src_ids_extend.append(to_add)
-        
-        for i in range(len(src_ids)):
-            src_ids[i].extend(src_ids_extend[i])
 
         self.batch_indices = self.pack_data_into_batches(src_ids, tgt_ids)
         self.batches = self.pad_batches(src_ids, tgt_ids, self.batch_indices)
