@@ -30,7 +30,7 @@ else
 fi
 
 echo 'Installing additional nemo_text_processing conda dependency'
-# bash nemo_text_processing/setup.sh
+bash nemo_text_processing/setup.sh
 
 if [ -x "$(command -v conda)" ]; then
   echo 'Attempting update to numba installation via conda'
