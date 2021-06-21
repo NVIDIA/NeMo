@@ -14,14 +14,24 @@
 
 #!/bin/bash
 
+MODE=${1:-"export"}
 SCRIPT_DIR=$(cd $(dirname $0); pwd)
 : ${CLASSIFY_DIR:="$SCRIPT_DIR/../classify"}
 : ${VERBALIZE_DIR:="$SCRIPT_DIR/../verbalize"}
-: ${CMD:=${1:-"/bin/bash"}}
+: ${CMD:=${2:-"/bin/bash"}}
 
 MOUNTS=""
 MOUNTS+=" -v $CLASSIFY_DIR:/workspace/sparrowhawk/documentation/grammars/en_toy/classify"
 MOUNTS+=" -v $VERBALIZE_DIR:/workspace/sparrowhawk/documentation/grammars/en_toy/verbalize"
+
+WORK_DIR="/workspace/sparrowhawk/documentation/grammars"
+if [[ $MODE == "test_tn_grammars" ]]; then
+  CMD="bash test_sparrowhawk_normalization.sh"
+  WORK_DIR="/workspace/tests"
+elif [[ $MODE == "test_itn_grammars" ]]; then
+  CMD="bash test_sparrowhawk_inverse_text_normalization.sh"
+  WORK_DIR="/workspace/tests"
+fi
 
 echo $MOUNTS
 docker run -it --rm \
@@ -29,5 +39,6 @@ docker run -it --rm \
   --ulimit memlock=-1 \
   --ulimit stack=67108864 \
   $MOUNTS \
-  -w /workspace/sparrowhawk/documentation/grammars \
+  -v $SCRIPT_DIR/../../../tests/nemo_text_processing/:/workspace/tests \
+  -w $WORK_DIR \
   sparrowhawk:latest $CMD

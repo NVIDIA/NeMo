@@ -83,10 +83,10 @@ Documentation
   :scale: 100%
   :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/
 
-.. |v1.0.1| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=v1.0.1
+.. |v1.0.2| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=v1.0.2
   :alt: Documentation Status
   :scale: 100%
-  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.1/
+  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.2/
 
 .. |stable| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=stable
   :alt: Documentation Status
@@ -98,14 +98,14 @@ Documentation
 +=========+=============+==================================================================================================================================+
 | Latest  | |main|      | `Documentation of the latest (i.e. main) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/>`_          |
 +---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
-| Next    | |v1.0.1|    | `Documentation of the most recent release: v1.0.1 <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.1/>`_       |
+| Next    | |v1.0.2|    | `Documentation of the most recent release: v1.0.2 <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.2/>`_       |
 +---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
 | Stable  | |stable|    | `Documentation of the stable (i.e. stable) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/>`_      |
 +---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
 
 Tutorials
 ---------
-A great way to start with NeMo is by checking `one of our tutorials <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.1/starthere/tutorials.html>`_.
+A great way to start with NeMo is by checking `one of our tutorials <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.2/starthere/tutorials.html>`_.
 
 Getting help with NeMo
 ----------------------
@@ -150,13 +150,13 @@ Use this installation mode if you are contributing to NeMo.
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
 
-If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 21.03-py3 and then installing from GitHub.
+If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 21.05-py3 and then installing from GitHub.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:21.03-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:21.05-py3
 
 Examples
 --------

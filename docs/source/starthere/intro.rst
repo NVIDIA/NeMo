@@ -116,8 +116,8 @@ Use this installation mode if you want the version from a particular GitHub bran
     apt-get update && apt-get install -y libsndfile1 ffmpeg
     pip install Cython
     python -m pip install git+https://github.com/NVIDIA/NeMo.git@{BRANCH}#egg=nemo_toolkit[all]
-    # For v1.0.1, replace {BRANCH} with v1.0.1 like so:
-    # python -m pip install git+https://github.com/NVIDIA/NeMo.git@v1.0.1#egg=nemo_toolkit[all]
+    # For v1.0.2, replace {BRANCH} with v1.0.2 like so:
+    # python -m pip install git+https://github.com/NVIDIA/NeMo.git@v1.0.2#egg=nemo_toolkit[all]
 
 From source
 ~~~~~~~~~~~
@@ -132,13 +132,13 @@ Use this installation mode if you are contributing to NeMo.
 
 Docker containers
 ~~~~~~~~~~~~~~~~~
-If you chose to work with the ``main`` branch, we recommend using `NVIDIA's PyTorch container version 21.03-py3 <https://ngc.nvidia.com/containers/nvidia:pytorch/tags>`_, then install from GitHub.
+If you chose to work with the ``main`` branch, we recommend using `NVIDIA's PyTorch container version 21.05-py3 <https://ngc.nvidia.com/containers/nvidia:pytorch/tags>`_, then install from GitHub.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:21.03-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:21.05-py3
 
 
 FAQ
