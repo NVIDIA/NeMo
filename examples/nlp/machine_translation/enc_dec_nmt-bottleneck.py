@@ -62,7 +62,7 @@ Usage:
       att_bridge_size=512 \
       att_bridge_k=16 \
       att_bridge_inner_size=1024 \
-      non_recon_warmup_batches=200000 \
+      non_recon_warmup_batches=75000 \
       model.encoder_tokenizer.tokenizer_model=tokenizer.BPE.8192.model  \
       model.decoder_tokenizer.tokenizer_model=tokenizer.BPE.8192.model  \
       model.encoder.num_layers=6 \
@@ -100,7 +100,7 @@ class MTBottleneckConfig(NemoConfig):
     name: Optional[str] = 'MTBottleneck'
     do_training: bool = True
     do_testing: bool = False
-    model: MTEncDecModelConfig = MTBottleneckModelConfig()
+    model: MTBottleneckModelConfig = MTBottleneckModelConfig()
     trainer: Optional[TrainerConfig] = TrainerConfig()
     exp_manager: Optional[ExpManagerConfig] = ExpManagerConfig(name='MTBottleneck', files_to_copy=[])
 
