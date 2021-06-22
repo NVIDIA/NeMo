@@ -15,11 +15,11 @@
 from argparse import ArgumentParser
 from typing import List
 
-from nemo_text_processing.inverse_text_normalization.inverse_normalize import INVERSE_NORMALIZERS
+from nemo_text_processing.inverse_text_normalization.inverse_normalize import InverseNormalizer
 
 
 '''
-Runs denormalization prediction on text data
+Runs inverse text normalization on text data
 '''
 
 
@@ -35,8 +35,7 @@ def load_file(file_path: str) -> List[str]:
     res = []
     with open(file_path, 'r') as fp:
         for line in fp:
-            if line:
-                res.append(line.strip())
+            res.append(line)
     return res
 
 
@@ -59,19 +58,18 @@ def parse_args():
     parser.add_argument("--input", help="input file path", required=True, type=str)
     parser.add_argument("--output", help="output file path", required=True, type=str)
     parser.add_argument("--verbose", help="print denormalization info. For debugging", action='store_true')
-    parser.add_argument("--inverse_normalizer", default='nemo', type=str)
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
     file_path = args.input
-    inverse_normalizer = INVERSE_NORMALIZERS[args.inverse_normalizer]
+    inverse_normalizer = InverseNormalizer()
 
     print("Loading data: " + file_path)
     data = load_file(file_path)
 
     print("- Data: " + str(len(data)) + " sentences")
-    inverse_normalizer_prediction = inverse_normalizer(data, verbose=args.verbose)
+    inverse_normalizer_prediction = inverse_normalizer.inverse_normalize_list(data, verbose=args.verbose)
     write_file(args.output, inverse_normalizer_prediction)
-    print(f"- Normalized. Writing out to {args.output}")
+    print(f"- Denormalized. Writing out to {args.output}")

@@ -50,7 +50,19 @@ python speech_to_text_bpe.py \
     exp_manager.wandb_logger_kwargs.name="<Name of experiment>" \
     exp_manager.wandb_logger_kwargs.project="<Name of project>"
 ```
+
+# Fine-tune a model
+
+For documentation on fine-tuning this model, please visit -
+https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.html#fine-tuning-configurations
+
+# Pretrained Models
+
+For documentation on existing pretrained models, please visit -
+https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/results.html
+
 """
+
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
 
@@ -60,14 +72,16 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="experimental/configs/", config_name="config_bpe")
+@hydra_runner(config_path="conf/citrinet/", config_name="config_bpe")
 def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
-    print(OmegaConf.to_yaml(cfg))
+
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-
     asr_model = EncDecCTCModelBPE(cfg=cfg.model, trainer=trainer)
+
+    # Initialize the weights of the model from another model, if provided via config
+    asr_model.maybe_init_from_pretrained_checkpoint(cfg)
 
     trainer.fit(asr_model)
 

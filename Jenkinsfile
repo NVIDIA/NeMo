@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-      image 'nvcr.io/nvidia/pytorch:21.03-py3'
+      image 'nvcr.io/nvidia/pytorch:21.05-py3'
       args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
   }
@@ -66,7 +66,7 @@ pipeline {
 
     stage('L0: Unit Tests GPU') {
       steps {
-        sh 'pytest -m "not pleasefixme" --with_downloads'
+        sh 'pytest -m "not pleasefixme" --with_downloads --relax_numba_compat'
       }
     }
 
@@ -78,7 +78,7 @@ pipeline {
         }
       }
       steps {
-        sh 'CUDA_VISIBLE_DEVICES="" pytest -m "not pleasefixme" --cpu --with_downloads'
+        sh 'CUDA_VISIBLE_DEVICES="" pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
       }
     }
 
@@ -150,14 +150,47 @@ pipeline {
       }
       failFast true
       parallel {
-        stage('L2: pynini export') {
+        stage('L2: TN') {
           steps {
-            sh 'cd tools/inverse_text_normalization_deployment && python pynini_export.py /home/TestData/nlp/text_denorm/output/ && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
-            sh 'cd tools/inverse_text_normalization_deployment && cp *.grm /home/TestData/nlp/text_denorm/output/'
-            sh 'ls -R /home/TestData/nlp/text_denorm/output/'
+            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_norm/output/ --grammars=tn_grammars && ls -R /home/TestData/nlp/text_norm/output/ && echo ".far files created "|| exit 1'
+            sh 'cd nemo_text_processing/text_normalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_norm/ci/test.txt --input_case="lower_cased" --output=/home/TestData/nlp/text_norm/output/test.pynini.txt --verbose'
+            sh 'cmp --silent /home/TestData/nlp/text_norm/output/test.pynini.txt /home/TestData/nlp/text_norm/ci/test_goal_py.txt || exit 1'
+            sh 'rm -rf /home/TestData/nlp/text_norm/output/*'
+          }
+        }
+
+        stage('L2: ITN export') {
+          steps {
+            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_denorm/output/ --grammars=itn_grammars && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
             sh 'cd nemo_text_processing/inverse_text_normalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_denorm/ci/test.txt --output=/home/TestData/nlp/text_denorm/output/test.pynini.txt --verbose'
             sh 'cmp --silent /home/TestData/nlp/text_denorm/output/test.pynini.txt /home/TestData/nlp/text_denorm/ci/test_goal_py.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_denorm/output/*'
+          }
+        }
+        stage('L2: TN with Audio (audio and raw text)') {
+          steps {
+            sh 'cd nemo_text_processing/text_normalization && \
+            python normalize_with_audio.py --text "The total amounts to \\$4.76." \
+            --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt 2>&1 && \
+            cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
+            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt'
+          }
+        }
+        stage('L2: TN with Audio (audio and text file)') {
+          steps {
+            sh 'cd nemo_text_processing/text_normalization && \
+            python normalize_with_audio.py --text /home/TestData/nlp/text_norm/audio_based/text.txt \
+            --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_file.txt 2>&1 && \
+            cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_file.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
+            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_file.txt'
+          }
+        }
+        stage('L2: TN with Audio (manifest)') {
+          steps {
+            sh 'cd nemo_text_processing/text_normalization && \
+            python normalize_with_audio.py --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 && \
+            cmp --silent /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json /home/TestData/nlp/text_norm/audio_based/manifest_result.json || exit 1'
+            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json'
           }
         }
       }
@@ -183,33 +216,7 @@ pipeline {
             sh 'rm -rf examples/asr/speech_to_text_results'
           }
         }
-        //         stage('Speech to Text - DALI AudioToMelSpectrogramPreprocessor') {
-        //           steps {
-        //             sh 'python examples/asr/speech_to_text.py \
-        //             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-        //             +model.train_ds.use_dali=True \
-        //             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-        //             +model.validation_ds.use_dali=True \
-        //             trainer.gpus=[0] \
-        //             +trainer.fast_dev_run=True \
-        //             exp_manager.exp_dir=examples/asr/speech_to_text_results'
-        //             sh 'rm -rf examples/asr/speech_to_text_results'
-        //           }
-        //         }
-        //         stage('Speech to Text - DALI AudioToMFCCPreprocessor') {
-        //           steps {
-        //             sh 'python examples/asr/speech_to_text.py \
-        //             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-        //             +model.train_ds.use_dali=True \
-        //             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-        //             +model.validation_ds.use_dali=True \
-        //             model.preprocessor._target_=nemo.collections.asr.modules.AudioToMFCCPreprocessor \
-        //             trainer.gpus=[0] \
-        //             +trainer.fast_dev_run=True \
-        //             exp_manager.exp_dir=examples/asr/speech_to_text_results'
-        //             sh 'rm -rf examples/asr/speech_to_text_results'
-        //           }
-        //         }
+
         stage('Speech to Label') {
           steps {
             sh 'python examples/asr/speech_to_label.py \
@@ -248,6 +255,7 @@ pipeline {
         stage('Speaker Diarization Inference') {
           steps {
             sh 'python examples/speaker_recognition/speaker_diarize.py \
+            diarizer.oracle_num_speakers=2 \
             diarizer.paths2audio_files=/home/TestData/an4_diarizer/audio_files.scp \
             diarizer.path2groundtruth_rttm_files=/home/TestData/an4_diarizer/rttm_files.scp \
             diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
@@ -280,8 +288,8 @@ pipeline {
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
             model.tokenizer.type="wpe" \
-            model.train_ds.batch_size=10 \
-            model.validation_ds.batch_size=10 \
+            model.train_ds.batch_size=4 \
+            model.validation_ds.batch_size=4 \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_wpe_conformer_results'
@@ -291,44 +299,96 @@ pipeline {
       }
     }
 
+    stage('L2: ASR DALI dev run') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('Speech to Text - DALI AudioToMelSpectrogramPreprocessor') {
+          steps {
+            sh 'python examples/asr/speech_to_text.py \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            +model.train_ds.use_dali=True \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            +model.validation_ds.use_dali=True \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_results'
+            sh 'rm -rf examples/asr/speech_to_text_results'
+          }
+        }
+        // TODO: This would fail due to an unnecessary torchaudio import.
+        //       To be enabled once torchaudio is available in the container used for CI
+        // stage('Speech to Text - DALI AudioToMFCCPreprocessor') {
+        //   steps {
+        //     sh 'python examples/asr/speech_to_text.py \
+        //     model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+        //     +model.train_ds.use_dali=True \
+        //     model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+        //     +model.validation_ds.use_dali=True \
+        //     model.preprocessor._target_=nemo.collections.asr.modules.AudioToMFCCPreprocessor \
+        //     ~model.preprocessor.normalize \
+        //     ~model.preprocessor.features \
+        //     ~model.preprocessor.frame_splicing \
+        //     ~model.preprocessor.dither \
+        //     ~model.preprocessor.stft_conv \
+        //     +model.n_mels=64 \
+        //     +model.n_mfcc=64 \
+        //     trainer.gpus=[0] \
+        //     +trainer.fast_dev_run=True \
+        //     exp_manager.exp_dir=examples/asr/speech_to_text_results'
+        //     sh 'rm -rf examples/asr/speech_to_text_results'
+        //   }
+        // }
+      }
+    }
+
 //  TODO: UNCOMMENT TESTS AFTER 21.04 release (numba 0.53 min requirement)
-//     stage('L2: ASR RNNT dev run') {
-//       when {
-//         anyOf {
-//           branch 'main'
-//           changeRequest target: 'main'
-//         }
-//       }
-//       failFast true
-//       parallel {
-//         stage('Speech to Text - RNNT') {
-//           steps {
-//             sh 'python examples/asr/speech_to_text_rnnt.py \
-//             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-//             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-//             model.train_ds.batch_size=8 \
-//             trainer.gpus=[0] \
-//             +trainer.fast_dev_run=True \
-//             exp_manager.exp_dir=examples/asr/speech_to_text_rnnt_results'
-//             sh 'rm -rf examples/asr/speech_to_text_rnnt_results'
-//           }
-//         }
-//         stage('L2: Speech to Text RNNT WPE') {
-//           steps {
-//             sh 'python examples/asr/speech_to_text_rnnt_bpe.py \
-//             --config-path="experimental/contextnet_rnnt/" --config-name="config_rnnt_bpe.yaml" \
-//             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-//             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-//             model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
-//             model.tokenizer.type="wpe" \
-//             trainer.gpus=[0] \
-//             +trainer.fast_dev_run=True \
-//             exp_manager.exp_dir=examples/asr/speech_to_text_rnnt_wpe_results'
-//             sh 'rm -rf examples/asr/speech_to_text_rnnt_wpe_results'
-//           }
-//         }
-//       }
-//     }
+    stage('L2: ASR RNNT dev run') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('Speech to Text - RNNT') {
+          steps {
+            sh 'STRICT_NUMBA_COMPAT_CHECK=false python examples/asr/speech_to_text_rnnt.py \
+            --config-path="experimental/contextnet_rnnt/" --config-name="config_rnnt.yaml" \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            model.train_ds.batch_size=2 \
+            model.validation_ds.batch_size=2 \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_rnnt_results'
+            sh 'rm -rf examples/asr/speech_to_text_rnnt_results'
+          }
+        }
+        stage('L2: Speech to Text RNNT WPE') {
+          steps {
+            sh 'STRICT_NUMBA_COMPAT_CHECK=false python examples/asr/speech_to_text_rnnt_bpe.py \
+            --config-path="experimental/contextnet_rnnt/" --config-name="config_rnnt_bpe.yaml" \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            model.train_ds.batch_size=2 \
+            model.validation_ds.batch_size=2 \
+            model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
+            model.tokenizer.type="wpe" \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_rnnt_wpe_results'
+            sh 'rm -rf examples/asr/speech_to_text_rnnt_wpe_results'
+          }
+        }
+      }
+    }
 
     stage('L2: ASR Multi-dataloader dev run') {
       when {
@@ -390,9 +450,10 @@ pipeline {
             sh 'python examples/asr/transcribe_speech.py \
             pretrained_name="QuartzNet15x5Base-En" \
             audio_dir="/home/TestData/an4_transcribe/test_subset/" \
+            output_filename="stt_test_res.json" \
             cuda=true \
             amp=true'
-            sh 'rm -rf examples/asr/speech_to_text_transcriptions.txt'
+            sh 'rm -rf stt_test_res.json'
           }
         }
       }
@@ -594,8 +655,8 @@ pipeline {
     stage('L2: MegaBERT Token Classification') {
       when {
         anyOf {
-          branch 'v1.0.0b2'
-          changeRequest target: 'v1.0.0b2'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
@@ -759,7 +820,7 @@ pipeline {
         model.nemo_path=null \
         ~model.infer_samples \
         +exp_manager.explicit_log_dir=/home/TestData/nlp/mp_autoresume \
-        +exp_manager.resume_if_exists=true' 
+        +exp_manager.resume_if_exists=true'
       }
     }
 
@@ -877,8 +938,11 @@ pipeline {
             model.dataset.use_cache=false \
             trainer.gpus=[0,1] \
             trainer.accelerator=ddp \
-            +trainer.fast_dev_run=true \
-            exp_manager=null'
+            trainer.max_epochs=1 \
+            +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output && \
+            python punctuation_capitalization_evaluate.py \
+            pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo && \
+            rm -rf /home/TestData/nlp/token_classification_punctuation/output/*'
           }
         }
       }
@@ -996,7 +1060,33 @@ pipeline {
       }
     }
 
-    stage('L2: NMT Attention is All You Need') {
+    stage('L2: Entity Linking') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage ('Self Alignment Pretraining BERT') {
+           steps {
+             sh 'cd examples/nlp/entity_linking && \
+             python self_alignment_pretraining.py \
+             project_dir=. \
+             trainer.val_check_interval=3 \
+             model.raw_data=None \
+             model.train_ds.data_file=/home/TestData/nlp/entity_linking/tiny_example_train_pairs.tsv \
+             model.validation_ds.data_file=/home/TestData/nlp/entity_linking/tiny_example_validation_pairs.tsv \
+             model.train_ds.batch_size=8 \
+             model.validation_ds.batch_size=8 \
+             exp_manager.exp_dir=null'
+          }
+        }
+      }
+    }
+
+    stage('L2: NMT Attention is All You Need Training') {
       when {
         anyOf {
           branch 'main'
@@ -1011,6 +1101,7 @@ pipeline {
               python enc_dec_nmt.py \
               --config-path=conf \
               --config-name=aayn_base \
+              do_testing=true \
               model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
               model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
@@ -1021,6 +1112,7 @@ pipeline {
               model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
               trainer.gpus=[0] \
               +trainer.fast_dev_run=true \
+              +trainer.limit_test_batches=2 \
               exp_manager=null \
               '
             }
@@ -1032,6 +1124,7 @@ pipeline {
               python enc_dec_nmt.py \
               --config-path=conf \
               --config-name=aayn_base \
+              do_testing=true \
               model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
               model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
@@ -1044,12 +1137,45 @@ pipeline {
               model.decoder.pre_ln=true \
               trainer.gpus=[1] \
               +trainer.fast_dev_run=true \
+              +trainer.limit_test_batches=2 \
               exp_manager=null \
               '
             }
         }
-
-        stage('L2: NMT Inference') {
+        stage('L2: NMT Multi-Validation') {
+            steps {
+              sh 'cd examples/nlp/machine_translation && \
+              python enc_dec_nmt.py \
+              --config-path=conf \
+              --config-name=aayn_base \
+              do_testing=true \
+              model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src \
+              model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref \
+              model.validation_ds.src_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.src,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src] \
+              model.validation_ds.tgt_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.ref,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref] \
+              model.test_ds.src_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.src,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src] \
+              model.test_ds.tgt_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.ref,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref] \
+              model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              trainer.gpus=[0] \
+              +trainer.fast_dev_run=true \
+              +trainer.limit_test_batches=2 \
+              exp_manager=null \
+              '
+            }
+        }
+      }
+    }
+    stage('L2: NMT Attention is All You Need Inference') {
+      when {
+        anyOf {
+          branch 'v1.0.0'
+          changeRequest target: 'v1.0.0'
+        }
+      }
+      failFast true
+      parallel {
+        stage('L2: NMT Inference - PostLN') {
             steps {
               sh 'cd examples/nlp/machine_translation && \
               python nmt_transformer_infer.py \
@@ -1061,9 +1187,20 @@ pipeline {
               '
             }
         }
+        stage('L2: NMT Inference - Pre-LN') {
+            steps {
+              sh 'cd examples/nlp/machine_translation && \
+              python nmt_transformer_infer.py \
+              --model=/home/TestData/nlp/nmt/toy_data/en_de_24x6_preln.nemo \
+              --srctext=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.test.src \
+              --tgtout=/home/TestData/nlp/nmt/toy_data/out.txt \
+              --target_lang de \
+              --source_lang en \
+              '
+            }
+        }
       }
     }
-
     stage('L2: NMT with HuggingFace') {
       when {
         anyOf {
@@ -1128,6 +1265,39 @@ pipeline {
       }
     }
 
+    stage('L2: NMT Megatron Model Parallel Size 2 Encoder') {
+      when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps{
+        sh 'cd examples/nlp/machine_translation && \
+        python enc_dec_nmt.py \
+        --config-path=conf \
+        --config-name=megatron \
+        model.encoder.model_name=megatron-bert-uncased \
+        model.encoder.checkpoint_file=/home/TestData/nlp/mp_2_bert_toy/iter_2000000 \
+        model.encoder.hidden_size=1024 \
+        model.encoder.num_attention_heads=16 \
+        model.encoder.num_layers=24 \
+        model.encoder.max_position_embeddings=512 \
+        model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+        model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+        trainer.gpus=[0,1] \
+        +trainer.fast_dev_run=true \
+        exp_manager=null \
+        '
+      }
+    }
+
     stage('L2: NMT Tarred Dataset Creation') {
       when {
         anyOf {
@@ -1169,7 +1339,7 @@ pipeline {
               python create_tarred_parallel_dataset.py \
               --src_fname /home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               --tgt_fname /home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
-              --out_dir $PWD/preproc_out_dir \
+              --out_dir $PWD/out_dir \
               --encoder_tokenizer_vocab_size=2000 \
               --decoder_tokenizer_vocab_size=2000 \
               --tokens_in_batch=1000 \
@@ -1299,17 +1469,8 @@ pipeline {
         }
       }
       failFast true
-      parallel {
-        stage('QuartzNet15x5Base-En') {
-          steps {
-            sh 'CUDA_VISIBLE_DEVICES=0 python examples/asr/speech_to_text_infer.py --asr_model QuartzNet15x5Base-En --dataset /home/TestData/librispeech/librivox-dev-other.json --wer_tolerance 0.1012 --batch_size 64'
-          }
-        }
-        stage('Tacotron2_WaveGlow_Jasper') {
-          steps {
-            sh 'CUDA_VISIBLE_DEVICES=1 python examples/tts/test_tts_infer.py --wer_tolerance 0.25 --debug --trim'
-          }
-        }
+      steps {
+        sh 'CUDA_VISIBLE_DEVICES=0 python examples/asr/speech_to_text_infer.py --asr_model QuartzNet15x5Base-En --dataset /home/TestData/librispeech/librivox-dev-other.json --wer_tolerance 0.1012 --batch_size 64'
       }
     }
   }

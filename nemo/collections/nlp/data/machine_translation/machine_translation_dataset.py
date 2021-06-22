@@ -19,7 +19,7 @@ import json
 import pickle
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, List, Optional
 
 import braceexpand
 import numpy as np
@@ -35,17 +35,18 @@ __all__ = ['TranslationDataset', 'TarredTranslationDataset']
 
 @dataclass
 class TranslationDataConfig:
-    src_file_name: Optional[str] = None
-    tgt_file_name: Optional[str] = None
+    src_file_name: Optional[Any] = None  # Any = str or List[str]
+    tgt_file_name: Optional[Any] = None  # Any = str or List[str]
     use_tarred_dataset: bool = False
-    tar_files: Optional[str] = None
-    metadata_file: Optional[str] = None
+    tar_files: Optional[Any] = None  # Any = str or List[str]
+    metadata_file: Optional[Any] = None  # Any = str or List[str]
     lines_per_dataset_fragment: Optional[int] = 1000000
     num_batches_per_tarfile: Optional[int] = 1000
     shard_strategy: Optional[str] = 'scatter'
     tokens_in_batch: int = 512
     clean: bool = False
     max_seq_length: int = 512
+    min_seq_length: int = 1
     cache_ids: bool = False
     cache_data_per_node: bool = False
     use_cache: bool = False
@@ -54,13 +55,15 @@ class TranslationDataConfig:
     drop_last: bool = False
     pin_memory: bool = False
     num_workers: int = 8
-    load_from_cached_dataset: bool = False
     reverse_lang_direction: bool = False
     load_from_tarred_dataset: bool = False
     metadata_path: Optional[str] = None
     tar_shuffle_n: int = 100
     n_preproc_jobs: int = -2
     tar_file_prefix: str = 'parallel'
+    concat_sampling_technique: Optional[str] = 'temperature'
+    concat_sampling_temperature: Optional[int] = 5
+    concat_sampling_probabilities: Optional[List[float]] = None
 
 
 class TranslationDataset(Dataset):
@@ -78,6 +81,7 @@ class TranslationDataset(Dataset):
         cache_data_per_node: bool = False,
         use_cache: bool = False,
         reverse_lang_direction: bool = False,
+        prepend_id: int = None,
     ):
         self.dataset_src = dataset_src
         self.dataset_tgt = dataset_tgt
@@ -91,6 +95,7 @@ class TranslationDataset(Dataset):
         self.max_seq_length_diff = max_seq_length_diff
         self.max_seq_length_ratio = max_seq_length_ratio
         self.reverse_lang_direction = reverse_lang_direction
+        self.prepend_id = prepend_id
 
         # deprecation warnings for cache_ids, use_cache, and cache_data_per_node
         if self.cache_ids is True or self.use_cache is True or self.cache_data_per_node is True:
@@ -138,6 +143,8 @@ class TranslationDataset(Dataset):
             src_ids, tgt = tgt, src_ids
         labels = tgt[:, 1:]
         tgt_ids = tgt[:, :-1]
+        if self.prepend_id:
+            src_ids = np.insert(src_ids, 0, self.prepend_id, axis=-1)
         src_mask = (src_ids != self.src_pad_id).astype(np.int32)
         tgt_mask = (tgt_ids != self.tgt_pad_id).astype(np.int32)
         return src_ids, src_mask, tgt_ids, tgt_mask, labels
@@ -324,8 +331,9 @@ class TarredTranslationDataset(IterableDataset):
                 data points! As such, there is no assured guarantee that all samples in the dataset will be
                 sampled at least once during 1 epoch.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
-        world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
+        world_size (int): Total number of processes, used for partitioning shards. Defaults to 1.
         reverse_lang_direction (bool): When True, swaps the source and target directions when returning minibatches.
+        prepend_id (int): Prepends the specificed token id to the start of every source sentence. Defaults to None.
     """
 
     def __init__(
@@ -337,8 +345,9 @@ class TarredTranslationDataset(IterableDataset):
         shuffle_n: int = 1,
         shard_strategy: str = "scatter",
         global_rank: int = 0,
-        world_size: int = 0,
+        world_size: int = 1,
         reverse_lang_direction: bool = False,
+        prepend_id: int = None,
     ):
         super(TarredTranslationDataset, self).__init__()
 
@@ -347,6 +356,7 @@ class TarredTranslationDataset(IterableDataset):
         self.reverse_lang_direction = reverse_lang_direction
         self.src_pad_id = encoder_tokenizer.pad_id
         self.tgt_pad_id = decoder_tokenizer.pad_id
+        self.prepend_id = prepend_id
 
         valid_shard_strategies = ['scatter', 'replicate']
         if shard_strategy not in valid_shard_strategies:
@@ -389,9 +399,11 @@ class TarredTranslationDataset(IterableDataset):
             logging.info(
                 "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx
             )
+            self.length = self.metadata['num_batches'] // world_size
 
         elif shard_strategy == 'replicate':
             logging.info("All tarred dataset shards will be replicated across all nodes.")
+            self.length = self.metadata['num_batches']
 
         else:
             raise ValueError(f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}")
@@ -399,7 +411,7 @@ class TarredTranslationDataset(IterableDataset):
         self.tarpath = text_tar_filepaths
 
         # Put together WebDataset
-        self._dataset = wd.WebDataset(text_tar_filepaths)
+        self._dataset = wd.WebDataset(urls=text_tar_filepaths, nodesplitter=None)
 
         if shuffle_n > 0:
             self._dataset = self._dataset.shuffle(shuffle_n)
@@ -420,6 +432,8 @@ class TarredTranslationDataset(IterableDataset):
             src_ids, tgt = tgt, src_ids
         labels = tgt[:, 1:]
         tgt_ids = tgt[:, :-1]
+        if self.prepend_id:
+            src_ids = np.insert(src_ids, 0, self.prepend_id, axis=-1)
         src_mask = (src_ids != self.src_pad_id).astype(np.int32)
         tgt_mask = (tgt_ids != self.tgt_pad_id).astype(np.int32)
         return src_ids, src_mask, tgt_ids, tgt_mask, labels
@@ -428,4 +442,4 @@ class TarredTranslationDataset(IterableDataset):
         return self._dataset.__iter__()
 
     def __len__(self):
-        return self.metadata['num_batches']
+        return self.length

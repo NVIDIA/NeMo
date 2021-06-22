@@ -29,13 +29,14 @@ from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss_name
 from nemo.collections.asr.metrics.rnnt_wer import RNNTWER, RNNTDecoding
 from nemo.collections.asr.models.asr_model import ASRModel
-from nemo.collections.asr.parts.perturb import process_augmentations
+from nemo.collections.asr.parts.mixins import ASRModuleMixin
+from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
 
 
-class EncDecRNNTModel(ASRModel):
+class EncDecRNNTModel(ASRModel, ASRModuleMixin):
     """Base class for encoder decoder RNNT-based models."""
 
     @classmethod
@@ -111,6 +112,38 @@ class EncDecRNNTModel(ASRModel):
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
 
+        self.setup_optim_normalization()
+
+    def setup_optim_normalization(self):
+        """
+        Helper method to setup normalization of certain parts of the model prior to the optimization step.
+
+        Supported pre-optimization normalizations are as follows:
+
+        .. code-block:: yaml
+
+            # Variation Noise injection
+            model:
+                variational_noise:
+                    std: 0.0
+                    start_step: 0
+
+            # Joint - Length normalization
+            model:
+                normalize_joint_txu: false
+
+            # Encoder Network - gradient normalization
+            model:
+                normalize_encoder_norm: false
+
+            # Decoder / Prediction Network - gradient normalization
+            model:
+                normalize_decoder_norm: false
+
+            # Joint - gradient normalization
+            model:
+                normalize_joint_norm: false
+        """
         # setting up the variational noise for the decoder
         if hasattr(self.cfg, 'variational_noise'):
             self._optim_variational_noise_std = self.cfg['variational_noise'].get('std', 0)
@@ -118,6 +151,19 @@ class EncDecRNNTModel(ASRModel):
         else:
             self._optim_variational_noise_std = 0
             self._optim_variational_noise_start = 0
+
+        # Setup normalized gradients for model joint by T x U scaling factor (joint length normalization)
+        self._optim_normalize_joint_txu = self.cfg.get('normalize_joint_txu', False)
+        self._optim_normalize_txu = None
+
+        # Setup normalized encoder norm for model
+        self._optim_normalize_encoder_norm = self.cfg.get('normalize_encoder_norm', False)
+
+        # Setup normalized decoder norm for model
+        self._optim_normalize_decoder_norm = self.cfg.get('normalize_decoder_norm', False)
+
+        # Setup normalized joint norm for model
+        self._optim_normalize_joint_norm = self.cfg.get('normalize_joint_norm', False)
 
     def extract_rnnt_loss_cfg(self, cfg: Optional[DictConfig]):
         """
@@ -135,8 +181,8 @@ class EncDecRNNTModel(ASRModel):
 
         Examples:
             .. code-block:: yaml
-                loss_name: "default"
 
+                loss_name: "default"
                 warprnnt_numba_kwargs:
                     kwargs2: some_other_val
 
@@ -294,6 +340,12 @@ class EncDecRNNTModel(ASRModel):
             with open_dict(self.cfg.decoding):
                 self.cfg.decoding = decoding_cfg
 
+            ds_keys = ['train_ds', 'validation_ds', 'test_ds']
+            for key in ds_keys:
+                if key in self.cfg:
+                    with open_dict(self.cfg[key]):
+                        self.cfg[key]['labels'] = OmegaConf.create(new_vocabulary)
+
             logging.info(f"Changed decoder to output to {self.joint.vocabulary} vocabulary.")
 
     def change_decoding_strategy(self, decoding_cfg: DictConfig):
@@ -337,6 +389,10 @@ class EncDecRNNTModel(ASRModel):
             augmentor = process_augmentations(config['augmentor'])
         else:
             augmentor = None
+
+        # Automatically inject args from model config to dataloader config
+        audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
+        audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='labels')
 
         shuffle = config['shuffle']
         device = 'gpu' if torch.cuda.is_available() else 'cpu'
@@ -539,7 +595,7 @@ class EncDecRNNTModel(ASRModel):
 
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
-            processed_signal = self.spec_augmentation(input_spec=processed_signal)
+            processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
 
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         return encoded, encoded_len
@@ -579,6 +635,7 @@ class EncDecRNNTModel(ASRModel):
             if (sample_id + 1) % log_every_n_steps == 0:
                 self.wer.update(encoded, encoded_len, transcript, transcript_len)
                 _, scores, words = self.wer.compute()
+                self.wer.reset()
                 tensorboard_logs.update({'training_batch_wer': scores.float() / words})
 
         else:
@@ -605,6 +662,10 @@ class EncDecRNNTModel(ASRModel):
 
         # Log items
         self.log_dict(tensorboard_logs)
+
+        # Preserve batch acoustic model T and language model U parameters if normalizing
+        if self._optim_normalize_joint_txu:
+            self._optim_normalize_txu = [encoded_len.max(), transcript_len.max()]
 
         return {'loss': loss_value}
 
@@ -634,6 +695,7 @@ class EncDecRNNTModel(ASRModel):
 
             self.wer.update(encoded, encoded_len, transcript, transcript_len)
             wer, wer_num, wer_denom = self.wer.compute()
+            self.wer.reset()
 
             tensorboard_logs['val_wer_num'] = wer_num
             tensorboard_logs['val_wer_denom'] = wer_denom
@@ -742,3 +804,32 @@ class EncDecRNNTModel(ASRModel):
                         dtype=param.dtype,
                     )
                     param.grad.data.add_(noise)
+
+        if self._optim_normalize_joint_txu:
+            T, U = self._optim_normalize_txu
+            if T is not None and U is not None:
+                for param_name, param in self.encoder.named_parameters():
+                    if param.grad is not None:
+                        param.grad.data.div_(U)
+
+                for param_name, param in self.decoder.named_parameters():
+                    if param.grad is not None:
+                        param.grad.data.div_(T)
+
+        if self._optim_normalize_encoder_norm:
+            for param_name, param in self.encoder.named_parameters():
+                if param.grad is not None:
+                    norm = param.grad.norm()
+                    param.grad.data.div_(norm)
+
+        if self._optim_normalize_decoder_norm:
+            for param_name, param in self.decoder.named_parameters():
+                if param.grad is not None:
+                    norm = param.grad.norm()
+                    param.grad.data.div_(norm)
+
+        if self._optim_normalize_joint_norm:
+            for param_name, param in self.joint.named_parameters():
+                if param.grad is not None:
+                    norm = param.grad.norm()
+                    param.grad.data.div_(norm)

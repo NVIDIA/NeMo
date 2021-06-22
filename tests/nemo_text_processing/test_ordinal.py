@@ -14,13 +14,16 @@
 
 
 import pytest
-from nemo_text_processing.inverse_text_normalization.inverse_normalize import inverse_normalize
-from nemo_text_processing.text_normalization.normalize import normalize
+from nemo_text_processing.inverse_text_normalization.inverse_normalize import InverseNormalizer
+from nemo_text_processing.text_normalization.normalize import Normalizer
+from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
 from parameterized import parameterized
 from utils import PYNINI_AVAILABLE, parse_test_case_file
 
 
 class TestOrdinal:
+    inverse_normalizer = InverseNormalizer() if PYNINI_AVAILABLE else None
+
     @parameterized.expand(parse_test_case_file('data_inverse_text_normalization/test_cases_ordinal.txt'))
     @pytest.mark.skipif(
         not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
@@ -28,8 +31,11 @@ class TestOrdinal:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_denorm(self, test_input, expected):
-        pred = inverse_normalize(test_input, verbose=False)
+        pred = self.inverse_normalizer.inverse_normalize(test_input, verbose=False)
         assert pred == expected
+
+    normalizer = Normalizer(input_case='cased') if PYNINI_AVAILABLE else None
+    normalizer_with_audio = NormalizerWithAudio(input_case='cased') if PYNINI_AVAILABLE else None
 
     @parameterized.expand(parse_test_case_file('data_text_normalization/test_cases_ordinal.txt'))
     @pytest.mark.skipif(
@@ -38,5 +44,7 @@ class TestOrdinal:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_norm(self, test_input, expected):
-        pred = normalize(test_input, verbose=False)
+        pred = self.normalizer.normalize(test_input, verbose=False)
         assert pred == expected
+        pred_non_deterministic = self.normalizer_with_audio.normalize(test_input, n_tagged=100)
+        assert expected in pred_non_deterministic

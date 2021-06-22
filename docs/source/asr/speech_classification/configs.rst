@@ -3,7 +3,7 @@ NeMo Speech Classification Configuration Files
 
 This page covers NeMo configuration file setup that is specific to models in the Speech Classification collection.
 For general information about how to set up and run experiments that is common to all NeMo models (e.g.
-experiment manager and PyTorch Lightning trainer parameters), see the :doc:`../../starthere/core`  page.
+experiment manager and PyTorch Lightning trainer parameters), see the :doc:`../../core/core`  page.
 
 The model section of NeMo Speech Classification configuration files will generally require information about the dataset(s) being
 used, the preprocessor for audio files, parameters for any augmentation being performed, as well as the
@@ -62,7 +62,7 @@ Preprocessor Configuration
 Preprocessor helps to compute MFCC or mel spectrogram features that are given as inputs to model. 
 For details on how to write this section, refer to `Preprocessor Configuration <../configs.html#preprocessor-configuration>`__
 
-Check config yaml files in ``<NeMo_git_root>/tutorials/asr/conf`` to find the processors been used by speech classification models. 
+Check config yaml files in ``<NeMo_git_root>/examples/asr/conf`` to find the processors been used by speech classification models.
 
 
 Augmentation Configurations

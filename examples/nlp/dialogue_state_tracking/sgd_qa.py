@@ -14,7 +14,7 @@
 # limitations under the License.
 
 """
-This script contains an example of how to train and test the NeMo SGD-QA Model.
+This script contains an example of how to train and test the NeMo SGD-QA Model (https://arxiv.org/abs/2105.08049).
 The SGD-QA model is a fast multi-pass schema-guided state-tracking model, that is trained on the Google schema-guided state tracking dataset (https://arxiv.org/abs/1909.05855).
 The model takes dialogue as input and outputs the dialogue state, which includes slot-value pairs. 
 The model consists of two components: a neural natural language understanding model (NLU), and a rule-based state tracker.
@@ -110,7 +110,7 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="conf", config_name="sgdqa_config")
 def main(cfg: DictConfig) -> None:
-    logging.info(f'Config: {cfg.pretty()}')
+    logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
@@ -132,6 +132,17 @@ def main(cfg: DictConfig) -> None:
         trainer.fit(model)
         if cfg.model.nemo_path:
             model.save_to(cfg.model.nemo_path)
+    else:
+        data_dir = cfg.model.dataset.get('data_dir', None)
+        dialogues_example_dir = cfg.model.dataset.get('dialogues_example_dir', None)
+
+        if data_dir is None or dialogues_example_dir is None:
+            raise ValueError('No dataset directory provided. Skipping evaluation. ')
+        elif not os.path.exists(data_dir):
+            raise ValueError(f'{data_dir} is not found, skipping evaluation on the test set.')
+        else:
+            model.update_data_dirs(data_dir=data_dir, dialogues_example_dir=dialogues_example_dir)
+            model._cfg.dataset = cfg.model.dataset
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.ds_item is not None:
         gpu = 1 if cfg.trainer.gpus != 0 else 0

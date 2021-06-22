@@ -31,7 +31,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import torch
 
 from nemo.collections.asr.modules import rnnt_abstract
-from nemo.collections.asr.parts import rnnt_utils
+from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.common.parts import rnn
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import (
@@ -66,6 +66,10 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder):
                 of training.
                 Reference:
                 [Can recurrent neural networks warp time?](https://openreview.net/forum?id=SJcKhk-Ab)
+            weights_init_scale: Float scale of the weights after initialization. Setting to lower than one
+                sometimes helps reduce variance between runs.
+            hidden_hidden_bias_scale: Float scale for the hidden-to-hidden bias scale. Set to 0.0 for
+                the default behaviour.
             dropout: float, set to 0.0 by default. Optional dropout applied at the end of the final LSTM RNN layer.
 
         vocab_size: int, specifying the vocabulary size of the embedding layer of the Prediction network,
@@ -125,6 +129,8 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder):
         # Optional arguments
         forget_gate_bias = prednet.get('forget_gate_bias', 1.0)
         t_max = prednet.get('t_max', None)
+        weights_init_scale = prednet.get('weights_init_scale', 1.0)
+        hidden_hidden_bias_scale = prednet.get('hidden_hidden_bias_scale', 0.0)
         dropout = prednet.get('dropout', 0.0)
         self.random_state_sampling = random_state_sampling
 
@@ -135,6 +141,8 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder):
             forget_gate_bias=forget_gate_bias,
             t_max=t_max,
             norm=normalization_mode,
+            weights_init_scale=weights_init_scale,
+            hidden_hidden_bias_scale=hidden_hidden_bias_scale,
             dropout=dropout,
         )
 
@@ -245,7 +253,18 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder):
         del y, start, state
         return g, hid
 
-    def _predict(self, vocab_size, pred_n_hidden, pred_rnn_layers, forget_gate_bias, t_max, norm, dropout):
+    def _predict(
+        self,
+        vocab_size,
+        pred_n_hidden,
+        pred_rnn_layers,
+        forget_gate_bias,
+        t_max,
+        norm,
+        weights_init_scale,
+        hidden_hidden_bias_scale,
+        dropout,
+    ):
         """
         Prepare the trainable parameters of the Prediction Network.
 
@@ -256,6 +275,10 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder):
             forget_gate_bias: Whether to perform unit forget gate bias.
             t_max: Whether to perform Chrono LSTM init.
             norm: Type of normalization to perform in RNN.
+            weights_init_scale: Float scale of the weights after initialization. Setting to lower than one
+                sometimes helps reduce variance between runs.
+            hidden_hidden_bias_scale: Float scale for the hidden-to-hidden bias scale. Set to 0.0 for
+                the default behaviour.
             dropout: Whether to apply dropout to RNN.
         """
         if self.blank_as_pad:
@@ -274,6 +297,8 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder):
                     forget_gate_bias=forget_gate_bias,
                     t_max=t_max,
                     dropout=dropout,
+                    weights_init_scale=weights_init_scale,
+                    hidden_hidden_bias_scale=hidden_hidden_bias_scale,
                 ),
             }
         )
@@ -764,6 +789,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint):
                     # Compute the wer (with logging for just 1st sub-batch)
                     self.wer.update(sub_enc, sub_enc_lens, sub_transcripts, sub_transcript_lens)
                     wer, wer_num, wer_denom = self.wer.compute()
+                    self.wer.reset()
 
                     wer_numer_list.append(wer_num)
                     wer_denom_list.append(wer_denom)

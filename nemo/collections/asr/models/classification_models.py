@@ -20,16 +20,15 @@ from abc import abstractmethod
 from math import ceil
 from typing import Dict, List, Optional, Union
 
-import onnx
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
-from pytorch_lightning.metrics.regression import MeanAbsoluteError, MeanSquaredError
+from torchmetrics.regression import MeanAbsoluteError, MeanSquaredError
 
 from nemo.collections.asr.data import audio_to_label_dataset
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
-from nemo.collections.asr.parts.features import WaveformFeaturizer
-from nemo.collections.asr.parts.perturb import process_augmentations
+from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
+from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.common.losses import CrossEntropyLoss, MSELoss
 from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -145,7 +144,7 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
             )
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
-            processed_signal = self.spec_augmentation(input_spec=processed_signal)
+            processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_len)
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
         logits = self.decoder(encoder_output=encoded)
         return logits
@@ -316,7 +315,8 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
                     if logprobs:
                         # dump log probs per file
                         for idx in range(logits.shape[0]):
-                            labels.append(logits[idx])
+                            lg = logits[idx]
+                            labels.append(lg.cpu().numpy())
                     else:
                         labels_k = []
                         top_ks = self._accuracy.top_k
@@ -477,6 +477,7 @@ class EncDecClassificationModel(_EncDecBaseModel):
 
         self._accuracy(logits=logits, labels=labels)
         topk_scores = self._accuracy.compute()
+        self._accuracy.reset()
 
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
             self.log('training_batch_accuracy_top@{}'.format(top_k), score)
@@ -519,6 +520,7 @@ class EncDecClassificationModel(_EncDecBaseModel):
         self._accuracy.correct_counts_k = correct_counts
         self._accuracy.total_counts_k = total_counts
         topk_scores = self._accuracy.compute()
+        self._accuracy.reset()
 
         tensorboard_log = {'val_loss': val_loss_mean}
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
@@ -534,6 +536,7 @@ class EncDecClassificationModel(_EncDecBaseModel):
         self._accuracy.correct_counts_k = correct_counts
         self._accuracy.total_counts_k = total_counts
         topk_scores = self._accuracy.compute()
+        self._accuracy.reset()
 
         tensorboard_log = {'test_loss': test_loss_mean}
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
@@ -698,7 +701,9 @@ class EncDecRegressionModel(_EncDecBaseModel):
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
         val_mse = self._mse.compute()
+        self._mse.reset()
         val_mae = self._mae.compute()
+        self._mae.reset()
 
         tensorboard_logs = {'val_loss': val_loss_mean, 'val_mse': val_mse, 'val_mae': val_mae}
 
@@ -707,7 +712,9 @@ class EncDecRegressionModel(_EncDecBaseModel):
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
         test_mse = self._mse.compute()
+        self._mse.reset()
         test_mae = self._mae.compute()
+        self._mae.reset()
 
         tensorboard_logs = {'test_loss': test_loss_mean, 'test_mse': test_mse, 'test_mae': test_mae}
 

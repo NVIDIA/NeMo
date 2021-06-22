@@ -56,6 +56,8 @@ __all__ = [
     'normalize_answer',
     'get_labels_to_labels_id_mapping',
     'get_vocab',
+    'find_newlines',
+    'load_data_indices',
 ]
 
 DATABASE_EXISTS_TMP = '{} dataset has already been processed and stored at {}'
@@ -431,3 +433,47 @@ def get_vocab(file):
     lines = [line.strip() for line in lines if line.strip()]
     labels = {i: lines[i] for i in range(len(lines))}
     return labels
+
+
+def find_newlines(contents):
+    """
+    Finds all of the newline positions in a text file.
+    """
+    start = 0
+
+    while True:
+        try:
+            # index and split are much faster than Python for loops
+            new_start = contents.index(b"\n", start)
+            line = (
+                contents[start:new_start]
+                .replace(b"\xc2\x99", b" ")
+                .replace(b"\xc2\xa0", b" ")
+                .decode("utf-8", errors="ignore")
+            )
+
+            if len(line.split()) > 0:
+                yield start
+
+            start = new_start + 1
+
+        except ValueError:
+            break
+
+
+def load_data_indices(idx_file: str, data_file: str, savename: str):
+    """
+    Loads dataset index file if it exsits
+    """
+    data_dir = data_file[: data_file.rfind('/')]
+    mode = data_file[data_file.rfind('/') + 1 : data_file.rfind('.')]
+    idx_file = f"{data_dir}/{mode}_{savename}.pkl"
+
+    if os.path.isfile(idx_file):
+        # If the sentence indices file already exists, load from it
+        with open(idx_file, "rb") as f:
+            indices = pickle.load(f)
+
+            return indices, idx_file, data_dir
+
+    return None, idx_file, data_dir

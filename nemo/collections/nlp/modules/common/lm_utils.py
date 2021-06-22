@@ -33,6 +33,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_utils import (
 from nemo.collections.nlp.modules.common.transformer.transformer import NeMoTransformerConfig
 from nemo.collections.nlp.modules.common.transformer.transformer_utils import (
     get_huggingface_transformer,
+    get_megatron_transformer,
     get_nemo_transformer,
 )
 from nemo.utils import logging
@@ -124,6 +125,7 @@ def get_transformer(
     config_dict: Optional[dict] = None,
     checkpoint_file: Optional[str] = None,
     encoder: bool = True,
+    pre_ln_final_layer_norm=True,
 ) -> Union[EncoderModule, DecoderModule]:
     """Gets Transformer based model to be used as an Encoder or Decoder in NeMo NLP.
        First choose the library to get the transformer from. This can be huggingface,
@@ -159,7 +161,11 @@ def get_transformer(
         if isinstance(config_dict, NeMoTransformerConfig):
             config_dict = asdict(config_dict)
         model = get_nemo_transformer(
-            model_name=model_name, pretrained=pretrained, config_dict=config_dict, encoder=encoder,
+            model_name=model_name,
+            pretrained=pretrained,
+            config_dict=config_dict,
+            encoder=encoder,
+            pre_ln_final_layer_norm=pre_ln_final_layer_norm,
         )
 
         if checkpoint_file is not None:
@@ -170,5 +176,17 @@ def get_transformer(
         model = get_huggingface_transformer(
             model_name=model_name, pretrained=pretrained, config_dict=config_dict, encoder=encoder
         )
+
+    elif library == 'megatron':
+        model = get_megatron_transformer(
+            model_name=model_name,
+            pretrained=pretrained,
+            config_dict=config_dict,
+            encoder=encoder,
+            checkpoint_file=checkpoint_file,
+        )
+
+    else:
+        raise ValueError("Libary must be 'nemo', 'huggingface' or 'megatron'")
 
     return model
