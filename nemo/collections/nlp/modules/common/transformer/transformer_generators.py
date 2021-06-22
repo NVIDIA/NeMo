@@ -378,17 +378,15 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         # select best performing hypotheses in each element of the batch
         len_penalties = self.compute_len_penalty(prefixes_len, self.len_pen)
         scores = scores / len_penalties
-        if return_beam_scores:
-            return prefixes, scores
-        else:
-            best_guesses = (
-                torch.argmax(scores.view(-1, self.beam_size), dim=1, keepdim=True)
-                .repeat(1, prefixes.size(1))
-                .unsqueeze(1)
-            )
-            tgt = prefixes.view(batch_size, self.beam_size, -1).gather(1, best_guesses)
+        best_guesses = (
+            torch.argmax(scores.view(-1, self.beam_size), dim=1, keepdim=True).repeat(1, prefixes.size(1)).unsqueeze(1)
+        )
+        tgt = prefixes.view(batch_size, self.beam_size, -1).gather(1, best_guesses).squeeze(1)
 
-            return tgt.squeeze(1)
+        if return_beam_scores:
+            return prefixes, scores, tgt
+        else:
+            return tgt
 
 
 class EnsembleBeamSearchSequenceGenerator:
@@ -672,16 +670,15 @@ class EnsembleBeamSearchSequenceGenerator:
         # select best performing hypotheses in each element of the batch
         len_penalties = self.compute_len_penalty(prefixes_len, self.len_pen)
         scores = scores / len_penalties
+        best_guesses = (
+            torch.argmax(scores.view(-1, self.beam_size), dim=1, keepdim=True).repeat(1, prefixes.size(1)).unsqueeze(1)
+        )
+        tgt = prefixes.view(batch_size, self.beam_size, -1).gather(1, best_guesses).squeeze(1)
+
         if return_beam_scores:
-            return prefixes, scores
+            return prefixes, scores, tgt
         else:
-            best_guesses = (
-                torch.argmax(scores.view(-1, self.beam_size), dim=1, keepdim=True)
-                .repeat(1, prefixes.size(1))
-                .unsqueeze(1)
-            )
-            tgt = prefixes.view(batch_size, self.beam_size, -1).gather(1, best_guesses)
-            return tgt.squeeze(1)
+            return tgt
 
     def __call__(self, src_ids, encoder_input_mask, decoder_input_ids=None, return_beam_scores=False):
         with self.as_frozen():
@@ -892,14 +889,12 @@ class BeamSearchSequenceGeneratorWithLanguageModel(GreedySequenceGenerator):
         # select best performing hypotheses in each element of the batch
         len_penalties = self.compute_len_penalty(prefixes_len, self.len_pen)
         scores = scores / len_penalties
-        if return_beam_scores:
-            return prefixes, scores
-        else:
-            best_guesses = (
-                torch.argmax(scores.view(-1, self.beam_size), dim=1, keepdim=True)
-                .repeat(1, prefixes.size(1))
-                .unsqueeze(1)
-            )
-            tgt = prefixes.view(batch_size, self.beam_size, -1).gather(1, best_guesses)
+        best_guesses = (
+            torch.argmax(scores.view(-1, self.beam_size), dim=1, keepdim=True).repeat(1, prefixes.size(1)).unsqueeze(1)
+        )
+        tgt = prefixes.view(batch_size, self.beam_size, -1).gather(1, best_guesses).squeeze(1)
 
-            return tgt.squeeze(1)
+        if return_beam_scores:
+            return prefixes, scores, tgt
+        else:
+            return tgt

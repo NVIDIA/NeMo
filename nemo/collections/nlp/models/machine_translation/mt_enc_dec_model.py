@@ -666,6 +666,13 @@ class MTEncDecModel(EncDecNLPModel):
 
         return self.source_processor, self.target_processor
 
+    def postprocess_beam_results(self, beam_ids):
+        beam_results = self.filter_predicted_ids(beam_ids)
+        translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
+        if self.target_processor is not None:
+            translations = [self.target_processor.detokenize(translation.split(' ')) for translation in translations]
+        return translations
+
     @torch.no_grad()
     def batch_translate(self, src: torch.LongTensor, src_mask: torch.LongTensor, return_beam_scores: bool = False):
         """	
@@ -681,29 +688,46 @@ class MTEncDecModel(EncDecNLPModel):
         try:
             self.eval()
             src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
-            beam_ids = self.beam_search(
+            best_translations = self.beam_search(
                 encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask, return_beam_scores=return_beam_scores
             )
             if return_beam_scores:
-                beam_ids, scores = beam_ids
+                all_translations, scores, best_translations = best_translations
                 scores = scores.view(-1)
+                all_translations = self.postprocess_beam_results(all_translations)
 
-            beam_results = self.filter_predicted_ids(beam_ids)
-            translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
+            best_translations = self.postprocess_beam_results(best_translations)
             inputs = [self.encoder_tokenizer.ids_to_text(inp) for inp in src.cpu().numpy()]
-            if self.target_processor is not None:
-                translations = [
-                    self.target_processor.detokenize(translation.split(' ')) for translation in translations
-                ]
 
             if self.source_processor is not None:
                 inputs = [self.source_processor.detokenize(item.split(' ')) for item in inputs]
         finally:
             self.train(mode=mode)
         if return_beam_scores:
-            return inputs, translations, scores.data.cpu().numpy().tolist()
+            return inputs, all_translations, scores.data.cpu().numpy().tolist(), best_translations
 
-        return inputs, translations
+        return inputs, best_translations
+
+    def prepare_inference_batch(self, text, prepend_ids=[], target=False):
+        inputs = []
+        proessor = self.source_processor if not target else self.target_processor
+        tokenizer = self.encoder_tokenizer if not target else self.decoder_tokenizer
+        for txt in text:
+            if proessor is not None:
+                txt = proessor.normalize(txt)
+                txt = proessor.tokenize(txt)
+            ids = tokenizer.text_to_ids(txt)
+            ids = prepend_ids + [tokenizer.bos_id] + ids + [tokenizer.eos_id]
+            inputs.append(ids)
+        max_len = max(len(txt) for txt in inputs)
+        src_ids_ = np.ones((len(inputs), max_len)) * tokenizer.pad_id
+        for i, txt in enumerate(inputs):
+            src_ids_[i][: len(txt)] = txt
+
+        src_mask = torch.FloatTensor((src_ids_ != tokenizer.pad_id)).to(self.device)
+        src = torch.LongTensor(src_ids_).to(self.device)
+
+        return src, src_mask
 
     # TODO: We should drop source/target_lang arguments in favor of using self.src/tgt_language
     @torch.no_grad()
@@ -734,24 +758,12 @@ class MTEncDecModel(EncDecNLPModel):
             prepend_ids = [src_symbol if src_symbol in self.multilingual_ids else tgt_symbol]
         try:
             self.eval()
-            inputs = []
-            for txt in text:
-                if self.source_processor is not None:
-                    txt = self.source_processor.normalize(txt)
-                    txt = self.source_processor.tokenize(txt)
-                ids = self.encoder_tokenizer.text_to_ids(txt)
-                ids = prepend_ids + [self.encoder_tokenizer.bos_id] + ids + [self.encoder_tokenizer.eos_id]
-                inputs.append(ids)
-            max_len = max(len(txt) for txt in inputs)
-            src_ids_ = np.ones((len(inputs), max_len)) * self.encoder_tokenizer.pad_id
-            for i, txt in enumerate(inputs):
-                src_ids_[i][: len(txt)] = txt
-
-            src_mask = torch.FloatTensor((src_ids_ != self.encoder_tokenizer.pad_id)).to(self.device)
-            src = torch.LongTensor(src_ids_).to(self.device)
+            src, src_mask = self.prepare_inference_batch(text, prepend_ids)
             if return_beam_scores:
-                _, translations, scores = self.batch_translate(src, src_mask, return_beam_scores=True)
-                return translations, scores
+                _, all_translations, scores, best_translations = self.batch_translate(
+                    src, src_mask, return_beam_scores=True
+                )
+                return all_translations, scores, best_translations
             else:
                 _, translations = self.batch_translate(src, src_mask, return_beam_scores=False)
         finally:

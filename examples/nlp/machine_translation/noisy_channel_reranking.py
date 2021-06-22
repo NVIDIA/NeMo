@@ -35,66 +35,6 @@ from nemo.collections.nlp.modules.common.transformer import (
 from nemo.utils import logging
 
 
-def get_lm_and_nmt_score(src_texts, tgt_texts, models, lm_model, len_penalty):
-    inputs = []
-    src_lengths = []
-    tgt_lengths = []
-    model = models[0]
-    for txt in src_texts:
-        if model.source_processor is not None:
-            txt = model.source_processor.normalize(txt)
-            txt = model.source_processor.tokenize(txt)
-        ids = model.encoder_tokenizer.text_to_ids(txt)
-        ids = [model.encoder_tokenizer.bos_id] + ids + [model.encoder_tokenizer.eos_id]
-        inputs.append(ids)
-        src_lengths.append(len(ids) - 1)
-    max_len = max(len(txt) for txt in inputs)
-    src_ids_ = np.ones((len(inputs), max_len)) * model.encoder_tokenizer.pad_id
-    for i, txt in enumerate(inputs):
-        src_ids_[i][: len(txt)] = txt
-
-    src_mask = torch.FloatTensor((src_ids_ != model.encoder_tokenizer.pad_id)).to(model.device)
-    src = torch.LongTensor(src_ids_).to(model.device)
-
-    inputs = []
-    for txt in tgt_texts:
-        if model.target_processor is not None:
-            txt = model.target_processor.normalize(txt)
-            txt = model.target_processor.tokenize(txt)
-        ids = model.decoder_tokenizer.text_to_ids(txt)
-        ids = [model.decoder_tokenizer.bos_id] + ids + [model.decoder_tokenizer.eos_id]
-        inputs.append(ids)
-        tgt_lengths.append(len(ids) - 1)
-    max_len = max(len(txt) for txt in inputs)
-    tgt_ids_ = np.ones((len(inputs), max_len)) * model.decoder_tokenizer.pad_id
-    for i, txt in enumerate(inputs):
-        tgt_ids_[i][: len(txt)] = txt
-
-    tgt_mask = torch.FloatTensor((tgt_ids_ != model.decoder_tokenizer.pad_id)).to(model.device)
-    tgt = torch.LongTensor(tgt_ids_).to(model.device)
-    tgt_inp = tgt[:, :-1]
-    tgt_mask = tgt_mask[:, :-1]
-    tgt_labels = tgt[:, 1:]
-
-    nmt_lls = []
-    for model in models:
-        nmt_log_probs = model(src, src_mask, tgt_inp, tgt_mask)
-        nmt_nll = model.eval_loss_fn(log_probs=nmt_log_probs, labels=tgt_labels)
-        nmt_ll = nmt_nll.view(nmt_log_probs.size(0), nmt_log_probs.size(1)).sum(1) * -1.0
-        nmt_ll = nmt_ll.data.cpu().numpy().tolist()
-        nmt_lls.append(nmt_ll)
-    nmt_ll = np.stack(nmt_lls).mean(0)
-
-    if lm_model is not None:
-        lm_log_probs = lm_model(src[:, :-1], src_mask[:, :-1])
-        lm_nll = model.eval_loss_fn(log_probs=lm_log_probs, labels=src[:, 1:])
-        lm_ll = lm_nll.view(lm_log_probs.size(0), lm_log_probs.size(1)).sum(1) * -1.0
-        lm_ll = lm_ll.data.cpu().numpy().tolist()
-    else:
-        lm_ll = None
-    return nmt_ll, lm_ll, src_lengths, tgt_lengths
-
-
 def main():
     parser = ArgumentParser()
     parser.add_argument("--model", type=str, required=True, help="")
@@ -111,21 +51,16 @@ def main():
 
     args = parser.parse_args()
     torch.set_grad_enabled(False)
-    if args.model.endswith(".nemo"):
-        logging.info("Attempting to initialize from .nemo file")
-        models = [
-            nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(restore_path=model_path)
-            for model_path in args.model.split(',')
-        ]
-        for model in models:
-            model.eval_loss_fn.reduction = 'none'
-        if args.source_lang or args.target_lang:
-            for model in models:
-                model.setup_pre_and_post_processing_utils(args.target_lang, args.source_lang)
-        src_text = []
-        tgt_text = []
-    else:
-        raise NotImplemented(f"Only support .nemo files, but got: {args.model}")
+    models = []
+    for model_path in args.model.split(','):
+        if not model_path.endswith('.nemo'):
+            raise NotImplementedError(f"Only support .nemo files, but got: {model_path}")
+        model = nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(restore_path=model_path).eval()
+        model.eval_loss_fn.reduction = 'none'
+        models.append(model)
+
+    src_text = []
+    tgt_text = []
 
     if torch.cuda.is_available():
         models = [model.cuda() for model in models]
@@ -140,39 +75,41 @@ def main():
         for line in src_f:
             src_text.append(line.strip().split('\t'))
             if len(src_text) == args.beam_size:
+                # Source and target sequences for the reverse direction model.
                 src_texts = [item[1] for item in src_text]
                 tgt_texts = [item[0] for item in src_text]
-                scores = [float(item[2]) for item in src_text]
-                rev_nmt_scores, lm_scores, src_lengths, tgt_lengths = get_lm_and_nmt_score(
-                    src_texts, tgt_texts, models, lm_model, args.len_pen
-                )
+                src, src_mask = models[0].prepare_inference_batch(src_texts)
+                tgt, tgt_mask = models[0].prepare_inference_batch(tgt_texts, target=True)
+                forward_scores = [float(item[2]) for item in src_text]
+
+                # Ensemble of reverse model scores.
+                nmt_lls = []
+                for model in models:
+                    nmt_log_probs = model(src, src_mask, tgt[:, :-1], tgt_mask[:, :-1])
+                    nmt_nll = model.eval_loss_fn(log_probs=nmt_log_probs, labels=tgt[:, 1:])
+                    nmt_ll = nmt_nll.view(nmt_log_probs.size(0), nmt_log_probs.size(1)).sum(1) * -1.0
+                    nmt_ll = nmt_ll.data.cpu().numpy().tolist()
+                    nmt_lls.append(nmt_ll)
+                rev_nmt_scores = np.stack(nmt_lls).mean(0)
+
+                # LM scores.
+                if lm_model is not None:
+                    lm_log_probs = lm_model(src[:, :-1], src_mask[:, :-1])
+                    lm_nll = model.eval_loss_fn(log_probs=lm_log_probs, labels=src[:, 1:])
+                    lm_ll = lm_nll.view(lm_log_probs.size(0), lm_log_probs.size(1)).sum(1) * -1.0
+                    lm_ll = lm_ll.data.cpu().numpy().tolist()
+                else:
+                    lm_ll = None
+                lm_scores = [None] * len(rev_nmt_scores) if lm_ll is None else lm_ll
+
+                # Score fusion.
                 fused_scores = []
-                # mean_source_length = np.mean(src_lengths)
-                # stddev_source_length = np.std(src_lengths)
-                lm_scores = [None] * len(rev_nmt_scores) if lm_scores is None else lm_scores
-                for s, r, l, sl, tl in zip(scores, rev_nmt_scores, lm_scores, src_lengths, tgt_lengths):
-                    # len_pen = ((5 + sl) / 6) ** 0.6
-                    # len_pen = 1 + ((sl - mean_source_length) / stddev_source_length)
-                    l = 0 if l is None else l
-                    score = s + args.noisy_channel_coef * (r + l)
-                    # score = score * len_pen
+                for forward_score, rev_score, lm_score in zip(forward_scores, rev_nmt_scores, lm_scores):
+                    lm_score = 0 if lm_score is None else lm_score
+                    score = forward_score + args.noisy_channel_coef * (rev_score + lm_score)
                     fused_scores.append(score)
                 tgt_text.append(src_texts[np.argmax(fused_scores)])
                 src_text = []
-
-        if len(src_text) > 0:
-            src_texts = [item[1] for item in src_text]
-            tgt_texts = [item[0] for item in src_text]
-            scores = [float(item[2]) for item in src_text]
-            rev_nmt_scores, lm_scores, src_lengths, tgt_lengths = get_lm_and_nmt_score(
-                src_texts, tgt_texts, model, lm_model, args.len_pen
-            )
-            fused_scores = []
-            for s, r, l, sl, tl in zip(scores, rev_nmt_scores, lm_scores, src_lengths, tgt_lengths):
-                score = s + args.noisy_channel_coef * (r + l)
-                fused_scores.append(score)
-            tgt_text.append(src_texts[np.argmax(fused_scores)])
-            src_text = []
 
     with open(args.tgtout, 'w') as tgt_f:
         for line in tgt_text:
