@@ -39,7 +39,12 @@ def main():
         required=True,
         help="Path to .nemo model file(s). If ensembling, provide comma separated paths to multiple models.",
     )
-    parser.add_argument("--srctext", type=str, required=True, help="Path to a TSV file that contains source sentence \t target sentence \t forward score for each beam candidate")
+    parser.add_argument(
+        "--srctext",
+        type=str,
+        required=True,
+        help="Path to a TSV file that contains source sentence \t target sentence \t forward score for each beam candidate",
+    )
     parser.add_argument(
         "--tgtout", type=str, required=True, help="Path to the file where re-ranked translations are to be written."
     )
@@ -59,7 +64,10 @@ def main():
         help="Optional path to an LM model that has the same tokenizer as NMT models.",
     )
     parser.add_argument(
-        "--noisy_channel_coef", type=float, default=0.05, help="Weight assigned to reverse NMT model + LM scores for re-ranking."
+        "--noisy_channel_coef",
+        type=float,
+        default=0.05,
+        help="Weight assigned to reverse NMT model + LM scores for re-ranking.",
     )
 
     args = parser.parse_args()
