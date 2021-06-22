@@ -96,19 +96,19 @@ Usage:
 
 
 @dataclass
-class MTEncDecConfig(NemoConfig):
+class MTBottleneckConfig(NemoConfig):
     name: Optional[str] = 'MTBottleneck'
     do_training: bool = True
     do_testing: bool = False
-    model: MTEncDecModelConfig = MTEncDecModelConfig()
+    model: MTEncDecModelConfig = MTBottleneckModelConfig()
     trainer: Optional[TrainerConfig] = TrainerConfig()
-    exp_manager: Optional[ExpManagerConfig] = ExpManagerConfig(name='MTEncDec', files_to_copy=[])
+    exp_manager: Optional[ExpManagerConfig] = ExpManagerConfig(name='MTBottleneck', files_to_copy=[])
 
 
 @hydra_runner(config_path="conf", config_name="aayn_bottleneck")
 def main(cfg: MTEncDecConfig) -> None:
     # merge default config with user specified config
-    default_cfg = MTEncDecConfig()
+    default_cfg = MTBottleneckConfig()
     cfg = update_model_config(default_cfg, cfg)
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
@@ -127,7 +127,7 @@ def main(cfg: MTEncDecConfig) -> None:
     exp_manager(trainer, cfg.exp_manager)
 
     # everything needed to train translation models is encapsulated in the NeMo MTEncdDecModel
-    mt_model = MTEncDecModel(cfg.model, trainer=trainer)
+    mt_model = MTBottleneckModel(cfg.model, trainer=trainer)
 
     logging.info("\n\n************** Model parameters and their sizes ***********")
     for name, param in mt_model.named_parameters():
