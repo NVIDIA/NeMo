@@ -23,7 +23,6 @@ from typing import Any, List, Optional
 
 import braceexpand
 import numpy as np
-import torch
 import webdataset as wd
 from torch.utils.data import IterableDataset
 

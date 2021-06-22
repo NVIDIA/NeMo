@@ -28,26 +28,39 @@ import numpy as np
 import torch
 
 import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp.modules.common.transformer import (
-    BeamSearchSequenceGenerator,
-    BeamSearchSequenceGeneratorWithLanguageModel,
-)
 from nemo.utils import logging
 
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--model", type=str, required=True, help="")
-    parser.add_argument("--srctext", type=str, required=True, help="")
-    parser.add_argument("--tgtout", type=str, required=True, help="")
-    parser.add_argument("--beam_size", type=int, required=True, help="")
-    parser.add_argument("--source_lang", type=str, required=True, help="")
-    parser.add_argument("--target_lang", type=str, required=True, help="")
-    parser.add_argument("--len_pen", type=float, default=0.6, help="")
+    parser.add_argument(
+        "--model",
+        type=str,
+        required=True,
+        help="Path to .nemo model file(s). If ensembling, provide comma separated paths to multiple models.",
+    )
+    parser.add_argument("--srctext", type=str, required=True, help="Path to a TSV file that contains source sentence \t target sentence \t forward score for each beam candidate")
+    parser.add_argument(
+        "--tgtout", type=str, required=True, help="Path to the file where re-ranked translations are to be written."
+    )
+    parser.add_argument("--beam_size", type=int, default=4, help="Number of beams to re-rank.")
+    parser.add_argument(
+        "--target_lang", type=str, default=None, help="Target language identifier ex: en,de,fr,es etc."
+    )
+    parser.add_argument(
+        "--source_lang", type=str, default=None, help="Source language identifier ex: en,de,fr,es etc."
+    )
 
     # shallow fusion specific parameters
-    parser.add_argument("--lm_model", type=str, default=None, help="")
-    parser.add_argument("--noisy_channel_coef", type=float, default=0.1, help="")
+    parser.add_argument(
+        "--lm_model",
+        type=str,
+        default=None,
+        help="Optional path to an LM model that has the same tokenizer as NMT models.",
+    )
+    parser.add_argument(
+        "--noisy_channel_coef", type=float, default=0.05, help="Weight assigned to reverse NMT model + LM scores for re-ranking."
+    )
 
     args = parser.parse_args()
     torch.set_grad_enabled(False)
@@ -72,6 +85,7 @@ def main():
         lm_model = None
 
     with open(args.srctext, 'r') as src_f:
+        count = 0
         for line in src_f:
             src_text.append(line.strip().split('\t'))
             if len(src_text) == args.beam_size:
@@ -110,6 +124,8 @@ def main():
                     fused_scores.append(score)
                 tgt_text.append(src_texts[np.argmax(fused_scores)])
                 src_text = []
+                count += 1
+                print(f'Reranked {count} sentences')
 
     with open(args.tgtout, 'w') as tgt_f:
         for line in tgt_text:
