@@ -857,7 +857,7 @@ class AttentionBridge(torch.nn.Module):
         self.k = k
         self.bridge_size = bridge_size
 
-        self.attn_scale = math.sqrt(math.sqrt(self.bridge_size))
+        self.attn_scale = np.sqrt(np.sqrt(self.bridge_size))
 
         # build model
 
