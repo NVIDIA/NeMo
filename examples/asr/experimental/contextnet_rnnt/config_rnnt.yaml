@@ -191,6 +191,11 @@ model:
       tsd_max_sym_exp: 50  # for Time Synchronous Decoding
       alsd_max_target_len: 2.0  # for Alignment-Length Synchronous Decoding
 
+  loss:
+    loss_name: "default"
+    warprnnt_numba_kwargs:
+      fastemit_lambda: 0.0
+
   optim:
     name: adam
     # _target_: nemo.core.optim.optimizers.Adam
