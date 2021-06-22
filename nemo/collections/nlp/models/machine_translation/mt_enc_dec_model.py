@@ -392,6 +392,7 @@ class MTEncDecModel(EncDecNLPModel):
         ):
             raise NotImplementedError(f"Currently we only support tokenizers in {supported_tokenizers}.")
 
+        import pudb; pudb.set_trace()
         self.encoder_tokenizer = get_nmt_tokenizer(
             library=encoder_tokenizer_library,
             tokenizer_model=self.register_artifact("encoder_tokenizer.tokenizer_model", encoder_tokenizer_model),
