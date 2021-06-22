@@ -1019,9 +1019,6 @@ class MTBottleneckModel(MTEncDecModel):
 
     @typecheck()
     def forward(self, src, src_mask, tgt, tgt_mask, labels, train=True):
-        if train:
-            src = self.data_aug(tokens=src, mask=src_mask)
-
         src_hiddens = self.encoder(
             input_ids=src,
             encoder_mask=src_mask,
@@ -1046,11 +1043,10 @@ class MTBottleneckModel(MTEncDecModel):
 
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
 
+        recon_loss_fn = self.loss_fn if train else self.eval_loss_fn
+
         if self.recon_per_token:
-            if train:
-                log_p_x_given_z_per_token = -self.loss_fn(log_probs=log_probs, labels=labels)
-            else:
-                log_p_x_given_z_per_token = -self.eval_loss_fn(log_probs=log_probs, labels=labels)
+            log_p_x_given_z_per_token = -recon_loss_fn(log_probs=log_probs, labels=labels)
 
             log_p_x_given_z = log_p_x_given_z_per_token
             log_p_x_given_z_per_token = log_p_x_given_z_per_token.detach()
@@ -1058,31 +1054,32 @@ class MTBottleneckModel(MTEncDecModel):
             # averaging of log_p_x_given_z per sample
             output_mask = (labels != self.decoder_tokenizer.pad_id).type_as(log_probs)
 
-            log_p_x_given_z_per_token = -self.loss_fn(
+            log_p_x_given_z_per_token = -recon_loss_fn(
                 log_probs=log_probs,
                 labels=labels,
             ).view(log_probs.shape[:2]) * output_mask
 
+            # probability per sample
             log_p_x_given_z = log_p_x_given_z_per_token.sum(-1).mean()
 
             tokens = output_mask.sum()
             log_p_x_given_z_per_token = log_p_x_given_z_per_token.sum().detach() / tokens
 
+        # TODO: replace with a scheduler
         batch_counter = getattr(self, "batch_counter", 0)
         if train:
             self.batch_counter = batch_counter+1
-        warmup_counter = min(batch_counter / self.non_recon_warmup_batches, 1)
+        warmup_coef = min(batch_counter / self.non_recon_warmup_batches, 1)
 
-        if self.model_type == "mim":
+        if self.model_type in ["seq2seq-mim", "seq2seq-vae"]:
             # tokens = tgt_mask.sum()
             q_z_given_x = torch.distributions.Normal(
                 loc=z_mean,
                 scale=torch.exp(0.5 * z_logv),
             )
-            # should sum over sentences
+            # average latent distribution to match averaging of observations
             if self.recon_per_token:
-                # FIXME: test if can be removed
-                # log_q_z_given_x = q_z_given_x.log_prob(z).sum(-1).mean(-1).mean()
+                # TODO: replace mean with division by number of tokens
                 log_q_z_given_x = q_z_given_x.log_prob(z).mean(-1).mean(-1).mean()
             else:
                 log_q_z_given_x = q_z_given_x.log_prob(z).sum(-1).sum(-1).mean()
@@ -1092,25 +1089,32 @@ class MTBottleneckModel(MTEncDecModel):
                 loc=torch.zeros_like(z),
                 scale=torch.ones_like(z),
             )
-            # should sum over sentences
+            # average latent distribution to match averaging of observations
             if self.recon_per_token:
-                # FIXME: test if can be removed
-                # log_p_z = p_z.log_prob(z).sum(-1).mean(-1).mean()
+                # TODO: replace mean with division by number of tokens
                 log_p_z = p_z.log_prob(z).mean(-1).mean(-1).mean()
             else:
                 log_p_z = p_z.log_prob(z).sum(-1).sum(-1).mean()
 
-            loss_terms = 0.5 * (log_q_z_given_x + log_p_z)
-            # show loss value for reconstruction but train MIM
+
+            if self.model_type == "seq2seq-mim":
+                loss_terms = 0.5 * (log_q_z_given_x + log_p_z)
+            elif self.model_type == "seq2seq-vae":
+                # KL divergence -Dkl( q(z|x) || p(z) )
+                loss_terms = log_p_z - log_q_z_given_x
+
+            # show loss value for reconstruction but train MIM/VAE
+            computed_loss = log_p_x_given_z + warmup_coef * loss_terms
+            display_loss = log_p_x_given_z_per_token
             loss = -(
-                (log_p_x_given_z - log_p_x_given_z.detach() + log_p_x_given_z_per_token) +
-                warmup_counter * (loss_terms - loss_terms.detach())
+                    (computed_loss - computed_loss.detach()) +
+                    display_loss
             )
-        elif self.model_type in ["ae", "seq2seq"]:
+        elif self.model_type in ["seq2seq"]:
             loss = -(log_p_x_given_z - log_p_x_given_z.detach() + log_p_x_given_z_per_token)
 
         # add attention orthogonality loss
-        loss = loss + warmup_counter * self.ortho_loss_coef * ortho_loss
+        loss = loss + warmup_coef * self.ortho_loss_coef * ortho_loss
 
         return loss
 
@@ -1139,7 +1143,6 @@ class MTBottleneckModel(MTEncDecModel):
             )
             bridge_hiddens_dec = self.latent2hidden(z)
 
-            # with self.cond_emb.push_latent(z=z):
             beam_results = self.beam_search(encoder_hidden_states=bridge_hiddens_dec, encoder_input_mask=bridge_mask)
 
             beam_results = self.filter_predicted_ids(beam_results)
@@ -1183,17 +1186,26 @@ class MTBottleneckModel(MTEncDecModel):
                 # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
                 # is excess.
                 batch[i] = batch[i].squeeze(dim=0)
+
+        if self.multilingual:
+            self.source_processor = self.source_processor_list[dataloader_idx]
+            self.target_processor = self.target_processor_list[dataloader_idx]
+
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
         eval_loss = self(src_ids, src_mask, tgt_ids, tgt_mask, labels, train=False)
         # this will run encoder twice -- TODO: potentially fix
         _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
 
-        num_measurements = labels.shape[0] * (labels.shape[1] - 1)
+        num_measurements = labels.shape[0] * labels.shape[1]
         if dataloader_idx == 0:
-            getattr(self, f'{mode}_loss')(loss=eval_loss, num_measurements=num_measurements)
+            getattr(self, f'{mode}_loss')(
+                loss=eval_loss,
+                num_measurements=num_measurements,
+            )
         else:
             getattr(self, f'{mode}_loss_{dataloader_idx}')(
-                loss=eval_loss, num_measurements=num_measurements
+                loss=eval_loss,
+                num_measurements=num_measurements,
             )
         np_tgt = tgt_ids.detach().cpu().numpy()
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
