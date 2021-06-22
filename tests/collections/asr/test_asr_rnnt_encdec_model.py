@@ -76,6 +76,8 @@ def asr_model():
 
     decoding = {'strategy': 'greedy_batch', 'greedy': {'max_symbols': 30}}
 
+    loss = {'loss_name': 'default', 'warprnnt_numba_kwargs': {'fastemit_lambda': 0.001}}
+
     modelConfig = DictConfig(
         {
             'labels': ListConfig(labels),
@@ -85,6 +87,7 @@ def asr_model():
             'decoder': DictConfig(decoder),
             'joint': DictConfig(joint),
             'decoding': DictConfig(decoding),
+            'loss': DictConfig(loss),
         }
     )
 
