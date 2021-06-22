@@ -31,7 +31,7 @@ from sacrebleu import corpus_bleu
 from nemo.collections.common.data import ConcatDataset
 from nemo.collections.common.losses import NLLLoss, SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
-from nemo.collections.common.parts import transformer_weights_init
+from nemo.collections.common.parts import transformer_weights_init, form_attention_mask
 from nemo.collections.common.tokenizers.chinese_tokenizers import ChineseProcessor
 from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaProcessor
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
