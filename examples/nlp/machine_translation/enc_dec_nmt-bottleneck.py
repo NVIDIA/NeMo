@@ -19,7 +19,7 @@ from omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTDataPreproc
-from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTBottleneckConfig
+from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTBottleneckModelConfig
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTBottleneckModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
