@@ -1110,7 +1110,7 @@ class MTBottleneckModel(MTEncDecModel):
                     (computed_loss - computed_loss.detach()) +
                     display_loss
             )
-        elif self.model_type in ["seq2seq"]:
+        elif self.model_type in ["seq2seq", "seq2seq-br"]:
             loss = -(log_p_x_given_z - log_p_x_given_z.detach() + log_p_x_given_z_per_token)
 
         # add attention orthogonality loss
