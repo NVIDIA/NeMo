@@ -106,7 +106,7 @@ class MTBottleneckConfig(NemoConfig):
 
 
 @hydra_runner(config_path="conf", config_name="aayn_bottleneck")
-def main(cfg: MTEncDecConfig) -> None:
+def main(cfg: MTBottleneckConfig) -> None:
     # merge default config with user specified config
     default_cfg = MTBottleneckConfig()
     cfg = update_model_config(default_cfg, cfg)
