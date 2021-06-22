@@ -16,6 +16,8 @@ import shutil
 import tempfile
 
 import pytest
+import torch
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models import MTEncDecModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import AAYNBaseConfig
@@ -67,6 +69,48 @@ class TestMTEncDecModel:
             assert model.num_weights == model_copy.num_weights
 
     @pytest.mark.unit
+    def test_no_artifact_name_collision(self):
+        model = MTEncDecModel(cfg=get_cfg())
+        assert isinstance(model, MTEncDecModel)
+        with tempfile.TemporaryDirectory() as tmpdir1:
+            model.save_to("nmt_model.nemo")
+            with tempfile.TemporaryDirectory() as tmpdir:
+                model._unpack_nemo_file(path2file="nmt_model.nemo", out_folder=tmpdir)
+                conf = OmegaConf.load(os.path.join(tmpdir, "model_config.yaml"))
+                # Make sure names now differ in saved config
+                assert conf.encoder_tokenizer.tokenizer_model != conf.decoder_tokenizer.tokenizer_model
+                # Make sure names in config start with "nemo:" prefix
+                assert conf.encoder_tokenizer.tokenizer_model.startswith("nemo:")
+                assert conf.decoder_tokenizer.tokenizer_model.startswith("nemo:")
+                # Check if both tokenizers were included
+                assert os.path.exists(os.path.join(tmpdir, conf.encoder_tokenizer.tokenizer_model[5:]))
+                assert os.path.exists(os.path.join(tmpdir, conf.decoder_tokenizer.tokenizer_model[5:]))
+
+    @pytest.mark.unit
+    def test_train_eval_loss(self):
+        cfg = get_cfg()
+        cfg.label_smoothing = 0.5
+        model = MTEncDecModel(cfg=cfg)
+        assert isinstance(model, MTEncDecModel)
+        batch_size = 10
+        time = 32
+        vocab_size = 32000
+        torch.manual_seed(42)
+        tgt_ids = torch.LongTensor(batch_size, time).random_(1, model.decoder_tokenizer.vocab_size)
+        logits = torch.FloatTensor(batch_size, time, vocab_size).random_(-1, 1)
+        log_probs = torch.nn.functional.log_softmax(logits, dim=-1)
+        train_loss = model.loss_fn(log_probs=log_probs, labels=tgt_ids)
+        eval_loss = model.eval_loss_fn(log_probs=log_probs, labels=tgt_ids)
+        assert not torch.allclose(train_loss, eval_loss)  # , (train_loss, eval_loss)
+
+        cfg.label_smoothing = 0
+        model = MTEncDecModel(cfg=cfg)
+        # Train loss == val loss when label smoothing = 0
+        train_loss = model.loss_fn(log_probs=log_probs, labels=tgt_ids)
+        eval_loss = model.eval_loss_fn(log_probs=log_probs, labels=tgt_ids)
+        assert torch.allclose(train_loss, eval_loss)
+
+    @pytest.mark.unit
     def test_cpu_export_onnx(self):
         model = MTEncDecModel(cfg=get_cfg())
         assert isinstance(model, MTEncDecModel)
@@ -96,4 +140,5 @@ class TestMTEncDecModel:
 
 if __name__ == "__main__":
     t = TestMTEncDecModel()
-    t.test_gpu_export_ts()
+    # t.test_gpu_export_ts()
+    t.test_train_eval_loss()

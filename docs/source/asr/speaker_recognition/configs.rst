@@ -3,7 +3,7 @@ NeMo ASR Configuration Files
 
 This page covers NeMo configuration file setup that is specific to speaker recognition models.
 For general information about how to set up and run experiments that is common to all NeMo models (e.g.
-experiment manager and PyTorch Lightning trainer parameters), see the :doc:`../../starthere/core` page.
+experiment manager and PyTorch Lightning trainer parameters), see the :doc:`../../core/core` page.
 
 The model section of NeMo ASR configuration files will generally require information about the dataset(s) being
 used, the preprocessor for audio files, parameters for any augmentation being performed, as well as the
@@ -80,7 +80,7 @@ minimum and maximum SNR specified with min_snr and max_snr respectively. This se
           max_snr_db: 15        
 
 
-See the :class:`nemo.collections.asr.parts.perturb.AudioAugmentor`  API section for more details.
+See the :class:`nemo.collections.asr.parts.preprocessing.perturb.AudioAugmentor`  API section for more details.
 
 
 Model Architecture Configurations

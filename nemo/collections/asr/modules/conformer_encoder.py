@@ -18,9 +18,9 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 
-from nemo.collections.asr.parts.conformer_modules import ConformerLayer
-from nemo.collections.asr.parts.multi_head_attention import PositionalEncoding, RelPositionalEncoding
-from nemo.collections.asr.parts.subsampling import ConvSubsampling
+from nemo.collections.asr.parts.submodules.conformer_modules import ConformerLayer
+from nemo.collections.asr.parts.submodules.multi_head_attention import PositionalEncoding, RelPositionalEncoding
+from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
@@ -143,7 +143,7 @@ class ConformerEncoder(NeuralModule, Exportable):
 
         if subsampling_conv_channels == -1:
             subsampling_conv_channels = d_model
-        if subsampling:
+        if subsampling and subsampling_factor > 1:
             self.pre_encode = ConvSubsampling(
                 subsampling=subsampling,
                 subsampling_factor=subsampling_factor,
@@ -215,7 +215,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         if isinstance(self.pre_encode, ConvSubsampling):
             audio_signal, length = self.pre_encode(audio_signal, length)
         else:
-            audio_signal = self.embed(audio_signal)
+            audio_signal = self.pre_encode(audio_signal)
 
         audio_signal, pos_emb = self.pos_enc(audio_signal)
         bs, xmax, idim = audio_signal.size()

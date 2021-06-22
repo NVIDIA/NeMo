@@ -17,11 +17,11 @@ import pytest
 import torch
 from omegaconf import DictConfig, ListConfig
 
-from nemo.collections.asr.metrics import rnnt_wer
 from nemo.collections.asr.models import EncDecRNNTModel
-from nemo.collections.asr.parts import rnnt_beam_decoding as beam_decode
-from nemo.collections.asr.parts import rnnt_greedy_decoding as greedy_decode
-from nemo.collections.asr.parts.numba import __NUMBA_MINIMUM_VERSION__, numba_utils
+from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
+from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
+from nemo.core.utils import numba_utils
+from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 from nemo.utils.config_utils import assert_dataclass_signature_match
 
 NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cuda_is_supported(__NUMBA_MINIMUM_VERSION__)
@@ -159,6 +159,38 @@ class TestEncDecRNNTModel:
         pred_embedding = 3 * (asr_model.decoder.pred_hidden)
         joint_joint = 3 * (asr_model.joint.joint_hidden + 1)
         assert asr_model.num_weights == (nw1 + (pred_embedding + joint_joint))
+
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    @pytest.mark.unit
+    def test_change_conv_asr_se_context_window(self, asr_model):
+        old_cfg = copy.deepcopy(asr_model.cfg)
+        asr_model.change_conv_asr_se_context_window(context_window=32)  # 32 * 0.01s context
+        new_config = asr_model.cfg
+
+        assert old_cfg.encoder.jasper[0].se_context_size == -1
+        assert new_config.encoder.jasper[0].se_context_size == 32
+
+        for name, m in asr_model.encoder.named_modules():
+            if type(m).__class__.__name__ == 'SqueezeExcite':
+                assert m.context_window == 32
+
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    @pytest.mark.unit
+    def test_change_conv_asr_se_context_window_no_config_update(self, asr_model):
+        old_cfg = copy.deepcopy(asr_model.cfg)
+        asr_model.change_conv_asr_se_context_window(context_window=32, update_config=False)  # 32 * 0.01s context
+        new_config = asr_model.cfg
+
+        assert old_cfg.encoder.jasper[0].se_context_size == -1
+        assert new_config.encoder.jasper[0].se_context_size == -1  # no change
+
+        for name, m in asr_model.encoder.named_modules():
+            if type(m).__class__.__name__ == 'SqueezeExcite':
+                assert m.context_window == 32
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',

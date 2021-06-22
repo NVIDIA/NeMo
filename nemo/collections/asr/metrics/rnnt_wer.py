@@ -18,11 +18,11 @@ from typing import List, Optional, Union
 
 import editdistance
 import torch
-from pytorch_lightning.metrics import Metric
+from torchmetrics import Metric
 
-from nemo.collections.asr.parts import rnnt_beam_decoding as beam_decode
-from nemo.collections.asr.parts import rnnt_greedy_decoding as greedy_decode
-from nemo.collections.asr.parts.rnnt_utils import Hypothesis, NBestHypotheses
+from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
+from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.utils import logging
 
 __all__ = ['RNNTDecoding', 'RNNTWER']

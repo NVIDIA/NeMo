@@ -1,4 +1,5 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,16 +14,15 @@
 # limitations under the License.
 
 
-from nemo_text_processing.inverse_text_normalization.data_loader_utils import get_abs_path
-from nemo_text_processing.inverse_text_normalization.graph_utils import (
+from nemo_text_processing.inverse_text_normalization.taggers.cardinal import CardinalFst
+from nemo_text_processing.inverse_text_normalization.utils import get_abs_path, num_to_word
+from nemo_text_processing.text_normalization.graph_utils import (
     GraphFst,
     convert_space,
     delete_extra_space,
     delete_space,
     insert_space,
 )
-from nemo_text_processing.inverse_text_normalization.taggers.cardinal import CardinalFst
-from nemo_text_processing.inverse_text_normalization.utils import num_to_word
 
 try:
     import pynini
@@ -39,14 +39,18 @@ class TimeFst(GraphFst):
         e.g. twelve thirty -> time { hours: "12" minutes: "30" }
         e.g. twelve past one -> time { minutes: "12" hours: "1" }
         e.g. two o clock a m -> time { hours: "2" suffix: "a.m." }
+        e.g. quarter to two -> time { hours: "1" minutes: "45" }
+        e.g. quarter past two -> time { hours: "2" minutes: "15" }
+        e.g. half past two -> time { hours: "2" minutes: "30" }
     """
 
     def __init__(self):
         super().__init__(name="time", kind="classify")
         # hours, minutes, seconds, suffix, zone, style, speak_period
 
-        suffix_graph = pynini.string_file(get_abs_path("data/time_suffix.tsv"))
-        time_zone_graph = pynini.invert(pynini.string_file(get_abs_path("data/time_zone.tsv")))
+        suffix_graph = pynini.string_file(get_abs_path("data/time/time_suffix.tsv"))
+        time_zone_graph = pynini.invert(pynini.string_file(get_abs_path("data/time/time_zone.tsv")))
+        time_to_graph = pynini.string_file(get_abs_path("data/time/time_to.tsv"))
 
         # only used for < 1000 thousand -> 0 weight
         cardinal = pynutil.add_weight(CardinalFst().graph_no_exception, weight=-0.7)
@@ -99,7 +103,22 @@ class TimeFst(GraphFst):
             + delete_extra_space
             + final_graph_hour
         )
-        final_graph = ((graph_hm | graph_mh) + final_suffix_optional + final_time_zone_optional).optimize()
+
+        graph_quarter_time = (
+            pynutil.insert("minutes: \"")
+            + pynini.cross("quarter", "45")
+            + pynutil.insert("\"")
+            + delete_space
+            + pynutil.delete(pynini.union("to", "till"))
+            + delete_extra_space
+            + pynutil.insert("hours: \"")
+            + time_to_graph
+            + pynutil.insert("\"")
+        )
+        final_graph = (
+            (graph_hm | graph_mh | graph_quarter_time) + final_suffix_optional + final_time_zone_optional
+        ).optimize()
 
         final_graph = self.add_tokens(final_graph)
+
         self.fst = final_graph.optimize()

@@ -43,7 +43,10 @@ class OptCounter(torch.optim.SGD):
         super().__init__(*args, **kwargs)
 
     def step(self, closure=None):
-        self.count += 1
+        try:
+            self.count += 1
+        except AttributeError:
+            self.count = 1
         super().step(closure)
 
 
@@ -168,7 +171,7 @@ class TestOptimizersSchedulers:
     @pytest.mark.unit
     def test_optim_config_parse_arg_by_target(self):
         basic_optim_config = {
-            'target': 'nemo.core.config.NovogradParams',
+            '_target_': 'nemo.core.config.NovogradParams',
             'params': {'weight_decay': 0.001, 'betas': [0.8, 0.5]},
         }
         basic_optim_config = omegaconf.OmegaConf.create(basic_optim_config)
@@ -253,7 +256,7 @@ class TestOptimizersSchedulers:
         opt = opt_cls(model.parameters(), lr=self.INITIAL_LR)
 
         basic_sched_config = {
-            'target': 'nemo.core.config.CosineAnnealingParams',
+            '_target_': 'nemo.core.config.CosineAnnealingParams',
             'params': {'min_lr': 0.1},
             'max_steps': self.MAX_STEPS,
         }
@@ -720,7 +723,6 @@ class TestOptimizersSchedulers:
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('CPU')
-    @pytest.mark.pleasefixme
     def test_max_step_computation(self):
         def train(
             max_epochs, accumulate_grad_batches, limit_train_batches, num_processes, batch_size, dataset_len, drop_last

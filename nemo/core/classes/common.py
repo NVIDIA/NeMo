@@ -202,6 +202,7 @@ class Typing(ABC):
                         f"{input_types[key].compare(value.neural_type)} :",
                         f"Input type expected : {input_types[key]}",
                         f"Input type found : {value.neural_type}",
+                        f"Argument: {key}",
                     ]
                     for i, dict_tuple in enumerate(metadata.base_types[key].elements_type.type_parameters.items()):
                         error_msg.insert(i + 2, f'  input param_{i} : {dict_tuple[0]}: {dict_tuple[1]}')
@@ -436,7 +437,7 @@ class Serialization(ABC):
             instance = hydra.utils.instantiate(config=config)
         else:
             instance = None
-
+            imported_cls_tb = None
             # Attempt class path resolution from config `target` class (if it exists)
             if 'target' in config:
                 target_cls = config.target
@@ -444,8 +445,8 @@ class Serialization(ABC):
                 try:
                     # try to import the target class
                     imported_cls = import_class_by_path(target_cls)
-                except (ImportError, ModuleNotFoundError):
-                    logging.debug(f'Target class `{target_cls}` could not be imported, falling back to original cls')
+                except Exception:
+                    imported_cls_tb = traceback.format_exc()
 
                 # try instantiating model with target class
                 if imported_cls is not None:
@@ -458,15 +459,16 @@ class Serialization(ABC):
                         instance = imported_cls(cfg=config)
                     except Exception:
                         imported_cls_tb = traceback.format_exc()
-                        logging.debug(
-                            f"Model instantiation from target class failed with following error.\n"
-                            f"Falling back to `cls`.\n"
-                            f"{imported_cls_tb}"
-                        )
                         instance = None
 
             # target class resolution was unsuccessful, fall back to current `cls`
             if instance is None:
+                if imported_cls_tb is not None:
+                    logging.debug(
+                        f"Model instantiation from target class {target_cls} failed with following error.\n"
+                        f"Falling back to `cls`.\n"
+                        f"{imported_cls_tb}"
+                    )
                 instance = cls(cfg=config)
 
         if not hasattr(instance, '_cfg'):
@@ -504,6 +506,7 @@ class FileIO(ABC):
         override_config_path: Optional[str] = None,
         map_location: Optional['torch.device'] = None,
         strict: bool = True,
+        return_config: bool = False,
     ):
         """Restores module/model with weights"""
         raise NotImplementedError()
@@ -631,7 +634,7 @@ class Model(Typing, Serialization, FileIO):
                 config file
             map_location: Optional torch.device() to map the instantiated model to a device.
                 By default (None), it will select a GPU if available, falling back to CPU otherwise.
-            strict: Passed to torch.load_state_dict
+            strict: Passed to torch.load_state_dict. By default true.
             return_config: If set to true, will return just the underlying config of the restored
                 model as an OmegaConf DictConfig object without instantiating the model.
 

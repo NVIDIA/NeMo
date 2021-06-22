@@ -34,6 +34,7 @@ class WarmupSchedulerParams(SchedulerParams):
     It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
     """
 
+    max_steps: int = 0
     warmup_steps: Optional[float] = None
     warmup_ratio: Optional[float] = None
 

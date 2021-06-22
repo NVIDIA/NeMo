@@ -102,19 +102,36 @@ python speech_to_label.py \
     +trainer.precision=16 \
     +trainer.amp_level=O1  # needed if using PyTorch < 1.6
 
+# Fine-tune a model
+
+For documentation on fine-tuning this model, please visit -
+https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.html#fine-tuning-configurations
+
+# Pretrained Models
+
+For documentation on existing pretrained models, please visit -
+https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speech_classification/results.html#
+
 """
 import pytorch_lightning as pl
+from omegaconf import OmegaConf
 
 from nemo.collections.asr.models import EncDecClassificationModel
 from nemo.core.config import hydra_runner
+from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="conf", config_name="matchboxnet_3x1x64_v1")
+@hydra_runner(config_path="conf/matchboxnet", config_name="matchboxnet_3x1x64_v1")
 def main(cfg):
+    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     asr_model = EncDecClassificationModel(cfg=cfg.model, trainer=trainer)
+
+    # Initialize the weights of the model from another model, if provided via config
+    asr_model.maybe_init_from_pretrained_checkpoint(cfg)
 
     trainer.fit(asr_model)
 

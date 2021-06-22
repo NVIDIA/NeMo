@@ -18,5 +18,7 @@ g2p_en
 pydub
 pyannote.core
 pyannote.metrics
-spectralcluster
+pyamg
 torch-stft
+ipywidgets
+matplotlib

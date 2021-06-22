@@ -1,19 +1,28 @@
 # It contains the default values for training a Conformer-CTC ASR model, large size (~120M) with CTC loss and sub-word encoding.
-# Default learning parameters in this config are set for effective batch size of 2K.
-# To train it with smaller effective batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
 
+# Architecture and training config:
+# Default learning parameters in this config are set for effective batch size of 2K. To train it with smaller effective
+# batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
 # Here are the recommended configs for different variants of Conformer-CTC, other parameters are the same as in this config file.
 # One extra layer (compared to original paper) is added to the medium and large variants to compensate for replacing the LSTM decoder with a linear one.
+#
+#  +-------------+---------+---------+----------+------------+-----+
+#  | Model       | d_model | n_heads | n_layers | time_masks | lr  |
+#  +=============+=========+========+===========+============+=====+
+#  | Small  (13M)|   176   |    4   |    16     |     5      | 5.0 |
+#  +-------------+---------+--------+-----------+------------+-----+
+#  | Medium (30M)|   256   |    4   |    18     |     5      | 5.0 |
+#  +-------------+---------+--------+-----------+------------+-----+
+#  | Large (121M)|   512   |    8   |    18     |     10     | 2.0 |
+#  +---------------------------------------------------------------+
+#
+# If you do not want to train with AMP, you may use weight decay of 0.0 or reduce the number of time maskings to 2
+# with time_width=100. It may help when you want to train for fewer epochs and need faster convergence.
+# With weight_decay=0.0, learning rate may need to get reduced to 2.0.
 
-#  +-------------+---------+---------+----------+------------+
-#  | Model       | d_model | n_heads | n_layers | time_masks |
-#  +=============+=========+========+===========+============+
-#  | Small  (13M)|   176   |    4   |    16     |     5      |
-#  +-------------+---------+--------+-----------+------------+
-#  | Medium (30M)|   256   |    4   |    17     |     10     |
-#  +-------------+---------+--------+-----------+------------+
-#  | Large (121M)|   512   |    8   |    18     |     10     |
-#  +----------------------------------------------------------
+# You may find more info about Conformer-CTC here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#conformer-ctc
+# Pre-trained models of Conformer-CTC can be found here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html
+# The checkpoint of the large model trained on LibriSpeech with this recipe can be found here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_ctc_large_ls
 
 name: "Conformer-CTC-BPE"
 
@@ -52,10 +61,11 @@ model:
     pin_memory: true
     use_start_end_token: false
 
-  # recommend small vocab size of 128 or 256 with 4x sub-sampling
+  # recommend small vocab size of 128 or 256 when using 4x sub-sampling
+  # you may find more detail on how to train a tokenizer at: /scripts/tokenizers/process_asr_text_tokenizer.py
   tokenizer:
     dir: ???  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (wpe)
-    type: wpe  # Can be either bpe (sentencepiece tokenizer) or wpe (wordpiece tokenizer)
+    type: wpe  # Can be either bpe (SentencePiece tokenizer) or wpe (WordPiece tokenizer)
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -119,13 +129,14 @@ model:
     vocabulary: []
 
   optim:
-    name: adam
-    lr: 2
+    name: adamw
+    lr: 2.0
     # optimizer arguments
     betas: [0.9, 0.98]
-    # less need for weight_decay as we already have large augmentations with SpecAug
-    # you may need weight_decay for large models, small datasets, or when lower augmentation is used
-    weight_decay: 0.0
+    # less necessity for weight_decay as we already have large augmentations with SpecAug
+    # you may need weight_decay for large models, stable AMP training, small datasets, or when lower augmentations are used
+    # weight decay of 0.0 with lr of 2.0 also works fine
+    weight_decay: 1e-3
 
     # scheduler setup
     sched:

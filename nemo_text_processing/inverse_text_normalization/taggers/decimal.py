@@ -1,4 +1,5 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,13 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.data_loader_utils import get_abs_path
-from nemo_text_processing.inverse_text_normalization.graph_utils import (
-    NEMO_DIGIT,
-    GraphFst,
-    delete_extra_space,
-    delete_space,
-)
+from nemo_text_processing.inverse_text_normalization.utils import get_abs_path
+from nemo_text_processing.text_normalization.graph_utils import NEMO_DIGIT, GraphFst, delete_extra_space, delete_space
 
 try:
     import pynini
@@ -29,8 +25,17 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-def get_quantity(deci, cardinal_graph_hundred_component_at_least_one_none_zero_digit):
-    numbers = cardinal_graph_hundred_component_at_least_one_none_zero_digit @ (
+def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstLike') -> 'pynini.FstLike':
+    """
+    Returns FST that transforms either a cardinal or decimal followed by a quantity into a numeral,
+    e.g. one million -> integer_part: "1" quantity: "million"
+    e.g. one point five million -> integer_part: "1" fractional_part: "5" quantity: "million"
+
+    Args: 
+        decimal: decimal FST
+        cardinal_up_to_hundred: cardinal FST
+    """
+    numbers = cardinal_up_to_hundred @ (
         pynutil.delete(pynini.closure("0")) + pynini.difference(NEMO_DIGIT, "0") + pynini.closure(NEMO_DIGIT)
     )
     suffix = pynini.union("million", "billion", "trillion", "quadrillion", "quintillion", "sextillion")
@@ -43,26 +48,23 @@ def get_quantity(deci, cardinal_graph_hundred_component_at_least_one_none_zero_d
         + suffix
         + pynutil.insert("\"")
     )
-    res |= deci + delete_extra_space + pynutil.insert("quantity: \"") + (suffix | "thousand") + pynutil.insert("\"")
+    res |= decimal + delete_extra_space + pynutil.insert("quantity: \"") + (suffix | "thousand") + pynutil.insert("\"")
     return res
 
 
 class DecimalFst(GraphFst):
     """
-    Finite state transducer for classifying decimal, 
+    Finite state transducer for classifying decimal
         e.g. minus twelve point five o o six billion -> decimal { negative: "true" integer_part: "12"  fractional_part: "5006" quantity: "billion" }
-
-    cardinal: Cardinal GraphFst
+        e.g. one billion -> decimal { integer_part: "1" quantity: "billion" }
+    Args:
+        cardinal: CardinalFst
     """
 
     def __init__(self, cardinal: GraphFst):
         super().__init__(name="decimal", kind="classify")
-        # negative, fractional_part, quantity, exponent, style(depre)
 
         cardinal_graph = cardinal.graph_no_exception
-        cardinal_graph_hundred_component_at_least_one_none_zero_digit = (
-            cardinal.graph_hundred_component_at_least_one_none_zero_digit
-        )
 
         graph_decimal = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
         graph_decimal |= pynini.string_file(get_abs_path("data/numbers/zero.tsv")) | pynini.cross("o", "0")
@@ -84,10 +86,10 @@ class DecimalFst(GraphFst):
         final_graph = optional_graph_negative + final_graph_wo_sign
 
         self.final_graph_wo_negative = final_graph_wo_sign | get_quantity(
-            final_graph_wo_sign, cardinal_graph_hundred_component_at_least_one_none_zero_digit
+            final_graph_wo_sign, cardinal.graph_hundred_component_at_least_one_none_zero_digit
         )
         final_graph |= optional_graph_negative + get_quantity(
-            final_graph_wo_sign, cardinal_graph_hundred_component_at_least_one_none_zero_digit
+            final_graph_wo_sign, cardinal.graph_hundred_component_at_least_one_none_zero_digit
         )
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

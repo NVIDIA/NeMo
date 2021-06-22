@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import os
 import shutil
 import tempfile
@@ -22,9 +21,11 @@ import torch
 from omegaconf import DictConfig
 
 from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
-from nemo.collections.asr.parts import rnnt_beam_decoding as beam_decode
-from nemo.collections.asr.parts import rnnt_greedy_decoding as greedy_decode
-from nemo.collections.asr.parts.numba import __NUMBA_MINIMUM_VERSION__, numba_utils
+from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
+from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
+from nemo.collections.common import tokenizers
+from nemo.core.utils import numba_utils
+from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 
 NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cuda_is_supported(__NUMBA_MINIMUM_VERSION__)
 
@@ -148,9 +149,31 @@ class TestEncDecRNNTBPEModel:
 
             new_model = EncDecRNNTBPEModel.restore_from(path)
             assert isinstance(new_model, type(asr_model))
-            assert new_model.vocab_path == 'vocab.txt'
+            assert new_model.vocab_path.endswith('_vocab.txt')
 
             assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
+
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    @pytest.mark.unit
+    def test_save_restore_artifact_spe(self, asr_model, test_data_dir):
+        asr_model.train()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tokenizer_dir = os.path.join(test_data_dir, "asr", "tokenizers", "an4_spe_128")
+            asr_model.change_vocabulary(new_tokenizer_dir=tokenizer_dir, new_tokenizer_type='bpe')
+
+            save_path = os.path.join(tmpdir, 'ctc_bpe.nemo')
+            asr_model.train()
+            asr_model.save_to(save_path)
+
+            new_model = EncDecRNNTBPEModel.restore_from(save_path)
+            assert isinstance(new_model, type(asr_model))
+            assert isinstance(new_model.tokenizer, tokenizers.SentencePieceTokenizer)
+            assert new_model.model_path.endswith('_tokenizer.model')
+            assert new_model.vocab_path.endswith('_vocab.txt')
+            assert new_model.spe_vocab_path.endswith('_tokenizer.vocab')
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',

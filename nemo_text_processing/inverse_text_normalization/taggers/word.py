@@ -1,4 +1,5 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.data_loader_utils import get_abs_path
-from nemo_text_processing.inverse_text_normalization.graph_utils import NEMO_NOT_SPACE, GraphFst, convert_space
+from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_SPACE, GraphFst
 
 try:
     import pynini
@@ -26,17 +26,11 @@ except (ModuleNotFoundError, ImportError):
 
 class WordFst(GraphFst):
     """
-    Finite state transducer for classifying word
+    Finite state transducer for classifying plain tokens, that do not belong to any special class. This can be considered as the default class.
         e.g. sleep -> tokens { name: "sleep" }
     """
 
     def __init__(self):
         super().__init__(name="word", kind="classify")
-
-        exceptions = pynini.string_file(get_abs_path("data/sentence_boundary_exceptions.txt"))
-        word = (
-            pynutil.insert("name: \"")
-            + (pynini.closure(pynutil.add_weight(NEMO_NOT_SPACE, weight=0.1), 1) | convert_space(exceptions))
-            + pynutil.insert("\"")
-        )
+        word = pynutil.insert("name: \"") + pynini.closure(NEMO_NOT_SPACE, 1) + pynutil.insert("\"")
         self.fst = word.optimize()

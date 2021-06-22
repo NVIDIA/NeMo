@@ -35,10 +35,10 @@ from typing import Callable, Optional
 import numpy as np
 import pytest
 import torch
-from pytorch_lightning.metrics import Metric
 from scipy.stats import entropy
 from torch.distributions.utils import logits_to_probs
 from torch.multiprocessing import Pool, set_start_method
+from torchmetrics import Metric
 
 from nemo.collections.common.metrics import GlobalAverageLossMetric, Perplexity
 

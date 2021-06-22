@@ -54,6 +54,7 @@ class NeMoTransformerConfig:
     attn_layer_dropout: float = 0.0
     hidden_act: str = 'relu'
     pre_ln: bool = False
+    pre_ln_final_layer_norm: bool = True
 
     # named model arguments
     library: str = 'nemo'
@@ -84,11 +85,13 @@ class TransformerEncoderNM(EncoderModule, Exportable):
         hidden_act: str = 'relu',
         mask_future: bool = False,
         pre_ln: bool = False,
+        pre_ln_final_layer_norm: bool = True,
     ):
         super().__init__()
 
         self._vocab_size = vocab_size
         self._hidden_size = hidden_size
+        self._max_sequence_length = max_sequence_length
 
         self._embedding = TransformerEmbedding(
             vocab_size=self._vocab_size,
@@ -110,6 +113,7 @@ class TransformerEncoderNM(EncoderModule, Exportable):
             hidden_act=hidden_act,
             mask_future=mask_future,
             pre_ln=pre_ln,
+            pre_ln_final_layer_norm=pre_ln_final_layer_norm,
         )
 
     @typecheck()
@@ -121,6 +125,22 @@ class TransformerEncoderNM(EncoderModule, Exportable):
     @property
     def hidden_size(self):
         return self._hidden_size
+
+    @property
+    def vocab_size(self):
+        return self._vocab_size
+
+    @property
+    def max_sequence_length(self):
+        return self._max_sequence_length
+
+    @property
+    def embedding(self):
+        return self._embedding
+
+    @property
+    def encoder(self):
+        return self._encoder
 
     def input_example(self):
         """
@@ -151,6 +171,7 @@ class TransformerDecoderNM(DecoderModule, Exportable):
         attn_layer_dropout: float = 0.0,
         hidden_act: str = 'relu',
         pre_ln: bool = False,
+        pre_ln_final_layer_norm: bool = True,
     ):
         super().__init__()
 
@@ -177,6 +198,7 @@ class TransformerDecoderNM(DecoderModule, Exportable):
             attn_layer_dropout=attn_layer_dropout,
             hidden_act=hidden_act,
             pre_ln=pre_ln,
+            pre_ln_final_layer_norm=pre_ln_final_layer_norm,
         )
 
     @typecheck()
@@ -220,3 +242,7 @@ class TransformerDecoderNM(DecoderModule, Exportable):
         input_ids = torch.randint(low=0, high=2048, size=(2, 16), device=sample.device)
         encoder_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
         return tuple([input_ids, encoder_mask, self._embedding(input_ids), encoder_mask])
+
+    def _prepare_for_export(self, **kwargs):
+        self._decoder.diagonal = None
+        super()._prepare_for_export(**kwargs)
