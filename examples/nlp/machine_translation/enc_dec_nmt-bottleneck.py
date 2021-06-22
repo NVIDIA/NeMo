@@ -58,11 +58,11 @@ Usage:
       model.beam_size=4 \
       model.max_generation_delta=256 \
       model.label_smoothing=0.1 \
-      model_type='seq2seq-br' \
-      att_bridge_size=512 \
-      att_bridge_k=16 \
-      att_bridge_inner_size=1024 \
-      non_recon_warmup_batches=75000 \
+      model.model_type='seq2seq-br' \
+      model.att_bridge_size=512 \
+      model.att_bridge_k=16 \
+      model.att_bridge_inner_size=1024 \
+      model.non_recon_warmup_batches=75000 \
       model.encoder_tokenizer.tokenizer_model=tokenizer.BPE.8192.model  \
       model.decoder_tokenizer.tokenizer_model=tokenizer.BPE.8192.model  \
       model.encoder.num_layers=6 \
