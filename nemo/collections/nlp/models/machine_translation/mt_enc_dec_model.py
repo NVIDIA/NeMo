@@ -33,7 +33,7 @@ from nemo.collections.common.losses import NLLLoss, SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.tokenizers.chinese_tokenizers import ChineseProcessor
-from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaProcessor, EnJaByteLevelProcessor
+from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaByteLevelProcessor, EnJaProcessor
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
@@ -115,18 +115,13 @@ class MTEncDecModel(EncDecNLPModel):
             self.source_processor_list = []
             self.target_processor_list = []
             for src_lng, tgt_lng in zip(self.src_language, self.tgt_language):
-                src_prcsr, tgt_prscr = self.setup_pre_and_post_processing_utils(
-                    source_lang=src_lng, target_lang=tgt_lng,
-                )
+                src_prcsr, tgt_prscr = self.setup_pre_and_post_processing_utils(src_lng, tgt_lng)
                 self.source_processor_list.append(src_prcsr)
                 self.target_processor_list.append(tgt_prscr)
 
         else:
             # After this call, the model will have  self.source_processor and self.target_processor objects
-            self.setup_pre_and_post_processing_utils(
-                source_lang=self.src_language,
-                target_lang=self.tgt_language,
-            )
+            self.setup_pre_and_post_processing_utils(self.src_language, self.tgt_language)
             self.multilingual_ids = [None]
 
         # TODO: Why is this base constructor call so late in the game?
@@ -737,9 +732,7 @@ class MTEncDecModel(EncDecNLPModel):
         """
         # __TODO__: This will reset both source and target processors even if you want to reset just one.
         if source_lang is not None or target_lang is not None:
-            self.setup_pre_and_post_processing_utils(
-                source_lang, target_lang
-            )
+            self.setup_pre_and_post_processing_utils(source_lang, target_lang)
 
         mode = self.training
         prepend_ids = []
