@@ -381,6 +381,7 @@ class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
         slices = torch.cat([x['slices'] for x in outputs])
         emb_shape = embs.shape[-1]
         embs = embs.view(-1, emb_shape).cpu().numpy()
+        embs = self.normalize(embs)
         out_embeddings = {}
         start_idx = 0
         with open(self.test_manifest, 'r') as manifest:
@@ -407,3 +408,16 @@ class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
         logging.info("Saved embedding files to {}".format(embedding_dir))
 
         return {}
+
+    def normalize(self, embs, eps=1e-10):
+        """
+        Normalize the input speaker embeddings
+        input:
+            embs: embeddings of shape (Batch,emb_size)
+        output:
+            embs: normalized embeddings of shape (Batch,emb_size)
+        """
+        embs = embs - embs.mean(axis=0)
+        embs = embs / (embs.std(axis=0) + eps)
+
+        return embs
