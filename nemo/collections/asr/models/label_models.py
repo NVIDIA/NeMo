@@ -29,6 +29,7 @@ from nemo.collections.asr.losses.angularloss import AngularSoftmaxLoss
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.asr.parts.utils.speaker_utils import embedding_normalize
 from nemo.collections.common.losses import CrossEntropyLoss as CELoss
 from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.core.classes import ModelPT
@@ -381,7 +382,7 @@ class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
         slices = torch.cat([x['slices'] for x in outputs])
         emb_shape = embs.shape[-1]
         embs = embs.view(-1, emb_shape).cpu().numpy()
-        embs = self.normalize(embs)
+        embs = embedding_normalize(embs)
         out_embeddings = {}
         start_idx = 0
         with open(self.test_manifest, 'r') as manifest:
@@ -408,16 +409,3 @@ class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
         logging.info("Saved embedding files to {}".format(embedding_dir))
 
         return {}
-
-    def normalize(self, embs, eps=1e-10):
-        """
-        Normalize the input speaker embeddings
-        input:
-            embs: embeddings of shape (Batch,emb_size)
-        output:
-            embs: normalized embeddings of shape (Batch,emb_size)
-        """
-        embs = embs - embs.mean(axis=0)
-        embs = embs / (embs.std(axis=0) + eps)
-
-        return embs
