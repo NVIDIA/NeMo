@@ -23,6 +23,11 @@ from nemo.collections.nlp.models.machine_translation import MTEncDecModel
 from nemo.collections.nlp.models.neural_machine_translation.neural_machine_translation_model import (
     NeuralMachineTranslationModel,
 )
+from nemo.collections.nlp.models.neural_text_normalization import (
+    TextNormalizationTaggerModel,
+    TextNormalizationDecoderModel,
+    NeuralTextNormalizationModel
+}
 from nemo.collections.nlp.models.question_answering.qa_model import QAModel
 from nemo.collections.nlp.models.text_classification import TextClassificationModel
 from nemo.collections.nlp.models.token_classification import PunctuationCapitalizationModel, TokenClassificationModel
