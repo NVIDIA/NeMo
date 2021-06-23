@@ -38,8 +38,7 @@ class ByteLevelTokenizer(TokenizerSpec):
     def ids_to_text(self, ids):
         # remove special tokens.
         ids = [x for x in ids if x < 256]
-        val = bytes(ids).decode('utf-8', errors='ignore').rstrip()
-        return val
+        return bytes(ids).decode('utf-8', errors='ignore').strip()
 
     def tokens_to_ids(self, tokens):
         return tokens
