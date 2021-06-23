@@ -191,7 +191,7 @@ setuptools.setup(
         #  5 - Production/Stable
         #  6 - Mature
         #  7 - Inactive
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
         # Indicate who your project is intended for
         'Intended Audience :: Developers',
         'Intended Audience :: Science/Research',
