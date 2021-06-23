@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
-
 import re
-from nemo.collections.common.tokenizers import TokenizerSpec
+from pathlib import Path
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 __all__ = ['ByteLevelTokenizer']
 
