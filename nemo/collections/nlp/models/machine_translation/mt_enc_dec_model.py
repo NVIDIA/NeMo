@@ -666,7 +666,7 @@ class MTEncDecModel(EncDecNLPModel):
 
         if self.encoder_tokenizer_library == 'byte-level':
             self.source_processor = ByteLevelProcessor()
-        elif source_lang == 'en' and target_lang == 'ja':
+        elif (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
             self.source_processor = EnJaProcessor(source_lang)
         elif source_lang == 'zh':
             self.source_processor = ChineseProcessor()
@@ -675,7 +675,7 @@ class MTEncDecModel(EncDecNLPModel):
 
         if self.decoder_tokenizer_library == 'byte-level':
             self.target_processor = ByteLevelProcessor()
-        elif source_lang == 'ja' and target_lang == 'en':
+        elif (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
             self.target_processor = EnJaProcessor(target_lang)
         elif target_lang == 'zh':
             self.target_processor = ChineseProcessor()
