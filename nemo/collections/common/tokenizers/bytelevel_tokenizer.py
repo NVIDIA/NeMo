@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ __all__ = ['ByteLevelTokenizer']
 
 class ByteLevelTokenizer(TokenizerSpec):
     def __init__(self):
-        self.vocab_size = 259
+        self.vocab_size = 261
         self.special_tokens = [self.bos_id, self.eos_id, self.pad_id]
 
     # no distinction between tokens and ids.
@@ -38,7 +38,8 @@ class ByteLevelTokenizer(TokenizerSpec):
     def ids_to_text(self, ids):
         # remove special tokens.
         ids = [x for x in ids if x < 256]
-        return bytes(ids).decode('utf-8', errors='ignore')
+        val = bytes(ids).decode('utf-8', errors='ignore').rstrip()
+        return val
 
     def tokens_to_ids(self, tokens):
         return tokens
@@ -57,7 +58,15 @@ class ByteLevelTokenizer(TokenizerSpec):
     @property
     def eos_id(self):
         return 258
-    
+
     @property
     def unk_id(self):
         return 259  # unused
+
+    @property
+    def cls_id(self):
+        return 260
+
+    @property
+    def mask_id(self):
+        return 261

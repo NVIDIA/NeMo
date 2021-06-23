@@ -33,7 +33,7 @@ from nemo.collections.common.losses import NLLLoss, SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.tokenizers.chinese_tokenizers import ChineseProcessor
-from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaProcessor
+from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaProcessor, EnJaByteLevelProcessor
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
@@ -660,8 +660,15 @@ class MTEncDecModel(EncDecNLPModel):
         """
         self.source_processor, self.target_processor = None, None
         if (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
-            self.source_processor = EnJaProcessor(source_lang)
-            self.target_processor = EnJaProcessor(target_lang)
+            if self._cfg.encoder_tokenizer.get('library', None) == 'byte-level':
+                self.source_processor = EnJaByteLevelProcessor(source_lang)
+            else:
+                self.source_processor = EnJaProcessor(source_lang)
+
+            if self._cfg.decoder_tokenizer.get('library', None) == 'byte-level':
+                self.target_processor = EnJaByteLevelProcessor()
+            else:
+                self.target_processor = EnJaProcessor(source_lang)
         else:
             if source_lang == 'zh':
                 self.source_processor = ChineseProcessor()
