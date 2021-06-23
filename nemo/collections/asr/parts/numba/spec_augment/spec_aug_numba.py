@@ -267,7 +267,6 @@ class SpecAugmentNumba(nn.Module, Typing):
             else:
                 time_width = (
                     torch.tensor(self.time_width, dtype=torch.int32, device=input_spec.device)
-                    .clamp(min=1)
                     .unsqueeze(0)
                     .repeat(sh[0])
                 )

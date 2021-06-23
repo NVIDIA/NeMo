@@ -73,7 +73,6 @@ def prepare_data(b, f, t, device='cuda', freq_masks=0, time_masks=0, freq_width=
         else:
             time_width = (
                     torch.tensor(orginal_time_width, dtype=torch.int32, device=x.device)
-                    .clamp(min=1)
                     .unsqueeze(0)
                     .repeat(sh[0])
                 )
