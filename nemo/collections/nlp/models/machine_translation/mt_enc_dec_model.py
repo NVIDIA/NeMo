@@ -70,17 +70,20 @@ class MTEncDecModel(EncDecNLPModel):
         self.multilingual = cfg.get("multilingual", False)
         self.multilingual_ids = []
 
+        self.encoder_tokenizer_library = cfg.encoder_tokenizer.get('library', 'yttm')
+        self.decoder_tokenizer_library = cfg.decoder_tokenizer.get('library', 'yttm')
+
         # Instantiates tokenizers and register to be saved with NeMo Model archive
         # After this call, ther will be self.encoder_tokenizer and self.decoder_tokenizer
         # Which can convert between tokens and token_ids for SRC and TGT languages correspondingly.
         self.setup_enc_dec_tokenizers(
-            encoder_tokenizer_library=cfg.encoder_tokenizer.get('library', 'yttm'),
+            encoder_tokenizer_library=self.encoder_tokenizer_library,
             encoder_tokenizer_model=cfg.encoder_tokenizer.get('tokenizer_model'),
             encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0)
             if cfg.encoder_tokenizer.get('bpe_dropout', 0.0) is not None
             else 0.0,
             encoder_model_name=cfg.encoder.get('model_name') if hasattr(cfg.encoder, 'model_name') else None,
-            decoder_tokenizer_library=cfg.decoder_tokenizer.get('library', 'yttm'),
+            decoder_tokenizer_library=self.decoder_tokenizer_library,
             decoder_tokenizer_model=cfg.decoder_tokenizer.tokenizer_model,
             decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0)
             if cfg.decoder_tokenizer.get('bpe_dropout', 0.0) is not None
@@ -113,14 +116,17 @@ class MTEncDecModel(EncDecNLPModel):
             self.target_processor_list = []
             for src_lng, tgt_lng in zip(self.src_language, self.tgt_language):
                 src_prcsr, tgt_prscr = self.setup_pre_and_post_processing_utils(
-                    source_lang=src_lng, target_lang=tgt_lng
+                    source_lang=src_lng, target_lang=tgt_lng,
                 )
                 self.source_processor_list.append(src_prcsr)
                 self.target_processor_list.append(tgt_prscr)
 
         else:
             # After this call, the model will have  self.source_processor and self.target_processor objects
-            self.setup_pre_and_post_processing_utils(source_lang=self.src_language, target_lang=self.tgt_language)
+            self.setup_pre_and_post_processing_utils(
+                source_lang=self.src_language,
+                target_lang=self.tgt_language,
+            )
             self.multilingual_ids = [None]
 
         # TODO: Why is this base constructor call so late in the game?
@@ -662,12 +668,12 @@ class MTEncDecModel(EncDecNLPModel):
         """
         self.source_processor, self.target_processor = None, None
         if (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
-            if self._cfg.encoder_tokenizer.get('library', None) == 'byte-level':
-                self.source_processor = EnJaByteLevelProcessor(source_lang)
+            if self.encoder_tokenizer_library == 'byte-level':
+                self.source_processor = EnJaByteLevelProcessor()
             else:
                 self.source_processor = EnJaProcessor(source_lang)
 
-            if self._cfg.decoder_tokenizer.get('library', None) == 'byte-level':
+            if self.decoder_tokenizer_library == 'byte-level':
                 self.target_processor = EnJaByteLevelProcessor()
             else:
                 self.target_processor = EnJaProcessor(target_lang)
@@ -731,7 +737,9 @@ class MTEncDecModel(EncDecNLPModel):
         """
         # __TODO__: This will reset both source and target processors even if you want to reset just one.
         if source_lang is not None or target_lang is not None:
-            self.setup_pre_and_post_processing_utils(source_lang, target_lang)
+            self.setup_pre_and_post_processing_utils(
+                source_lang, target_lang
+            )
 
         mode = self.training
         prepend_ids = []
