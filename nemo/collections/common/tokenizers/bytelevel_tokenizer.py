@@ -16,9 +16,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
-
 import re
+from pathlib import Path
 from nemo.collections.common.tokenizers import TokenizerSpec
 
 __all__ = ['ByteLevelTokenizer']
@@ -62,7 +61,7 @@ class ByteLevelTokenizer(TokenizerSpec):
     @property
     def eos_id(self):
         return 258
-    
+
     @property
     def unk_id(self):
         return 259  # unused
