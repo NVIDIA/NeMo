@@ -663,7 +663,7 @@ class MTEncDecModel(EncDecNLPModel):
         Creates source and target processor objects for input and output pre/post-processing.
         """
         self.source_processor, self.target_processor = None, None
-        
+
         if self.encoder_tokenizer_library == 'byte-level':
             self.source_processor = ByteLevelProcessor()
         elif source_lang == 'en' and target_lang == 'ja':
