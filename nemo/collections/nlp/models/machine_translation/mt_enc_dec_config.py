@@ -143,4 +143,3 @@ class MTBottleneckModelConfig(AAYNBaseConfig):
     att_bridge_inner_size: int = 1024
     non_recon_warmup_batches: int = 200000
     recon_per_token: bool = True
-
