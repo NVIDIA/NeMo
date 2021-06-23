@@ -25,12 +25,28 @@ class EnJaProcessor:
 
     def __init__(self, lang_id: str):
         self.lang_id = lang_id
+        self.moses_tokenizer = MosesTokenizer(lang=lang_id)
+        self.moses_detokenizer = MosesDetokenizer(lang=lang_id)
+        self.normalizer = MosesPunctNormalizer(
+            lang=lang_id, pre_replace_unicode_punct=True, post_remove_control_chars=True
+        )
 
     def detokenize(self, tokens: List[str]) -> str:
-        return ' '.join(tokens)
+        """
+        Detokenizes a list of tokens
+        Args:
+            tokens: list of strings as tokens
+        Returns:
+            detokenized Japanese or English string
+        """
+        return self.moses_detokenizer.detokenize(tokens)
 
     def tokenize(self, text) -> str:
-        return text
+        """
+        Tokenizes text using Moses. Returns a string of tokens.
+        """
+        tokens = self.moses_tokenizer.tokenize(text)
+        return ' '.join(tokens)
 
     def normalize(self, text) -> str:
         # Normalization doesn't handle Japanese periods correctly;
