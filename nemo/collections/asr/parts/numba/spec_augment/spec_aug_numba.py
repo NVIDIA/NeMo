@@ -254,7 +254,7 @@ class SpecAugmentNumba(nn.Module, Typing):
         # Construct the freq and time masks as well as start positions
         if self.freq_masks > 0:
             freq_starts = torch.randint(
-                0, sh[1] - self.freq_width, size=[bs, self.freq_masks], device=input_spec.device
+                0, sh[1] - self.freq_width + 1, size=[bs, self.freq_masks], device=input_spec.device
             )
             freq_lengths = torch.randint(0, self.freq_width + 1, size=[bs, self.freq_masks], device=input_spec.device)
         else:
