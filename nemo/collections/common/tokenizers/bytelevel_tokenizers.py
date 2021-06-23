@@ -1,3 +1,4 @@
+
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +16,6 @@
 import re
 from pathlib import Path
 from typing import List
-
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 __all__ = ['ByteLevelProcessor', 'ByteLevelTokenizer']
@@ -55,7 +55,7 @@ class ByteLevelTokenizer(TokenizerSpec):
     def ids_to_text(self, ids):
         # remove special tokens.
         ids = [x for x in ids if x < 256]
-        return bytes(ids).decode('utf-8', errors='ignore').strip()
+        return bytes(ids).decode('utf-8', errors='ignore').rstrip()
 
     def tokens_to_ids(self, tokens):
         return tokens
@@ -74,7 +74,7 @@ class ByteLevelTokenizer(TokenizerSpec):
     @property
     def eos_id(self):
         return 258
-    
+
     @property
     def unk_id(self):
         return 259  # unused
