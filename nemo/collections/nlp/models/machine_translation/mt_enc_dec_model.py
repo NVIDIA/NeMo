@@ -32,8 +32,9 @@ from nemo.collections.common.data import ConcatDataset
 from nemo.collections.common.losses import NLLLoss, SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
+from nemo.collections.common.tokenizers.bytelevel_tokenizers import ByteLevelProcessor
 from nemo.collections.common.tokenizers.chinese_tokenizers import ChineseProcessor
-from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaByteLevelProcessor, EnJaProcessor
+from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaProcessor
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
@@ -662,25 +663,24 @@ class MTEncDecModel(EncDecNLPModel):
         Creates source and target processor objects for input and output pre/post-processing.
         """
         self.source_processor, self.target_processor = None, None
-        if (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
-            if self.encoder_tokenizer_library == 'byte-level':
-                self.source_processor = EnJaByteLevelProcessor()
-            else:
-                self.source_processor = EnJaProcessor(source_lang)
+        
+        if self.encoder_tokenizer_library == 'byte-level':
+            self.source_processor = ByteLevelProcessor()
+        elif source_lang == 'en' and target_lang == 'ja':
+            self.source_processor = EnJaProcessor(source_lang)
+        elif source_lang == 'zh':
+            self.source_processor = ChineseProcessor()
+        elif source_lang is not None and source_lang not in ['ja', 'zh']:
+            self.source_processor = MosesProcessor(source_lang)
 
-            if self.decoder_tokenizer_library == 'byte-level':
-                self.target_processor = EnJaByteLevelProcessor()
-            else:
-                self.target_processor = EnJaProcessor(target_lang)
-        else:
-            if source_lang == 'zh':
-                self.source_processor = ChineseProcessor()
-            if target_lang == 'zh':
-                self.target_processor = ChineseProcessor()
-            if source_lang is not None and source_lang not in ['ja', 'zh']:
-                self.source_processor = MosesProcessor(source_lang)
-            if target_lang is not None and target_lang not in ['ja', 'zh']:
-                self.target_processor = MosesProcessor(target_lang)
+        if self.decoder_tokenizer_library == 'byte-level':
+            self.target_processor = ByteLevelProcessor()
+        elif source_lang == 'ja' and target_lang == 'en':
+            self.target_processor = EnJaProcessor(target_lang)
+        elif target_lang == 'zh':
+            self.target_processor = ChineseProcessor()
+        elif target_lang is not None and target_lang not in ['ja', 'zh']:
+            self.target_processor = MosesProcessor(target_lang)
 
         return self.source_processor, self.target_processor
 

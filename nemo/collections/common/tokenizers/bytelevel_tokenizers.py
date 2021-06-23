@@ -14,9 +14,26 @@
 
 import re
 from pathlib import Path
+from typing import List
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
-__all__ = ['ByteLevelTokenizer']
+__all__ = ['ByteLevelProcessor', 'ByteLevelTokenizer']
+
+
+class ByteLevelProcessor:
+    """
+    A very basic tokenization and detokenization class for use with byte-level
+    tokenization.
+    """
+
+    def detokenize(self, tokens: List[str]) -> str:
+        return ' '.join(tokens)
+
+    def tokenize(self, text) -> str:
+        return text
+
+    def normalize(self, text) -> str:
+        return text
 
 
 class ByteLevelTokenizer(TokenizerSpec):
