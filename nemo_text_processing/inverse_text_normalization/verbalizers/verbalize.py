@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from nemo_text_processing.inverse_text_normalization.verbalizers.cardinal import CardinalFst
+from nemo_text_processing.inverse_text_normalization.verbalizers.cardinal_ru import CardinalRuFst
 from nemo_text_processing.inverse_text_normalization.verbalizers.date import DateFst
 from nemo_text_processing.inverse_text_normalization.verbalizers.decimal import DecimalFst
 from nemo_text_processing.inverse_text_normalization.verbalizers.electronic import ElectronicFst
@@ -47,6 +48,8 @@ class VerbalizeFst(GraphFst):
         whitelist_graph = WhiteListFst().fst
         telephone_graph = TelephoneFst().fst
         electronic_graph = ElectronicFst().fst
+        cardinal_ru_graph = CardinalRuFst().fst
+
         graph = (
             time_graph
             | date_graph
@@ -58,5 +61,6 @@ class VerbalizeFst(GraphFst):
             | whitelist_graph
             | telephone_graph
             | electronic_graph
+            | cardinal_ru_graph
         )
         self.fst = graph

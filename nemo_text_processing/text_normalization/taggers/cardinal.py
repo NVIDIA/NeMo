@@ -58,16 +58,18 @@ class CardinalFst(GraphFst):
 
         if not deterministic:
             single_digits_graph_with_commas = pynini.closure(
-                self.single_digits_graph + pynutil.insert(" "), 1, 3
+                self.single_digits_graph + insert_space, 1, 3
             ) + pynini.closure(
                 pynutil.delete(",")
+                + insert_space
                 + single_digits_graph
-                + pynutil.insert(" ")
+                + insert_space
                 + single_digits_graph
-                + pynutil.insert(" ")
+                + insert_space
                 + single_digits_graph,
                 1,
             )
+
             self.graph |= self.single_digits_graph | get_hundreds_graph() | single_digits_graph_with_commas
             self.range_graph = (
                 pynini.closure(pynutil.insert("from "), 0, 1)

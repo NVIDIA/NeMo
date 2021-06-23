@@ -26,6 +26,7 @@ from nemo_text_processing.text_normalization.taggers.punctuation import Punctuat
 from nemo_text_processing.text_normalization.taggers.roman import RomanFst
 from nemo_text_processing.text_normalization.taggers.telephone import TelephoneFst
 from nemo_text_processing.text_normalization.taggers.time import TimeFst
+from nemo_text_processing.text_normalization.taggers.universal import UniversalFst
 from nemo_text_processing.text_normalization.taggers.whitelist import WhiteListFst
 from nemo_text_processing.text_normalization.taggers.word import WordFst
 
@@ -92,8 +93,9 @@ class ClassifyFst(GraphFst):
 
         if not deterministic:
             roman_graph = RomanFst(deterministic=deterministic).fst
-            # the weight matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
-            classify |= pynutil.add_weight(roman_graph, 100)
+            universal_graph = UniversalFst(deterministic=deterministic).fst
+            # the weight for roman_graph matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
+            classify |= pynutil.add_weight(roman_graph, 100) | pynutil.add_weight(universal_graph, 1.1)
 
         punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=1.1) + pynutil.insert(" }")
         token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")

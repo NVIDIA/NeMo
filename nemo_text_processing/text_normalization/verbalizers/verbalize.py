@@ -25,6 +25,7 @@ from nemo_text_processing.text_normalization.verbalizers.ordinal import OrdinalF
 from nemo_text_processing.text_normalization.verbalizers.roman import RomanFst
 from nemo_text_processing.text_normalization.verbalizers.telephone import TelephoneFst
 from nemo_text_processing.text_normalization.verbalizers.time import TimeFst
+from nemo_text_processing.text_normalization.verbalizers.universal import UniversalFst
 from nemo_text_processing.text_normalization.verbalizers.whitelist import WhiteListFst
 
 
@@ -74,6 +75,7 @@ class VerbalizeFst(GraphFst):
 
         if not deterministic:
             roman_graph = RomanFst(deterministic=deterministic).fst
-            graph |= roman_graph
+            universal_graph = UniversalFst(deterministic=deterministic).fst
+            graph |= roman_graph | universal_graph
 
         self.fst = graph

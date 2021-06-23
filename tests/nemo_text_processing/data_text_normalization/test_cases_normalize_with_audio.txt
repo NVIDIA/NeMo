@@ -105,3 +105,10 @@ twenty five.]
 Francis the first -- test
 Francis one -- test
 Francis first -- test
+~librivox.com
+librivox.com
+librivox dot com
+librivox com
+~1,000,123
+one million one hundred twenty three
+one oh oh zero one two three

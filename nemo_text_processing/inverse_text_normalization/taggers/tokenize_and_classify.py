@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from nemo_text_processing.inverse_text_normalization.taggers.cardinal import CardinalFst
+from nemo_text_processing.inverse_text_normalization.taggers.cardinal_ru import CardinalRuFst
 from nemo_text_processing.inverse_text_normalization.taggers.date import DateFst
 from nemo_text_processing.inverse_text_normalization.taggers.decimal import DecimalFst
 from nemo_text_processing.inverse_text_normalization.taggers.electronic import ElectronicFst
@@ -64,18 +65,20 @@ class ClassifyFst(GraphFst):
         punct_graph = PunctuationFst().fst
         electronic_graph = ElectronicFst().fst
         telephone_graph = TelephoneFst().fst
+        self.cardinal_ru_graph = CardinalRuFst().fst
 
         classify = (
             pynutil.add_weight(whitelist_graph, 1.01)
-            | pynutil.add_weight(time_graph, 1.1)
-            | pynutil.add_weight(date_graph, 1.09)
-            | pynutil.add_weight(decimal_graph, 1.1)
-            | pynutil.add_weight(measure_graph, 1.1)
-            | pynutil.add_weight(cardinal_graph, 1.1)
-            | pynutil.add_weight(ordinal_graph, 1.1)
-            | pynutil.add_weight(money_graph, 1.1)
-            | pynutil.add_weight(telephone_graph, 1.1)
-            | pynutil.add_weight(electronic_graph, 1.1)
+            # | pynutil.add_weight(time_graph, 1.1)
+            # | pynutil.add_weight(date_graph, 1.09)
+            # | pynutil.add_weight(decimal_graph, 1.1)
+            # | pynutil.add_weight(measure_graph, 1.1)
+            # | pynutil.add_weight(cardinal_graph, 1.1)
+            # | pynutil.add_weight(ordinal_graph, 1.1)
+            # | pynutil.add_weight(money_graph, 1.1)
+            # | pynutil.add_weight(telephone_graph, 1.1)
+            # | pynutil.add_weight(electronic_graph, 1.1)
+            | pynutil.add_weight(self.cardinal_ru_graph, 1.1)
             | pynutil.add_weight(word_graph, 100)
         )
 
@@ -85,7 +88,7 @@ class ClassifyFst(GraphFst):
             pynini.closure(punct + pynutil.insert(" ")) + token + pynini.closure(pynutil.insert(" ") + punct)
         )
 
-        graph = token_plus_punct + pynini.closure(delete_extra_space + token_plus_punct)
-        graph = delete_space + graph + delete_space
+        graph = token_plus_punct + pynini.closure(pynutil.add_weight(delete_extra_space, 1.1) + token_plus_punct)
 
+        graph = delete_space + graph + delete_space
         self.fst = graph.optimize()
