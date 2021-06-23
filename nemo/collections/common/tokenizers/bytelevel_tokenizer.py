@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-=======
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
->>>>>>> add bytelevel tokenizer
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
 from pathlib import Path
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+
+import re
+from nemo.collections.common.tokenizers import TokenizerSpec
 
 __all__ = ['ByteLevelTokenizer']
 
@@ -61,7 +58,7 @@ class ByteLevelTokenizer(TokenizerSpec):
     @property
     def eos_id(self):
         return 258
-
+    
     @property
     def unk_id(self):
         return 259  # unused
