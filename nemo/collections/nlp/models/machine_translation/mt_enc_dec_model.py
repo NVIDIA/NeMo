@@ -670,7 +670,7 @@ class MTEncDecModel(EncDecNLPModel):
             if self._cfg.decoder_tokenizer.get('library', None) == 'byte-level':
                 self.target_processor = EnJaByteLevelProcessor()
             else:
-                self.target_processor = EnJaProcessor(source_lang)
+                self.target_processor = EnJaProcessor(target_lang)
         else:
             if source_lang == 'zh':
                 self.source_processor = ChineseProcessor()
