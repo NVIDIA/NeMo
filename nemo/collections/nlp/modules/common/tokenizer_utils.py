@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -147,9 +147,6 @@ def get_nmt_tokenizer(
             f'Getting Megatron tokenizer with pretrained model name: {model_name} and custom vocab file: {vocab_file}'
         )
         return get_tokenizer(tokenizer_name=model_name, vocab_file=vocab_file)
-    elif library == 'byte-level':
-        logging.info(f'Using byte-level tokenization')
-        return ByteLevelTokenizer()
     else:
         raise NotImplementedError(
             'Currently we only support "yttm", "huggingface", "sentencepiece", "megatron", and "byte-level" tokenizer libraries.'
