@@ -49,7 +49,7 @@ def initialize(cfg: DictConfig, model_name: str):
     exp_dir = exp_manager(trainer, cfg.get(exp_manager_cfg, None))
 
     if not cfg.pretrained_model:
-        logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')'
+        logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
         if model_name == TAGGER_MODEL:
             model = TextNormalizationTaggerModel(model_cfg, trainer=trainer)
         if model_name == DECODER_MODEL:
