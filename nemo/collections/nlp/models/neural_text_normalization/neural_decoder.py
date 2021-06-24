@@ -28,7 +28,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from torch import nn
 from torch.utils.data import DataLoader
-from transformers import AutoModelForTokenClassification, AutoModelForSeq2SeqLM, AutoTokenizer
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 from nemo.core.classes.common import typecheck
 from nemo.collections.nlp.models.nlp_model import NLPModel
@@ -43,7 +43,7 @@ class TextNormalizationDecoderModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self._tokenizer = AutoTokenizer.from_pretrained(cfg.tokenizer)
         super().__init__(cfg=cfg, trainer=trainer)
-        self.model = AutoModelForTokenClassification.from_pretrained(cfg.transformer)
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(cfg.transformer)
 
     # Functions for inference
     @torch.no_grad()
@@ -64,6 +64,7 @@ class TextNormalizationDecoderModel(NLPModel):
         :param span_ends: A list of lists where each list contains the ending
                           locations of semiotic spans in an input.
         """
+        self.eval()
         if sum(nb_spans) == 0: return [[]] * len(sents)
         model, tokenizer = self.model, self._tokenizer
         model_max_len = model.config.n_positions
@@ -147,3 +148,13 @@ class TextNormalizationDecoderModel(NLPModel):
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, mode: str):
         pass
+
+    @classmethod
+    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        result = []
+        return result

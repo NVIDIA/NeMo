@@ -42,13 +42,11 @@ def initialize(cfg: DictConfig, model_name: str):
     # Get configs for the corresponding models
     trainer_cfg     = cfg.get(f'{model_name}_trainer')
     model_cfg       = cfg.get(f'{model_name}_model')
-    pretrained_cfg  = cfg.get(f'{model_name}_pretrained_model')
-    exp_manager_cfg = f'{model_name}_exp_manager'
+    pretrained_cfg  = cfg.get(f'{model_name}_pretrained_model', None)
 
     trainer = pl.Trainer(**trainer_cfg)
-    exp_dir = exp_manager(trainer, cfg.get(exp_manager_cfg, None))
 
-    if not cfg.pretrained_model:
+    if not pretrained_cfg:
         logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
         if model_name == TAGGER_MODEL:
             model = TextNormalizationTaggerModel(model_cfg, trainer=trainer)
@@ -60,6 +58,8 @@ def initialize(cfg: DictConfig, model_name: str):
             model = TextNormalizationTaggerModel.from_pretrained(pretrained_cfg)
         if model_name == DECODER_MODEL:
             model = TextNormalizationDecoderModel.from_pretrained(pretrained_cfg)
+
+    return trainer, model
 
 if __name__ == '__main__':
     main()

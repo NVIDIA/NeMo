@@ -22,26 +22,27 @@ import random
 import time
 import wordninja
 
-from constants import *
 from transformers import *
 from nltk import word_tokenize
-from models.helpers import *
-from utils.basic import has_numbers, is_url
-from models.postprocess import *
+from typing import Dict, List, Optional
+from nemo.collections.nlp.models.neural_text_normalization.utils import *
+from nemo.collections.nlp.models.neural_text_normalization.constants import *
 
-class JointModel(nn.Module):
+__all__ = ['NeuralTextNormalizationModel']
+
+class NeuralTextNormalizationModel(nn.Module):
     def __init__(self, tagger, decoder):
-        super(JointModel, self).__init__()
+        super(NeuralTextNormalizationModel, self).__init__()
 
         self.tagger = tagger
         self.decoder = decoder
 
-    def inference(self, sents: List[str]):
+    def _infer(self, sents: List[str]):
         # Preprocessing
         sents = self.input_preprocessing(sents)
 
         # Tagging
-        nb_spans, span_starts, span_ends = self.tagger._infer(sents)
+        tag_preds, nb_spans, span_starts, span_ends = self.tagger._infer(sents)
         output_spans = self.decoder._infer(sents, nb_spans, span_starts, span_ends)
 
         # Preprare final outputs

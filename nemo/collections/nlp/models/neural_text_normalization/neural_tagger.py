@@ -28,7 +28,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from torch import nn
 from torch.utils.data import DataLoader
-from transformers import AutoModelForTokenClassification, AutoModelForSeq2SeqLM, AutoTokenizer
+from transformers import AutoModelForTokenClassification, AutoTokenizer
 
 from nemo.core.classes.common import typecheck
 from nemo.collections.nlp.models.nlp_model import NLPModel
@@ -88,7 +88,7 @@ class TextNormalizationTaggerModel(NLPModel):
         # Decoding
         nb_spans, span_starts, span_ends = self.decode_tag_preds(all_tag_preds)
 
-        return nb_spans, span_starts, span_ends
+        return all_tag_preds, nb_spans, span_starts, span_ends
 
     def postprocess_tag_preds(self, words, preds):
         final_preds = []
@@ -156,3 +156,13 @@ class TextNormalizationTaggerModel(NLPModel):
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, mode: str):
         pass
+
+    @classmethod
+    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        result = []
+        return result

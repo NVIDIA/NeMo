@@ -11,10 +11,6 @@ tagger_model:
   transformer: distilbert-base-uncased
   tokenizer: ${tagger_model.transformer}
 
-tagger_exp_manager:
-  exp_dir: null  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
-  name: "TextNormalizationTaggerModel"  # The name of your model
-
 # Decoder
 decoder_pretrained_model: null
 
@@ -25,7 +21,3 @@ decoder_trainer:
 decoder_model:
   transformer: t5-base
   tokenizer: ${decoder_model.transformer}
-
-decoder_exp_manager:
-  exp_dir: null  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
-  name: "TextNormalizationDecoderModel"  # The name of your model
