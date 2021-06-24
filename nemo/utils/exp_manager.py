@@ -70,7 +70,8 @@ class CallbackParams:
     save_top_k: Optional[int] = 3
     save_weights_only: Optional[bool] = False
     mode: Optional[str] = "min"
-    period: Optional[int] = 1
+    period: Optional[int] = None
+    every_n_val_epochs: Optional[int] = 1
     prefix: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     postfix: str = ".nemo"
     save_best_model: bool = False
@@ -770,6 +771,13 @@ def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path,
                 f"{trainer.max_steps}. Please ensure that max_steps will run for at least "
                 f"{trainer.check_val_every_n_epoch} epochs to ensure that checkpointing will not error out."
             )
+
+    if params.period is not None:
+        logging.warning(
+            "The use of `period` in the checkpoint callback is deprecrated, please use `every_n_val_epochs` instead. "
+            "Overwriting `every_n_val_epochs` with `period`."
+        )
+        params.every_n_val_epochs = params.period
 
     checkpoint_callback = NeMoModelCheckpoint(**params)
     checkpoint_callback.last_model_path = trainer.resume_from_checkpoint or ""
