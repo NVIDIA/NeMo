@@ -32,6 +32,7 @@ from nemo.collections.common.data import ConcatDataset
 from nemo.collections.common.losses import NLLLoss, SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
+from nemo.collections.common.tokenizers.bytelevel_tokenizers import ByteLevelProcessor
 from nemo.collections.common.tokenizers.chinese_tokenizers import ChineseProcessor
 from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaProcessor
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
@@ -71,18 +72,20 @@ class MTEncDecModel(EncDecNLPModel):
         self.multilingual_ids = []
 
         self.retrieval = cfg.get("retrieval", False)
+        self.encoder_tokenizer_library = cfg.encoder_tokenizer.get('library', 'yttm')
+        self.decoder_tokenizer_library = cfg.decoder_tokenizer.get('library', 'yttm')
 
         # Instantiates tokenizers and register to be saved with NeMo Model archive
         # After this call, ther will be self.encoder_tokenizer and self.decoder_tokenizer
         # Which can convert between tokens and token_ids for SRC and TGT languages correspondingly.
         self.setup_enc_dec_tokenizers(
-            encoder_tokenizer_library=cfg.encoder_tokenizer.get('library', 'yttm'),
+            encoder_tokenizer_library=self.encoder_tokenizer_library,
             encoder_tokenizer_model=cfg.encoder_tokenizer.get('tokenizer_model'),
             encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0)
             if cfg.encoder_tokenizer.get('bpe_dropout', 0.0) is not None
             else 0.0,
             encoder_model_name=cfg.encoder.get('model_name') if hasattr(cfg.encoder, 'model_name') else None,
-            decoder_tokenizer_library=cfg.decoder_tokenizer.get('library', 'yttm'),
+            decoder_tokenizer_library=self.decoder_tokenizer_library,
             decoder_tokenizer_model=cfg.decoder_tokenizer.tokenizer_model,
             decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0)
             if cfg.decoder_tokenizer.get('bpe_dropout', 0.0) is not None
@@ -114,15 +117,13 @@ class MTEncDecModel(EncDecNLPModel):
             self.source_processor_list = []
             self.target_processor_list = []
             for src_lng, tgt_lng in zip(self.src_language, self.tgt_language):
-                src_prcsr, tgt_prscr = self.setup_pre_and_post_processing_utils(
-                    source_lang=src_lng, target_lang=tgt_lng
-                )
+                src_prcsr, tgt_prscr = self.setup_pre_and_post_processing_utils(src_lng, tgt_lng)
                 self.source_processor_list.append(src_prcsr)
                 self.target_processor_list.append(tgt_prscr)
 
         else:
             # After this call, the model will have  self.source_processor and self.target_processor objects
-            self.setup_pre_and_post_processing_utils(source_lang=self.src_language, target_lang=self.tgt_language)
+            self.setup_pre_and_post_processing_utils(self.src_language, self.tgt_language)
             self.multilingual_ids = [None]
 
         # TODO: Why is this base constructor call so late in the game?
@@ -387,7 +388,7 @@ class MTEncDecModel(EncDecNLPModel):
         decoder_model_name=None,
     ):
 
-        supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece', 'megatron']
+        supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece', 'megatron', 'byte-level']
         if (
             encoder_tokenizer_library not in supported_tokenizers
             or decoder_tokenizer_library not in supported_tokenizers
@@ -684,18 +685,24 @@ class MTEncDecModel(EncDecNLPModel):
         Creates source and target processor objects for input and output pre/post-processing.
         """
         self.source_processor, self.target_processor = None, None
-        if (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
+
+        if self.encoder_tokenizer_library == 'byte-level':
+            self.source_processor = ByteLevelProcessor()
+        elif (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
             self.source_processor = EnJaProcessor(source_lang)
+        elif source_lang == 'zh':
+            self.source_processor = ChineseProcessor()
+        elif source_lang is not None and source_lang not in ['ja', 'zh']:
+            self.source_processor = MosesProcessor(source_lang)
+
+        if self.decoder_tokenizer_library == 'byte-level':
+            self.target_processor = ByteLevelProcessor()
+        elif (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
             self.target_processor = EnJaProcessor(target_lang)
-        else:
-            if source_lang == 'zh':
-                self.source_processor = ChineseProcessor()
-            if target_lang == 'zh':
-                self.target_processor = ChineseProcessor()
-            if source_lang is not None and source_lang not in ['ja', 'zh']:
-                self.source_processor = MosesProcessor(source_lang)
-            if target_lang is not None and target_lang not in ['ja', 'zh']:
-                self.target_processor = MosesProcessor(target_lang)
+        elif target_lang == 'zh':
+            self.target_processor = ChineseProcessor()
+        elif target_lang is not None and target_lang not in ['ja', 'zh']:
+            self.target_processor = MosesProcessor(target_lang)
 
         return self.source_processor, self.target_processor
 
