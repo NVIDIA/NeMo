@@ -141,20 +141,22 @@ class TokenLMDecoder(BaseDecoder):
                  **kwargs
     ):
         super().__init__(num_classes, blank, pruned, topo_type, device, **kwargs)
-        if token_lm is None:
-            logging.warning(f"""token_lm was set to None. Use this for debug purposes only.""")
-            self.token_lm = token_lm
-            self.decode_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert()]).to(device)
-        else:
+        if token_lm is not None:
             self.token_lm = load_graph(token_lm) if isinstance(token_lm, str) else token_lm
-            if hasattr(self.token_lm, 'aux_labels'):
-                delattr(self.token_lm, 'aux_labels')
-            labels = self.token_lm.labels if isinstance(self.token_lm.labels, torch.Tensor) else self.token_lm.labels.values()
-            if labels.max() != self.ctc_topo_inv.labels.max():
-                raise ValueError(f"token_lm is not compatible with the topo: {labels.unique()}, {self.ctc_topo_inv.labels.unique()}")
-            self.decode_graph = k2.create_fsa_vec([k2.arc_sort(intersect_with_self_loops(self.ctc_topo_inv, self.token_lm).invert_())]).to(device)
-            # self.decode_graph = k2.create_fsa_vec([k2.arc_sort(intersect_with_self_loops(self.ctc_topo_inv, self.token_lm))]).to(device)
-            # self.decode_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert_()]).to(device)
+            if self.token_lm is not None:
+                if hasattr(self.token_lm, 'aux_labels'):
+                    delattr(self.token_lm, 'aux_labels')
+                labels = self.token_lm.labels if isinstance(self.token_lm.labels, torch.Tensor) else self.token_lm.labels.values()
+                if labels.max() != self.ctc_topo_inv.labels.max():
+                    raise ValueError(f"token_lm is not compatible with the topo: {labels.unique()}, {self.ctc_topo_inv.labels.unique()}")
+                self.decode_graph = k2.create_fsa_vec([k2.arc_sort(intersect_with_self_loops(self.ctc_topo_inv, self.token_lm).invert_())]).to(device)
+            else:
+                logging.warning(f"""token_lm was set to None. Use this for debug purposes only.""")
+        else:
+            logging.warning(f"""token_lm was set to None. Use this for debug purposes only.""")
+            self.token_lm = None
+        if self.token_lm is None:
+            self.decode_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert()]).to(device)
 
 '''
 class TLGDecoder(BaseDecoder):

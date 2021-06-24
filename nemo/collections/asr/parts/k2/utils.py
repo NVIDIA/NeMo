@@ -27,6 +27,7 @@
 # limitations under the License.
 
 import itertools
+import os
 import re
 from pickle import UnpicklingError
 from typing import List, Tuple
@@ -129,22 +130,26 @@ def make_blank_first(blank_idx: int, log_probs: torch.Tensor, targets: torch.Ten
     return torch.index_select(log_probs, -1, index), None if targets is None else targets + 1
 
 def load_graph(graph_path):
-    errors = []
-    try:
-        graph_dict = torch.load(graph_path, map_location="cpu")
-        graph = k2.Fsa.from_dict(graph_dict)
-        return graph
-    except UnpicklingError as e:
-        errors.append(e)
-        with open(graph_path, "rt", encoding="utf-8") as f:
-            graph_txt = f.read()
-        for func, acceptor in itertools.product([k2.Fsa.from_str, k2.Fsa.from_openfst], [True, False]):
-            try:
-                graph = func(graph_txt, acceptor=acceptor)
-                return graph
-            except (TypeError, ValueError, RuntimeError) as e:
-                errors.append(e)
-    raise Exception(errors)
+    if os.path.exists(graph_path):
+        errors = []
+        try:
+            graph_dict = torch.load(graph_path, map_location="cpu")
+            graph = k2.Fsa.from_dict(graph_dict)
+            return graph
+        except UnpicklingError as e:
+            errors.append(e)
+            with open(graph_path, "rt", encoding="utf-8") as f:
+                graph_txt = f.read()
+            for func, acceptor in itertools.product([k2.Fsa.from_str, k2.Fsa.from_openfst], [True, False]):
+                try:
+                    graph = func(graph_txt, acceptor=acceptor)
+                    return graph
+                except (TypeError, ValueError, RuntimeError) as e:
+                    errors.append(e)
+        raise Exception(errors)
+    else:
+        logging.warning(f"""No such file: '{graph_path}'""")
+        return None
 
 def graph_to_den(graph: k2.Fsa, replicate_den: bool = False, times: int = 1) -> k2.Fsa:
     graph_vec = k2.create_fsa_vec([graph.detach()])
