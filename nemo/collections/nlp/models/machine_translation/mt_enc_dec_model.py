@@ -641,27 +641,81 @@ class MTEncDecModel(EncDecNLPModel):
         if len(src_file_list) != len(tgt_file_list):
             raise ValueError('The same number of filepaths must be passed in for source and target validation.')
 
+        if self.retrieval:
+            retrieval_file_name = cfg.get('retrieval_file_name')
+            retrieval_src_file_name = cfg.get('retrieval_src_file_name')
+            retrieval_tgt_file_name = cfg.get('retrieval_tgt_file_name')
+            if retrieval_file_name is None or retrieval_src_file_name is None or retrieval_tgt_file_name is None:
+                raise ValueError(
+                    'Validation dataloader needs cfg.retrieval_file_name, cfg.retrieval_src_file_name, cfg.retrieval_tgt_file_name \
+                    to not be None for retrieval mode.'
+                )
+            else:
+                if isinstance(retrieval_file_name, str):
+                    retrieval_file_list = [retrieval_file_name]
+                elif isinstance(retrieval_file_name, ListConfig):
+                    retrieval_file_list = retrieval_file_name
+                else:
+                    raise ValueError("cfg.retrieval_file_name must be string or list of strings")
+                if isinstance(retrieval_src_file_name, str):
+                    retrieval_src_file_list = [retrieval_src_file_name]
+                elif isinstance(retrieval_src_file_name, ListConfig):
+                    retrieval_src_file_list = retrieval_src_file_name
+                else:
+                    raise ValueError("cfg.retrieval_src_file_name must be string or list of strings")
+                if isinstance(retrieval_tgt_file_name, str):
+                    retrieval_tgt_file_list = [retrieval_tgt_file_name]
+                elif isinstance(retrieval_tgt_file_name, ListConfig):
+                    retrieval_tgt_file_list = retrieval_tgt_file_name
+                else:
+                    raise ValueError("cfg.retrieval_tgt_file_name must be string or list of strings")
+            if len(src_file_list) != len(retrieval_file_list):
+                raise ValueError('The same number of filepaths must be passed in for source and retrieval validation.')
+
         dataloaders = []
         prepend_idx = 0
         for idx, src_file in enumerate(src_file_list):
             if self.multilingual:
                 prepend_idx = idx
-            dataset = TranslationDataset(
-                dataset_src=str(Path(src_file).expanduser()),
-                dataset_tgt=str(Path(tgt_file_list[idx]).expanduser()),
-                tokens_in_batch=cfg.tokens_in_batch,
-                clean=cfg.get("clean", False),
-                max_seq_length=cfg.get("max_seq_length", 512),
-                min_seq_length=cfg.get("min_seq_length", 1),
-                max_seq_length_diff=cfg.get("max_seq_length_diff", 512),
-                max_seq_length_ratio=cfg.get("max_seq_length_ratio", 512),
-                cache_ids=cfg.get("cache_ids", False),
-                cache_data_per_node=cfg.get("cache_data_per_node", False),
-                use_cache=cfg.get("use_cache", False),
-                reverse_lang_direction=cfg.get("reverse_lang_direction", False),
-                prepend_id=self.multilingual_ids[prepend_idx],
-            )
-            dataset.batchify(self.encoder_tokenizer, self.decoder_tokenizer)
+            if not self.retrieval:
+                dataset = TranslationDataset(
+                    dataset_src=str(Path(src_file).expanduser()),
+                    dataset_tgt=str(Path(tgt_file_list[idx]).expanduser()),
+                    tokens_in_batch=cfg.tokens_in_batch,
+                    clean=cfg.get("clean", False),
+                    max_seq_length=cfg.get("max_seq_length", 512),
+                    min_seq_length=cfg.get("min_seq_length", 1),
+                    max_seq_length_diff=cfg.get("max_seq_length_diff", 512),
+                    max_seq_length_ratio=cfg.get("max_seq_length_ratio", 512),
+                    cache_ids=cfg.get("cache_ids", False),
+                    cache_data_per_node=cfg.get("cache_data_per_node", False),
+                    use_cache=cfg.get("use_cache", False),
+                    reverse_lang_direction=cfg.get("reverse_lang_direction", False),
+                    prepend_id=self.multilingual_ids[prepend_idx],
+                )
+                dataset.batchify(self.encoder_tokenizer, self.decoder_tokenizer)
+            else:
+                print('yolo')
+                dataset = RetrievalTranslationDataset(
+                    dataset_src=str(Path(src_file).expanduser()),
+                    dataset_tgt=str(Path(tgt_file_list[idx]).expanduser()),
+                    dataset_retrieval=str(Path(retrieval_file_list[idx]).expanduser()),
+                    dataset_retrieval_src=str(Path(retrieval_src_file_list[idx]).expanduser()),
+                    dataset_retrieval_tgt=str(Path(retrieval_tgt_file_list[idx]).expanduser()),
+                    tokens_in_batch=cfg.tokens_in_batch,
+                    clean=cfg.get("clean", False),
+                    max_seq_length=cfg.get("max_seq_length", 512),
+                    min_seq_length=cfg.get("min_seq_length", 1),
+                    max_seq_length_diff=cfg.get("max_seq_length_diff", 512),
+                    max_seq_length_ratio=cfg.get("max_seq_length_ratio", 512),
+                    cache_ids=cfg.get("cache_ids", False),
+                    cache_data_per_node=cfg.get("cache_data_per_node", False),
+                    use_cache=cfg.get("use_cache", False),
+                    reverse_lang_direction=cfg.get("reverse_lang_direction", False),
+                    prepend_id=self.multilingual_ids[prepend_idx],
+                    number_nearest_neighbors=cfg.get("number_nearest_neighbors", 3)
+                )
+                dataset.batchify(self.encoder_tokenizer, self.decoder_tokenizer, val=True)
 
             if cfg.shuffle:
                 sampler = pt_data.RandomSampler(dataset)

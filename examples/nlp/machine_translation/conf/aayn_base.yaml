@@ -51,6 +51,7 @@ model:
     drop_last: false
     pin_memory: false
     num_workers: 8
+    retrieval_file_name: null # only used with RetrievalTranslationDataset
 
   test_ds:
     src_file_name: ???
@@ -63,6 +64,7 @@ model:
     drop_last: false
     pin_memory: false
     num_workers: 8
+    retrieval_file_name: null # only used with RetrievalTranslationDataset
 
   optim:
     name: adam

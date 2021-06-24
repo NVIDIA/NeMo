@@ -65,7 +65,9 @@ class TranslationDataConfig:
     concat_sampling_technique: Optional[str] = 'temperature'
     concat_sampling_temperature: Optional[int] = 5
     concat_sampling_probabilities: Optional[List[float]] = None
-    retrieval_file_name: Optional[str] = None
+    retrieval_file_name: Optional[Any] = None  # Any = str or List[str]
+    retrieval_src_file_name: Optional[Any] = None  # Any = str or List[str]
+    retrieval_tgt_file_name: Optional[Any] = None  # Any = str or List[str]
     number_nearest_neighbors: int = 3
 
 
@@ -304,6 +306,8 @@ class RetrievalTranslationDataset(TranslationDataset):
         dataset_src: str,
         dataset_tgt: str,
         dataset_retrieval: str,
+        dataset_retrieval_src: str = None,
+        dataset_retrieval_tgt: str = None,
         tokens_in_batch: int = 1024,
         clean: bool = False,
         max_seq_length: int = 512,
@@ -334,7 +338,17 @@ class RetrievalTranslationDataset(TranslationDataset):
         # Select only the number of nns specified
         self.nn_list = np.load(dataset_retrieval)[:,:number_nearest_neighbors]
 
-    def batchify(self, tokenizer_src, tokenizer_tgt):
+        if dataset_retrieval_src is None:
+            self.dataset_retrieval_src = dataset_src
+        else:
+            self.dataset_retrieval_src = dataset_retrieval_src
+        
+        if dataset_retrieval_tgt is None:
+            self.dataset_retrieval_tgt = dataset_tgt
+        else:
+            self.dataset_retrieval_tgt = dataset_retrieval_tgt
+
+    def batchify(self, tokenizer_src, tokenizer_tgt, val=False):
         src_ids = dataset_to_ids(
             self.dataset_src,
             tokenizer_src,
@@ -349,6 +363,25 @@ class RetrievalTranslationDataset(TranslationDataset):
             cache_data_per_node=self.cache_data_per_node,
             use_cache=self.use_cache,
         )
+        if val:
+            src_retrieval_ids = dataset_to_ids(
+            self.dataset_retrieval_src,
+            tokenizer_src,
+            cache_ids=self.cache_ids,
+            cache_data_per_node=self.cache_data_per_node,
+            use_cache=self.use_cache,
+            )
+            tgt_retrieval_ids = dataset_to_ids(
+                self.dataset_retrieval_tgt,
+                tokenizer_tgt,
+                cache_ids=self.cache_ids,
+                cache_data_per_node=self.cache_data_per_node,
+                use_cache=self.use_cache,
+            )
+        else:
+            src_retrieval_ids = src_ids
+            tgt_retrieval_ids = tgt_ids
+        
         src_ids_extended = []
         for i in tqdm(range(len(src_ids)), desc='Adding retrieved sentences to src'):
             to_add = []
@@ -356,8 +389,8 @@ class RetrievalTranslationDataset(TranslationDataset):
             for nn_id in self.nn_list[i].tolist():
                 if nn_id != i:
                     # avoid adding the same sentence
-                    to_add.extend(src_ids[nn_id])
-                    to_add.extend(tgt_ids[nn_id])
+                    to_add.extend(src_retrieval_ids[nn_id])
+                    to_add.extend(tgt_retrieval_ids[nn_id])
             src_ids_extended.append(to_add)
         src_ids = src_ids_extended
 
