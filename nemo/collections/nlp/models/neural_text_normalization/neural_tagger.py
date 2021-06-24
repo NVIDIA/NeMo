@@ -45,6 +45,9 @@ class TextNormalizationTaggerModel(NLPModel):
         super().__init__(cfg=cfg, trainer=trainer)
         self.model = AutoModelForTokenClassification.from_pretrained(cfg.transformer)
 
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.to(device)
+
     # Functions for inference
     @torch.no_grad()
     def _infer(

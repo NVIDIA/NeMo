@@ -22,21 +22,29 @@ import random
 import time
 import wordninja
 
+from os.path import isfile
 from transformers import *
 from nltk import word_tokenize
 from typing import Dict, List, Optional
+from omegaconf import DictConfig, OmegaConf
 from nemo.collections.nlp.models.neural_text_normalization.utils import *
 from nemo.collections.nlp.models.neural_text_normalization.constants import *
 
 __all__ = ['NeuralTextNormalizationModel']
 
 class NeuralTextNormalizationModel(nn.Module):
+    """ NeuralTextNormalizationModel is a wrapper class that can be used to
+    encapsulate a trained tagger and a trained decoder. The class is intended
+    to be used for inference only (e.g., for evaluation).
+    """
+
     def __init__(self, tagger, decoder):
         super(NeuralTextNormalizationModel, self).__init__()
 
         self.tagger = tagger
         self.decoder = decoder
 
+    # Functions for inference
     def _infer(self, sents: List[str]):
         # Preprocessing
         sents = self.input_preprocessing(sents)

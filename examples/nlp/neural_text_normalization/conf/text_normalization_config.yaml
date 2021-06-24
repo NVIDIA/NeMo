@@ -21,3 +21,20 @@ decoder_trainer:
 decoder_model:
   transformer: t5-base
   tokenizer: ${decoder_model.transformer}
+
+# Inference Parameters
+inference:
+  batch_size: 64
+
+# Data
+data:
+  base_dir: /NeMo/google_en # /path/to/data
+
+  train_ds:
+    data_path: ${data.base_dir}/train.tsv
+
+  validation_ds:
+    data_path: ${data.base_dir}/dev.tsv
+
+  test_ds:
+    data_path: ${data.base_dir}/test.tsv

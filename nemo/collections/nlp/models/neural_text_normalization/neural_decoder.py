@@ -17,6 +17,7 @@ import json
 import torch
 import numpy as np
 import nltk
+import wordninja
 nltk.download('punkt')
 
 from tqdm import tqdm
@@ -44,6 +45,9 @@ class TextNormalizationDecoderModel(NLPModel):
         self._tokenizer = AutoTokenizer.from_pretrained(cfg.tokenizer)
         super().__init__(cfg=cfg, trainer=trainer)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(cfg.transformer)
+
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.to(device)
 
     # Functions for inference
     @torch.no_grad()
