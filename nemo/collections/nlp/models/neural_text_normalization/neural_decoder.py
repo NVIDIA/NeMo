@@ -35,8 +35,8 @@ from nemo.core.classes.common import typecheck
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.neural_types import NeuralType
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.collections.nlp.data.text_normalization.constants import *
 from nemo.collections.nlp.models.neural_text_normalization.utils import *
-from nemo.collections.nlp.models.neural_text_normalization.constants import *
 
 __all__ = ['TextNormalizationDecoderModel']
 
@@ -124,7 +124,7 @@ class TextNormalizationDecoderModel(NLPModel):
 
     # Functions for processing data
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
-        if not train_data_config or not train_data_config.file:
+        if not train_data_config or not train_data_config.data_path:
             logging.info(
                 f"Dataloader config or file_path for the train is missing, so no data loader for test is created!"
             )
@@ -133,7 +133,7 @@ class TextNormalizationDecoderModel(NLPModel):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, mode="train")
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        if not val_data_config or not val_data_config.file:
+        if not val_data_config or not val_data_config.data_path:
             logging.info(
                 f"Dataloader config or file_path for the validation is missing, so no data loader for test is created!"
             )
@@ -142,7 +142,7 @@ class TextNormalizationDecoderModel(NLPModel):
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, mode="val")
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        if not test_data_config or test_data_config.file is None:
+        if not test_data_config or test_data_config.data_path is None:
             logging.info(
                 f"Dataloader config or file_path for the test is missing, so no data loader for test is created!"
             )

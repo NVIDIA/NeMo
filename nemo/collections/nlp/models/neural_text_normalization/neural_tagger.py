@@ -15,6 +15,7 @@
 import os
 import json
 import torch
+import time
 import numpy as np
 import nltk
 nltk.download('punkt')
@@ -28,25 +29,136 @@ from omegaconf import DictConfig, OmegaConf
 
 from torch import nn
 from torch.utils.data import DataLoader
-from transformers import AutoModelForTokenClassification, AutoTokenizer
+from transformers import AutoModelForTokenClassification, AutoTokenizer, DataCollatorForTokenClassification
 
+from nemo.utils import logging
 from nemo.core.classes.common import typecheck
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.neural_types import NeuralType
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.collections.nlp.data.text_normalization.constants import *
 from nemo.collections.nlp.models.neural_text_normalization.utils import *
-from nemo.collections.nlp.models.neural_text_normalization.constants import *
+from nemo.collections.nlp.data.text_normalization import TextNormalizationTaggerDataset
+from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 
 __all__ = ['TextNormalizationTaggerModel']
 
 class TextNormalizationTaggerModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        self._tokenizer = AutoTokenizer.from_pretrained(cfg.tokenizer)
+        self._tokenizer = AutoTokenizer.from_pretrained(cfg.tokenizer, add_prefix_space=True)
         super().__init__(cfg=cfg, trainer=trainer)
-        self.model = AutoModelForTokenClassification.from_pretrained(cfg.transformer)
+        self.num_labels = len(ALL_TAG_LABELS)
+        self.model = AutoModelForTokenClassification.from_pretrained(cfg.transformer,
+                                                                    num_labels=self.num_labels)
 
+        # Loss Functions
+        self.loss_fct = nn.CrossEntropyLoss(ignore_index=LABEL_PAD_TOKEN_ID)
+
+        # Device
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.to(device)
+
+        # For validation
+        self.val_all_preds, self.val_all_targets = [], []
+
+    # Training
+    def training_step(self, batch, batch_idx):
+        self.train()
+        num_labels = self.num_labels
+
+        # Apply Transformer
+        input_ids = batch['input_ids'].to(self.device)
+        input_masks = batch['attention_mask'].to(self.device)
+        tag_logits = self.model(input_ids, input_masks).logits
+
+        # Loss
+        tag_labels = batch['labels'].view(-1).to(self.device)
+        train_loss = self.loss_fct(tag_logits.view(-1, num_labels), tag_labels)
+
+        lr = self._optimizer.param_groups[0]['lr']
+        self.log('train_loss', train_loss)
+        self.log('lr', lr, prog_bar=True)
+        return {
+            'loss': train_loss,
+            'lr': lr
+        }
+
+    # Validation and Testing
+    def validation_step(self, batch, batch_idx):
+        """
+        Lightning calls this inside the validation loop with the data from the validation dataloader
+        passed in as `batch`.
+        """
+        self.eval()
+        num_labels = self.num_labels
+
+        # Apply Transformer
+        input_ids = batch['input_ids'].to(self.device)
+        input_masks = batch['attention_mask'].to(self.device)
+        tag_logits = self.model(input_ids, input_masks).logits
+        tag_preds = torch.argmax(tag_logits, dim=2)
+
+        # Loss
+        tag_labels = batch['labels'].to(self.device)
+        val_loss = self.loss_fct(tag_logits.view(-1, num_labels),
+                                 tag_labels.view(-1))
+
+        # Extract batch_predictions and batch_labels
+        predictions, labels = tag_preds.tolist(), tag_labels.tolist()
+        final_predictions = [
+            [ALL_TAG_LABELS[p] for (p, l) in zip(prediction, label) if l != LABEL_PAD_TOKEN_ID]
+            for prediction, label in zip(predictions, labels)
+        ]
+        final_labels = [
+            [ALL_TAG_LABELS[l] for (p, l) in zip(prediction, label) if l != LABEL_PAD_TOKEN_ID]
+            for prediction, label in zip(predictions, labels)
+        ]
+        self.val_all_preds.extend(final_predictions)
+        self.val_all_targets.extend(final_labels)
+
+        return {
+            'val_loss': val_loss
+        }
+
+    def validation_epoch_end(self, outputs):
+        """
+        Called at the end of validation to aggregate outputs.
+        :param outputs: list of individual outputs of each validation step.
+        """
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+
+        self.log('val_loss', avg_loss)
+
+        # Compute sentence_accuracy
+        sent_count, sent_correct = 0, 0
+        for ix, (p, l) in enumerate(zip(self.val_all_preds, self.val_all_targets)):
+            # Update stats
+            sent_correct += int(p==l)
+            sent_count += 1
+        sent_accuracy = sent_correct / sent_count
+        self.log('val_sentence_accuracy', sent_accuracy)
+
+        # Reset
+        self.val_all_preds, self.val_all_targets = [], []
+
+        return {
+            'val_loss': avg_loss,
+            'val_sentence_accuracy': sent_accuracy
+        }
+
+    def test_step(self, batch, batch_idx):
+        """
+        Lightning calls this inside the test loop with the data from the test dataloader
+        passed in as `batch`.
+        """
+        return self.validation_step(batch, batch_idx)
+
+    def test_epoch_end(self, outputs):
+        """
+        Called at the end of test to aggregate outputs.
+        :param outputs: list of individual outputs of each test step.
+        """
+        return self.validation_epoch_end(outputs)
 
     # Functions for inference
     @torch.no_grad()
@@ -131,7 +243,7 @@ class TextNormalizationTaggerModel(NLPModel):
 
     # Functions for processing data
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
-        if not train_data_config or not train_data_config.file:
+        if not train_data_config or not train_data_config.data_path:
             logging.info(
                 f"Dataloader config or file_path for the train is missing, so no data loader for test is created!"
             )
@@ -140,7 +252,7 @@ class TextNormalizationTaggerModel(NLPModel):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, mode="train")
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        if not val_data_config or not val_data_config.file:
+        if not val_data_config or not val_data_config.data_path:
             logging.info(
                 f"Dataloader config or file_path for the validation is missing, so no data loader for test is created!"
             )
@@ -149,7 +261,7 @@ class TextNormalizationTaggerModel(NLPModel):
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, mode="val")
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        if not test_data_config or test_data_config.file is None:
+        if not test_data_config or test_data_config.data_path is None:
             logging.info(
                 f"Dataloader config or file_path for the test is missing, so no data loader for test is created!"
             )
@@ -158,7 +270,22 @@ class TextNormalizationTaggerModel(NLPModel):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, mode="test")
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, mode: str):
-        pass
+        start_time = time.time()
+        logging.info(f'Creating {mode} dataset')
+        input_file = cfg.data_path
+        dataset = TextNormalizationTaggerDataset(
+            input_file, self._tokenizer, cfg.get('do_basic_tokenize', False)
+        )
+        data_collator = DataCollatorForTokenClassification(self._tokenizer)
+        dl = torch.utils.data.DataLoader(
+            dataset=dataset,
+            batch_size=cfg.batch_size,
+            shuffle=cfg.shuffle,
+            collate_fn=data_collator,
+        )
+        running_time = time.time() - start_time
+        logging.info(f'Took {running_time} seconds')
+        return dl
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:

@@ -24,6 +24,11 @@ for prefix in TAGGER_LABELS_PREFIXES:
         ALL_TAG_LABELS.append(prefix + tag)
 ALL_TAG_LABELS.sort()
 
+# Special Words
+SIL_WORD = 'sil'
+SELF_WORD = '<self>'
+SPECIAL_WORDS = [SIL_WORD, SELF_WORD]
+
 # Greek Letters
 GREEK_TO_SPOKEN = {
     'Τ': 'tau', 'Ο': 'omicron', 'Δ': 'delta', 'Η': 'eta', 'Κ': 'kappa',

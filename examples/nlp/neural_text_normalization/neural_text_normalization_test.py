@@ -30,8 +30,8 @@ from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDa
 @hydra_runner(config_path="conf", config_name="text_normalization_config")
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config Params: {OmegaConf.to_yaml(cfg)}')
-    tagger_trainer, tagger_model = initialize_model_and_trainer(cfg, TAGGER_MODEL)
-    decoder_trainer, decoder_model = initialize_model_and_trainer(cfg, DECODER_MODEL)
+    tagger_trainer, tagger_model = initialize_model_and_trainer(cfg, TAGGER_MODEL, False)
+    decoder_trainer, decoder_model = initialize_model_and_trainer(cfg, DECODER_MODEL, False)
     tn_model = NeuralTextNormalizationModel(tagger_model, decoder_model)
 
     # Setup test_dataset
@@ -39,7 +39,7 @@ def main(cfg: DictConfig) -> None:
 
     # Apply the model on the test dataset
     all_inputs, all_preds, all_targets, all_run_times = [], [], [], []
-    batch_size = cfg.inference.batch_size
+    batch_size = cfg.data.test_ds.batch_size
     nb_iters = int(ceil(len(test) / batch_size))
     for i in tqdm(range(nb_iters)):
         start_idx = i * batch_size

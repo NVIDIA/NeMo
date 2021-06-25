@@ -12,5 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from nemo.collections.nlp.data.text_normalization.text_normalization_dataset import (
+    TextNormalizationTaggerDataset,
     TextNormalizationTestDataset
 )

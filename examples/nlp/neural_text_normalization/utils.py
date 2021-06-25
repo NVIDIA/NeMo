@@ -16,7 +16,11 @@ TAGGER_MODEL  = 'tagger'
 DECODER_MODEL = 'decoder'
 MODEL_NAMES   = [TAGGER_MODEL, DECODER_MODEL]
 
-def initialize_model_and_trainer(cfg: DictConfig, model_name: str):
+def initialize_model_and_trainer(
+    cfg: DictConfig,
+    model_name: str,
+    do_training: bool
+):
     assert(model_name in MODEL_NAMES)
     logging.info(f'Model {model_name}')
 
@@ -39,6 +43,11 @@ def initialize_model_and_trainer(cfg: DictConfig, model_name: str):
             model = TextNormalizationTaggerModel.from_pretrained(pretrained_cfg)
         if model_name == DECODER_MODEL:
             model = TextNormalizationDecoderModel.from_pretrained(pretrained_cfg)
+
+    # Setup train and validation data
+    if do_training:
+        model.setup_training_data(train_data_config=cfg.data.train_ds)
+        model.setup_validation_data(val_data_config=cfg.data.validation_ds)
 
     logging.info(f'Model Device {model.device}')
     return trainer, model

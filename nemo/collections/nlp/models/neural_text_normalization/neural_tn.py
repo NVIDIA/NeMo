@@ -27,8 +27,8 @@ from transformers import *
 from nltk import word_tokenize
 from typing import Dict, List, Optional
 from omegaconf import DictConfig, OmegaConf
+from nemo.collections.nlp.data.text_normalization.constants import *
 from nemo.collections.nlp.models.neural_text_normalization.utils import *
-from nemo.collections.nlp.models.neural_text_normalization.constants import *
 
 __all__ = ['NeuralTextNormalizationModel']
 

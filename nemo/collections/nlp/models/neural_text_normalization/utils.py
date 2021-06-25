@@ -7,7 +7,6 @@ import numpy as np
 
 from os.path import join
 from nltk import word_tokenize
-from nemo.collections.nlp.models.neural_text_normalization.constants import *
 
 # Check if a string is a URL
 def is_url(input_str):
