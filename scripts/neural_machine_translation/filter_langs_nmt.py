@@ -20,8 +20,16 @@ import shutil
 import warnings
 from pathlib import Path
 from time import sleep
+import os
 
-import fasttext
+try:
+    import fasttext
+    # temp fix for the warning messages
+    fasttext.FastText.eprint = lambda x: None
+except ImportError:
+    # install fasttext
+    from pip._internal import main as pipmain
+    pipmain(['install', 'fasttext'])
 from tqdm import tqdm
 
 """
@@ -338,6 +346,9 @@ def init(args):
 
 def main():
     args = get_args()
+    if not os.path.exists(str(args.fasttext_model)):
+        print("fasttext model not found! The description and download links are here https://fasttext.cc/docs/en/language-identification.html")
+        return 
     tmp_dir = Path("tmp")
     i = 0
     while tmp_dir.exists():

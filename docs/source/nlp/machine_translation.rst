@@ -90,7 +90,7 @@ We recommend applying the following steps to clean, normalize, and tokenize your
 
    .. code ::
 
-       python NeMo/scripts/neural_machine_translation/filter_by_language.py \
+       python NeMo/scripts/neural_machine_translation/filter_langs_nmt.py \
          --input-src train.en \
          --input-tgt train.es \
          --output-src train_lang_filtered.en \
@@ -407,7 +407,7 @@ from :cite:`nlp-machine_translation-vaswani2017attention`.
       model.validation_ds.tgt_file_name=validation.tokenized.es \
       model.encoder_tokenizer.vocab_size=32000 \
       model.decoder_tokenizer.vocab_size=32000 \
-      ~model.test_ds \
+      ~model.test_ds
 
 The trainer keeps track of the sacreBLEU score :cite:`nlp-machine_translation-post2018call` on the provided validation set and saves 
 the checkpoints that had the top 5 (by default) sacreBLEU scores.
