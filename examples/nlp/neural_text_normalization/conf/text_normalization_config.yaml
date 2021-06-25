@@ -11,6 +11,7 @@ tagger_trainer:
   logger: false  # provided by exp_manager
 
 tagger_model:
+  do_training: true
   transformer: distilroberta-base
   tokenizer: ${tagger_model.transformer}
   nemo_path: ${tagger_exp_manager.exp_dir}/tagger_model.nemo # exported .nemo path
@@ -54,6 +55,7 @@ decoder_trainer:
   logger: false  # provided by exp_manager
 
 decoder_model:
+  do_training: true
   transformer: t5-base
   tokenizer: ${decoder_model.transformer}
   nemo_path: ${decoder_exp_manager.exp_dir}/decoder_model.nemo # exported .nemo path
