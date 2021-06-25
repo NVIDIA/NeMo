@@ -79,12 +79,14 @@ data:
     batch_size: 64
     shuffle: true
     do_basic_tokenize: false
+    max_decoder_len: 80
 
   validation_ds:
     data_path: ${data.base_dir}/dev.tsv
     batch_size: 64
     shuffle: false
     do_basic_tokenize: false
+    max_decoder_len: 80
 
   test_ds:
     data_path: ${data.base_dir}/test.tsv

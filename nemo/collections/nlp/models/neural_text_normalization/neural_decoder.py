@@ -14,6 +14,7 @@
 
 import os
 import json
+import time
 import torch
 import numpy as np
 import nltk
@@ -29,14 +30,16 @@ from omegaconf import DictConfig, OmegaConf
 
 from torch import nn
 from torch.utils.data import DataLoader
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
 
+from nemo.utils import logging
 from nemo.core.classes.common import typecheck
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.neural_types import NeuralType
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.collections.nlp.data.text_normalization.constants import *
 from nemo.collections.nlp.models.neural_text_normalization.utils import *
+from nemo.collections.nlp.data.text_normalization import TextNormalizationDecoderDataset
 
 __all__ = ['TextNormalizationDecoderModel']
 
@@ -48,6 +51,10 @@ class TextNormalizationDecoderModel(NLPModel):
 
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.to(device)
+
+    # Training
+    def training_step(self, batch, batch_idx):
+        self.train()
 
     # Functions for inference
     @torch.no_grad()
@@ -151,7 +158,29 @@ class TextNormalizationDecoderModel(NLPModel):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, mode="test")
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, mode: str):
-        pass
+        tokenizer, model = self._tokenizer, self.model
+        start_time = time.time()
+        logging.info(f'Creating {mode} dataset')
+        input_file = cfg.data_path
+        dataset = TextNormalizationDecoderDataset(
+            input_file,
+            tokenizer,
+            cfg.get('max_decoder_len', tokenizer.model_max_length)
+        )
+        data_collator = DataCollatorForSeq2Seq(
+            tokenizer,
+            model=model,
+            label_pad_token_id=LABEL_PAD_TOKEN_ID,
+        )
+        dl = torch.utils.data.DataLoader(
+            dataset=dataset,
+            batch_size=cfg.batch_size,
+            shuffle=cfg.shuffle,
+            collate_fn=data_collator,
+        )
+        running_time = time.time() - start_time
+        logging.info(f'Took {running_time} seconds')
+        return dl
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:

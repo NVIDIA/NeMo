@@ -25,8 +25,7 @@ __all__ = ['TextNormalizationDecoderDataset']
 
 # Decoder Dataset
 class DecoderDataInstance:
-    def __init__(self, w_words, s_words, inst_dir, start_idx, end_idx,
-                 semiotic_class=None):
+    def __init__(self, w_words, s_words, start_idx, end_idx, semiotic_class=None):
         start_idx = max(start_idx, 0)
         end_idx = min(end_idx, len(w_words))
 
@@ -56,26 +55,32 @@ class DecoderDataInstance:
         c_s_words = word_tokenize(' '.join(c_s_words))
         w_input = w_left + [EXTRA_ID_0] + c_w_words + [EXTRA_ID_1] + w_right
         s_input = s_left + [EXTRA_ID_0] + c_s_words + [EXTRA_ID_1] + s_right
-        if inst_dir == INST_BACKWARD:
-            input_words = [ITN_PREFIX] + s_input
-            output_words = c_w_words
-        if inst_dir == INST_FORWARD:
-            input_words = [TN_PREFIX] + w_input
-            output_words = c_s_words
+        input_words = [TN_PREFIX] + w_input
+        output_words = c_s_words
         # Finalize
         self.input_str = ' '.join(input_words)
         self.output_str = ' '.join(output_words)
-        self.direction = inst_dir
         self.semiotic_class = semiotic_class
 
 class TextNormalizationDecoderDataset:
-    def __init__(self, insts, lang, mode, tokenizer, max_len=80):
+    def __init__(
+            self,
+            input_file: str,
+            tokenizer: PreTrainedTokenizerBase,
+            max_len: int
+        ):
+        raw_insts = read_data_file(input_file)
+
+        # Convert raw instances to TaggerDataInstance
+        insts, inputs, targets = [], [], []
+        for (classes, w_words, s_words) in tqdm(raw_insts):
+            for ix, (_class, w_word, s_word) in enumerate(zip(classes, w_words, s_words)):
+                if not s_word in SPECIAL_WORDS:
+                    inst = DecoderDataInstance(w_words, s_words, ix, ix+1, _class)
+                    insts.append(inst)
+                    inputs.append(inst.input_str)
+                    targets.append(inst.output_str)
         self.insts = insts
-        self.lang = lang
-        self.mode = mode
-        self.tokenizer = tokenizer
-        inputs = [inst.input_str for inst in insts]
-        targets = [inst.output_str for inst in insts]
 
         # Tokenization
         self.inputs, self.examples = [], []
