@@ -398,3 +398,20 @@ def write_rttm2manifest(paths2audio_files, paths2rttm_files, manifest_file):
             outfile.write("\n")
             f.close()
     return manifest_file
+
+
+def embedding_normalize(embs, use_std=False, eps=1e-10):
+    """
+    mean and l2 length normalize the input speaker embeddings
+    input:
+        embs: embeddings of shape (Batch,emb_size)
+    output:
+        embs: normalized embeddings of shape (Batch,emb_size)
+    """
+    embs = embs - embs.mean(axis=0)
+    if use_std:
+        embs = embs / (embs.std(axis=0) + eps)
+    embs_l2_norm = np.expand_dims(np.linalg.norm(embs, ord=2, axis=-1), axis=1)
+    embs = embs / embs_l2_norm
+
+    return embs
