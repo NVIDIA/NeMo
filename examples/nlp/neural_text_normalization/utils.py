@@ -40,9 +40,9 @@ def initialize_model_and_trainer(
     else:
         logging.info(f'Loading pretrained model {pretrained_cfg}')
         if model_name == TAGGER_MODEL:
-            model = TextNormalizationTaggerModel.from_pretrained(pretrained_cfg)
+            model = TextNormalizationTaggerModel.restore_from(pretrained_cfg)
         if model_name == DECODER_MODEL:
-            model = TextNormalizationDecoderModel.from_pretrained(pretrained_cfg)
+            model = TextNormalizationDecoderModel.restore_from(pretrained_cfg)
 
     # Setup train and validation data
     if do_training:
