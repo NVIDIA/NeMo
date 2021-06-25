@@ -17,6 +17,7 @@ try:
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
+import pdb
 from typing import Dict
 
 grammar_dir = '/home/ebakhturina/TextNormalizationCoveringGrammars/src/en'
@@ -69,7 +70,6 @@ print(rewrite.rewrites("28", final_fst))
 input = "двадцать восемь"
 invert = final_fst.invert()
 print(rewrite.rewrites(input, invert.optimize()))
-import pdb
 
 pdb.set_trace()
 print()

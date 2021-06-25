@@ -60,7 +60,7 @@ if __name__ == '__main__':
             text = text[1:]
         return text
 
-    inverse_normalizer = InverseNormalizer()
+    inverse_normalizer = InverseNormalizer(lang='ru')
     # print(inverse_normalizer.inverse_normalize("миллион сто двадцать три тысячи", verbose=True)
 
     test_cases = parse_test_case_file('data_inverse_text_normalization/test_ru_cases_cardinal_last_file.txt')

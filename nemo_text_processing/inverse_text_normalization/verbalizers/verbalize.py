@@ -14,16 +14,6 @@
 # limitations under the License.
 
 from nemo_text_processing.inverse_text_normalization.verbalizers.cardinal import CardinalFst
-from nemo_text_processing.inverse_text_normalization.verbalizers.cardinal_ru import CardinalRuFst
-from nemo_text_processing.inverse_text_normalization.verbalizers.date import DateFst
-from nemo_text_processing.inverse_text_normalization.verbalizers.decimal import DecimalFst
-from nemo_text_processing.inverse_text_normalization.verbalizers.electronic import ElectronicFst
-from nemo_text_processing.inverse_text_normalization.verbalizers.measure import MeasureFst
-from nemo_text_processing.inverse_text_normalization.verbalizers.money import MoneyFst
-from nemo_text_processing.inverse_text_normalization.verbalizers.ordinal import OrdinalFst
-from nemo_text_processing.inverse_text_normalization.verbalizers.telephone import TelephoneFst
-from nemo_text_processing.inverse_text_normalization.verbalizers.time import TimeFst
-from nemo_text_processing.inverse_text_normalization.verbalizers.whitelist import WhiteListFst
 from nemo_text_processing.text_normalization.graph_utils import GraphFst
 
 
@@ -38,29 +28,29 @@ class VerbalizeFst(GraphFst):
         super().__init__(name="verbalize", kind="verbalize")
         cardinal = CardinalFst()
         cardinal_graph = cardinal.fst
-        ordinal_graph = OrdinalFst().fst
-        decimal = DecimalFst()
-        decimal_graph = decimal.fst
-        measure_graph = MeasureFst(decimal=decimal, cardinal=cardinal).fst
-        money_graph = MoneyFst(decimal=decimal).fst
-        time_graph = TimeFst().fst
-        date_graph = DateFst().fst
-        whitelist_graph = WhiteListFst().fst
-        telephone_graph = TelephoneFst().fst
-        electronic_graph = ElectronicFst().fst
-        cardinal_ru_graph = CardinalRuFst().fst
+        # ordinal_graph = OrdinalFst().fst
+        # decimal = DecimalFst()
+        # decimal_graph = decimal.fst
+        # measure_graph = MeasureFst(decimal=decimal, cardinal=cardinal).fst
+        # money_graph = MoneyFst(decimal=decimal).fst
+        # time_graph = TimeFst().fst
+        # date_graph = DateFst().fst
+        # whitelist_graph = WhiteListFst().fst
+        # telephone_graph = TelephoneFst().fst
+        # electronic_graph = ElectronicFst().fst
 
-        graph = (
-            time_graph
-            | date_graph
-            | money_graph
-            | measure_graph
-            | ordinal_graph
-            | decimal_graph
-            | cardinal_graph
-            | whitelist_graph
-            | telephone_graph
-            | electronic_graph
-            | cardinal_ru_graph
-        )
+        # graph = (
+        #     time_graph
+        #     | date_graph
+        #     | money_graph
+        #     | measure_graph
+        #     | ordinal_graph
+        #     | decimal_graph
+        #     | cardinal_graph
+        #     | whitelist_graph
+        #     | telephone_graph
+        #     | electronic_graph
+        # )
+
+        graph = cardinal_graph
         self.fst = graph
