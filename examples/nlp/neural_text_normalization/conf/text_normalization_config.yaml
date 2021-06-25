@@ -60,11 +60,34 @@ decoder_model:
   tokenizer: ${decoder_model.transformer}
   nemo_path: ${decoder_exp_manager.exp_dir}/decoder_model.nemo # exported .nemo path
 
+  optim:
+    name: adamw
+    lr: 2e-4
+    weight_decay: 0.01
+
+    sched:
+      name: WarmupAnnealing
+
+      # pytorch lightning args
+      monitor: val_loss
+      reduce_on_plateau: false
+
+      # scheduler config override
+      warmup_steps: null
+      warmup_ratio: 0.0
+      last_epoch: -1
+
 decoder_exp_manager:
   exp_dir: exps # where to store logs and checkpoints
   name: decoder_training # name of experiment
   create_tensorboard_logger: True
   create_checkpoint_callback: True
+  checkpoint_callback_params:
+    save_top_k: 3
+    monitor: "val_loss"
+    mode: "min"
+    save_best_model: true
+    always_save_nemo: true
 
 # Inference
 inference:

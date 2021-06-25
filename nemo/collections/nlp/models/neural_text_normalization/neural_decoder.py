@@ -56,6 +56,71 @@ class TextNormalizationDecoderModel(NLPModel):
     def training_step(self, batch, batch_idx):
         self.train()
 
+        # Apply Transformer
+        outputs = self.model(
+            input_ids=batch['input_ids'].to(self.device),
+            decoder_input_ids=batch['decoder_input_ids'].to(self.device),
+            attention_mask=batch['attention_mask'].to(self.device),
+            labels=batch['labels'].to(self.device),
+        )
+        train_loss = outputs.loss
+
+        lr = self._optimizer.param_groups[0]['lr']
+        self.log('train_loss', train_loss)
+        self.log('lr', lr, prog_bar=True)
+        return {
+            'loss': train_loss,
+            'lr': lr
+        }
+
+    # Validation and Testing
+    def validation_step(self, batch, batch_idx):
+        """
+        Lightning calls this inside the validation loop with the data from the validation dataloader
+        passed in as `batch`.
+        """
+        self.eval()
+
+        # Apply Transformer
+        outputs = self.model(
+            input_ids=batch['input_ids'].to(self.device),
+            decoder_input_ids=batch['decoder_input_ids'].to(self.device),
+            attention_mask=batch['attention_mask'].to(self.device),
+            labels=batch['labels'].to(self.device),
+        )
+        val_loss = outputs.loss
+
+        return {
+            'val_loss': val_loss
+        }
+
+    def validation_epoch_end(self, outputs):
+        """
+        Called at the end of validation to aggregate outputs.
+        :param outputs: list of individual outputs of each validation step.
+        """
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        self.log('val_loss', avg_loss)
+
+        return {
+            'val_loss': avg_loss,
+        }
+
+    def test_step(self, batch, batch_idx):
+        """
+        Lightning calls this inside the test loop with the data from the test dataloader
+        passed in as `batch`.
+        """
+        return self.validation_step(batch, batch_idx)
+
+    def test_epoch_end(self, outputs):
+        """
+        Called at the end of test to aggregate outputs.
+        :param outputs: list of individual outputs of each test step.
+        """
+        return self.validation_epoch_end(outputs)
+
+
     # Functions for inference
     @torch.no_grad()
     def _infer(
