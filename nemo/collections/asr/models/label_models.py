@@ -29,6 +29,7 @@ from nemo.collections.asr.losses.angularloss import AngularSoftmaxLoss
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.asr.parts.utils.speaker_utils import embedding_normalize
 from nemo.collections.common.losses import CrossEntropyLoss as CELoss
 from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.core.classes import ModelPT
@@ -381,6 +382,7 @@ class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
         slices = torch.cat([x['slices'] for x in outputs])
         emb_shape = embs.shape[-1]
         embs = embs.view(-1, emb_shape).cpu().numpy()
+        embs = embedding_normalize(embs)
         out_embeddings = {}
         start_idx = 0
         with open(self.test_manifest, 'r') as manifest:
