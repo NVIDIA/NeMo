@@ -103,6 +103,7 @@ data:
     shuffle: true
     do_basic_tokenize: false
     max_decoder_len: 80
+    decoder_data_augmentation: true
 
   validation_ds:
     data_path: ${data.base_dir}/dev.tsv

@@ -230,7 +230,8 @@ class TextNormalizationDecoderModel(NLPModel):
         dataset = TextNormalizationDecoderDataset(
             input_file,
             tokenizer,
-            cfg.get('max_decoder_len', tokenizer.model_max_length)
+            cfg.get('max_decoder_len', tokenizer.model_max_length),
+            cfg.get('decoder_data_augmentation', False)
         )
         data_collator = DataCollatorForSeq2Seq(
             tokenizer,

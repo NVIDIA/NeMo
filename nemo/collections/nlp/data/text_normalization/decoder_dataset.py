@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import random
+
 from tqdm import tqdm
 from copy import deepcopy
 from nltk import word_tokenize
@@ -67,7 +69,8 @@ class TextNormalizationDecoderDataset:
             self,
             input_file: str,
             tokenizer: PreTrainedTokenizerBase,
-            max_len: int
+            max_len: int,
+            decoder_data_augmentation: bool
         ):
         raw_insts = read_data_file(input_file)
 
@@ -78,9 +81,17 @@ class TextNormalizationDecoderDataset:
                 if not s_word in SPECIAL_WORDS:
                     inst = DecoderDataInstance(w_words, s_words, ix, ix+1, _class)
                     insts.append(inst)
-                    inputs.append(inst.input_str)
-                    targets.append(inst.output_str)
+                    if decoder_data_augmentation:
+                        noise_left = random.randint(1, 2)
+                        noise_right = random.randint(1, 2)
+                        inst = DecoderDataInstance(w_words, s_words,
+                                                   start_idx=ix-noise_left,
+                                                   end_idx=ix+1+noise_right)
+                        insts.append(inst)
+
         self.insts = insts
+        inputs = [inst.input_str for inst in insts]
+        targets = [inst.output_str for inst in insts]
 
         # Tokenization
         self.inputs, self.examples = [], []
