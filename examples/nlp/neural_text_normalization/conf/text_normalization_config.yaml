@@ -64,6 +64,10 @@ decoder_exp_manager:
   create_tensorboard_logger: True
   create_checkpoint_callback: True
 
+# Inference
+inference:
+  interactive: false
+
 # Data
 data:
   base_dir: /NeMo/google_en # /path/to/data

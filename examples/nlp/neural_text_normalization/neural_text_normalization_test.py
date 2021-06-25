@@ -34,32 +34,37 @@ def main(cfg: DictConfig) -> None:
     decoder_trainer, decoder_model = initialize_model_and_trainer(cfg, DECODER_MODEL, False)
     tn_model = NeuralTextNormalizationModel(tagger_model, decoder_model)
 
-    # Setup test_dataset
-    test = TextNormalizationTestDataset(cfg.data.test_ds.data_path)
+    if not cfg.inference.interactive:
+        # Setup test_dataset
+        test = TextNormalizationTestDataset(cfg.data.test_ds.data_path)
 
-    # Apply the model on the test dataset
-    all_inputs, all_preds, all_targets, all_run_times = [], [], [], []
-    batch_size = cfg.data.test_ds.batch_size
-    nb_iters = int(ceil(len(test) / batch_size))
-    for i in tqdm(range(nb_iters)):
-        start_idx = i * batch_size
-        end_idx = (i+1) * batch_size
-        batch_insts = test[start_idx:end_idx]
-        batch_inputs, batch_targets = zip(*batch_insts)
-        # Inference and Running Time Measurement
-        batch_start_time = time.time()
-        batch_preds = tn_model._infer(batch_inputs)
-        batch_run_time = (time.time() - batch_start_time) * 1000  # milliseconds
-        all_run_times.append(batch_run_time)
-        # Update all_inputs, all_preds and all_targets
-        all_inputs.extend(batch_inputs)
-        all_preds.extend(batch_preds)
-        all_targets.extend(batch_targets)
+        # Apply the model on the test dataset
+        all_inputs, all_preds, all_targets, all_run_times = [], [], [], []
+        batch_size = cfg.data.test_ds.batch_size
+        nb_iters = int(ceil(len(test) / batch_size))
+        for i in tqdm(range(nb_iters)):
+            start_idx = i * batch_size
+            end_idx = (i+1) * batch_size
+            batch_insts = test[start_idx:end_idx]
+            batch_inputs, batch_targets = zip(*batch_insts)
+            # Inference and Running Time Measurement
+            batch_start_time = time.time()
+            batch_preds = tn_model._infer(batch_inputs)
+            batch_run_time = (time.time() - batch_start_time) * 1000  # milliseconds
+            all_run_times.append(batch_run_time)
+            # Update all_inputs, all_preds and all_targets
+            all_inputs.extend(batch_inputs)
+            all_preds.extend(batch_preds)
+            all_targets.extend(batch_targets)
 
-    # Metrics
-    sent_accuracy = TextNormalizationTestDataset.compute_sent_accuracy(all_preds, all_targets)
-    logging.info(f'Sentence Accuracy: {sent_accuracy}')
-    logging.info(f'Average running time: {np.average(all_run_times)} ms')
+        # Metrics
+        sent_accuracy = TextNormalizationTestDataset.compute_sent_accuracy(all_preds, all_targets)
+        logging.info(f'Sentence Accuracy: {sent_accuracy}')
+        logging.info(f'Average running time: {np.average(all_run_times)} ms')
+    else:
+        test_input = input('Input a test input:')
+        output = tn_model._infer([test_input])[0]
+        print(f'Prediction: {output}')
 
 if __name__ == '__main__':
     main()
