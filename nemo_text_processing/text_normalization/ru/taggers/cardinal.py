@@ -55,7 +55,7 @@ class CardinalFst(GraphFst):
         sigma_star = pynini.closure(b['kBytes'])
         nominatives = pynini.string_file(get_abs_path("ru/data/nominatives.tsv"))
         nominative_filter = pynutil.add_weight(pynini.cross("", ""), -1)
-        nominative_filter = nominatives @ pynini.cdrewrite(nominative_filter, "[BOS]" | " ", " " | "[EOS]", sigma_star)
+        nominative_filter = nominatives @ pynini.cdrewrite(nominative_filter, pynini.union("[BOS]", " "), pynini.union(" ","[EOS]"), sigma_star)
 
         self.graph = cardinal
         # skipped I and D in numbers.grm
