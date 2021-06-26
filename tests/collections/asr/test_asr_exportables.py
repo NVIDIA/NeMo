@@ -100,12 +100,13 @@ class TestExportable:
             decoder_inputs = model.decoder.input_example()
             input_examples = tuple(encoder_inputs) + tuple(decoder_inputs)
 
-            filename = os.path.join(tmpdir, 'citri_rnnt.ts')
+            filename = os.path.join(tmpdir, 'citri_rnnt.onnx')
             model.export(output=filename, verbose=True, input_example=input_examples)
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
             assert onnx_model.graph.input[0].name == 'audio_signal'
-            assert onnx_model.graph.output[0].name == 'logprobs'
+            assert onnx_model.graph.output[0].name == 'outputs'
+            print("Test passed !")
 
     def setup_method(self):
         self.preprocessor = {
