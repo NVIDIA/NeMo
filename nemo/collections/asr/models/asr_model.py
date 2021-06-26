@@ -89,3 +89,42 @@ class ExportableEncDecModel(Exportable):
     def _prepare_for_export(self, **kwargs):
         self.input_module._prepare_for_export(**kwargs)
         self.output_module._prepare_for_export(**kwargs)
+
+
+class ExportableEncDecJointModel(Exportable):
+    """
+    Simple utiliy mix-in to export models that consist of encoder/decoder pair
+    plus pre/post processor, but have to be exported as encoder/decoder pair only
+    (covers most ASR classes)
+    """
+
+    @property
+    def input_module(self):
+        return self.encoder
+
+    @property
+    def output_module(self):
+        return self.decoder
+
+    @property
+    def joint_module(self):
+        return self.joint
+
+    def forward_for_export(self, encoder_inputs, decoder_inputs, decoder_lengths, length=None):
+        self.freeze()
+        encoder_output = self.input_module(encoder_inputs, length)
+        if isinstance(encoder_output, tuple):
+            encoder_output = encoder_output[0]
+
+        decoder, joint = self.output_module, self.joint_module
+        decoder_output = decoder(decoder_inputs, decoder_lengths)
+        if isinstance(decoder_output, tuple):
+            decoder_output = decoder_output[0]
+
+        joint_output = joint(encoder_output, decoder_output)
+        return joint_output
+
+    def _prepare_for_export(self, **kwargs):
+        self.input_module._prepare_for_export(**kwargs)
+        self.output_module._prepare_for_export(**kwargs)
+        self.joint_module._prepare_for_export(**kwargs)

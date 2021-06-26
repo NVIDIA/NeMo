@@ -28,7 +28,7 @@ from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss_name
 from nemo.collections.asr.metrics.rnnt_wer import RNNTWER, RNNTDecoding
-from nemo.collections.asr.models.asr_model import ASRModel
+from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecJointModel
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -36,7 +36,7 @@ from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, L
 from nemo.utils import logging
 
 
-class EncDecRNNTModel(ASRModel, ASRModuleMixin):
+class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecJointModel):
     """Base class for encoder decoder RNNT-based models."""
 
     @classmethod
@@ -612,7 +612,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
         del signal
 
         # During training, loss must be computed, so decoder forward is necessary
-        decoder, target_length = self.decoder(targets=transcript, target_length=transcript_len)
+        decoder, target_length, states = self.decoder(targets=transcript, target_length=transcript_len)
 
         if hasattr(self, '_trainer') and self._trainer is not None:
             log_every_n_steps = self._trainer.log_every_n_steps
@@ -684,7 +684,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
         # If experimental fused Joint-Loss-WER is not used
         if not self.joint.fuse_loss_wer:
             if self.compute_eval_loss:
-                decoder, target_length = self.decoder(targets=transcript, target_length=transcript_len)
+                decoder, target_length, states = self.decoder(targets=transcript, target_length=transcript_len)
                 joint = self.joint(encoder_outputs=encoded, decoder_outputs=decoder)
 
                 loss_value = self.loss(
@@ -706,7 +706,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin):
             compute_wer = True
 
             if self.compute_eval_loss:
-                decoded, target_len = self.decoder(targets=transcript, target_length=transcript_len)
+                decoded, target_len, states = self.decoder(targets=transcript, target_length=transcript_len)
             else:
                 decoded = None
                 target_len = transcript_len
