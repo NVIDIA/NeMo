@@ -59,7 +59,7 @@ class CardinalFst(GraphFst):
             nominative_filter, pynini.union("[BOS]", " "), pynini.union(" ", "[EOS]"), sigma_star
         )
 
-        self.graph = cardinal
+        self.graph = pynini.invert(cardinal).optimize()
         # skipped I and D in numbers.grm
 
         # graph = pynini.Far(
@@ -68,9 +68,13 @@ class CardinalFst(GraphFst):
         #
         # graph = graph.invert().optimize()
         #
-        # graph = pynutil.insert("value: \"") + graph + pynutil.insert("\"")
-        self.graph = self.add_tokens(self.graph)
-        self.fst = self.graph
+        final_graph = pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
+        final_graph = self.add_tokens(final_graph)
+        self.fst = final_graph.optimize()
 
+        from pynini.lib import rewrite
+        print(rewrite.top_rewrite("два", self.graph))
+        print(rewrite.top_rewrite("два", final_graph))
+        print(rewrite.top_rewrite("два", self.fst))
         # Since we know this is the default for Russian, it's fair game to set it.
         separators = t['dot_thousands'] | t['no_delimiter']

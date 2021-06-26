@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# from nemo_text_processing.inverse_text_normalization.taggers.cardinal import CardinalFst
 from nemo_text_processing.inverse_text_normalization.taggers.cardinal import CardinalFst
 from nemo_text_processing.inverse_text_normalization.taggers.punctuation import PunctuationFst
 from nemo_text_processing.inverse_text_normalization.taggers.whitelist import WhiteListFst
@@ -79,7 +78,8 @@ class ClassifyFst(GraphFst):
             pynini.closure(punct + pynutil.insert(" ")) + token + pynini.closure(pynutil.insert(" ") + punct)
         )
 
-        graph = token_plus_punct + pynini.closure(pynutil.add_weight(delete_extra_space, 1.1) + token_plus_punct)
+        # graph = token_plus_punct + pynini.closure(pynutil.add_weight(delete_extra_space, 1.1) + token_plus_punct)
+        graph = token_plus_punct + pynini.closure(delete_extra_space + token_plus_punct)
 
         graph = delete_space + graph + delete_space
         self.fst = graph.optimize()
