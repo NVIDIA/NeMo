@@ -115,27 +115,26 @@ class SE_TDNN_Module(nn.Module):
         se_channels=128,
         kernel_size=1,
         dilation=1,
-        group_kernel_size=3,
         init_mode='xavier_uniform',
     ):
         super(SE_TDNN_Module, self).__init__()
         self.out_filters = out_filters
-        padding_val = get_same_padding(kernel_size=group_kernel_size, dilation=dilation, stride=1)
+        padding_val = get_same_padding(kernel_size=kernel_size, dilation=dilation, stride=1)
 
         group_conv = nn.Conv1d(
             out_filters,
             out_filters,
-            kernel_size=group_kernel_size,
+            kernel_size=kernel_size,
             dilation=dilation,
             padding=padding_val,
             groups=group_scale,
         )
         self.conv_block = nn.Sequential(
-            TDNN_Module(inp_filters, out_filters, kernel_size=kernel_size, dilation=dilation),
+            TDNN_Module(inp_filters, out_filters, kernel_size=1, dilation=1),
             group_conv,
             nn.ReLU(),
             nn.BatchNorm1d(out_filters),
-            TDNN_Module(out_filters, out_filters, kernel_size=kernel_size, dilation=dilation),
+            TDNN_Module(out_filters, out_filters, kernel_size=1, dilation=1),
         )
 
         self.se_layer = SE_Module(out_filters, se_channels, out_filters)
