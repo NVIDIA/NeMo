@@ -17,7 +17,6 @@ from nemo_text_processing.inverse_text_normalization.inverse_normalize import In
 from parameterized import parameterized
 from utils import PYNINI_AVAILABLE, parse_test_case_file
 
-
 # class TestRuCardinal:
 #     inverse_normalizer = InverseNormalizer(lang='ru') if PYNINI_AVAILABLE else None
 #
@@ -71,7 +70,6 @@ if __name__ == '__main__':
     with open('missing_ru_cases_cardinal.txt', 'w') as f_out:
         with open('error_ru_cardinal.txt', 'w') as f:
             for test_input, expected in tqdm(test_cases):
-                import pdb; pdb.set_trace()
                 if test_input == 'sil':
                     continue
 

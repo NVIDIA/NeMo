@@ -14,9 +14,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
-from nemo_text_processing.text_normalization.graph_utils import NEMO_DIGIT, NEMO_SIGMA, GraphFst
-from nemo_text_processing.text_normalization.taggers.date import get_hundreds_graph
+from nemo_text_processing.text_normalization.graph_utils import GraphFst
 
 try:
     import pynini
@@ -40,16 +38,11 @@ class CardinalFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
 
-        # graph = pynini.Far(
-        #     '/home/ebakhturina/itn_cg/TextNormalizationCoveringGrammars/src/ru/verbalizer/numbers.far', mode='r'
-        # )['CARDINAL_DEFAULT']
-
         from nemo_text_processing.text_normalization.ru.taggers.cardinal import CardinalFst
 
         graph = CardinalFst(deterministic=False).graph
-        print('using TN')
         graph = graph.invert().optimize()
 
-        graph = pynutil.insert("value: \"") + graph + pynutil.insert("\"")
+        graph = pynutil.insert("integer: \"") + graph + pynutil.insert("\"")
         graph = self.add_tokens(graph)
-        self.fst = graph
+        self.fst = graph.optimize()

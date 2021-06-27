@@ -31,12 +31,9 @@ class InverseNormalizer(Normalizer):
             from nemo_text_processing.inverse_text_normalization.ru.verbalizers.verbalize_final import (
                 VerbalizeFinalFst,
             )
-            print('ok RU import')
         elif lang == 'en':
             from nemo_text_processing.inverse_text_normalization.taggers.tokenize_and_classify import ClassifyFst
-            from nemo_text_processing.inverse_text_normalization.verbalizers.verbalize_final import (
-                VerbalizeFinalFst,
-            )
+            from nemo_text_processing.inverse_text_normalization.verbalizers.verbalize_final import VerbalizeFinalFst
         elif lang == 'es':
             from nemo_text_processing.inverse_text_normalization.es.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.inverse_text_normalization.es.verbalizers.verbalize_final import (

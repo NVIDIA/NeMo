@@ -27,8 +27,6 @@ try:
     import pynini
 
     PYNINI_AVAILABLE = True
-    from pynini.lib import rewrite
-
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
@@ -92,30 +90,22 @@ class Normalizer:
                 print(text)
             return text
         text = pynini.escape(text)
-
-        try:
-            tagged_text = self.select_tag(text)
-        except:
-            print(text)
-            import pdb
-
-            pdb.set_trace()
-            print()
+        tagged_lattice = self.find_tags(text)
+        tagged_text = self.select_tag(tagged_lattice)
         if verbose:
             print(tagged_text)
         self.parser(tagged_text)
         tokens = self.parser.parse()
         tags_reordered = self.generate_permutations(tokens)
-
         for tagged_text in tags_reordered:
             tagged_text = pynini.escape(tagged_text)
-            try:
-                output = self.select_verbalizer(tagged_text)
-                if punct_post_process:
-                    output = post_process_punctuation(output)
-                return output
-            except:
+            verbalizer_lattice = self.find_verbalizer(tagged_text)
+            if verbalizer_lattice.num_states() == 0:
                 continue
+            output = self.select_verbalizer(verbalizer_lattice)
+            if punct_post_process:
+                output = post_process_punctuation(output)
+            return output
         raise ValueError()
 
     def _permute(self, d: OrderedDict) -> List[str]:
@@ -177,28 +167,53 @@ class Normalizer:
 
         return _helper("", tokens, 0)
 
-    def select_tag(self, text: str) -> str:
+    def find_tags(self, text: str) -> 'pynini.FstLike':
         """
-        Return shortest path for the given text
+        Given text use tagger Fst to tag text
 
         Args:
--            text: sentence
+            text: sentence
+
+        Returns: tagged lattice
+        """
+        lattice = text @ self.tagger.fst
+        return lattice
+
+    def select_tag(self, lattice: 'pynini.FstLike') -> str:
+        """
+        Given tagged lattice return shortest path
+
+        Args:
+            tagged_text: tagged text
 
         Returns: shortest path
         """
-        tagged_text = rewrite.top_rewrite(text, self.tagger.fst)
+        tagged_text = pynini.shortestpath(lattice, nshortest=1, unique=True).string()
         return tagged_text
 
-    def select_verbalizer(self, tagged_text: str) -> str:
+    def find_verbalizer(self, tagged_text: str) -> 'pynini.FstLike':
         """
-        Return shortest path given tagged text
+        Given tagged text creates verbalization lattice
+        This is context-independent.
 
         Args:
             tagged_text: input text
 
+        Returns: verbalized lattice
+        """
+        lattice = tagged_text @ self.verbalizer.fst
+        return lattice
+
+    def select_verbalizer(self, lattice: 'pynini.FstLike') -> str:
+        """
+        Given verbalized lattice return shortest path
+
+        Args:
+            lattice: verbalization lattice
+
         Returns: shortest path
         """
-        output = rewrite.top_rewrite(tagged_text, self.verbalizer.fst)
+        output = pynini.shortestpath(lattice, nshortest=1, unique=True).string()
         return output
 
 

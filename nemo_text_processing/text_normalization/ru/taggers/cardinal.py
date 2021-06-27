@@ -41,8 +41,7 @@ class CardinalFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
 
-        if deterministic:
-            raise ValueError('Ru TN only support non-deterministic cases and produces multiple normalization options.')
+        print('Ru TN only support non-deterministic cases and produces multiple normalization options.')
 
         n = NumberNamesFst()
         cardinal = n.cardinal_number_names
@@ -59,7 +58,7 @@ class CardinalFst(GraphFst):
             nominative_filter, pynini.union("[BOS]", " "), pynini.union(" ", "[EOS]"), sigma_star
         )
 
-        self.graph = pynini.invert(cardinal).optimize()
+        self.graph = cardinal.optimize()
         # skipped I and D in numbers.grm
 
         # graph = pynini.Far(
@@ -68,13 +67,18 @@ class CardinalFst(GraphFst):
         #
         # graph = graph.invert().optimize()
         #
-        final_graph = pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
-        final_graph = self.add_tokens(final_graph)
-        self.fst = final_graph.optimize()
-
-        from pynini.lib import rewrite
-        print(rewrite.top_rewrite("два", self.graph))
-        print(rewrite.top_rewrite("два", final_graph))
-        print(rewrite.top_rewrite("два", self.fst))
+        # final_graph = pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
+        # final_graph = self.add_tokens(final_graph)
+        # self.fst = final_graph.optimize()
+        #
+        # from pynini.lib import rewrite
+        # text = "двадцать три"
+        # print(rewrite.top_rewrite("двадцать три", self.graph))
+        # print(rewrite.top_rewrite("двадцать три", final_graph))
+        # print(rewrite.top_rewrite("двадцать три", self.fst))
+        #
+        # lattice = text @ self.fst
+        # tagged_text = pynini.shortestpath(lattice, nshortest=1, unique=True).string()
+        # print('--->', tagged_text)
         # Since we know this is the default for Russian, it's fair game to set it.
         separators = t['dot_thousands'] | t['no_delimiter']
