@@ -129,7 +129,7 @@ class SE_TDNN_Module(nn.Module):
             padding=padding_val,
             groups=group_scale,
         )
-        self.conv_block = nn.Sequential(
+        self.group_tdnn_block = nn.Sequential(
             TDNN_Module(inp_filters, out_filters, kernel_size=1, dilation=1),
             group_conv,
             nn.ReLU(),
@@ -142,7 +142,7 @@ class SE_TDNN_Module(nn.Module):
         self.apply(lambda x: init_weights(x, mode=init_mode))
 
     def forward(self, input, length=None):
-        x = self.conv_block(input)
+        x = self.group_tdnn_block(input)
         x = self.se_layer(x, length)
         return x + input
 
