@@ -80,6 +80,7 @@ class MTEncDecModel(EncDecNLPModel):
             if cfg.encoder_tokenizer.get('bpe_dropout', 0.0) is not None
             else 0.0,
             encoder_model_name=cfg.encoder.get('model_name') if hasattr(cfg.encoder, 'model_name') else None,
+            encoder_tokenizer_vocab_file=cfg.encoder_tokenizer.get('vocab_file', None),
             decoder_tokenizer_library=cfg.decoder_tokenizer.get('library', 'yttm'),
             decoder_tokenizer_model=cfg.decoder_tokenizer.tokenizer_model,
             decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0)
@@ -379,6 +380,7 @@ class MTEncDecModel(EncDecNLPModel):
         encoder_tokenizer_model=None,
         encoder_bpe_dropout=0.0,
         encoder_model_name=None,
+        encoder_tokenizer_vocab_file=None,
         decoder_tokenizer_library=None,
         decoder_tokenizer_model=None,
         decoder_bpe_dropout=0.0,
@@ -397,7 +399,7 @@ class MTEncDecModel(EncDecNLPModel):
             tokenizer_model=self.register_artifact("encoder_tokenizer.tokenizer_model", encoder_tokenizer_model),
             bpe_dropout=encoder_bpe_dropout,
             model_name=encoder_model_name,
-            vocab_file=None,
+            vocab_file=self.register_artifact("encoder_tokenizer.vocab_file", encoder_tokenizer_vocab_file),
             special_tokens=None,
             use_fast=False,
         )
