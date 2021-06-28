@@ -1,4 +1,5 @@
 name: &name DuplexTextNormalization
+mode: joint      # Three possible choices ['tn', 'itn', 'joint']
 
 # Pretrained Nemo Models
 tagger_pretrained_model: null
@@ -105,6 +106,7 @@ data:
     do_basic_tokenize: false
     max_decoder_len: 80
     decoder_data_augmentation: true
+    mode: ${mode}
 
   validation_ds:
     data_path: ${data.base_dir}/dev.tsv
@@ -112,8 +114,10 @@ data:
     shuffle: false
     do_basic_tokenize: false
     max_decoder_len: 80
+    mode: ${mode}
 
   test_ds:
     data_path: ${data.base_dir}/test.tsv
     batch_size: 64
     shuffle: false
+    mode: ${mode}

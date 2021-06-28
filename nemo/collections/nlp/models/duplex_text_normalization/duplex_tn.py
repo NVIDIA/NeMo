@@ -13,13 +13,11 @@
 # limitations under the License.
 
 import torch.nn as nn
+import nemo.collections.nlp.data.text_normalization.constants as constants
 
 from transformers import *
 from nltk import word_tokenize
 from typing import List
-from nemo.collections.nlp.data.text_normalization.constants import (
-    I_PREFIX, SAME_TAG, PUNCT_TAG, TRANSFORM_TAG, GREEK_TO_SPOKEN
-)
 
 __all__ = ['DuplexTextNormalizationModel']
 
@@ -36,13 +34,15 @@ class DuplexTextNormalizationModel(nn.Module):
         self.decoder = decoder
 
     # Functions for inference
-    def _infer(self, sents: List[str]):
+    def _infer(self, sents: List[str], inst_directions: List[str]):
         # Preprocessing
         sents = self.input_preprocessing(sents)
 
         # Tagging
-        tag_preds, nb_spans, span_starts, span_ends = self.tagger._infer(sents)
-        output_spans = self.decoder._infer(sents, nb_spans, span_starts, span_ends)
+        tag_preds, nb_spans, span_starts, span_ends = \
+            self.tagger._infer(sents, inst_directions)
+        output_spans = \
+            self.decoder._infer(sents, nb_spans, span_starts, span_ends, inst_directions)
 
         # Preprare final outputs
         final_outputs = []
@@ -51,16 +51,17 @@ class DuplexTextNormalizationModel(nn.Module):
             cur_spans = output_spans[ix]
             while jx < len(sent):
                 tag, word = tags[jx], sent[jx]
-                if SAME_TAG in tag:
+                if constants.SAME_TAG in tag:
                     cur_words.append(word)
                     jx += 1
-                elif PUNCT_TAG in tag:
+                elif constants.PUNCT_TAG in tag:
                     jx += 1
                 else:
                     jx += 1
                     cur_words.append(cur_spans[span_idx])
                     span_idx += 1
-                    while jx < len(sent) and tags[jx] == I_PREFIX + TRANSFORM_TAG:
+                    while jx < len(sent) and \
+                    tags[jx] == constants.I_PREFIX + constants.TRANSFORM_TAG:
                         jx += 1
             cur_output_str = ' '.join(cur_words)
             cur_output_str = ' '.join(word_tokenize(cur_output_str))
@@ -74,7 +75,7 @@ class DuplexTextNormalizationModel(nn.Module):
         # Greek letters processing
         for ix, sent in enumerate(sents):
             for jx, tok in enumerate(sent):
-                if tok in GREEK_TO_SPOKEN:
-                    sents[ix][jx] = GREEK_TO_SPOKEN[tok]
+                if tok in constants.GREEK_TO_SPOKEN:
+                    sents[ix][jx] = constants.GREEK_TO_SPOKEN[tok]
 
         return sents

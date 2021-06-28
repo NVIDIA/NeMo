@@ -16,6 +16,7 @@ import time
 import torch
 import nltk
 import wordninja
+import nemo.collections.nlp.data.text_normalization.constants as constants
 nltk.download('punkt')
 
 from typing import List, Optional
@@ -27,10 +28,6 @@ from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSe
 from nemo.utils import logging
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.collections.nlp.data.text_normalization.constants import (
-    DECODE_CTX_SIZE, LABEL_PAD_TOKEN_ID, GREEK_TO_SPOKEN,
-    EXTRA_ID_0, EXTRA_ID_1, TN_PREFIX
-)
 from nemo.collections.nlp.models.duplex_text_normalization.utils import is_url
 from nemo.collections.nlp.data.text_normalization import TextNormalizationDecoderDataset
 
@@ -122,6 +119,7 @@ class DuplexDecoderModel(NLPModel):
             nb_spans: List[int],
             span_starts: List[List[int]],
             span_ends: List[List[int]],
+            inst_directions: List[str],
         ):
         """ Main function for Inference
         :param sents: A list of inputs tokenized by a basic tokenizer
@@ -137,6 +135,9 @@ class DuplexDecoderModel(NLPModel):
         if sum(nb_spans) == 0: return [[]] * len(sents)
         model, tokenizer = self.model, self._tokenizer
         model_max_len = model.config.n_positions
+        ctx_size = constants.DECODE_CTX_SIZE
+        extra_id_0 = constants.EXTRA_ID_0
+        extra_id_1 = constants.EXTRA_ID_1
 
         # Build all_inputs
         input_centers, all_inputs = [], []
@@ -145,14 +146,21 @@ class DuplexDecoderModel(NLPModel):
             for jx in range(nb_spans[ix]):
                 cur_start = span_starts[ix][jx]
                 cur_end = span_ends[ix][jx]
-                ctx_left = sent[max(0, cur_start-DECODE_CTX_SIZE):cur_start]
-                ctx_right = sent[cur_end+1:cur_end+1+DECODE_CTX_SIZE]
+                ctx_left = sent[max(0, cur_start-ctx_size):cur_start]
+                ctx_right = sent[cur_end+1:cur_end+1+ctx_size]
                 span_words = sent[cur_start:cur_end+1]
                 span_words_str = ' '.join(span_words)
                 if is_url(span_words_str):
                     span_words_str = span_words_str.lower()
                 input_centers.append(span_words_str)
-                cur_inputs = [TN_PREFIX] + ctx_left + [EXTRA_ID_0] + span_words_str.split(' ') + [EXTRA_ID_1] + ctx_right
+                # Build cur_inputs
+                if inst_directions[ix] == constants.INST_BACKWARD:
+                    cur_inputs = [constants.ITN_PREFIX]
+                if inst_directions[ix] == constants.INST_FORWARD:
+                    cur_inputs = [constants.TN_PREFIX]
+                cur_inputs += ctx_left
+                cur_inputs += [extra_id_0] + span_words_str.split(' ') + [extra_id_1]
+                cur_inputs += ctx_right
                 all_inputs.append(' '.join(cur_inputs))
 
         # Apply the decoding model
@@ -176,7 +184,7 @@ class DuplexDecoderModel(NLPModel):
         return final_texts
 
     def postprocess_output_spans(self, input_centers, output_spans):
-        greek_spokens = list(GREEK_TO_SPOKEN.values())
+        greek_spokens = list(constants.GREEK_TO_SPOKEN.values())
         for ix, (_input, _output) in enumerate(zip(input_centers, output_spans)):
             # Handle URL
             if is_url(_input):
@@ -223,13 +231,14 @@ class DuplexDecoderModel(NLPModel):
         dataset = TextNormalizationDecoderDataset(
             input_file,
             tokenizer,
+            cfg.mode,
             cfg.get('max_decoder_len', tokenizer.model_max_length),
             cfg.get('decoder_data_augmentation', False)
         )
         data_collator = DataCollatorForSeq2Seq(
             tokenizer,
             model=model,
-            label_pad_token_id=LABEL_PAD_TOKEN_ID,
+            label_pad_token_id=constants.LABEL_PAD_TOKEN_ID,
         )
         dl = torch.utils.data.DataLoader(
             dataset=dataset,

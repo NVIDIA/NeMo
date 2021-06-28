@@ -12,36 +12,50 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import nemo.collections.nlp.data.text_normalization.constants as constants
+
 from tqdm import tqdm
 from copy import deepcopy
 from nltk import word_tokenize
 from typing import List
-from nemo.collections.nlp.data.text_normalization.constants import (
-    SIL_WORD, SELF_WORD, SPECIAL_WORDS
-)
+
 from nemo.collections.nlp.data.text_normalization.utils import read_data_file, normalize_str
 
 __all__ = ['TextNormalizationTestDataset']
 
 # Test Dataset
 class TextNormalizationTestDataset:
-    def __init__(self, input_file: str):
+    def __init__(self, input_file: str, mode: str):
         insts = read_data_file(input_file)
 
         # Build inputs and targets
-        self.inputs, self.targets = [], []
+        self.directions, self.inputs, self.targets = [], [], []
         for (_, w_words, s_words) in insts:
-            processed_s_words = []
+            # Extract words that are not punctuations
+            processed_w_words, processed_s_words = [], []
             for w_word, s_word in zip(w_words, s_words):
-                if s_word == SIL_WORD: continue
-                if s_word == SELF_WORD: processed_s_words.append(w_word)
-                if not s_word in SPECIAL_WORDS: processed_s_words.append(s_word)
-            input_words = word_tokenize(' '.join(w_words))
-            output_words = word_tokenize(' '.join(processed_s_words))
-
-            self.inputs.append(' '.join(input_words))
-            self.targets.append(' '.join(output_words))
-            self.examples = list(zip(self.inputs, self.targets))
+                if s_word == constants.SIL_WORD: continue
+                if s_word == constants.SELF_WORD: processed_s_words.append(w_word)
+                if not s_word in constants.SPECIAL_WORDS: processed_s_words.append(s_word)
+                processed_w_words.append(w_word)
+            # Create examples
+            for direction in constants.INST_DIRECTIONS:
+                if direction == constants.INST_BACKWARD:
+                    if mode == constants.TN_MODE: continue
+                    input_words = processed_s_words
+                    output_words = processed_w_words
+                if direction == constants.INST_FORWARD:
+                    if mode == constants.ITN_MODE: continue
+                    input_words = w_words
+                    output_words = processed_s_words
+                # Basic tokenization
+                input_words = word_tokenize(' '.join(input_words))
+                output_words = word_tokenize(' '.join(output_words))
+                # Update self.directions, self.inputs, self.targets
+                self.directions.append(direction)
+                self.inputs.append(' '.join(input_words))
+                self.targets.append(' '.join(output_words))
+        self.examples = list(zip(self.directions, self.inputs, self.targets))
 
     def __getitem__(self, idx):
         return self.examples[idx]
@@ -52,6 +66,7 @@ class TextNormalizationTestDataset:
     @staticmethod
     def compute_sent_accuracy(preds: List[str], targets: List[str]):
         assert(len(preds) == len(targets))
+        if len(targets) == 0: return 'NA'
         # Sentence Accuracy
         correct_count = 0
         for pred, target in zip(preds, targets):
@@ -61,26 +76,3 @@ class TextNormalizationTestDataset:
         sent_accuracy = correct_count / len(targets)
 
         return sent_accuracy
-
-# Helper Functions
-def read_data_file(fp):
-    insts, w_words, s_words, classes = [], [], [], []
-    # Read input file
-    with open(fp, 'r', encoding='utf-8') as f:
-        for line in tqdm(f):
-            es = [e.strip() for e in line.strip().split('\t')]
-            if es[0] == '<eos>':
-                inst = (deepcopy(classes), deepcopy(w_words), deepcopy(s_words))
-                insts.append(inst)
-                # Reset
-                w_words, s_words, classes = [], [], []
-            else:
-                classes.append(es[0])
-                w_words.append(es[1])
-                s_words.append(es[2])
-    return insts
-
-def normalize_str(input_str):
-    input_str = ' '.join(word_tokenize(input_str.strip().lower()))
-    input_str = input_str.replace('  ', ' ')
-    return input_str
