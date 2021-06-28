@@ -188,52 +188,45 @@ class TestEncDecCTCModel:
             assert not os.path.exists(os.path.join(old_tmpdir_path, 'tokenizer', 'vocab.txt'))
 
             # make a copy of the tokenizer before renaming
-            try:
-                os.rename(old_tokenizer_dir, old_tokenizer_dir + '.bkp')
-                assert not os.path.exists(old_tokenizer_dir)
+            # restore model from .nemo
+            asr_model2 = EncDecCTCModelBPE.restore_from(save_path)
+            assert isinstance(asr_model2, EncDecCTCModelBPE)
 
-                # restore model from .nemo
-                asr_model2 = EncDecCTCModelBPE.restore_from(save_path)
-                assert isinstance(asr_model2, EncDecCTCModelBPE)
+            # Check if vocabulary size is same
+            assert asr_model.tokenizer.tokenizer.vocab_size == asr_model2.tokenizer.tokenizer.vocab_size
 
-                # Check if vocabulary size is same
-                assert asr_model.tokenizer.tokenizer.vocab_size == asr_model2.tokenizer.tokenizer.vocab_size
+            # Make a copy of the tokenizer
+            new_tokenizer_dir = os.path.join(save_dir, 'tokenizer')
 
-                # Make a copy of the tokenizer
-                new_tokenizer_dir = os.path.join(save_dir, 'tokenizer')
+            os.makedirs(new_tokenizer_dir, exist_ok=True)
+            new_tokenizer_path = os.path.join(new_tokenizer_dir, 'vocab.txt')
+            with open(new_tokenizer_path, 'w') as f:
+                for v in asr_model2.tokenizer.tokenizer.get_vocab():
+                    f.write(f"{v}\n")
 
-                os.makedirs(new_tokenizer_dir, exist_ok=True)
-                new_tokenizer_path = os.path.join(new_tokenizer_dir, 'vocab.txt')
-                with open(new_tokenizer_path, 'w') as f:
-                    for v in asr_model2.tokenizer.tokenizer.get_vocab():
-                        f.write(f"{v}\n")
+                # Add some new tokens too
+                f.write("^\n")
+                f.write("^^\n")
+                f.write("^^^\n")
 
-                    # Add some new tokens too
-                    f.write("^\n")
-                    f.write("^^\n")
-                    f.write("^^^\n")
+            assert os.path.exists(new_tokenizer_path)
 
-                assert os.path.exists(new_tokenizer_path)
+            # change vocabulary
+            asr_model2.change_vocabulary(new_tokenizer_dir, new_tokenizer_type='wpe')
+            assert asr_model.tokenizer.vocab_size != asr_model2.tokenizer.vocab_size
 
-                # change vocabulary
-                asr_model2.change_vocabulary(new_tokenizer_dir, new_tokenizer_type='wpe')
-                assert asr_model.tokenizer.vocab_size != asr_model2.tokenizer.vocab_size
+            new_save_path = os.path.join(save_dir, 'temp2.nemo')
+            asr_model2.save_to(new_save_path)
 
-                new_save_path = os.path.join(save_dir, 'temp2.nemo')
-                asr_model2.save_to(new_save_path)
+            asr_model3 = EncDecCTCModelBPE.restore_from(new_save_path)
+            assert isinstance(asr_model3, EncDecCTCModelBPE)
 
-                asr_model3 = EncDecCTCModelBPE.restore_from(new_save_path)
-                assert isinstance(asr_model3, EncDecCTCModelBPE)
+            # Check if vocabulary size is same
+            assert asr_model2.tokenizer.tokenizer.vocab_size == asr_model3.tokenizer.tokenizer.vocab_size
+            assert asr_model2.vocab_path != asr_model3.vocab_path
 
-                # Check if vocabulary size is same
-                assert asr_model2.tokenizer.tokenizer.vocab_size == asr_model3.tokenizer.tokenizer.vocab_size
-                assert asr_model2.vocab_path != asr_model3.vocab_path
-
-                # Model PT level checks
-                assert len(asr_model2.artifacts) == 1
-
-            finally:
-                os.rename(old_tokenizer_dir + '.bkp', old_tokenizer_dir)
+            # Model PT level checks
+            assert len(asr_model2.artifacts) == 1
 
     @pytest.mark.unit
     def test_EncDecCTCDatasetConfig_for_AudioToBPEDataset(self):
