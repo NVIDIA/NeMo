@@ -21,16 +21,16 @@ from nemo.collections.nlp.data.text_normalization.constants import (
     I_PREFIX, SAME_TAG, PUNCT_TAG, TRANSFORM_TAG, GREEK_TO_SPOKEN
 )
 
-__all__ = ['NeuralTextNormalizationModel']
+__all__ = ['DuplexTextNormalizationModel']
 
-class NeuralTextNormalizationModel(nn.Module):
-    """ NeuralTextNormalizationModel is a wrapper class that can be used to
+class DuplexTextNormalizationModel(nn.Module):
+    """ DuplexTextNormalizationModel is a wrapper class that can be used to
     encapsulate a trained tagger and a trained decoder. The class is intended
     to be used for inference only (e.g., for evaluation).
     """
 
     def __init__(self, tagger, decoder):
-        super(NeuralTextNormalizationModel, self).__init__()
+        super(DuplexTextNormalizationModel, self).__init__()
 
         self.tagger = tagger
         self.decoder = decoder

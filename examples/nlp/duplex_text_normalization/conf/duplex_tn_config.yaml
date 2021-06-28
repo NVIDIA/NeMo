@@ -1,4 +1,4 @@
-name: &name NeuralTextNormalization
+name: &name DuplexTextNormalization
 
 # Pretrained Nemo Models
 tagger_pretrained_model: null

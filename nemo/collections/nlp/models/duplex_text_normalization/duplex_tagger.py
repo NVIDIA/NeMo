@@ -31,12 +31,12 @@ from nemo.collections.nlp.data.text_normalization.constants import (
     LABEL_PAD_TOKEN_ID, TN_PREFIX, B_PREFIX, I_PREFIX,
     TRANSFORM_TAG, ALL_TAG_LABELS
 )
-from nemo.collections.nlp.models.neural_text_normalization.utils import has_numbers
+from nemo.collections.nlp.models.duplex_text_normalization.utils import has_numbers
 from nemo.collections.nlp.data.text_normalization import TextNormalizationTaggerDataset
 
-__all__ = ['TextNormalizationTaggerModel']
+__all__ = ['DuplexTaggerModel']
 
-class TextNormalizationTaggerModel(NLPModel):
+class DuplexTaggerModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self._tokenizer = AutoTokenizer.from_pretrained(cfg.tokenizer, add_prefix_space=True)
         super().__init__(cfg=cfg, trainer=trainer)

@@ -22,15 +22,15 @@ from utils import TAGGER_MODEL, DECODER_MODEL, initialize_model_and_trainer
 
 from nemo.utils import logging
 from nemo.core.config import hydra_runner
-from nemo.collections.nlp.models import NeuralTextNormalizationModel
+from nemo.collections.nlp.models import DuplexTextNormalizationModel
 from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset
 
-@hydra_runner(config_path="conf", config_name="text_normalization_config")
+@hydra_runner(config_path="conf", config_name="duplex_tn_config")
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config Params: {OmegaConf.to_yaml(cfg)}')
     tagger_trainer, tagger_model = initialize_model_and_trainer(cfg, TAGGER_MODEL, False)
     decoder_trainer, decoder_model = initialize_model_and_trainer(cfg, DECODER_MODEL, False)
-    tn_model = NeuralTextNormalizationModel(tagger_model, decoder_model)
+    tn_model = DuplexTextNormalizationModel(tagger_model, decoder_model)
 
     if not cfg.inference.interactive:
         # Setup test_dataset

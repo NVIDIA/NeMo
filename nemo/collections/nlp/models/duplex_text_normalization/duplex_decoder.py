@@ -31,12 +31,12 @@ from nemo.collections.nlp.data.text_normalization.constants import (
     DECODE_CTX_SIZE, LABEL_PAD_TOKEN_ID, GREEK_TO_SPOKEN,
     EXTRA_ID_0, EXTRA_ID_1, TN_PREFIX
 )
-from nemo.collections.nlp.models.neural_text_normalization.utils import is_url
+from nemo.collections.nlp.models.duplex_text_normalization.utils import is_url
 from nemo.collections.nlp.data.text_normalization import TextNormalizationDecoderDataset
 
-__all__ = ['TextNormalizationDecoderModel']
+__all__ = ['DuplexDecoderModel']
 
-class TextNormalizationDecoderModel(NLPModel):
+class DuplexDecoderModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self._tokenizer = AutoTokenizer.from_pretrained(cfg.tokenizer)
         super().__init__(cfg=cfg, trainer=trainer)

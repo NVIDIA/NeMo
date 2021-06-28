@@ -3,8 +3,8 @@ import pytorch_lightning as pl
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models import (
-    TextNormalizationTaggerModel,
-    TextNormalizationDecoderModel
+    DuplexTaggerModel,
+    DuplexDecoderModel
 )
 from nemo.utils import logging
 
@@ -33,15 +33,15 @@ def initialize_model_and_trainer(
     if not pretrained_cfg:
         logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
         if model_name == TAGGER_MODEL:
-            model = TextNormalizationTaggerModel(model_cfg, trainer=trainer)
+            model = DuplexTaggerModel(model_cfg, trainer=trainer)
         if model_name == DECODER_MODEL:
-            model = TextNormalizationDecoderModel(model_cfg, trainer=trainer)
+            model = DuplexDecoderModel(model_cfg, trainer=trainer)
     else:
         logging.info(f'Loading pretrained model {pretrained_cfg}')
         if model_name == TAGGER_MODEL:
-            model = TextNormalizationTaggerModel.restore_from(pretrained_cfg)
+            model = DuplexTaggerModel.restore_from(pretrained_cfg)
         if model_name == DECODER_MODEL:
-            model = TextNormalizationDecoderModel.restore_from(pretrained_cfg)
+            model = DuplexDecoderModel.restore_from(pretrained_cfg)
 
     # Setup train and validation data
     if do_training:

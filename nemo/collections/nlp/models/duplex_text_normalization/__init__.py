@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.models.neural_text_normalization.neural_tagger import TextNormalizationTaggerModel
-from nemo.collections.nlp.models.neural_text_normalization.neural_decoder import TextNormalizationDecoderModel
-from nemo.collections.nlp.models.neural_text_normalization.neural_tn import NeuralTextNormalizationModel
+from nemo.collections.nlp.models.duplex_text_normalization.duplex_tagger import DuplexTaggerModel
+from nemo.collections.nlp.models.duplex_text_normalization.duplex_decoder import DuplexDecoderModel
+from nemo.collections.nlp.models.duplex_text_normalization.duplex_tn import DuplexTextNormalizationModel
