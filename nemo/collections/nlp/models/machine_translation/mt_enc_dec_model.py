@@ -710,12 +710,12 @@ class MTEncDecModel(EncDecNLPModel):
 
     def prepare_inference_batch(self, text, prepend_ids=[], target=False):
         inputs = []
-        proessor = self.source_processor if not target else self.target_processor
+        processor = self.source_processor if not target else self.target_processor
         tokenizer = self.encoder_tokenizer if not target else self.decoder_tokenizer
         for txt in text:
-            if proessor is not None:
-                txt = proessor.normalize(txt)
-                txt = proessor.tokenize(txt)
+            if processor is not None:
+                txt = processor.normalize(txt)
+                txt = processor.tokenize(txt)
             ids = tokenizer.text_to_ids(txt)
             ids = prepend_ids + [tokenizer.bos_id] + ids + [tokenizer.eos_id]
             inputs.append(ids)
