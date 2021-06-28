@@ -14,10 +14,11 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
-from nemo_text_processing.text_normalization.graph_utils import NEMO_DIGIT, NEMO_SIGMA, GraphFst
+from collections import defaultdict
+
+from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path, load_labels
+from nemo_text_processing.text_normalization.graph_utils import NEMO_SIGMA, GraphFst
 from nemo_text_processing.text_normalization.ru.taggers.number_names import NumberNamesFst
-from nemo_text_processing.text_normalization.taggers.date import get_hundreds_graph
 
 try:
     import pynini
@@ -45,6 +46,25 @@ class CardinalFst(GraphFst):
 
         n = NumberNamesFst()
         cardinal = n.cardinal_number_names
+
+        # TODO support for all cases
+        # 1000 -> "тысяча" or "одна тысяча"
+        one_thousand_cases = [
+            "одна тысяча",
+            "одной тысячи",
+            "одной тысяче",
+            "одну тысячу",
+            "одной тысячей",
+            "одной тысяче",
+        ]
+        one_thousand_map = []
+        for k in one_thousand_cases:
+            one_thousand_map.append((k.split()[1], k))
+        one_thousand_map = pynini.string_map(one_thousand_map)
+
+        one_thousand_alternative = pynini.cdrewrite(one_thousand_map, "", "", NEMO_SIGMA)
+        cardinal |= cardinal @ one_thousand_alternative
+
         ordinal = n.ordinal_number_names
 
         t = pynini.Far(get_abs_path('ru/data/utils/universal_thousands_punct.far'))
@@ -61,24 +81,9 @@ class CardinalFst(GraphFst):
         self.graph = cardinal.optimize()
         # skipped I and D in numbers.grm
 
-        # graph = pynini.Far(
-        #     '/home/ebakhturina/itn_cg/TextNormalizationCoveringGrammars/src/ru/verbalizer/numbers.far', mode='r'
-        # )['CARDINAL_DEFAULT']
-        #
-        # graph = graph.invert().optimize()
-        #
-        # final_graph = pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
-        # final_graph = self.add_tokens(final_graph)
-        # self.fst = final_graph.optimize()
-        #
-        # from pynini.lib import rewrite
-        # text = "двадцать три"
-        # print(rewrite.top_rewrite("двадцать три", self.graph))
-        # print(rewrite.top_rewrite("двадцать три", final_graph))
-        # print(rewrite.top_rewrite("двадцать три", self.fst))
-        #
-        # lattice = text @ self.fst
-        # tagged_text = pynini.shortestpath(lattice, nshortest=1, unique=True).string()
-        # print('--->', tagged_text)
         # Since we know this is the default for Russian, it's fair game to set it.
         separators = t['dot_thousands'] | t['no_delimiter']
+
+
+if __name__ == '__main__':
+    CardinalFst()

@@ -14,7 +14,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.graph_utils import GraphFst
+from nemo_text_processing.text_normalization.graph_utils import NEMO_SIGMA, GraphFst
 
 try:
     import pynini
@@ -41,8 +41,8 @@ class CardinalFst(GraphFst):
         from nemo_text_processing.text_normalization.ru.taggers.cardinal import CardinalFst
 
         graph = CardinalFst(deterministic=False).graph
-        graph = graph.invert().optimize()
 
+        graph = graph.invert().optimize()
         graph = pynutil.insert("integer: \"") + graph + pynutil.insert("\"")
         graph = self.add_tokens(graph)
         self.fst = graph.optimize()
