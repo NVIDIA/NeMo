@@ -17,8 +17,11 @@ import random
 from tqdm import tqdm
 from nltk import word_tokenize
 from transformers import PreTrainedTokenizerBase
-from nemo.collections.nlp.data.text_normalization.constants import *
-from nemo.collections.nlp.data.text_normalization.utils import *
+from nemo.collections.nlp.data.text_normalization.constants import (
+    DECODE_CTX_SIZE, ITN_PREFIX, TN_PREFIX, SIL_WORD, SELF_WORD,
+    SPECIAL_WORDS, EXTRA_ID_0, EXTRA_ID_1
+)
+from nemo.collections.nlp.data.text_normalization.utils import read_data_file
 
 __all__ = ['TextNormalizationDecoderDataset']
 

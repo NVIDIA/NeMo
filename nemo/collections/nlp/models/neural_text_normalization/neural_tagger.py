@@ -26,10 +26,12 @@ from transformers import AutoModelForTokenClassification, AutoTokenizer, DataCol
 
 from nemo.utils import logging
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.core.neural_types import NeuralType
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.collections.nlp.data.text_normalization.constants import *
-from nemo.collections.nlp.models.neural_text_normalization.utils import *
+from nemo.collections.nlp.data.text_normalization.constants import (
+    LABEL_PAD_TOKEN_ID, TN_PREFIX, B_PREFIX, I_PREFIX,
+    TRANSFORM_TAG, ALL_TAG_LABELS
+)
+from nemo.collections.nlp.models.neural_text_normalization.utils import has_numbers
 from nemo.collections.nlp.data.text_normalization import TextNormalizationTaggerDataset
 
 __all__ = ['TextNormalizationTaggerModel']

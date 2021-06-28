@@ -1,3 +1,5 @@
+__all__ = ['is_url', 'has_numbers']
+
 # Check if a string is a URL
 def is_url(input_str):
     url_segments = ['www', 'http', '.org', '.com', '.tv']

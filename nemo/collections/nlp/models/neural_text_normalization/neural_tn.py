@@ -17,8 +17,9 @@ import torch.nn as nn
 from transformers import *
 from nltk import word_tokenize
 from typing import List
-from nemo.collections.nlp.data.text_normalization.constants import *
-from nemo.collections.nlp.models.neural_text_normalization.utils import *
+from nemo.collections.nlp.data.text_normalization.constants import (
+    I_PREFIX, SAME_TAG, PUNCT_TAG, TRANSFORM_TAG, GREEK_TO_SPOKEN
+)
 
 __all__ = ['NeuralTextNormalizationModel']
 

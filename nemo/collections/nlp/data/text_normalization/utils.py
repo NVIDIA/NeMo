@@ -1,7 +1,8 @@
 from tqdm import tqdm
 from copy import deepcopy
 from nltk import word_tokenize
-from nemo.collections.nlp.data.text_normalization.constants import *
+
+__all__ = ['read_data_file', 'normalize_str']
 
 # Helper Functions
 def read_data_file(fp):

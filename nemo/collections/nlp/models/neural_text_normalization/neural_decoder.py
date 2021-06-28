@@ -18,20 +18,20 @@ import nltk
 import wordninja
 nltk.download('punkt')
 
-from collections import defaultdict
 from typing import List, Optional
 from pytorch_lightning import Trainer
 from omegaconf import DictConfig
 
-from torch.utils.data import DataLoader
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
 
 from nemo.utils import logging
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.core.neural_types import NeuralType
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.collections.nlp.data.text_normalization.constants import *
-from nemo.collections.nlp.models.neural_text_normalization.utils import *
+from nemo.collections.nlp.data.text_normalization.constants import (
+    DECODE_CTX_SIZE, LABEL_PAD_TOKEN_ID, GREEK_TO_SPOKEN,
+    EXTRA_ID_0, EXTRA_ID_1
+)
+from nemo.collections.nlp.models.neural_text_normalization.utils import is_url
 from nemo.collections.nlp.data.text_normalization import TextNormalizationDecoderDataset
 
 __all__ = ['TextNormalizationDecoderModel']
@@ -152,7 +152,7 @@ class TextNormalizationDecoderModel(NLPModel):
                 if is_url(span_words_str):
                     span_words_str = span_words_str.lower()
                 input_centers.append(span_words_str)
-                cur_inputs = [prefix] + ctx_left + ['<extra_id_0>'] + span_words_str.split(' ') + ['<extra_id_1>'] + ctx_right
+                cur_inputs = [prefix] + ctx_left + [EXTRA_ID_0] + span_words_str.split(' ') + [EXTRA_ID_1] + ctx_right
                 all_inputs.append(' '.join(cur_inputs))
 
         # Apply the decoding model

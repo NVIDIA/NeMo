@@ -16,8 +16,12 @@ from tqdm import tqdm
 from nltk import word_tokenize
 from nemo.core.classes import Dataset
 from transformers import PreTrainedTokenizerBase
-from nemo.collections.nlp.data.text_normalization.constants import *
-from nemo.collections.nlp.data.text_normalization.utils import *
+from nemo.collections.nlp.data.text_normalization.constants import (
+    LABEL_PAD_TOKEN_ID, TN_PREFIX, B_PREFIX, I_PREFIX, TASK_TAG,
+    SAME_TAG, PUNCT_TAG, TRANSFORM_TAG, SIL_WORD, SELF_WORD,
+    ALL_TAG_LABELS
+)
+from nemo.collections.nlp.data.text_normalization.utils import read_data_file
 
 __all__ = ['TextNormalizationTaggerDataset']
 

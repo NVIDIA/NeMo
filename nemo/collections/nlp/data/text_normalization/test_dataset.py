@@ -16,8 +16,10 @@ from tqdm import tqdm
 from copy import deepcopy
 from nltk import word_tokenize
 from typing import List
-from nemo.collections.nlp.data.text_normalization.constants import *
-from nemo.collections.nlp.data.text_normalization.utils import *
+from nemo.collections.nlp.data.text_normalization.constants import (
+    SIL_WORD, SELF_WORD, SPECIAL_WORDS
+)
+from nemo.collections.nlp.data.text_normalization.utils import read_data_file, normalize_str
 
 __all__ = ['TextNormalizationTestDataset']
 
