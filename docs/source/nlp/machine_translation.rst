@@ -566,6 +566,8 @@ If the pretrained megatron model used a custom vocab file, then set:
 .. code::
 
   model.encoder_tokenizer.vocab_file=/path/to/your/megatron/vocab_file.txt
+  model.encoder.vocab_file=/path/to/your/megatron/vocab_file.txt
+
 
 Use ``encoder.model_name=megatron_bert_uncased`` for uncased models with custom vocabularies and
 use ``encoder.model_name=megatron_bert_cased`` for cased models with custom vocabularies.
