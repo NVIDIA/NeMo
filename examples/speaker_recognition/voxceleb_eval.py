@@ -70,7 +70,7 @@ def get_acc(trial_file='', emb='', save_kaldi_emb=False):
                 keys.append(y_speaker)
                 trial_embs.extend([Y])
 
-            score = (X @ Y.T) / (((X @ X.T) * (Y @ Y.T)) ** 0.5)
+            score = np.dot(X, Y) / ((np.dot(X, X) * np.dot(Y, Y)) ** 0.5)
             score = (score + 1) / 2
 
             all_scores.append(score)
