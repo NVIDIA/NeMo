@@ -12,21 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-import json
-import math
-import random
-import time
-import wordninja
 
-from os.path import isfile
 from transformers import *
 from nltk import word_tokenize
-from typing import Dict, List, Optional
-from omegaconf import DictConfig, OmegaConf
+from typing import List
 from nemo.collections.nlp.data.text_normalization.constants import *
 from nemo.collections.nlp.models.neural_text_normalization.utils import *
 

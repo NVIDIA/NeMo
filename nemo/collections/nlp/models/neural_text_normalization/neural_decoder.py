@@ -12,31 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import json
 import time
 import torch
-import numpy as np
 import nltk
 import wordninja
 nltk.download('punkt')
 
-from tqdm import tqdm
-from nltk import word_tokenize
 from collections import defaultdict
-from typing import Dict, List, Optional
+from typing import List, Optional
 from pytorch_lightning import Trainer
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
-from torch import nn
 from torch.utils.data import DataLoader
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
 
 from nemo.utils import logging
-from nemo.core.classes.common import typecheck
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.neural_types import NeuralType
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.collections.nlp.data.text_normalization.constants import *
 from nemo.collections.nlp.models.neural_text_normalization.utils import *
 from nemo.collections.nlp.data.text_normalization import TextNormalizationDecoderDataset

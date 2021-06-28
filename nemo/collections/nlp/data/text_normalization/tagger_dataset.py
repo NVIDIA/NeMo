@@ -13,15 +13,13 @@
 # limitations under the License.
 
 from tqdm import tqdm
-from copy import deepcopy
 from nltk import word_tokenize
 from nemo.core.classes import Dataset
-from typing import Dict, List, Optional
 from transformers import PreTrainedTokenizerBase
 from nemo.collections.nlp.data.text_normalization.constants import *
 from nemo.collections.nlp.data.text_normalization.utils import *
 
-__all__ = ['TextNormalizationTaggerDataset', 'TextNormalizationTestDataset']
+__all__ = ['TextNormalizationTaggerDataset']
 
 
 # Tagger Dataset

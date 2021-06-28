@@ -15,10 +15,7 @@
 import random
 
 from tqdm import tqdm
-from copy import deepcopy
 from nltk import word_tokenize
-from nemo.core.classes import Dataset
-from typing import Dict, List, Optional
 from transformers import PreTrainedTokenizerBase
 from nemo.collections.nlp.data.text_normalization.constants import *
 from nemo.collections.nlp.data.text_normalization.utils import *
@@ -56,7 +53,6 @@ class DecoderDataInstance:
         c_w_words = word_tokenize(' '.join(c_w_words))
         c_s_words = word_tokenize(' '.join(c_s_words))
         w_input = w_left + [EXTRA_ID_0] + c_w_words + [EXTRA_ID_1] + w_right
-        s_input = s_left + [EXTRA_ID_0] + c_s_words + [EXTRA_ID_1] + s_right
         input_words = [TN_PREFIX] + w_input
         output_words = c_s_words
         # Finalize

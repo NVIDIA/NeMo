@@ -1,13 +1,9 @@
-import os
-import pytorch_lightning as pl
-
 from omegaconf import DictConfig, OmegaConf
 from utils import TAGGER_MODEL, DECODER_MODEL, initialize_model_and_trainer
 
 from nemo.utils import logging
 from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
-from nemo.collections.nlp.models import NeuralTextNormalizationModel
 
 @hydra_runner(config_path="conf", config_name="text_normalization_config")
 def main(cfg: DictConfig) -> None:
