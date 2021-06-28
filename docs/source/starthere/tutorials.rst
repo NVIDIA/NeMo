@@ -16,7 +16,7 @@ To run a tutorial:
    :widths: 15 25 25
    :header-rows: 1
 
-   * - Dostable
+   * - Domain
      - Title
      - GitHub URL
    * - General
