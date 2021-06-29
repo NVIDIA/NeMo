@@ -12,6 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+"""
+This script contains an example on how to evaluate a DuplexTextNormalizationModel.
+Note that DuplexTextNormalizationModel is essentially a wrapper class around
+DuplexTaggerModel and DuplexDecoderModel. Therefore, two trained NeMo models
+should be specificied before evaluation (one is a trained DuplexTaggerModel
+and the other is a trained DuplexDecoderModel).
+
+USAGE Example:
+1. Obtain a processed test data file (refer to the `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`)
+2.
+# python duplex_text_normalization_test.py
+        tagger_pretrained_model=PATH_TO_TRAINED_TAGGER
+        decoder_pretrained_model=PATH_TO_TRAINED_DECODER
+        data.test_ds.data_path=PATH_TO_TEST_FILE
+        mode={tn,itn,joint}
+
+The script also supports the `interactive` mode where a user can just make the model
+run on any input text:
+# python duplex_text_normalization_test.py
+        tagger_pretrained_model=PATH_TO_TRAINED_TAGGER
+        decoder_pretrained_model=PATH_TO_TRAINED_DECODER
+        mode={tn,itn,joint}
+        inference.interactive=true
+
+This script uses the `/examples/nlp/duplex_text_normalization/conf/duplex_tn_config.yaml`
+config file by default. The other option is to set another config file via command
+line arguments by `--config-name=CONFIG_FILE_PATH'.
+
+"""
+
+
 import time
 import numpy as np
 import nemo.collections.nlp.data.text_normalization.constants as constants
