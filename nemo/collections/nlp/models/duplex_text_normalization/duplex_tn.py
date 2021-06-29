@@ -22,7 +22,8 @@ from typing import List
 __all__ = ['DuplexTextNormalizationModel']
 
 class DuplexTextNormalizationModel(nn.Module):
-    """ DuplexTextNormalizationModel is a wrapper class that can be used to
+    """
+    DuplexTextNormalizationModel is a wrapper class that can be used to
     encapsulate a trained tagger and a trained decoder. The class is intended
     to be used for inference only (e.g., for evaluation).
     """
@@ -35,6 +36,13 @@ class DuplexTextNormalizationModel(nn.Module):
 
     # Functions for inference
     def _infer(self, sents: List[str], inst_directions: List[str]):
+        """ Main function for Inference
+        Args:
+            sents: A list of inputs tokenized by a basic tokenizer (e.g., using nltk.word_tokenize()).
+            inst_directions: A list of str where each str indicates the direction of the corresponding instance (i.e., INST_BACKWARD for ITN or INST_FORWARD for TN).
+
+        Returns: A list of str where each str is the final output text for the corresponding input text
+        """
         # Preprocessing
         sents = self.input_preprocessing(sents)
 

@@ -50,6 +50,7 @@ import nemo.collections.nlp.data.text_normalization.constants as constants
 
 from tqdm import tqdm
 from math import ceil
+from nltk import word_tokenize
 from omegaconf import DictConfig, OmegaConf
 from utils import TAGGER_MODEL, DECODER_MODEL, initialize_model_and_trainer
 
@@ -102,10 +103,16 @@ def main(cfg: DictConfig) -> None:
             logging.info(f'Sentence Accuracy: {sent_accuracy}')
             logging.info(f'Average running time: {np.average(all_run_times)} ms')
     else:
-        test_input = input('Input a test input:')
-        outputs = tn_model._infer([test_input], [INST_BACKWARD, INST_FORWARD])[0]
-        print(f'Prediction (ITN): {outputs[0]}')
-        print(f'Prediction (TN): {outputs[1]}')
+        while True:
+            test_input = input('Input a test input:')
+            test_input = ' '.join(word_tokenize(test_input))
+            outputs = tn_model._infer([test_input, test_input],
+                                      [constants.INST_BACKWARD, constants.INST_FORWARD])
+            print(f'Prediction (ITN): {outputs[0]}')
+            print(f'Prediction (TN): {outputs[1]}')
+
+            should_continue = input('\nContinue (y/n): ').strip().lower()
+            if should_continue.startswith('n'): break
 
 if __name__ == '__main__':
     main()

@@ -35,6 +35,10 @@ from nemo.collections.nlp.data.text_normalization import TextNormalizationTagger
 __all__ = ['DuplexTaggerModel']
 
 class DuplexTaggerModel(NLPModel):
+    """
+    Transformer-based (duplex) tagger model for TN/ITN.
+    """
+
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self._tokenizer = AutoTokenizer.from_pretrained(cfg.tokenizer, add_prefix_space=True)
         super().__init__(cfg=cfg, trainer=trainer)
@@ -54,6 +58,10 @@ class DuplexTaggerModel(NLPModel):
 
     # Training
     def training_step(self, batch, batch_idx):
+        """
+        Lightning calls this inside the training loop with the data from the training dataloader
+        passed in as `batch`.
+        """
         self.train()
         num_labels = self.num_labels
 
@@ -161,8 +169,15 @@ class DuplexTaggerModel(NLPModel):
             inst_directions: List[str]
         ):
         """ Main function for Inference
-        :param sents: A list of inputs tokenized by a basic tokenizer
-                      (e.g., using nltk.word_tokenize()).
+        Args:
+            sents: A list of inputs tokenized by a basic tokenizer (e.g., using nltk.word_tokenize()).
+            inst_directions: A list of str where each str indicates the direction of the corresponding instance (i.e., INST_BACKWARD for ITN or INST_FORWARD for TN).
+
+        Returns:
+            all_tag_preds: A list of list where each list contains the raw tag predictions for the corresponding input.
+            nb_spans: A list of ints where each int indicates the number of semiotic spans in each input.
+            span_starts: A list of lists where each list contains the starting locations of semiotic spans in an input.
+            span_ends: A list of lists where each list contains the ending locations of semiotic spans in an input.
         """
         self.eval()
 
