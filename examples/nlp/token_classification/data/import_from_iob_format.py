@@ -112,6 +112,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     data_dir, basename = os.path.split(args.data_file)
+    print(data_dir)
+    print(basename)
     prefix = os.path.splitext(basename)[0]
     if not os.path.exists(args.data_file):
         raise FileNotFoundError(f"{args.data_file} not found")
