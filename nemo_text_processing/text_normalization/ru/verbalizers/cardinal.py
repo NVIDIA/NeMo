@@ -37,8 +37,7 @@ class CardinalFst(GraphFst):
 
     def __init__(self, deterministic: bool = True):
         super().__init__(name="cardinal", kind="verbalize", deterministic=deterministic)
-
-        value = pynini.closure(NEMO_NOT_QUOTE)
-        graph = pynutil.delete("value: \"") + value + pynutil.delete("\"")
-        delete_tokens = self.delete_tokens(graph)
+        optional_sign = pynini.closure(pynini.cross("negative: \"true\" ", "минус "), 0, 1)
+        integer = pynutil.delete("integer: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        delete_tokens = self.delete_tokens(optional_sign + integer)
         self.fst = delete_tokens.optimize()

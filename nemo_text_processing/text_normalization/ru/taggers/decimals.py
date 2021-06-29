@@ -14,12 +14,7 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path, load_labels
-from nemo_text_processing.text_normalization.graph_utils import (
-    GraphFst,
-    delete_extra_space,
-    delete_space,
-    insert_space,
-)
+from nemo_text_processing.text_normalization.graph_utils import NEMO_DIGIT, GraphFst, delete_extra_space, insert_space
 
 try:
     import pynini
@@ -44,23 +39,43 @@ class DecimalFst(GraphFst):
     def __init__(self, cardinal: GraphFst, deterministic: bool = False):
         super().__init__(name="decimal", kind="classify", deterministic=deterministic)
 
-        cardinal_graph = cardinal.cardinal_numbers
+        cardinal_numbers_with_leading_zeros = cardinal.cardinal_numbers_with_leading_zeros
+        cardinal_numbers_with_optional_negative = cardinal.cardinal_numbers_with_optional_negative
 
         delimiter = (pynini.cross(",", " целых") | pynini.cross(",", " целых и")).optimize()
+
+        from collections import defaultdict
+
         decimal_endings = load_labels(get_abs_path("ru/data/decimal_endings.tsv"))
-        optional_end = pynini.closure(
-            insert_space + pynini.union(*[pynutil.insert(end[0]) for end in decimal_endings]), 0, 1
+        decimal_endings_map = defaultdict(list)
+        for k, v in decimal_endings:
+            decimal_endings_map[k].append(v)
+
+        for k in decimal_endings_map:
+            decimal_endings_map[k] = pynini.closure(
+                insert_space + pynini.union(*[pynutil.insert(end) for end in decimal_endings_map[k]]), 0, 1
+            )
+
+        graph_integer = (
+            pynutil.insert("integer_part: \"")
+            + cardinal_numbers_with_optional_negative
+            + delimiter
+            + pynutil.insert("\"")
         )
 
-        optional_graph_negative = pynini.closure(
-            pynutil.insert("negative: ") + pynini.cross("минус", "\"true\"") + delete_extra_space, 0, 1
-        )
+        graph_fractional = NEMO_DIGIT @ cardinal_numbers_with_leading_zeros + decimal_endings_map['10']
+        graph_fractional |= (NEMO_DIGIT + NEMO_DIGIT) @ cardinal_numbers_with_leading_zeros + decimal_endings_map[
+            '100'
+        ]
+        graph_fractional |= (
+            NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT
+        ) @ cardinal_numbers_with_leading_zeros + decimal_endings_map['1000']
+        graph_fractional |= (
+            NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT
+        ) @ cardinal_numbers_with_leading_zeros + decimal_endings_map['10000']
 
-        graph_integer = pynutil.insert("integer_part: \"") + cardinal_graph + delimiter + pynutil.insert("\"")
-        graph_fractional = pynutil.insert("fractional_part: \"") + cardinal_graph + optional_end + pynutil.insert("\"")
-
-        self.final_graph_wo_negative = graph_integer + insert_space + graph_fractional
-        final_graph = optional_graph_negative + self.final_graph_wo_negative
+        graph_fractional = pynutil.insert("fractional_part: \"") + graph_fractional + pynutil.insert("\"")
+        final_graph = graph_integer + insert_space + graph_fractional
 
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
@@ -72,3 +87,7 @@ if __name__ == '__main__':
 
     fst = DecimalFst(CardinalFst())
     print(rewrite.rewrites("2,3", fst.fst))
+    import pdb
+
+    pdb.set_trace()
+    print()

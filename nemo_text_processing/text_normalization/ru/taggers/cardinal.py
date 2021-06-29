@@ -13,11 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-from collections import defaultdict
-
-from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path, load_labels
-from nemo_text_processing.text_normalization.graph_utils import NEMO_SIGMA, GraphFst
+from nemo_text_processing.text_normalization.graph_utils import GraphFst, insert_space
 from nemo_text_processing.text_normalization.ru.taggers.number_names import NumberNamesFst
 from nemo_text_processing.text_normalization.ru.taggers.numbers_alternatives import AlternativeFormatsFst
 
@@ -53,8 +49,25 @@ class CardinalFst(GraphFst):
 
         cardinal |= cardinal @ one_thousand_alternative
         cardinal_numbers = separators @ cardinal
+        self.optional_graph_negative = pynini.closure(
+            pynutil.insert("negative: ") + pynini.cross("-", "\"true\"") + insert_space, 0, 1
+        )
         self.cardinal_numbers = cardinal_numbers
-        final_graph = self.add_tokens(cardinal_numbers)
+        self.cardinal_numbers_with_optional_negative = (
+            self.optional_graph_negative + pynutil.insert("integer: \"") + cardinal_numbers + pynutil.insert("\"")
+        )
+
+        # "03" -> remove leading zeros and verbalize
+        leading_zeros = pynini.closure(pynini.cross("0", ""))
+        self.cardinal_numbers_with_leading_zeros = (leading_zeros + cardinal_numbers).optimize()
+        self.cardinal_numbers_with_leading_zeros_with_optional_negative = (
+            self.optional_graph_negative
+            + pynutil.insert("integer: \"")
+            + self.cardinal_numbers_with_leading_zeros
+            + pynutil.insert("\"")
+        ).optimize()
+
+        final_graph = self.add_tokens(self.cardinal_numbers_with_leading_zeros_with_optional_negative)
         self.fst = final_graph.optimize()
 
 
@@ -62,13 +75,26 @@ if __name__ == '__main__':
     fst = CardinalFst()
     from pynini.lib.rewrite import rewrites
 
-    print(rewrites("2300", fst.graph_default))
+    d = {
+        "147691": "сто сорок семь тысяч шестьсот девяносто один\"",
+        "2300": "две тысячи триста\"",
+        "-2300": "две тысячи триста\"",
+        "002300": "две тысячи триста\"",
+        "2.300": "две тысячи триста\"",
+    }
 
-    import pdb
+    def _test(written, spoken):
+        output = rewrites(written, fst.fst)
+        if written == '147691':
+            import pdb
 
-    pdb.set_trace()
-    print(rewrites("2.300", fst.cardinal_numbers))
-    print()
+            pdb.set_trace()
+        test_passed = False
+        for x in output:
+            if spoken in x:
+                test_passed = True
 
-    written = "1696"
-    spoken = "тысяча шестьсот девяносто шестом"
+        assert test_passed, f'{written} failed'
+
+    for k, v in d.items():
+        _test(k, v)
