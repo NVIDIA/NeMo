@@ -13,8 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-from nemo_text_processing.text_normalization.graph_utils import NEMO_SIGMA, GraphFst
+from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_QUOTE, GraphFst
 
 try:
     import pynini
@@ -25,10 +24,10 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-class CardinalFst(GraphFst):
+class OrdinalFst(GraphFst):
     """
-    Finite state transducer for classifying cardinals, e.g. 
-        -23 -> cardinal { negative: "true"  integer: "twenty three" } }
+    Finite state transducer for verbalizing roman numerals
+        e.g. tokens { roman { integer: "one" } } -> one
 
     Args:
         deterministic: if True will provide a single transduction option,
@@ -36,13 +35,9 @@ class CardinalFst(GraphFst):
     """
 
     def __init__(self, deterministic: bool = True):
-        super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
+        super().__init__(name="ordinal", kind="verbalize", deterministic=deterministic)
 
-        from nemo_text_processing.text_normalization.ru.taggers.cardinal import CardinalFst
-
-        graph = CardinalFst(deterministic=False).cardinal_numbers
-        graph = graph.invert().optimize()
-        self.graph = graph
-        graph = pynutil.insert("integer: \"") + graph + pynutil.insert("\"")
-        graph = self.add_tokens(graph)
-        self.fst = graph.optimize()
+        value = pynini.closure(NEMO_NOT_QUOTE)
+        graph = pynutil.delete("integer: \"") + value + pynutil.delete("\"")
+        delete_tokens = self.delete_tokens(graph)
+        self.fst = delete_tokens.optimize()

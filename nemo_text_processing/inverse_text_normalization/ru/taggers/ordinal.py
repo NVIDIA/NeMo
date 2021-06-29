@@ -14,7 +14,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.graph_utils import NEMO_SIGMA, GraphFst
+from nemo_text_processing.text_normalization.graph_utils import NEMO_CHAR, NEMO_SIGMA, GraphFst
 
 try:
     import pynini
@@ -25,7 +25,7 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-class CardinalFst(GraphFst):
+class OrdinalFst(GraphFst):
     """
     Finite state transducer for classifying cardinals, e.g. 
         -23 -> cardinal { negative: "true"  integer: "twenty three" } }
@@ -36,13 +36,29 @@ class CardinalFst(GraphFst):
     """
 
     def __init__(self, deterministic: bool = True):
-        super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
+        super().__init__(name="ordinal", kind="classify", deterministic=deterministic)
 
-        from nemo_text_processing.text_normalization.ru.taggers.cardinal import CardinalFst
+        from nemo_text_processing.text_normalization.ru.taggers.ordinal import OrdinalFst
 
-        graph = CardinalFst(deterministic=False).cardinal_numbers
-        graph = graph.invert().optimize()
+        ordinal_tn = OrdinalFst(deterministic=False)
+        self.ordinal_tn = ordinal_tn.ordinal_numbers_marked
+
+        graph = ordinal_tn.invert().optimize()
         self.graph = graph
         graph = pynutil.insert("integer: \"") + graph + pynutil.insert("\"")
         graph = self.add_tokens(graph)
         self.fst = graph.optimize()
+
+
+if __name__ == '__main__':
+    from pynini.lib import rewrite
+
+    fst = OrdinalFst()
+    print(rewrite.rewrites("двадцатый", fst.graph))
+
+    import pdb
+
+    pdb.set_trace()
+    print(rewrite.rewrites("20", fst.ordinal_tn))
+    reformat = pynini.cdrewrite(pynini.cross('ый', '-ый'), "", "[EOS]", NEMO_SIGMA)
+    print(rewrite.rewrites("20", fst.ordinal_tn @ reformat))

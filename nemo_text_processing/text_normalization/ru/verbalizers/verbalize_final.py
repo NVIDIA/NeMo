@@ -30,10 +30,14 @@ class VerbalizeFinalFst(GraphFst):
     """
     Finite state transducer that verbalizes an entire sentence, e.g. 
     tokens { name: "its" } tokens { time { hours: "12" minutes: "30" } } tokens { name: "now" } -> its 12:30 now
+
+    Args:
+        deterministic: if True will provide a single transduction option,
+            for False multiple options (used for audio-based normalization)
     """
 
-    def __init__(self):
-        super().__init__(name="verbalize_final", kind="verbalize")
+    def __init__(self, deterministic: bool = True):
+        super().__init__(name="verbalize_final", kind="verbalize", deterministic=deterministic)
         verbalize = VerbalizeFst().fst
         word = WordFst().fst
         types = verbalize | word

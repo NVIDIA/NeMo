@@ -15,6 +15,8 @@
 
 from nemo_text_processing.text_normalization.graph_utils import GraphFst
 from nemo_text_processing.text_normalization.ru.verbalizers.cardinal import CardinalFst
+from nemo_text_processing.text_normalization.ru.verbalizers.decimal import DecimalFst
+from nemo_text_processing.text_normalization.ru.verbalizers.ordinal import OrdinalFst
 from nemo_text_processing.text_normalization.verbalizers.whitelist import WhiteListFst
 
 
@@ -23,13 +25,19 @@ class VerbalizeFst(GraphFst):
     Composes other verbalizer grammars.
     For deployment, this grammar will be compiled and exported to OpenFst Finate State Archiv (FAR) File. 
     More details to deployment at NeMo/tools/text_processing_deployment.
+
+    Args:
+        deterministic: if True will provide a single transduction option,
+            for False multiple options (used for audio-based normalization)
     """
 
-    def __init__(self):
-        super().__init__(name="verbalize", kind="verbalize")
+    def __init__(self, deterministic: bool = True):
+        super().__init__(name="verbalize", kind="verbalize", deterministic=deterministic)
         cardinal = CardinalFst()
         cardinal_graph = cardinal.fst
+        ordinal_graph = OrdinalFst().fst
+        decimal_graph = DecimalFst().fst
         whitelist_graph = WhiteListFst().fst
 
-        graph = whitelist_graph | cardinal_graph
+        graph = whitelist_graph | cardinal_graph | decimal_graph | ordinal_graph
         self.fst = graph

@@ -21,11 +21,14 @@ from typing import List, Tuple
 from joblib import Parallel, delayed
 from nemo_text_processing.text_normalization.data_loader_utils import post_process_punctuation, pre_process
 from nemo_text_processing.text_normalization.normalize import Normalizer
-from nemo_text_processing.text_normalization.taggers.tokenize_and_classify import ClassifyFst
-from nemo_text_processing.text_normalization.verbalizers.verbalize_final import VerbalizeFinalFst
+from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
 
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import ASRModel
+
+# from nemo_text_processing.text_normalization.taggers.tokenize_and_classify import ClassifyFst
+# from nemo_text_processing.text_normalization.verbalizers.verbalize_final import VerbalizeFinalFst
+
 
 try:
     import pynini
@@ -72,11 +75,20 @@ class NormalizerWithAudio(Normalizer):
         input_case: expected input capitalization
     """
 
-    def __init__(self, input_case: str):
-        super().__init__(input_case)
+    def __init__(self, input_case: str = 'cased', lang='en'):
+        if lang == 'ru':
+            from nemo_text_processing.text_normalization.ru.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.text_normalization.ru.verbalizers.verbalize_final import VerbalizeFinalFst
+        elif lang == 'en':
+            from nemo_text_processing.text_normalization.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.text_normalization.verbalizers.verbalize_final import VerbalizeFinalFst
+        elif lang == 'es':
+            from nemo_text_processing.text_normalization.es.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.text_normalization.es.verbalizers.verbalize_final import VerbalizeFinalFst
 
         self.tagger = ClassifyFst(input_case=input_case, deterministic=False)
         self.verbalizer = VerbalizeFinalFst(deterministic=False)
+        self.parser = TokenParser()
 
     def normalize(
         self,
@@ -115,6 +127,7 @@ class NormalizerWithAudio(Normalizer):
             tagged_texts = rewrite.top_rewrites(text, self.tagger.fst, nshortest=n_tagged)
         normalized_texts = []
         for tagged_text in tagged_texts:
+            print(tagged_text)
             self._verbalize(tagged_text, normalized_texts)
         if len(normalized_texts) == 0:
             raise ValueError()
@@ -217,6 +230,7 @@ def get_asr_model(asr_model: ASRModel):
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--text", help="input string or path to a .txt file", default=None, type=str)
+    parser.add_argument("--lang", help="select target language", type=str, default='en', choices=['en', 'ru'])
     parser.add_argument(
         "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )
@@ -267,7 +281,7 @@ def normalize_manifest(args):
     Args:
         args.audio_data: path to .json manifest file.
     """
-    normalizer = NormalizerWithAudio(input_case=args.input_case)
+    normalizer = NormalizerWithAudio(input_case=args.input_case, lang=args.lang)
     manifest_out = args.audio_data.replace('.json', '_normalized.json')
     asr_model = None
     with open(args.audio_data, 'r') as f:
@@ -290,7 +304,7 @@ if __name__ == "__main__":
 
     start = time.time()
     if args.text:
-        normalizer = NormalizerWithAudio(input_case=args.input_case)
+        normalizer = NormalizerWithAudio(input_case=args.input_case, lang=args.lang)
         if os.path.exists(args.text):
             with open(args.text, 'r') as f:
                 args.text = f.read().strip()

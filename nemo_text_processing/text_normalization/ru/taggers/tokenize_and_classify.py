@@ -14,9 +14,9 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.graph_utils import GraphFst, delete_extra_space, delete_space
-
-# from nemo_text_processing.text_normalization.taggers.cardinal import CardinalFst
 from nemo_text_processing.text_normalization.ru.taggers.cardinal import CardinalFst
+from nemo_text_processing.text_normalization.ru.taggers.decimals import DecimalFst
+from nemo_text_processing.text_normalization.ru.taggers.ordinal import OrdinalFst
 from nemo_text_processing.text_normalization.taggers.punctuation import PunctuationFst
 from nemo_text_processing.text_normalization.taggers.whitelist import WhiteListFst
 from nemo_text_processing.text_normalization.taggers.word import WordFst
@@ -35,44 +35,58 @@ class ClassifyFst(GraphFst):
     Final class that composes all other classification grammars. This class can process an entire sentence, that is lower cased.
     For deployment, this grammar will be compiled and exported to OpenFst Finate State Archiv (FAR) File. 
     More details to deployment at NeMo/tools/text_processing_deployment.
+
+    Args:
+        input_case: accepting either "lower_cased" or "cased" input.
+        deterministic: if True will provide a single transduction option,
+            for False multiple options (used for audio-based normalization)
     """
 
-    def __init__(self):
-        super().__init__(name="tokenize_and_classify", kind="classify")
+    def __init__(self, input_case: str, deterministic: bool = True):
+        super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
 
-        cardinal = CardinalFst()
+        cardinal = CardinalFst(deterministic=deterministic)
         cardinal_graph = cardinal.fst
 
-        # ordinal = OrdinalFst(cardinal)
-        # ordinal_graph = ordinal.fst
-        #
-        # decimal = DecimalFst(cardinal)
-        # decimal_graph = decimal.fst
-        #
-        # measure_graph = MeasureFst(cardinal=cardinal, decimal=decimal).fst
-        # date_graph = DateFst(ordinal=ordinal).fst
-        word_graph = WordFst().fst
-        # time_graph = TimeFst().fst
-        # money_graph = MoneyFst(cardinal=cardinal, decimal=decimal).fst
-        whitelist_graph = WhiteListFst().fst
-        punct_graph = PunctuationFst().fst
-        # electronic_graph = ElectronicFst().fst
-        # telephone_graph = TelephoneFst().fst
+        ordinal = OrdinalFst(deterministic=deterministic)
+        ordinal_graph = ordinal.fst
+
+        decimal = DecimalFst(cardinal=cardinal, deterministic=deterministic)
+        decimal_graph = decimal.fst
+
+        # fraction = FractionFst(deterministic=deterministic, cardinal=cardinal)
+        # fraction_graph = fraction.fst
+        # measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=deterministic)
+        # measure_graph = measure.fst
+        # date_graph = DateFst(cardinal=cardinal, deterministic=deterministic).fst
+        word_graph = WordFst(deterministic=deterministic).fst
+        # time_graph = TimeFst(cardinal=cardinal, deterministic=deterministic).fst
+        # telephone_graph = TelephoneFst(deterministic=deterministic).fst
+        # electonic_graph = ElectronicFst(deterministic=deterministic).fst
+        # money_graph = MoneyFst(cardinal=cardinal, decimal=decimal, deterministic=deterministic).fst
+        whitelist_graph = WhiteListFst(input_case=input_case, deterministic=deterministic).fst
+        punct_graph = PunctuationFst(deterministic=deterministic).fst
 
         classify = (
             pynutil.add_weight(whitelist_graph, 1.01)
             # | pynutil.add_weight(time_graph, 1.1)
             # | pynutil.add_weight(date_graph, 1.09)
-            # | pynutil.add_weight(decimal_graph, 1.1)
+            | pynutil.add_weight(decimal_graph, 1.1)
             # | pynutil.add_weight(measure_graph, 1.1)
-            # | pynutil.add_weight(cardinal_graph, 1.1)
-            # | pynutil.add_weight(ordinal_graph, 1.1)
+            | pynutil.add_weight(cardinal_graph, 1.1)
+            | pynutil.add_weight(ordinal_graph, 1.1)
             # | pynutil.add_weight(money_graph, 1.1)
             # | pynutil.add_weight(telephone_graph, 1.1)
-            # | pynutil.add_weight(electronic_graph, 1.1)
-            | pynutil.add_weight(cardinal_graph, 1.1)
+            # | pynutil.add_weight(electonic_graph, 1.1)
+            # | pynutil.add_weight(fraction_graph, 1.1)
             | pynutil.add_weight(word_graph, 100)
         )
+
+        # if not deterministic:
+        #     roman_graph = RomanFst(deterministic=deterministic).fst
+        #     universal_graph = UniversalFst(deterministic=deterministic).fst
+        #     # the weight for roman_graph matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
+        #     classify |= pynutil.add_weight(roman_graph, 100) | pynutil.add_weight(universal_graph, 1.1)
 
         punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=1.1) + pynutil.insert(" }")
         token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")
@@ -81,6 +95,6 @@ class ClassifyFst(GraphFst):
         )
 
         graph = token_plus_punct + pynini.closure(pynutil.add_weight(delete_extra_space, 1.1) + token_plus_punct)
-
         graph = delete_space + graph + delete_space
+
         self.fst = graph.optimize()
