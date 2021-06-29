@@ -17,8 +17,9 @@ import torch
 from omegaconf import OmegaConf
 
 from nemo.collections.asr import modules
-from nemo.collections.asr.parts.numba import __NUMBA_MINIMUM_VERSION__, numba_utils
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
+from nemo.core.utils import numba_utils
+from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 from nemo.utils import config_utils, logging
 
 
@@ -124,7 +125,7 @@ class TestASRModulesBasicTests:
         input_signal = torch.randn(size=(4, 512))
         length = torch.randint(low=161, high=500, size=[4])
         res0 = instance0(input_signal=input_signal, length=length)
-        res = instance1(input_spec=res0[0])
+        res = instance1(input_spec=res0[0], length=length)
 
         assert res.shape == res0[0].shape
 

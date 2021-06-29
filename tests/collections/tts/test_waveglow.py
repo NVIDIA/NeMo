@@ -81,7 +81,8 @@ class TestWaveGlow:
         typecheck.set_typecheck_enabled(enabled=False)
         with tempfile.TemporaryDirectory() as tmpdir, model.nemo_infer():
             # Generate filename in the temporary directory.
-            tmp_file_name = os.path.join("waveglow.onnx")
+            # TODO: Change `waveglow.ts` to `waveglow.onnx` for > 21.05
+            tmp_file_name = os.path.join("waveglow.ts")
 
             n_mels = 80
             # Test export.

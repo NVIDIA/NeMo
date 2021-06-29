@@ -21,7 +21,7 @@ from utils import PYNINI_AVAILABLE, parse_test_case_file
 
 class TestBoundary:
 
-    normalizer = Normalizer(input_case='lower_cased') if PYNINI_AVAILABLE else None
+    normalizer = Normalizer(input_case='cased') if PYNINI_AVAILABLE else None
     normalizer_with_audio = NormalizerWithAudio(input_case='cased') if PYNINI_AVAILABLE else None
 
     @parameterized.expand(parse_test_case_file('data_text_normalization/test_cases_boundary.txt'))
@@ -34,6 +34,6 @@ class TestBoundary:
         pred = self.normalizer.normalize(test_input, verbose=False)
         assert pred == expected
         pred_non_deterministic = self.normalizer_with_audio.normalize(
-            test_input, n_tagged=100, punct_post_process=False
+            test_input, n_tagged=100, punct_pre_process=False, punct_post_process=False
         )
         assert expected in pred_non_deterministic

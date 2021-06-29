@@ -16,6 +16,7 @@
 import csv
 import json
 import os
+import re
 from collections import defaultdict, namedtuple
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -211,3 +212,58 @@ def get_abs_path(rel_path):
     Returns absolute path
     """
     return os.path.dirname(os.path.abspath(__file__)) + '/' + rel_path
+
+
+def post_process_punctuation(text: str) -> str:
+    """
+    Normalized quotes and spaces
+
+    Args:
+        text: text
+
+    Returns: text with normalized spaces and quotes
+    """
+    text = (
+        text.replace('( ', '(')
+        .replace(' )', ')')
+        .replace('{ ', '{')
+        .replace(' }', '}')
+        .replace('[ ', '[')
+        .replace(' ]', ']')
+        .replace('  ', ' ')
+        .replace('”', '"')
+        .replace("’", "'")
+        .replace("»", '"')
+        .replace("«", '"')
+        .replace("\\", "")
+        .replace("„", '"')
+        .replace("´", "'")
+        .replace("’", "'")
+        .replace('“', '"')
+        .replace("‘", "'")
+        .replace('`', "'")
+        .replace('- -', "--")
+    )
+
+    for punct in "!,.:;?":
+        text = text.replace(f' {punct}', punct)
+    return text.strip()
+
+
+def pre_process(text: str) -> str:
+    """
+    Adds space around punctuation marks
+
+    Args:
+        text: string that may include semiotic classes
+
+    Returns: text with spaces around punctuation marks
+    """
+    space_both = '*<=>^[]{}'
+    for punct in space_both:
+        text = text.replace(punct, ' ' + punct + ' ')
+
+    text = text.replace('--', ' ' + '--' + ' ')
+    # remove extra space
+    text = re.sub(r' +', ' ', text)
+    return text

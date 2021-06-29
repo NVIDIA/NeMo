@@ -17,8 +17,10 @@ from typing import Optional, Union
 
 from omegaconf.dictconfig import DictConfig
 
+from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
 from nemo.collections.nlp.modules.common.huggingface.huggingface_decoder import HuggingFaceDecoderModule
 from nemo.collections.nlp.modules.common.huggingface.huggingface_encoder import HuggingFaceEncoderModule
+from nemo.collections.nlp.modules.common.megatron.megatron_encoder import MegatronEncoderModule
 from nemo.collections.nlp.modules.common.transformer.transformer import TransformerDecoderNM, TransformerEncoderNM
 
 
@@ -110,9 +112,33 @@ def get_huggingface_transformer(
     config_dict: Optional[Union[dict, DictConfig]] = None,
     encoder: bool = True,
 ) -> Union[HuggingFaceEncoderModule, HuggingFaceDecoderModule]:
+
     if encoder:
         model = HuggingFaceEncoderModule(model_name, pretrained, config_dict)
     else:
         model = HuggingFaceDecoderModule(model_name, pretrained, config_dict)
+
+    return model
+
+
+def get_megatron_transformer(
+    model_name: Optional[str] = None,
+    pretrained: bool = True,
+    config_dict: Optional[Union[dict, DictConfig]] = None,
+    encoder: bool = True,
+    checkpoint_file: str = None,
+) -> MegatronEncoderModule:
+
+    vocab_file = config_dict.pop('vocab_file', None)
+    if encoder:
+        model = MegatronEncoderModule(
+            model_name=model_name,
+            pretrained=pretrained,
+            config_dict=config_dict,
+            checkpoint_file=checkpoint_file,
+            vocab_file=vocab_file,
+        )
+    else:
+        raise ValueError('Megatron decoders are not currently supported.')
 
     return model

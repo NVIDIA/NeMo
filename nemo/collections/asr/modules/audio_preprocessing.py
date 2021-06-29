@@ -20,7 +20,6 @@ from typing import Any, Optional
 import torch
 from packaging import version
 
-from nemo.collections.asr.parts.numba import __NUMBA_MINIMUM_VERSION__, numba_utils
 from nemo.collections.asr.parts.numba.spec_augment import SpecAugmentNumba, spec_augment_launch_heuristics
 from nemo.collections.asr.parts.preprocessing.features import FilterbankFeatures
 from nemo.collections.asr.parts.submodules.spectr_augment import SpecAugment, SpecCutout
@@ -33,6 +32,8 @@ from nemo.core.neural_types import (
     NeuralType,
     SpectrogramType,
 )
+from nemo.core.utils import numba_utils
+from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 from nemo.utils import logging
 
 try:
@@ -433,7 +434,7 @@ class SpectrogramAugmentation(NeuralModule):
         """
         return {
             "input_spec": NeuralType(('B', 'D', 'T'), SpectrogramType()),
-            "length": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "length": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
@@ -473,7 +474,7 @@ class SpectrogramAugmentation(NeuralModule):
                 mask_value=mask_value,
             )
         else:
-            self.spec_augment = lambda input_spec: input_spec
+            self.spec_augment = lambda input_spec, length: input_spec
 
         # Check if numba is supported, and use a Numba kernel if it is
         if use_numba_spec_augment and numba_utils.numba_cuda_is_supported(__NUMBA_MINIMUM_VERSION__):
@@ -489,7 +490,7 @@ class SpectrogramAugmentation(NeuralModule):
             self.spec_augment_numba = None
 
     @typecheck()
-    def forward(self, input_spec, length=None):
+    def forward(self, input_spec, length):
         augmented_spec = self.spec_cutout(input_spec=input_spec)
 
         # To run the Numba kernel, correct numba version is required as well as
@@ -497,7 +498,7 @@ class SpectrogramAugmentation(NeuralModule):
         if self.spec_augment_numba is not None and spec_augment_launch_heuristics(augmented_spec, length):
             augmented_spec = self.spec_augment_numba(input_spec=augmented_spec, length=length)
         else:
-            augmented_spec = self.spec_augment(input_spec=augmented_spec)
+            augmented_spec = self.spec_augment(input_spec=augmented_spec, length=length)
         return augmented_spec
 
 

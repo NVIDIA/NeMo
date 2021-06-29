@@ -18,7 +18,7 @@ import torch
 import torch.nn as nn
 
 from nemo.core.classes import Typing, typecheck
-from nemo.core.neural_types import NeuralType, SpectrogramType
+from nemo.core.neural_types import LengthsType, NeuralType, SpectrogramType
 
 
 class SpecAugment(nn.Module, Typing):
@@ -43,7 +43,10 @@ class SpecAugment(nn.Module, Typing):
     def input_types(self):
         """Returns definitions of module input types
         """
-        return {"input_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
+        return {
+            "input_spec": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "length": NeuralType(tuple('B'), LengthsType()),
+        }
 
     @property
     def output_types(self):
@@ -54,7 +57,7 @@ class SpecAugment(nn.Module, Typing):
     def __init__(
         self, freq_masks=0, time_masks=0, freq_width=10, time_width=10, rng=None, mask_value=0.0,
     ):
-        super(SpecAugment, self).__init__()
+        super().__init__()
 
         self._rng = random.Random() if rng is None else rng
 
@@ -76,13 +79,8 @@ class SpecAugment(nn.Module, Typing):
 
     @typecheck()
     @torch.no_grad()
-    def forward(self, input_spec):
+    def forward(self, input_spec, length):
         sh = input_spec.shape
-
-        if self.adaptive_temporal_width:
-            time_width = max(1, int(sh[2] * self.time_width))
-        else:
-            time_width = self.time_width
 
         for idx in range(sh[0]):
             for i in range(self.freq_masks):
@@ -93,7 +91,12 @@ class SpecAugment(nn.Module, Typing):
                 input_spec[idx, x_left : x_left + w, :] = self.mask_value
 
             for i in range(self.time_masks):
-                y_left = self._rng.randint(0, sh[2] - time_width)
+                if self.adaptive_temporal_width:
+                    time_width = max(1, int(length[idx] * self.time_width))
+                else:
+                    time_width = self.time_width
+
+                y_left = self._rng.randint(0, max(1, length[idx] - time_width))
 
                 w = self._rng.randint(0, time_width)
 
