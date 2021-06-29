@@ -135,123 +135,57 @@ class Exportable(ABC):
             typecheck.set_typecheck_enabled(enabled=False)
 
             # Allow user to completely override forward method to export
-            if hasattr(type(self), "forward_for_export"):
-                forward_method = type(self).forward_for_export
-                old_forward_method = type(self).forward
-                type(self).forward = forward_method
-            else:
-                forward_method = None
+            forward_method, old_forward_method = self._wrap_forward_method()
 
             # Set module to eval mode
-            if set_eval:
-                self.freeze()
-                self.input_module.freeze()
-                self.output_module.freeze()
+            self._set_eval(set_eval)
 
             format = self.get_format(output)
 
             if input_example is None:
-                input_example = self.input_module.input_example()
+                input_example = self._get_input_example()
 
             my_args['input_example'] = input_example
 
             # Run (posibly overridden) prepare method before calling forward()
             self._prepare_for_export(**my_args)
 
-            input_list = list(input_example)
-            input_dict = {}
-            # process possible kwargs
-            if isinstance(input_list[-1], dict):
-                input_dict = input_list[-1]
-                input_list = input_list[:-1]
+            input_list, input_dict = self._setup_input_example(input_example)
 
-            input_names = get_input_names(self.input_module)
-            # remove unnecessary inputs for input_ports
-            for name in self.disabled_deployment_input_names:
-                input_names.remove(name)
-            output_names = get_output_names(self.output_module)
-            # remove unnecessary inputs for input_ports
-            for name in self.disabled_deployment_output_names:
-                output_names.remove(name)
+            input_names = self._process_input_names()
+            output_names = self._process_output_names()
 
             output_example = self.forward(*input_list, **input_dict)
 
             with torch.jit.optimized_execution(True), torch.no_grad():
-                jitted_model = None
-                if try_script:
-                    try:
-                        jitted_model = torch.jit.script(self)
-                    except Exception as e:
-                        print("jit.script() failed!", e)
+                jitted_model = self._try_jit_compile_model(try_script)
 
                 if format == ExportFormat.TORCHSCRIPT:
-                    if jitted_model is None:
-                        jitted_model = torch.jit.trace_module(
-                            self,
-                            {"forward": tuple(input_list) + tuple(input_dict.values())},
-                            strict=False,
-                            optimize=True,
-                            check_trace=check_trace,
-                            check_tolerance=check_tolerance,
-                        )
-                    if verbose:
-                        print(jitted_model.code)
-                    jitted_model.save(output)
-                    assert os.path.exists(output)
+                    self._export_torchscript(
+                        jitted_model, output, input_dict, input_list, check_trace, check_tolerance, verbose
+                    )
 
                 elif format == ExportFormat.ONNX:
-                    if jitted_model is None:
-                        jitted_model = self
-
-                    # dynamic axis is a mapping from input/output_name => list of "dynamic" indices
-                    if dynamic_axes is None and use_dynamic_axes:
-                        dynamic_axes = get_input_dynamic_axes(self.input_module, input_names)
-                        dynamic_axes = {**dynamic_axes, **get_output_dynamic_axes(self.output_module, output_names)}
-
-                    torch.onnx.export(
+                    self._export_onnx(
                         jitted_model,
                         input_example,
+                        output_example,
+                        input_names,
+                        output_names,
+                        use_dynamic_axes,
+                        do_constant_folding,
+                        dynamic_axes,
                         output,
-                        input_names=input_names,
-                        output_names=output_names,
-                        verbose=verbose,
-                        export_params=export_params,
-                        do_constant_folding=do_constant_folding,
-                        keep_initializers_as_inputs=keep_initializers_as_inputs,
-                        dynamic_axes=dynamic_axes,
-                        opset_version=onnx_opset_version,
-                        example_outputs=output_example,
+                        export_params,
+                        keep_initializers_as_inputs,
+                        onnx_opset_version,
+                        verbose,
                     )
 
                     # Verify the model can be read, and is valid
-                    onnx_model = onnx.load(output)
-                    onnx.checker.check_model(onnx_model, full_check=True)
-                    test_runtime = check_trace
-                    if test_runtime:
-                        try:
-                            import onnxruntime
-                        except (ImportError, ModuleNotFoundError):
-                            test_runtime = False
-                            logging.warning(
-                                f"ONNX generated at {output}, not verified - please install onnxruntime.\n"
-                            )
-
-                    if test_runtime:
-                        sess = onnxruntime.InferenceSession(onnx_model.SerializeToString())
-
-                        ort_out = sess.run(None, to_onnxrt_input(input_names, input_list, input_dict))
-                        all_good = True
-                        for out_name, out in enumerate(ort_out):
-                            expected = output_example[out_name].cpu()
-                            if not torch.allclose(
-                                torch.from_numpy(out), expected, rtol=check_tolerance, atol=100 * check_tolerance
-                            ):
-                                all_good = False
-                                logging.info(
-                                    f"onnxruntime results mismatch! PyTorch(expected):\n{expected}\nONNXruntime:\n{out}"
-                                )
-                        status = "SUCCESS" if all_good else "FAIL"
-                        logging.info(f"ONNX generated at {output} verified with onnxruntime : " + status)
+                    self._verify_onnx_export(
+                        output, output_example, input_list, input_dict, input_names, check_tolerance, check_trace
+                    )
                 else:
                     raise ValueError(f'Encountered unknown export format {format}.')
         finally:
@@ -259,6 +193,100 @@ class Exportable(ABC):
             if forward_method:
                 type(self).forward = old_forward_method
         return ([output], [output_descr])
+
+    def _verify_onnx_export(
+        self, output, output_example, input_list, input_dict, input_names, check_tolerance, check_trace
+    ):
+        onnx_model = onnx.load(output)
+        onnx.checker.check_model(onnx_model, full_check=True)
+        test_runtime = check_trace
+        if test_runtime:
+            try:
+                import onnxruntime
+            except (ImportError, ModuleNotFoundError):
+                test_runtime = False
+                logging.warning(f"ONNX generated at {output}, not verified - please install onnxruntime.\n")
+        if test_runtime:
+            sess = onnxruntime.InferenceSession(onnx_model.SerializeToString())
+
+            ort_out = sess.run(None, to_onnxrt_input(input_names, input_list, input_dict))
+            all_good = True
+            for out_name, out in enumerate(ort_out):
+                expected = output_example[out_name].cpu()
+                if not torch.allclose(
+                    torch.from_numpy(out), expected, rtol=check_tolerance, atol=100 * check_tolerance
+                ):
+                    all_good = False
+                    logging.info(f"onnxruntime results mismatch! PyTorch(expected):\n{expected}\nONNXruntime:\n{out}")
+            status = "SUCCESS" if all_good else "FAIL"
+            logging.info(f"ONNX generated at {output} verified with onnxruntime : " + status)
+
+    def _export_onnx(
+        self,
+        jitted_model,
+        input_example,
+        output_example,
+        input_names,
+        output_names,
+        use_dynamic_axes,
+        do_constant_folding,
+        dynamic_axes,
+        output,
+        export_params,
+        keep_initializers_as_inputs,
+        onnx_opset_version,
+        verbose,
+    ):
+        if jitted_model is None:
+            jitted_model = self
+        # dynamic axis is a mapping from input/output_name => list of "dynamic" indices
+        if dynamic_axes is None and use_dynamic_axes:
+            dynamic_axes = get_input_dynamic_axes(self.input_module, input_names)
+            dynamic_axes = {**dynamic_axes, **get_output_dynamic_axes(self.output_module, output_names)}
+        torch.onnx.export(
+            jitted_model,
+            input_example,
+            output,
+            input_names=input_names,
+            output_names=output_names,
+            verbose=verbose,
+            export_params=export_params,
+            do_constant_folding=do_constant_folding,
+            keep_initializers_as_inputs=keep_initializers_as_inputs,
+            dynamic_axes=dynamic_axes,
+            opset_version=onnx_opset_version,
+            example_outputs=output_example,
+        )
+
+    def _export_torchscript(self, jitted_model, output, input_dict, input_list, check_trace, check_tolerance, verbose):
+        if jitted_model is None:
+            jitted_model = torch.jit.trace_module(
+                self,
+                {"forward": tuple(input_list) + tuple(input_dict.values())},
+                strict=False,
+                optimize=True,
+                check_trace=check_trace,
+                check_tolerance=check_tolerance,
+            )
+        if verbose:
+            print(jitted_model.code)
+        jitted_model.save(output)
+        assert os.path.exists(output)
+
+    def _try_jit_compile_model(self, try_script):
+        jitted_model = None
+        if try_script:
+            try:
+                jitted_model = torch.jit.script(self)
+            except Exception as e:
+                print("jit.script() failed!", e)
+        return jitted_model
+
+    def _set_eval(self, set_eval):
+        if set_eval:
+            self.freeze()
+            self.input_module.freeze()
+            self.output_module.freeze()
 
     @property
     def disabled_deployment_input_names(self):
@@ -306,3 +334,41 @@ class Exportable(ABC):
         """
         replace_1D_2D = kwargs.get('replace_1D_2D', False)
         replace_for_export(self, replace_1D_2D)
+
+    def _wrap_forward_method(self):
+        old_forward_method = None
+
+        if hasattr(type(self), "forward_for_export"):
+            forward_method = type(self).forward_for_export
+            old_forward_method = type(self).forward
+            type(self).forward = forward_method
+        else:
+            forward_method = None
+
+        return forward_method, old_forward_method
+
+    def _setup_input_example(self, input_example):
+        input_list = list(input_example)
+        input_dict = {}
+        # process possible kwargs
+        if isinstance(input_list[-1], dict):
+            input_dict = input_list[-1]
+            input_list = input_list[:-1]
+        return input_list, input_dict
+
+    def _get_input_example(self):
+        return self.input_module.input_example()
+
+    def _process_input_names(self):
+        input_names = get_input_names(self.input_module)
+        # remove unnecessary inputs for input_ports
+        for name in self.disabled_deployment_input_names:
+            input_names.remove(name)
+        return input_names
+
+    def _process_output_names(self):
+        output_names = get_output_names(self.output_module)
+        # remove unnecessary inputs for input_ports
+        for name in self.disabled_deployment_output_names:
+            output_names.remove(name)
+        return output_names
