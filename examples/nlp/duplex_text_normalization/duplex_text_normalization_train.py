@@ -22,7 +22,7 @@ at the example config file to see the list of parameters used for training.
 USAGE Example:
 1. Obtain a processed dataset (refer to the `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`)
 2.
-# python duplex_text_normalization_test.py
+# python duplex_text_normalization_train.py
         data.base_dir=PATH_TO_DATASET_DIR
         mode={tn,itn,joint}
 
@@ -33,13 +33,13 @@ first train a tagger and then train a decoder sequentially.
 
 You can also train only a tagger (without training a decoder) by running the
 following command:
-# python duplex_text_normalization_test.py
+# python duplex_text_normalization_train.py
         data.base_dir=PATH_TO_DATASET_DIR
         mode={tn,itn,joint}
         decoder_model.do_training=false
 
 Or you can also train only a decoder (without training a tagger):
-# python duplex_text_normalization_test.py
+# python duplex_text_normalization_train.py
         data.base_dir=PATH_TO_DATASET_DIR
         mode={tn,itn,joint}
         tagger_model.do_training=false
@@ -51,7 +51,7 @@ Most arguments in the example config file are quite self-explanatory (e.g.,
 Some arguments we want to mention are:
 
 + data.base_dir: The path to the dataset directory. It is expected that the
-directory contains three files: train.tsv, dev.tsv, and test.tsv. 
+directory contains three files: train.tsv, dev.tsv, and test.tsv.
 
 + tagger_model.nemo_path: This is the path where the final trained tagger model
 will be saved to.
@@ -63,7 +63,7 @@ will be saved to.
 
 
 from omegaconf import DictConfig, OmegaConf
-from utils import TAGGER_MODEL, DECODER_MODEL, initialize_model_and_trainer
+from utils import TAGGER_MODEL, DECODER_MODEL, instantiate_model_and_trainer
 
 from nemo.utils import logging
 from nemo.core.config import hydra_runner
@@ -77,7 +77,7 @@ def main(cfg: DictConfig) -> None:
     if cfg.tagger_model.do_training:
         logging.info("================================================================================================")
         logging.info('Starting training tagger...')
-        tagger_trainer, tagger_model = initialize_model_and_trainer(cfg, TAGGER_MODEL, True)
+        tagger_trainer, tagger_model = instantiate_model_and_trainer(cfg, TAGGER_MODEL, True)
         exp_manager(tagger_trainer, cfg.get('tagger_exp_manager', None))
         tagger_trainer.fit(tagger_model)
         if cfg.tagger_model.nemo_path:
@@ -88,7 +88,7 @@ def main(cfg: DictConfig) -> None:
     if cfg.decoder_model.do_training:
         logging.info("================================================================================================")
         logging.info('Starting training decoder...')
-        decoder_trainer, decoder_model = initialize_model_and_trainer(cfg, DECODER_MODEL, True)
+        decoder_trainer, decoder_model = instantiate_model_and_trainer(cfg, DECODER_MODEL, True)
         exp_manager(decoder_trainer, cfg.get('decoder_exp_manager', None))
         decoder_trainer.fit(decoder_model)
         if cfg.decoder_model.nemo_path:

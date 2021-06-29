@@ -93,11 +93,11 @@ decoder_exp_manager:
 
 # Inference
 inference:
-  interactive: false
+  interactive: false  # Set to true if you want to enable the interactive mode when running duplex_text_normalization_test.py
 
 # Data
 data:
-  base_dir: /NeMo/google_en # /path/to/data
+  base_dir: ??? # /path/to/data
 
   train_ds:
     data_path: ${data.base_dir}/train.tsv

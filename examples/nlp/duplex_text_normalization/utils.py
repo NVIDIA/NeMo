@@ -9,17 +9,27 @@ from nemo.collections.nlp.models import (
 from nemo.utils import logging
 
 __all__ = ['TAGGER_MODEL', 'DECODER_MODEL', 'MODEL_NAMES',
-           'initialize_model_and_trainer']
+           'instantiate_model_and_trainer']
 
 TAGGER_MODEL  = 'tagger'
 DECODER_MODEL = 'decoder'
 MODEL_NAMES   = [TAGGER_MODEL, DECODER_MODEL]
 
-def initialize_model_and_trainer(
+def instantiate_model_and_trainer(
     cfg: DictConfig,
     model_name: str,
     do_training: bool
 ):
+    """ Functions for instantiating a model and a trainer
+    Args:
+        cfg: The config used to instantiate the model and the trainer.
+        model_name: A str indicates whether the model to be instantiated is a tagger or a decoder (i.e., model_name should be either TAGGER_MODEL or DECODER_MODEL).
+        do_training: A boolean flag indicates whether the model will be trained or evaluated.
+
+    Returns:
+        trainer: A PyTorch Lightning trainer
+        model: A NLPModel that can either be a DuplexTaggerModel or a DuplexDecoderModel
+    """
     assert(model_name in MODEL_NAMES)
     logging.info(f'Model {model_name}')
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ from tqdm import tqdm
 from math import ceil
 from nltk import word_tokenize
 from omegaconf import DictConfig, OmegaConf
-from utils import TAGGER_MODEL, DECODER_MODEL, initialize_model_and_trainer
+from utils import TAGGER_MODEL, DECODER_MODEL, instantiate_model_and_trainer
 
 from nemo.utils import logging
 from nemo.core.config import hydra_runner
@@ -62,8 +62,8 @@ from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDa
 @hydra_runner(config_path="conf", config_name="duplex_tn_config")
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config Params: {OmegaConf.to_yaml(cfg)}')
-    tagger_trainer, tagger_model = initialize_model_and_trainer(cfg, TAGGER_MODEL, False)
-    decoder_trainer, decoder_model = initialize_model_and_trainer(cfg, DECODER_MODEL, False)
+    tagger_trainer, tagger_model = instantiate_model_and_trainer(cfg, TAGGER_MODEL, False)
+    decoder_trainer, decoder_model = instantiate_model_and_trainer(cfg, DECODER_MODEL, False)
     tn_model = DuplexTextNormalizationModel(tagger_model, decoder_model)
 
     if not cfg.inference.interactive:
@@ -101,7 +101,7 @@ def main(cfg: DictConfig) -> None:
             sent_accuracy = TextNormalizationTestDataset.compute_sent_accuracy(cur_preds, cur_targets)
             logging.info(f'Direction {direction}')
             logging.info(f'Sentence Accuracy: {sent_accuracy}')
-            logging.info(f'Average running time: {np.average(all_run_times)} ms')
+        logging.info(f'Average running time: {np.average(all_run_times) / batch_size} ms')
     else:
         while True:
             test_input = input('Input a test input:')
