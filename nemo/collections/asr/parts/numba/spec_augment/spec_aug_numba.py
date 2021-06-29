@@ -251,11 +251,6 @@ class SpecAugmentNumba(nn.Module, Typing):
         sh = input_spec.shape
         bs = sh[0]
 
-        if self.adaptive_temporal_width:
-            time_width = max(1, int(sh[2] * self.time_width))
-        else:
-            time_width = self.time_width
-
         # Construct the freq and time masks as well as start positions
         if self.freq_masks > 0:
             freq_starts = torch.randint(
@@ -267,10 +262,30 @@ class SpecAugmentNumba(nn.Module, Typing):
             freq_lengths = torch.zeros([bs, 1], dtype=torch.int64, device=input_spec.device)
 
         if self.time_masks > 0:
-            time_starts = torch.randint(
-                0, sh[2] - time_width + 1, size=[bs, self.time_masks], device=input_spec.device
-            )
-            time_lengths = torch.randint(0, time_width + 1, size=[bs, self.time_masks], device=input_spec.device)
+            if self.adaptive_temporal_width:
+                time_width = (length * self.time_width).int().clamp(min=1)
+            else:
+                time_width = (
+                    torch.tensor(self.time_width, dtype=torch.int32, device=input_spec.device)
+                    .unsqueeze(0)
+                    .repeat(sh[0])
+                )
+
+            time_starts = []
+            time_lengths = []
+            for idx in range(sh[0]):
+                time_starts.append(
+                    torch.randint(
+                        0, max(1, length[idx] - time_width[idx]), size=[1, self.time_masks], device=input_spec.device
+                    )
+                )
+                time_lengths.append(
+                    torch.randint(0, time_width[idx] + 1, size=[1, self.time_masks], device=input_spec.device)
+                )
+
+            time_starts = torch.cat(time_lengths, 0)
+            time_lengths = torch.cat(time_lengths, 0)
+
         else:
             time_starts = torch.zeros([bs, 1], dtype=torch.int64, device=input_spec.device)
             time_lengths = torch.zeros([bs, 1], dtype=torch.int64, device=input_spec.device)

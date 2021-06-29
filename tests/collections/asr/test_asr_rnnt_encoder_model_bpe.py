@@ -21,10 +21,11 @@ import torch
 from omegaconf import DictConfig
 
 from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
-from nemo.collections.asr.parts.numba import __NUMBA_MINIMUM_VERSION__, numba_utils
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.common import tokenizers
+from nemo.core.utils import numba_utils
+from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 
 NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cuda_is_supported(__NUMBA_MINIMUM_VERSION__)
 
@@ -72,6 +73,8 @@ def asr_model(test_data_dir):
 
     tokenizer = {'dir': os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"), 'type': 'wpe'}
 
+    loss = {'loss_name': 'default', 'warprnnt_numba_kwargs': {'fastemit_lambda': 0.001}}
+
     modelConfig = DictConfig(
         {
             'preprocessor': DictConfig(preprocessor),
@@ -81,6 +84,7 @@ def asr_model(test_data_dir):
             'joint': DictConfig(joint),
             'tokenizer': DictConfig(tokenizer),
             'decoding': DictConfig(decoding),
+            'loss': DictConfig(loss),
         }
     )
 

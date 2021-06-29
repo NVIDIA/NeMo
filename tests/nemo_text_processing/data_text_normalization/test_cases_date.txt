@@ -1,6 +1,7 @@
 july 25 2012~july twenty fifth twenty twelve
 jul 25 2012~july twenty fifth twenty twelve
 1980s~nineteen eighties
+1980 s~nineteen eighties
 25 july 2012~the twenty fifth of july twenty twelve
 25 jul 2012~the twenty fifth of july twenty twelve
 22 july 2012~the twenty second of july twenty twelve
@@ -28,3 +29,4 @@ august 23, 2002~august twenty third two thousand two
 1910s~nineteen tens
 25 sept.~the twenty fifth of september
 1000~one thousand
+SEPT. 15TH~september fifteenth

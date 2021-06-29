@@ -1,12 +1,12 @@
 pipeline {
   agent {
         docker {
-      image 'nvcr.io/nvidia/pytorch:21.03-py3'
+      image 'nvcr.io/nvidia/pytorch:21.05-py3'
       args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
   }
   options {
-    timeout(time: 1, unit: 'HOURS')
+    timeout(time: 2, unit: 'HOURS')
     disableConcurrentBuilds()
   }
   stages {
@@ -66,7 +66,7 @@ pipeline {
 
     stage('L0: Unit Tests GPU') {
       steps {
-        sh 'pytest -m "not pleasefixme" --with_downloads'
+        sh 'pytest -m "not pleasefixme" --with_downloads --relax_numba_compat'
       }
     }
 
@@ -78,7 +78,7 @@ pipeline {
         }
       }
       steps {
-        sh 'CUDA_VISIBLE_DEVICES="" pytest -m "not pleasefixme" --cpu --with_downloads'
+        sh 'CUDA_VISIBLE_DEVICES="" pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
       }
     }
 
@@ -288,8 +288,8 @@ pipeline {
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
             model.tokenizer.type="wpe" \
-            model.train_ds.batch_size=10 \
-            model.validation_ds.batch_size=10 \
+            model.train_ds.batch_size=4 \
+            model.validation_ds.batch_size=4 \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_wpe_conformer_results'
@@ -348,43 +348,47 @@ pipeline {
     }
 
 //  TODO: UNCOMMENT TESTS AFTER 21.04 release (numba 0.53 min requirement)
-//     stage('L2: ASR RNNT dev run') {
-//       when {
-//         anyOf {
-//           branch 'main'
-//           changeRequest target: 'main'
-//         }
-//       }
-//       failFast true
-//       parallel {
-//         stage('Speech to Text - RNNT') {
-//           steps {
-//             sh 'python examples/asr/speech_to_text_rnnt.py \
-//             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-//             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-//             model.train_ds.batch_size=8 \
-//             trainer.gpus=[0] \
-//             +trainer.fast_dev_run=True \
-//             exp_manager.exp_dir=examples/asr/speech_to_text_rnnt_results'
-//             sh 'rm -rf examples/asr/speech_to_text_rnnt_results'
-//           }
-//         }
-//         stage('L2: Speech to Text RNNT WPE') {
-//           steps {
-//             sh 'python examples/asr/speech_to_text_rnnt_bpe.py \
-//             --config-path="experimental/contextnet_rnnt/" --config-name="config_rnnt_bpe.yaml" \
-//             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-//             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-//             model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
-//             model.tokenizer.type="wpe" \
-//             trainer.gpus=[0] \
-//             +trainer.fast_dev_run=True \
-//             exp_manager.exp_dir=examples/asr/speech_to_text_rnnt_wpe_results'
-//             sh 'rm -rf examples/asr/speech_to_text_rnnt_wpe_results'
-//           }
-//         }
-//       }
-//     }
+    stage('L2: ASR RNNT dev run') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('Speech to Text - RNNT') {
+          steps {
+            sh 'STRICT_NUMBA_COMPAT_CHECK=false python examples/asr/speech_to_text_rnnt.py \
+            --config-path="experimental/contextnet_rnnt/" --config-name="config_rnnt.yaml" \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            model.train_ds.batch_size=2 \
+            model.validation_ds.batch_size=2 \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_rnnt_results'
+            sh 'rm -rf examples/asr/speech_to_text_rnnt_results'
+          }
+        }
+        stage('L2: Speech to Text RNNT WPE') {
+          steps {
+            sh 'STRICT_NUMBA_COMPAT_CHECK=false python examples/asr/speech_to_text_rnnt_bpe.py \
+            --config-path="experimental/contextnet_rnnt/" --config-name="config_rnnt_bpe.yaml" \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            model.train_ds.batch_size=2 \
+            model.validation_ds.batch_size=2 \
+            model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
+            model.tokenizer.type="wpe" \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_rnnt_wpe_results'
+            sh 'rm -rf examples/asr/speech_to_text_rnnt_wpe_results'
+          }
+        }
+      }
+    }
 
     stage('L2: ASR Multi-dataloader dev run') {
       when {
@@ -1261,6 +1265,39 @@ pipeline {
       }
     }
 
+    stage('L2: NMT Megatron Model Parallel Size 2 Encoder') {
+      when {
+        anyOf{
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps{
+        sh 'cd examples/nlp/machine_translation && \
+        python enc_dec_nmt.py \
+        --config-path=conf \
+        --config-name=megatron \
+        model.encoder.model_name=megatron-bert-uncased \
+        model.encoder.checkpoint_file=/home/TestData/nlp/mp_2_bert_toy/iter_2000000 \
+        model.encoder.hidden_size=1024 \
+        model.encoder.num_attention_heads=16 \
+        model.encoder.num_layers=24 \
+        model.encoder.max_position_embeddings=512 \
+        model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+        model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+        trainer.gpus=[0,1] \
+        +trainer.fast_dev_run=true \
+        exp_manager=null \
+        '
+      }
+    }
+
     stage('L2: NMT Tarred Dataset Creation') {
       when {
         anyOf {
@@ -1302,7 +1339,7 @@ pipeline {
               python create_tarred_parallel_dataset.py \
               --src_fname /home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               --tgt_fname /home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
-              --out_dir $PWD/preproc_out_dir \
+              --out_dir $PWD/out_dir \
               --encoder_tokenizer_vocab_size=2000 \
               --decoder_tokenizer_vocab_size=2000 \
               --tokens_in_batch=1000 \

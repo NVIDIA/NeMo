@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ from os import path
 from typing import Dict, List, Optional
 
 import nemo
+from nemo.collections.common.tokenizers.bytelevel_tokenizers import ByteLevelTokenizer
 from nemo.collections.common.tokenizers.char_tokenizer import CharTokenizer
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
@@ -111,7 +112,7 @@ def get_nmt_tokenizer(
 ):
     """
     Args:
-        model_name: if using a pretrained model from NeMo or HuggingFace
+        model_name: if using a pretrained model from NeMo, HuggingFace, or Megatron
         tokenizer_model: tokenizer model file of sentencepiece or youtokentome
         special_tokens: dict of special tokens
         vocab_file: path to vocab file
@@ -138,7 +139,15 @@ def get_nmt_tokenizer(
         return nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
             model_path=tokenizer_model, special_tokens=special_tokens_dict
         )
+    elif library == 'byte-level':
+        logging.info(f'Using byte-level tokenization')
+        return ByteLevelTokenizer()
+    elif library == 'megatron':
+        logging.info(
+            f'Getting Megatron tokenizer with pretrained model name: {model_name} and custom vocab file: {vocab_file}'
+        )
+        return get_tokenizer(tokenizer_name=model_name, vocab_file=vocab_file)
     else:
         raise NotImplementedError(
-            'Currently we only support "yttm", "huggingface", and "sentencepiece" tokenizer library.'
+            'Currently we only support "yttm", "huggingface", "sentencepiece", "megatron", and "byte-level" tokenizer libraries.'
         )

@@ -16,8 +16,9 @@ import pytest
 import torch
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.parts.numba import __NUMBA_MINIMUM_VERSION__, numba_utils
 from nemo.collections.asr.parts.numba.spec_augment import spec_aug_numba
+from nemo.core.utils import numba_utils
+from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 
 
 def get_cfg(seed=0, dtype='float32'):
@@ -56,10 +57,7 @@ def prepare_data(b, f, t, device='cuda', freq_masks=0, time_masks=0, freq_width=
 
         adaptive_temporal_width = True
 
-    if adaptive_temporal_width:
-        time_width = max(1, int(sh[2] * time_width))
-    else:
-        time_width = time_width
+    orginal_time_width = time_width
 
     # Construct the freq and time masks as well as start positions
     if freq_masks > 0:
@@ -70,8 +68,29 @@ def prepare_data(b, f, t, device='cuda', freq_masks=0, time_masks=0, freq_width=
         freq_lengths = torch.zeros([bs, 1], dtype=torch.int64, device=x.device)
 
     if time_masks > 0:
-        time_starts = torch.randint(0, sh[2] - time_width + 1, size=[bs, time_masks], device=x.device)
-        time_lengths = torch.randint(0, time_width + 1, size=[bs, time_masks], device=x.device)
+        if adaptive_temporal_width:
+            time_width = (x_len * orginal_time_width).int().clamp(min=1)
+        else:
+            time_width = (
+                    torch.tensor(orginal_time_width, dtype=torch.int32, device=x.device)
+                    .unsqueeze(0)
+                    .repeat(sh[0])
+                )
+
+        time_starts = []
+        time_lengths = []
+        for idx in range(sh[0]):
+            time_starts.append(
+                torch.randint(
+                    0, max(1, x_len[idx] - time_width[idx]), size=[1, time_masks], device=x.device
+                )
+            )
+            time_lengths.append(
+                torch.randint(0, time_width[idx] + 1, size=[1, time_masks], device=x.device)
+            )
+
+        time_starts = torch.cat(time_lengths, 0)
+        time_lengths = torch.cat(time_lengths, 0)
     else:
         time_starts = torch.zeros([bs, 1], dtype=torch.int64, device=x.device)
         time_lengths = torch.zeros([bs, 1], dtype=torch.int64, device=x.device)
