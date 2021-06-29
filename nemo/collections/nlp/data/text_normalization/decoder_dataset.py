@@ -61,11 +61,11 @@ class DecoderDataInstance:
         c_s_words = word_tokenize(' '.join(c_s_words))
         w_input = w_left + [extra_id_0] + c_w_words + [extra_id_1] + w_right
         s_input = s_left + [extra_id_0] + c_s_words + [extra_id_1] + s_right
-        if inst_dir == INST_BACKWARD:
-            input_words = [ITN_PREFIX] + s_input
+        if inst_dir == constants.INST_BACKWARD:
+            input_words = [constants.ITN_PREFIX] + s_input
             output_words = c_w_words
-        if inst_dir == INST_FORWARD:
-            input_words = [TN_PREFIX] + w_input
+        if inst_dir == constants.INST_FORWARD:
+            input_words = [constants.TN_PREFIX] + w_input
             output_words = c_s_words
         # Finalize
         self.input_str = ' '.join(input_words)
@@ -135,8 +135,8 @@ class TextNormalizationDecoderDataset:
             self.inputs.append(inputs[idx])
             _input['labels'] = _target['input_ids']
             self.examples.append(_input)
-            if inputs[idx].startswith(TN_PREFIX): self.tn_count += 1
-            if inputs[idx].startswith(ITN_PREFIX): self.itn_count += 1
+            if inputs[idx].startswith(constants.TN_PREFIX): self.tn_count += 1
+            if inputs[idx].startswith(constants.ITN_PREFIX): self.itn_count += 1
             input_max_len = max(input_max_len, input_len)
             target_max_len = max(target_max_len, target_len)
         print(f'long_examples_filtered: {long_examples_filtered}')
