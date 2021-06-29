@@ -59,20 +59,22 @@ def get_output_names(self):
 def get_input_dynamic_axes(self, input_names):
     dynamic_axes = defaultdict(list)
     for name in input_names:
-        dynamic_axes = {
-            **dynamic_axes,
-            **Exportable._extract_dynamic_axes(name, self.input_types[name]),
-        }
+        if name in self.input_types:
+            dynamic_axes = {
+                **dynamic_axes,
+                **Exportable._extract_dynamic_axes(name, self.input_types[name]),
+            }
     return dynamic_axes
 
 
 def get_output_dynamic_axes(self, output_names):
     dynamic_axes = defaultdict(list)
     for name in output_names:
-        dynamic_axes = {
-            **dynamic_axes,
-            **Exportable._extract_dynamic_axes(name, self.output_types[name]),
-        }
+        if name in self.output_types:
+            dynamic_axes = {
+                **dynamic_axes,
+                **Exportable._extract_dynamic_axes(name, self.output_types[name]),
+            }
     return dynamic_axes
 
 
@@ -158,7 +160,7 @@ class Exportable(ABC):
             output_example = self.forward(*input_list, **input_dict)
 
             with torch.jit.optimized_execution(True), torch.no_grad():
-                jitted_model = self._try_jit_compile_model(try_script)
+                jitted_model = self._try_jit_compile_model(self, try_script)
 
                 if format == ExportFormat.TORCHSCRIPT:
                     self._export_torchscript(
@@ -239,10 +241,9 @@ class Exportable(ABC):
     ):
         if jitted_model is None:
             jitted_model = self
-        # dynamic axis is a mapping from input/output_name => list of "dynamic" indices
-        if dynamic_axes is None and use_dynamic_axes:
-            dynamic_axes = get_input_dynamic_axes(self.input_module, input_names)
-            dynamic_axes = {**dynamic_axes, **get_output_dynamic_axes(self.output_module, output_names)}
+
+        dynamic_axes = self._get_dynamic_axes(dynamic_axes, input_names, output_names, use_dynamic_axes)
+
         torch.onnx.export(
             jitted_model,
             input_example,
@@ -257,6 +258,13 @@ class Exportable(ABC):
             opset_version=onnx_opset_version,
             example_outputs=output_example,
         )
+
+    def _get_dynamic_axes(self, dynamic_axes, input_names, output_names, use_dynamic_axes):
+        # dynamic axis is a mapping from input/output_name => list of "dynamic" indices
+        if dynamic_axes is None and use_dynamic_axes:
+            dynamic_axes = get_input_dynamic_axes(self.input_module, input_names)
+            dynamic_axes = {**dynamic_axes, **get_output_dynamic_axes(self.output_module, output_names)}
+        return dynamic_axes
 
     def _export_torchscript(self, jitted_model, output, input_dict, input_list, check_trace, check_tolerance, verbose):
         if jitted_model is None:
@@ -273,11 +281,11 @@ class Exportable(ABC):
         jitted_model.save(output)
         assert os.path.exists(output)
 
-    def _try_jit_compile_model(self, try_script):
+    def _try_jit_compile_model(self, module, try_script):
         jitted_model = None
         if try_script:
             try:
-                jitted_model = torch.jit.script(self)
+                jitted_model = torch.jit.script(module)
             except Exception as e:
                 print("jit.script() failed!", e)
         return jitted_model
@@ -363,12 +371,14 @@ class Exportable(ABC):
         input_names = get_input_names(self.input_module)
         # remove unnecessary inputs for input_ports
         for name in self.disabled_deployment_input_names:
-            input_names.remove(name)
+            if name in input_names:
+                input_names.remove(name)
         return input_names
 
     def _process_output_names(self):
         output_names = get_output_names(self.output_module)
         # remove unnecessary inputs for input_ports
         for name in self.disabled_deployment_output_names:
-            output_names.remove(name)
+            if name in output_names:
+                output_names.remove(name)
         return output_names

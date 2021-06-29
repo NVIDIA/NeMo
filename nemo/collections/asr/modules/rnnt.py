@@ -33,8 +33,8 @@ import torch
 from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.common.parts import rnn
-from nemo.core.classes.exportable import Exportable
 from nemo.core.classes import typecheck
+from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
     ElementType,
@@ -121,7 +121,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         Returns:
             A tuple of input examples.
         """
-        length = 256
+        length = 1
         targets = torch.randint(0, self.vocab_size, size=(16, length), dtype=torch.int32).to(
             next(self.parameters()).device
         )
@@ -638,7 +638,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
         Returns:
             A tuple of input examples.
         """
-        B, T, U = 16, 256, 128
+        B, T, U = 16, 256, 1
         encoder_outputs = torch.randn(B, self.encoder_hidden, T).to(next(self.parameters()).device)
         decoder_outputs = torch.randn(B, self.pred_hidden, U).to(next(self.parameters()).device)
         return (encoder_outputs, decoder_outputs)

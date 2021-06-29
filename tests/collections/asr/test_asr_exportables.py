@@ -21,8 +21,8 @@ from omegaconf import DictConfig, ListConfig
 from nemo.collections.asr.models import (
     EncDecClassificationModel,
     EncDecCTCModel,
-    EncDecSpeakerLabelModel,
     EncDecRNNTModel,
+    EncDecSpeakerLabelModel,
 )
 from nemo.collections.asr.modules import ConvASRDecoder, ConvASREncoder
 from nemo.core.utils import numba_utils
@@ -96,17 +96,22 @@ class TestExportable:
         citrinet_rnnt_model.freeze()
         model = citrinet_rnnt_model
         with tempfile.TemporaryDirectory() as tmpdir:
-            encoder_inputs = model.encoder.input_example()
-            decoder_inputs = model.decoder.input_example()
-            input_examples = tuple(encoder_inputs) + tuple(decoder_inputs)
+            fn = 'citri_rnnt.onnx'
+            filename = os.path.join(tmpdir, fn)
+            model.export(output=filename, verbose=True)
 
-            filename = os.path.join(tmpdir, 'citri_rnnt.onnx')
-            model.export(output=filename, verbose=True, input_example=input_examples)
-            onnx_model = onnx.load(filename)
+            encoder_filename = os.path.join(tmpdir, 'Encoder-' + fn)
+            onnx_model = onnx.load(encoder_filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
             assert onnx_model.graph.input[0].name == 'audio_signal'
             assert onnx_model.graph.output[0].name == 'outputs'
-            print("Test passed !")
+
+            decoder_joint_filename = os.path.join(tmpdir, 'Decoder-Joint-' + fn)
+            onnx_model = onnx.load(decoder_joint_filename)
+            onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+            assert onnx_model.graph.input[0].name == 'enc_logits'
+            assert onnx_model.graph.input[1].name == 'targets'
+            assert onnx_model.graph.output[0].name == 'outputs'
 
     def setup_method(self):
         self.preprocessor = {
