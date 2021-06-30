@@ -134,12 +134,12 @@ class ExportableEncDecJointModel(Exportable):
 
     def forward_for_decoder_joint_export(self, encoder_output, decoder_inputs, decoder_lengths, states):
         decoder, joint = self.output_module, self.joint_module
-        decoder_outputs = decoder(decoder_inputs, decoder_lengths, states)
+
+        decoder_outputs = decoder(decoder_inputs, decoder_lengths, states=states)
         decoder_output = decoder_outputs[0]
-        decoder_states = tuple(decoder_outputs[-1])
+        decoder_states = decoder_outputs[-1]
 
         joint_output = joint(encoder_output, decoder_output)
-
         return joint_output, decoder_states
 
     def export(
@@ -280,7 +280,16 @@ class ExportableEncDecJointModel(Exportable):
 
                 # state management
                 if type(encoder_decoder_input_list[-1]) in (list, tuple):
+                    num_states = len(encoder_decoder_input_list[-1])
                     encoder_decoder_input_list[-1] = tuple(encoder_decoder_input_list[-1])
+                else:
+                    num_states = 0
+
+                encoder_decoder_input_list = tuple(encoder_decoder_input_list)
+                # if num_states > 0:
+                #     encoder_decoder_input_list = encoder_decoder_input_list[:-1] + tuple(
+                #         [state for state in encoder_decoder_input_list[-1]]
+                #     )
 
                 # Allow user to completely override forward method to export
                 forward_method, _ = self._wrap_forward_method('decoder_joint')
@@ -289,7 +298,7 @@ class ExportableEncDecJointModel(Exportable):
 
                 self._export_onnx(
                     None,
-                    tuple(encoder_decoder_input_list),
+                    encoder_decoder_input_list,
                     decoder_joint_output_example,
                     self._join_input_output_names(["enc_logits"], decoder_input_names),
                     self._join_input_output_names(joint_output_names, decoder_output_names),
@@ -307,7 +316,7 @@ class ExportableEncDecJointModel(Exportable):
                 self._verify_onnx_export(
                     self._augment_output_filename(output, "Decoder-Joint"),
                     decoder_joint_output_example,
-                    tuple(encoder_decoder_input_list),
+                    encoder_decoder_input_list,
                     encoder_decoder_input_dict,
                     self._join_input_output_names(["enc_logits"], decoder_input_names),
                     check_tolerance,

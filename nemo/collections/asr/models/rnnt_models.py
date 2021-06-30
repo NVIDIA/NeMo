@@ -833,3 +833,20 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecJointModel):
                 if param.grad is not None:
                     norm = param.grad.norm()
                     param.grad.data.div_(norm)
+
+    # def _prepare_for_export(self, **kwargs):
+    #     super()._prepare_for_export(**kwargs)
+    #
+    #     print("PREPARNG FOR EXPORT")
+    #     # Logic to change export forward method
+    #     type(self).forward_for_decoder_joint_export = type(self).forward_for_decoder_joint_export_rnn
+    #
+    # def forward_for_decoder_joint_export_rnn(self, encoder_output, decoder_inputs, decoder_lengths, state_h, state_c):
+    #     decoder, joint = self.output_module, self.joint_module
+    #
+    #     decoder_outputs = decoder(decoder_inputs, decoder_lengths, (state_h, state_c))
+    #     decoder_output = decoder_outputs[0]
+    #     decoder_states = decoder_outputs[-1]
+    #
+    #     joint_output = joint(encoder_output, decoder_output)
+    #     return joint_output, decoder_states

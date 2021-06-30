@@ -99,7 +99,7 @@ class TestExportable:
         with tempfile.TemporaryDirectory() as tmpdir:
             fn = 'citri_rnnt.onnx'
             filename = os.path.join(tmpdir, fn)
-            model.export(output=filename, verbose=False, check_trace=True)
+            model.export(output=filename, verbose=False, check_trace=False)
 
             encoder_filename = os.path.join(tmpdir, 'Encoder-' + fn)
             onnx_model = onnx.load(encoder_filename)
@@ -112,6 +112,8 @@ class TestExportable:
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
             assert onnx_model.graph.input[0].name == 'enc_logits'
             assert onnx_model.graph.input[1].name == 'targets'
+            print("graph ips", [x.name for x in onnx_model.graph.input])
+            print("graph ops", [x.name for x in onnx_model.graph.output])
             assert onnx_model.graph.output[0].name == 'outputs'
             assert onnx_model.graph.output[1].name == 'states'
             assert len(onnx_model.graph.output) == 2

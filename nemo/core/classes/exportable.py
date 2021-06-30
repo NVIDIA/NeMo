@@ -226,6 +226,7 @@ class Exportable(ABC):
             logging.warning(f"ONNX generated at {output}, not verified - please install onnxruntime.\n")
             return
 
+        print(to_onnxrt_input(input_names, input_list, input_dict))
         sess = onnxruntime.InferenceSession(onnx_model.SerializeToString())
         ort_out = sess.run(None, to_onnxrt_input(input_names, input_list, input_dict))
         all_good = True
