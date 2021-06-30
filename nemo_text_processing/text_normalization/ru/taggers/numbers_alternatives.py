@@ -14,8 +14,6 @@
 # limitations under the License.
 
 
-from collections import defaultdict
-
 from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path, load_labels
 from nemo_text_processing.text_normalization.graph_utils import NEMO_SIGMA, GraphFst
 
@@ -59,4 +57,4 @@ class AlternativeFormatsFst(GraphFst):
         # skipped I and D in numbers.grm
 
         # TODO add support for space separated numbers "12 000"
-        self.separators = t['dot_thousands'] | t['no_delimiter']
+        self.separators = t['dot_thousands'] | t['no_delimiter'] | t['space_thousands']
