@@ -63,9 +63,9 @@ class OrdinalFst(GraphFst):
             @ del_ending
         ).optimize()
 
-        self.ordinal_numbers = (ordinal_numbers | ordinal_numbers_marked).optimize()
-
-        final_graph = pynutil.insert("integer: \"") + self.ordinal_numbers + pynutil.insert("\"")
+        self.ordinal_numbers = ordinal_numbers
+        final_graph = (ordinal_numbers | ordinal_numbers_marked).optimize()
+        final_graph = pynutil.insert("integer: \"") + final_graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
 

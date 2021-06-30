@@ -71,12 +71,9 @@ class DecimalFst(GraphFst):
 
         decimal_endings_map = prepare_labels_for_insertion(get_abs_path("ru/data/decimal_endings.tsv"))
 
+        self.integer_part = integer_part + delimiter
         graph_integer = (
-            pynutil.insert("integer_part: \"")
-            + optional_graph_negative
-            + integer_part
-            + delimiter
-            + pynutil.insert("\"")
+            pynutil.insert("integer_part: \"") + optional_graph_negative + self.integer_part + pynutil.insert("\"")
         )
 
         graph_fractional = NEMO_DIGIT @ cardinal_numbers_with_leading_zeros + decimal_endings_map['10']
@@ -90,6 +87,7 @@ class DecimalFst(GraphFst):
             NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT
         ) @ cardinal_numbers_with_leading_zeros + decimal_endings_map['10000']
 
+        self.graph_fractional = graph_fractional
         graph_fractional = pynutil.insert("fractional_part: \"") + graph_fractional + pynutil.insert("\"")
         final_graph = graph_integer + insert_space + graph_fractional
 

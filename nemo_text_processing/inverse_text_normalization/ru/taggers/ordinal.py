@@ -41,7 +41,7 @@ class OrdinalFst(GraphFst):
         from nemo_text_processing.text_normalization.ru.taggers.ordinal import OrdinalFst
 
         ordinal_tn = OrdinalFst(deterministic=False)
-        self.ordinal_tn = ordinal_tn.ordinal_numbers_marked
+        ordinal_tn = ordinal_tn.ordinal_numbers
 
         graph = ordinal_tn.invert().optimize()
         self.graph = graph

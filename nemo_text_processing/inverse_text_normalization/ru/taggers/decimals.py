@@ -13,14 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.utils import get_abs_path
-from nemo_text_processing.text_normalization.graph_utils import (
-    NEMO_DIGIT,
-    GraphFst,
-    delete_extra_space,
-    delete_space,
-    insert_space,
-)
+
+from nemo_text_processing.text_normalization.graph_utils import GraphFst, delete_extra_space
+from nemo_text_processing.text_normalization.ru.taggers.cardinal import CardinalFst as CardinalFstTN
+from nemo_text_processing.text_normalization.ru.taggers.decimals import DecimalFst as DecimalFstTN
+from nemo_text_processing.text_normalization.ru.taggers.ordinal import OrdinalFst as OrdinalFstTN
 
 try:
     import pynini
@@ -31,83 +28,31 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstLike') -> 'pynini.FstLike':
-    """
-    Returns FST that transforms either a cardinal or decimal followed by a quantity into a numeral,
-    e.g. one million -> integer_part: "1" quantity: "million"
-    e.g. one point five million -> integer_part: "1" fractional_part: "5" quantity: "million"
-
-    Args: 
-        decimal: decimal FST
-        cardinal_up_to_hundred: cardinal FST
-    """
-    numbers = cardinal_up_to_hundred @ (
-        pynutil.delete(pynini.closure("0")) + pynini.difference(NEMO_DIGIT, "0") + pynini.closure(NEMO_DIGIT)
-    )
-    suffix = pynini.union("million", "billion", "trillion", "quadrillion", "quintillion", "sextillion")
-    res = (
-        pynutil.insert("integer_part: \"")
-        + numbers
-        + pynutil.insert("\"")
-        + delete_extra_space
-        + pynutil.insert("quantity: \"")
-        + suffix
-        + pynutil.insert("\"")
-    )
-    res |= decimal + delete_extra_space + pynutil.insert("quantity: \"") + (suffix | "thousand") + pynutil.insert("\"")
-    return res
-
-
 class DecimalFst(GraphFst):
     """
     Finite state transducer for classifying decimal
-        e.g. minus twelve point five o o six billion -> decimal { negative: "true" integer_part: "12"  fractional_part: "5006" quantity: "billion" }
-        e.g. one billion -> decimal { integer_part: "1" quantity: "billion" }
+        e.g. "минус две целых пять десятых" -> negative: "true" integer_part: "2," fractional_part: "5"
+
     Args:
-        cardinal: CardinalFst
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal: GraphFst, deterministic: bool = False):
-        super().__init__(name="decimal", kind="classify", deterministic=False)
+    def __init__(self, deterministic: bool = False):
+        super().__init__(name="decimal", kind="classify", deterministic=deterministic)
 
-        cardinal_graph = cardinal.graph
-
-        delimiter = pynutil.delete("целых") | pynutil.delete("целых и")
-        optional_end = pynini.closure(
-            insert_space + pynini.string_file(get_abs_path("ru/data/decimal_endings.tsv")), 0, 1
-        )
         optional_graph_negative = pynini.closure(
             pynutil.insert("negative: ") + pynini.cross("минус", "\"true\"") + delete_extra_space, 0, 1
         )
 
-        graph_integer = pynutil.insert("integer_part: \"") + cardinal_graph + pynutil.insert("\"")
-        graph_fractional = pynutil.insert("fractional_part: \"") + cardinal_graph + optional_end + pynutil.insert("\"")
+        graph_fractional_tn = DecimalFstTN(cardinal=CardinalFstTN(), ordinal=OrdinalFstTN())
+        graph_fractional_part = pynini.invert(graph_fractional_tn.graph_fractional).optimize()
+        graph_integer_part = pynini.invert(graph_fractional_tn.integer_part).optimize()
 
-        final_graph_wo_sign = (
-            pynini.closure(graph_integer + delete_extra_space, 0, 1)
-            + delimiter
-            + delete_extra_space
-            + graph_fractional
-        )
-        final_graph = optional_graph_negative + final_graph_wo_sign
+        graph_fractional = pynutil.insert("fractional_part: \"") + graph_fractional_part + pynutil.insert("\"")
+        graph_integer = pynutil.insert("integer_part: \"") + graph_integer_part + pynutil.insert("\"")
+        self.final_graph_wo_sign = graph_integer + pynini.accep(" ") + graph_fractional
+        final_graph = optional_graph_negative + self.final_graph_wo_sign
 
-        from pynini.lib import rewrite
-        import pdb
-
-        pdb.set_trace()
-        print(rewrite.rewrites("две целых три", final_graph))
-
-        self.final_graph_wo_negative = final_graph_wo_sign | get_quantity(
-            final_graph_wo_sign, cardinal.graph_hundred_component_at_least_one_none_zero_digit
-        )
-        final_graph |= optional_graph_negative + get_quantity(
-            final_graph_wo_sign, cardinal.graph_hundred_component_at_least_one_none_zero_digit
-        )
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
-
-
-if __name__ == '__main__':
-    from nemo_text_processing.inverse_text_normalization.ru.taggers.cardinal import CardinalFst
-
-    DecimalFst(CardinalFst())
