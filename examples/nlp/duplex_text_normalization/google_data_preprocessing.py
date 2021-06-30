@@ -1,0 +1,151 @@
+"""
+This script can be used to process the raw data files of the Google Text Normalization dataset
+to obtain data files of the format mentioned in the `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`.
+
+USAGE Example:
+1. Download the Google TN dataset from https://www.kaggle.com/google-nlu/text-normalization
+2. Unzip the English subset (e.g., by running `tar zxvf  en_with_types.tgz`). Then there will a folder named `en_with_types`.
+3. Run this script
+# python google_data_preprocessing.py       \
+        --data_dir=en_with_types/           \
+        --output_dir=preprocessed/          \
+        --lang=en
+
+In this example, the final preprocessed files will be stored in the `preprocessed` folder.
+The folder should contain three files `train.tsv`, 'dev.tsv', and `test.tsv`.
+"""
+
+import wordninja
+import nemo.collections.nlp.data.text_normalization.constants as constants
+
+from tqdm import tqdm
+from os import mkdir, listdir
+from os.path import isfile, isdir, join
+from utils import flatten
+from nltk import word_tokenize
+from argparse import ArgumentParser
+
+# Local Constants
+ENGLISH = 'en'
+SUPPORTED_LANGS = [ENGLISH]
+TRAIN, DEV, TEST = 'train', 'dev', 'test'
+SPLIT_NAMES = [TRAIN, DEV, TEST]
+MAX_DEV_SIZE = 25000
+
+# Helper Functions
+def read_google_data(data_dir, lang):
+    """
+    The function can be used to read the raw data files of the Google Text Normalization
+    dataset (which can be downloaded from https://www.kaggle.com/google-nlu/text-normalization)
+
+    Args:
+        data_dir: Path to the data directory. The directory should contain files of the form output-xxxxx-of-00100
+        lang: Selected language. Currently the only supported language is English.
+    Return:
+        train: A list of examples in the training set.
+        dev: A list of examples in the dev set
+        test: A list of examples in the test set
+    """
+    train, dev, test = [], [], []
+    for fn in listdir(data_dir):
+        fp = join(data_dir, fn)
+        if not isfile(fp): continue
+        if not fn.startswith('output'): continue
+        with open(fp, 'r', encoding='utf-8') as f:
+            # Determine the current split
+            split_nb = int(fn.split('-')[1])
+            if split_nb == 0: cur_split = train
+            elif split_nb == 90: cur_split = dev
+            elif split_nb == 99: cur_split = test
+            else: continue
+            # Loop through each line of the file
+            cur_classes, cur_tokens, cur_outputs = [], [], []
+            for linectx, line in tqdm(enumerate(f)):
+                es = line.strip().split('\t')
+                if split_nb == 99 and linectx == 100002: break
+                if len(es) == 2 and es[0] == '<eos>':
+                    # Update cur_split
+                    cur_outputs = process_url(cur_tokens, cur_outputs, lang)
+                    cur_split.append((cur_classes, cur_tokens, cur_outputs))
+                    # Reset
+                    cur_classes, cur_tokens, cur_outputs = [], [], []
+                    continue
+                # Update the current example
+                assert(len(es) == 3)
+                cur_classes.append(es[0])
+                cur_tokens.append(es[1])
+                cur_outputs.append(es[2])
+    dev = dev[:MAX_DEV_SIZE]
+    train_sz, dev_sz, test_sz = len(train), len(dev), len(test)
+    print(f'train_sz: {train_sz} | dev_sz: {dev_sz} | test_sz: {test_sz}')
+    return train, dev, test
+
+def process_url(tokens, outputs, lang):
+    """
+    The function is used to process the spoken form of every URL in an example
+
+    Args:
+        tokens: The tokens of the written form
+        outputs: The expected outputs for the spoken form
+        lang: Selected language. Currently the only supported language is English.
+    Return:
+        outputs: The outputs for the spoken form with preprocessed URLs.
+    """
+    if lang == ENGLISH:
+        for i in range(len(tokens)):
+            t, o = tokens[i], outputs[i]
+            if o != constants.SIL_WORD and '_letter' in o:
+                o_tokens = o.split(' ')
+                all_spans, cur_span = [], []
+                for j in range(len(o_tokens)):
+                    if len(o_tokens[j]) == 0: continue
+                    if o_tokens[j] == '_letter':
+                        all_spans.append(cur_span)
+                        all_spans.append([' '])
+                        cur_span = []
+                    else:
+                        o_tokens[j] = o_tokens[j].replace('_letter', '')
+                        cur_span.append(o_tokens[j])
+                if len(cur_span) > 0: all_spans.append(cur_span)
+                o_tokens = flatten(all_spans)
+
+                o = ''
+                for o_token in o_tokens:
+                    if len(o_token) > 1:
+                        o += ' ' + o_token + ' '
+                    else:
+                        o += o_token
+                o = o.strip()
+                o_tokens = wordninja.split(o)
+                o = ' '.join(o_tokens)
+
+                outputs[i] = o
+
+    return outputs
+
+# Main code
+if __name__ == '__main__':
+    parser = ArgumentParser(description='Preprocess Google text normalization dataset')
+    parser.add_argument('--data_dir', type=str, required=True, help='Path to folder with data')
+    parser.add_argument('--output_dir', type=str, default='preprocessed', help='Path to folder with preprocessed data')
+    parser.add_argument('--lang', type=str, default=ENGLISH, choices=SUPPORTED_LANGS, help='Language')
+    args = parser.parse_args()
+
+    # Create the output dir (if not exist)
+    if not isdir(args.output_dir):
+        mkdir(args.output_dir)
+
+    # Processing
+    train, dev, test = read_google_data(args.data_dir, args.lang)
+    for split, data in zip(SPLIT_NAMES, [train, dev, test]):
+        output_f = open(join(args.output_dir, f'{split}.tsv'), 'w+', encoding='utf-8')
+        for inst in data:
+            cur_classes, cur_tokens, cur_outputs = inst
+            for c, t, o in zip(cur_classes, cur_tokens, cur_outputs):
+                t = ' '.join(word_tokenize(t))
+                if o != 'sil' and o != '<self>':
+                    o_tokens = word_tokenize(o)
+                    o_tokens = [o_tok for o_tok in o_tokens if o_tok != 'sil']
+                    o = ' '.join(o_tokens)
+                output_f.write(f'{c}\t{t}\t{o}\n')
+            output_f.write('<eos>\t<eos>\n')
