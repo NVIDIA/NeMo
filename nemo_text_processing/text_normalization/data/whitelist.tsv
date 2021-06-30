@@ -206,7 +206,7 @@ ADAC-	a d a c
 ADAC	a d a c
 A. D.	a d
 A.D.	a d
-A.D.A.M.	a d a m
+A.D.A.M.	adam
 AdaSL	a d a s l
 ADATA	a d a t a
 ADBAC	a d b a c
@@ -775,7 +775,6 @@ ANM	a n m
 ANP	a n p
 ANPP	a n p p
 ANPR	a n p r
-Anra	a n r a
 Anr	a n r
 ANR	a n r
 ANRC	a n r c
@@ -783,7 +782,6 @@ ANREF's	a n r e f's
 Anrep	a n r e p
 ANRS	a n r s
 ANRW	a n r w
-Ans	a n's
 A.N.S.	a n s
 ANS	a n s
 ANSF	a n s f
@@ -1099,7 +1097,6 @@ Atil	a t i l
 ATINC	a t i n c
 ATIP	a t i p
 Atiq	a t i q
-atis	a t i s
 Ativ	a t i v
 ATJ	a t j
 Atka	a t k a
@@ -1273,7 +1270,6 @@ BAe	b a e
 BAE	b a e
 BAFA	b a f a
 BAF	b a f
-BAMF	b a m f
 BAPED-	b a p e d
 BAPH-	b a p h
 B.A.R.	b a r
@@ -2016,7 +2012,6 @@ C. A. J.	c a j
 CALUX	c a l u x
 CAMC	c a m c
 CAMLG	c a m l g
-CAMPCO	c a m p c o
 C.A.M.'s	c a m's
 C. A. N.	c a n
 Capt.	captain
@@ -2870,8 +2865,6 @@ Co.	company
 C.O.D.	c o d
 Col.	colonel
 C.O.M.L.	c o m l
-Cov	c o v
-COX	c o x
 CPAC	c p a c
 CPA	c p a
 CPAP-	c p a p
@@ -3293,7 +3286,7 @@ D.A.	d a
 D&AD	d and a d
 D. A. H.	d a h
 D.A.M.	d a m
-D.A.N.C.E.	d a n c e
+D.A.N.C.E.	dance
 D. A. T.	d a t
 Dav	d a v
 D.A.V.	d a v
@@ -3534,15 +3527,7 @@ DHW	d h w
 DHX	d h x
 D.I.	d i
 DIFC	d i f c
-Dif	d i f
-DIF	d i f
-Dir	d i r
-DIR	d i r
-Dirs	d i r's
 DISD	d i s d
-div	d i v
-Div	d i v
-DIV	d i v
 DIW	d i w
 DIX	d i x
 diy	d i y
@@ -4468,8 +4453,6 @@ ENSO	e n s o
 ENTJs	e n t j's
 ENTP	e n t p
 ENTV	e n t v
-Env	e n v
-ENV	e n v
 EOC	e o c
 EOC's	e o c's
 EoD	e o d
@@ -4690,8 +4673,6 @@ ET's	e t's
 ETs	e t's
 ETS-	e t s
 ETS	e t s
-Etsi	e t s i
-ETSI	e t s i
 ett	e t t
 Ett	e t t
 ETT	e t t
@@ -9399,7 +9380,6 @@ MNRG	m n r g
 MNSD	m n s d
 MNS	m n s
 MNTC	m n t c
-mnt	m n t
 MNT	m n t
 MNZM	m n z m
 MNZ	m n z
@@ -15526,20 +15506,12 @@ WZX	w z x
 WZZM-	w z z m
 WZZM	w z z m
 WZZX	w z z x
-Xav	x a v
-XAV	x a v
-xa	x a
-Xa	x a
-XA-	x a
-XA	x a
 xbg	x b g
 XBMC	x b m c
 XBM	x b m
 Xbra	x b r a
 XBRL	x b r l
 XBV	x b v
-XB-	x b
-XB	x b
 XCB	x c b
 XCE	x c e
 XCMS	x c m s
@@ -15583,7 +15555,6 @@ XHVFC	x h v f c
 xh	x h
 X. H.	x h
 XH	x h
-xix	x i x
 XIX-	x i x
 XJD	x j d
 XJ-	x j
