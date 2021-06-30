@@ -132,16 +132,16 @@ class ExportableEncDecJointModel(Exportable):
 
         return encoder_output
 
-    def forward_for_decoder_joint_export(self, encoder_output, decoder_inputs, decoder_lengths=None):
+    def forward_for_decoder_joint_export(self, encoder_output, decoder_inputs, decoder_lengths, state_h=None, state_c=None):
         decoder, joint = self.output_module, self.joint_module
 
-        decoder_outputs = decoder(decoder_inputs, decoder_lengths)
+        decoder_outputs = decoder(decoder_inputs, decoder_lengths, state=(state_h, state_c))
         decoder_output = decoder_outputs[0]
         decoder_length = decoder_outputs[1]
-        decoder_states = decoder_outputs[-1]
+        decoder_states = tuple(decoder_length[2:])
 
         joint_output = joint(encoder_output, decoder_output)
-        return joint_output, decoder_length #  , decoder_states
+        return joint_output, decoder_length,  #  , decoder_states
 
     def export(
         self,
