@@ -137,10 +137,11 @@ class ExportableEncDecJointModel(Exportable):
 
         decoder_outputs = decoder(decoder_inputs, decoder_lengths)
         decoder_output = decoder_outputs[0]
+        decoder_length = decoder_outputs[1]
         decoder_states = decoder_outputs[-1]
 
         joint_output = joint(encoder_output, decoder_output)
-        return joint_output#  , decoder_states
+        return joint_output, decoder_length #  , decoder_states
 
     def export(
         self,
@@ -362,8 +363,8 @@ class ExportableEncDecJointModel(Exportable):
         #         input_names.append(f'{name}_{i}')
 
         # print(input_example)
-        print(input_names)
-        input_example = input_example[:2]
+        # print(input_names)
+        # input_example = input_example[:2]
 
         torch.onnx.export(
             jitted_model,

@@ -132,7 +132,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
     @property
     def disabled_deployment_input_names(self):
         """Implement this method to return a set of input names disabled for export"""
-        return set(["target_length"])
+        return set([])
 
     @property
     def disabled_deployment_output_names(self):
