@@ -17,63 +17,29 @@ import nemo.collections.nlp.data.text_normalization.constants as constants
 
 from tqdm import tqdm
 from nltk import word_tokenize
+from nemo.core.classes import Dataset
 from transformers import PreTrainedTokenizerBase
 
 from nemo.collections.nlp.data.text_normalization.utils import read_data_file
 
 __all__ = ['TextNormalizationDecoderDataset']
 
-# Decoder Dataset
-class DecoderDataInstance:
-    def __init__(self, w_words, s_words, inst_dir, start_idx, end_idx,
-                 semiotic_class=None):
-        start_idx = max(start_idx, 0)
-        end_idx = min(end_idx, len(w_words))
-        ctx_size = constants.DECODE_CTX_SIZE
-        extra_id_0 = constants.EXTRA_ID_0
-        extra_id_1 = constants.EXTRA_ID_1
 
-        # Extract center words
-        c_w_words = w_words[start_idx:end_idx]
-        c_s_words = s_words[start_idx:end_idx]
+class TextNormalizationDecoderDataset(Dataset):
+    """
+    Creates dataset to use to train a DuplexDecoderModel.
 
-        # Extract context
-        w_left  = w_words[max(0,start_idx-ctx_size):start_idx]
-        w_right = w_words[end_idx:end_idx+ctx_size]
-        s_left  = s_words[max(0,start_idx-ctx_size):start_idx]
-        s_right = s_words[end_idx:end_idx+ctx_size]
+    Converts from raw data to an instance that can be used by Dataloader.
 
-        # Process sil words and self words
-        for jx in range(len(s_left)):
-            if s_left[jx] == constants.SIL_WORD: s_left[jx] = ''
-            if s_left[jx] == constants.SELF_WORD: s_left[jx] = w_left[jx]
-        for jx in range(len(s_right)):
-            if s_right[jx] == constants.SIL_WORD: s_right[jx] = ''
-            if s_right[jx] == constants.SELF_WORD: s_right[jx] = w_right[jx]
-        for jx in range(len(c_s_words)):
-            if c_s_words[jx] == constants.SIL_WORD:
-                c_s_words[jx] = ''
-                if inst_dir == constants.INST_BACKWARD: c_w_words[jx] = ''
-            if c_s_words[jx] == constants.SELF_WORD: c_s_words[jx] = c_w_words[jx]
+    For dataset to use to do end-to-end inference, see TextNormalizationTestDataset.
 
-        # Extract input_words and output_words
-        c_w_words = word_tokenize(' '.join(c_w_words))
-        c_s_words = word_tokenize(' '.join(c_s_words))
-        w_input = w_left + [extra_id_0] + c_w_words + [extra_id_1] + w_right
-        s_input = s_left + [extra_id_0] + c_s_words + [extra_id_1] + s_right
-        if inst_dir == constants.INST_BACKWARD:
-            input_words = [constants.ITN_PREFIX] + s_input
-            output_words = c_w_words
-        if inst_dir == constants.INST_FORWARD:
-            input_words = [constants.TN_PREFIX] + w_input
-            output_words = c_s_words
-        # Finalize
-        self.input_str = ' '.join(input_words)
-        self.output_str = ' '.join(output_words)
-        self.direction = inst_dir
-        self.semiotic_class = semiotic_class
-
-class TextNormalizationDecoderDataset:
+    Args:
+        input_file: path to the raw data file (e.g., train.tsv). For more info about the data format, refer to the `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`.
+        tokenizer: tokenizer of the model that will be trained on the dataset
+        mode: should be one of the values ['tn', 'itn', 'joint'].  `tn` mode is for TN only. `itn` mode is for ITN only. `joint` is for training a system that can do both TN and ITN at the same time.
+        max_len: maximum length of sequence in tokens. The code will discard any training instance whose input or output is longer than the specified max_len.
+        decoder_data_augmentation (bool): a flag indicates whether to augment the dataset with additional data instances that may help the decoder become more robust against the tagger's errors. Refer to the doc for more info.
+    """
     def __init__(
             self,
             input_file: str,
@@ -149,3 +115,68 @@ class TextNormalizationDecoderDataset:
 
     def __len__(self):
         return len(self.examples)
+
+class DecoderDataInstance:
+    """
+    This class represents a data instance in a TextNormalizationDecoderDataset.
+
+    Intuitively, each data instance can be thought as having the following form:
+        Input:  <Left Context of Input> <Input Span> <Right Context of Input>
+        Output: <Output Span>
+    where the context size is determined by the constant DECODE_CTX_SIZE.
+
+    Args:
+        w_words: List of words in the written form
+        s_words: List of words in the spoken form
+        inst_dir: Indicates the direction of the instance (i.e., INST_BACKWARD for ITN or INST_FORWARD for TN).
+        start_idx: The starting index of the input span in the original input text
+        end_idx: The ending index of the input span (exclusively)
+        semiotic_class: The semiotic class of the input span (can be set to None if not available)
+    """
+    def __init__(self, w_words, s_words, inst_dir, start_idx, end_idx,
+                 semiotic_class=None):
+        start_idx = max(start_idx, 0)
+        end_idx = min(end_idx, len(w_words))
+        ctx_size = constants.DECODE_CTX_SIZE
+        extra_id_0 = constants.EXTRA_ID_0
+        extra_id_1 = constants.EXTRA_ID_1
+
+        # Extract center words
+        c_w_words = w_words[start_idx:end_idx]
+        c_s_words = s_words[start_idx:end_idx]
+
+        # Extract context
+        w_left  = w_words[max(0,start_idx-ctx_size):start_idx]
+        w_right = w_words[end_idx:end_idx+ctx_size]
+        s_left  = s_words[max(0,start_idx-ctx_size):start_idx]
+        s_right = s_words[end_idx:end_idx+ctx_size]
+
+        # Process sil words and self words
+        for jx in range(len(s_left)):
+            if s_left[jx] == constants.SIL_WORD: s_left[jx] = ''
+            if s_left[jx] == constants.SELF_WORD: s_left[jx] = w_left[jx]
+        for jx in range(len(s_right)):
+            if s_right[jx] == constants.SIL_WORD: s_right[jx] = ''
+            if s_right[jx] == constants.SELF_WORD: s_right[jx] = w_right[jx]
+        for jx in range(len(c_s_words)):
+            if c_s_words[jx] == constants.SIL_WORD:
+                c_s_words[jx] = ''
+                if inst_dir == constants.INST_BACKWARD: c_w_words[jx] = ''
+            if c_s_words[jx] == constants.SELF_WORD: c_s_words[jx] = c_w_words[jx]
+
+        # Extract input_words and output_words
+        c_w_words = word_tokenize(' '.join(c_w_words))
+        c_s_words = word_tokenize(' '.join(c_s_words))
+        w_input = w_left + [extra_id_0] + c_w_words + [extra_id_1] + w_right
+        s_input = s_left + [extra_id_0] + c_s_words + [extra_id_1] + s_right
+        if inst_dir == constants.INST_BACKWARD:
+            input_words = [constants.ITN_PREFIX] + s_input
+            output_words = c_w_words
+        if inst_dir == constants.INST_FORWARD:
+            input_words = [constants.TN_PREFIX] + w_input
+            output_words = c_s_words
+        # Finalize
+        self.input_str = ' '.join(input_words)
+        self.output_str = ' '.join(output_words)
+        self.direction = inst_dir
+        self.semiotic_class = semiotic_class

@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import torch
-import time
 import nltk
 import nemo.collections.nlp.data.text_normalization.constants as constants
 nltk.download('punkt')
 
+from time import perf_counter
 from typing import List, Optional
 from pytorch_lightning import Trainer
 from omegaconf import DictConfig
@@ -62,7 +62,6 @@ class DuplexTaggerModel(NLPModel):
         Lightning calls this inside the training loop with the data from the training dataloader
         passed in as `batch`.
         """
-        self.train()
         num_labels = self.num_labels
 
         # Apply Transformer
@@ -286,7 +285,7 @@ class DuplexTaggerModel(NLPModel):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, mode="test")
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, mode: str):
-        start_time = time.time()
+        start_time = perf_counter()
         logging.info(f'Creating {mode} dataset')
         input_file = cfg.data_path
         dataset = TextNormalizationTaggerDataset(
@@ -300,7 +299,7 @@ class DuplexTaggerModel(NLPModel):
             shuffle=cfg.shuffle,
             collate_fn=data_collator,
         )
-        running_time = time.time() - start_time
+        running_time = perf_counter() - start_time
         logging.info(f'Took {running_time} seconds')
         return dl
 

@@ -44,13 +44,13 @@ line arguments by `--config-name=CONFIG_FILE_PATH'.
 """
 
 
-import time
 import numpy as np
 import nemo.collections.nlp.data.text_normalization.constants as constants
 
 from tqdm import tqdm
 from math import ceil
 from nltk import word_tokenize
+from time import perf_counter
 from omegaconf import DictConfig, OmegaConf
 from utils import TAGGER_MODEL, DECODER_MODEL, instantiate_model_and_trainer
 
@@ -81,9 +81,9 @@ def main(cfg: DictConfig) -> None:
             batch_insts = test[start_idx:end_idx]
             batch_dirs, batch_inputs, batch_targets = zip(*batch_insts)
             # Inference and Running Time Measurement
-            batch_start_time = time.time()
+            batch_start_time = perf_counter()
             batch_preds = tn_model._infer(batch_inputs, batch_dirs)
-            batch_run_time = (time.time() - batch_start_time) * 1000  # milliseconds
+            batch_run_time = (perf_counter() - batch_start_time) * 1000  # milliseconds
             all_run_times.append(batch_run_time)
             # Update all_dirs, all_inputs, all_preds and all_targets
             all_dirs.extend(batch_dirs)

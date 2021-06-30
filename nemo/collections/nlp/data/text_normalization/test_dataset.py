@@ -25,6 +25,13 @@ __all__ = ['TextNormalizationTestDataset']
 
 # Test Dataset
 class TextNormalizationTestDataset:
+    """
+    Creates dataset to use to do end-to-end inference
+
+    Args:
+        input_file: path to the raw data file (e.g., train.tsv). For more info about the data format, refer to the `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`.
+        mode: should be one of the values ['tn', 'itn', 'joint'].  `tn` mode is for TN only. `itn` mode is for ITN only. `joint` is for training a system that can do both TN and ITN at the same time.
+    """
     def __init__(self, input_file: str, mode: str):
         insts = read_data_file(input_file)
 
@@ -65,6 +72,7 @@ class TextNormalizationTestDataset:
 
     @staticmethod
     def compute_sent_accuracy(preds: List[str], targets: List[str]):
+        """Given predicted strings and target strings, compute the sentence accuracy metric."""
         assert(len(preds) == len(targets))
         if len(targets) == 0: return 'NA'
         # Sentence Accuracy

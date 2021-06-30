@@ -23,41 +23,20 @@ from nemo.collections.nlp.data.text_normalization.utils import read_data_file
 
 __all__ = ['TextNormalizationTaggerDataset']
 
-# Tagger Dataset
-class TaggerDataInstance:
-    def __init__(self, w_words, s_words, direction, do_basic_tokenize = False):
-        # Build input_words and labels
-        input_words, labels = [], []
-        # Task Prefix
-        if direction == constants.INST_BACKWARD:
-            input_words.append(constants.ITN_PREFIX)
-        if direction == constants.INST_FORWARD:
-            input_words.append(constants.TN_PREFIX)
-        labels.append(constants.TASK_TAG)
-        # Main Content
-        for w_word, s_word in zip(w_words, s_words):
-            # Basic tokenization (if enabled)
-            if do_basic_tokenize:
-                w_word = ' '.join(word_tokenize(w_word))
-                if not s_word in constants.SPECIAL_WORDS:
-                    s_word = ' '.join(word_tokenize(s_word))
-            # Update input_words and labels
-            if s_word == constants.SIL_WORD and direction == constants.INST_BACKWARD:
-                continue
-            if s_word == constants.SELF_WORD:
-                input_words.append(w_word)
-                labels.append(constants.SAME_TAG)
-            elif s_word == constants.SIL_WORD:
-                input_words.append(w_word)
-                labels.append(constants.PUNCT_TAG)
-            else:
-                if direction == constants.INST_BACKWARD: input_words.append(s_word)
-                if direction == constants.INST_FORWARD: input_words.append(w_word)
-                labels.append(constants.TRANSFORM_TAG)
-        self.input_words = input_words
-        self.labels = labels
-
 class TextNormalizationTaggerDataset(Dataset):
+    """
+    Creates dataset to use to train a DuplexTaggerModel.
+
+    Converts from raw data to an instance that can be used by Dataloader.
+
+    For dataset to use to do end-to-end inference, see TextNormalizationTestDataset.
+
+    Args:
+        input_file: path to the raw data file (e.g., train.tsv). For more info about the data format, refer to the `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`.
+        tokenizer: tokenizer of the model that will be trained on the dataset
+        mode: should be one of the values ['tn', 'itn', 'joint'].  `tn` mode is for TN only. `itn` mode is for ITN only. `joint` is for training a system that can do both TN and ITN at the same time.
+        do_basic_tokenize: a flag indicates whether to do some basic tokenization (i.e., using word_tokenize() of nltk) before using the tokenizer of the model
+    """
     def __init__(
         self,
         input_file: str,
@@ -123,3 +102,46 @@ class TextNormalizationTaggerDataset(Dataset):
             encoded_labels.append(label_ids)
 
         return encoded_labels
+
+
+class TaggerDataInstance:
+    """
+    This class represents a data instance in a TextNormalizationTaggerDataset.
+
+    Args:
+        w_words: List of words in the written form
+        s_words: List of words in the spoken form
+        direction: Indicates the direction of the instance (i.e., INST_BACKWARD for ITN or INST_FORWARD for TN).
+        do_basic_tokenize: a flag indicates whether to do some basic tokenization (i.e., using word_tokenize() of nltk) before using the tokenizer of the model
+    """
+    def __init__(self, w_words, s_words, direction, do_basic_tokenize = False):
+        # Build input_words and labels
+        input_words, labels = [], []
+        # Task Prefix
+        if direction == constants.INST_BACKWARD:
+            input_words.append(constants.ITN_PREFIX)
+        if direction == constants.INST_FORWARD:
+            input_words.append(constants.TN_PREFIX)
+        labels.append(constants.TASK_TAG)
+        # Main Content
+        for w_word, s_word in zip(w_words, s_words):
+            # Basic tokenization (if enabled)
+            if do_basic_tokenize:
+                w_word = ' '.join(word_tokenize(w_word))
+                if not s_word in constants.SPECIAL_WORDS:
+                    s_word = ' '.join(word_tokenize(s_word))
+            # Update input_words and labels
+            if s_word == constants.SIL_WORD and direction == constants.INST_BACKWARD:
+                continue
+            if s_word == constants.SELF_WORD:
+                input_words.append(w_word)
+                labels.append(constants.SAME_TAG)
+            elif s_word == constants.SIL_WORD:
+                input_words.append(w_word)
+                labels.append(constants.PUNCT_TAG)
+            else:
+                if direction == constants.INST_BACKWARD: input_words.append(s_word)
+                if direction == constants.INST_FORWARD: input_words.append(w_word)
+                labels.append(constants.TRANSFORM_TAG)
+        self.input_words = input_words
+        self.labels = labels

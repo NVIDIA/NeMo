@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
 import torch
 import nltk
 import wordninja
 import nemo.collections.nlp.data.text_normalization.constants as constants
 nltk.download('punkt')
 
+from time import perf_counter
 from typing import List, Optional
 from pytorch_lightning import Trainer
 from omegaconf import DictConfig
@@ -52,8 +52,6 @@ class DuplexDecoderModel(NLPModel):
         Lightning calls this inside the training loop with the data from the training dataloader
         passed in as `batch`.
         """
-        self.train()
-
         # Apply Transformer
         outputs = self.model(
             input_ids=batch['input_ids'].to(self.device),
@@ -233,7 +231,7 @@ class DuplexDecoderModel(NLPModel):
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, mode: str):
         tokenizer, model = self._tokenizer, self.model
-        start_time = time.time()
+        start_time = perf_counter()
         logging.info(f'Creating {mode} dataset')
         input_file = cfg.data_path
         dataset = TextNormalizationDecoderDataset(
@@ -254,7 +252,7 @@ class DuplexDecoderModel(NLPModel):
             shuffle=cfg.shuffle,
             collate_fn=data_collator,
         )
-        running_time = time.time() - start_time
+        running_time = perf_counter() - start_time
         logging.info(f'Took {running_time} seconds')
         return dl
 
