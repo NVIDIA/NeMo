@@ -38,7 +38,7 @@ class DuplexTextNormalizationModel(nn.Module):
     def _infer(self, sents: List[str], inst_directions: List[str]):
         """ Main function for Inference
         Args:
-            sents: A list of inputs tokenized by a basic tokenizer (e.g., using nltk.word_tokenize()).
+            sents: A list of input texts.
             inst_directions: A list of str where each str indicates the direction of the corresponding instance (i.e., INST_BACKWARD for ITN or INST_FORWARD for TN).
 
         Returns: A list of str where each str is the final output text for the corresponding input text
@@ -77,6 +77,15 @@ class DuplexTextNormalizationModel(nn.Module):
         return final_outputs
 
     def input_preprocessing(self, sents):
+        """ Function for preprocessing the input texts. The function first does
+        some basic tokenization using nltk.word_tokenize() and then it processes
+        Greek letters such as Δ or λ (if any).
+
+        Args:
+            sents: A list of input texts.
+
+        Returns: A list of preprocessed input texts.
+        """
         # Basic Tokenization
         sents = [word_tokenize(sent) for sent in sents]
 

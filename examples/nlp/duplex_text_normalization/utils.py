@@ -20,7 +20,7 @@ def instantiate_model_and_trainer(
     model_name: str,
     do_training: bool
 ):
-    """ Functions for instantiating a model and a trainer
+    """ Function for instantiating a model and a trainer
     Args:
         cfg: The config used to instantiate the model and the trainer.
         model_name: A str indicates whether the model to be instantiated is a tagger or a decoder (i.e., model_name should be either TAGGER_MODEL or DECODER_MODEL).

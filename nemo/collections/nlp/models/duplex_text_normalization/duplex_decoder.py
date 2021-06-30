@@ -43,9 +43,6 @@ class DuplexDecoderModel(NLPModel):
         super().__init__(cfg=cfg, trainer=trainer)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(cfg.transformer)
 
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.to(device)
-
     # Training
     def training_step(self, batch, batch_idx):
         """

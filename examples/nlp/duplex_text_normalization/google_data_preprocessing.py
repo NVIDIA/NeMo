@@ -1,6 +1,11 @@
 """
 This script can be used to process the raw data files of the Google Text Normalization dataset
 to obtain data files of the format mentioned in the `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`.
+Note that the script also does some preprocessing on the spoken forms of the URLs. For example,
+given the URL "Zimbio.com", the original expected spoken form in the Google dataset is
+"z_letter i_letter m_letter b_letter i_letter o_letter dot c_letter o_letter m_letter".
+However, our script will return a more concise output which is "zim bio dot com".
+
 
 USAGE Example:
 1. Download the Google TN dataset from https://www.kaggle.com/google-nlu/text-normalization
@@ -143,9 +148,9 @@ if __name__ == '__main__':
             cur_classes, cur_tokens, cur_outputs = inst
             for c, t, o in zip(cur_classes, cur_tokens, cur_outputs):
                 t = ' '.join(word_tokenize(t))
-                if o != 'sil' and o != '<self>':
+                if not o in constants.SPECIAL_WORDS:
                     o_tokens = word_tokenize(o)
-                    o_tokens = [o_tok for o_tok in o_tokens if o_tok != 'sil']
+                    o_tokens = [o_tok for o_tok in o_tokens if o_tok != constants.SIL_WORD]
                     o = ' '.join(o_tokens)
                 output_f.write(f'{c}\t{t}\t{o}\n')
             output_f.write('<eos>\t<eos>\n')

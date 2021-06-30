@@ -49,10 +49,6 @@ class DuplexTaggerModel(NLPModel):
         # Loss Functions
         self.loss_fct = nn.CrossEntropyLoss(ignore_index=constants.LABEL_PAD_TOKEN_ID)
 
-        # Device
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.to(device)
-
         # For validation
         self.val_all_preds, self.val_all_targets = [], []
 
@@ -212,15 +208,26 @@ class DuplexTaggerModel(NLPModel):
             all_tag_preds.append(tag_preds)
 
         # Postprocessing
-        all_tag_preds = [self.postprocess_tag_preds(words, ps)
-                         for words, ps in zip(sents, all_tag_preds)]
+        all_tag_preds = [self.postprocess_tag_preds(words, inst_dir, ps)
+                         for words, inst_dir, ps in zip(sents, inst_directions, all_tag_preds)]
 
         # Decoding
         nb_spans, span_starts, span_ends = self.decode_tag_preds(all_tag_preds)
 
         return all_tag_preds, nb_spans, span_starts, span_ends
 
-    def postprocess_tag_preds(self, words, preds):
+    def postprocess_tag_preds(self, words, inst_dir, preds):
+        """ Function for postprocessing the raw tag predictions of the model. It
+        corrects obvious mistakes in the tag predictions such as a TRANSFORM span
+        starts with I_TRANSFORM_TAG (instead of B_TRANSFORM_TAG).
+
+        Args:
+            words: The words in the input text
+            inst_dir: The direction of the instance (i.e., INST_BACKWARD or INST_FORWARD).
+            preds: The raw tag predictions
+
+        Returns: The processed raw tag predictions
+        """
         final_preds = []
         for ix, p in enumerate(preds):
             # a TRANSFORM span starts with I_TRANSFORM_TAG
@@ -228,14 +235,27 @@ class DuplexTaggerModel(NLPModel):
                 if ix == 0 or (not constants.TRANSFORM_TAG in final_preds[ix-1]):
                     final_preds.append(constants.B_PREFIX + constants.TRANSFORM_TAG)
                     continue
-            # a span has numbers but does not have TRANSFORM tags
-            if has_numbers(words[ix]) and (not constants.TRANSFORM_TAG in p):
-                final_preds.append(constants.B_PREFIX + constants.TRANSFORM_TAG)
-                continue
+            # a span has numbers but does not have TRANSFORM tags (for TN)
+            if inst_dir == constants.INST_FORWARD:
+                if has_numbers(words[ix]) and (not constants.TRANSFORM_TAG in p):
+                    final_preds.append(constants.B_PREFIX + constants.TRANSFORM_TAG)
+                    continue
+            # Default
             final_preds.append(p)
         return final_preds
 
     def decode_tag_preds(self, tag_preds):
+        """ Decoding the raw tag predictions to locate the semiotic spans in the
+        input texts.
+
+        Args:
+            tag_preds: A list of list where each list contains the raw tag predictions for the corresponding input.
+
+        Returns:
+            nb_spans: A list of ints where each int indicates the number of semiotic spans in each input.
+            span_starts: A list of lists where each list contains the starting locations of semiotic spans in an input.
+            span_ends: A list of lists where each list contains the ending locations of semiotic spans in an input.
+        """
         nb_spans, span_starts, span_ends = [], [], []
         for i, preds in enumerate(tag_preds):
             cur_nb_spans, cur_span_start = 0, None
@@ -254,7 +274,6 @@ class DuplexTaggerModel(NLPModel):
             span_ends.append(cur_span_ends)
 
         return nb_spans, span_starts, span_ends
-
 
     # Functions for processing data
     def setup_training_data(self, train_data_config: Optional[DictConfig]):

@@ -1,4 +1,4 @@
-DECODE_CTX_SIZE = 3
+DECODE_CTX_SIZE = 3          # the size of the input context to be provided to the DuplexDecoderModel
 LABEL_PAD_TOKEN_ID = -100
 
 # Task Prefixes
@@ -22,10 +22,10 @@ INST_FORWARD  = 'FORWARD'
 INST_DIRECTIONS = [INST_BACKWARD, INST_FORWARD]
 
 # TAGS
-TASK_TAG = 'TASK'
-SAME_TAG = 'SAME'
-PUNCT_TAG = 'PUNCT'
-TRANSFORM_TAG = 'TRANSFORM'
+SAME_TAG = 'SAME'               # Tag indicates that a token can be kept the same without any further transformation
+TASK_TAG = 'TASK'               # Tag indicates that a token belongs to a task prefix (the prefix indicates whether the current task is TN or ITN)
+PUNCT_TAG = 'PUNCT'             # Tag indicates that a token is a punctuation
+TRANSFORM_TAG = 'TRANSFORM'     # Tag indicates that a token needs to be transformed by the decoder
 ALL_TAGS = [TASK_TAG, SAME_TAG, PUNCT_TAG, TRANSFORM_TAG]
 
 # ALL_TAG_LABELS
