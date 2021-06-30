@@ -135,7 +135,11 @@ class ExportableEncDecJointModel(Exportable):
     def forward_for_decoder_joint_export(self, encoder_output, decoder_inputs, decoder_lengths, state_h=None, state_c=None):
         decoder, joint = self.output_module, self.joint_module
 
-        decoder_outputs = decoder(decoder_inputs, decoder_lengths, state=(state_h, state_c))
+        if state_h is not None and state_c is not None:
+            state = (state_h, state_c)
+        else:
+            state = None
+        decoder_outputs = decoder(decoder_inputs, decoder_lengths, state)
         decoder_output = decoder_outputs[0]
         decoder_length = decoder_outputs[1]
         decoder_states = tuple(decoder_length[2:])
