@@ -2,6 +2,9 @@
 12639/12640~twelve thousand six hundred thirty nine twelve thousand six hundred fortieths
 2/4~two quarters
 1/4~one quarter
+1/4th~one quarter
+1/4TH~one quarter
+1/3RD~one third
 31/32~thirty one thirty seconds
 22/3~twenty two thirds
 1/3~one third
