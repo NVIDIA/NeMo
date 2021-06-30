@@ -686,7 +686,7 @@ class MTEncDecModel(EncDecNLPModel):
             self.target_processor = IndicProcessor(target_lang)
         elif target_lang is not None and target_lang not in ['ja', 'zh', 'hi']:
             self.target_processor = MosesProcessor(target_lang)
-  
+
         return self.source_processor, self.target_processor
 
     @torch.no_grad()
