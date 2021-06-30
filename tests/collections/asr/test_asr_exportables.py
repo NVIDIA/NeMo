@@ -92,13 +92,14 @@ class TestExportable:
     )
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    def test_EncDecRNNTModel_export_to_ts(self, citrinet_rnnt_model):
+    def test_EncDecRNNTModel_export_to_onnx(self, citrinet_rnnt_model):
         citrinet_rnnt_model.freeze()
-        model = citrinet_rnnt_model
+        model = citrinet_rnnt_model.cuda()
+
         with tempfile.TemporaryDirectory() as tmpdir:
             fn = 'citri_rnnt.onnx'
             filename = os.path.join(tmpdir, fn)
-            model.export(output=filename, verbose=True)
+            model.export(output=filename, verbose=False, check_trace=True)
 
             encoder_filename = os.path.join(tmpdir, 'Encoder-' + fn)
             onnx_model = onnx.load(encoder_filename)

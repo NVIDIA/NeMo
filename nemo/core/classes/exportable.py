@@ -202,26 +202,31 @@ class Exportable(ABC):
         onnx_model = onnx.load(output)
         onnx.checker.check_model(onnx_model, full_check=True)
         test_runtime = check_trace
-        if test_runtime:
-            try:
-                import onnxruntime
-            except (ImportError, ModuleNotFoundError):
-                test_runtime = False
-                logging.warning(f"ONNX generated at {output}, not verified - please install onnxruntime.\n")
-        if test_runtime:
-            sess = onnxruntime.InferenceSession(onnx_model.SerializeToString())
 
-            ort_out = sess.run(None, to_onnxrt_input(input_names, input_list, input_dict))
-            all_good = True
-            for out_name, out in enumerate(ort_out):
-                expected = output_example[out_name].cpu()
-                if not torch.allclose(
-                    torch.from_numpy(out), expected, rtol=check_tolerance, atol=100 * check_tolerance
-                ):
-                    all_good = False
-                    logging.info(f"onnxruntime results mismatch! PyTorch(expected):\n{expected}\nONNXruntime:\n{out}")
-            status = "SUCCESS" if all_good else "FAIL"
-            logging.info(f"ONNX generated at {output} verified with onnxruntime : " + status)
+        if test_runtime:
+            self._verify_runtime(
+                onnx_model, input_list, input_dict, input_names, output_example, output, check_tolerance
+            )
+
+    def _verify_runtime(
+        self, onnx_model, input_list, input_dict, input_names, output_example, output, check_tolerance
+    ):
+        try:
+            import onnxruntime
+        except (ImportError, ModuleNotFoundError):
+            logging.warning(f"ONNX generated at {output}, not verified - please install onnxruntime.\n")
+            return
+
+        sess = onnxruntime.InferenceSession(onnx_model.SerializeToString())
+        ort_out = sess.run(None, to_onnxrt_input(input_names, input_list, input_dict))
+        all_good = True
+        for out_name, out in enumerate(ort_out):
+            expected = output_example[out_name].cpu()
+            if not torch.allclose(torch.from_numpy(out), expected, rtol=check_tolerance, atol=100 * check_tolerance):
+                all_good = False
+                logging.info(f"onnxruntime results mismatch! PyTorch(expected):\n{expected}\nONNXruntime:\n{out}")
+        status = "SUCCESS" if all_good else "FAIL"
+        logging.info(f"ONNX generated at {output} verified with onnxruntime : " + status)
 
     def _export_onnx(
         self,

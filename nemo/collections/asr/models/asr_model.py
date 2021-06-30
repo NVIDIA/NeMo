@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 import os
 from abc import ABC, abstractmethod
 from typing import List, Optional, Union
@@ -131,9 +132,9 @@ class ExportableEncDecJointModel(Exportable):
 
         return encoder_output
 
-    def forward_for_decoder_joint_export(self, encoder_output, decoder_inputs, decoder_lengths):
+    def forward_for_decoder_joint_export(self, encoder_output, decoder_inputs, decoder_lengths, states):
         decoder, joint = self.output_module, self.joint_module
-        decoder_output = decoder(decoder_inputs, decoder_lengths)
+        decoder_output = decoder(decoder_inputs, decoder_lengths, states)
         if isinstance(decoder_output, tuple):
             decoder_output = decoder_output[0]
 
@@ -300,7 +301,7 @@ class ExportableEncDecJointModel(Exportable):
                 self._verify_onnx_export(
                     self._augment_output_filename(output, "Decoder-Joint"),
                     decoder_joint_output_example,
-                    encoder_decoder_input_list,
+                    tuple(encoder_decoder_input_list),
                     encoder_decoder_input_dict,
                     self._join_input_output_names(["enc_logits"], decoder_input_names),
                     check_tolerance,
@@ -382,10 +383,11 @@ class ExportableEncDecJointModel(Exportable):
     def _get_dynamic_axes(self, dynamic_axes, input_names, output_names, use_dynamic_axes):
         # dynamic axis is a mapping from input/output_name => list of "dynamic" indices
         if dynamic_axes is None and use_dynamic_axes:
+            dynamic_axes = super()._get_dynamic_axes(dynamic_axes, input_names, output_names, use_dynamic_axes)
+
             if self._export_flag_module == 'encoder':
-                dynamic_axes = super()._get_dynamic_axes(dynamic_axes, input_names, output_names, use_dynamic_axes)
+                return dynamic_axes
             else:
-                dynamic_axes = {}
                 dynamic_axes = {
                     **dynamic_axes,
                     **exportable.get_input_dynamic_axes(self.output_module, input_names),
