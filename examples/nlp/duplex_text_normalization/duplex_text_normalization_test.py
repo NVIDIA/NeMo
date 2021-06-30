@@ -93,12 +93,14 @@ def main(cfg: DictConfig) -> None:
 
         # Metrics
         for direction in constants.INST_DIRECTIONS:
-            cur_preds, cur_targets = [], []
+            cur_dirs, cur_preds, cur_targets = [], [], []
             for dir, pred, target in zip(all_dirs, all_preds, all_targets):
                 if dir == direction:
+                    cur_dirs.append(dir)
                     cur_preds.append(pred)
                     cur_targets.append(target)
-            sent_accuracy = TextNormalizationTestDataset.compute_sent_accuracy(cur_preds, cur_targets)
+            sent_accuracy = \
+                TextNormalizationTestDataset.compute_sent_accuracy(cur_preds, cur_targets, cur_dirs)
             logging.info(f'Direction {direction}')
             logging.info(f'Sentence Accuracy: {sent_accuracy}')
         logging.info(f'Average running time: {np.average(all_run_times) / batch_size} ms')

@@ -72,7 +72,6 @@ class DuplexDecoderModel(NLPModel):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        self.eval()
 
         # Apply Transformer
         outputs = self.model(
@@ -202,7 +201,7 @@ class DuplexDecoderModel(NLPModel):
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         if not train_data_config or not train_data_config.data_path:
             logging.info(
-                f"Dataloader config or file_path for the train is missing, so no data loader for test is created!"
+                f"Dataloader config or file_path for the train is missing, so no data loader for train is created!"
             )
             self._train_dl = None
             return
@@ -211,7 +210,7 @@ class DuplexDecoderModel(NLPModel):
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if not val_data_config or not val_data_config.data_path:
             logging.info(
-                f"Dataloader config or file_path for the validation is missing, so no data loader for test is created!"
+                f"Dataloader config or file_path for the validation is missing, so no data loader for validation is created!"
             )
             self._validation_dl = None
             return

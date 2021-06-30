@@ -19,7 +19,7 @@ from copy import deepcopy
 from nltk import word_tokenize
 from typing import List
 
-from nemo.collections.nlp.data.text_normalization.utils import read_data_file, normalize_str
+from nemo.collections.nlp.data.text_normalization.utils import read_data_file, normalize_str, remove_puncts
 
 __all__ = ['TextNormalizationTestDataset']
 
@@ -71,13 +71,27 @@ class TextNormalizationTestDataset:
         return len(self.inputs)
 
     @staticmethod
-    def compute_sent_accuracy(preds: List[str], targets: List[str]):
-        """Given predicted strings and target strings, compute the sentence accuracy metric."""
+    def compute_sent_accuracy(
+        preds: List[str],
+        targets: List[str],
+        inst_directions: List[str]
+    ):
+        """
+        Compute the sentence accuracy metric.
+
+        Args:
+            preds: List of predicted strings.
+            targets: List of target strings.
+            inst_directions: A list of str where each str indicates the direction of the corresponding instance (i.e., INST_BACKWARD or INST_FORWARD).
+        """
         assert(len(preds) == len(targets))
         if len(targets) == 0: return 'NA'
         # Sentence Accuracy
         correct_count = 0
-        for pred, target in zip(preds, targets):
+        for inst_dir, pred, target in zip(inst_directions, preds, targets):
+            if inst_dir == constants.INST_BACKWARD:
+                pred = remove_puncts(pred)
+                target = remove_puncts(target)
             pred = normalize_str(pred)
             target = normalize_str(target)
             correct_count += int(pred == target)
