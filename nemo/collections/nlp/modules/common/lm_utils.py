@@ -102,8 +102,8 @@ def get_lm_model(
             config_dict=config_dict, config_file=config_file, pretrained_model_name=pretrained_model_name,
         )
 
-    #if checkpoint_file and os.path.exists(checkpoint_file):
-    #    model.restore_weights(restore_path=checkpoint_file)
+    if checkpoint_file and os.path.exists(checkpoint_file):
+        model.restore_weights(restore_path=checkpoint_file)
 
     return model
 
