@@ -60,7 +60,9 @@ class ElectronicFst(GraphFst):
             + domain
             + pynutil.insert("\"")
         )
-        graph = username + delete_extra_space + pynutil.delete("arroba") + insert_space + delete_extra_space + domain_graph
+        graph = (
+            username + delete_extra_space + pynutil.delete("arroba") + insert_space + delete_extra_space + domain_graph
+        )
 
         final_graph = self.add_tokens(graph)
         self.fst = final_graph.optimize()
