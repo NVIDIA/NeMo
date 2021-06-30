@@ -13,8 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path, load_labels
-from nemo_text_processing.text_normalization.graph_utils import NEMO_DIGIT, GraphFst, delete_extra_space, insert_space
+from collections import defaultdict
+
+from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
+from nemo_text_processing.text_normalization.graph_utils import NEMO_DIGIT, GraphFst, insert_space, load_labels
 
 try:
     import pynini
@@ -27,6 +29,25 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
+def prepare_labels_for_insertion(file_path: str):
+    """
+    Read the file and creates a union insertion graph
+
+    Args:
+    file_path: path to a file (single column)
+
+    Returns fst that inserts labels from the file
+    """
+    labels = load_labels(file_path)
+    map = defaultdict(list)
+    for k, v in labels:
+        map[k].append(v)
+
+    for k in map:
+        map[k] = insert_space + pynini.union(*[pynutil.insert(end) for end in map[k]])
+    return map
+
+
 class DecimalFst(GraphFst):
     """
     Finite state transducer for classifying decimal, e.g. 
@@ -36,29 +57,24 @@ class DecimalFst(GraphFst):
     cardinal: CardinalFst
     """
 
-    def __init__(self, cardinal: GraphFst, deterministic: bool = False):
+    def __init__(self, cardinal: GraphFst, ordinal: GraphFst, deterministic: bool = False):
         super().__init__(name="decimal", kind="classify", deterministic=deterministic)
 
+        integer_part = cardinal.cardinal_numbers | ordinal.ordinal_numbers
         cardinal_numbers_with_leading_zeros = cardinal.cardinal_numbers_with_leading_zeros
-        cardinal_numbers_with_optional_negative = cardinal.cardinal_numbers_with_optional_negative
+        optional_graph_negative = cardinal.optional_graph_negative
 
-        delimiter = (pynini.cross(",", " целых") | pynini.cross(",", " целых и")).optimize()
+        delimiter_map = prepare_labels_for_insertion(get_abs_path("ru/data/decimal_delimiter.tsv"))
+        delimiter = (
+            pynini.cross(",", "") + delimiter_map['@@decimal_delimiter@@'] + pynini.closure(pynutil.insert(" и"), 0, 1)
+        ).optimize()
 
-        from collections import defaultdict
-
-        decimal_endings = load_labels(get_abs_path("ru/data/decimal_endings.tsv"))
-        decimal_endings_map = defaultdict(list)
-        for k, v in decimal_endings:
-            decimal_endings_map[k].append(v)
-
-        for k in decimal_endings_map:
-            decimal_endings_map[k] = pynini.closure(
-                insert_space + pynini.union(*[pynutil.insert(end) for end in decimal_endings_map[k]]), 0, 1
-            )
+        decimal_endings_map = prepare_labels_for_insertion(get_abs_path("ru/data/decimal_endings.tsv"))
 
         graph_integer = (
             pynutil.insert("integer_part: \"")
-            + cardinal_numbers_with_optional_negative
+            + optional_graph_negative
+            + integer_part
             + delimiter
             + pynutil.insert("\"")
         )

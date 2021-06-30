@@ -18,7 +18,6 @@ from collections import defaultdict
 
 from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path, load_labels
 from nemo_text_processing.text_normalization.graph_utils import NEMO_SIGMA, GraphFst
-from nemo_text_processing.text_normalization.ru.taggers.number_names import NumberNamesFst
 
 try:
     import pynini
@@ -36,17 +35,11 @@ class AlternativeFormatsFst(GraphFst):
     """
 
     def __init__(self):
-        one_thousand_cases = [
-            "одна тысяча",
-            "одной тысячи",
-            "одной тысяче",
-            "одну тысячу",
-            "одной тысячей",
-            "одной тысяче",
-        ]
+        one_alternatives = load_labels(get_abs_path('ru/data/cardinals_alternatives.tsv'))
         one_thousand_map = []
-        for k in one_thousand_cases:
-            one_thousand_map.append((k.split()[1], k))
+        for k in one_alternatives:
+            default, alternative = k
+            one_thousand_map.append((alternative.split()[1], alternative))
         one_thousand_map = pynini.string_map(one_thousand_map)
 
         self.one_thousand_alternative = pynini.cdrewrite(one_thousand_map, "[BOS]", "", NEMO_SIGMA)
@@ -65,5 +58,5 @@ class AlternativeFormatsFst(GraphFst):
 
         # skipped I and D in numbers.grm
 
-        # TODO add support for space separted numbers "12 000"
+        # TODO add support for space separated numbers "12 000"
         self.separators = t['dot_thousands'] | t['no_delimiter']

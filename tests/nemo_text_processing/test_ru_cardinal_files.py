@@ -63,7 +63,7 @@ if __name__ == '__main__':
     # print(inverse_normalizer.inverse_normalize("миллион сто двадцать три тысячи", verbose=True)
 
     # test_cases = parse_test_case_file('data_inverse_text_normalization/test_ru_cases_cardinal_last_file.txt')
-    test_cases = parse_test_case_file('ru_data_inverse_text_normalization/test_ru_cases_ordinal_sample.txt')
+    test_cases = parse_test_case_file('ru_data_text_normalization/test_ru_cases_ordinal_sample.txt')
     # test_cases = parse_test_case_file('./missing_ru_cases_cardinal.txt')
     count_correct = 0
     count_wrong = 0

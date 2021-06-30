@@ -15,9 +15,10 @@
 
 import os
 import string
+from collections import defaultdict
 from pathlib import Path
 
-from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
+from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path, load_labels
 
 try:
     import pynini

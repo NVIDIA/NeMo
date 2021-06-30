@@ -60,14 +60,14 @@ class CardinalFst(GraphFst):
         # "03" -> remove leading zeros and verbalize
         leading_zeros = pynini.closure(pynini.cross("0", ""))
         self.cardinal_numbers_with_leading_zeros = (leading_zeros + cardinal_numbers).optimize()
-        self.cardinal_numbers_with_leading_zeros_with_optional_negative = (
+        final_graph = (
             self.optional_graph_negative
             + pynutil.insert("integer: \"")
             + self.cardinal_numbers_with_leading_zeros
             + pynutil.insert("\"")
         ).optimize()
 
-        final_graph = self.add_tokens(self.cardinal_numbers_with_leading_zeros_with_optional_negative)
+        final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
 
 

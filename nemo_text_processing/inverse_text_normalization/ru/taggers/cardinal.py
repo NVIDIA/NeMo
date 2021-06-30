@@ -5,7 +5,8 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/license
+#     s/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,7 +15,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.graph_utils import NEMO_SIGMA, GraphFst
+from nemo_text_processing.text_normalization.graph_utils import GraphFst, insert_space
 
 try:
     import pynini
@@ -41,8 +42,11 @@ class CardinalFst(GraphFst):
         from nemo_text_processing.text_normalization.ru.taggers.cardinal import CardinalFst
 
         graph = CardinalFst(deterministic=False).cardinal_numbers
-        graph = graph.invert().optimize()
-        self.graph = graph
-        graph = pynutil.insert("integer: \"") + graph + pynutil.insert("\"")
+        self.graph = graph.invert().optimize()
+
+        optional_sign = pynini.closure(
+            pynutil.insert("negative: ") + pynini.cross("минус ", "\"-\"") + insert_space, 0, 1
+        )
+        graph = optional_sign + pynutil.insert("integer: \"") + graph + pynutil.insert("\"")
         graph = self.add_tokens(graph)
         self.fst = graph.optimize()
