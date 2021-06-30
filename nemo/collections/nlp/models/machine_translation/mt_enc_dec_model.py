@@ -522,9 +522,7 @@ class MTEncDecModel(EncDecNLPModel):
                 tgt_file_list = [tgt_file_list]
 
             if len(src_file_list) != len(tgt_file_list):
-                raise ValueError(
-                    'The same number of filepaths must be passed in for source and target while training multilingual.'
-                )
+                raise ValueError('The same number of filepaths must be passed in for source and target.')
 
             datasets = []
             for idx, src_file in enumerate(src_file_list):
