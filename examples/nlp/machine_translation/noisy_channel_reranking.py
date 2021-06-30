@@ -63,6 +63,31 @@ from nemo.collections.nlp.modules.common.transformer import (
 from nemo.utils import logging
 
 
+def score_fusion(args, forward_scores, rev_scores, lm_scores, src_lens, tgt_lens):
+    """
+    Fuse forward, reverse and language model scores.
+    """
+    fused_scores = []
+    for forward_score, rev_score, lm_score in zip(forward_scores, rev_scores, lm_scores):
+        score = 0
+
+        forward_score = forward_score / tgt_lens if args.length_normalize_scores else forward_score
+        score += args.forward_model_coef * forward_score
+
+        rev_score = rev_score / src_lens if args.length_normalize_scores else rev_score
+        score += args.reverse_model_coef * rev_score
+
+        lm_score = lm_score / tgt_lens if args.length_normalize_scores else lm_score
+        score += args.target_lm_coef * lm_score
+
+        if args.lenpen is not None:
+            score /= (tgt_lens) ** args.lenpen
+
+        fused_scores.append(score)
+
+    return fused_scores
+
+
 def main():
     parser = ArgumentParser()
     parser.add_argument(
@@ -107,7 +132,12 @@ def main():
     parser.add_argument(
         "--tgtout", type=str, required=True, help="Path to the file where re-ranked translations are to be written."
     )
-    parser.add_argument("--beam_size", type=int, default=4, help="Beam size.")
+    parser.add_argument(
+        "--beam_size",
+        type=int,
+        default=4,
+        help="Beam size with which forward model translations were generated. IMPORTANT: mismatch can lead to wrong results and an incorrect number of generated translations.",
+    )
     parser.add_argument(
         "--len_pen", type=float, default=0.6, help="Length Penalty. Ref: https://arxiv.org/abs/1609.08144"
     )
@@ -117,7 +147,20 @@ def main():
     parser.add_argument(
         "--source_lang", type=str, default=None, help="Source language identifier ex: en,de,fr,es etc."
     )
-    parser.add_argument("--write_scores", action="store_true", help="Source language identifier ex: en,de,fr,es etc.")
+    parser.add_argument(
+        "--write_scores", action="store_true", help="Whether to write forward, reverse and lm scores to a file."
+    )
+    parser.add_argument(
+        "--length_normalize_scores",
+        action="store_true",
+        help="If true, it will divide forward, reverse and lm scores by the corresponding sequence length.",
+    )
+    parser.add_argument(
+        "--lenpen",
+        type=float,
+        default=None,
+        help="Apply a length penalty based on target lengths to the final NCR score.",
+    )
 
     args = parser.parse_args()
     torch.set_grad_enabled(False)
@@ -155,56 +198,85 @@ def main():
     all_lm_scores = []
     all_forward_scores = []
 
-    with open(args.srctext, 'r') as src_f:
-        count = 0
-        for line in src_f:
-            src_text.append(line.strip().split('\t'))
-            if len(src_text) == args.beam_size:
-                # Source and target sequences for the reverse direction model.
-                src_texts = [item[1] for item in src_text]
-                tgt_texts = [item[0] for item in src_text]
-                src, src_mask = reverse_models[0].prepare_inference_batch(src_texts)
-                tgt, tgt_mask = reverse_models[0].prepare_inference_batch(tgt_texts, target=True)
-                forward_scores = [float(item[2]) for item in src_text]
+    # Chceck args if re-ranking from cached score file.
+    if args.cached_score_file is not None:
+        if args.write_scores:
+            raise ValueError("--write_scores cannot be provided with a cached score file.")
+        if args.reverse_model is not None:
+            raise ValueError(
+                "--reverse_model cannot be provided with a cached score file since it assumes reverse scores already present in the cached file."
+            )
+        if args.language_model is not None:
+            raise ValueError(
+                "--language_model cannot be provided with a cached score file since it assumes language model scores already present in the cached file."
+            )
 
-                # Ensemble of reverse model scores.
-                nmt_lls = []
-                for model in reverse_models:
-                    nmt_log_probs = model(src, src_mask, tgt[:, :-1], tgt_mask[:, :-1])
-                    nmt_nll = model.eval_loss_fn(log_probs=nmt_log_probs, labels=tgt[:, 1:])
-                    nmt_ll = nmt_nll.view(nmt_log_probs.size(0), nmt_log_probs.size(1)).sum(1) * -1.0
-                    nmt_ll = nmt_ll.data.cpu().numpy().tolist()
-                    nmt_lls.append(nmt_ll)
-                rev_nmt_scores = np.stack(nmt_lls).mean(0)
+    if args.srctext is not None:
+        # Compute reverse scores and LM scores from the provided models since cached scores file is not provided.
+        with open(args.srctext, 'r') as src_f:
+            count = 0
+            for line in src_f:
+                src_text.append(line.strip().split('\t'))
+                if len(src_text) == args.beam_size:
+                    # Source and target sequences for the reverse direction model.
+                    src_texts = [item[1] for item in src_text]
+                    tgt_texts = [item[0] for item in src_text]
+                    src, src_mask = reverse_models[0].prepare_inference_batch(src_texts)
+                    tgt, tgt_mask = reverse_models[0].prepare_inference_batch(tgt_texts, target=True)
+                    src_lens = src_mask.sum(1).data.cpu().tolist()
+                    tgt_lens = tgt_mask.sum(1).data.cpu().tolist()
+                    forward_scores = [float(item[2]) for item in src_text]
 
-                # LM scores.
-                if lm_model is not None:
-                    lm_log_probs = lm_model(src[:, :-1], src_mask[:, :-1])
-                    lm_nll = model.eval_loss_fn(log_probs=lm_log_probs, labels=src[:, 1:])
-                    lm_ll = lm_nll.view(lm_log_probs.size(0), lm_log_probs.size(1)).sum(1) * -1.0
-                    lm_ll = lm_ll.data.cpu().numpy().tolist()
-                else:
-                    lm_ll = None
-                lm_scores = [None] * len(rev_nmt_scores) if lm_ll is None else lm_ll
+                    # Ensemble of reverse model scores.
+                    nmt_lls = []
+                    for model in reverse_models:
+                        nmt_log_probs = model(src, src_mask, tgt[:, :-1], tgt_mask[:, :-1])
+                        nmt_nll = model.eval_loss_fn(log_probs=nmt_log_probs, labels=tgt[:, 1:])
+                        nmt_ll = nmt_nll.view(nmt_log_probs.size(0), nmt_log_probs.size(1)).sum(1) * -1.0
+                        nmt_ll = nmt_ll.data.cpu().numpy().tolist()
+                        nmt_lls.append(nmt_ll)
+                    reverse_scores = np.stack(nmt_lls).mean(0)
 
-                all_reverse_scores.extend(rev_nmt_scores)
-                all_lm_scores.extend(lm_scores)
-                all_forward_scores.extend(forward_scores)
+                    # LM scores.
+                    if lm_model is not None:
+                        lm_log_probs = lm_model(src[:, :-1], src_mask[:, :-1])
+                        lm_nll = model.eval_loss_fn(log_probs=lm_log_probs, labels=src[:, 1:])
+                        lm_ll = lm_nll.view(lm_log_probs.size(0), lm_log_probs.size(1)).sum(1) * -1.0
+                        lm_ll = lm_ll.data.cpu().numpy().tolist()
+                    else:
+                        lm_ll = None
+                    lm_scores = lm_ll
 
-                # Score fusion.
-                fused_scores = []
-                for forward_score, rev_score, lm_score in zip(forward_scores, rev_nmt_scores, lm_scores):
-                    lm_score = 0 if lm_score is None else lm_score
-                    score = (
-                        args.forward_model_coef * forward_score
-                        + args.reverse_model_coef * rev_score
-                        + args.target_lm_coef * lm_score
-                    )
-                    fused_scores.append(score)
-                tgt_text.append(src_texts[np.argmax(fused_scores)])
-                src_text = []
-                count += 1
-                print(f'Reranked {count} sentences')
+                    all_reverse_scores.extend(reverse_scores)
+                    all_lm_scores.extend(lm_scores)
+                    all_forward_scores.extend(forward_scores)
+
+                    fused_scores = score_fusion(args, forward_scores, reverse_scores, lm_scores, src_lens, tgt_lens)
+                    tgt_text.append(src_texts[np.argmax(fused_scores)])
+                    src_text = []
+                    count += 1
+                    print(f'Reranked {count} sentences')
+
+    else:
+        # Use reverse and LM scores from the cached scores file to re-rank.
+        with open(args.cached_score_file, 'r') as src_f:
+            count = 0
+            for line in src_f:
+                src_text.append(line.strip().split('\t'))
+                if len(src_text) == args.beam_size:
+                    if not all([len(item) == 5 for item in src_text]):
+                        raise IndexError(
+                            "All lines did not contain exactly 5 fields. Format - src_txt \t tgt_text \t forward_score \t reverse_score \t lm_score"
+                        )
+                    forward_scores = [float(item[2]) for item in src_text]
+                    reverse_scores = [float(item[3]) for item in src_text]
+                    lm_scores = [float(item[4]) for item in src_text]
+
+                    fused_scores = score_fusion(args, forward_scores, reverse_scores, lm_scores, src_lens, tgt_lens)
+                    tgt_text.append(src_texts[np.argmax(fused_scores)])
+                    src_text = []
+                    count += 1
+                    print(f'Reranked {count} sentences')
 
     with open(args.tgtout, 'w') as tgt_f:
         for line in tgt_text:

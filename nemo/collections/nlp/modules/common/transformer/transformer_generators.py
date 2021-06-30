@@ -384,7 +384,7 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         tgt = prefixes.view(batch_size, self.beam_size, -1).gather(1, best_guesses).squeeze(1)
 
         if return_beam_scores:
-            return prefixes, scores, tgt
+            return prefixes, scores * len_penalties, tgt
         else:
             return tgt
 
@@ -676,7 +676,7 @@ class EnsembleBeamSearchSequenceGenerator:
         tgt = prefixes.view(batch_size, self.beam_size, -1).gather(1, best_guesses).squeeze(1)
 
         if return_beam_scores:
-            return prefixes, scores, tgt
+            return prefixes, scores * len_penalties, tgt
         else:
             return tgt
 
@@ -895,6 +895,6 @@ class BeamSearchSequenceGeneratorWithLanguageModel(GreedySequenceGenerator):
         tgt = prefixes.view(batch_size, self.beam_size, -1).gather(1, best_guesses).squeeze(1)
 
         if return_beam_scores:
-            return prefixes, scores, tgt
+            return prefixes, scores * len_penalties, tgt
         else:
             return tgt
