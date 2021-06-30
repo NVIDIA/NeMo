@@ -99,7 +99,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         return {
             "targets": NeuralType(('B', 'T'), LabelsType()),
             "target_length": NeuralType(tuple('B'), LengthsType()),
-            "states": [NeuralType(('B', 'D'), ElementType(), optional=True)],
+            "states": [NeuralType(('B', 'D'), ElementType(), optional=True)],  # must always be last
         }
 
     @property
@@ -109,7 +109,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         return {
             "outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
             "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
-            "states": [NeuralType((('B', 'D')), ElementType(), optional=True)],
+            "states": [NeuralType((('B', 'D')), ElementType(), optional=True)],  # must always be last
         }
 
     def _prepare_for_export(self, **kwargs):
@@ -127,7 +127,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         )
         target_length = torch.randint(0, length, size=(16,), dtype=torch.int32).to(next(self.parameters()).device)
         states = self.initialize_state(targets.float())
-        return (targets, target_length, )  # states
+        return (targets, target_length, states)
 
     @property
     def disabled_deployment_input_names(self):
@@ -137,7 +137,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
     @property
     def disabled_deployment_output_names(self):
         """Implement this method to return a set of output names disabled for export"""
-        return set(["states"])
+        return set([])
 
     def __init__(
         self,
