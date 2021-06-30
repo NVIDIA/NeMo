@@ -107,8 +107,9 @@ parser.add_argument(
 parser.add_argument(
     '--max_duration',
     default=None,
+    required=True,
     type=float,
-    help='Maximum duration of audio clip in the dataset. By default, it is None and will not filter files.',
+    help='Maximum duration of audio clip in the dataset. By default, it is None and is required to be set.',
 )
 parser.add_argument(
     '--min_duration',
