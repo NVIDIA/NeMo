@@ -83,8 +83,17 @@ def to_onnxrt_input(input_names, input_list, input_dict):
     for k, v in input_dict.items():
         odict[k] = v.cpu().numpy()
     for i, input in enumerate(input_list):
-        odict[input_names[i]] = input.cpu().numpy()
+        if type(input) in (list, tuple):
+            odict[input_names[i]] = tuple([ip.cpu().numpy() for ip in input])
+        else:
+            odict[input_names[i]] = input.cpu().numpy()
     return odict
+
+
+def unpack_nested_neural_type(neural_type):
+    if type(neural_type) in (list, tuple):
+        return neural_type[0]
+    return neural_type
 
 
 class Exportable(ABC):
@@ -334,6 +343,9 @@ class Exportable(ABC):
 
         """
         dynamic_axes = defaultdict(list)
+        if type(ntype) in (list, tuple):
+            ntype = unpack_nested_neural_type(ntype)
+
         if ntype.axes:
             for ind, axis in enumerate(ntype.axes):
                 if axis.kind in [AxisKind.Batch, AxisKind.Time, AxisKind.Width, AxisKind.Height]:

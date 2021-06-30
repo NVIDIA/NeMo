@@ -134,12 +134,13 @@ class ExportableEncDecJointModel(Exportable):
 
     def forward_for_decoder_joint_export(self, encoder_output, decoder_inputs, decoder_lengths, states):
         decoder, joint = self.output_module, self.joint_module
-        decoder_output = decoder(decoder_inputs, decoder_lengths, states)
-        if isinstance(decoder_output, tuple):
-            decoder_output = decoder_output[0]
+        decoder_outputs = decoder(decoder_inputs, decoder_lengths, states)
+        decoder_output = decoder_outputs[0]
+        decoder_states = tuple(decoder_outputs[-1])
 
         joint_output = joint(encoder_output, decoder_output)
-        return joint_output
+
+        return joint_output, decoder_states
 
     def export(
         self,
@@ -200,7 +201,7 @@ class ExportableEncDecJointModel(Exportable):
         decoder_input_list, decoder_input_dict = self._setup_input_example(decoder_examples)
 
         encoder_input_names, decoder_input_names = self._process_input_names()
-        decoder_output_names, joint_output_names = self._process_output_names()
+        encoder_output_names, decoder_output_names, joint_output_names = self._process_output_names()
 
         with torch.jit.optimized_execution(True), torch.no_grad():
             # Encoder export
@@ -249,8 +250,8 @@ class ExportableEncDecJointModel(Exportable):
                     encoder_jitted_model,
                     encoder_examples,
                     encoder_output_example,
-                    self._join_input_output_names(encoder_input_names, decoder_input_names),
-                    self._join_input_output_names(decoder_output_names, joint_output_names),
+                    encoder_input_names,
+                    encoder_output_names,
                     use_dynamic_axes,
                     do_constant_folding,
                     dynamic_axes,
@@ -277,16 +278,21 @@ class ExportableEncDecJointModel(Exportable):
                 encoder_decoder_input_list = [encoder_output_example] + list(decoder_input_list)
                 encoder_decoder_input_dict = decoder_input_dict
 
+                # state management
+                if type(encoder_decoder_input_list[-1]) in (list, tuple):
+                    encoder_decoder_input_list[-1] = tuple(encoder_decoder_input_list[-1])
+
                 # Allow user to completely override forward method to export
                 forward_method, _ = self._wrap_forward_method('decoder_joint')
                 decoder_joint_output_example = self.forward(*encoder_decoder_input_list, **encoder_decoder_input_dict)
+                decoder_joint_output_example = tuple(decoder_joint_output_example)
 
                 self._export_onnx(
                     None,
                     tuple(encoder_decoder_input_list),
                     decoder_joint_output_example,
                     self._join_input_output_names(["enc_logits"], decoder_input_names),
-                    self._join_input_output_names(decoder_output_names, joint_output_names),
+                    self._join_input_output_names(joint_output_names, decoder_output_names),
                     use_dynamic_axes,
                     do_constant_folding,
                     dynamic_axes,
@@ -370,15 +376,20 @@ class ExportableEncDecJointModel(Exportable):
 
     def _process_output_names(self):
         decoder_output_names = super()._process_output_names()
+        encoder_output_names = exportable.get_output_names(self.input_module)
         joint_output_names = exportable.get_output_names(self.joint_module)
 
         for name in self.disabled_deployment_output_names:
+            if name in encoder_output_names:
+                encoder_output_names.remove(name)
+
             if name in decoder_output_names:
                 decoder_output_names.remove(name)
 
             if name in joint_output_names:
                 joint_output_names.remove(name)
-        return decoder_output_names, joint_output_names
+
+        return encoder_output_names, decoder_output_names, joint_output_names
 
     def _get_dynamic_axes(self, dynamic_axes, input_names, output_names, use_dynamic_axes):
         # dynamic axis is a mapping from input/output_name => list of "dynamic" indices
@@ -397,7 +408,6 @@ class ExportableEncDecJointModel(Exportable):
                     **exportable.get_output_dynamic_axes(self.joint_module, output_names),
                 }
 
-                print("dynamic axes", dynamic_axes)
         return dynamic_axes
 
     def _augment_output_filename(self, output, prepend: str):

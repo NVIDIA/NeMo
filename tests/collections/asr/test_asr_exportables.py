@@ -113,6 +113,8 @@ class TestExportable:
             assert onnx_model.graph.input[0].name == 'enc_logits'
             assert onnx_model.graph.input[1].name == 'targets'
             assert onnx_model.graph.output[0].name == 'outputs'
+            assert onnx_model.graph.output[1].name == 'states'
+            assert len(onnx_model.graph.output) == 2
 
     def setup_method(self):
         self.preprocessor = {
