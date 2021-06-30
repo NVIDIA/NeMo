@@ -132,15 +132,15 @@ class ExportableEncDecJointModel(Exportable):
 
         return encoder_output
 
-    def forward_for_decoder_joint_export(self, encoder_output, decoder_inputs, decoder_lengths, states):
+    def forward_for_decoder_joint_export(self, encoder_output, decoder_inputs, decoder_lengths=None):
         decoder, joint = self.output_module, self.joint_module
 
-        decoder_outputs = decoder(decoder_inputs, decoder_lengths, states=states)
+        decoder_outputs = decoder(decoder_inputs, decoder_lengths)
         decoder_output = decoder_outputs[0]
         decoder_states = decoder_outputs[-1]
 
         joint_output = joint(encoder_output, decoder_output)
-        return joint_output, decoder_states
+        return joint_output#  , decoder_states
 
     def export(
         self,
@@ -303,7 +303,7 @@ class ExportableEncDecJointModel(Exportable):
                     self._join_input_output_names(["enc_logits"], decoder_input_names),
                     self._join_input_output_names(joint_output_names, decoder_output_names),
                     use_dynamic_axes,
-                    do_constant_folding,
+                    False,
                     dynamic_axes,
                     self._augment_output_filename(output, "Decoder-Joint"),
                     export_params,
@@ -333,6 +333,52 @@ class ExportableEncDecJointModel(Exportable):
         #     if forward_method:
         #         type(self).forward = original_forward_method
         return ([output], [output_descr])
+
+    def _export_onnx(
+        self,
+        jitted_model,
+        input_example,
+        output_example,
+        input_names,
+        output_names,
+        use_dynamic_axes,
+        do_constant_folding,
+        dynamic_axes,
+        output,
+        export_params,
+        keep_initializers_as_inputs,
+        onnx_opset_version,
+        verbose,
+    ):
+        if jitted_model is None:
+            jitted_model = self
+
+        dynamic_axes = self._get_dynamic_axes(dynamic_axes, input_names, output_names, use_dynamic_axes)
+
+        # if type(input_example[-1]) in (list, tuple):
+        #     name = input_names[-1]
+        #     del input_names[-1]
+        #     for i in range(len(input_example[-1])):
+        #         input_names.append(f'{name}_{i}')
+
+        # print(input_example)
+        print(input_names)
+        input_example = input_example[:2]
+
+        torch.onnx.export(
+            jitted_model,
+            input_example,
+            output,
+            input_names=input_names,
+            output_names=output_names,
+            verbose=verbose,
+            export_params=export_params,
+            do_constant_folding=do_constant_folding,
+            keep_initializers_as_inputs=keep_initializers_as_inputs,
+            dynamic_axes=dynamic_axes,
+            opset_version=onnx_opset_version,
+            example_outputs=output_example,
+        )
 
     def _prepare_for_export(self, **kwargs):
         self.input_module._prepare_for_export(**kwargs)

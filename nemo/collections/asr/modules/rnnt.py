@@ -127,17 +127,17 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         )
         target_length = torch.randint(0, length, size=(16,), dtype=torch.int32).to(next(self.parameters()).device)
         states = self.initialize_state(targets.float())
-        return (targets, target_length, states)
+        return (targets, target_length, )  # states
 
     @property
     def disabled_deployment_input_names(self):
         """Implement this method to return a set of input names disabled for export"""
-        return set([])
+        return set(["target_length"])
 
     @property
     def disabled_deployment_output_names(self):
         """Implement this method to return a set of output names disabled for export"""
-        return set(["encoded_lengths"])
+        return set(["states"])
 
     def __init__(
         self,

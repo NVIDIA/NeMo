@@ -212,6 +212,9 @@ class Exportable(ABC):
         onnx.checker.check_model(onnx_model, full_check=True)
         test_runtime = check_trace
 
+        print("verify graph ips", [x.name for x in onnx_model.graph.input])
+        print("verify graph ops", [x.name for x in onnx_model.graph.output])
+
         if test_runtime:
             self._verify_runtime(
                 onnx_model, input_list, input_dict, input_names, output_example, output, check_tolerance
@@ -226,7 +229,19 @@ class Exportable(ABC):
             logging.warning(f"ONNX generated at {output}, not verified - please install onnxruntime.\n")
             return
 
-        print(to_onnxrt_input(input_names, input_list, input_dict))
+        if 'states' in input_names:
+            input_names.remove('states')
+
+        if type(input_list[-1]) in (list, tuple):
+            input_list = input_list[:2]
+            input_names = input_names[:2]
+
+        input_list = input_list[:2]
+
+        # print(input_list)
+        print(input_names)
+        print(input_list)
+
         sess = onnxruntime.InferenceSession(onnx_model.SerializeToString())
         ort_out = sess.run(None, to_onnxrt_input(input_names, input_list, input_dict))
         all_good = True
