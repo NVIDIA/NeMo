@@ -91,11 +91,6 @@ decoder_exp_manager:
     save_best_model: true
     always_save_nemo: true
 
-# Inference
-inference:
-  interactive: false  # Set to true if you want to enable the interactive mode when running duplex_text_normalization_test.py
-  errors_log_fp: errors.txt # Path to the file for logging the errors
-
 # Data
 data:
   base_dir: ??? # /path/to/data
@@ -106,9 +101,10 @@ data:
     shuffle: true
     do_basic_tokenize: false
     max_decoder_len: 80
+    mode: ${mode}
+    # Refer to the text_normalization doc for more information about data augmentation
     tagger_data_augmentation: true
     decoder_data_augmentation: true
-    mode: ${mode}
 
   validation_ds:
     data_path: ${data.base_dir}/dev.tsv
@@ -123,3 +119,8 @@ data:
     batch_size: 64
     shuffle: false
     mode: ${mode}
+
+# Inference
+inference:
+  interactive: false  # Set to true if you want to enable the interactive mode when running duplex_text_normalization_test.py
+  errors_log_fp: errors.txt # Path to the file for logging the errors
