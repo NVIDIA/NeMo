@@ -15,6 +15,7 @@
 import re
 from pathlib import Path
 from typing import List
+
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 __all__ = ['ByteLevelProcessor', 'ByteLevelTokenizer']
