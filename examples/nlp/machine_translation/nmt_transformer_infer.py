@@ -194,7 +194,7 @@ def main():
                         tgt_text_all += all_results
                     tgt_text += best_translations
                 src_text = []
-                print(f"Translated {count} sentences")
+                print(f"Translated {count + 1} sentences")
             count += 1
         if len(src_text) > 0:
             if len(models) > 1:

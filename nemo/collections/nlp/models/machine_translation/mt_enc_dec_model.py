@@ -672,11 +672,12 @@ class MTEncDecModel(EncDecNLPModel):
 
         return self.source_processor, self.target_processor
 
-    def postprocess_beam_results(self, beam_ids):
-        beam_results = self.filter_predicted_ids(beam_ids)
-        translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
-        if self.target_processor is not None:
-            translations = [self.target_processor.detokenize(translation.split(' ')) for translation in translations]
+    def ids_to_postprocessed_text(self, beam_ids, tokenizer, processor, filter_beam_ids=True):
+        if filter_beam_ids:
+            beam_ids = self.filter_predicted_ids(beam_ids)
+        translations = [tokenizer.ids_to_text(tr) for tr in beam_ids.cpu().numpy()]
+        if processor is not None:
+            translations = [processor.detokenize(translation.split(' ')) for translation in translations]
         return translations
 
     @torch.no_grad()
@@ -700,13 +701,11 @@ class MTEncDecModel(EncDecNLPModel):
             if return_beam_scores:
                 all_translations, scores, best_translations = best_translations
                 scores = scores.view(-1)
-                all_translations = self.postprocess_beam_results(all_translations)
+                all_translations = self.ids_to_postprocessed_text(all_translations, self.decoder_tokenizer, self.target_processor, filter_beam_ids=True)
 
-            best_translations = self.postprocess_beam_results(best_translations)
-            inputs = [self.encoder_tokenizer.ids_to_text(inp) for inp in src.cpu().numpy()]
+            best_translations = self.ids_to_postprocessed_text(best_translations, self.decoder_tokenizer, self.target_processor, filter_beam_ids=True)
+            inputs = self.ids_to_postprocessed_text(src, self.encoder_tokenizer, self.source_processor, filter_beam_ids=False)
 
-            if self.source_processor is not None:
-                inputs = [self.source_processor.detokenize(item.split(' ')) for item in inputs]
         finally:
             self.train(mode=mode)
         if return_beam_scores:

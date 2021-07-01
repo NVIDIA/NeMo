@@ -238,6 +238,7 @@ def main():
 
                     # LM scores.
                     if lm_model is not None:
+                        # Compute LM score for the src of the reverse model.
                         lm_log_probs = lm_model(src[:, :-1], src_mask[:, :-1])
                         lm_nll = model.eval_loss_fn(log_probs=lm_log_probs, labels=src[:, 1:])
                         lm_ll = lm_nll.view(lm_log_probs.size(0), lm_log_probs.size(1)).sum(1) * -1.0
