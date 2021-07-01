@@ -20,11 +20,12 @@ from nltk import word_tokenize
 from nemo.core.classes import Dataset
 from transformers import PreTrainedTokenizerBase
 
+from nemo.utils.decorators.experimental import experimental
 from nemo.collections.nlp.data.text_normalization.utils import read_data_file
 
 __all__ = ['TextNormalizationDecoderDataset']
 
-
+@experimental
 class TextNormalizationDecoderDataset(Dataset):
     """
     Creates dataset to use to train a DuplexDecoderModel.

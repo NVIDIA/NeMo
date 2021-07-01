@@ -24,11 +24,13 @@ from nltk import word_tokenize
 from typing import List
 from nemo.utils import logging
 
+from nemo.utils.decorators.experimental import experimental
 from nemo.collections.nlp.models.duplex_text_normalization.utils import get_formatted_string
 from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset
 
 __all__ = ['DuplexTextNormalizationModel']
 
+@experimental
 class DuplexTextNormalizationModel(nn.Module):
     """
     DuplexTextNormalizationModel is a wrapper class that can be used to

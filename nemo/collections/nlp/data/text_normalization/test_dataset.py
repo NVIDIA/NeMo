@@ -19,11 +19,13 @@ from copy import deepcopy
 from nltk import word_tokenize
 from typing import List
 
+from nemo.utils.decorators.experimental import experimental
 from nemo.collections.nlp.data.text_normalization.utils import read_data_file, normalize_str, remove_puncts
 
 __all__ = ['TextNormalizationTestDataset']
 
 # Test Dataset
+@experimental
 class TextNormalizationTestDataset:
     """
     Creates dataset to use to do end-to-end inference

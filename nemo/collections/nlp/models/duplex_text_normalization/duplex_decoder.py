@@ -26,6 +26,7 @@ from omegaconf import DictConfig
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
 
 from nemo.utils import logging
+from nemo.utils.decorators.experimental import experimental
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.collections.nlp.models.duplex_text_normalization.utils import is_url
@@ -33,6 +34,7 @@ from nemo.collections.nlp.data.text_normalization import TextNormalizationDecode
 
 __all__ = ['DuplexDecoderModel']
 
+@experimental
 class DuplexDecoderModel(NLPModel):
     """
     Transformer-based (duplex) decoder model for TN/ITN.
