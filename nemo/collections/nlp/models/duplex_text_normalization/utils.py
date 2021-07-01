@@ -22,3 +22,13 @@ def is_url(input_str: str):
 def has_numbers(input_str: str):
     """ Check if a string has a number character """
     return any(char.isdigit() for char in input_str)
+
+def get_formatted_string(strs, str_max_len=10, space_len=2):
+    """ Get a nicely formatted string from a list of strings"""
+    padded_strs = []
+    for cur_str in strs:
+        cur_str = cur_str + ' ' * (str_max_len - len(cur_str))
+        padded_strs.append(cur_str[:str_max_len])
+
+    spaces = ' ' * space_len
+    return spaces.join(padded_strs)

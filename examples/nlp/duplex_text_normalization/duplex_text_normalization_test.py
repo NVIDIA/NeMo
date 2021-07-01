@@ -80,7 +80,7 @@ def main(cfg: DictConfig) -> None:
             test_input = input('Input a test input:')
             test_input = ' '.join(word_tokenize(test_input))
             outputs = tn_model._infer([test_input, test_input],
-                                      [constants.INST_BACKWARD, constants.INST_FORWARD])
+                                      [constants.INST_BACKWARD, constants.INST_FORWARD])[-1]
             print(f'Prediction (ITN): {outputs[0]}')
             print(f'Prediction (TN): {outputs[1]}')
 

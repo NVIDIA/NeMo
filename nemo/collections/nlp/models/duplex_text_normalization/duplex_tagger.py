@@ -80,7 +80,6 @@ class DuplexTaggerModel(NLPModel):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        self.eval()
         num_labels = self.num_labels
 
         # Apply Transformer
