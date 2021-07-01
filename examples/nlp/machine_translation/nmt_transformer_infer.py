@@ -69,14 +69,14 @@ def main():
     parser.add_argument(
         "--write_scores",
         action="store_true",
-        help="Whether to write a separate file with scores corresponding to each beam hypothesis (.score suffix)",
+        help="Whether to write a separate file with scores not including length penalties corresponding to each beam hypothesis (.score suffix)",
     )
     # shallow fusion specific parameters
     parser.add_argument(
         "--lm_model",
         type=str,
         default=None,
-        help="Optional path to an LM model that has the same tokenizer as NMT models for shallow fuison.",
+        help="Optional path to an LM model that has the same tokenizer as NMT models for shallow fuison. Note: If using --write_scores, it will add LM scores as well.",
     )
     parser.add_argument(
         "--fusion_coef", type=float, default=0.07, help="Weight assigned to LM scores during shallow fusion."
