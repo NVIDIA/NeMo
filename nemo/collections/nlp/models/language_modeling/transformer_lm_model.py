@@ -79,7 +79,7 @@ class TransformerLMModel(ModelPT):
             pretrained=pretrained,
             config_dict=encoder_cfg_dict,
             encoder=True,
-            pre_ln_final_layer_norm=encoder_cfg_dict.get('pre_ln_final_layer_norm', False),
+            pre_ln_final_layer_norm=encoder_cfg_dict.get('pre_ln_final_layer_norm', encoder_cfg_dict.get('pre_ln', True)),
         )
 
         self.log_softmax = TokenClassifier(
