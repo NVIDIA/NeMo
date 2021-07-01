@@ -71,33 +71,33 @@ class TestExportableClassifiers:
         for num_layers in [1, 2, 4]:
             classifier_export(SequenceRegression(hidden_size=256, num_layers=num_layers))
 
-    @pytest.mark.run_only_on('GPU')
-    @pytest.mark.unit
-    def test_IntentSlotClassificationModel_export_to_onnx(self, dummy_data):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            wget.download(
-                'https://raw.githubusercontent.com/NVIDIA/NeMo/main/examples/'
-                'nlp/intent_slot_classification/conf/intent_slot_classification_config.yaml',
-                tmpdir,
-            )
-            config_file = os.path.join(tmpdir, 'intent_slot_classification_config.yaml')
-            config = OmegaConf.load(config_file)
-            config = OmegaConf.create(OmegaConf.to_container(config, resolve=True))
-            config.model.data_dir = dummy_data
-            config.trainer.gpus = 1
-            config.trainer.precision = 32
-            config.trainer.accelerator = None
-            trainer = pl.Trainer(**config.trainer)
-            model = IntentSlotClassificationModel(config.model, trainer=trainer)
-            filename = os.path.join(tmpdir, 'isc.onnx')
-            model.export(output=filename)
-            onnx_model = onnx.load(filename)
-            onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
-            assert onnx_model.graph.input[0].name == 'input_ids'
-            assert onnx_model.graph.input[1].name == 'attention_mask'
-            assert onnx_model.graph.input[2].name == 'token_type_ids'
-            assert onnx_model.graph.output[0].name == 'intent_logits'
-            assert onnx_model.graph.output[1].name == 'slot_logits'
+    # @pytest.mark.run_only_on('GPU')
+    # @pytest.mark.unit
+    # def test_IntentSlotClassificationModel_export_to_onnx(self, dummy_data):
+    #     with tempfile.TemporaryDirectory() as tmpdir:
+    #         wget.download(
+    #             'https://raw.githubusercontent.com/NVIDIA/NeMo/main/examples/'
+    #             'nlp/intent_slot_classification/conf/intent_slot_classification_config.yaml',
+    #             tmpdir,
+    #         )
+    #         config_file = os.path.join(tmpdir, 'intent_slot_classification_config.yaml')
+    #         config = OmegaConf.load(config_file)
+    #         config = OmegaConf.create(OmegaConf.to_container(config, resolve=True))
+    #         config.model.data_dir = dummy_data
+    #         config.trainer.gpus = 1
+    #         config.trainer.precision = 32
+    #         config.trainer.accelerator = None
+    #         trainer = pl.Trainer(**config.trainer)
+    #         model = IntentSlotClassificationModel(config.model, trainer=trainer)
+    #         filename = os.path.join(tmpdir, 'isc.onnx')
+    #         model.export(output=filename)
+    #         onnx_model = onnx.load(filename)
+    #         onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+    #         assert onnx_model.graph.input[0].name == 'input_ids'
+    #         assert onnx_model.graph.input[1].name == 'attention_mask'
+    #         assert onnx_model.graph.input[2].name == 'token_type_ids'
+    #         assert onnx_model.graph.output[0].name == 'intent_logits'
+    #         assert onnx_model.graph.output[1].name == 'slot_logits'
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
