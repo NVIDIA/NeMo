@@ -116,7 +116,7 @@ class TestExportable:
             print("graph ops", [x.name for x in onnx_model.graph.output])
             assert onnx_model.graph.output[0].name == 'outputs'
             # assert onnx_model.graph.output[1].name == 'states'
-            assert len(onnx_model.graph.output) == 4
+            assert len(onnx_model.graph.output) == 3
 
     def setup_method(self):
         self.preprocessor = {

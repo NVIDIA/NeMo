@@ -108,7 +108,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         """
         return {
             "outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
-            "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+            "prednet_lengths": NeuralType(tuple('B'), LengthsType()),
             "states": [NeuralType((('B', 'D')), ElementType(), optional=True)],  # must always be last
         }
 
@@ -126,7 +126,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             next(self.parameters()).device
         )
         target_length = torch.randint(0, length, size=(16,), dtype=torch.int32).to(next(self.parameters()).device)
-        states = self.initialize_state(targets.float())
+        states = tuple(self.initialize_state(targets.float()))
         return (targets, target_length, states)
 
     @property

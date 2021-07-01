@@ -133,25 +133,25 @@ class ExportableEncDecJointModel(Exportable):
         return encoder_output
 
     def forward_for_decoder_joint_export(
-        self, encoder_output, decoder_inputs, decoder_lengths, state_h=None, state_c=None
+        self, encoder_output, decoder_inputs, decoder_lengths, states
     ):
         decoder, joint = self.output_module, self.joint_module
 
-        if state_h is not None and state_c is not None:
-            state = (state_h, state_c)
-        else:
-            state = None
-        decoder_outputs = decoder(decoder_inputs, decoder_lengths, state)
+        # if state_h is not None and state_c is not None:
+        #     states = (state_h, state_c)
+        # else:
+        #     states = None
+
+        decoder_outputs = decoder(decoder_inputs, decoder_lengths, states)
         decoder_output = decoder_outputs[0]
         decoder_length = decoder_outputs[1]
-        decoder_states = tuple(decoder_length[2:4])
+        decoder_states = tuple(decoder_outputs[2:4])
 
         joint_output = joint(encoder_output, decoder_output)
         return (
             joint_output,
             decoder_length,
-            decoder_states[0],
-            decoder_states[1]
+            decoder_states
         )  #  , decoder_states
 
     def export(
@@ -216,19 +216,19 @@ class ExportableEncDecJointModel(Exportable):
         encoder_output_names, decoder_output_names, joint_output_names = self._process_output_names()
 
         # process decoder states; by convension states must be the last in the list and must be wrapped in a tuple
-        if type(decoder_input_list[-1]) in (list, tuple):
-            num_states = len(decoder_input_list[-1])
-            states = decoder_input_list[-1]
-            decoder_input_list = decoder_input_list[:-1]
-
-            state_name = decoder_output_names[-1]
-            decoder_output_names = decoder_output_names[:-1]
-            state_names = [f"{state_name}-{idx}" for idx in range(num_states)]
-
-        else:
-            num_states = 0
-            states = None
-            state_name, state_names = None, None
+        # if type(decoder_input_list[-1]) in (list, tuple):
+        #     num_states = len(decoder_input_list[-1])
+        #     states = decoder_input_list[-1]
+        #     decoder_input_list = decoder_input_list[:-1]
+        #
+        #     state_name = decoder_output_names[-1]
+        #     decoder_output_names = decoder_output_names[:-1]
+        #     state_names = [f"{state_name}-{idx}" for idx in range(num_states)]
+        #
+        # else:
+        #     num_states = 0
+        #     states = None
+        #     state_name, state_names = None, None
 
         with torch.jit.optimized_execution(True), torch.no_grad():
             # Encoder export
@@ -305,9 +305,9 @@ class ExportableEncDecJointModel(Exportable):
                 encoder_decoder_input_list = [encoder_output_example] + list(decoder_input_list)
                 encoder_decoder_input_dict = decoder_input_dict
 
-                if num_states > 0:
-                    for state in states:
-                        encoder_decoder_input_list.append(state)
+                # if num_states > 0:
+                #     for state in states:
+                #         encoder_decoder_input_list.append(state)
 
                 encoder_decoder_input_list = tuple(encoder_decoder_input_list)
 
@@ -320,8 +320,8 @@ class ExportableEncDecJointModel(Exportable):
                     None,
                     encoder_decoder_input_list,
                     decoder_joint_output_example,
-                    self._join_input_output_names(["enc_logits"], decoder_input_names, state_names),
-                    self._join_input_output_names(joint_output_names, decoder_output_names, state_names),
+                    self._join_input_output_names(["enc_logits"], decoder_input_names),
+                    self._join_input_output_names(joint_output_names, decoder_output_names),
                     use_dynamic_axes,
                     False,
                     dynamic_axes,
@@ -450,8 +450,8 @@ class ExportableEncDecJointModel(Exportable):
         return encoder_input_names, decoder_input_names
 
     def _process_output_names(self):
-        decoder_output_names = super()._process_output_names()
         encoder_output_names = exportable.get_output_names(self.input_module)
+        decoder_output_names = exportable.get_output_names(self.output_module)
         joint_output_names = exportable.get_output_names(self.joint_module)
 
         for name in self.disabled_deployment_output_names:
