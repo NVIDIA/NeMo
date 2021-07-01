@@ -121,20 +121,25 @@ class TestExportable:
             input_examples = model.decoder.input_example()
             assert type(input_examples[-1]) == tuple
             num_states = len(input_examples[-1])
+            state_name = list(model.decoder.output_types.keys())[-1]
 
             # enc_logits + (all decoder inputs - state tuple) + flattened state list
             assert len(onnx_model.graph.input) == (1 + (len(input_examples) - 1) + num_states)
             assert onnx_model.graph.input[0].name == 'enc_logits'
             assert onnx_model.graph.input[1].name == 'targets'
             assert onnx_model.graph.input[2].name == 'target_length'
-            assert onnx_model.graph.input[3].name == 'states-1.1'
-            assert onnx_model.graph.input[4].name == 'states-2.1'
+
+            if num_states > 0:
+                for idx, ip in enumerate(onnx_model.graph.input[3:]):
+                    assert ip.name == "input-" + state_name + '-' + str(idx + 1)
 
             assert len(onnx_model.graph.output) == (len(input_examples) - 1) + num_states
             assert onnx_model.graph.output[0].name == 'outputs'
             assert onnx_model.graph.output[1].name == 'prednet_lengths'
-            assert onnx_model.graph.output[2].name == 'states-1'
-            assert onnx_model.graph.output[3].name == 'states-2'
+
+            if num_states > 0:
+                for idx, op in enumerate(onnx_model.graph.output[2:]):
+                    assert op.name == "output-" + state_name + '-' + str(idx + 1)
 
     def setup_method(self):
         self.preprocessor = {

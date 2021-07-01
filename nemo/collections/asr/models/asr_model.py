@@ -229,11 +229,13 @@ class ExportableEncDecJointModel(Exportable):
             state_name = decoder_input_names[-1]
             decoder_input_names = decoder_input_names[:-1]
             state_names = [f"{state_name}-{idx + 1}" for idx in range(num_states)]
+            input_state_names = ["input-" + name for name in state_names]
+            output_state_names = ["output-" + name for name in state_names]
 
         else:
             num_states = 0
             states = None
-            state_name, state_names = None, []
+            state_name, state_names, input_state_names, output_state_names = None, [], [], []
 
         with torch.jit.optimized_execution(True), torch.no_grad():
             # Encoder export
@@ -323,15 +325,15 @@ class ExportableEncDecJointModel(Exportable):
                         raise TypeError("Since input states are available, forward must emit flattened states")
 
                     # remove the name of the states
-                    logging.info(f"Replacing output state name {decoder_output_names[-1]} with {str(state_names)}")
+                    logging.info(f"Replacing output state name {decoder_output_names[-1]} with {str(output_state_names)}")
                     decoder_output_names = decoder_output_names[:-1]
 
                 self._export_onnx(
                     None,
                     encoder_decoder_input_list,
                     decoder_joint_output_example,
-                    self._join_input_output_names(["enc_logits"], decoder_input_names, state_names),
-                    self._join_input_output_names(joint_output_names, decoder_output_names, state_names),
+                    self._join_input_output_names(["enc_logits"], decoder_input_names, input_state_names),
+                    self._join_input_output_names(joint_output_names, decoder_output_names, output_state_names),
                     use_dynamic_axes,
                     False,
                     dynamic_axes,
@@ -350,7 +352,7 @@ class ExportableEncDecJointModel(Exportable):
                     decoder_joint_output_example,
                     encoder_decoder_input_list,
                     encoder_decoder_input_dict,
-                    self._join_input_output_names(["enc_logits"], decoder_input_names, graph_state_names),
+                    self._join_input_output_names(["enc_logits"], decoder_input_names, input_state_names),
                     check_tolerance,
                     check_trace,
                 )
