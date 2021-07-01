@@ -62,7 +62,6 @@ class DecimalFst(GraphFst):
 
         integer_part = cardinal.cardinal_numbers | ordinal.ordinal_numbers
         cardinal_numbers_with_leading_zeros = cardinal.cardinal_numbers_with_leading_zeros
-        optional_graph_negative = cardinal.optional_graph_negative
 
         delimiter_map = prepare_labels_for_insertion(get_abs_path("ru/data/decimal_delimiter.tsv"))
         delimiter = (
@@ -72,9 +71,7 @@ class DecimalFst(GraphFst):
         decimal_endings_map = prepare_labels_for_insertion(get_abs_path("ru/data/decimal_endings.tsv"))
 
         self.integer_part = integer_part + delimiter
-        graph_integer = (
-            pynutil.insert("integer_part: \"") + optional_graph_negative + self.integer_part + pynutil.insert("\"")
-        )
+        graph_integer = pynutil.insert("integer_part: \"") + self.integer_part + pynutil.insert("\"")
 
         graph_fractional = NEMO_DIGIT @ cardinal_numbers_with_leading_zeros + decimal_endings_map['10']
         graph_fractional |= (NEMO_DIGIT + NEMO_DIGIT) @ cardinal_numbers_with_leading_zeros + decimal_endings_map[
@@ -89,10 +86,10 @@ class DecimalFst(GraphFst):
 
         self.graph_fractional = graph_fractional
         graph_fractional = pynutil.insert("fractional_part: \"") + graph_fractional + pynutil.insert("\"")
-        final_graph = cardinal.optional_graph_negative + graph_integer + insert_space + graph_fractional
+        self.final_graph = cardinal.optional_graph_negative + graph_integer + insert_space + graph_fractional
 
-        final_graph = self.add_tokens(final_graph)
-        self.fst = final_graph.optimize()
+        self.final_graph = self.add_tokens(self.final_graph)
+        self.fst = self.final_graph.optimize()
 
 
 if __name__ == '__main__':

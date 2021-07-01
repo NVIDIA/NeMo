@@ -16,6 +16,7 @@
 from nemo_text_processing.text_normalization.graph_utils import GraphFst
 from nemo_text_processing.text_normalization.ru.verbalizers.cardinal import CardinalFst
 from nemo_text_processing.text_normalization.ru.verbalizers.decimal import DecimalFst
+from nemo_text_processing.text_normalization.ru.verbalizers.measure import MeasureFst
 from nemo_text_processing.text_normalization.ru.verbalizers.ordinal import OrdinalFst
 from nemo_text_processing.text_normalization.verbalizers.whitelist import WhiteListFst
 
@@ -36,8 +37,11 @@ class VerbalizeFst(GraphFst):
         cardinal = CardinalFst()
         cardinal_graph = cardinal.fst
         ordinal_graph = OrdinalFst().fst
-        decimal_graph = DecimalFst().fst
+        decimal = DecimalFst()
+        decimal_graph = decimal.fst
+        measure = MeasureFst(decimal=decimal, cardinal=cardinal, fraction=None, deterministic=deterministic)
+        measure_graph = measure.fst
         whitelist_graph = WhiteListFst().fst
 
-        graph = whitelist_graph | cardinal_graph | decimal_graph | ordinal_graph
+        graph = measure_graph | cardinal_graph | decimal_graph | ordinal_graph | whitelist_graph
         self.fst = graph

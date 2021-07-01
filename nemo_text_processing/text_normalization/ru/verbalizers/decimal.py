@@ -38,10 +38,10 @@ class DecimalFst(GraphFst):
         super().__init__(name="decimal", kind="verbalize", deterministic=deterministic)
 
         optional_sign = pynini.closure(pynini.cross("negative: \"true\" ", "минус "), 0, 1)
-        integer = delete_space + pynutil.delete("\"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        integer = pynutil.delete(" \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
         integer_part = pynutil.delete("integer_part:") + integer
         fractional_part = pynutil.delete("fractional_part:") + integer
 
-        graph = optional_sign + pynini.closure(NEMO_NOT_QUOTE | "\"", 1) #integer_part + pynini.accep(" ") + fractional_part
-        delete_tokens = self.delete_tokens(graph)
+        self.graph = optional_sign + integer_part + pynini.accep(" ") + fractional_part
+        delete_tokens = self.delete_tokens(self.graph)
         self.fst = delete_tokens.optimize()
