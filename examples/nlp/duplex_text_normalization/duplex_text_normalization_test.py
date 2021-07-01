@@ -41,6 +41,11 @@ This script uses the `/examples/nlp/duplex_text_normalization/conf/duplex_tn_con
 config file by default. The other option is to set another config file via command
 line arguments by `--config-name=CONFIG_FILE_PATH'.
 
+Note that when evaluating a DuplexTextNormalizationModel on a labeled dataset,
+the script will automatically generate a file for logging the errors made
+by the model. The location of this file is determined by the argument
+`inference.errors_log_fp`.
+
 """
 
 
@@ -66,7 +71,9 @@ def main(cfg: DictConfig) -> None:
         # Setup test_dataset
         test_dataset = TextNormalizationTestDataset(cfg.data.test_ds.data_path,
                                                     cfg.data.test_ds.mode)
-        results = tn_model.evaluate(test_dataset, cfg.data.test_ds.batch_size)
+        results = tn_model.evaluate(test_dataset,
+                                    cfg.data.test_ds.batch_size,
+                                    cfg.inference.errors_log_fp)
         print(f'\nTest results: {results}')
     else:
         while True:

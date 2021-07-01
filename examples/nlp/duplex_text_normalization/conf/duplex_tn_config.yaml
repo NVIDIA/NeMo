@@ -94,6 +94,7 @@ decoder_exp_manager:
 # Inference
 inference:
   interactive: false  # Set to true if you want to enable the interactive mode when running duplex_text_normalization_test.py
+  errors_log_fp: errors.txt # Path to the file for logging the errors
 
 # Data
 data:

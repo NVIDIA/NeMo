@@ -49,6 +49,7 @@ class DuplexTextNormalizationModel(nn.Module):
             self,
             dataset: TextNormalizationTestDataset,
             batch_size: int,
+            errors_log_fp: str,
             verbose: bool = True
         ):
         """ Function for evaluating the performance of the model on a dataset
@@ -58,12 +59,14 @@ class DuplexTextNormalizationModel(nn.Module):
             batch_size: Batch size to use during inference. You can set it to be 1
                 (no batching) if you want to measure the running time of the model
                 per individual example (assuming requests are coming to the model one-by-one).
+            errors_log_fp: Path to the file for logging the errors
             verbose: if true prints and logs various evaluation results
 
         Returns:
             results: A Dict containing the evaluation results (e.g., accuracy, running time)
         """
         results = {}
+        error_f = open(errors_log_fp, 'w+')
 
         # Apply the model on the dataset
         all_dirs, all_inputs, all_preds, all_targets, all_run_times = [], [], [], [], []
@@ -85,11 +88,13 @@ class DuplexTextNormalizationModel(nn.Module):
             all_targets.extend(batch_targets)
 
         # Metrics
+        tn_error_ctx, itn_error_ctx = 0, 0
         for direction in constants.INST_DIRECTIONS:
-            cur_dirs, cur_preds, cur_targets = [], [], []
-            for dir, pred, target in zip(all_dirs, all_preds, all_targets):
+            cur_dirs, cur_inputs, cur_preds, cur_targets = [], [], [], []
+            for dir, _input, pred, target in zip(all_dirs, all_inputs, all_preds, all_targets):
                 if dir == direction:
                     cur_dirs.append(dir)
+                    cur_inputs.append(_input)
                     cur_preds.append(pred)
                     cur_targets.append(target)
             nb_instances = len(cur_preds)
@@ -104,12 +109,30 @@ class DuplexTextNormalizationModel(nn.Module):
                 'sent_accuracy': sent_accuracy,
                 'nb_instances': nb_instances
             }
+            # Write errors to log file
+            for _input, pred, target in zip(cur_inputs, cur_preds, cur_targets):
+                if not TextNormalizationTestDataset.is_same(pred, target, direction):
+                    if direction == constants.INST_BACKWARD:
+                        error_f.write('Backward Problem (ITN)\n')
+                        itn_error_ctx += 1
+                    elif direction == constants.INST_FORWARD:
+                        error_f.write('Forward Problem (TN)\n')
+                        tn_error_ctx += 1
+                    error_f.write(f'Input: {_input}\n')
+                    error_f.write(f'Predicted: {pred}\n')
+                    error_f.write(f'Ground-Truth: {target}\n')
+                    error_f.write('\n')
+            results['itn_error_ctx'] = itn_error_ctx
+            results['tn_error_ctx'] = tn_error_ctx
 
         # Running Time
         avg_running_time = np.average(all_run_times) / batch_size # in ms
         if verbose:
             logging.info(f'Average running time (normalized by batch size): {avg_running_time} ms')
         results['running_time'] = avg_running_time
+
+        # Close log file
+        error_f.close()
 
         return results
 

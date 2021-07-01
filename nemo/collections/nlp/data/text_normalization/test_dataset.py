@@ -71,6 +71,25 @@ class TextNormalizationTestDataset:
         return len(self.inputs)
 
     @staticmethod
+    def is_same(pred: str, target: str, inst_dir: str):
+        """
+        Function for checking whether the predicted string can be considered
+        the same as the target string
+
+        Args:
+            pred: Predicted string
+            target: Target string
+            inst_dir: Direction of the instance (i.e., INST_BACKWARD or INST_FORWARD).
+        Return: an int value (0/1) indicating whether pred and target are the same.
+        """
+        if inst_dir == constants.INST_BACKWARD:
+            pred = remove_puncts(pred)
+            target = remove_puncts(target)
+        pred = normalize_str(pred)
+        target = normalize_str(target)
+        return int(pred == target)
+
+    @staticmethod
     def compute_sent_accuracy(
         preds: List[str],
         targets: List[str],
@@ -83,18 +102,14 @@ class TextNormalizationTestDataset:
             preds: List of predicted strings.
             targets: List of target strings.
             inst_directions: A list of str where each str indicates the direction of the corresponding instance (i.e., INST_BACKWARD or INST_FORWARD).
+        Return: the sentence accuracy score
         """
         assert(len(preds) == len(targets))
         if len(targets) == 0: return 'NA'
         # Sentence Accuracy
         correct_count = 0
         for inst_dir, pred, target in zip(inst_directions, preds, targets):
-            if inst_dir == constants.INST_BACKWARD:
-                pred = remove_puncts(pred)
-                target = remove_puncts(target)
-            pred = normalize_str(pred)
-            target = normalize_str(target)
-            correct_count += int(pred == target)
+            correct_count += TextNormalizationTestDataset.is_same(pred, target, inst_dir)
         sent_accuracy = correct_count / len(targets)
 
         return sent_accuracy
