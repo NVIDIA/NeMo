@@ -145,13 +145,14 @@ class ExportableEncDecJointModel(Exportable):
         decoder_outputs = decoder(decoder_inputs, decoder_lengths, states)
         decoder_output = decoder_outputs[0]
         decoder_length = decoder_outputs[1]
-        decoder_states = tuple(decoder_outputs[2:4])
+        state_h, state_c = decoder_outputs[2][0], decoder_outputs[2][1]
 
         joint_output = joint(encoder_output, decoder_output)
         return (
             joint_output,
             decoder_length,
-            decoder_states
+            state_h,
+            state_c
         )
 
     def export(
@@ -318,9 +319,8 @@ class ExportableEncDecJointModel(Exportable):
 
                 # Resolve output states
                 if num_states > 0:
-                    if type(decoder_joint_output_example[-1]) != tuple:
-                        raise TypeError("Since input states are available, forward must emit states as final value,"
-                                        "wrapped as a tuple.")
+                    if type(decoder_joint_output_example[-1]) == tuple:
+                        raise TypeError("Since input states are available, forward must emit flattened states")
 
                     # remove the name of the states
                     logging.info(f"Replacing output state name {decoder_output_names[-1]} with {str(state_names)}")
@@ -342,13 +342,15 @@ class ExportableEncDecJointModel(Exportable):
                     verbose,
                 )
 
+                graph_state_names = [f"{name}.1" for name in state_names]
+
                 # Verify the model can be read, and is valid
                 self._verify_onnx_export(
                     self._augment_output_filename(output, "Decoder-Joint"),
                     decoder_joint_output_example,
                     encoder_decoder_input_list,
                     encoder_decoder_input_dict,
-                    self._join_input_output_names(["enc_logits"], decoder_input_names),
+                    self._join_input_output_names(["enc_logits"], decoder_input_names, graph_state_names),
                     check_tolerance,
                     check_trace,
                 )

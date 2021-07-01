@@ -99,7 +99,7 @@ class TestExportable:
         with tempfile.TemporaryDirectory() as tmpdir:
             fn = 'citri_rnnt.onnx'
             filename = os.path.join(tmpdir, fn)
-            model.export(output=filename, verbose=False, check_trace=False)
+            model.export(output=filename, verbose=False, check_trace=True)
 
             encoder_filename = os.path.join(tmpdir, 'Encoder-' + fn)
             onnx_model = onnx.load(encoder_filename)
@@ -110,13 +110,22 @@ class TestExportable:
             decoder_joint_filename = os.path.join(tmpdir, 'Decoder-Joint-' + fn)
             onnx_model = onnx.load(decoder_joint_filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
-            assert onnx_model.graph.input[0].name == 'enc_logits'
-            assert onnx_model.graph.input[1].name == 'targets'
+
             print("graph ips", [x.name for x in onnx_model.graph.input])
             print("graph ops", [x.name for x in onnx_model.graph.output])
-            assert onnx_model.graph.output[0].name == 'outputs'
-            # assert onnx_model.graph.output[1].name == 'states'
+
+            assert len(onnx_model.graph.input) == 5
+            assert onnx_model.graph.input[0].name == 'enc_logits'
+            assert onnx_model.graph.input[1].name == 'targets'
+            assert onnx_model.graph.input[2].name == 'target_length'
+            assert onnx_model.graph.input[3].name == 'states-1.1'
+            assert onnx_model.graph.input[4].name == 'states-2.1'
+
             assert len(onnx_model.graph.output) == 4
+            assert onnx_model.graph.output[0].name == 'outputs'
+            assert onnx_model.graph.output[1].name == 'prednet_lengths'
+            assert onnx_model.graph.output[2].name == 'states-1'
+            assert onnx_model.graph.output[3].name == 'states-2'
 
     def setup_method(self):
         self.preprocessor = {

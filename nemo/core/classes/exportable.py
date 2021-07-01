@@ -228,19 +228,6 @@ class Exportable(ABC):
         except (ImportError, ModuleNotFoundError):
             logging.warning(f"ONNX generated at {output}, not verified - please install onnxruntime.\n")
             return
-        #
-        # if 'states' in input_names:
-        #     input_names.remove('states')
-
-        # if type(input_list[-1]) in (list, tuple):
-        #     input_list = input_list[:2]
-        #     input_names = input_names[:2]
-        #
-        # input_list = input_list[:2]
-
-        # print(input_list)
-        # print(input_names)
-        # print(input_list)
 
         sess = onnxruntime.InferenceSession(onnx_model.SerializeToString())
         ort_out = sess.run(None, to_onnxrt_input(input_names, input_list, input_dict))
