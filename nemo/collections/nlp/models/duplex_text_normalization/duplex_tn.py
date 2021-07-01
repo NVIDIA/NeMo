@@ -12,12 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy as np
 import torch.nn as nn
 import nemo.collections.nlp.data.text_normalization.constants as constants
 
+from tqdm import tqdm
+from math import ceil
+from time import perf_counter
 from transformers import *
 from nltk import word_tokenize
 from typing import List
+from nemo.utils import logging
+from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset
 
 __all__ = ['DuplexTextNormalizationModel']
 
@@ -33,6 +39,79 @@ class DuplexTextNormalizationModel(nn.Module):
 
         self.tagger = tagger
         self.decoder = decoder
+
+        # Explicitly set the modules to be in eval() mode, because the inference
+        # code of this class does not use PyTorch Lightning.
+        self.tagger.eval()
+        self.decoder.eval()
+
+    def evaluate(
+            self,
+            dataset: TextNormalizationTestDataset,
+            batch_size: int,
+            verbose: bool = True
+        ):
+        """ Function for evaluating the performance of the model on a dataset
+
+        Args:
+            dataset: The dataset to be used for evaluation.
+            batch_size: Batch size to use during inference. You can set it to be 1
+                (no batching) if you want to measure the running time of the model
+                per individual example (assuming requests are coming to the model one-by-one).
+            verbose: if true prints and logs various evaluation results
+
+        Returns:
+            results: A Dict containing the evaluation results (e.g., accuracy, running time)
+        """
+        results = {}
+
+        # Apply the model on the dataset
+        all_dirs, all_inputs, all_preds, all_targets, all_run_times = [], [], [], [], []
+        nb_iters = int(ceil(len(dataset) / batch_size))
+        for i in tqdm(range(nb_iters)):
+            start_idx = i * batch_size
+            end_idx = (i+1) * batch_size
+            batch_insts = dataset[start_idx:end_idx]
+            batch_dirs, batch_inputs, batch_targets = zip(*batch_insts)
+            # Inference and Running Time Measurement
+            batch_start_time = perf_counter()
+            batch_preds = self._infer(batch_inputs, batch_dirs)
+            batch_run_time = (perf_counter() - batch_start_time) * 1000  # milliseconds
+            all_run_times.append(batch_run_time)
+            # Update all_dirs, all_inputs, all_preds and all_targets
+            all_dirs.extend(batch_dirs)
+            all_inputs.extend(batch_inputs)
+            all_preds.extend(batch_preds)
+            all_targets.extend(batch_targets)
+
+        # Metrics
+        for direction in constants.INST_DIRECTIONS:
+            cur_dirs, cur_preds, cur_targets = [], [], []
+            for dir, pred, target in zip(all_dirs, all_preds, all_targets):
+                if dir == direction:
+                    cur_dirs.append(dir)
+                    cur_preds.append(pred)
+                    cur_targets.append(target)
+            nb_instances = len(cur_preds)
+            sent_accuracy = \
+                TextNormalizationTestDataset.compute_sent_accuracy(cur_preds, cur_targets, cur_dirs)
+            if verbose:
+                logging.info(f'\n============ Direction {direction} ============')
+                logging.info(f'Sentence Accuracy: {sent_accuracy}')
+                logging.info(f'nb_instances: {nb_instances}')
+            # Update results
+            results[direction] = {
+                'sent_accuracy': sent_accuracy,
+                'nb_instances': nb_instances
+            }
+
+        # Running Time
+        avg_running_time = np.average(all_run_times) / batch_size # in ms
+        if verbose:
+            logging.info(f'Average running time (normalized by batch size): {avg_running_time} ms')
+        results['running_time'] = avg_running_time
+
+        return results
 
     # Functions for inference
     def _infer(self, sents: List[str], inst_directions: List[str]):

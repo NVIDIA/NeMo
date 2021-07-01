@@ -44,13 +44,9 @@ line arguments by `--config-name=CONFIG_FILE_PATH'.
 """
 
 
-import numpy as np
 import nemo.collections.nlp.data.text_normalization.constants as constants
 
-from tqdm import tqdm
-from math import ceil
 from nltk import word_tokenize
-from time import perf_counter
 from omegaconf import DictConfig, OmegaConf
 from utils import TAGGER_MODEL, DECODER_MODEL, instantiate_model_and_trainer
 
@@ -68,42 +64,10 @@ def main(cfg: DictConfig) -> None:
 
     if not cfg.inference.interactive:
         # Setup test_dataset
-        test = TextNormalizationTestDataset(cfg.data.test_ds.data_path,
-                                            cfg.data.test_ds.mode)
-
-        # Apply the model on the test dataset
-        all_dirs, all_inputs, all_preds, all_targets, all_run_times = [], [], [], [], []
-        batch_size = cfg.data.test_ds.batch_size
-        nb_iters = int(ceil(len(test) / batch_size))
-        for i in tqdm(range(nb_iters)):
-            start_idx = i * batch_size
-            end_idx = (i+1) * batch_size
-            batch_insts = test[start_idx:end_idx]
-            batch_dirs, batch_inputs, batch_targets = zip(*batch_insts)
-            # Inference and Running Time Measurement
-            batch_start_time = perf_counter()
-            batch_preds = tn_model._infer(batch_inputs, batch_dirs)
-            batch_run_time = (perf_counter() - batch_start_time) * 1000  # milliseconds
-            all_run_times.append(batch_run_time)
-            # Update all_dirs, all_inputs, all_preds and all_targets
-            all_dirs.extend(batch_dirs)
-            all_inputs.extend(batch_inputs)
-            all_preds.extend(batch_preds)
-            all_targets.extend(batch_targets)
-
-        # Metrics
-        for direction in constants.INST_DIRECTIONS:
-            cur_dirs, cur_preds, cur_targets = [], [], []
-            for dir, pred, target in zip(all_dirs, all_preds, all_targets):
-                if dir == direction:
-                    cur_dirs.append(dir)
-                    cur_preds.append(pred)
-                    cur_targets.append(target)
-            sent_accuracy = \
-                TextNormalizationTestDataset.compute_sent_accuracy(cur_preds, cur_targets, cur_dirs)
-            logging.info(f'Direction {direction}')
-            logging.info(f'Sentence Accuracy: {sent_accuracy}')
-        logging.info(f'Average running time: {np.average(all_run_times) / batch_size} ms')
+        test_dataset = TextNormalizationTestDataset(cfg.data.test_ds.data_path,
+                                                    cfg.data.test_ds.mode)
+        results = tn_model.evaluate(test_dataset, cfg.data.test_ds.batch_size)
+        print(f'\nTest results: {results}')
     else:
         while True:
             test_input = input('Input a test input:')
