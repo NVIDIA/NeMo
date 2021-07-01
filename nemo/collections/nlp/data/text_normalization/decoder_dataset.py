@@ -90,8 +90,7 @@ class TextNormalizationDecoderDataset(Dataset):
                 continue
 
             # Target
-            with tokenizer.as_target_tokenizer():
-                _target = tokenizer([targets[idx]])
+            _target = tokenizer([targets[idx]])
             target_len = len(_target['input_ids'][0])
             if target_len > max_len:
                 long_examples_filtered += 1

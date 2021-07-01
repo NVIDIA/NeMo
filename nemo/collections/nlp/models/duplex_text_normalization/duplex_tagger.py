@@ -49,9 +49,6 @@ class DuplexTaggerModel(NLPModel):
         # Loss Functions
         self.loss_fct = nn.CrossEntropyLoss(ignore_index=constants.LABEL_PAD_TOKEN_ID)
 
-        # For validation
-        self.val_all_preds, self.val_all_targets = [], []
-
     # Training
     def training_step(self, batch, batch_idx):
         """
@@ -109,11 +106,17 @@ class DuplexTaggerModel(NLPModel):
              if l != constants.LABEL_PAD_TOKEN_ID]
             for prediction, label in zip(predictions, labels)
         ]
-        self.val_all_preds.extend(final_predictions)
-        self.val_all_targets.extend(final_labels)
+
+        # Compute sent_count and sent_correct
+        sent_count, sent_correct = 0, 0
+        for p, l in zip(final_predictions, final_labels):
+            sent_correct += int(p==l)
+            sent_count += 1
 
         return {
-            'val_loss': val_loss
+            'val_loss': val_loss,
+            'sent_count': torch.tensor(sent_count),
+            'sent_correct': torch.tensor(sent_correct)
         }
 
     def validation_epoch_end(self, outputs):
@@ -121,21 +124,16 @@ class DuplexTaggerModel(NLPModel):
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
 
+        # Average loss
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         self.log('val_loss', avg_loss)
 
-        # Compute sentence_accuracy
-        sent_count, sent_correct = 0, 0
-        for ix, (p, l) in enumerate(zip(self.val_all_preds, self.val_all_targets)):
-            # Update stats
-            sent_correct += int(p==l)
-            sent_count += 1
+        # Sentence Accuracy
+        sent_correct = int(torch.stack([x['sent_correct'] for x in outputs]).sum())
+        sent_count = int(torch.stack([x['sent_count'] for x in outputs]).sum())
         sent_accuracy = sent_correct / sent_count
         self.log('val_sentence_accuracy', sent_accuracy)
-
-        # Reset
-        self.val_all_preds, self.val_all_targets = [], []
 
         return {
             'val_loss': avg_loss,
