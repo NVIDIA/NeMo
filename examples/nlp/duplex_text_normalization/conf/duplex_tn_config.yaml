@@ -106,6 +106,7 @@ data:
     shuffle: true
     do_basic_tokenize: false
     max_decoder_len: 80
+    tagger_data_augmentation: true
     decoder_data_augmentation: true
     mode: ${mode}
 

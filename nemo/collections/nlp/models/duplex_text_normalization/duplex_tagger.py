@@ -306,7 +306,8 @@ class DuplexTaggerModel(NLPModel):
         input_file = cfg.data_path
         dataset = TextNormalizationTaggerDataset(
             input_file, self._tokenizer, cfg.mode,
-            cfg.get('do_basic_tokenize', False)
+            cfg.get('do_basic_tokenize', False),
+            cfg.get('tagger_data_augmentation', False)
         )
         data_collator = DataCollatorForTokenClassification(self._tokenizer)
         dl = torch.utils.data.DataLoader(

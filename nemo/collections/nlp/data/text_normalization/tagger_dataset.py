@@ -36,6 +36,7 @@ class TextNormalizationTaggerDataset(Dataset):
         tokenizer: tokenizer of the model that will be trained on the dataset
         mode: should be one of the values ['tn', 'itn', 'joint'].  `tn` mode is for TN only. `itn` mode is for ITN only. `joint` is for training a system that can do both TN and ITN at the same time.
         do_basic_tokenize: a flag indicates whether to do some basic tokenization (i.e., using word_tokenize() of nltk) before using the tokenizer of the model
+        tagger_data_augmentation (bool): a flag indicates whether to augment the dataset with additional data instances
     """
     def __init__(
         self,
@@ -43,13 +44,14 @@ class TextNormalizationTaggerDataset(Dataset):
         tokenizer: PreTrainedTokenizerBase,
         mode: str,
         do_basic_tokenize: bool,
+        tagger_data_augmentation: bool
     ):
         assert(mode in constants.MODES)
         self.mode = mode
         raw_insts = read_data_file(input_file)
 
         # Convert raw instances to TaggerDataInstance
-        insts, texts, tags = [], [], []
+        insts = []
         for (_, w_words, s_words) in tqdm(raw_insts):
             for inst_dir in constants.INST_DIRECTIONS:
                 if inst_dir == constants.INST_BACKWARD and mode == constants.TN_MODE: continue
@@ -57,9 +59,20 @@ class TextNormalizationTaggerDataset(Dataset):
                 # Create a new TaggerDataInstance
                 inst = TaggerDataInstance(w_words, s_words, inst_dir, do_basic_tokenize)
                 insts.append(inst)
-                texts.append(inst.input_words)
-                tags.append(inst.labels)
+                # Data Augmentation (if enabled)
+                if tagger_data_augmentation:
+                    filtered_w_words, filtered_s_words = [], []
+                    for ix, (w, s) in enumerate(zip(w_words, s_words)):
+                        if not s in constants.SPECIAL_WORDS:
+                            filtered_w_words.append(w)
+                            filtered_s_words.append(s)
+                    if len(filtered_s_words) > 1:
+                        inst = TaggerDataInstance(filtered_w_words, filtered_s_words, inst_dir)
+                        insts.append(inst)
+
         self.insts = insts
+        texts = [inst.input_words for inst in insts]
+        tags = [inst.labels for inst in insts]
 
         # Tags Mapping
         self.tag2id = {tag: id for id, tag in enumerate(constants.ALL_TAG_LABELS)}
