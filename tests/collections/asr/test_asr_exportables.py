@@ -102,26 +102,35 @@ class TestExportable:
             model.export(output=filename, verbose=False, check_trace=True)
 
             encoder_filename = os.path.join(tmpdir, 'Encoder-' + fn)
+            assert os.path.exists(encoder_filename)
             onnx_model = onnx.load(encoder_filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
-            # assert onnx_model.graph.input[0].name == 'audio_signal'
-            # assert onnx_model.graph.output[0].name == 'outputs'
+            assert len(onnx_model.graph.input) == 1
+            assert len(onnx_model.graph.output) == 1
+            assert onnx_model.graph.input[0].name == 'audio_signal'
+            assert onnx_model.graph.output[0].name == 'outputs'
 
             decoder_joint_filename = os.path.join(tmpdir, 'Decoder-Joint-' + fn)
+            assert os.path.exists(decoder_joint_filename)
             onnx_model = onnx.load(decoder_joint_filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
 
-            print("graph ips", [x.name for x in onnx_model.graph.input])
-            print("graph ops", [x.name for x in onnx_model.graph.output])
+            # print("graph ips", [x.name for x in onnx_model.graph.input])
+            # print("graph ops", [x.name for x in onnx_model.graph.output])
 
-            assert len(onnx_model.graph.input) == 5
+            input_examples = model.decoder.input_example()
+            assert type(input_examples[-1]) == tuple
+            num_states = len(input_examples[-1])
+
+            # enc_logits + (all decoder inputs - state tuple) + flattened state list
+            assert len(onnx_model.graph.input) == (1 + (len(input_examples) - 1) + num_states)
             assert onnx_model.graph.input[0].name == 'enc_logits'
             assert onnx_model.graph.input[1].name == 'targets'
             assert onnx_model.graph.input[2].name == 'target_length'
             assert onnx_model.graph.input[3].name == 'states-1.1'
             assert onnx_model.graph.input[4].name == 'states-2.1'
 
-            assert len(onnx_model.graph.output) == 4
+            assert len(onnx_model.graph.output) == (len(input_examples) - 1) + num_states
             assert onnx_model.graph.output[0].name == 'outputs'
             assert onnx_model.graph.output[1].name == 'prednet_lengths'
             assert onnx_model.graph.output[2].name == 'states-1'
