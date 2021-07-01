@@ -64,6 +64,10 @@ class OrdinalFst(GraphFst):
         ).optimize()
 
         self.ordinal_numbers = ordinal_numbers
+        # "03" -> remove leading zeros and verbalize
+        leading_zeros = pynini.closure(pynini.cross("0", ""))
+        self.ordinal_numbers_with_leading_zeros = (leading_zeros + ordinal_numbers).optimize()
+
         final_graph = (ordinal_numbers | ordinal_numbers_marked).optimize()
         final_graph = pynutil.insert("integer: \"") + final_graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)

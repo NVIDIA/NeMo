@@ -15,14 +15,12 @@
 
 from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
 from nemo_text_processing.text_normalization.graph_utils import (
-    NEMO_ALPHA,
     NEMO_NON_BREAKING_SPACE,
     NEMO_SIGMA,
-    SINGULAR_TO_PLURAL,
     GraphFst,
-    convert_space,
     delete_space,
 )
+from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA
 
 try:
     import pynini
@@ -113,13 +111,13 @@ class MeasureFst(GraphFst):
             + cardinal_graph
             + pynini.cross('-', '')
             + pynutil.insert("\" } units: \"")
-            + pynini.closure(NEMO_ALPHA, 1)
+            + pynini.closure(RU_ALPHA, 1)
             + pynutil.insert("\"")
         )
 
         alpha_dash_cardinal = (
             pynutil.insert("units: \"")
-            + pynini.closure(NEMO_ALPHA, 1)
+            + pynini.closure(RU_ALPHA, 1)
             + pynini.cross('-', '')
             + pynutil.insert("\"")
             + pynutil.insert(" cardinal { integer: \"")
@@ -128,17 +126,17 @@ class MeasureFst(GraphFst):
         )
 
         decimal_dash_alpha = (
-            pynutil.insert("decimal { ")
-            + decimal.final_graph
+            # pynutil.insert("decimal { ")
+            decimal.final_graph
             + pynini.cross('-', '')
-            + pynutil.insert(" } units: \"")
-            + pynini.closure(NEMO_ALPHA, 1)
+            + pynutil.insert(" units: \"")
+            + pynini.closure(RU_ALPHA, 1)
             + pynutil.insert("\"")
         )
 
         alpha_dash_decimal = (
             pynutil.insert("units: \"")
-            + pynini.closure(NEMO_ALPHA, 1)
+            + pynini.closure(RU_ALPHA, 1)
             + pynini.cross('-', '')
             + pynutil.insert("\"")
             + pynutil.insert(" decimal { ")

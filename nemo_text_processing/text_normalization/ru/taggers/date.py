@@ -123,8 +123,10 @@ class DateFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal: GraphFst, deterministic: bool):
+    def __init__(self, cardinal: GraphFst, ordinal: GraphFst, deterministic: bool):
         super().__init__(name="date", kind="classify", deterministic=deterministic)
+
+        # Ru format: DD-MM-YYYY or DD-MM-YY
 
         # month_graph = pynini.string_file(get_abs_path("data/months/names.tsv")).optimize()
         # month_graph |= (TO_LOWER + pynini.closure(NEMO_CHAR)) @ month_graph
@@ -151,55 +153,41 @@ class DateFst(GraphFst):
         #     pynutil.insert("year: \"") + pynutil.add_weight(year_graph, YEAR_WEIGHT) + pynutil.insert("\"")
         # )
         #
-        # month_graph = pynutil.insert("month: \"") + month_graph + pynutil.insert("\"")
-        # month_numbers_graph = pynutil.insert("month: \"") + month_numbers_graph + pynutil.insert("\"")
-        #
-        # day_graph = (
-        #     pynutil.insert("day: \"")
-        #     + ((pynini.union("1", "2", "3") + NEMO_DIGIT) | NEMO_DIGIT) @ cardinal_graph
-        #     + pynutil.insert("\"")
-        # )
-        # optional_day_graph = pynini.closure(delete_extra_space + day_graph, 0, 1)
-        #
-        # year_graph = pynutil.insert("year: \"") + year_graph + pynutil.insert("\"")
-        # optional_graph_year = pynini.closure(delete_extra_space + year_graph, 0, 1,)
-        # graph_mdy = (
-        #     month_graph
-        #     + optional_day_graph
-        #     + delete_space
-        #     + pynini.closure(pynutil.delete(","), 0, 1)
-        #     + optional_graph_year
-        # )
+        month_abbr_to_names = pynini.string_file(get_abs_path("ru/data/whitelist.tsv")).optimize()
 
-        delete_sep = pynutil.delete(pynini.union("-", "/", "."))
+        delete_sep = pynini.cross(pynini.union("-", "/", "."), " ")
+        # TODO do we need both cardinla and ordinal for days? or ordinals are enough?
+        # TODO add format: 02.12.98 -> "ноль второго двенадцатого..."
 
-        (NEMO_DIGIT + NEMO_DIGIT) + delete_sep + (NEMO_DIGIT + NEMO_DIGIT) + pynini.closure(
-            delete_sep + NEMO_DIGIT ** {4}
-        )
-        graph_mdy |= (
-            month_numbers_graph
-            + delete_sep
-            + insert_space
-            + pynini.closure(pynutil.delete("0"), 0, 1)
-            + day_graph
-            + delete_sep
-            + insert_space
-            + year_graph
-        )
+        numbers = (
+            cardinal.cardinal_numbers_with_leading_zeros | ordinal.ordinal_numbers_with_leading_zeros
+        ).optimize()
+        day = (
+            pynutil.insert("day: \"")
+            + ((pynini.union("0", "1", "2", "3") + NEMO_DIGIT) | NEMO_DIGIT) @ numbers
+            + pynutil.insert("\"")
+        ).optimize()
 
-        graph_dmy = day_graph + delete_extra_space + month_graph + optional_graph_year
-        graph_ymd = (
-            year_graph
-            + delete_sep
-            + insert_space
-            + month_numbers_graph
-            + delete_sep
-            + insert_space
-            + pynini.closure(pynutil.delete("0"), 0, 1)
-            + day_graph
-        )
+        # add @ map to the cases of the months
+        month_number_to_abbr = pynini.string_file(get_abs_path("ru/data/months/numbers.tsv")).optimize()
+        month_number_to_abbr = (
+            ((pynini.union("0", "1") + NEMO_DIGIT) | NEMO_DIGIT).optimize() @ month_number_to_abbr
+        ).optimize()
 
-        final_graph = (graph_mdy | graph_dmy) + pynutil.insert(" preserve_order: true")
-        final_graph |= graph_ymd | year_graph_standalone
+        month_name = (month_number_to_abbr @ month_abbr_to_names | month_abbr_to_names).optimize()
+        month = (pynutil.insert("month: \"") + month_name + pynutil.insert("\"")).optimize()
+        year = (((NEMO_DIGIT ** 4) | (NEMO_DIGIT ** 2)) @ numbers).optimize()
+        year = pynini.closure(delete_sep + pynutil.insert("year: \"") + year + pynutil.insert("\""), 0, 1).optimize()
+
+        final_graph = day + delete_sep + month + year + pynutil.insert(" preserve_order: true")
+        # final_graph |= graph_ymd | year_graph_standalone
+
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
+
+        # from pynini.lib.rewrite import rewrites, top_rewrites
+        # import pdb; pdb.set_trace()
+        #
+        # print(top_rewrites("26.03.1986", final_graph, 5))
+        # print(top_rewrites("31.12.06", final_graph, 5))
+        # print(top_rewrites("03-фев-17", final_graph, 5))
