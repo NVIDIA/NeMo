@@ -701,10 +701,16 @@ class MTEncDecModel(EncDecNLPModel):
             if return_beam_scores:
                 all_translations, scores, best_translations = best_translations
                 scores = scores.view(-1)
-                all_translations = self.ids_to_postprocessed_text(all_translations, self.decoder_tokenizer, self.target_processor, filter_beam_ids=True)
+                all_translations = self.ids_to_postprocessed_text(
+                    all_translations, self.decoder_tokenizer, self.target_processor, filter_beam_ids=True
+                )
 
-            best_translations = self.ids_to_postprocessed_text(best_translations, self.decoder_tokenizer, self.target_processor, filter_beam_ids=True)
-            inputs = self.ids_to_postprocessed_text(src, self.encoder_tokenizer, self.source_processor, filter_beam_ids=False)
+            best_translations = self.ids_to_postprocessed_text(
+                best_translations, self.decoder_tokenizer, self.target_processor, filter_beam_ids=True
+            )
+            inputs = self.ids_to_postprocessed_text(
+                src, self.encoder_tokenizer, self.source_processor, filter_beam_ids=False
+            )
 
         finally:
             self.train(mode=mode)
