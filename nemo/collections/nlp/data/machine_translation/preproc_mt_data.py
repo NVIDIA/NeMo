@@ -187,7 +187,7 @@ class MTDataPreproc:
                             f"Creating tarred dataset for src: {cfg.train_ds.get('src_file_name')} and tgt: {cfg.train_ds.get('tgt_file_name')}"
                         )
 
-                    if not cfg.get('multilingual'):
+                    if isinstance(cfg.train_ds.get('metadata_file'), str):
                         src_file_list = [cfg.train_ds.get('src_file_name')]
                         tgt_file_list = [cfg.train_ds.get('tgt_file_name')]
                         outdir_list = [cfg.get('preproc_out_dir')]
@@ -243,7 +243,7 @@ class MTDataPreproc:
                     # update config
                     # self._cfg.train_ds.tar_files = self.tar_files_to_string(self.train_tar_files)
                     # self._cfg.train_ds.tar_files = self.train_tar_files
-                    if not cfg.get('multilingual'):
+                    if isinstance(cfg.train_ds.get('metadata_file'), str):
                         self._cfg.train_ds.metadata_file = metadata_file_list[0]
                     else:
                         self._cfg.train_ds.metadata_file = metadata_file_list
