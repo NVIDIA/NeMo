@@ -112,7 +112,7 @@ appear to be correct?**
 A: Because our pre-trained models can only output lowercase letters and apostrophe, everything else is dropped. So the model will 
 transcribe 10 as ten. The best way forward is to prepare the training data first by transforming everything to lowercase and convert 
 the numbers from digit representation to word representation using a simple library such as `inflect <https://pypi.org/project/inflect/>`_. Then, add the uppercase letters 
-and punctuation back using the NLP punctuation model. Here is an example of how this is incorporated: `NeMo voice swap demo <https://github.com/NVIDIA/NeMo/blob/main/tutorials/VoiceSwapSample.ipynb>`_.
+and punctuation back using the NLP punctuation model. Here is an example of how this is incorporated: `NeMo voice swap demo <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/VoiceSwapSample.ipynb>`_.
 
 **Q: What languages are supported in NeMo currently?**
 A: Along with English, we provide pre-trained models for Zh, Es, Fr, De, Ru, It, Ca and Pl languages.
@@ -133,7 +133,7 @@ For example, processing a single sample involves:
 - Impulse perturbation
 - Time stretch augmentation (batch level, neural module)
 
-A simple tutorial guides users on how to use these utilities provided in `GitHub: NeMo <https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_.
+A simple tutorial guides users on how to use these utilities provided in `GitHub: NeMo <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_.
 
 Speech Data Explorer
 --------------------
@@ -193,8 +193,8 @@ BioMegatron is a large language model (Megatron-LM) trained on larger domain tex
 It achieves state-of-the-art results for certain tasks such as Relationship Extraction, Named Entity Recognition and Question & 
 Answering. Follow these tutorials to learn how to train and fine tune BioMegatron; pretrained models are provided on NGC:
 
-- `Relation Extraction BioMegatron <https://github.com/NVIDIA/NeMo/blob/main/tutorials/nlp/Relation_Extraction-BioMegatron.ipynb>`_
-- `Token Classification BioMegatron <https://github.com/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification-BioMegatron.ipynb>`_
+- `Relation Extraction BioMegatron <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/nlp/Relation_Extraction-BioMegatron.ipynb>`_
+- `Token Classification BioMegatron <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/nlp/Token_Classification-BioMegatron.ipynb>`_
 
 Efficient Training With NeMo
 ----------------------------
