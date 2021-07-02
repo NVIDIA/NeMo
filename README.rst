@@ -98,12 +98,12 @@ Documentation
 +=========+=============+==========================================================================================================================================+
 | Latest  | |main|      | `Documentation of the latest (i.e. main) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/>`_                  |
 +---------+-------------+------------------------------------------------------------------------------------------------------------------------------------------+
-| Stable  | |stable|    | `Documentation of the stable (i.e. most recent release) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/>`_ |     |
+| Stable  | |stable|    | `Documentation of the stable (i.e. most recent release) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/>`_ |
 +---------+-------------+------------------------------------------------------------------------------------------------------------------------------------------+
 
 Tutorials
 ---------
-A great way to start with NeMo is by checking `one of our tutorials <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.2/starthere/tutorials.html>`_.
+A great way to start with NeMo is by checking `one of our tutorials <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/starthere/tutorials.html>`_.
 
 Getting help with NeMo
 ----------------------
@@ -145,6 +145,16 @@ Use this installation mode if you are contributing to NeMo.
     cd NeMo
     ./reinstall.sh
 
+RNNT
+~~~~
+Note that RNNT requires numba to be installed from conda.
+
+.. code-block:: bash
+
+  conda remove numba
+  pip uninstall numba
+  conda install -c conda conda
+
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
 
@@ -159,7 +169,7 @@ If you chose to work with main branch, we recommend using NVIDIA's PyTorch conta
 Examples
 --------
 
-Many example can be found under `"Examples" <https://github.com/NVIDIA/NeMo/tree/main/examples>`_ folder.
+Many example can be found under `"Examples" <https://github.com/NVIDIA/NeMo/tree/stable/examples>`_ folder.
 
 
 Contributing
