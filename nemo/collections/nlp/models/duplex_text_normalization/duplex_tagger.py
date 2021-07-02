@@ -31,6 +31,7 @@ from nemo.core.classes.common import PretrainedModelInfo
 
 from nemo.utils.decorators.experimental import experimental
 from nemo.collections.nlp.models.duplex_text_normalization.utils import has_numbers
+from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.data.text_normalization import TextNormalizationTaggerDataset
 
 __all__ = ['DuplexTaggerModel']
@@ -50,6 +51,11 @@ class DuplexTaggerModel(NLPModel):
 
         # Loss Functions
         self.loss_fct = nn.CrossEntropyLoss(ignore_index=constants.LABEL_PAD_TOKEN_ID)
+
+        # setup to track metrics
+        self.classification_report = ClassificationReport(
+            self.num_labels, mode='micro', dist_sync_on_step=True
+        )
 
     # Training
     def training_step(self, batch, batch_idx):
@@ -82,8 +88,6 @@ class DuplexTaggerModel(NLPModel):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        num_labels = self.num_labels
-
         # Apply Transformer
         input_ids = batch['input_ids'].to(self.device)
         input_masks = batch['attention_mask'].to(self.device)
@@ -92,54 +96,29 @@ class DuplexTaggerModel(NLPModel):
 
         # Loss
         tag_labels = batch['labels'].to(self.device)
-        val_loss = self.loss_fct(tag_logits.view(-1, num_labels),
-                                 tag_labels.view(-1))
 
-        # Extract batch_predictions and batch_labels
+        # Update classification_report
         predictions, labels = tag_preds.tolist(), tag_labels.tolist()
-        final_predictions = [
-            [constants.ALL_TAG_LABELS[p] for (p, l) in zip(prediction, label) \
-             if l != constants.LABEL_PAD_TOKEN_ID]
-            for prediction, label in zip(predictions, labels)
-        ]
-        final_labels = [
-            [constants.ALL_TAG_LABELS[l] for (p, l) in zip(prediction, label) \
-             if l != constants.LABEL_PAD_TOKEN_ID]
-            for prediction, label in zip(predictions, labels)
-        ]
+        for prediction, label in zip(predictions, labels):
+            cur_preds = [p for (p, l) in zip(prediction, label) if l != constants.LABEL_PAD_TOKEN_ID]
+            cur_labels = [l for (p, l) in zip(prediction, label) if l != constants.LABEL_PAD_TOKEN_ID]
+            self.classification_report(torch.tensor(cur_preds).to(self.device),
+                                       torch.tensor(cur_labels).to(self.device))
 
-        # Compute sent_count and sent_correct
-        sent_count, sent_correct = 0, 0
-        for p, l in zip(final_predictions, final_labels):
-            sent_correct += int(p==l)
-            sent_count += 1
-
-        return {
-            'val_loss': val_loss,
-            'sent_count': torch.tensor(sent_count),
-            'sent_correct': torch.tensor(sent_correct)
-        }
 
     def validation_epoch_end(self, outputs):
         """
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
+        # calculate metrics and classification report
+        precision, _, _, report = self.classification_report.compute()
 
-        # Average loss
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        self.log('val_loss', avg_loss)
+        logging.info(report)
 
-        # Sentence Accuracy
-        sent_correct = int(torch.stack([x['sent_correct'] for x in outputs]).sum())
-        sent_count = int(torch.stack([x['sent_count'] for x in outputs]).sum())
-        sent_accuracy = sent_correct / sent_count
-        self.log('val_sentence_accuracy', sent_accuracy)
+        self.log('val_token_precision', precision)
 
-        return {
-            'val_loss': avg_loss,
-            'val_sentence_accuracy': sent_accuracy
-        }
+        self.classification_report.reset()
 
     def test_step(self, batch, batch_idx):
         """
