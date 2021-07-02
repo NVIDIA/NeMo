@@ -172,9 +172,9 @@ def main():
                         scores = scores.view(-1).data.cpu().numpy().tolist()
                         all_scores += scores
                         src_texts += [item for item in src_text for i in range(args.beam_size)]
-                        all_results = models[0].postprocess_beam_results(all_results)
+                        all_results = models[0].ids_to_postprocessed_text(all_results, models[0].decoder_tokenizer, models[0].target_processor)
                         tgt_text_all += all_results
-                    best_translations = models[0].postprocess_beam_results(best_translations)
+                    best_translations = models[0].ids_to_postprocessed_text(best_translations, models[0].decoder_tokenizer, models[0].target_processor)
                     tgt_text += best_translations
                 else:
                     best_translations = model.translate(
@@ -209,9 +209,9 @@ def main():
                     scores = scores.view(-1).data.cpu().numpy().tolist()
                     all_scores += scores
                     src_texts += [item for item in src_text for i in range(args.beam_size)]
-                    all_results = models[0].postprocess_beam_results(all_results)
+                    all_results = models[0].ids_to_postprocessed_text(all_results, models[0].decoder_tokenizer, models[0].target_processor)
                     tgt_text_all += all_results
-                best_translations = models[0].postprocess_beam_results(best_translations)
+                best_translations = models[0].ids_to_postprocessed_text(best_translations, models[0].decoder_tokenizer, models[0].target_processor)
                 tgt_text += best_translations
             else:
                 best_translations = model.translate(
