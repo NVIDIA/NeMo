@@ -1,6 +1,7 @@
 numpy>=1.18.2
 onnx>=1.7.0
 pytorch-lightning>=1.3.0,<1.3.8
+torchmetrics<0.4.0
 python-dateutil
 torch
 wget
