@@ -12,13 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import torch
 import torch.nn as nn
 
 __all__ = ['Swish']
 
 
-class Swish(nn.SiLU):
+class Swish(nn.Module):
     """
     Swish activation function introduced in 'https://arxiv.org/abs/1710.05941'
-    Mathematically identical to SiLU. See note in nn.SiLU for references.
     """
+
+    def forward(self, x):
+        return x * torch.sigmoid(x)
