@@ -17,11 +17,11 @@ pipeline {
       }
     }
 
-    stage('Uninstall torchtext') {
-      steps {
-        sh 'pip uninstall -y torchtext'
-      }
-    }
+    // stage('Uninstall torchtext') {
+    //   steps {
+    //     sh 'pip uninstall -y torchtext'
+    //   }
+    // }
 
     stage('Install test requirements') {
       steps {
