@@ -18,6 +18,7 @@ import pickle as pkl
 from copy import deepcopy
 
 import numpy as np
+import torch
 from omegaconf import ListConfig
 from pyannote.core import Annotation, Segment
 from pyannote.metrics.diarization import DiarizationErrorRate
@@ -251,13 +252,19 @@ def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rt
     all_reference = []
     no_references = False
 
+    if torch.cuda.is_available():
+        logging.info("cuda=True, using CUDA for eigenvalue decomposition")
+        cuda = True
+    else:
+        cuda = False
+
     for uniq_key in tqdm(embeddings.keys()):
         NUM_speakers = speakers[uniq_key]
         emb = embeddings[uniq_key]
         emb = np.asarray(emb)
 
         cluster_labels = COSclustering(
-            uniq_key, emb, oracle_num_speakers=NUM_speakers, max_num_speaker=max_num_speakers
+            uniq_key, emb, oracle_num_speakers=NUM_speakers, max_num_speaker=max_num_speakers, cuda=cuda,
         )
 
         lines = time_stamps[uniq_key]
@@ -398,20 +405,3 @@ def write_rttm2manifest(paths2audio_files, paths2rttm_files, manifest_file):
             outfile.write("\n")
             f.close()
     return manifest_file
-
-
-def embedding_normalize(embs, use_std=False, eps=1e-10):
-    """
-    mean and l2 length normalize the input speaker embeddings
-    input:
-        embs: embeddings of shape (Batch,emb_size)
-    output:
-        embs: normalized embeddings of shape (Batch,emb_size)
-    """
-    embs = embs - embs.mean(axis=0)
-    if use_std:
-        embs = embs / (embs.std(axis=0) + eps)
-    embs_l2_norm = np.expand_dims(np.linalg.norm(embs, ord=2, axis=-1), axis=1)
-    embs = embs / embs_l2_norm
-
-    return embs
