@@ -53,10 +53,10 @@ class DuplexDecoderModel(NLPModel):
         """
         # Apply Transformer
         outputs = self.model(
-            input_ids=batch['input_ids'].to(self.device),
-            decoder_input_ids=batch['decoder_input_ids'].to(self.device),
-            attention_mask=batch['attention_mask'].to(self.device),
-            labels=batch['labels'].to(self.device),
+            input_ids=batch['input_ids'],
+            decoder_input_ids=batch['decoder_input_ids'],
+            attention_mask=batch['attention_mask'],
+            labels=batch['labels'],
         )
         train_loss = outputs.loss
 
@@ -77,10 +77,10 @@ class DuplexDecoderModel(NLPModel):
 
         # Apply Transformer
         outputs = self.model(
-            input_ids=batch['input_ids'].to(self.device),
-            decoder_input_ids=batch['decoder_input_ids'].to(self.device),
-            attention_mask=batch['attention_mask'].to(self.device),
-            labels=batch['labels'].to(self.device),
+            input_ids=batch['input_ids'],
+            decoder_input_ids=batch['decoder_input_ids'],
+            attention_mask=batch['attention_mask'],
+            labels=batch['labels'],
         )
         val_loss = outputs.loss
 
@@ -136,6 +136,7 @@ class DuplexDecoderModel(NLPModel):
         Returns: A list of lists where each list contains the decoded spans for the corresponding input.
         """
         self.eval()
+
         if sum(nb_spans) == 0: return [[]] * len(sents)
         model, tokenizer = self.model, self._tokenizer
         model_max_len = model.config.n_positions

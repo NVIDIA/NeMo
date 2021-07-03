@@ -66,13 +66,11 @@ class DuplexTaggerModel(NLPModel):
         num_labels = self.num_labels
 
         # Apply Transformer
-        input_ids = batch['input_ids'].to(self.device)
-        input_masks = batch['attention_mask'].to(self.device)
-        tag_logits = self.model(input_ids, input_masks).logits
+        tag_logits = self.model(batch['input_ids'], batch['attention_mask']).logits
 
         # Loss
-        tag_labels = batch['labels'].view(-1).to(self.device)
-        train_loss = self.loss_fct(tag_logits.view(-1, num_labels), tag_labels)
+        train_loss = self.loss_fct(tag_logits.view(-1, num_labels),
+                                   batch['labels'].view(-1))
 
         lr = self._optimizer.param_groups[0]['lr']
         self.log('train_loss', train_loss)
@@ -89,16 +87,11 @@ class DuplexTaggerModel(NLPModel):
         passed in as `batch`.
         """
         # Apply Transformer
-        input_ids = batch['input_ids'].to(self.device)
-        input_masks = batch['attention_mask'].to(self.device)
-        tag_logits = self.model(input_ids, input_masks).logits
+        tag_logits = self.model(batch['input_ids'], batch['attention_mask']).logits
         tag_preds = torch.argmax(tag_logits, dim=2)
 
-        # Loss
-        tag_labels = batch['labels'].to(self.device)
-
         # Update classification_report
-        predictions, labels = tag_preds.tolist(), tag_labels.tolist()
+        predictions, labels = tag_preds.tolist(), batch['labels'].tolist()
         for prediction, label in zip(predictions, labels):
             cur_preds = [p for (p, l) in zip(prediction, label) if l != constants.LABEL_PAD_TOKEN_ID]
             cur_labels = [l for (p, l) in zip(prediction, label) if l != constants.LABEL_PAD_TOKEN_ID]
