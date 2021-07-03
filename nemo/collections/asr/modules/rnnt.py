@@ -99,7 +99,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         return {
             "targets": NeuralType(('B', 'T'), LabelsType()),
             "target_length": NeuralType(tuple('B'), LengthsType()),
-            "states": [NeuralType(('B', 'D'), ElementType(), optional=True)],  # must always be last
+            "states": [NeuralType(('D', 'B', 'D'), ElementType(), optional=True)],  # must always be last
         }
 
     @property
@@ -109,7 +109,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         return {
             "outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
             "prednet_lengths": NeuralType(tuple('B'), LengthsType()),
-            "states": [NeuralType((('B', 'D')), ElementType(), optional=True)],  # must always be last
+            "states": [NeuralType((('D', 'B', 'D')), ElementType(), optional=True)],  # must always be last
         }
 
     def _prepare_for_export(self, **kwargs):
@@ -618,7 +618,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
         """
         if not self._fuse_loss_wer:
             return {
-                "outputs": NeuralType(('B', 'T', 'D', 'D'), LogprobsType()),
+                "outputs": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
             }
 
         else:

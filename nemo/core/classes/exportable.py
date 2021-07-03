@@ -232,6 +232,7 @@ class Exportable(ABC):
         sess = onnxruntime.InferenceSession(onnx_model.SerializeToString())
         ort_out = sess.run(None, to_onnxrt_input(input_names, input_list, input_dict))
         all_good = True
+
         for out_name, out in enumerate(ort_out):
             expected = output_example[out_name].cpu()
             if not torch.allclose(torch.from_numpy(out), expected, rtol=check_tolerance, atol=100 * check_tolerance):

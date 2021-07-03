@@ -17,6 +17,7 @@ from abc import ABC, abstractmethod
 from typing import List, Optional, Union
 
 import torch
+import re
 from omegaconf import OmegaConf
 
 from nemo.core.classes import ModelPT, exportable, typecheck
@@ -132,9 +133,7 @@ class ExportableEncDecJointModel(Exportable):
 
         return encoder_output
 
-    def forward_for_decoder_joint_export(
-        self, encoder_output, decoder_inputs, decoder_lengths, state_h, state_c
-    ):
+    def forward_for_decoder_joint_export(self, encoder_output, decoder_inputs, decoder_lengths, state_h, state_c):
         decoder, joint = self.output_module, self.joint_module
 
         if state_h is not None and state_c is not None:
@@ -148,12 +147,7 @@ class ExportableEncDecJointModel(Exportable):
         state_h, state_c = decoder_outputs[2][0], decoder_outputs[2][1]
 
         joint_output = joint(encoder_output, decoder_output)
-        return (
-            joint_output,
-            decoder_length,
-            state_h,
-            state_c
-        )
+        return (joint_output, decoder_length, state_h, state_c)
 
     def export(
         self,
@@ -217,25 +211,14 @@ class ExportableEncDecJointModel(Exportable):
         encoder_output_names, decoder_output_names, joint_output_names = self._process_output_names()
 
         # process decoder states; by convension states must be the last in the list and must be wrapped in a tuple
-        if type(decoder_input_list[-1]) in (list, tuple):
-            num_states = len(decoder_input_list[-1])
-            states = decoder_input_list[-1]
-            decoder_input_list = decoder_input_list[:-1]
-
-            # unpack states
-            for state in states:
-                decoder_input_list.append(state)
-
-            state_name = decoder_input_names[-1]
-            decoder_input_names = decoder_input_names[:-1]
-            state_names = [f"{state_name}-{idx + 1}" for idx in range(num_states)]
-            input_state_names = ["input-" + name for name in state_names]
-            output_state_names = ["output-" + name for name in state_names]
-
-        else:
-            num_states = 0
-            states = None
-            state_name, state_names, input_state_names, output_state_names = None, [], [], []
+        (
+            decoder_input_list,
+            decoder_input_names,
+            input_state_names,
+            num_states,
+            output_state_names,
+            state_names,
+        ) = self._process_states_names(decoder_input_list, decoder_input_names)
 
         with torch.jit.optimized_execution(True), torch.no_grad():
             # Encoder export
@@ -325,7 +308,9 @@ class ExportableEncDecJointModel(Exportable):
                         raise TypeError("Since input states are available, forward must emit flattened states")
 
                     # remove the name of the states
-                    logging.info(f"Replacing output state name {decoder_output_names[-1]} with {str(output_state_names)}")
+                    logging.info(
+                        f"Replacing output state name {decoder_output_names[-1]} with {str(output_state_names)}"
+                    )
                     decoder_output_names = decoder_output_names[:-1]
 
                 self._export_onnx(
@@ -335,7 +320,7 @@ class ExportableEncDecJointModel(Exportable):
                     self._join_input_output_names(["enc_logits"], decoder_input_names, input_state_names),
                     self._join_input_output_names(joint_output_names, decoder_output_names, output_state_names),
                     use_dynamic_axes,
-                    False,
+                    do_constant_folding,
                     dynamic_axes,
                     self._augment_output_filename(output, "Decoder-Joint"),
                     export_params,
@@ -367,6 +352,27 @@ class ExportableEncDecJointModel(Exportable):
         #     if forward_method:
         #         type(self).forward = original_forward_method
         return ([output], [output_descr])
+
+    def _process_states_names(self, decoder_input_list, decoder_input_names):
+        if type(decoder_input_list[-1]) in (list, tuple):
+            num_states = len(decoder_input_list[-1])
+            states = decoder_input_list[-1]
+            decoder_input_list = decoder_input_list[:-1]
+
+            # unpack states
+            for state in states:
+                decoder_input_list.append(state)
+
+            state_name = decoder_input_names[-1]
+            decoder_input_names = decoder_input_names[:-1]
+            state_names = [f"{state_name}-{idx + 1}" for idx in range(num_states)]
+            input_state_names = ["input-" + name for name in state_names]
+            output_state_names = ["output-" + name for name in state_names]
+
+        else:
+            num_states = 0
+            state_name, state_names, input_state_names, output_state_names = None, [], [], []
+        return decoder_input_list, decoder_input_names, input_state_names, num_states, output_state_names, state_names
 
     def _export_onnx(
         self,
@@ -496,8 +502,57 @@ class ExportableEncDecJointModel(Exportable):
                     **dynamic_axes,
                     **exportable.get_output_dynamic_axes(self.joint_module, output_names),
                 }
+                dynamic_axes = self._get_state_dynamic_axes(dynamic_axes, input_names, output_names)
 
         return dynamic_axes
+
+    def _get_state_dynamic_axes(self, dynamic_axes, input_names, output_names):
+        # Explicitly add `enc_logits`:
+        dynamic_axes['enc_logits'] = dynamic_axes['outputs']
+
+        reduced_input_names = []
+        for name in input_names:
+            if 'input-' in name:
+                name = name.replace('input-', '')
+                name = re.sub(r"-[0-9]*", "", name)
+                reduced_input_names.append(name)
+
+        state_dynamic_axes = {
+            **exportable.get_input_dynamic_axes(self.output_module, reduced_input_names),
+        }
+        input_state_dynamic_axes = {}
+
+        for name in input_names:
+            for reduced_name in reduced_input_names:
+                if reduced_name in name:
+                    input_state_dynamic_axes[name] = state_dynamic_axes[reduced_name]
+
+        dynamic_axes = {**dynamic_axes, **input_state_dynamic_axes}
+
+        # Process output states dynamic axes
+
+        reduced_output_names = []
+        for name in output_names:
+            if 'output-' in name:
+                name = name.replace('output-', '')
+                name = re.sub(r"-[0-9]*", "", name)
+                reduced_output_names.append(name)
+
+        state_dynamic_axes = {
+            **exportable.get_output_dynamic_axes(self.output_module, reduced_output_names),
+        }
+        output_state_dynamic_axes = {}
+
+        for name in output_names:
+            for reduced_name in reduced_output_names:
+                if reduced_name in name:
+                    output_state_dynamic_axes[name] = state_dynamic_axes[reduced_name]
+
+        dynamic_axes = {**dynamic_axes, **output_state_dynamic_axes}
+
+        return dynamic_axes
+
+
 
     def _augment_output_filename(self, output, prepend: str):
         path, filename = os.path.split(output)

@@ -25,7 +25,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import json
 from dataclasses import dataclass
 from typing import List, Optional, Union
 
@@ -36,6 +36,7 @@ from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.common.parts.rnn import label_collate
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
+from nemo.utils import logging
 
 
 def pack_hypotheses(
@@ -717,6 +718,126 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     del alignments[batch_idx][-1]
 
         return label, timesteps, alignments
+
+
+class ONNXGreedyBatchedRNNTInfer:
+    def __init__(
+        self, encoder_model: str, decoder_joint_model: str, max_symbols_per_step: Optional[int] = None,
+    ):
+        try:
+            import onnx
+            import onnxruntime
+        except (ModuleNotFoundError, ImportError):
+            raise ImportError(f"`onnx` or `onnxruntime` could not be imported, please install the libraries.\n")
+
+        onnx_model = onnx.load(encoder_model)
+        onnx.checker.check_model(onnx_model, full_check=True)
+        self.encoder_model = onnx_model
+        self.encoder = onnxruntime.InferenceSession(onnx_model.SerializeToString())
+
+        onnx_model = onnx.load(decoder_joint_model)
+        onnx.checker.check_model(onnx_model, full_check=True)
+        self.decoder_joint_model = onnx_model
+        self.decoder_joint = onnxruntime.InferenceSession(onnx_model.SerializeToString())
+
+        logging.info("Successfully loaded encoder, decoder and joint onnx models !")
+
+        # Will be populated at runtime
+        self._blank_index = None
+
+        self._setup_encoder_input_output_keys()
+        self._setup_decoder_joint_input_output_keys()
+        self._setup_blank_index()
+
+    def _setup_encoder_input_output_keys(self):
+        self.encoder_inputs = list(self.encoder_model.graph.input)
+        self.encoder_outputs = list(self.encoder_model.graph.output)
+
+    def _setup_decoder_joint_input_output_keys(self):
+        self.decoder_joint_inputs = list(self.decoder_joint_model.graph.input)
+        self.decoder_joint_outputs = list(self.decoder_joint_model.graph.output)
+
+    def _setup_blank_index(self):
+        # ASSUME: Single input with no time length information
+        dynamic_dim = 32
+        shapes = self.encoder_inputs[0].type.tensor_type.shape.dim
+        ip_shape = []
+        for shape in shapes:
+            if hasattr(shape, 'dim_param') and 'dynamic' in shape.dim_param:
+                ip_shape.append(dynamic_dim)  # replace dynamic axes with constant
+            else:
+                ip_shape.append(int(shape.dim_value))
+
+        enc_logits = self.run_encoder(audio_signal=torch.randn(*ip_shape))
+
+        # prepare states
+        states = self._get_initial_states(batchsize=dynamic_dim)
+
+        # run decoder 1 step
+        joint_out, states = self.run_decoder_joint(enc_logits, None, None, *states)
+        log_probs, lengths = joint_out
+
+        self._blank_index = log_probs.shape[-1] - 1  # last token of vocab size is blank token
+        logging.info(
+            f"Enc-Dec-Joint step was evaluated, blank token id = {self._blank_index}; vocab size = {log_probs.shape[-1]}"
+        )
+
+    def run_encoder(self, audio_signal):
+        ip = {self.encoder_inputs[0].name: audio_signal.cpu().numpy()}
+        enc_out = self.encoder.run(None, ip)
+        enc_out = enc_out[0]  # ASSUME: single output
+        return enc_out
+
+    def run_decoder_joint(self, enc_logits, targets, target_length, *states):
+        # ASSUME: Decoder is RNN Transducer
+        if targets is None:
+            targets = torch.zeros(enc_logits.shape[0], 1, dtype=torch.int32)
+            target_length = torch.ones(enc_logits.shape[0], dtype=torch.int32)
+
+        ip = {
+            self.decoder_joint_inputs[0].name: enc_logits,
+            self.decoder_joint_inputs[1].name: targets.cpu().numpy(),
+            self.decoder_joint_inputs[2].name: target_length.cpu().numpy(),
+        }
+
+        num_states = 0
+        if states is not None and len(states) > 0:
+            num_states = len(states)
+            for idx, state in enumerate(states):
+                ip[self.decoder_joint_inputs[len(ip)].name] = state.cpu().numpy()
+
+        dec_out = self.decoder_joint.run(None, ip)
+
+        # unpack dec output
+        if num_states > 0:
+            new_states = dec_out[-num_states:]
+            dec_out = dec_out[:-num_states]
+
+        else:
+            new_states = None
+
+        return dec_out, new_states
+
+    def _get_initial_states(self, batchsize):
+        # ASSUME: LSTM STATES of shape (layers, batchsize, dim)
+        input_state_nodes = [ip for ip in self.decoder_joint_inputs if 'state' in ip.name]
+        num_states = len(input_state_nodes)
+        if num_states == 0:
+            return
+
+        input_states = []
+        for state_id in range(num_states):
+            node = input_state_nodes[state_id]
+            ip_shape = []
+            for shape_idx, shape in enumerate(node.type.tensor_type.shape.dim):
+                if hasattr(shape, 'dim_param') and 'dynamic' in shape.dim_param:
+                    ip_shape.append(batchsize)  # replace dynamic axes with constant
+                else:
+                    ip_shape.append(int(shape.dim_value))
+
+            input_states.append(torch.randn(*ip_shape))
+
+        return input_states
 
 
 @dataclass
