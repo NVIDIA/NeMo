@@ -1,4 +1,4 @@
-name: AttentionIsAllYouNeed
+name: AttentionIsAllYouNeedDistilled
 do_training: True # set to False if only preprocessing data
 do_testing: False # set to True to run evaluation on test data after training
 
@@ -6,7 +6,7 @@ model:
   beam_size: 4
   len_pen: 0.6
   multilingual: False
-  max_generation_delta: -1
+  max_generation_delta: 5
   label_smoothing: 0.1
   shared_tokenizer: True # train tokenizer model across src and tgt train data
   preproc_out_dir: null # path to store data preprocessing outputs
@@ -83,7 +83,6 @@ model:
     vocab_file: null
     special_tokens: null
     training_sample_size: null # valid for sentencepiece tokenizer
-    r2l: false
 
   decoder_tokenizer:
     library: yttm
@@ -93,7 +92,6 @@ model:
     vocab_file: null
     special_tokens: null
     training_sample_size: null # valid for sentencepiece tokenizer
-    r2l: false
 
   encoder:
     library: nemo
@@ -142,32 +140,32 @@ model:
     use_transformer_init: true
 
   # DISTILLATION DETAILS
-  # distillation:
-  #   model_path: 'nmt_en_de_transformer12x2.nemo'
+  distillation:
+    model_path: '/raid/81837/AAYNBase/2021-06-29_22-02-55/checkpoints/AAYNBase.nemo'
 
-  #   # loss weights
-  #   distillation_loss_weight: 1.0
-  #   student_train_loss_weight: 1.0
-  #   cosine_loss_weight: 1.0
+    # loss weights
+    distillation_loss_weight: 1.0
+    student_train_loss_weight: 1.0
+    cosine_loss_weight: 1.0
 
-  #   # encoder matching
-  #   # distill_encoder: False  # attempts to distill encoder as well if model shapes are compatible
+    # encoder matching
+    distill_encoder: False  # attempts to distill encoder as well if model shapes are compatible
 
-  #   # logits temperature
-  #   temperature: 1.0
+    # logits temperature
+    temperature: 1.0
 
-  #   # preserve memory for secondary loss computation (true by default)
-  #   preserve_distillation_memory: false
+    # preserve memory for secondary loss computation (true by default)
+    preserve_distillation_memory: false
 
-  #   # optional - distillation loss config
-  #   loss:
-  #     primary:
-  #       _target_: 'torch.nn.KLDivLoss'
-  #       log_target: true
-  #       reduction: 'batchmean'
+    # optional - distillation loss config
+    loss:
+      primary:
+        _target_: 'torch.nn.KLDivLoss'
+        log_target: true
+        reduction: 'batchmean'
 
-  #     cosine:
-  #       _target_: 'nemo.collections.common.losses.cosine_embedding.CosineEmbeddingLossWrapper'
+      cosine:
+        _target_: 'nemo.collections.common.losses.cosine_embedding.CosineEmbeddingLossWrapper'
 
 trainer:
   gpus: 4

@@ -1,0 +1,115 @@
+beam_size: 4
+len_pen: 0.6
+max_generation_delta: 5
+label_smoothing: 0.1
+train_ds:
+  src_file_name: /home/sandeepsub/Datasets/wmt/wmt20_en_zh/processed/batches.tokens.cmwt.septokenizer.16000.pkl
+  tgt_file_name: /home/sandeepsub/Datasets/wmt/wmt20_en_zh/processed/batches.tokens.cmwt.septokenizer.16000.pkl
+  tokens_in_batch: 16000
+  clean: true
+  max_seq_length: 512
+  cache_ids: false
+  cache_data_per_node: false
+  use_cache: false
+  shuffle: true
+  num_samples: -1
+  drop_last: false
+  pin_memory: false
+  num_workers: 8
+  load_from_cached_dataset: true
+  reverse_lang_direction: true
+validation_ds:
+  src_file_name: /home/sandeepsub/Datasets/wmt/wmt20_en_de/parallel/newstest2013-de-en.clean.tok.src
+  tgt_file_name: /home/sandeepsub/Datasets/wmt/wmt20_en_de/parallel/newstest2013-de-en.clean.tok.ref
+  tokens_in_batch: 512
+  clean: false
+  max_seq_length: 512
+  cache_ids: false
+  cache_data_per_node: false
+  use_cache: false
+  shuffle: false
+  num_samples: -1
+  drop_last: false
+  pin_memory: false
+  num_workers: 8
+test_ds:
+  src_file_name: /home/sandeepsub/Datasets/wmt/wmt20_en_de/parallel/newstest2014-de-en.clean.tok.src
+  tgt_file_name: /home/sandeepsub/Datasets/wmt/wmt20_en_de/parallel/newstest2014-de-en.clean.tok.ref
+  tokens_in_batch: 512
+  clean: false
+  max_seq_length: 512
+  cache_ids: false
+  cache_data_per_node: false
+  use_cache: false
+  shuffle: false
+  num_samples: -1
+  drop_last: false
+  pin_memory: false
+  num_workers: 8
+optim:
+  name: adam
+  lr: 0.0004
+  betas:
+  - 0.9
+  - 0.98
+  weight_decay: 0.0
+  sched:
+    name: InverseSquareRootAnnealing
+    min_lr: 0.0
+    last_epoch: -1
+    warmup_ratio: 0.1
+encoder_tokenizer:
+  tokenizer_name: yttm
+  tokenizer_model: /home/sandeepsub/Models/transformer_large_en_de_wmt20_nemo/1667282/wmt20_en_de_deepenc/AAYNBase/2021-01-04_09-23-07/checkpoints/tokenizer.60.32000.BPE.model
+  vocab_file: null
+  special_tokens: null
+decoder_tokenizer:
+  tokenizer_name: yttm
+  tokenizer_model: /home/sandeepsub/Models/transformer_large_en_de_wmt20_nemo/1667282/wmt20_en_de_deepenc/AAYNBase/2021-01-04_09-23-07/checkpoints/tokenizer.60.32000.BPE.model
+  vocab_file: null
+  special_tokens: null
+encoder_embedding:
+  max_sequence_length: 512
+  num_token_types: 2
+  embedding_dropout: 0.1
+  learn_positional_encodings: false
+  _target_: nemo.collections.nlp.modules.common.transformer.TransformerEmbedding
+encoder:
+  hidden_size: 1024
+  num_layers: 12
+  inner_size: 4096
+  num_attention_heads: 16
+  ffn_dropout: 0.3
+  attn_score_dropout: 0.1
+  attn_layer_dropout: 0.3
+  hidden_act: relu
+  mask_future: false
+  pre_ln: false
+  _target_: nemo.collections.nlp.modules.common.transformer.TransformerEncoder
+decoder_embedding:
+  max_sequence_length: 512
+  num_token_types: 2
+  embedding_dropout: 0.1
+  learn_positional_encodings: false
+  _target_: nemo.collections.nlp.modules.common.transformer.TransformerEmbedding
+decoder:
+  hidden_size: 1024
+  inner_size: 4096
+  num_layers: 2
+  num_attention_heads: 16
+  ffn_dropout: 0.3
+  attn_score_dropout: 0.1
+  attn_layer_dropout: 0.3
+  hidden_act: relu
+  pre_ln: false
+  _target_: nemo.collections.nlp.modules.common.transformer.TransformerDecoder
+head:
+  hidden_size: 512
+  num_classes: 37000
+  num_layers: 1
+  activation: relu
+  log_softmax: true
+  dropout: 0.0
+  use_transformer_init: true
+  _target_: nemo.collections.nlp.modules.common.token_classifier.TokenClassifier
+target: nemo.collections.nlp.models.machine_translation.mt_enc_dec_model.MTEncDecModel

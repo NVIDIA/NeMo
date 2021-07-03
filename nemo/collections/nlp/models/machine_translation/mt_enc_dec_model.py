@@ -51,7 +51,7 @@ from nemo.utils import logging, model_utils
 __all__ = ['MTEncDecModel']
 
 
-class MTEncDecModel(EncDecNLPModel):
+class MTEncDecModel(EncDecNLPModel, DistillationMixin):
     """
     Encoder-decoder machine translation model.
     """
@@ -257,7 +257,7 @@ class MTEncDecModel(EncDecNLPModel):
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
         return log_probs
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch, batch_nb):
         """
         Lightning calls this inside the training loop with the data from the training dataloader
         passed in as `batch`.
@@ -271,12 +271,32 @@ class MTEncDecModel(EncDecNLPModel):
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
         log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
         train_loss = self.loss_fn(log_probs=log_probs, labels=labels)
-        tensorboard_logs = {
-            'train_loss': train_loss,
-            'lr': self._optimizer.param_groups[0]['lr'],
-        }
 
-        return {'loss': train_loss, 'log': tensorboard_logs}
+        # print(f'optimizer {self.param_groups}')
+        # print(f'learning rate {self.param_groups[0]["lr"]}')
+
+        if self._optimizer:
+            tensorboard_logs = {
+                'train_loss': train_loss,
+                'lr': self._optimizer.param_groups[0]['lr'],
+            }
+
+        # Distillation support
+        if self.is_being_distilled():
+            if self.is_student_model():
+                loss_key = 'input'
+            else:
+                loss_key = 'target'
+
+            # Register the tensor for the loss function
+            self.register_distillation_tensor(loss_key=loss_key, tensor=log_probs)
+            # No need for further steps, return immediately since later elements are not available on
+            # both the student and the teacher models
+
+        if self._optimizer:
+            return {'loss': train_loss, 'log': tensorboard_logs}
+        else:
+            return {'loss': train_loss}
 
     def eval_step(self, batch, batch_idx, mode, dataloader_idx=0):
         for i in range(len(batch)):
