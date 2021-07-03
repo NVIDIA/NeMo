@@ -68,21 +68,12 @@ class DateFst(GraphFst):
             + delete_space
             + pynutil.delete("\"")
         )
+        year = pynini.closure(delete_extra_space + year, 0, 1)
 
         # day month year
-        graph_dmy = day + delete_extra_space + month + pynini.closure(delete_extra_space + year, 0, 1)
+        graph_dmy = day + delete_extra_space + month + year
 
-        optional_preserve_order = pynini.closure(
-            pynutil.delete("preserve_order:") + delete_space + pynutil.delete("true") + delete_space
-            | pynutil.delete("field_order:")
-            + delete_space
-            + pynutil.delete("\"")
-            + NEMO_NOT_QUOTE
-            + pynutil.delete("\"")
-            + delete_space
-        )
-
-        final_graph = graph_dmy + delete_space + optional_preserve_order
+        final_graph = graph_dmy + delete_space
 
         delete_tokens = self.delete_tokens(final_graph)
         self.fst = delete_tokens.optimize()

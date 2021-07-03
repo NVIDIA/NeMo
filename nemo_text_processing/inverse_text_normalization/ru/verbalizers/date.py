@@ -13,8 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.graph_utils import GraphFst
-from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA
+from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space
 
 try:
     import pynini
@@ -25,19 +24,15 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-class ElectronicFst(GraphFst):
+class DateFst(GraphFst):
     """
-    Finite state transducer for verbalizing electronic
-        e.g. tokens { electronic { username: "cdf1" domain: "abc.edu" } } -> c d f one at a b c dot e d u
-
-    Args:
-        deterministic: if True will provide a single transduction option,
-        for False multiple transduction are generated (used for audio-based normalization)
+    Finite state transducer for verbalizing date, e.g.
+        date { month: "january" day: "5" year: "2012" preserve_order: true } -> february 5 2012
+        date { day: "5" month: "january" year: "2012" preserve_order: true } -> 5 february 2012
     """
 
-    def __init__(self, deterministic: bool = True):
-        super().__init__(name="electronic", kind="verbalize", deterministic=deterministic)
-
-        graph = pynini.closure(RU_ALPHA | " ")
-        delete_tokens = self.delete_tokens(graph)
+    def __init__(self):
+        super().__init__(name="date", kind="verbalize")
+        graph = pynutil.delete("month: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        delete_tokens = self.delete_tokens(graph.optimize())
         self.fst = delete_tokens.optimize()

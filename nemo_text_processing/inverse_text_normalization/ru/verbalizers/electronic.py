@@ -13,8 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.graph_utils import GraphFst
-from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA
+from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_QUOTE, GraphFst
 
 try:
     import pynini
@@ -28,16 +27,12 @@ except (ModuleNotFoundError, ImportError):
 class ElectronicFst(GraphFst):
     """
     Finite state transducer for verbalizing electronic
-        e.g. tokens { electronic { username: "cdf1" domain: "abc.edu" } } -> c d f one at a b c dot e d u
-
-    Args:
-        deterministic: if True will provide a single transduction option,
-        for False multiple transduction are generated (used for audio-based normalization)
+        e.g. tokens { electronic { username: "cdf1" domain: "abc.edu" } } -> cdf1@abc.edu
     """
 
-    def __init__(self, deterministic: bool = True):
-        super().__init__(name="electronic", kind="verbalize", deterministic=deterministic)
+    def __init__(self):
+        super().__init__(name="electronic", kind="verbalize")
 
-        graph = pynini.closure(RU_ALPHA | " ")
+        graph = pynutil.delete("username: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

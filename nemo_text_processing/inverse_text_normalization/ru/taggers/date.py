@@ -15,8 +15,10 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.graph_utils import GraphFst
-from nemo_text_processing.text_normalization.ru.taggers.electronic import ElectronicFst as TNElectronicFst
+from nemo_text_processing.text_normalization.graph_utils import GraphFst, insert_space
+from nemo_text_processing.text_normalization.ru.taggers.cardinal import CardinalFst as TNCardinalFst
+from nemo_text_processing.text_normalization.ru.taggers.date import DateFst as TNDateFst
+from nemo_text_processing.text_normalization.ru.taggers.ordinal import OrdinalFst as TNOrdinalFst
 
 try:
     import pynini
@@ -27,7 +29,7 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-class ElectronicFst(GraphFst):
+class DateFst(GraphFst):
     """
     Finite state transducer for classifying cardinals, e.g. 
         -23 -> cardinal { negative: "true"  integer: "twenty three" } }
@@ -38,10 +40,10 @@ class ElectronicFst(GraphFst):
     """
 
     def __init__(self, deterministic: bool = True):
-        super().__init__(name="electronic", kind="classify", deterministic=deterministic)
-
-        graph = TNElectronicFst(deterministic=False).final_graph
+        super().__init__(name="date", kind="classify", deterministic=deterministic)
+        ordinal = TNOrdinalFst(deterministic=deterministic)
+        cardinal = TNCardinalFst(deterministic=deterministic)
+        graph = TNDateFst(cardinal=cardinal, ordinal=ordinal, deterministic=deterministic).final_graph
         graph = graph.invert().optimize()
-        graph = pynutil.insert("username: \"") + graph + pynutil.insert("\"")
-        graph = self.add_tokens(graph)
+        graph = self.add_tokens(pynutil.insert("month: \"") + graph + pynutil.insert("\""))
         self.fst = graph.optimize()

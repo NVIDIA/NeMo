@@ -14,8 +14,16 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.graph_utils import NEMO_ALPHA, NEMO_DIGIT, GraphFst, get_abs_path, delete_space, NEMO_NOT_QUOTE, insert_space
-from nemo_text_processing.text_normalization.ru.alphabet import TO_LATIN, RU_ALPHA
+from nemo_text_processing.text_normalization.graph_utils import (
+    NEMO_ALPHA,
+    NEMO_DIGIT,
+    NEMO_NOT_QUOTE,
+    GraphFst,
+    delete_space,
+    get_abs_path,
+    insert_space,
+)
+from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA, TO_LATIN
 
 try:
     import pynini
@@ -104,8 +112,7 @@ class ElectronicFst(GraphFst):
         graph = user_name + delete_space + pynutil.insert("собака ") + delete_space + domain + delete_space
         # replace all latin letters with their Ru verbalization
         verbalizer_graph = (graph.optimize() @ (pynini.closure(TO_LATIN | RU_ALPHA | pynini.accep(" ")))).optimize()
-        # verbalizer_graph = self.delete_tokens(verbalizer_graph)
         verbalizer_graph = verbalizer_graph.optimize()
 
-        self.final_graph = tagger_graph @ verbalizer_graph
+        self.final_graph = (tagger_graph @ verbalizer_graph).optimize()
         self.fst = self.add_tokens(self.final_graph).optimize()
