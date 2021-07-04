@@ -33,8 +33,14 @@ class TextNormalizationTestDataset:
     Args:
         input_file: path to the raw data file (e.g., train.tsv). For more info about the data format, refer to the `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`.
         mode: should be one of the values ['tn', 'itn', 'joint'].  `tn` mode is for TN only. `itn` mode is for ITN only. `joint` is for training a system that can do both TN and ITN at the same time.
+        keep_puncts: whether to keep punctuations in the inputs/outputs
     """
-    def __init__(self, input_file: str, mode: str):
+    def __init__(
+            self,
+            input_file: str,
+            mode: str,
+            keep_puncts: bool = False
+        ):
         insts = read_data_file(input_file)
 
         # Build inputs and targets
@@ -43,7 +49,11 @@ class TextNormalizationTestDataset:
             # Extract words that are not punctuations
             processed_w_words, processed_s_words = [], []
             for w_word, s_word in zip(w_words, s_words):
-                if s_word == constants.SIL_WORD: continue
+                if s_word == constants.SIL_WORD:
+                    if keep_puncts:
+                        processed_w_words.append(w_word)
+                        processed_s_words.append(w_word)
+                    continue
                 if s_word == constants.SELF_WORD: processed_s_words.append(w_word)
                 if not s_word in constants.SPECIAL_WORDS: processed_s_words.append(s_word)
                 processed_w_words.append(w_word)
