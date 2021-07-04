@@ -23,6 +23,8 @@ def build_topo(name: str, tokens: List[int]) -> k2.Fsa:
         return build_ctc_topo(tokens)
     elif name == "ctc_no_selfloops":
         return build_ctc_topo_no_selfloops(tokens)
+    elif name == "ctc_shared_blank":
+        return build_ctc_topo_shared_blank(tokens)
     elif name == "identity":
         return build_identity_topo(tokens)
     else:
@@ -85,6 +87,33 @@ def build_identity_topo(tokens: List[int]) -> k2.Fsa:
         arcs += f"0 0 {tokens[i]} {tokens[i]} 0.0\n"
     arcs += f"0 {final_state} -1 -1 0.0\n"
     arcs += f"{final_state}"
+    ans = k2.Fsa.from_str(arcs, num_aux_labels=1)
+    ans = k2.arc_sort(ans)
+    return ans
+
+def build_ctc_topo_shared_blank(tokens: List[int]):
+    # See https://github.com/k2-fsa/k2/issues/746#issuecomment-856421616
+    assert 0 in tokens, 'We assume 0 is the ID of the blank symbol'
+
+    tokens = tokens.copy()
+    tokens.remove(0)
+    num_tokens = len(tokens)
+    start = 0
+    final = num_tokens + 1
+    arcs = []
+    arcs.append([start, start, 0, 0, 0])
+    arcs.append([start, final, -1, -1, 0])
+    arcs.append([final])
+    for i, p in enumerate(tokens):
+        i += 1
+        arcs.append([start, start, p, p, 0])
+        arcs.append([start, i, p, p, 0])
+        arcs.append([i, i, p, 0, 0])
+        arcs.append([i, start, p, 0, 0])
+    arcs = sorted(arcs, key=lambda arc: arc[0])
+    arcs = [[str(i) for i in arc] for arc in arcs]
+    arcs = [' '.join(arc) for arc in arcs]
+    arcs = '\n'.join(arcs)
     ans = k2.Fsa.from_str(arcs, num_aux_labels=1)
     ans = k2.arc_sort(ans)
     return ans

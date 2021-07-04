@@ -21,6 +21,7 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
+from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.losses.sd_losses import SDLoss
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
@@ -110,7 +111,7 @@ class EncDecCTCSDModel(EncDecCTCModel):
         super().change_vocabulary(new_vocabulary)
 
         del self.loss
-        loss_kwargs=self._cfg.get("loss_kwargs", {})
+        loss_kwargs = self._cfg.get("loss_kwargs", {})
         self.loss = SDLoss(
             num_classes=self.decoder.num_classes_with_blank - 1,
             reduction=self._cfg.get("ctc_reduction", "mean_batch"),
@@ -283,7 +284,7 @@ class EncDecCTCSDModelBPE(EncDecCTCModelBPE):
         super().__init__(cfg=cfg, trainer=trainer)
 
         del self.loss
-        loss_kwargs=self._cfg.get("loss", {})
+        loss_kwargs = self._cfg.get("loss", {})
         self.loss = SDLoss(
             num_classes=self.decoder.num_classes_with_blank - 1,
             reduction=self._cfg.get("ctc_reduction", "mean_batch"),
@@ -291,6 +292,15 @@ class EncDecCTCSDModelBPE(EncDecCTCModelBPE):
         )
         remove_consecutive = loss_kwargs.get("topo_type", "ctc_default") != "identity"
         self._wer.remove_consecutive = remove_consecutive
+
+        self.aux_loss = self._cfg.get("aux_loss", False)
+        if self.aux_loss:
+            self.aux_decoder = EncDecCTCSDModelBPE.from_config_dict(self._cfg.decoder)
+            self.aux_loss = CTCLoss(
+                num_classes=self.decoder.num_classes_with_blank - 1,
+                zero_infinity=True,
+                reduction=self._cfg.get("ctc_reduction", "mean_batch"),
+            )
 
         transcribe_decode = self._cfg.get("transcribe_decode", False)
         loss_type = loss_kwargs.get("loss_type", "ctc")
@@ -341,7 +351,7 @@ class EncDecCTCSDModelBPE(EncDecCTCModelBPE):
             **loss_kwargs
         )
 
-    @typecheck()
+    # @typecheck()
     def forward(
         self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None
     ):
@@ -389,26 +399,49 @@ class EncDecCTCSDModelBPE(EncDecCTCModelBPE):
 
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         encoded = GradCheck.apply(encoded)
-        log_probs = self.decoder(encoder_output=encoded)
-        log_probs = GradCheck.apply(log_probs)
-        greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
-
-        return log_probs, encoded_len, greedy_predictions
+        if not self.aux_loss or not self.training:
+            log_probs = self.decoder(encoder_output=encoded)
+            log_probs = GradCheck.apply(log_probs)
+            greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
+            return log_probs, encoded_len, greedy_predictions
+        else:
+            log_probs = self.decoder(encoder_output=encoded)
+            log_probs = GradCheck.apply(log_probs)
+            aux_log_probs = self.aux_decoder(encoder_output=encoded)
+            aux_log_probs = GradCheck.apply(aux_log_probs)
+            greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
+            return log_probs, encoded_len, greedy_predictions, aux_log_probs
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
-        if self.transcribe_decode:
+        if self.transcribe_decode or self.aux_loss:
             signal, signal_len, transcript, transcript_len = batch
-            if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
-                log_probs, encoded_len, greedy_predictions = self.forward(
-                    processed_signal=signal, processed_signal_length=signal_len
+            if not self.aux_loss:
+                if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
+                    log_probs, encoded_len, greedy_predictions = self.forward(
+                        processed_signal=signal, processed_signal_length=signal_len
+                    )
+                else:
+                    log_probs, encoded_len, greedy_predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
+
+                loss_value = self.loss(
+                    log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
                 )
             else:
-                log_probs, encoded_len, greedy_predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
+                if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
+                    log_probs, encoded_len, greedy_predictions, aux_log_probs = self.forward(
+                        processed_signal=signal, processed_signal_length=signal_len
+                    )
+                else:
+                    log_probs, encoded_len, greedy_predictions, aux_log_probs = self.forward(input_signal=signal, input_signal_length=signal_len)
 
-            loss_value = self.loss(
-                log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
-            )
+                loss_value = self.loss(
+                    log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
+                )
+                aux_loss_value = self.loss(
+                    log_probs=aux_log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
+                )
+                loss_value = (loss_value + aux_loss_value) / 2
 
             tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
 
@@ -425,21 +458,24 @@ class EncDecCTCSDModelBPE(EncDecCTCModelBPE):
                     predictions_lengths=encoded_len,
                 )
                 wer_greedy, _, _ = self._wer.compute()
-                tensorboard_logs.update({'training_batch_wer_greedy': wer_greedy})
+                if self.transcribe_decode:
+                    tensorboard_logs.update({'training_batch_wer_greedy': wer_greedy})
 
-                predictions, pred_lengths, _ = self.transcribe_decoder.forward(log_probs=log_probs, log_probs_length=encoded_len)
-                # ter = self._calc_ter_loc(transcript, transcript_len, predictions, pred_lengths)
-                # tensorboard_logs.update({'training_batch_ter': ter})
+                    predictions, pred_lengths, _ = self.transcribe_decoder.forward(log_probs=log_probs, log_probs_length=encoded_len)
+                    # ter = self._calc_ter_loc(transcript, transcript_len, predictions, pred_lengths)
+                    # tensorboard_logs.update({'training_batch_ter': ter})
 
-                # fake_predictions, fake_lengths = self._make_fake_aligned_predictions(predictions)
-                self._wer.update(
-                    predictions=predictions,
-                    targets=transcript,
-                    target_lengths=transcript_len,
-                    predictions_lengths=pred_lengths,
-                )
-                wer, _, _ = self._wer.compute()
-                tensorboard_logs.update({'training_batch_wer': wer})
+                    # fake_predictions, fake_lengths = self._make_fake_aligned_predictions(predictions)
+                    self._wer.update(
+                        predictions=predictions,
+                        targets=transcript,
+                        target_lengths=transcript_len,
+                        predictions_lengths=pred_lengths,
+                    )
+                    wer, _, _ = self._wer.compute()
+                    tensorboard_logs.update({'training_batch_wer': wer})
+                else:
+                    tensorboard_logs.update({'training_batch_wer': wer_greedy})
 
             return {'loss': loss_value, 'log': tensorboard_logs}
         else:
