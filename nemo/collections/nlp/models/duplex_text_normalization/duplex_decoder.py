@@ -145,7 +145,7 @@ class DuplexDecoderModel(NLPModel):
         extra_id_1 = constants.EXTRA_ID_1
 
         # Build all_inputs
-        input_centers, all_inputs = [], []
+        input_centers, input_dirs, all_inputs = [], [], []
         for ix, sent in enumerate(sents):
             cur_inputs = []
             for jx in range(nb_spans[ix]):
@@ -158,6 +158,7 @@ class DuplexDecoderModel(NLPModel):
                 if is_url(span_words_str):
                     span_words_str = span_words_str.lower()
                 input_centers.append(span_words_str)
+                input_dirs.append(inst_directions[ix])
                 # Build cur_inputs
                 if inst_directions[ix] == constants.INST_BACKWARD:
                     cur_inputs = [constants.ITN_PREFIX]
@@ -175,7 +176,7 @@ class DuplexDecoderModel(NLPModel):
         generated_texts = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
 
         # Post processing
-        generated_texts = self.postprocess_output_spans(input_centers, generated_texts)
+        generated_texts = self.postprocess_output_spans(input_centers, generated_texts, input_dirs)
 
         # Prepare final_texts
         final_texts, span_ctx = [], 0
@@ -188,7 +189,7 @@ class DuplexDecoderModel(NLPModel):
 
         return final_texts
 
-    def postprocess_output_spans(self, input_centers, output_spans):
+    def postprocess_output_spans(self, input_centers, output_spans, input_dirs):
         greek_spokens = list(constants.GREEK_TO_SPOKEN.values())
         for ix, (_input, _output) in enumerate(zip(input_centers, output_spans)):
             # Handle URL
@@ -197,7 +198,10 @@ class DuplexDecoderModel(NLPModel):
                 continue
             # Greek letters
             if _input in greek_spokens:
-                output_spans[ix] = _input
+                if input_dirs[ix] == constants.INST_FORWARD:
+                    output_spans[ix] = _input
+                if input_dirs[ix] == constants.INST_BACKWARD:
+                    output_spans[ix] = constants.SPOKEN_TO_GREEK[_input]
         return output_spans
 
     # Functions for processing data

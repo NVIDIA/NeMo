@@ -122,6 +122,7 @@ class DuplexTextNormalizationModel(nn.Module):
                         tn_error_ctx += 1
                     formatted_input_str = get_formatted_string(_input.split(' '))
                     formatted_tag_pred_str = get_formatted_string(tag_pred)
+                    error_f.write(f'Original Input : {_input}\n')
                     error_f.write(f'Input          : {formatted_input_str}\n')
                     error_f.write(f'Predicted Tags : {formatted_tag_pred_str}\n')
                     error_f.write(f'Predicted      : {final_pred}\n')
@@ -154,7 +155,7 @@ class DuplexTextNormalizationModel(nn.Module):
             final_outputs: A list of str where each str is the final output text for an input text.
         """
         # Preprocessing
-        sents = self.input_preprocessing(sents)
+        sents = self.input_preprocessing(list(sents))
 
         # Tagging
         tag_preds, nb_spans, span_starts, span_ends = \
@@ -196,7 +197,12 @@ class DuplexTextNormalizationModel(nn.Module):
 
         Returns: A list of preprocessed input texts.
         """
-        # Basic Tokenization
+        # Basic Preprocessing and Tokenization
+        for ix, sent in enumerate(sents):
+            sents[ix] = sents[ix].replace('+', ' plus ')
+            sents[ix] = sents[ix].replace('=', ' equals ')
+            sents[ix] = sents[ix].replace('@', ' at ')
+            sents[ix] = sents[ix].replace('*', ' times ')
         sents = [word_tokenize(sent) for sent in sents]
 
         # Greek letters processing
