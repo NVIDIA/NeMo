@@ -307,7 +307,7 @@ def get_DER(all_reference, all_hypothesis):
     Miss (float): Miss Detection 
 
     """
-    metric = DiarizationErrorRate(collar=0.25, skip_overlap=True)
+    metric = DiarizationErrorRate(collar=0.5, skip_overlap=True)
     DER = 0
 
     for reference, hypothesis in zip(all_reference, all_hypothesis):
@@ -349,8 +349,8 @@ def perform_diarization(
     if len(all_reference) and len(all_hypothesis):
         DER, CER, FA, MISS = get_DER(all_reference, all_hypothesis)
         logging.info(
-            "Cumulative results of all the files:  \n FA: {:.3f}\t MISS {:.3f}\t \
-                Diarization ER: {:.3f}\t, Confusion ER:{:.3f}".format(
+            "Cumulative results of all the files:  \n FA: {:.4f}\t MISS {:.4f}\t \
+                Diarization ER: {:.4f}\t, Confusion ER:{:.4f}".format(
                 FA, MISS, DER, CER
             )
         )
@@ -405,3 +405,20 @@ def write_rttm2manifest(paths2audio_files, paths2rttm_files, manifest_file):
             outfile.write("\n")
             f.close()
     return manifest_file
+
+
+def embedding_normalize(embs, use_std=False, eps=1e-10):
+    """
+    mean and l2 length normalize the input speaker embeddings
+    input:
+        embs: embeddings of shape (Batch,emb_size)
+    output:
+        embs: normalized embeddings of shape (Batch,emb_size)
+    """
+    embs = embs - embs.mean(axis=0)
+    if use_std:
+        embs = embs / (embs.std(axis=0) + eps)
+    embs_l2_norm = np.expand_dims(np.linalg.norm(embs, ord=2, axis=-1), axis=1)
+    embs = embs / embs_l2_norm
+
+    return embs

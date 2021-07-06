@@ -33,6 +33,7 @@
 import numpy as np
 import scipy
 import torch
+import warnings
 from sklearn.base import BaseEstimator, ClusterMixin
 from sklearn.cluster._kmeans import k_means
 from sklearn.metrics.pairwise import cosine_similarity
@@ -94,8 +95,8 @@ def getMinimumConnection(mat, max_N, n_list):
     If graph is not fully connected, it might generate an inaccurate results.
     """
     p_value, index = 1, 0
-    X_conn_from_dist = getAffinityGraphMat(mat, p_value)
-    fully_connected = isGraphFullyConnected(X_conn_from_dist)
+    affinity_mat = getAffinityGraphMat(mat, p_value)
+    fully_connected = isGraphFullyConnected(affinity_mat)
     for i, p_value in enumerate(n_list):
         fully_connected = isGraphFullyConnected(affinity_mat)
         affinity_mat = getAffinityGraphMat(mat, p_value)
