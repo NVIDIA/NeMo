@@ -603,6 +603,7 @@ class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
             'text_len': NeuralType(('B',), LengthsType()),
             'attn_prior': NeuralType(('B', 'T', 'D'), ProbsType()),
             'pitch': NeuralType(('B', 'T'), RegressionValuesType()),
+            'speakers': NeuralType(('B',), Index()),
         }
 
     def __init__(self, sup_data_path, pitch_fmin, pitch_fmax, n_window_size, pitch_avg, pitch_std, **kwargs):
@@ -636,20 +637,34 @@ class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
         pitch -= self.pitch_avg
         pitch[pitch == -self.pitch_avg] = 0.0  # Zero out values that were perviously zero
         pitch /= self.pitch_std
+        
+        speaker = None
+        if self.collection[item].speaker is not None:
+            speaker = torch.zeros_like(text_len).fill_(self.collection[item].speaker)
+        else:
+            # cannot return none as speaker, since it neural type validation fails.
+            speaker = torch.zeros_like(text_len).fill_(0)
 
-        return audio, audio_len, text, text_len, attn_prior, torch.tensor(pitch)
+        return audio, audio_len, text, text_len, attn_prior, torch.tensor(pitch), speaker
 
     def _collate_fn(self, batch):
         batch = list(zip(*batch))
         audio, audio_len, text, text_len, attn_prior = super()._collate_fn(list(zip(*batch[:5])))
         pitch_list = batch[5]
-
+        speaker_list = batch[6]
+        
         pitch = torch.zeros(len(pitch_list), max([pitch.shape[0] for pitch in pitch_list]))
 
         for i, pitch_i in enumerate(pitch_list):
             pitch[i, : pitch_i.shape[0]] = pitch_i
 
-        return audio, audio_len, text, text_len, attn_prior, pitch
+        speakers = []
+        for i, speaker_i in enumerate(speaker_list):
+            speakers.append(speaker_i)
+
+        speakers = torch.stack(speakers).to(text_len.dtype) if speakers[0] is not None else None
+        
+        return audio, audio_len, text, text_len, attn_prior, pitch, speakers
 
 
 class FastPitchDataset(_AudioTextDataset):
