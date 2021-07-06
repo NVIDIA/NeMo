@@ -202,7 +202,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def training_step(self, batch, batch_idx):
         attn_prior, durs, speakers = None, None, None
         if self.learn_alignment:
-            audio, audio_lens, text, text_lens, attn_prior, pitch = batch
+            audio, audio_lens, text, text_lens, attn_prior, pitch, speakers = batch
         else:
             audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
         mels, spec_len = self.preprocessor(input_signal=audio, length=audio_lens)
@@ -270,7 +270,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def validation_step(self, batch, batch_idx):
         attn_prior, durs, speakers = None, None, None
         if self.learn_alignment:
-            audio, audio_lens, text, text_lens, attn_prior, pitch = batch
+            audio, audio_lens, text, text_lens, attn_prior, pitch, speakers = batch
         else:
             audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
         mels, mel_lens = self.preprocessor(input_signal=audio, length=audio_lens)
