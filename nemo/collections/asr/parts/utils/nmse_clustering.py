@@ -30,10 +30,11 @@
 # This file is part of https://github.com/scikit-learn/scikit-learn/blob/114616d9f6ce9eba7c1aacd3d4a254f868010e25/sklearn/manifold/_spectral_embedding.py and
 # https://github.com/tango4j/Auto-Tuning-Spectral-Clustering.
 
+import warnings
+
 import numpy as np
 import scipy
 import torch
-import warnings
 from sklearn.base import BaseEstimator, ClusterMixin
 from sklearn.cluster._kmeans import k_means
 from sklearn.metrics.pairwise import cosine_similarity
