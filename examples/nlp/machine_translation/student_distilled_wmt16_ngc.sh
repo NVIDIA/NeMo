@@ -1,7 +1,9 @@
 #!/bin/bash
 
-INSTANCE=dgx1v.32g.8.norm
+# INSTANCE=dgx1v.32g.8.norm
+INSTANCE=dgx1v.16g.8.norm
 PROJECT=nmt-de-en-ngc
+PRETRAINED_TEACHERID=81837
 DATAID=68792
 STEPS=100000
 WANDBLOGIN=1589819cfa34108320cd27634a3f764a29b211d8
@@ -18,18 +20,18 @@ do
           ngc batch run --name ${EXPNAME} --preempt RUNONCE \
                 --image "nvcr.io/nvidia/pytorch:21.05-py3" \
                 --ace nv-us-west-2 \
-                --instance $INSTANCE \
+                --instance ${INSTANCE} \
                 --commandline "export DEBIAN_FRONTEND=noninteractive && nvidia-smi && apt-get update && apt-get install -y libsndfile1 ffmpeg && \
                 pip install wandb==0.10.21 && pip install Cython && wandb login ${WANDBLOGIN} && \
-                git clone https://github.com/NVIDIA/NeMo.git && cd NeMo && \
-                git checkout main && ./reinstall.sh && \
+                git clone https://github.com/sergiogcharles/NeMo.git && cd NeMo && \
+                git checkout origin/nmt_distill && ./reinstall.sh && \
                 cp -R /data/* /raid/ && \
-                yttm bpe --data /raid/train.clean.en-de.shuffled.common --model /results/tokenizer.BPE.${VOCAB_SIZE}.model --vocab_size $VOCAB_SIZE && \
-                python enc_dec_nmt_distill.py \
+                yttm bpe --data /raid/train.clean.en-de.shuffled.common --model /results/tokenizer.BPE.${VOCAB_SIZE}.model --vocab_size ${VOCAB_SIZE} && \
+                python examples/nlp/machine_translation/enc_dec_nmt_distill.py \
                 --config-path=conf \
                 --config-name=aayn_base_distill \
                 trainer.gpus=8 \
-                +trainer.val_check_interval=100 \
+                +trainer.val_check_interval=1000 \
                 +trainer.max_steps=${STEPS} \
                 model.beam_size=4 \
                 model.max_generation_delta=5 \
@@ -63,9 +65,9 @@ do
                 model.validation_ds.tokens_in_batch=8192 \
                 model.test_ds.src_file_name=/raid/wmt14-en-de.ref \
                 model.test_ds.tgt_file_name=/raid/wmt14-en-de.src \
-                model.optim.lr=$lr  \
+                model.optim.lr=${lr}  \
                 ~model.optim.sched.warmup_ratio \
-                +model.optim.sched.warmup_steps=$ws \
+                +model.optim.sched.warmup_steps=${ws} \
                 +exp_manager.create_wandb_logger=True \
                 +exp_manager.wandb_logger_kwargs.name=${EXPNAME} \
                 +exp_manager.wandb_logger_kwargs.project=${PROJECT} \
@@ -77,7 +79,8 @@ do
                 --result /results/ \
                 --org nvidian \
                 --team ac-aiapps \
-                --datasetid $DATAID:/data/
+                --datasetid ${PRETRAINED_TEACHERID}:/teacher_dataset/ \
+                --datasetid ${DATAID}:/data/
       done
     done
   done

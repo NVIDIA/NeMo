@@ -2,12 +2,12 @@
 INSTANCE=dgx1v.32g.8.norm
 PROJECT=nmt-de-en-ngc
 DATAID=68792
-STEPS=100000
+STEPS=300000
 WANDBLOGIN=1589819cfa34108320cd27634a3f764a29b211d8
 
 for BATCH_SIZE in 12500
 do
-  for lr in 1e-3
+  for lr in 1e-4
   do
     for ws in 7500
     do
