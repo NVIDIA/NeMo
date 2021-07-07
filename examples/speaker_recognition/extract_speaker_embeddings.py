@@ -73,8 +73,8 @@ def main():
         logging.info(f"Using local speaker model from {args.model_path}")
         speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(restore_path=args.model_path)
     else:
-        speaker_model = ExtractSpeakerEmbeddingsModel.from_pretrained(model_name="speakerverification_speakernet")
-        logging.info(f"using pretrained speaker verification model from NGC")
+        speaker_model = ExtractSpeakerEmbeddingsModel.load_from_checkpoint(checkpoint_path=args.model_path)
+        logging.info(f"using pretrained speaker verification model from NGC new")
 
     num_gpus = 1 if torch.cuda.is_available() else 0
     if not num_gpus:

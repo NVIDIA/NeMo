@@ -44,6 +44,7 @@ class StatsPoolLayer(nn.Module):
 
 def lens_to_mask(lens, max_len, device=None):
     lens_mat = torch.arange(max_len).to(device)
+    lens = lens * max_len
     mask = lens_mat[:max_len].unsqueeze(0) < lens.unsqueeze(1)
     mask = mask.unsqueeze(1)
     num_values = torch.sum(mask, dim=2, keepdim=True)
@@ -160,7 +161,7 @@ class AttentivePoolLayer(nn.Module):
                 in_channels=attention_channels, out_channels=inp_filters, kernel_size=kernel_size, dilation=dilation,
             ),
         )
-        self.norm_bn = nn.BatchNorm1d(self.feat_in)
+
         self.eps = eps
 
     def forward(self, x, length=None):
