@@ -97,6 +97,9 @@ def get_tokenizer(
     elif tokenizer_name == 'char':
         return CharTokenizer(vocab_file=vocab_file, **special_tokens_dict)
 
+    logging.info(
+        f"Getting HuggingFace AutoTokenizer with pretrained_model_name: {tokenizer_name}, vocab_file: {vocab_file}, special_tokens_dict: {special_tokens_dict}, and use_fast: {use_fast}"
+    )
     return AutoTokenizer(
         pretrained_model_name=tokenizer_name, vocab_file=vocab_file, **special_tokens_dict, use_fast=use_fast
     )
@@ -147,7 +150,7 @@ def get_nmt_tokenizer(
         return ByteLevelTokenizer()
     elif library == 'megatron':
         logging.info(
-            f'Getting Megatron tokenizer with pretrained model name: {model_name} and custom vocab file: {vocab_file}'
+            f'Getting Megatron tokenizer for pretrained model name: {model_name} and custom vocab file: {vocab_file}'
         )
         return get_tokenizer(tokenizer_name=model_name, vocab_file=vocab_file)
     else:

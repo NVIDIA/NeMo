@@ -17,12 +17,6 @@ pipeline {
       }
     }
 
-    stage('Uninstall torchtext') {
-      steps {
-        sh 'pip uninstall -y torchtext'
-      }
-    }
-
     stage('Install test requirements') {
       steps {
         sh 'apt-get update && apt-get install -y bc && pip install -r requirements/requirements_test.txt'
