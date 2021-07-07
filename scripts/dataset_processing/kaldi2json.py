@@ -61,10 +61,19 @@ def main():
     # read wav.scp
     wavscp = pd.read_csv(required_data["audio_filepath"], sep=" ", header=None)
     if wavscp.shape[1] > 2:
-        raise ValueError(
-            f"Too many columns in 'wav.scp': {wavscp.shape[1]}. Maybe it contains pipes?"
+        print(
+            f"""More than two columns in 'wav.scp': {wavscp.shape[1]}.\nMaybe it contains pipes? Pipe processing can be slow at runtime."""
         )
-    wavscp = wavscp.rename(columns={0: "wav_label", 1: "audio_filepath"})
+        wavscp = pd.read_csv(
+            required_data["audio_filepath"],
+            sep="^([^ ]+) ",
+            engine="python",
+            header=None,
+            usecols=[1, 2],
+            names=["wav_label", "audio_filepath"],
+        )
+    else:
+        wavscp = wavscp.rename(columns={0: "wav_label", 1: "audio_filepath"})
 
     # read text
     text = pd.read_csv(
@@ -81,13 +90,12 @@ def main():
         required_data["duration"],
         sep=" ",
         header=None,
-        names=["label", "wav_label", "begin", "end"],
+        names=["label", "wav_label", "offset", "end"],
     )
-    if len(segments.begin) > len(segments.begin[segments.begin == 0.0]):
-        raise NotImplementedError(
-            "'segments' seems to be non-trivial (there are non-zero-beginning segments). Such segments are not supported for now."
-        )
-    segments["duration"] = (segments.end - segments.begin).round(decimals=3)
+    # add offset if needed
+    if len(segments.offset) > len(segments.offset[segments.offset == 0.0]):
+        output_names.insert(2, "offset")
+    segments["duration"] = (segments.end - segments.offset).round(decimals=3)
 
     # merge data
     wav_segments_text = pd.merge(
