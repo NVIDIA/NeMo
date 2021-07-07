@@ -18,20 +18,18 @@ import os
 
 import pandas as pd
 
+from nemo.utils import logging
+
 
 def main():
-    parser = argparse.ArgumentParser(description='Convert kaldi data folder to manifest.json')
-    parser.add_argument(
-        "--data_dir",
-        required=True,
-        type=str,
-        help="data in kaldi format",
+    parser = argparse.ArgumentParser(
+        description="Convert kaldi data folder to manifest.json"
     )
     parser.add_argument(
-        "--manifest",
-        required=True,
-        type=str,
-        help="path to store the manifest file",
+        "--data_dir", required=True, type=str, help="data in kaldi format",
+    )
+    parser.add_argument(
+        "--manifest", required=True, type=str, help="path to store the manifest file",
     )
     parser.add_argument(
         "--with_aux_data",
@@ -61,8 +59,9 @@ def main():
     # read wav.scp
     wavscp = pd.read_csv(required_data["audio_filepath"], sep=" ", header=None)
     if wavscp.shape[1] > 2:
-        print(
-            f"""More than two columns in 'wav.scp': {wavscp.shape[1]}.\nMaybe it contains pipes? Pipe processing can be slow at runtime."""
+        logging.warning(
+            f"""More than two columns in 'wav.scp': {wavscp.shape[1]}.
+            Maybe it contains pipes? Pipe processing can be slow at runtime."""
         )
         wavscp = pd.read_csv(
             required_data["audio_filepath"],
@@ -94,6 +93,7 @@ def main():
     )
     # add offset if needed
     if len(segments.offset) > len(segments.offset[segments.offset == 0.0]):
+        logging.info("Adding offset field.")
         output_names.insert(2, "offset")
     segments["duration"] = (segments.end - segments.offset).round(decimals=3)
 
@@ -109,6 +109,7 @@ def main():
         # check if auxiliary data is present
         for name, aux_file in aux_data.items():
             if os.path.exists(aux_file):
+                logging.info(f"Adding info from '{os.path.basename(aux_file)}'.")
                 wav_segments_text = pd.merge(
                     wav_segments_text,
                     pd.read_csv(aux_file, sep=" ", header=None, names=["label", name]),
@@ -117,13 +118,16 @@ def main():
                 )
                 output_names.append(name)
             else:
-                print(f"'{os.path.basename(aux_file)}' does not exist. Skipping ...")
+                logging.info(
+                    f"'{os.path.basename(aux_file)}' does not exist. Skipping ..."
+                )
 
     # write data to .json
     entries = wav_segments_text[output_names].to_dict(orient="records")
-    with open(args.manifest, 'w', encoding="utf-8") as fout:
+    with open(args.manifest, "w", encoding="utf-8") as fout:
         for m in entries:
-            fout.write(json.dumps(m, ensure_ascii=False) + '\n')
+            fout.write(json.dumps(m, ensure_ascii=False) + "\n")
+
 
 if __name__ == "__main__":
     main()
