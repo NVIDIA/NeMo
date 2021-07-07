@@ -13,17 +13,18 @@
 # limitations under the License.
 
 import random
-import nemo.collections.nlp.data.text_normalization.constants as constants
 
-from tqdm import tqdm
 from nltk import word_tokenize
-from nemo.core.classes import Dataset
+from tqdm import tqdm
 from transformers import PreTrainedTokenizerBase
 
-from nemo.utils.decorators.experimental import experimental
+import nemo.collections.nlp.data.text_normalization.constants as constants
 from nemo.collections.nlp.data.text_normalization.utils import read_data_file
+from nemo.core.classes import Dataset
+from nemo.utils.decorators.experimental import experimental
 
 __all__ = ['TextNormalizationDecoderDataset']
+
 
 @experimental
 class TextNormalizationDecoderDataset(Dataset):
@@ -41,15 +42,16 @@ class TextNormalizationDecoderDataset(Dataset):
         max_len: maximum length of sequence in tokens. The code will discard any training instance whose input or output is longer than the specified max_len.
         decoder_data_augmentation (bool): a flag indicates whether to augment the dataset with additional data instances that may help the decoder become more robust against the tagger's errors. Refer to the doc for more info.
     """
+
     def __init__(
-            self,
-            input_file: str,
-            tokenizer: PreTrainedTokenizerBase,
-            mode: str,
-            max_len: int,
-            decoder_data_augmentation: bool
-        ):
-        assert(mode in constants.MODES)
+        self,
+        input_file: str,
+        tokenizer: PreTrainedTokenizerBase,
+        mode: str,
+        max_len: int,
+        decoder_data_augmentation: bool,
+    ):
+        assert mode in constants.MODES
         self.mode = mode
         raw_insts = read_data_file(input_file)
 
@@ -57,21 +59,24 @@ class TextNormalizationDecoderDataset(Dataset):
         insts, inputs, targets = [], [], []
         for (classes, w_words, s_words) in tqdm(raw_insts):
             for ix, (_class, w_word, s_word) in enumerate(zip(classes, w_words, s_words)):
-                if s_word in constants.SPECIAL_WORDS: continue
+                if s_word in constants.SPECIAL_WORDS:
+                    continue
                 for inst_dir in constants.INST_DIRECTIONS:
-                    if inst_dir == constants.INST_BACKWARD and mode == constants.TN_MODE: continue
-                    if inst_dir == constants.INST_FORWARD and mode == constants.ITN_MODE: continue
+                    if inst_dir == constants.INST_BACKWARD and mode == constants.TN_MODE:
+                        continue
+                    if inst_dir == constants.INST_FORWARD and mode == constants.ITN_MODE:
+                        continue
                     # Create a DecoderDataInstance
-                    inst = DecoderDataInstance(w_words, s_words, inst_dir,
-                                               start_idx=ix, end_idx=ix+1,
-                                               semiotic_class=_class)
+                    inst = DecoderDataInstance(
+                        w_words, s_words, inst_dir, start_idx=ix, end_idx=ix + 1, semiotic_class=_class
+                    )
                     insts.append(inst)
                     if decoder_data_augmentation:
                         noise_left = random.randint(1, 2)
                         noise_right = random.randint(1, 2)
-                        inst = DecoderDataInstance(w_words, s_words, inst_dir,
-                                                   start_idx=ix-noise_left,
-                                                   end_idx=ix+1+noise_right)
+                        inst = DecoderDataInstance(
+                            w_words, s_words, inst_dir, start_idx=ix - noise_left, end_idx=ix + 1 + noise_right
+                        )
                         insts.append(inst)
 
         self.insts = insts
@@ -101,8 +106,10 @@ class TextNormalizationDecoderDataset(Dataset):
             self.inputs.append(inputs[idx])
             _input['labels'] = _target['input_ids']
             self.examples.append(_input)
-            if inputs[idx].startswith(constants.TN_PREFIX): self.tn_count += 1
-            if inputs[idx].startswith(constants.ITN_PREFIX): self.itn_count += 1
+            if inputs[idx].startswith(constants.TN_PREFIX):
+                self.tn_count += 1
+            if inputs[idx].startswith(constants.ITN_PREFIX):
+                self.itn_count += 1
             input_max_len = max(input_max_len, input_len)
             target_max_len = max(target_max_len, target_len)
         print(f'long_examples_filtered: {long_examples_filtered}')
@@ -115,6 +122,7 @@ class TextNormalizationDecoderDataset(Dataset):
 
     def __len__(self):
         return len(self.examples)
+
 
 class DecoderDataInstance:
     """
@@ -133,8 +141,8 @@ class DecoderDataInstance:
         end_idx: The ending index of the input span (exclusively)
         semiotic_class: The semiotic class of the input span (can be set to None if not available)
     """
-    def __init__(self, w_words, s_words, inst_dir, start_idx, end_idx,
-                 semiotic_class=None):
+
+    def __init__(self, w_words, s_words, inst_dir, start_idx, end_idx, semiotic_class=None):
         start_idx = max(start_idx, 0)
         end_idx = min(end_idx, len(w_words))
         ctx_size = constants.DECODE_CTX_SIZE
@@ -146,23 +154,29 @@ class DecoderDataInstance:
         c_s_words = s_words[start_idx:end_idx]
 
         # Extract context
-        w_left  = w_words[max(0,start_idx-ctx_size):start_idx]
-        w_right = w_words[end_idx:end_idx+ctx_size]
-        s_left  = s_words[max(0,start_idx-ctx_size):start_idx]
-        s_right = s_words[end_idx:end_idx+ctx_size]
+        w_left = w_words[max(0, start_idx - ctx_size) : start_idx]
+        w_right = w_words[end_idx : end_idx + ctx_size]
+        s_left = s_words[max(0, start_idx - ctx_size) : start_idx]
+        s_right = s_words[end_idx : end_idx + ctx_size]
 
         # Process sil words and self words
         for jx in range(len(s_left)):
-            if s_left[jx] == constants.SIL_WORD: s_left[jx] = ''
-            if s_left[jx] == constants.SELF_WORD: s_left[jx] = w_left[jx]
+            if s_left[jx] == constants.SIL_WORD:
+                s_left[jx] = ''
+            if s_left[jx] == constants.SELF_WORD:
+                s_left[jx] = w_left[jx]
         for jx in range(len(s_right)):
-            if s_right[jx] == constants.SIL_WORD: s_right[jx] = ''
-            if s_right[jx] == constants.SELF_WORD: s_right[jx] = w_right[jx]
+            if s_right[jx] == constants.SIL_WORD:
+                s_right[jx] = ''
+            if s_right[jx] == constants.SELF_WORD:
+                s_right[jx] = w_right[jx]
         for jx in range(len(c_s_words)):
             if c_s_words[jx] == constants.SIL_WORD:
                 c_s_words[jx] = ''
-                if inst_dir == constants.INST_BACKWARD: c_w_words[jx] = ''
-            if c_s_words[jx] == constants.SELF_WORD: c_s_words[jx] = c_w_words[jx]
+                if inst_dir == constants.INST_BACKWARD:
+                    c_w_words[jx] = ''
+            if c_s_words[jx] == constants.SELF_WORD:
+                c_s_words[jx] = c_w_words[jx]
 
         # Extract input_words and output_words
         c_w_words = word_tokenize(' '.join(c_w_words))

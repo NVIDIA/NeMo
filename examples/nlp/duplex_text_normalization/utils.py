@@ -13,27 +13,19 @@
 # limitations under the License.
 
 import pytorch_lightning as pl
-
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.nlp.models import (
-    DuplexTaggerModel,
-    DuplexDecoderModel
-)
+from nemo.collections.nlp.models import DuplexDecoderModel, DuplexTaggerModel
 from nemo.utils import logging
 
-__all__ = ['TAGGER_MODEL', 'DECODER_MODEL', 'MODEL_NAMES',
-           'instantiate_model_and_trainer']
+__all__ = ['TAGGER_MODEL', 'DECODER_MODEL', 'MODEL_NAMES', 'instantiate_model_and_trainer']
 
-TAGGER_MODEL  = 'tagger'
+TAGGER_MODEL = 'tagger'
 DECODER_MODEL = 'decoder'
-MODEL_NAMES   = [TAGGER_MODEL, DECODER_MODEL]
+MODEL_NAMES = [TAGGER_MODEL, DECODER_MODEL]
 
-def instantiate_model_and_trainer(
-    cfg: DictConfig,
-    model_name: str,
-    do_training: bool
-):
+
+def instantiate_model_and_trainer(cfg: DictConfig, model_name: str, do_training: bool):
     """ Function for instantiating a model and a trainer
     Args:
         cfg: The config used to instantiate the model and the trainer.
@@ -44,13 +36,13 @@ def instantiate_model_and_trainer(
         trainer: A PyTorch Lightning trainer
         model: A NLPModel that can either be a DuplexTaggerModel or a DuplexDecoderModel
     """
-    assert(model_name in MODEL_NAMES)
+    assert model_name in MODEL_NAMES
     logging.info(f'Model {model_name}')
 
     # Get configs for the corresponding models
-    trainer_cfg     = cfg.get(f'{model_name}_trainer')
-    model_cfg       = cfg.get(f'{model_name}_model')
-    pretrained_cfg  = cfg.get(f'{model_name}_pretrained_model', None)
+    trainer_cfg = cfg.get(f'{model_name}_trainer')
+    model_cfg = cfg.get(f'{model_name}_model')
+    pretrained_cfg = cfg.get(f'{model_name}_pretrained_model', None)
 
     trainer = pl.Trainer(**trainer_cfg)
 
@@ -74,6 +66,7 @@ def instantiate_model_and_trainer(
 
     logging.info(f'Model Device {model.device}')
     return trainer, model
+
 
 def flatten(l):
     """ flatten a list of lists """

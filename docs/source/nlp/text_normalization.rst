@@ -53,6 +53,9 @@ given the URL "Zimbio.com", the original expected spoken form in the Google data
 "z_letter i_letter m_letter b_letter i_letter o_letter dot c_letter o_letter m_letter".
 However, our script will return a more concise output which is "zim bio dot com".
 
+More information about the Google text normalization dataset can be found in the paper `RNN Approaches to Text Normalization: A Challenge <https://arxiv.org/ftp/arxiv/papers/1611/1611.00068.pdf>`__ :cite:`nlp-textnorm-Sproat2016RNNAT`.
+
+
 Model Training
 --------------
 
@@ -113,7 +116,9 @@ to predict the tag for each token (e.g., if a token should stay the same, its ta
 be ``SAME``). The decoder model then takes the semiotic spans identified by the tagger and
 transform them into the appropriate forms (e.g., spoken forms for TN and written forms for ITN).
 The decoder model is essentially a Transformer-based encoder-decoder seq2seq model (e.g., the example
-training script uses the T5-base model by default).
+training script uses the T5-base model by default). Overall, our design is partly inspired by the
+RNN-based sliding window model proposed in the paper
+`Neural Models of Text Normalization for Speech Applications <https://research.fb.com/wp-content/uploads/2019/03/Neural-Models-of-Text-Normalization-for-Speech-Applications.pdf>`__ :cite:`nlp-textnorm-Zhang2019NeuralMO`.
 
 We introduce a simple but effective technique to allow our model to be duplex. Depending on the
 task the model is handling, we append the appropriate prefix to the input. For example, suppose
@@ -144,3 +149,11 @@ we train the decoder with not only semiotic spans but also with some other more 
 final output is still correct.
 
 The argument ``data.train_ds.decoder_data_augmentation`` in the config file controls whether this data augmentation will be enabled or not.
+
+References
+----------
+
+.. bibliography:: nlp_all.bib
+    :style: plain
+    :labelprefix: NLP-TEXTNORM
+    :keyprefix: nlp-textnorm-

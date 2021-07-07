@@ -13,6 +13,11 @@
 # limitations under the License.
 
 from nemo.collections.nlp.models.dialogue_state_tracking.sgdqa_model import SGDQAModel
+from nemo.collections.nlp.models.duplex_text_normalization import (
+    DuplexDecoderModel,
+    DuplexTaggerModel,
+    DuplexTextNormalizationModel,
+)
 from nemo.collections.nlp.models.entity_linking.entity_linking_model import EntityLinkingModel
 from nemo.collections.nlp.models.glue_benchmark.glue_benchmark_model import GLUEModel
 from nemo.collections.nlp.models.information_retrieval import BertDPRModel, BertJointIRModel
@@ -22,11 +27,6 @@ from nemo.collections.nlp.models.language_modeling.transformer_lm_model import T
 from nemo.collections.nlp.models.machine_translation import MTEncDecModel
 from nemo.collections.nlp.models.neural_machine_translation.neural_machine_translation_model import (
     NeuralMachineTranslationModel,
-)
-from nemo.collections.nlp.models.duplex_text_normalization import (
-    DuplexTaggerModel,
-    DuplexDecoderModel,
-    DuplexTextNormalizationModel
 )
 from nemo.collections.nlp.models.question_answering.qa_model import QAModel
 from nemo.collections.nlp.models.text_classification import TextClassificationModel

@@ -12,27 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-import nltk
-import wordninja
-import nemo.collections.nlp.data.text_normalization.constants as constants
-nltk.download('punkt')
-
 from time import perf_counter
 from typing import List, Optional
-from pytorch_lightning import Trainer
-from omegaconf import DictConfig
 
+import nltk
+import torch
+import wordninja
+from omegaconf import DictConfig
+from pytorch_lightning import Trainer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
 
-from nemo.utils import logging
-from nemo.utils.decorators.experimental import experimental
+import nemo.collections.nlp.data.text_normalization.constants as constants
+from nemo.collections.nlp.data.text_normalization import TextNormalizationDecoderDataset
+from nemo.collections.nlp.models.duplex_text_normalization.utils import is_url
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.collections.nlp.models.duplex_text_normalization.utils import is_url
-from nemo.collections.nlp.data.text_normalization import TextNormalizationDecoderDataset
+from nemo.utils import logging
+from nemo.utils.decorators.experimental import experimental
+
+nltk.download('punkt')
+
 
 __all__ = ['DuplexDecoderModel']
+
 
 @experimental
 class DuplexDecoderModel(NLPModel):
@@ -63,10 +65,7 @@ class DuplexDecoderModel(NLPModel):
         lr = self._optimizer.param_groups[0]['lr']
         self.log('train_loss', train_loss)
         self.log('lr', lr, prog_bar=True)
-        return {
-            'loss': train_loss,
-            'lr': lr
-        }
+        return {'loss': train_loss, 'lr': lr}
 
     # Validation and Testing
     def validation_step(self, batch, batch_idx):
@@ -84,9 +83,7 @@ class DuplexDecoderModel(NLPModel):
         )
         val_loss = outputs.loss
 
-        return {
-            'val_loss': val_loss
-        }
+        return {'val_loss': val_loss}
 
     def validation_epoch_end(self, outputs):
         """
@@ -114,17 +111,16 @@ class DuplexDecoderModel(NLPModel):
         """
         return self.validation_epoch_end(outputs)
 
-
     # Functions for inference
     @torch.no_grad()
     def _infer(
-            self,
-            sents: List[List[str]],
-            nb_spans: List[int],
-            span_starts: List[List[int]],
-            span_ends: List[List[int]],
-            inst_directions: List[str],
-        ):
+        self,
+        sents: List[List[str]],
+        nb_spans: List[int],
+        span_starts: List[List[int]],
+        span_ends: List[List[int]],
+        inst_directions: List[str],
+    ):
         """ Main function for Inference
         Args:
             sents: A list of inputs tokenized by a basic tokenizer (e.g., using nltk.word_tokenize()).
@@ -137,7 +133,8 @@ class DuplexDecoderModel(NLPModel):
         """
         self.eval()
 
-        if sum(nb_spans) == 0: return [[]] * len(sents)
+        if sum(nb_spans) == 0:
+            return [[]] * len(sents)
         model, tokenizer = self.model, self._tokenizer
         model_max_len = model.config.n_positions
         ctx_size = constants.DECODE_CTX_SIZE
@@ -151,9 +148,9 @@ class DuplexDecoderModel(NLPModel):
             for jx in range(nb_spans[ix]):
                 cur_start = span_starts[ix][jx]
                 cur_end = span_ends[ix][jx]
-                ctx_left = sent[max(0, cur_start-ctx_size):cur_start]
-                ctx_right = sent[cur_end+1:cur_end+1+ctx_size]
-                span_words = sent[cur_start:cur_end+1]
+                ctx_left = sent[max(0, cur_start - ctx_size) : cur_start]
+                ctx_right = sent[cur_end + 1 : cur_end + 1 + ctx_size]
+                span_words = sent[cur_start : cur_end + 1]
                 span_words_str = ' '.join(span_words)
                 if is_url(span_words_str):
                     span_words_str = span_words_str.lower()
@@ -242,18 +239,13 @@ class DuplexDecoderModel(NLPModel):
             tokenizer,
             cfg.mode,
             cfg.get('max_decoder_len', tokenizer.model_max_length),
-            cfg.get('decoder_data_augmentation', False)
+            cfg.get('decoder_data_augmentation', False),
         )
         data_collator = DataCollatorForSeq2Seq(
-            tokenizer,
-            model=model,
-            label_pad_token_id=constants.LABEL_PAD_TOKEN_ID,
+            tokenizer, model=model, label_pad_token_id=constants.LABEL_PAD_TOKEN_ID,
         )
         dl = torch.utils.data.DataLoader(
-            dataset=dataset,
-            batch_size=cfg.batch_size,
-            shuffle=cfg.shuffle,
-            collate_fn=data_collator,
+            dataset=dataset, batch_size=cfg.batch_size, shuffle=cfg.shuffle, collate_fn=data_collator,
         )
         running_time = perf_counter() - start_time
         logging.info(f'Took {running_time} seconds')

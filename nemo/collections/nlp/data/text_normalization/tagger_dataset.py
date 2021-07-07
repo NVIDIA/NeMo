@@ -12,17 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nemo.collections.nlp.data.text_normalization.constants as constants
-
-from tqdm import tqdm
 from nltk import word_tokenize
-from nemo.core.classes import Dataset
+from tqdm import tqdm
 from transformers import PreTrainedTokenizerBase
 
-from nemo.utils.decorators.experimental import experimental
+import nemo.collections.nlp.data.text_normalization.constants as constants
 from nemo.collections.nlp.data.text_normalization.utils import read_data_file
+from nemo.core.classes import Dataset
+from nemo.utils.decorators.experimental import experimental
 
 __all__ = ['TextNormalizationTaggerDataset']
+
 
 @experimental
 class TextNormalizationTaggerDataset(Dataset):
@@ -40,15 +40,16 @@ class TextNormalizationTaggerDataset(Dataset):
         do_basic_tokenize: a flag indicates whether to do some basic tokenization (i.e., using word_tokenize() of nltk) before using the tokenizer of the model
         tagger_data_augmentation (bool): a flag indicates whether to augment the dataset with additional data instances
     """
+
     def __init__(
         self,
         input_file: str,
         tokenizer: PreTrainedTokenizerBase,
         mode: str,
         do_basic_tokenize: bool,
-        tagger_data_augmentation: bool
+        tagger_data_augmentation: bool,
     ):
-        assert(mode in constants.MODES)
+        assert mode in constants.MODES
         self.mode = mode
         raw_insts = read_data_file(input_file)
 
@@ -56,8 +57,10 @@ class TextNormalizationTaggerDataset(Dataset):
         insts = []
         for (_, w_words, s_words) in tqdm(raw_insts):
             for inst_dir in constants.INST_DIRECTIONS:
-                if inst_dir == constants.INST_BACKWARD and mode == constants.TN_MODE: continue
-                if inst_dir == constants.INST_FORWARD and mode == constants.ITN_MODE: continue
+                if inst_dir == constants.INST_BACKWARD and mode == constants.TN_MODE:
+                    continue
+                if inst_dir == constants.INST_FORWARD and mode == constants.ITN_MODE:
+                    continue
                 # Create a new TaggerDataInstance
                 inst = TaggerDataInstance(w_words, s_words, inst_dir, do_basic_tokenize)
                 insts.append(inst)
@@ -80,8 +83,7 @@ class TextNormalizationTaggerDataset(Dataset):
         self.tag2id = {tag: id for id, tag in enumerate(constants.ALL_TAG_LABELS)}
 
         # Finalize
-        self.encodings = tokenizer(texts, is_split_into_words=True,
-                                   padding=False, truncation=True)
+        self.encodings = tokenizer(texts, is_split_into_words=True, padding=False, truncation=True)
         self.labels = self.encode_tags(tags, self.encodings)
 
     def __getitem__(self, idx):
@@ -129,7 +131,8 @@ class TaggerDataInstance:
         direction: Indicates the direction of the instance (i.e., INST_BACKWARD for ITN or INST_FORWARD for TN).
         do_basic_tokenize: a flag indicates whether to do some basic tokenization (i.e., using word_tokenize() of nltk) before using the tokenizer of the model
     """
-    def __init__(self, w_words, s_words, direction, do_basic_tokenize = False):
+
+    def __init__(self, w_words, s_words, direction, do_basic_tokenize=False):
         # Build input_words and labels
         input_words, labels = [], []
         # Task Prefix
@@ -155,8 +158,10 @@ class TaggerDataInstance:
                 input_words.append(w_word)
                 labels.append(constants.PUNCT_TAG)
             else:
-                if direction == constants.INST_BACKWARD: input_words.append(s_word)
-                if direction == constants.INST_FORWARD: input_words.append(w_word)
+                if direction == constants.INST_BACKWARD:
+                    input_words.append(s_word)
+                if direction == constants.INST_FORWARD:
+                    input_words.append(w_word)
                 labels.append(constants.TRANSFORM_TAG)
         self.input_words = input_words
         self.labels = labels

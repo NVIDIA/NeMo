@@ -12,23 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
-import torch.nn as nn
-import nemo.collections.nlp.data.text_normalization.constants as constants
-
-from tqdm import tqdm
 from math import ceil
 from time import perf_counter
-from transformers import *
-from nltk import word_tokenize
 from typing import List
-from nemo.utils import logging
 
-from nemo.utils.decorators.experimental import experimental
-from nemo.collections.nlp.models.duplex_text_normalization.utils import get_formatted_string
+import numpy as np
+import torch.nn as nn
+from nltk import word_tokenize
+from tqdm import tqdm
+from transformers import *
+
+import nemo.collections.nlp.data.text_normalization.constants as constants
 from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset
+from nemo.collections.nlp.models.duplex_text_normalization.utils import get_formatted_string
+from nemo.utils import logging
+from nemo.utils.decorators.experimental import experimental
 
 __all__ = ['DuplexTextNormalizationModel']
+
 
 @experimental
 class DuplexTextNormalizationModel(nn.Module):
@@ -45,12 +46,8 @@ class DuplexTextNormalizationModel(nn.Module):
         self.decoder = decoder
 
     def evaluate(
-            self,
-            dataset: TextNormalizationTestDataset,
-            batch_size: int,
-            errors_log_fp: str,
-            verbose: bool = True
-        ):
+        self, dataset: TextNormalizationTestDataset, batch_size: int, errors_log_fp: str, verbose: bool = True
+    ):
         """ Function for evaluating the performance of the model on a dataset
 
         Args:
@@ -73,7 +70,7 @@ class DuplexTextNormalizationModel(nn.Module):
         nb_iters = int(ceil(len(dataset) / batch_size))
         for i in tqdm(range(nb_iters)):
             start_idx = i * batch_size
-            end_idx = (i+1) * batch_size
+            end_idx = (i + 1) * batch_size
             batch_insts = dataset[start_idx:end_idx]
             batch_dirs, batch_inputs, batch_targets = zip(*batch_insts)
             # Inference and Running Time Measurement
@@ -92,7 +89,9 @@ class DuplexTextNormalizationModel(nn.Module):
         tn_error_ctx, itn_error_ctx = 0, 0
         for direction in constants.INST_DIRECTIONS:
             cur_dirs, cur_inputs, cur_tag_preds, cur_final_preds, cur_targets = [], [], [], [], []
-            for dir, _input, tag_pred, final_pred, target in zip(all_dirs, all_inputs, all_tag_preds, all_final_preds, all_targets):
+            for dir, _input, tag_pred, final_pred, target in zip(
+                all_dirs, all_inputs, all_tag_preds, all_final_preds, all_targets
+            ):
                 if dir == direction:
                     cur_dirs.append(dir)
                     cur_inputs.append(_input)
@@ -100,17 +99,13 @@ class DuplexTextNormalizationModel(nn.Module):
                     cur_final_preds.append(final_pred)
                     cur_targets.append(target)
             nb_instances = len(cur_final_preds)
-            sent_accuracy = \
-                TextNormalizationTestDataset.compute_sent_accuracy(cur_final_preds, cur_targets, cur_dirs)
+            sent_accuracy = TextNormalizationTestDataset.compute_sent_accuracy(cur_final_preds, cur_targets, cur_dirs)
             if verbose:
                 logging.info(f'\n============ Direction {direction} ============')
                 logging.info(f'Sentence Accuracy: {sent_accuracy}')
                 logging.info(f'nb_instances: {nb_instances}')
             # Update results
-            results[direction] = {
-                'sent_accuracy': sent_accuracy,
-                'nb_instances': nb_instances
-            }
+            results[direction] = {'sent_accuracy': sent_accuracy, 'nb_instances': nb_instances}
             # Write errors to log file
             for _input, tag_pred, final_pred, target in zip(cur_inputs, cur_tag_preds, cur_final_preds, cur_targets):
                 if not TextNormalizationTestDataset.is_same(final_pred, target, direction):
@@ -132,7 +127,7 @@ class DuplexTextNormalizationModel(nn.Module):
             results['tn_error_ctx'] = tn_error_ctx
 
         # Running Time
-        avg_running_time = np.average(all_run_times) / batch_size # in ms
+        avg_running_time = np.average(all_run_times) / batch_size  # in ms
         if verbose:
             logging.info(f'Average running time (normalized by batch size): {avg_running_time} ms')
         results['running_time'] = avg_running_time
@@ -158,10 +153,8 @@ class DuplexTextNormalizationModel(nn.Module):
         sents = self.input_preprocessing(list(sents))
 
         # Tagging
-        tag_preds, nb_spans, span_starts, span_ends = \
-            self.tagger._infer(sents, inst_directions)
-        output_spans = \
-            self.decoder._infer(sents, nb_spans, span_starts, span_ends, inst_directions)
+        tag_preds, nb_spans, span_starts, span_ends = self.tagger._infer(sents, inst_directions)
+        output_spans = self.decoder._infer(sents, nb_spans, span_starts, span_ends, inst_directions)
 
         # Preprare final outputs
         final_outputs = []
@@ -179,8 +172,7 @@ class DuplexTextNormalizationModel(nn.Module):
                     jx += 1
                     cur_words.append(cur_spans[span_idx])
                     span_idx += 1
-                    while jx < len(sent) and \
-                    tags[jx] == constants.I_PREFIX + constants.TRANSFORM_TAG:
+                    while jx < len(sent) and tags[jx] == constants.I_PREFIX + constants.TRANSFORM_TAG:
                         jx += 1
             cur_output_str = ' '.join(cur_words)
             cur_output_str = ' '.join(word_tokenize(cur_output_str))

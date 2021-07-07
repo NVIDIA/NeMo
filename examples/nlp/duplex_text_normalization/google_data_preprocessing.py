@@ -34,15 +34,16 @@ In this example, the final preprocessed files will be stored in the `preprocesse
 The folder should contain three files `train.tsv`, 'dev.tsv', and `test.tsv`.
 """
 
-import wordninja
-import nemo.collections.nlp.data.text_normalization.constants as constants
-
-from tqdm import tqdm
-from os import mkdir, listdir
-from os.path import isfile, isdir, join
-from utils import flatten
-from nltk import word_tokenize
 from argparse import ArgumentParser
+from os import listdir, mkdir
+from os.path import isdir, isfile, join
+
+import wordninja
+from nltk import word_tokenize
+from tqdm import tqdm
+from utils import flatten
+
+import nemo.collections.nlp.data.text_normalization.constants as constants
 
 # Local Constants
 ENGLISH = 'en'
@@ -68,20 +69,27 @@ def read_google_data(data_dir, lang):
     train, dev, test = [], [], []
     for fn in listdir(data_dir):
         fp = join(data_dir, fn)
-        if not isfile(fp): continue
-        if not fn.startswith('output'): continue
+        if not isfile(fp):
+            continue
+        if not fn.startswith('output'):
+            continue
         with open(fp, 'r', encoding='utf-8') as f:
             # Determine the current split
             split_nb = int(fn.split('-')[1])
-            if split_nb == 0: cur_split = train
-            elif split_nb == 90: cur_split = dev
-            elif split_nb == 99: cur_split = test
-            else: continue
+            if split_nb == 0:
+                cur_split = train
+            elif split_nb == 90:
+                cur_split = dev
+            elif split_nb == 99:
+                cur_split = test
+            else:
+                continue
             # Loop through each line of the file
             cur_classes, cur_tokens, cur_outputs = [], [], []
             for linectx, line in tqdm(enumerate(f)):
                 es = line.strip().split('\t')
-                if split_nb == 99 and linectx == 100002: break
+                if split_nb == 99 and linectx == 100002:
+                    break
                 if len(es) == 2 and es[0] == '<eos>':
                     # Update cur_split
                     cur_outputs = process_url(cur_tokens, cur_outputs, lang)
@@ -90,7 +98,7 @@ def read_google_data(data_dir, lang):
                     cur_classes, cur_tokens, cur_outputs = [], [], []
                     continue
                 # Update the current example
-                assert(len(es) == 3)
+                assert len(es) == 3
                 cur_classes.append(es[0])
                 cur_tokens.append(es[1])
                 cur_outputs.append(es[2])
@@ -98,6 +106,7 @@ def read_google_data(data_dir, lang):
     train_sz, dev_sz, test_sz = len(train), len(dev), len(test)
     print(f'train_sz: {train_sz} | dev_sz: {dev_sz} | test_sz: {test_sz}')
     return train, dev, test
+
 
 def process_url(tokens, outputs, lang):
     """
@@ -117,7 +126,8 @@ def process_url(tokens, outputs, lang):
                 o_tokens = o.split(' ')
                 all_spans, cur_span = [], []
                 for j in range(len(o_tokens)):
-                    if len(o_tokens[j]) == 0: continue
+                    if len(o_tokens[j]) == 0:
+                        continue
                     if o_tokens[j] == '_letter':
                         all_spans.append(cur_span)
                         all_spans.append([' '])
@@ -125,7 +135,8 @@ def process_url(tokens, outputs, lang):
                     else:
                         o_tokens[j] = o_tokens[j].replace('_letter', '')
                         cur_span.append(o_tokens[j])
-                if len(cur_span) > 0: all_spans.append(cur_span)
+                if len(cur_span) > 0:
+                    all_spans.append(cur_span)
                 o_tokens = flatten(all_spans)
 
                 o = ''
@@ -141,6 +152,7 @@ def process_url(tokens, outputs, lang):
                 outputs[i] = o
 
     return outputs
+
 
 # Main code
 if __name__ == '__main__':

@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import string
-
-from tqdm import tqdm
 from copy import deepcopy
+
 from nltk import word_tokenize
+from tqdm import tqdm
 
 __all__ = ['read_data_file', 'normalize_str']
+
 
 def read_data_file(fp):
     """ Reading the raw data from a file of NeMo format
@@ -40,12 +41,14 @@ def read_data_file(fp):
                 s_words.append(es[2])
     return insts
 
+
 def normalize_str(input_str):
     """ Normalize an input string """
     input_str = ' '.join(word_tokenize(input_str.strip().lower()))
     input_str = input_str.replace('  ', ' ')
     return input_str
 
+
 def remove_puncts(input_str):
     """ Remove punctuations from an input string """
-    return input_str.translate(str.maketrans('','', string.punctuation))
+    return input_str.translate(str.maketrans('', '', string.punctuation))

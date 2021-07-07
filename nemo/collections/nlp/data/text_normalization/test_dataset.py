@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nemo.collections.nlp.data.text_normalization.constants as constants
-
-from tqdm import tqdm
 from copy import deepcopy
-from nltk import word_tokenize
 from typing import List
 
+from nltk import word_tokenize
+from tqdm import tqdm
+
+import nemo.collections.nlp.data.text_normalization.constants as constants
+from nemo.collections.nlp.data.text_normalization.utils import normalize_str, read_data_file, remove_puncts
 from nemo.utils.decorators.experimental import experimental
-from nemo.collections.nlp.data.text_normalization.utils import read_data_file, normalize_str, remove_puncts
 
 __all__ = ['TextNormalizationTestDataset']
 
@@ -35,12 +35,8 @@ class TextNormalizationTestDataset:
         mode: should be one of the values ['tn', 'itn', 'joint'].  `tn` mode is for TN only. `itn` mode is for ITN only. `joint` is for training a system that can do both TN and ITN at the same time.
         keep_puncts: whether to keep punctuations in the inputs/outputs
     """
-    def __init__(
-            self,
-            input_file: str,
-            mode: str,
-            keep_puncts: bool = False
-        ):
+
+    def __init__(self, input_file: str, mode: str, keep_puncts: bool = False):
         insts = read_data_file(input_file)
 
         # Build inputs and targets
@@ -54,17 +50,21 @@ class TextNormalizationTestDataset:
                         processed_w_words.append(w_word)
                         processed_s_words.append(w_word)
                     continue
-                if s_word == constants.SELF_WORD: processed_s_words.append(w_word)
-                if not s_word in constants.SPECIAL_WORDS: processed_s_words.append(s_word)
+                if s_word == constants.SELF_WORD:
+                    processed_s_words.append(w_word)
+                if not s_word in constants.SPECIAL_WORDS:
+                    processed_s_words.append(s_word)
                 processed_w_words.append(w_word)
             # Create examples
             for direction in constants.INST_DIRECTIONS:
                 if direction == constants.INST_BACKWARD:
-                    if mode == constants.TN_MODE: continue
+                    if mode == constants.TN_MODE:
+                        continue
                     input_words = processed_s_words
                     output_words = processed_w_words
                 if direction == constants.INST_FORWARD:
-                    if mode == constants.ITN_MODE: continue
+                    if mode == constants.ITN_MODE:
+                        continue
                     input_words = w_words
                     output_words = processed_s_words
                 # Basic tokenization
@@ -102,11 +102,7 @@ class TextNormalizationTestDataset:
         return int(pred == target)
 
     @staticmethod
-    def compute_sent_accuracy(
-        preds: List[str],
-        targets: List[str],
-        inst_directions: List[str]
-    ):
+    def compute_sent_accuracy(preds: List[str], targets: List[str], inst_directions: List[str]):
         """
         Compute the sentence accuracy metric.
 
@@ -116,8 +112,9 @@ class TextNormalizationTestDataset:
             inst_directions: A list of str where each str indicates the direction of the corresponding instance (i.e., INST_BACKWARD or INST_FORWARD).
         Return: the sentence accuracy score
         """
-        assert(len(preds) == len(targets))
-        if len(targets) == 0: return 'NA'
+        assert len(preds) == len(targets)
+        if len(targets) == 0:
+            return 'NA'
         # Sentence Accuracy
         correct_count = 0
         for inst_dir, pred, target in zip(inst_directions, preds, targets):

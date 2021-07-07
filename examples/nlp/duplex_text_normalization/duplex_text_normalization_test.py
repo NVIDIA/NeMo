@@ -49,16 +49,16 @@ by the model. The location of this file is determined by the argument
 """
 
 
-import nemo.collections.nlp.data.text_normalization.constants as constants
-
 from nltk import word_tokenize
 from omegaconf import DictConfig, OmegaConf
-from utils import TAGGER_MODEL, DECODER_MODEL, instantiate_model_and_trainer
+from utils import DECODER_MODEL, TAGGER_MODEL, instantiate_model_and_trainer
 
-from nemo.utils import logging
-from nemo.core.config import hydra_runner
-from nemo.collections.nlp.models import DuplexTextNormalizationModel
+import nemo.collections.nlp.data.text_normalization.constants as constants
 from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset
+from nemo.collections.nlp.models import DuplexTextNormalizationModel
+from nemo.core.config import hydra_runner
+from nemo.utils import logging
+
 
 @hydra_runner(config_path="conf", config_name="duplex_tn_config")
 def main(cfg: DictConfig) -> None:
@@ -69,23 +69,21 @@ def main(cfg: DictConfig) -> None:
 
     if not cfg.inference.interactive:
         # Setup test_dataset
-        test_dataset = TextNormalizationTestDataset(cfg.data.test_ds.data_path,
-                                                    cfg.data.test_ds.mode)
-        results = tn_model.evaluate(test_dataset,
-                                    cfg.data.test_ds.batch_size,
-                                    cfg.inference.errors_log_fp)
+        test_dataset = TextNormalizationTestDataset(cfg.data.test_ds.data_path, cfg.data.test_ds.mode)
+        results = tn_model.evaluate(test_dataset, cfg.data.test_ds.batch_size, cfg.inference.errors_log_fp)
         print(f'\nTest results: {results}')
     else:
         while True:
             test_input = input('Input a test input:')
             test_input = ' '.join(word_tokenize(test_input))
-            outputs = tn_model._infer([test_input, test_input],
-                                      [constants.INST_BACKWARD, constants.INST_FORWARD])[-1]
+            outputs = tn_model._infer([test_input, test_input], [constants.INST_BACKWARD, constants.INST_FORWARD])[-1]
             print(f'Prediction (ITN): {outputs[0]}')
             print(f'Prediction (TN): {outputs[1]}')
 
             should_continue = input('\nContinue (y/n): ').strip().lower()
-            if should_continue.startswith('n'): break
+            if should_continue.startswith('n'):
+                break
+
 
 if __name__ == '__main__':
     main()
