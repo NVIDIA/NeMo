@@ -39,9 +39,9 @@ from os import listdir, mkdir
 from os.path import isdir, isfile, join
 
 import wordninja
+from helpers import flatten
 from nltk import word_tokenize
 from tqdm import tqdm
-from utils import flatten
 
 import nemo.collections.nlp.data.text_normalization.constants as constants
 

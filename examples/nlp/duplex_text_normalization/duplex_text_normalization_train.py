@@ -75,8 +75,8 @@ will be saved to.
 """
 
 
+from helpers import DECODER_MODEL, TAGGER_MODEL, instantiate_model_and_trainer
 from omegaconf import DictConfig, OmegaConf
-from utils import DECODER_MODEL, TAGGER_MODEL, instantiate_model_and_trainer
 
 from nemo.core.config import hydra_runner
 from nemo.utils import logging

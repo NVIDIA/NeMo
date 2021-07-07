@@ -49,9 +49,9 @@ by the model. The location of this file is determined by the argument
 """
 
 
+from helpers import DECODER_MODEL, TAGGER_MODEL, instantiate_model_and_trainer
 from nltk import word_tokenize
 from omegaconf import DictConfig, OmegaConf
-from utils import DECODER_MODEL, TAGGER_MODEL, instantiate_model_and_trainer
 
 import nemo.collections.nlp.data.text_normalization.constants as constants
 from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset
