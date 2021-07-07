@@ -89,7 +89,7 @@ def main():
             labels=None,
             batch_size=1,
             shuffle=False,
-            time_length=8,
+            time_length=20,
             embedding_dir=args.embedding_dir,
         )
     )

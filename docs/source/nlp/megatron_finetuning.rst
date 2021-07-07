@@ -51,7 +51,7 @@ BioMegatron has the same network architecture as the Megatron-LM, but is pretrai
 a large biomedical text corpus, which achieves better performance in biomedical downstream tasks than the original Megatron-LM.
 
 Examples of using BioMegatron on biomedical downstream tasks can be found at (can be executed with `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_): 
-`NeMo/tutorials/nlp/Relation_Extraction-BioMegatron.ipynb <https://github.com/NVIDIA/NeMo/blob/main/tutorials/nlp/Relation_Extraction-BioMegatron.ipynb>`__ and `NeMo/tutorials/nlp/Token_Classification-BioMegatron.ipynb <https://github.com/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification-BioMegatron.ipynb>`__.
+`NeMo/tutorials/nlp/Relation_Extraction-BioMegatron.ipynb <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/nlp/Relation_Extraction-BioMegatron.ipynb>`__ and `NeMo/tutorials/nlp/Token_Classification-BioMegatron.ipynb <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/nlp/Token_Classification-BioMegatron.ipynb>`__.
 
 Model Parallelism
 -----------------

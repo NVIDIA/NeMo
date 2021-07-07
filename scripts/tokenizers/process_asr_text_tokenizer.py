@@ -106,6 +106,9 @@ parser.add_argument(
     help="Character coverage percentage for SentencePiece tokenization. For languages "
     "with large vocabulary, should be close to 0.9995, otherwise kept as 1.0",
 )
+parser.add_argument('--spe_bos', action='store_true', help='Add <s> token to SentencePiece Tokenizer.')
+parser.add_argument('--spe_eos', action='store_true', help='Add </s> token to SentencePiece Tokenizer.')
+parser.add_argument('--spe_pad', action='store_true', help='Add <pad> token to SentencePiece Tokenizer.')
 parser.add_argument(
     '--spe_sample_size',
     type=int,
@@ -173,6 +176,9 @@ def __process_data(
     spe_train_extremely_large_corpus: bool,
     spe_sample_size: int,
     spe_max_sentencepiece_length: int,
+    spe_bos: bool,
+    spe_eos: bool,
+    spe_pad: bool,
     lower_case: bool,
 ):
     """
@@ -191,6 +197,9 @@ def __process_data(
             this flag can be set to try to trained the tokenizer. Will silently fail if it runs out of RAM.
         spe_max_sentencepiece_length: Limits the maximum length of the SentencePiece subword that can be constructed.
             By default, no limit is placed.
+        spe_bos: Bool flag, whether to add <s> to SentencePiece tokenizer vocabulary.
+        spe_eos: Bool flag, whether to add </s> to SentencePiece tokenizer vocabulary.
+        spe_pad: Bool flag, whether to add <pad> to SentencePiece tokenizer vocabulary.
         lower_case: whether to tokenize with lower case character set only (for english)
 
     Returns:
@@ -222,6 +231,9 @@ def __process_data(
             character_coverage=spe_character_coverage,
             train_extremely_large_corpus=spe_train_extremely_large_corpus,
             max_sentencepiece_length=spe_max_sentencepiece_length,
+            bos=spe_bos,
+            eos=spe_eos,
+            pad=spe_pad,
         )
 
     else:
@@ -249,6 +261,7 @@ def main():
     spe_sample_size = args.spe_sample_size
     spe_train_extremely_large_corpus = args.spe_train_extremely_large_corpus
     spe_max_sentencepiece_length = args.spe_max_sentencepiece_length
+    spe_bos, spe_eos, spe_pad = args.spe_bos, args.spe_eos, args.spe_pad
     lower_case = args.lower_case
 
     if not os.path.exists(data_root):
@@ -272,6 +285,9 @@ def main():
         spe_sample_size=spe_sample_size,
         spe_train_extremely_large_corpus=spe_train_extremely_large_corpus,
         spe_max_sentencepiece_length=spe_max_sentencepiece_length,
+        spe_bos=spe_bos,
+        spe_eos=spe_eos,
+        spe_pad=spe_pad,
     )
 
     print("Serialized tokenizer at location :", tokenizer_path)

@@ -38,13 +38,13 @@ Quick Start Guide
 .. note::
 
     We recommend you try Question Answering model in a Jupyter notebook (can run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.): 
-    `NeMo/tutorials/nlp/Question_Answering_Squad.ipynb <https://github.com/NVIDIA/NeMo/blob/main/tutorials/nlp/Question_Answering_Squad.ipynb>`__.
+    `NeMo/tutorials/nlp/Question_Answering_Squad.ipynb <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/nlp/Question_Answering_Squad.ipynb>`__.
 
     Connect to an instance with a GPU (**Runtime** -> **Change runtime type** -> select **GPU** for the hardware accelerator).
 
-    An example script on how to train and evaluate the model can be found here: `NeMo/examples/nlp/question_answering/question_answering_squad.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/question_answering/question_answering_squad.py>`__.
+    An example script on how to train and evaluate the model can be found here: `NeMo/examples/nlp/question_answering/question_answering_squad.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/question_answering/question_answering_squad.py>`__.
 
-    The default configuration file for the model can be found at: `NeMo/examples/nlp/question_answering/conf/question_answering_squad.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/question_answering/conf/question_answering_squad_config.yaml>`__.
+    The default configuration file for the model can be found at: `NeMo/examples/nlp/question_answering/conf/question_answering_squad.yaml <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/question_answering/conf/question_answering_squad_config.yaml>`__.
 
 
 
@@ -174,7 +174,7 @@ In the Question Answering Model, we are training a span prediction head on top o
 Unless the user provides a pre-trained checkpoint for the language model, the language model is initialized with the pre-trained model 
 from `HuggingFace Transformers <https://github.com/huggingface/transformers>`__.
 
-Example of model configuration file for training the model can be found at: `NeMo/examples/nlp/question_answering/conf/question_answering_squad_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/question_answering/conf/question_answering_squad_config.yaml>`__.
+Example of model configuration file for training the model can be found at: `NeMo/examples/nlp/question_answering/conf/question_answering_squad_config.yaml <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/question_answering/conf/question_answering_squad_config.yaml>`__.
 
 The specification can be grouped into three categories:
 
@@ -243,7 +243,7 @@ that is initially loaded from a previously trained checkpoint, e.g. by specifyin
 Inference
 ---------
 
-An example script on how to run inference can be found at `examples/nlp/question_answering/question_answering_squad.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/question_answering/question_answering_squad.py>`_.
+An example script on how to run inference can be found at `examples/nlp/question_answering/question_answering_squad.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/question_answering/question_answering_squad.py>`_.
 
 To run inference with the pre-trained model, run:
 
@@ -264,7 +264,7 @@ Required Arguments for inference:
 Model Evaluation
 ----------------
 
-An example script on how to evaluate the pre-trained model, can be found at `examples/nlp/question_answering/question_answering_squad.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/question_answering/question_answering_squad.py>`_.
+An example script on how to evaluate the pre-trained model, can be found at `examples/nlp/question_answering/question_answering_squad.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/question_answering/question_answering_squad.py>`_.
 
 To run evaluation of the pre-trained model, run:
 
