@@ -253,9 +253,10 @@ def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rt
     no_references = False
 
     if torch.cuda.is_available():
-        logging.info("cuda=True, using CUDA for eigenvalue decomposition")
+        logging.info("cuda=True, using CUDA for Eigen decomposition.")
         cuda = True
     else:
+        logging.warning("cuda=False, using CPU for Eigen decompostion. This might slow down the clustering process.")
         cuda = False
 
     for uniq_key in tqdm(embeddings.keys()):
@@ -306,9 +307,13 @@ def get_DER(all_reference, all_hypothesis):
     FA (float): False Alarm
     Miss (float): Miss Detection 
 
+    < Caveat >
+    Unlike md-eval.pl, "no score" collar in pyannote.metrics is the maximum length of
+    "no score" collar from left to right. Therefore, if 0.25s is applied for "no score"
+    collar in md-eval.pl, 0.5s should be applied for pyannote.metrics.
+
     """
     metric = DiarizationErrorRate(collar=0.5, skip_overlap=True)
-    DER = 0
 
     for reference, hypothesis in zip(all_reference, all_hypothesis):
         metric(reference, hypothesis, detailed=True)
@@ -370,7 +375,7 @@ def write_rttm2manifest(paths2audio_files, paths2rttm_files, manifest_file):
     manifest (str): path to write manifest file
 
     Returns:
-    manifest (str): path to write manifest file 
+    manifest (str): path to write manifest file
     """
     AUDIO_RTTM_MAP = audio_rttm_map(paths2audio_files, paths2rttm_files)
 
