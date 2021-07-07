@@ -198,10 +198,6 @@ class MTDataPreproc:
                             langs = cfg.get('src_language')
                         elif isinstance(cfg.get('tgt_language'), ListConfig):
                             langs = cfg.get('tgt_language')
-                        else:
-                            raise ValueError(
-                                "Expect either cfg.src_language or cfg.tgt_language to be a list when multilingual=True."
-                            )
                         outdir_list = []
                         for lang in langs:
                             outdir_list.append(os.path.join(cfg.get('preproc_out_dir'), lang))
