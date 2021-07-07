@@ -478,7 +478,7 @@ custom configuration under the ``encoder`` configuration.
 HuggingFace
 ^^^^^^^^^^^
 
-We have provided a `HuggingFace config file <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/machine_translation/conf/huggingface.yaml>`__
+We have provided a `HuggingFace config file <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/machine_translation/conf/huggingface.yaml>`__
 to use with HuggingFace encoders. 
 
 To use the config file from CLI:
@@ -508,7 +508,7 @@ Note the ``+`` symbol is needed if we're not adding the arguments to the YAML co
 Megatron
 ^^^^^^^^
 
-We have provided a `Megatron config file <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/machine_translation/conf/megatron.yaml>`__
+We have provided a `Megatron config file <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/machine_translation/conf/megatron.yaml>`__
 to use with Megatron encoders. 
 
 To use the config file from CLI:
@@ -560,6 +560,17 @@ To train a Megatron 345M BERT, we would use
   model.encoder.num_attention_heads=16 \
   model.encoder.num_layers=24 \
   model.encoder.max_position_embeddings=512 \
+
+If the pretrained megatron model used a custom vocab file, then set:
+
+.. code::
+
+  model.encoder_tokenizer.vocab_file=/path/to/your/megatron/vocab_file.txt
+  model.encoder.vocab_file=/path/to/your/megatron/vocab_file.txt
+
+
+Use ``encoder.model_name=megatron_bert_uncased`` for uncased models with custom vocabularies and
+use ``encoder.model_name=megatron_bert_cased`` for cased models with custom vocabularies.
 
 
 References

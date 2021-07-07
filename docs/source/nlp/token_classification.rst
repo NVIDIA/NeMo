@@ -30,15 +30,15 @@ Quick Start Guide
 .. note::
 
     We recommend you try this model in a Jupyter notebook (run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.): 
-    `NeMo/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb <https://github.com/NVIDIA/NeMo/blob/main/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb>`__.
+    `NeMo/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb>`__.
 
     Connect to an instance with a GPU (**Runtime** -> **Change runtime type** -> select **GPU** for the hardware accelerator).
 
-    An example script on how to train the model can be found here: `NeMo/examples/nlp/token_classification/token_classification_train.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/token_classification_train.py>`__.
+    An example script on how to train the model can be found here: `NeMo/examples/nlp/token_classification/token_classification_train.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/token_classification_train.py>`__.
 
-    An example script on how to run evaluation and inference can be found here: `NeMo/examples/nlp/token_classification/token_classification_evaluate.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/token_classification_evaluate.py>`__.
+    An example script on how to run evaluation and inference can be found here: `NeMo/examples/nlp/token_classification/token_classification_evaluate.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/token_classification_evaluate.py>`__.
 
-    The default configuration file for the model can be found here: `NeMo/examples/nlp/token_classification/conf/token_classification_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/token_classification_config.yaml>`__.
+    The default configuration file for the model can be found here: `NeMo/examples/nlp/token_classification/conf/token_classification_config.yaml <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/conf/token_classification_config.yaml>`__.
 
 .. _dataset_token_classification:
 
@@ -68,7 +68,7 @@ Dataset Conversion
 ------------------
 
 To convert an `IOB format <https://en.wikipedia.org/wiki/Inside%E2%80%93outside%E2%80%93beginning_(tagging)>`__ (short for inside, outside, beginning) data to the format required for training, use
-`examples/nlp/token_classification/data/import_from_iob_format.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/data/import_from_iob_format.py)>`_.
+`examples/nlp/token_classification/data/import_from_iob_format.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/data/import_from_iob_format.py)>`_.
 
 .. code::
 
@@ -101,7 +101,7 @@ In the Token Classification model, we are jointly training a classifier on top o
 Unless the user provides a pre-trained checkpoint for the language model, the language model is initialized with the pre-trained model 
 from `HuggingFace Transformers <https://github.com/huggingface/transformers>`__.
 
-Example of model configuration file for training the model can be found at: `NeMo/examples/nlp/token_classification/conf/token_classification_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/token_classification_config.yaml>`__.
+Example of model configuration file for training the model can be found at: `NeMo/examples/nlp/token_classification/conf/token_classification_config.yaml <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/conf/token_classification_config.yaml>`__.
 
 The specification can be roughly grouped into three categories:
 
@@ -165,7 +165,7 @@ Required Arguments for Training
 Inference
 ---------
 
-An example script on how to run inference can be found at `examples/nlp/token_classification/token_classification_evaluate.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/token_classification_evaluate.py>`_.
+An example script on how to run inference can be found at `examples/nlp/token_classification/token_classification_evaluate.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/token_classification_evaluate.py>`_.
 
 To run inference with the pre-trained model, run:
 
@@ -182,7 +182,7 @@ Required Arguments for Inference
 Model Evaluation
 ----------------
 
-An example script on how to evaluate the pre-trained model can be found at `examples/nlp/token_classification/token_classification_evaluate.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/token_classification_evaluate.py>`_.
+An example script on how to evaluate the pre-trained model can be found at `examples/nlp/token_classification/token_classification_evaluate.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/token_classification_evaluate.py>`_.
 
 To start evaluation of the pre-trained model, run:
 

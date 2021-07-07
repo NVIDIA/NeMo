@@ -39,15 +39,15 @@ language model, such as `BERT: Pre-training of Deep Bidirectional Transformers f
 
 .. note::
 
-    We recommend you try this model in a Jupyter notebook (run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.): `NeMo/tutorials/nlp/Punctuation_and_Capitalization.ipynb <https://github.com/NVIDIA/NeMo/blob/main/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`__.
+    We recommend you try this model in a Jupyter notebook (run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.): `NeMo/tutorials/nlp/Punctuation_and_Capitalization.ipynb <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`__.
 
     Connect to an instance with a GPU (**Runtime** -> **Change runtime type** -> select **GPU** for the hardware accelerator).
 
-    An example script on how to train the model can be found at: `NeMo/examples/nlp/token_classification/punctuation_capitalization_train.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/punctuation_capitalization_train.py>`__.
+    An example script on how to train the model can be found at: `NeMo/examples/nlp/token_classification/punctuation_capitalization_train.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuation_capitalization_train.py>`__.
 
-    An example script on how to run evaluation and inference can be found at: `NeMo/examples/nlp/token_classification/punctuation_capitalization_evaluate.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/punctuation_capitalization_evaluate.py>`__.
+    An example script on how to run evaluation and inference can be found at: `NeMo/examples/nlp/token_classification/punctuation_capitalization_evaluate.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuation_capitalization_evaluate.py>`__.
 
-    The default configuration file for the model can be found at: `NeMo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__.
+    The default configuration file for the model can be found at: `NeMo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__.
 
 .. _raw_data_format_punct:
 
@@ -162,7 +162,7 @@ Training Punctuation and Capitalization Model
 ---------------------------------------------
 
 The language model is initialized with the pre-trained model from `HuggingFace Transformers <https://github.com/huggingface/transformers>`__, 
-unless the user provides a pre-trained checkpoint for the language model. Example of model configuration file for training the model can be found at: `NeMo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__.
+unless the user provides a pre-trained checkpoint for the language model. Example of model configuration file for training the model can be found at: `NeMo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__.
 
 The specification is roughly grouped into the following categories:
 
@@ -170,7 +170,7 @@ The specification is roughly grouped into the following categories:
 - Parameters that describe the datasets: **model.dataset**, **model.train_ds**, **model.validation_ds**
 - Parameters that describe the model: **model**
 
-More details about parameters in the config file can be found below and in the `model's config file <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__:
+More details about parameters in the config file can be found below and in the `model's config file <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__:
 
 +-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
 | **Parameter**                             | **Data Type**   |  **Description**                                                                                             |
@@ -248,7 +248,7 @@ Required Arguments for Training
 Inference
 ---------
 
-An example script on how to run inference on a few examples, can be found at `examples/nlp/token_classification/punctuation_capitalization_evaluate.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/punctuation_capitalization_evaluate.py>`_.
+An example script on how to run inference on a few examples, can be found at `examples/nlp/token_classification/punctuation_capitalization_evaluate.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuation_capitalization_evaluate.py>`_.
 
 To start inference with a pre-trained model on a few examples, run:
 
@@ -261,7 +261,7 @@ To start inference with a pre-trained model on a few examples, run:
 Model Evaluation
 ----------------
 
-An example script on how to evaluate the pre-trained model, can be found at `examples/nlp/token_classification/punctuation_capitalization_evaluate.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/punctuation_capitalization_evaluate.py>`_.
+An example script on how to evaluate the pre-trained model, can be found at `examples/nlp/token_classification/punctuation_capitalization_evaluate.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuation_capitalization_evaluate.py>`_.
 
 To start evaluation of the pre-trained model, run:
 
