@@ -187,7 +187,7 @@ class MTDataPreproc:
                             f"Creating tarred dataset for src: {cfg.train_ds.get('src_file_name')} and tgt: {cfg.train_ds.get('tgt_file_name')}"
                         )
 
-                    if isinstance(cfg.train_ds.get('metadata_file'), str):
+                    if isinstance(cfg.train_ds.get('src_file_name'), str):
                         src_file_list = [cfg.train_ds.get('src_file_name')]
                         tgt_file_list = [cfg.train_ds.get('tgt_file_name')]
                         outdir_list = [cfg.get('preproc_out_dir')]
