@@ -2,7 +2,7 @@
 INSTANCE=dgx1v.32g.8.norm
 PROJECT=nmt-en-de-ngc
 DATAID=68792
-STEPS=200000
+STEPS=300000
 WANDBLOGIN=1589819cfa34108320cd27634a3f764a29b211d8
 SLURM_GPUS_PER_NODE=8
 
@@ -14,7 +14,7 @@ do
     do
       for VOCAB_SIZE in 32000
       do
-          EXPNAME=NMT_TEACHER_DE_EN_NGC
+          EXPNAME=NMT_24_6_TEACHER_DE_EN_NGC
           ngc batch run --name ${EXPNAME} --preempt RUNONCE \
                 --image "nvcr.io/nvidia/pytorch:21.05-py3" \
                 --ace nv-us-west-2 \
@@ -25,7 +25,7 @@ do
                 git checkout main && ./reinstall.sh && \
                 cp -R /data/* /raid/ && \
                 yttm bpe --data /raid/train.clean.en-de.shuffled.common --model /results/tokenizer.BPE.${VOCAB_SIZE}.model --vocab_size $VOCAB_SIZE && \
-                python /code/examples/nlp/machine_translation/enc_dec_nmt.py \
+                python examples/nlp/machine_translation/enc_dec_nmt.py \
                 --config-path=conf \
                 --config-name=aayn_base \
                 do_training=true \

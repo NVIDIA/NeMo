@@ -29,7 +29,7 @@ do
                 yttm bpe --data /raid/train.clean.en-de.shuffled.common --model /results/tokenizer.BPE.${VOCAB_SIZE}.model --vocab_size ${VOCAB_SIZE} && \
                 python examples/nlp/machine_translation/enc_dec_nmt_distill.py \
                 --config-path=conf \
-                --config-name=aayn_base \
+                --config-name=aayn_base_distill \
                 trainer.gpus=8 \
                 ~trainer.max_epochs \
                 +trainer.max_steps=100000 \
