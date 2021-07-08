@@ -307,8 +307,8 @@ class TestParallelBlock:
     @pytest.mark.unit
     def test_blocks_with_same_input_output_channels(self):
         blocks = []
-        in_planes=8
-        out_planes=8
+        in_planes = 8
+        out_planes = 8
         for _ in range(2):
             blocks.append(self.contrust_jasper_block(inplanes=in_planes, planes=out_planes))
 
@@ -320,12 +320,11 @@ class TestParallelBlock:
         assert y[0].shape == torch.Size([1, out_planes, 140])
         assert ylen[0] == 131
 
-
     @pytest.mark.unit
     def test_blocks_with_different_input_output_channels(self):
         blocks = []
-        in_planes=8
-        out_planes=16
+        in_planes = 8
+        out_planes = 16
         for _ in range(2):
             blocks.append(self.contrust_jasper_block(inplanes=in_planes, planes=out_planes))
 
@@ -339,8 +338,8 @@ class TestParallelBlock:
 
     @pytest.mark.unit
     def test_single_block(self):
-        in_planes=8
-        out_planes=16
+        in_planes = 8
+        out_planes = 16
         blocks = [self.contrust_jasper_block(inplanes=in_planes, planes=out_planes)]
 
         block = jasper.ParallelBlock(blocks)
@@ -353,8 +352,8 @@ class TestParallelBlock:
 
     def test_tower_dropout(self):
         blocks = []
-        in_planes=8
-        out_planes=8
+        in_planes = 8
+        out_planes = 8
         for _ in range(2):
             blocks.append(self.contrust_jasper_block(inplanes=in_planes, planes=out_planes))
 
