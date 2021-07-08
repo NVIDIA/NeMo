@@ -35,6 +35,7 @@ import torch
 from sklearn.cluster._kmeans import k_means
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import MinMaxScaler
+from nemo.utils import logging
 
 scaler = MinMaxScaler(feature_range=(0, 1))
 
@@ -69,21 +70,25 @@ def getTheLargestComponent(affinity_mat, seg_index):
 
 def getKneighborsConnections(affinity_mat, p_value):
     """
-    For a given p_value value, binarize the given affinity matrix.
+    Binarizes top-p values for each row from the given affinity matrix.
     """
-    X_dist_out = np.zeros_like(affinity_mat)
+    binarized_affinity_mat = np.zeros_like(affinity_mat)
     for i, line in enumerate(affinity_mat):
         sorted_idx = np.argsort(line)
         sorted_idx = sorted_idx[::-1]
         indices = sorted_idx[:p_value]
-        X_dist_out[indices, i] = 1
-    return X_dist_out
+        binarized_affinity_mat[indices, i] = 1
+    return binarized_affinity_mat
 
 
-def getAffinityGraphMat(X_dist_raw, p_value):
-    X_r = getKneighborsConnections(X_dist_raw, p_value)
-    X_conn_from_dist = 0.5 * (X_r + X_r.T)
-    return X_conn_from_dist
+def getAffinityGraphMat(affinity_mat_raw, p_value):
+    """
+    Calculates a binarized graph matrix and
+    symmetrize the binarized graph matrix.
+    """
+    X = getKneighborsConnections(affinity_mat_raw, p_value)
+    symm_affinity_mat = 0.5 * (X + X.T)
+    return symm_affinity_mat
 
 
 def getMinimumConnection(mat, max_N, n_list):
@@ -93,7 +98,6 @@ def getMinimumConnection(mat, max_N, n_list):
     """
     p_value, index = 1, 0
     affinity_mat = getAffinityGraphMat(mat, p_value)
-    fully_connected = isGraphFullyConnected(affinity_mat)
     for i, p_value in enumerate(n_list):
         fully_connected = isGraphFullyConnected(affinity_mat)
         affinity_mat = getAffinityGraphMat(mat, p_value)
@@ -124,23 +128,17 @@ def getLaplacian(X):
     L = D - A
     return L
 
-
-def eigDecomposeGPU(Laplacian):
-    device = torch.cuda.current_device()
-    laplacian_torch = torch.from_numpy(Laplacian).float().to(device)
+def eigDecompose(Laplacian, cuda, device=None):
+    if cuda:
+        if device == None:
+            device = torch.cuda.current_device()
+        laplacian_torch = torch.from_numpy(Laplacian).float().to(device)
+    else:
+        laplacian_torch = torch.from_numpy(Laplacian).float()
     lambdas_torch, diffusion_map_torch = torch.linalg.eigh(laplacian_torch)
     lambdas = lambdas_torch.cpu().numpy()
     diffusion_map = diffusion_map_torch.cpu().numpy()
     return lambdas, diffusion_map
-
-
-def eigDecomposeCPU(Laplacian):
-    laplacian_torch = torch.from_numpy(Laplacian).float()
-    lambdas_torch, diffusion_map_torch = torch.linalg.eigh(laplacian_torch)
-    lambdas = lambdas_torch.cpu().numpy()
-    diffusion_map = diffusion_map_torch.cpu().numpy()
-    return lambdas, diffusion_map
-
 
 class _SpectralClustering:
     def __init__(self, n_clusters=8, random_state=0, n_init=10, p_value=10, n_jobs=None, cuda=False):
@@ -167,17 +165,12 @@ class _SpectralClustering:
     def getSpectralEmbeddings(self, affinity_mat, n_spks=8, drop_first=True, cuda=False):
         n_nodes = affinity_mat.shape[0]
         if not isGraphFullyConnected(affinity_mat):
-            logging.warning("Graph is not fully connected and clustering result might not be accurate.")
+            logging.warning("Graph is not fully connected and the clustering result might not be accurate.")
 
         Laplacian = getLaplacian(affinity_mat)
-        if cuda:
-            lambdas_, diffusion_map_ = eigDecomposeGPU(Laplacian)
-        else:
-            lambdas_, diffusion_map_ = eigDecomposeCPU(Laplacian)
-
+        lambdas_, diffusion_map_ = eigDecompose(Laplacian, cuda)
         lambdas = lambdas_[:n_spks]
         diffusion_map = diffusion_map_[:, :n_spks]
-
         embedding = diffusion_map.T[n_spks::-1]
         return embedding[:n_spks].T
 
@@ -185,15 +178,18 @@ class _SpectralClustering:
 class NMESC:
     """
     Normalized Maximum Eigengap based Spectral Clustering (NME-SC)
-    normalized Eigengap analysis to get p-value for affinity binarization
-    and estimated number of speakers.
+    uses Eigengap analysis to get an estimated p-value for
+    affinity binarization and an estimated number of speakers.
 
-    p_value (also referred to as p_neighbors) means we take
-    top p number of affinity values
-    and convert those to 1.
-    The other affinity values are converted to zero.
+    p_value (also referred to as p_neighbors) is for taking
+    top p number of affinity values and convert those to 1 while
+    convert the rest of values to 0.
 
-    Reference: https://arxiv.org/abs/2003.02405
+    p_value can be also tuned on a development set without performing
+    NME-analysis.
+
+    Reference: Auto-Tuning Spectral Clustering for Speaker Diarization
+    Using Normalized Maximum Eigengap (https://arxiv.org/abs/2003.02405)
 
     Parameters:
         Please refer to def __init__()
@@ -339,9 +335,8 @@ class NMESC:
                 The ratio between NME_mat_size and the original matrix size
 
         """
-        subsample_ratio = max(1, self.mat.shape[0] / NME_mat_size)
-        if int(subsample_ratio) != 1:
-            self.mat = self.mat[:: int(subsample_ratio), :: int(subsample_ratio)]
+        subsample_ratio = int(max(1, self.mat.shape[0] / NME_mat_size))
+        self.mat = self.mat[:: subsample_ratio, :: subsample_ratio]
         return subsample_ratio
 
     def getEigRatio(self, p_neighbors):
@@ -399,18 +394,14 @@ class NMESC:
         Estimates the number of speakers using eigen decompose on Laplacian Matrix.
         """
         Laplacian = getLaplacian(affinity_mat)
-        if self.cuda:
-            lambdas, _ = eigDecomposeGPU(Laplacian)
-        else:
-            lambdas, _ = eigDecomposeCPU(Laplacian)
-
+        lambdas, _ = eigDecompose(Laplacian, self.cuda)
         lambdas = np.sort(lambdas)
         lambda_gap_list = self.getLamdaGaplist(lambdas)
         num_of_spk = np.argmax(lambda_gap_list[: min(self.max_num_speaker, len(lambda_gap_list))]) + 1
         return num_of_spk, lambdas, lambda_gap_list
 
 
-def COSclustering(key, emb, oracle_num_speakers=None, max_num_speaker=8, min_samples=6, cuda=False):
+def COSclustering(key, emb, oracle_num_speakers=None, max_num_speaker=8, min_samples=6, fixed_thres=None, cuda=False):
     """
     Clustering method for speaker diarization based on cosine similarity.
 

@@ -253,7 +253,6 @@ def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rt
     no_references = False
 
     if torch.cuda.is_available():
-        logging.info("cuda=True, using CUDA for Eigen decomposition.")
         cuda = True
     else:
         logging.warning("cuda=False, using CPU for Eigen decompostion. This might slow down the clustering process.")
