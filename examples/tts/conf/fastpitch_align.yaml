@@ -88,7 +88,7 @@ model:
     dither: 0.0
     features: ${model.n_mel_channels}
     frame_splicing: 1
-    highfreq: null
+    highfreq: 8000
     log: true
     log_zero_guard_type: add
     log_zero_guard_value: 1e-05
