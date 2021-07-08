@@ -10,8 +10,8 @@ model:
   label_smoothing: 0.1
   shared_tokenizer: True # train tokenizer model across src and tgt train data
   preproc_out_dir: null # path to store data preprocessing outputs
-  src_language: 'en'
-  tgt_language: 'de'
+  src_language: 'de'
+  tgt_language: 'en'
 
   train_ds:
     src_file_name: null
@@ -141,7 +141,7 @@ model:
 
   # DISTILLATION DETAILS
   distillation:
-    model_path: '/teacher_dataset/AAYNBase/2021-06-29_22-02-55/checkpoints/AAYNBase.nemo'
+    model_path: '/raid/82137/AAYNBase/2021-06-17_18-04-54/checkpoints/AAYNBase.nemo'
 
     # loss weights
     distillation_loss_weight: 1.0

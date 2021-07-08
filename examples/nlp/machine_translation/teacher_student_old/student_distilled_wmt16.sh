@@ -3,8 +3,8 @@ BATCH_SIZE=12500
 lr=1e-3
 ws=7500
 VOCAB_SIZE=32000
-STEPS=1000
-EXPNAME=STUDENT_DISTILLED_NGC
+STEPS=100000
+EXPNAME=STUDENT_DISTILLED_LOCAL
 
 # yttm bpe --data /raid/wmt_16/train.clean.en-de.shuffled.common --model /raid/wmt_16/tokenizer.BPE.${VOCAB_SIZE}.model --vocab_size $VOCAB_SIZE && \
 # yttm bpe --data /raid/wmt_16/train.clean.en-de.shuffled.common --model /raid/wmt_16/tokenizer.BPE.32000.model --vocab_size 32000 --coverage 0.999
@@ -13,11 +13,13 @@ python enc_dec_nmt_distill.py \
 --config-path=conf \
 --config-name=aayn_base_distill \
 trainer.gpus=2 \
-+trainer.val_check_interval=100 \
++trainer.val_check_interval=1000 \
 +trainer.max_steps=${STEPS} \
 model.beam_size=4 \
 model.max_generation_delta=5 \
 model.label_smoothing=0.1 \
+do_training=False \
+do_testing=True \
 model.encoder_tokenizer.tokenizer_model=/raid/wmt_16/tokenizer.BPE.${VOCAB_SIZE}.model \
 model.decoder_tokenizer.tokenizer_model=/raid/wmt_16/tokenizer.BPE.${VOCAB_SIZE}.model \
 model.encoder.num_layers=6 \

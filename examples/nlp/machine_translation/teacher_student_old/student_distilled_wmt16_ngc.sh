@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # INSTANCE=dgx1v.32g.8.norm
-INSTANCE=dgx1v.16g.8.norm
+INSTANCE=dgx1v.32g.8.norm
 PROJECT=nmt-de-en-ngc
 PRETRAINED_TEACHERID=81837
 DATAID=68792

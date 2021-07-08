@@ -3,7 +3,7 @@ BATCH_SIZE=12500
 lr=1e-3
 ws=7500
 VOCAB_SIZE=32000
-STEPS=1000
+STEPS=200000
 EXPNAME=TEACHER_MODEL
 
 # yttm bpe --data /raid/wmt_16/train.clean.en-de.shuffled.common --model /raid/wmt_16/tokenizer.BPE.${VOCAB_SIZE}.model --vocab_size $VOCAB_SIZE && \
