@@ -21,3 +21,4 @@ NeMo's NLP collection supports the following models:
    entity_linking
    nlp_model
    machine_translation
+   text_normalization
