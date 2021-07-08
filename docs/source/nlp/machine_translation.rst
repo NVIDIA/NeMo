@@ -58,7 +58,7 @@ Data Format
 -----------
 
 Supervised machine translation models require parallel corpora which comprises many examples of sentences in a source language and 
-their corresponding translation in a target language. We use parallel data formatted as seperate text files for source and target 
+their corresponding translation in a target language. We use parallel data formatted as separate text files for source and target 
 languages where sentences in corresponding files are aligned like in the table below.
 
 .. list-table:: *Parallel Coprus*
@@ -85,12 +85,12 @@ We recommend applying the following steps to clean, normalize, and tokenize your
 
 #. Language ID filtering - This step filters out examples from your training dataset that aren't in the correct language. For example, 
    many datasets contain examples where source and target sentences are in the same language. You can use a pre-trained language ID 
-   classifier from `fastText <https://fasttext.cc/docs/en/language-identification.html>`__. You can then run our script using the 
+   classifier from `fastText <https://fasttext.cc/docs/en/language-identification.html>`__. Install fastText and then you can then run our script using the 
    ``lid.176.bin`` model downloaded from the fastText website.
 
    .. code ::
 
-       python NeMo/scripts/neural_machine_translation/filter_by_language.py \
+       python NeMo/scripts/neural_machine_translation/filter_langs_nmt.py \
          --input-src train.en \
          --input-tgt train.es \
          --output-src train_lang_filtered.en \
@@ -98,7 +98,7 @@ We recommend applying the following steps to clean, normalize, and tokenize your
          --source-lang en \
          --target-lang es \
          --removed-src train_noise.en \
-         --removed-tgt train_noise.de \
+         --removed-tgt train_noise.es \
          --fasttext-model lid.176.bin
 
 #. Length filtering - We filter out sentences from the data that are below a minimum length (1) or exceed a maximum length (250). We 
@@ -110,7 +110,7 @@ We recommend applying the following steps to clean, normalize, and tokenize your
 
        perl mosesdecoder/scripts/training/clean-corpus-n.perl -ratio 1.3 train en es train.filter 1 250
 
-#. Data cleaning - While language ID filtering can sometimes help with filtering out noisy sentences that contain too many puncutations, 
+#. Data cleaning - While language ID filtering can sometimes help with filtering out noisy sentences that contain too many punctuations, 
    it does not help in cases where the translations are potentially incorrect, disfluent,  or incomplete. We use `bicleaner <https://github.com/bitextor/bicleaner>`__ 
    a tool to identify such sentences. It trains a classifier based on many features included pre-trained language model fluency, word 
    alignment scores from a word-alignment model like `Giza++ <https://github.com/moses-smt/giza-pp>`__ etc. We use their available 
@@ -160,7 +160,7 @@ We recommend applying the following steps to clean, normalize, and tokenize your
 #. Tokenization and word segmentation for Chinese - Naturally written text often contains punctuation markers like commas, full-stops 
    and apostrophes that are attached to words. Tokenization by just splitting a string on spaces will result in separate token IDs for 
    very similar items like ``NeMo`` and ``NeMo.``. Tokenization splits punctuation from the word to create two separate tokens. In the 
-   previous example ``NeMo.`` becomes ``NeMo .`` which when split by space, results in two tokens and adressess the earlier problem. 
+   previous example ``NeMo.`` becomes ``NeMo .`` which when split by space, results in two tokens and addresses the earlier problem. 
    
    For example:
 
