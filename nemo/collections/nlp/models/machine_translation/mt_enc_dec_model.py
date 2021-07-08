@@ -35,6 +35,7 @@ from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.tokenizers.bytelevel_tokenizers import ByteLevelProcessor
 from nemo.collections.common.tokenizers.chinese_tokenizers import ChineseProcessor
 from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaProcessor
+from nemo.collections.common.tokenizers.indic_tokenizers import IndicProcessor
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
@@ -660,7 +661,9 @@ class MTEncDecModel(EncDecNLPModel):
             self.source_processor = EnJaProcessor(source_lang)
         elif source_lang == 'zh':
             self.source_processor = ChineseProcessor()
-        elif source_lang is not None and source_lang not in ['ja', 'zh']:
+        elif source_lang == 'hi':
+            self.source_processor = IndicProcessor(source_lang)
+        elif source_lang is not None and source_lang not in ['ja', 'zh', 'hi']:
             self.source_processor = MosesProcessor(source_lang)
 
         if self.decoder_tokenizer_library == 'byte-level':
@@ -669,7 +672,9 @@ class MTEncDecModel(EncDecNLPModel):
             self.target_processor = EnJaProcessor(target_lang)
         elif target_lang == 'zh':
             self.target_processor = ChineseProcessor()
-        elif target_lang is not None and target_lang not in ['ja', 'zh']:
+        elif target_lang == 'hi':
+            self.target_processor = IndicProcessor(target_lang)
+        elif target_lang is not None and target_lang not in ['ja', 'zh', 'hi']:
             self.target_processor = MosesProcessor(target_lang)
 
         return self.source_processor, self.target_processor
