@@ -620,8 +620,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.best_model_score = None
         self.best_model_path = ""
 
-        import ipdb
-
         checkpoints = list(Path(self.dirpath).rglob("*.ckpt"))
         if len(checkpoints) < 1:
             return  # No saved checkpoints yet
