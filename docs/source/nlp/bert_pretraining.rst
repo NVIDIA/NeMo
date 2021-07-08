@@ -61,8 +61,8 @@ and specify the path to the created hd5f files.
 Training the BERT model
 -----------------------
 
-Example of model configuration for on-the-fly data preprocessing: `NeMo/examples/nlp/language_modeling/conf/bert_pretraining_from_text_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/bert_pretraining_from_text_config.yaml>`__.
-Example of model configuration for offline data preprocessing: `NeMo/examples/nlp/language_modeling/conf/bert_pretraining_from_preprocessed_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/bert_pretraining_from_preprocessed_config.yaml>`__.
+Example of model configuration for on-the-fly data preprocessing: `NeMo/examples/nlp/language_modeling/conf/bert_pretraining_from_text_config.yaml <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/language_modeling/conf/bert_pretraining_from_text_config.yaml>`__.
+Example of model configuration for offline data preprocessing: `NeMo/examples/nlp/language_modeling/conf/bert_pretraining_from_preprocessed_config.yaml <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/language_modeling/conf/bert_pretraining_from_preprocessed_config.yaml>`__.
 
 The specification can be grouped into three categories:
 

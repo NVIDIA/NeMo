@@ -6,7 +6,7 @@ pipeline {
         }
   }
   options {
-    timeout(time: 1, unit: 'HOURS')
+    timeout(time: 2, unit: 'HOURS')
     disableConcurrentBuilds()
   }
   stages {
@@ -14,12 +14,6 @@ pipeline {
       steps {
         sh 'python -c "import torch; print(torch.__version__)"'
         sh 'python -c "import torchvision; print(torchvision.__version__)"'
-      }
-    }
-
-    stage('Uninstall torchtext') {
-      steps {
-        sh 'pip uninstall -y torchtext'
       }
     }
 

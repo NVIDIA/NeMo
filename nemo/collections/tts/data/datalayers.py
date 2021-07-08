@@ -220,7 +220,7 @@ class MelAudioDataset(Dataset):
 
         frames = math.ceil(self.n_segments / self.mel_hop_size)
         if audio.shape[1] > self.n_segments:
-            start = random.randint(0, mel.shape[1] - frames - 1)
+            start = random.randint(0, mel.shape[1] - frames - 2)
             mel = mel[:, start : start + frames]
             audio = audio[:, start * self.mel_hop_size : (start + frames) * self.mel_hop_size]
         else:
