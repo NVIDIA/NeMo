@@ -290,7 +290,7 @@ class EncDecCTCSDModelBPE(EncDecCTCModelBPE):
             reduction=self._cfg.get("ctc_reduction", "mean_batch"),
             **loss_kwargs
         )
-        remove_consecutive = loss_kwargs.get("topo_type", "ctc_default") != "identity"
+        remove_consecutive = loss_kwargs.get("topo_type", "ctc_default") not in ["identity", "ctc_shared_blank_no_selfloops"]
         self._wer.remove_consecutive = remove_consecutive
 
         self.aux_loss = self._cfg.get("aux_loss", False)
