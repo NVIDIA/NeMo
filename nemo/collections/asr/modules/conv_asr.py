@@ -204,7 +204,7 @@ class ConvASREncoder(NeuralModule, Exportable):
 
 class ParallelConvASREncoder(NeuralModule, Exportable):
     """
-    Convolutional encoder for ASR models with parallel blocks.
+    Convolutional encoder for ASR models with parallel blocks. CarneliNet can be implemented with this class.
     """
 
     def _prepare_for_export(self):
@@ -276,7 +276,6 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
         init_mode: Optional[str] = 'xavier_uniform',
         aggregation_mode: Optional[str] = None,
         quantize: bool = False,
-        bn_zero_init: bool = False,
     ):
         super().__init__()
         if isinstance(jasper, ListConfig):
@@ -289,7 +288,6 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
 
         residual_panes = []
         encoder_layers = []
-        last_bn_layers = []
         self.dense_residual = False
         for lcfg in jasper:
             dense_res = []
@@ -307,7 +305,7 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
             se_interpolation_mode = lcfg.get('se_interpolation_mode', 'nearest')
             kernel_size_factor = lcfg.get('kernel_size_factor', 1.0)
             stride_last = lcfg.get('stride_last', False)
-            aggregation_mode = lcfg.get('aggregation_mode', None)
+            aggregation_mode = lcfg.get('aggregation_mode', 'sum')
             block_dropout = lcfg.get('block_dropout', 0.0)
 
             parallel_blocks = []
@@ -344,24 +342,14 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
                 encoder_layers.append(parallel_blocks[0])
             else:
                 encoder_layers.append(
-                    ParallelBlock(parallel_blocks, aggregation_mode=aggregation_mode, out_filters=lcfg['filters'], block_dropout_prob=block_dropout)
+                    ParallelBlock(parallel_blocks, aggregation_mode=aggregation_mode, block_dropout_prob=block_dropout)
                 )
-                if bn_zero_init:
-                    for block in parallel_blocks:
-                        for layer in list(block.mconv)[::-1]:
-                            if isinstance(layer, nn.BatchNorm1d):
-                                last_bn_layers.append(layer)
-                                break
             feat_in = lcfg['filters']
 
         self._feat_out = feat_in
 
         self.encoder = torch.nn.Sequential(*encoder_layers)
         self.apply(lambda x: init_weights(x, mode=init_mode))
-        if bn_zero_init:
-            for layer in last_bn_layers:
-                if layer.affine:
-                    nn.init.zeros_(layer.weight)
 
     @typecheck()
     def forward(self, audio_signal, length=None):

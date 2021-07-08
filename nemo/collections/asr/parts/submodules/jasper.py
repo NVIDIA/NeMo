@@ -1052,7 +1052,22 @@ class JasperBlock(nn.Module):
 
 
 class ParallelBlock(nn.Module):
-    def __init__(self, blocks, aggregation_mode=None, out_filters=None, reduction_ratio=8, block_dropout_prob=0.0):
+    """
+    Computational module that computes several `blocks` independently from each other and aggregates the outputs.
+    Due to a particular way of structuring inputs with sequence masks in Jasper-like blocks, this module focuses
+    specifically on the Jasper family.
+
+    Args:
+        blocks: List of Jasper blocks that will be computed concurently. It is expected that they accept the same
+            input and return outputs with the same number of channels.
+        aggregation_mode: an optional string, indicating how the outputs will be aggregated. Supported values are
+            ['sum', 'dropout']. "sum" value forces outputs to be summed together. "dropout" value enables tower
+            dropout training with different blocks being dropped out during training.
+        block_dropout_prob: a probability of dropping any individual block during training with "dropout" aggregation
+            mode. Acts as a regularization technique.
+    """
+
+    def __init__(self, blocks, aggregation_mode: str = "sum", block_dropout_prob: int = 0.0):
         super().__init__()
         self.blocks = nn.ModuleList(blocks)
         self.aggregation_mode = aggregation_mode
@@ -1060,19 +1075,29 @@ class ParallelBlock(nn.Module):
             self.weights = nn.Parameter(torch.ones(1, len(blocks), 1, 1), requires_grad=False)
             self.dropout = nn.Dropout(block_dropout_prob)
 
-
     def get_dropout_mask(self):
         weights = self.dropout(self.weights)
         while torch.sum(weights) == 0:
             weights = self.dropout(self.weights)
         return weights
 
-    def forward(self, x):
+    def forward(self, x: Tuple[List[Tensor], Optional[Tensor]]):
+        """
+        Forward pass computing aggregated output.
+
+        Args:
+            x: tuple of padded signal and lengths the signal. The shape of the signal is [B, D, T]. The lengths are
+                1D torch tensor of length B.
+
+        Returns:
+           torch tensor after passing input throught each block and aggregating these outputs according to the
+           aggregation mode.
+        """
         if len(self.blocks) == 1:
             return self.blocks[0](x)
 
         input_feat = x[0][-1]
-        batch, channels, time = input_feat.shape
+        in_channels = input_feat.shape[-1]
 
         result = None
         max_mask = None
@@ -1085,7 +1110,8 @@ class ParallelBlock(nn.Module):
             output, mask = block(x)
 
             weighted_output = output[-1]
-            if self.aggregation_mode:
+            out_channels = weighted_output.shape[-1]
+            if self.aggregation_mode == "dropout":
                 weighted_output = scaling_weights[:, i, :, :] * output[-1]
 
             if result is None:
@@ -1097,5 +1123,6 @@ class ParallelBlock(nn.Module):
                 max_mask = mask
             else:
                 max_mask = torch.max(torch.stack([mask, max_mask]), dim=0)[0]
-        result = result + input_feat
+        if in_channels == out_channels:
+            result = result + input_feat
         return [result], max_mask
