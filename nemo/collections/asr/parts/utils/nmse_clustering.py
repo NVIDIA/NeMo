@@ -35,6 +35,7 @@ import torch
 from sklearn.cluster._kmeans import k_means
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import MinMaxScaler
+
 from nemo.utils import logging
 
 scaler = MinMaxScaler(feature_range=(0, 1))
@@ -128,6 +129,7 @@ def getLaplacian(X):
     L = D - A
     return L
 
+
 def eigDecompose(Laplacian, cuda, device=None):
     if cuda:
         if device == None:
@@ -139,6 +141,7 @@ def eigDecompose(Laplacian, cuda, device=None):
     lambdas = lambdas_torch.cpu().numpy()
     diffusion_map = diffusion_map_torch.cpu().numpy()
     return lambdas, diffusion_map
+
 
 class _SpectralClustering:
     def __init__(self, n_clusters=8, random_state=0, n_init=10, p_value=10, n_jobs=None, cuda=False):
@@ -336,7 +339,7 @@ class NMESC:
 
         """
         subsample_ratio = int(max(1, self.mat.shape[0] / NME_mat_size))
-        self.mat = self.mat[:: subsample_ratio, :: subsample_ratio]
+        self.mat = self.mat[::subsample_ratio, ::subsample_ratio]
         return subsample_ratio
 
     def getEigRatio(self, p_neighbors):
