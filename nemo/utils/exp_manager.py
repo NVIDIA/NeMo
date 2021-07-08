@@ -13,10 +13,10 @@
 # limitations under the License.
 
 import os
+import re
 import subprocess
 import sys
 import time
-import re
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
