@@ -1077,7 +1077,7 @@ class ParallelBlock(nn.Module):
 
     def get_dropout_mask(self):
         weights = self.dropout(self.weights)
-        while torch.sum(weights) == 0:
+        while torch.sum(weights) == 0 and self.dropout.p < 1.0:
             weights = self.dropout(self.weights)
         return weights
 
@@ -1097,7 +1097,7 @@ class ParallelBlock(nn.Module):
             return self.blocks[0](x)
 
         input_feat = x[0][-1]
-        in_channels = input_feat.shape[-1]
+        in_channels = input_feat.shape[-2]
 
         result = None
         max_mask = None
@@ -1110,7 +1110,7 @@ class ParallelBlock(nn.Module):
             output, mask = block(x)
 
             weighted_output = output[-1]
-            out_channels = weighted_output.shape[-1]
+            out_channels = weighted_output.shape[-2]
             if self.aggregation_mode == "dropout":
                 weighted_output = scaling_weights[:, i, :, :] * output[-1]
 
