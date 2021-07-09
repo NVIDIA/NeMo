@@ -160,7 +160,7 @@ model:
     # optional - distillation loss config
     loss:
       primary:
-        _target_: 'torch.nn.CrossEntropyLoss'
+        _target_: 'torch.nn.KLDivLoss'
         log_target: true
         reduction: 'batchmean'
 
