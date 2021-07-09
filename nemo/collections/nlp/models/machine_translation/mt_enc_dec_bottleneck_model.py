@@ -166,7 +166,14 @@ class MTBottleneckModel(MTEncDecModel):
             return z, z_mean, z_logv, z_mask
 
     @typecheck()
-    def forward(self, src, src_mask, tgt, tgt_mask, labels, train=True):
+    def forward(self, src, src_mask, tgt, tgt_mask, labels, train=True,
+        return_info=False):
+    """
+    return_info - if True, returns loss, info_dict with additional information
+                  regarding the loss that can be logged
+    """
+        info_dict = {}
+
         src_hiddens = self.encoder(
             input_ids=src,
             encoder_mask=src_mask,
@@ -214,6 +221,8 @@ class MTBottleneckModel(MTEncDecModel):
 
             tokens = output_mask.sum()
             log_p_x_given_z_per_token = log_p_x_given_z_per_token.sum().detach() / tokens
+
+        info_dict["log_p_x_given_z"] = log_p_x_given_z.detach()
 
         # loss warmup during training only
         if train:
@@ -277,7 +286,10 @@ class MTBottleneckModel(MTEncDecModel):
         # add attention orthogonality loss
         loss = loss + warmup_coef * ortho_loss_coef * ortho_loss
 
-        return loss
+        if return_info:
+            return loss, info_dict
+        else:
+            return loss
 
     @torch.no_grad()
     def batch_translate(
@@ -358,6 +370,7 @@ class MTBottleneckModel(MTEncDecModel):
         # this will run encoder twice -- TODO: potentially fix
         _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
 
+        import pudb; pudb.set_trace()
         num_measurements = labels.shape[0] * labels.shape[1]
         if dataloader_idx == 0:
             getattr(self, f'{mode}_loss')(
