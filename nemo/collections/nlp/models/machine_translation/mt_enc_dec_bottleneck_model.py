@@ -361,8 +361,7 @@ class MTBottleneckModel(MTEncDecModel):
                 # is excess.
                 batch[i] = batch[i].squeeze(dim=0)
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
-        train_loss, info_dict = self(src_ids, src_mask, tgt_ids, tgt_mask, labels, train=True,
-            return_info=True)
+        train_loss, info_dict = self(src_ids, src_mask, tgt_ids, tgt_mask, labels, train=True, return_info=True)
         tensorboard_logs = {
             'train_loss': train_loss,
             'lr': self._optimizer.param_groups[0]['lr'],
@@ -383,7 +382,7 @@ class MTBottleneckModel(MTEncDecModel):
             self.target_processor = self.target_processor_list[dataloader_idx]
 
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
-        eval_loss = self(src_ids, src_mask, tgt_ids, tgt_mask, labels, train=False)
+        eval_loss, info_dict = self(src_ids, src_mask, tgt_ids, tgt_mask, labels, train=False, return_info=True)
         # this will run encoder twice -- TODO: potentially fix
         _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
 

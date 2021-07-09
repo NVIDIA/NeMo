@@ -301,6 +301,7 @@ class MTEncDecModel(EncDecNLPModel):
         loss_list = []
         sb_score_list = []
         for dataloader_idx, output in enumerate(outputs):
+            # TODO: extract and delete log, later loop over keys and average
             if dataloader_idx == 0:
                 eval_loss = getattr(self, f'{mode}_loss').compute()
             else:
