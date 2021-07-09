@@ -258,8 +258,10 @@ class MTEncDecModel(EncDecNLPModel, DistillationMixin):
 
         # Hinton Distillation
         if self.is_being_distilled():
-            temp_log_probs = self.log_softmax(hidden_states=tgt_hiddens / self.distill_cfg.get('temperature', 1.0))
+            temp_hiddens = torch.div(tgt_hiddens, self.distill_cfg.get('temperature', 1.0))
+            temp_log_probs = self.log_softmax(hidden_states=temp_hiddens)
             self.distillation_registration_step(temp_log_probs)
+            del temp_log_probs
 
         return log_probs
 
