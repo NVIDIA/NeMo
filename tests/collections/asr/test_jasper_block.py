@@ -350,6 +350,7 @@ class TestParallelBlock:
         assert y[0].shape == torch.Size([1, out_planes, 140])
         assert ylen[0] == 131
 
+    @pytest.mark.unit
     def test_tower_dropout(self):
         blocks = []
         in_planes = 8
