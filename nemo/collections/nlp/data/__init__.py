@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nemo.collections.nlp.data.text_normalization.constants
 from nemo.collections.nlp.data.data_utils import *
 from nemo.collections.nlp.data.entity_linking.entity_linking_dataset import EntityLinkingDataset
 from nemo.collections.nlp.data.information_retrieval.information_retrieval_dataset import (
