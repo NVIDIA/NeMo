@@ -22,7 +22,6 @@ if __name__ == '__main__':
     parser.add_argument('--shared_tokenizer', action="store_true", help='Whether to share encoder/decoder tokenizers')
     parser.add_argument('--clean', action="store_true", help='Whether to clean dataset based on length diff')
     parser.add_argument('--tar_file_prefix', type=str, default='parallel', help='Prefix for tar files')
-    parser.add_argument('--bpe_dropout', type=float, default=0.1, help='Whether to share encoder/decoder tokenizers')
     parser.add_argument('--src_fname', type=str, required=True, help='Path to the source file')
     parser.add_argument('--tgt_fname', type=str, required=True, help='Path to the target file')
     parser.add_argument('--out_dir', type=str, required=True, help='Path to store dataloader and tokenizer models')
@@ -42,6 +41,9 @@ if __name__ == '__main__':
     )
     parser.add_argument('--encoder_tokenizer_bpe_dropout', type=float, default=0.1, help='Encoder BPE dropout prob')
     parser.add_argument(
+        '--encoder_tokenizer_r2l', action="store_true", help='Whether to return encoded sequence from right to left'
+    )
+    parser.add_argument(
         '--decoder_tokenizer_model', type=str, default='None', help='Path to pre-trained decoder tokenizer model'
     )
     parser.add_argument(
@@ -52,6 +54,9 @@ if __name__ == '__main__':
         '--decoder_tokenizer_coverage', type=float, default=0.999, help='Encoder Character coverage for BPE'
     )
     parser.add_argument('--decoder_tokenizer_bpe_dropout', type=float, default=0.1, help='Encoder BPE dropout prob')
+    parser.add_argument(
+        '--decoder_tokenizer_r2l', action="store_true", help='Whether to return encoded sequence from right to left'
+    )
     parser.add_argument('--max_seq_length', type=int, default=512, help='Max Sequence Length')
     parser.add_argument('--min_seq_length', type=int, default=1, help='Min Sequence Length')
     parser.add_argument('--tokens_in_batch', type=int, default=16000, help='# Tokens per batch per GPU')
@@ -113,9 +118,11 @@ if __name__ == '__main__':
         encoder_tokenizer_name=args.encoder_tokenizer_name,
         encoder_tokenizer_model=encoder_tokenizer_model,
         encoder_bpe_dropout=args.encoder_tokenizer_bpe_dropout,
+        encoder_r2l=args.encoder_tokenizer_r2l,
         decoder_tokenizer_name=args.decoder_tokenizer_name,
         decoder_tokenizer_model=decoder_tokenizer_model,
         decoder_bpe_dropout=args.decoder_tokenizer_bpe_dropout,
+        decoder_r2l=args.decoder_tokenizer_r2l,
     )
 
     _, _ = MTDataPreproc.preprocess_parallel_dataset(
@@ -127,9 +134,11 @@ if __name__ == '__main__':
         encoder_model_name=args.encoder_model_name,
         encoder_tokenizer_model=encoder_tokenizer_model,
         encoder_bpe_dropout=args.encoder_tokenizer_bpe_dropout,
+        encoder_tokenizer_r2l=args.encoder_tokenizer_r2l,
         decoder_tokenizer_name=args.decoder_tokenizer_name,
         decoder_model_name=args.decoder_model_name,
         decoder_tokenizer_model=decoder_tokenizer_model,
+        decoder_tokenizer_r2l=args.decoder_tokenizer_r2l,
         decoder_bpe_dropout=args.decoder_tokenizer_bpe_dropout,
         max_seq_length=args.max_seq_length,
         min_seq_length=args.min_seq_length,

@@ -11,3 +11,5 @@ megatron-lm==2.2.0
 inflect
 sacrebleu[ja]
 sacremoses>=0.0.43
+nltk==3.6.2
+wordninja==2.0.0
