@@ -621,8 +621,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.best_model_path = ""
 
         checkpoints = list(Path(self.dirpath).rglob("*.ckpt"))
-        if len(checkpoints) < 1:
-            return  # No saved checkpoints yet
         for checkpoint in checkpoints:
             checkpoint = str(checkpoint)
             if checkpoint[-10:] == '-last.ckpt':
@@ -633,6 +631,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 if match:
                     value = checkpoint[index : index + match.start() - 1]  # -1 due to separator hypen
                     self.best_k_models[checkpoint] = float(value)
+        if len(self.best_k_models) < 1:
+            return  # No saved checkpoints yet
 
         _reverse = False if self.mode == "min" else True
 
