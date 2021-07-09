@@ -167,42 +167,42 @@ class MTBottleneckModel(MTEncDecModel):
 
     @typecheck()
     def forward(self, src, src_mask, tgt, tgt_mask, labels, train=True,
-        return_info=False):
+                return_info=False):
     """
     return_info - if True, returns loss, info_dict with additional information
                   regarding the loss that can be logged
     """
-        info_dict = {}
+    info_dict = {}
 
-        src_hiddens = self.encoder(
-            input_ids=src,
-            encoder_mask=src_mask,
-        )
+    src_hiddens = self.encoder(
+        input_ids=src,
+        encoder_mask=src_mask,
+    )
 
-        # build posterior distribution q(x|z)
-        z, z_mean, z_logv, bridge_mask, ortho_loss = self.sample_z(
-            hidden=src_hiddens,
-            hidden_mask=src_mask,
-            # we always return return_ortho_loss here even if ignored
-            # to avoid recomputing attention bridge twice
-            return_ortho_loss=True,
-        )
+    # build posterior distribution q(x|z)
+    z, z_mean, z_logv, bridge_mask, ortho_loss = self.sample_z(
+        hidden=src_hiddens,
+        hidden_mask=src_mask,
+        # we always return return_ortho_loss here even if ignored
+        # to avoid recomputing attention bridge twice
+        return_ortho_loss=True,
+    )
 
-        # build decoding distribution
-        bridge_hiddens_dec = self.latent2hidden(z)
+    # build decoding distribution
+    bridge_hiddens_dec = self.latent2hidden(z)
 
-        tgt_hiddens = self.decoder(
-            input_ids=tgt,
-            decoder_mask=tgt_mask,
-            encoder_embeddings=bridge_hiddens_dec,
-            encoder_mask=bridge_mask,
-        )
+    tgt_hiddens = self.decoder(
+         input_ids=tgt,
+         decoder_mask=tgt_mask,
+         encoder_embeddings=bridge_hiddens_dec,
+         encoder_mask=bridge_mask,
+         )
 
-        log_probs = self.log_softmax(hidden_states=tgt_hiddens)
+     log_probs = self.log_softmax(hidden_states=tgt_hiddens)
 
-        recon_loss_fn = self.loss_fn if train else self.eval_loss_fn
+      recon_loss_fn = self.loss_fn if train else self.eval_loss_fn
 
-        if self.recon_per_token:
+       if self.recon_per_token:
             log_p_x_given_z_per_token = -recon_loss_fn(log_probs=log_probs, labels=labels)
 
             log_p_x_given_z = log_p_x_given_z_per_token
@@ -223,7 +223,6 @@ class MTBottleneckModel(MTEncDecModel):
             log_p_x_given_z_per_token = log_p_x_given_z_per_token.sum().detach() / tokens
 
             info_dict["log_p_x_given_z"] = log_p_x_given_z.detach().cpu()
-
 
         info_dict["log_p_x_given_z_per_token"] = log_p_x_given_z_per_token.detach().cpu()
 
@@ -406,4 +405,8 @@ class MTBottleneckModel(MTEncDecModel):
             'translations': translations,
             'ground_truths': ground_truths,
             'num_non_pad_tokens': num_non_pad_tokens,
+            'log': {
+                k: v.detach.cpu().numpy() if torch.is_tensor(v) else v
+                for k, v in info_dict.items()
+            },
         }

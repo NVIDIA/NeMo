@@ -301,7 +301,6 @@ class MTEncDecModel(EncDecNLPModel):
         loss_list = []
         sb_score_list = []
         for dataloader_idx, output in enumerate(outputs):
-            # TODO: extract and delete log, later loop over keys and average
             if dataloader_idx == 0:
                 eval_loss = getattr(self, f'{mode}_loss').compute()
             else:
@@ -365,6 +364,24 @@ class MTEncDecModel(EncDecNLPModel):
                 self.log(f"{mode}_loss_dl_index_{dataloader_idx}", eval_loss, sync_dist=True)
                 self.log(f"{mode}_sacreBLEU_dl_index_{dataloader_idx}", sb_score, sync_dist=True)
                 getattr(self, f'{mode}_loss_{dataloader_idx}').reset()
+
+            # add logs if available
+            # FIXME: TEST ME
+            import pudb; pudb.set_trace()
+            log_dict = {}
+            for x in output:
+                if "log" in x:
+                    for k, v in x["log"]:
+                        log_dict[k] = log_dict.get(k, []) + [v]
+
+            for k, v in log_dict:
+                if dataloader_idx == 0:
+                    self.log(f"{mode}_{k}", np.mean(v), sync_dist=True)
+                    getattr(self, f"{mode}_{k}").reset()
+                else:
+                    self.log(f"{mode}_{k}_dl_index_{dataloader_idx}", np.mean(v), sync_dist=True)
+                    getattr(self, f"{mode}_{k}_dl_index_{dataloader_idx}").reset()
+
 
         if len(loss_list) > 1:
             self.log(f"{mode}_loss_avg", np.mean(loss_list), sync_dist=True)
