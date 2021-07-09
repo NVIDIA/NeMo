@@ -257,9 +257,9 @@ class MTEncDecModel(EncDecNLPModel, DistillationMixin):
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
 
         # Hinton Distillation
-        temp_log_probs = self.log_softmax(hidden_states=tgt_hiddens / self.distill_cfg.get('temperature', 1.0))
         if self.is_being_distilled():
-            self.register_distillation_tensor(loss_key='primary', tensor=temp_log_probs)
+            temp_log_probs = self.log_softmax(hidden_states=tgt_hiddens / self.distill_cfg.get('temperature', 1.0))
+            self.distillation_registration_step(temp_log_probs)
 
         return log_probs
 
