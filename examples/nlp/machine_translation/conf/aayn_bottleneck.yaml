@@ -1,3 +1,10 @@
+# The bottleneck architecture supports two architectures:
+#   1) No bottleneck: model_type=seq2seq, the usual NMT mdoel.
+#   2) Fixed-size bottleneck: model_type in [seq2seq-br, seq2seq-mim, seq2seq-vae],
+#      where the output of the encoder is projected to a fixed number of steps.
+# The loss of seq2seq-br is reconstruction only (like seq2seq).
+# The losses of seq2seq-mim, seq2seq-vae are MIM (https://arxiv.org/pdf/2003.02645.pdf)
+# and VAE (https://arxiv.org/pdf/1312.6114.pdf) correspondingly.
 name: AttentionIsAllYouNeedBottleneck
 do_training: True # set to False if only preprocessing data
 do_testing: False # set to True to run evaluation on test data after training
@@ -12,7 +19,7 @@ model:
   preproc_out_dir: null # path to store data preprocessing outputs
   src_language: 'en'
   tgt_language: 'de'
-  model_type: 'seq2seq-br' # supports seq2seq, seq2seq-br, seq2seq-mim, seq2seq-vae
+  model_type: 'seq2seq-br' # supports seq2seq, seq2seq-br, seq2seq-mim, seq2seq-vae (see description above)
   min_logv: -8 # minimal allowed logv for seq2seq-mim
   ortho_loss_coef: 0.0 # orthogonality coefficient for attention bridge
   att_bridge_size: 512 # dimension of a step in attention bridge
