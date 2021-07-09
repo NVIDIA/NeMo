@@ -222,7 +222,10 @@ class MTBottleneckModel(MTEncDecModel):
             tokens = output_mask.sum()
             log_p_x_given_z_per_token = log_p_x_given_z_per_token.sum().detach() / tokens
 
-        info_dict["log_p_x_given_z"] = log_p_x_given_z.detach()
+            info_dict["log_p_x_given_z"] = log_p_x_given_z.detach().cpu()
+
+
+        info_dict["log_p_x_given_z_per_token"] = log_p_x_given_z_per_token.detach().cpu()
 
         # loss warmup during training only
         if train:
@@ -241,6 +244,8 @@ class MTBottleneckModel(MTEncDecModel):
             # ignore warmup and auxiliary loss
             warmup_coef = 1.0
             ortho_loss_coef = 0.0
+
+        info_dict["warmup_coef"] = warmup_coef
 
         if self.model_type in ["seq2seq-mim", "seq2seq-vae"]:
             # tokens = tgt_mask.sum()
@@ -273,18 +278,27 @@ class MTBottleneckModel(MTEncDecModel):
                 # KL divergence -Dkl( q(z|x) || p(z) )
                 loss_terms = log_p_z - log_q_z_given_x
 
-            # show loss value for reconstruction but train MIM/VAE
+            # show loss value for reconstruction but train with MIM/VAE loss
             computed_loss = log_p_x_given_z + warmup_coef * loss_terms
             display_loss = log_p_x_given_z_per_token
-            loss = -(
-                    (computed_loss - computed_loss.detach()) +
-                display_loss
-            )
+
+            info_dict["log_q_z_given_x"] = log_q_z_given_x.detach().cpu()
+            info_dict["log_p_z"] = log_p_z.detach().cpu()
+            info_dict["kl_div_q_p"] = (log_q_z_given_x - log_p_z).detach().cpu()
+
         elif self.model_type in ["seq2seq", "seq2seq-br"]:
-            loss = -(log_p_x_given_z - log_p_x_given_z.detach() + log_p_x_given_z_per_token)
+            computed_loss = log_p_x_given_z
+            display_loss = log_p_x_given_z_per_token
+
+        loss = -((computed_loss - computed_loss.detach()) + display_loss)
 
         # add attention orthogonality loss
         loss = loss + warmup_coef * ortho_loss_coef * ortho_loss
+
+        info_dict["computed_loss"] = computed_loss.detach().cpu()
+        if torch.is_tensor(ortho_loss):
+            ortho_loss = ortho_loss.detach().cpu()
+        info_dict["ortho_loss"] = ortho_loss
 
         if return_info:
             return loss, info_dict
@@ -347,11 +361,14 @@ class MTBottleneckModel(MTEncDecModel):
                 # is excess.
                 batch[i] = batch[i].squeeze(dim=0)
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
-        train_loss = self(src_ids, src_mask, tgt_ids, tgt_mask, labels, train=True)
+        train_loss, info_dict = self(src_ids, src_mask, tgt_ids, tgt_mask, labels, train=True,
+            return_info=True)
         tensorboard_logs = {
             'train_loss': train_loss,
             'lr': self._optimizer.param_groups[0]['lr'],
         }
+        tensorboard_logs.update(info_dict)
+
         return {'loss': train_loss, 'log': tensorboard_logs}
 
     def eval_step(self, batch, batch_idx, mode, dataloader_idx=0):
@@ -370,7 +387,7 @@ class MTBottleneckModel(MTEncDecModel):
         # this will run encoder twice -- TODO: potentially fix
         _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
 
-        import pudb; pudb.set_trace()
+        # TODO: log info_dict similar to train_step
         num_measurements = labels.shape[0] * labels.shape[1]
         if dataloader_idx == 0:
             getattr(self, f'{mode}_loss')(
