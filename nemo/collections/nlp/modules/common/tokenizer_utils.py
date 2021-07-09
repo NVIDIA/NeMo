@@ -50,6 +50,7 @@ class TokenizerConfig:
     bpe_dropout: Optional[float] = 0.0
     coverage: Optional[float] = 0.999
     training_sample_size: Optional[int] = None
+    r2l: Optional[bool] = False
 
 
 def get_tokenizer(
@@ -96,6 +97,9 @@ def get_tokenizer(
     elif tokenizer_name == 'char':
         return CharTokenizer(vocab_file=vocab_file, **special_tokens_dict)
 
+    logging.info(
+        f"Getting HuggingFace AutoTokenizer with pretrained_model_name: {tokenizer_name}, vocab_file: {vocab_file}, special_tokens_dict: {special_tokens_dict}, and use_fast: {use_fast}"
+    )
     return AutoTokenizer(
         pretrained_model_name=tokenizer_name, vocab_file=vocab_file, **special_tokens_dict, use_fast=use_fast
     )
@@ -109,6 +113,7 @@ def get_nmt_tokenizer(
     special_tokens: Optional[Dict[str, str]] = None,
     use_fast: Optional[bool] = False,
     bpe_dropout: Optional[float] = 0.0,
+    r2l: Optional[bool] = False,
 ):
     """
     Args:
@@ -119,7 +124,8 @@ def get_nmt_tokenizer(
         use_fast: (only for HuggingFace AutoTokenizer) set to True to use fast HuggingFace tokenizer
         bpe_dropout: (only supported by YTTM tokenizer) BPE dropout tries to corrupt the standard segmentation procedure of BPE to help
             model better learn word compositionality and become robust to segmentation errors. 
-            It has emperically been shown to improve inference time BLEU scores.        
+            It has emperically been shown to improve inference time BLEU scores.
+        r2l: Whether to return subword IDs from right to left
     """
     if special_tokens is None:
         special_tokens_dict = {}
@@ -127,8 +133,8 @@ def get_nmt_tokenizer(
         special_tokens_dict = special_tokens
 
     if library == 'yttm':
-        logging.info(f'Getting YouTokenToMeTokenizer with model: {tokenizer_model}.')
-        return YouTokenToMeTokenizer(model_path=tokenizer_model, bpe_dropout=bpe_dropout)
+        logging.info(f'Getting YouTokenToMeTokenizer with model: {tokenizer_model} with r2l: {r2l}.')
+        return YouTokenToMeTokenizer(model_path=tokenizer_model, bpe_dropout=bpe_dropout, r2l=r2l)
     elif library == 'huggingface':
         logging.info(f'Getting HuggingFace AutoTokenizer with pretrained_model_name: {model_name}')
         return AutoTokenizer(
@@ -144,7 +150,7 @@ def get_nmt_tokenizer(
         return ByteLevelTokenizer()
     elif library == 'megatron':
         logging.info(
-            f'Getting Megatron tokenizer with pretrained model name: {model_name} and custom vocab file: {vocab_file}'
+            f'Getting Megatron tokenizer for pretrained model name: {model_name} and custom vocab file: {vocab_file}'
         )
         return get_tokenizer(tokenizer_name=model_name, vocab_file=vocab_file)
     else:
