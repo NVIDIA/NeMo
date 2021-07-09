@@ -606,13 +606,13 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         if self.save_top_k != -1 and n_resume:
             self.nemo_topk_check_previous_run()
 
-    @rank_zero_only
     def nemo_topk_check_previous_run(self):
         try:
             self.best_k_models
             self.kth_best_model_path
             self.best_model_score
             self.best_model_path
+            self._del_model
         except AttributeError:
             raise AttributeError("Lightning's ModelCheckpoint was updated. NeMoModelCheckpoint will need an update.")
         self.best_k_models = {}
@@ -625,7 +625,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             return  # No saved checkpoints yet
         for checkpoint in checkpoints:
             checkpoint = str(checkpoint)
-            if '-last.ckpt' == checkpoint[-10:]:
+            if checkpoint[-10:] == '-last.ckpt':
                 continue
             index = checkpoint.find(self.monitor) + len(self.monitor) + 1  # Find monitor in str + 1 for '='
             if index != -1:
@@ -638,12 +638,14 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         best_k_models = sorted(self.best_k_models, key=self.best_k_models.get, reverse=_reverse)
 
+        ### This section should be ok as rank zero will delete all excess checkpoints, since all other ranks are
+        ### instantiated after rank zero. models_to_delete should be 0 for all other ranks.
         models_to_delete = len(best_k_models) - self.save_top_k
         logging.info(f'Number of models to delete: {models_to_delete}')
         for _ in range(models_to_delete):
             model = best_k_models[-1]
             self.best_k_models.pop(model)
-            self._fs.rm(model)
+            self._del_model(model)
             logging.debug(f"Removed checkpoint: {model}")
 
         self.kth_best_model_path = best_k_models[-1]
