@@ -255,6 +255,12 @@ class MTEncDecModel(EncDecNLPModel, DistillationMixin):
             input_ids=tgt, decoder_mask=tgt_mask, encoder_embeddings=src_hiddens, encoder_mask=src_mask
         )
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
+
+        # Hinton Distillation
+        temp_log_probs = self.log_softmax(hidden_states=tgt_hiddens / self.distill_cfg.get('temperature', 1.0))
+        if self.is_being_distilled():
+            self.register_distillation_tensor(loss_key='primary', tensor=temp_log_probs)
+
         return log_probs
 
     def training_step(self, batch, batch_nb):
@@ -281,17 +287,17 @@ class MTEncDecModel(EncDecNLPModel, DistillationMixin):
                 'lr': self._optimizer.param_groups[0]['lr'],
             }
 
-        # Distillation support
-        if self.is_being_distilled():
-            if self.is_student_model():
-                loss_key = 'input'
-            else:
-                loss_key = 'target'
+        # # Distillation support
+        # if self.is_being_distilled():
+        #     if self.is_student_model():
+        #         loss_key = 'input'
+        #     else:
+        #         loss_key = 'target'
 
-            # Register the tensor for the loss function
-            self.register_distillation_tensor(loss_key=loss_key, tensor=log_probs)
-            # No need for further steps, return immediately since later elements are not available on
-            # both the student and the teacher models
+        #     # Register the tensor for the loss function
+        #     self.register_distillation_tensor(loss_key=loss_key, tensor=log_probs)
+        #     # No need for further steps, return immediately since later elements are not available on
+        #     # both the student and the teacher models
 
         if self._optimizer:
             return {'loss': train_loss, 'log': tensorboard_logs}
