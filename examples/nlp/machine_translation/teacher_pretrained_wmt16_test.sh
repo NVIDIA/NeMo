@@ -21,7 +21,6 @@ model.max_generation_delta=5 \
 model.label_smoothing=0.1 \
 do_training=False \
 do_testing=True \
-
 model.encoder_tokenizer.tokenizer_model=/raid/wmt_16/tokenizer.BPE.${VOCAB_SIZE}.model \
 model.decoder_tokenizer.tokenizer_model=/raid/wmt_16/tokenizer.BPE.${VOCAB_SIZE}.model \
 model.encoder.num_layers=6 \

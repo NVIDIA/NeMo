@@ -16,7 +16,7 @@ do
     do
       for VOCAB_SIZE in 8192
       do
-          EXPNAME=STUDENT_6_6_NMT_DE_EN_DISTILL_NGC
+          EXPNAME=STUDENT_3_3_NMT_DE_EN_DISTILL_NGC
           ngc batch run --name ${EXPNAME} --preempt RUNONCE \
                 --image "nvcr.io/nvidia/pytorch:21.05-py3" \
                 --ace nv-us-west-2 \
@@ -38,12 +38,13 @@ do
                 model.label_smoothing=0.1 \
                 model.encoder_tokenizer.tokenizer_model=/results/tokenizer.BPE.8192.model \
                 model.decoder_tokenizer.tokenizer_model=/results/tokenizer.BPE.8192.model \
-                model.encoder.num_layers=6 model.encoder.hidden_size=512 \
+                model.encoder.num_layers=3 \ 
+                model.encoder.hidden_size=512 \
                 model.encoder.inner_size=2048 \
                 model.encoder.num_attention_heads=8 \
                 model.encoder.ffn_dropout=0.1 \
                 model.decoder.pre_ln=True \
-                model.decoder.num_layers=6 \
+                model.decoder.num_layers=3 \
                 model.decoder.hidden_size=512 \
                 model.decoder.inner_size=2048 \
                 model.decoder.num_attention_heads=8 \

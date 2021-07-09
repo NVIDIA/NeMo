@@ -141,7 +141,7 @@ model:
 
   # DISTILLATION DETAILS
   distillation:
-    model_path: '/teacher_dataset/AAYNBase/2021-06-17_18-04-54/checkpoints/AAYNBase.nemo'
+    model_path: '/raid/82137/AAYNBase/2021-06-17_18-04-54/checkpoints/AAYNBase.nemo'
 
     # loss weights
     distillation_loss_weight: 1.0
@@ -160,7 +160,7 @@ model:
     # optional - distillation loss config
     loss:
       primary:
-        _target_: 'torch.nn.CrossEntropyLoss'
+        _target_: 'torch.nn.KLDivLoss'
         log_target: true
         reduction: 'batchmean'
 

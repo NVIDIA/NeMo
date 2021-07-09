@@ -62,8 +62,8 @@ do
                 model.validation_ds.src_file_name=[/raid/wmt13-en-de.ref,/raid/wmt14-en-de.ref] \
                 model.validation_ds.tgt_file_name=[/raid/wmt13-en-de.src,/raid/wmt14-en-de.src] \
                 ~model.test_ds \
-                model.optim.lr=$LEARNING_RATE \
-                +model.optim.sched.warmup_steps=$WARMUP_STEPS \
+                model.optim.lr=${lr} \
+                +model.optim.sched.warmup_steps=${ws} \
                 ~model.optim.sched.warmup_ratio \
                 +exp_manager.create_wandb_logger=True \
                 +exp_manager.wandb_logger_kwargs.name=${EXPNAME} \
