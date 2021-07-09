@@ -213,11 +213,23 @@ class MTBottleneckModel(MTEncDecModel):
             tokens = output_mask.sum()
             log_p_x_given_z_per_token = log_p_x_given_z_per_token.sum().detach() / tokens
 
-        # TODO: replace with a scheduler
-        batch_counter = getattr(self, "batch_counter", 0)
+        # loss warmup during training only
         if train:
-            self.batch_counter = batch_counter+1
-        warmup_coef = min(batch_counter / self.non_recon_warmup_batches, 1)
+            trainer = self.trainer
+            # if we do not have a trainer ignore annealing
+            if trainer is None:
+                # ignore warmup and auxiliary loss
+                warmup_coef = 1.0
+                ortho_loss_coef = 0.0
+            else:
+                global_step = self.trainer.global_step
+
+                warmup_coef = min(global_step / self.non_recon_warmup_batches, 1)
+                ortho_loss_coef = self.ortho_loss_coef
+        else:
+            # ignore warmup and auxiliary loss
+            warmup_coef = 1.0
+            ortho_loss_coef = 0.0
 
         if self.model_type in ["seq2seq-mim", "seq2seq-vae"]:
             # tokens = tgt_mask.sum()
@@ -261,7 +273,7 @@ class MTBottleneckModel(MTEncDecModel):
             loss = -(log_p_x_given_z - log_p_x_given_z.detach() + log_p_x_given_z_per_token)
 
         # add attention orthogonality loss
-        loss = loss + warmup_coef * self.ortho_loss_coef * ortho_loss
+        loss = loss + warmup_coef * ortho_loss_coef * ortho_loss
 
         return loss
 
