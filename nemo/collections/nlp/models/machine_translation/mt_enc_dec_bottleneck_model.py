@@ -176,6 +176,8 @@ class MTBottleneckModel(MTEncDecModel):
         z, z_mean, z_logv, bridge_mask, ortho_loss = self.sample_z(
             hidden=src_hiddens,
             hidden_mask=src_mask,
+            # we always return return_ortho_loss here even if ignored
+            # to avoid recomputing attention bridge twice
             return_ortho_loss=True,
         )
 
@@ -298,6 +300,7 @@ class MTBottleneckModel(MTEncDecModel):
             z, _, _, bridge_mask = self.sample_z(
                 hidden=src_hiddens,
                 hidden_mask=src_mask,
+                # we return return_ortho_loss only during training
                 return_ortho_loss=False,
             )
             bridge_hiddens_dec = self.latent2hidden(z)
