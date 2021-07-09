@@ -74,7 +74,14 @@ class TransformerLMModel(ModelPT):
         model_name = encoder_cfg_dict.pop('model_name', None)
         pretrained = encoder_cfg_dict.pop('pretrained', False)
         self.encoder = get_transformer(
-            library=library, model_name=model_name, pretrained=pretrained, config_dict=encoder_cfg_dict, encoder=True,
+            library=library,
+            model_name=model_name,
+            pretrained=pretrained,
+            config_dict=encoder_cfg_dict,
+            encoder=True,
+            pre_ln_final_layer_norm=encoder_cfg_dict.get(
+                'pre_ln_final_layer_norm', encoder_cfg_dict.get('pre_ln', True)
+            ),
         )
 
         self.log_softmax = TokenClassifier(

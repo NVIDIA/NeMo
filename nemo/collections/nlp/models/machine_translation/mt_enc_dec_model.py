@@ -35,6 +35,7 @@ from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.tokenizers.bytelevel_tokenizers import ByteLevelProcessor
 from nemo.collections.common.tokenizers.chinese_tokenizers import ChineseProcessor
 from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaProcessor
+from nemo.collections.common.tokenizers.indic_tokenizers import IndicProcessor
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
@@ -84,13 +85,15 @@ class MTEncDecModel(EncDecNLPModel):
             if cfg.encoder_tokenizer.get('bpe_dropout', 0.0) is not None
             else 0.0,
             encoder_model_name=cfg.encoder.get('model_name') if hasattr(cfg.encoder, 'model_name') else None,
+            encoder_r2l=cfg.encoder_tokenizer.get('r2l', False),
+            decoder_tokenizer_library=self.decoder_tokenizer_library,
             encoder_tokenizer_vocab_file=cfg.encoder_tokenizer.get('vocab_file', None),
-            decoder_tokenizer_library=cfg.decoder_tokenizer.get('library', 'yttm'),
             decoder_tokenizer_model=cfg.decoder_tokenizer.tokenizer_model,
             decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0)
             if cfg.decoder_tokenizer.get('bpe_dropout', 0.0) is not None
             else 0.0,
             decoder_model_name=cfg.decoder.get('model_name') if hasattr(cfg.decoder, 'model_name') else None,
+            decoder_r2l=cfg.decoder_tokenizer.get('r2l', False),
         )
 
         if self.multilingual:
@@ -382,11 +385,13 @@ class MTEncDecModel(EncDecNLPModel):
         encoder_tokenizer_model=None,
         encoder_bpe_dropout=0.0,
         encoder_model_name=None,
+        encoder_r2l=False,
         encoder_tokenizer_vocab_file=None,
         decoder_tokenizer_library=None,
         decoder_tokenizer_model=None,
         decoder_bpe_dropout=0.0,
         decoder_model_name=None,
+        decoder_r2l=False,
     ):
 
         supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece', 'megatron', 'byte-level']
@@ -404,6 +409,7 @@ class MTEncDecModel(EncDecNLPModel):
             vocab_file=self.register_artifact("encoder_tokenizer.vocab_file", encoder_tokenizer_vocab_file),
             special_tokens=None,
             use_fast=False,
+            r2l=encoder_r2l,
         )
         self.decoder_tokenizer = get_nmt_tokenizer(
             library=decoder_tokenizer_library,
@@ -413,6 +419,7 @@ class MTEncDecModel(EncDecNLPModel):
             vocab_file=None,
             special_tokens=None,
             use_fast=False,
+            r2l=decoder_r2l,
         )
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
@@ -460,76 +467,65 @@ class MTEncDecModel(EncDecNLPModel):
         if cfg.get("use_tarred_dataset", False):
             if cfg.get("metadata_file") is None:
                 raise FileNotFoundError("Trying to use tarred data set but could not find metadata path in config.")
+            metadata_file_list = cfg.get('metadata_file')
+            tar_files_list = cfg.get('tar_files', None)
+            if isinstance(metadata_file_list, str):
+                metadata_file_list = [metadata_file_list]
+            if tar_files_list is not None and isinstance(tar_files_list, str):
+                tar_files_list = [tar_files_list]
+            if tar_files_list is not None and len(tar_files_list) != len(metadata_file_list):
+                raise ValueError('The config must have the same number of tarfile paths and metadata file paths.')
+
+            datasets = []
+            for idx, metadata_file in enumerate(metadata_file_list):
+                with open(metadata_file) as metadata_reader:
+                    metadata = json.load(metadata_reader)
+                if tar_files_list is None:
+                    tar_files = metadata.get('tar_files')
+                    if tar_files is not None:
+                        logging.info(f'Loading from tarred dataset {tar_files}')
+                else:
+                    tar_files = tar_files_list[idx]
+                    if metadata.get('tar_files') is not None:
+                        logging.info(
+                            f'Tar file paths found in both cfg and metadata using one in cfg by default - {tar_files}'
+                        )
+
+                dataset = TarredTranslationDataset(
+                    text_tar_filepaths=tar_files,
+                    metadata_path=metadata_file,
+                    encoder_tokenizer=self.encoder_tokenizer,
+                    decoder_tokenizer=self.decoder_tokenizer,
+                    shuffle_n=cfg.get("tar_shuffle_n", 100),
+                    shard_strategy=cfg.get("shard_strategy", "scatter"),
+                    global_rank=self.global_rank,
+                    world_size=self.world_size,
+                    reverse_lang_direction=cfg.get("reverse_lang_direction", False),
+                    prepend_id=self.multilingual_ids[idx] if self.multilingual else None,
+                )
+                datasets.append(dataset)
+
+            if len(datasets) > 1:
+                dataset = ConcatDataset(
+                    datasets=datasets,
+                    sampling_technique=cfg.get('concat_sampling_technique'),
+                    sampling_temperature=cfg.get('concat_sampling_temperature'),
+                    sampling_probabilities=cfg.get('concat_sampling_probabilities'),
+                    global_rank=self.global_rank,
+                    world_size=self.world_size,
+                )
             else:
-                if not self.multilingual:
-                    metadata_file_list = [cfg.get('metadata_file')]
-                else:
-                    metadata_file_list = cfg.get('metadata_file')
-
-                datasets = []
-                for idx, metadata_file in enumerate(metadata_file_list):
-                    with open(metadata_file) as metadata_reader:
-                        metadata = json.load(metadata_reader)
-                    if cfg.get('tar_files') is None:
-                        tar_files = metadata.get('tar_files')
-                        if tar_files is not None:
-                            logging.info(f'Loading from tarred dataset {tar_files}')
-                        else:
-                            raise FileNotFoundError("Could not find tarred dataset in config or metadata.")
-                    else:
-                        tar_files = cfg.get('tar_files')
-                        if self.multilingual:
-                            tar_files = tar_files[idx]
-                        if metadata.get('tar_files') is not None:
-                            logging.info(
-                                f'Tar file paths found in both cfg and metadata using one in cfg by default - {tar_files}'
-                            )
-
-                    dataset = TarredTranslationDataset(
-                        text_tar_filepaths=tar_files,
-                        metadata_path=metadata_file,
-                        encoder_tokenizer=self.encoder_tokenizer,
-                        decoder_tokenizer=self.decoder_tokenizer,
-                        shuffle_n=cfg.get("tar_shuffle_n", 100),
-                        shard_strategy=cfg.get("shard_strategy", "scatter"),
-                        global_rank=self.global_rank,
-                        world_size=self.world_size,
-                        reverse_lang_direction=cfg.get("reverse_lang_direction", False),
-                        prepend_id=self.multilingual_ids[idx],
-                    )
-                    datasets.append(dataset)
-
-                if self.multilingual:
-                    dataset = ConcatDataset(
-                        datasets=datasets,
-                        sampling_technique=cfg.get('concat_sampling_technique'),
-                        sampling_temperature=cfg.get('concat_sampling_temperature'),
-                        sampling_probabilities=cfg.get('concat_sampling_probabilities'),
-                        global_rank=self.global_rank,
-                        world_size=self.world_size,
-                    )
-                else:
-                    dataset = datasets[0]
-
-            return torch.utils.data.DataLoader(
-                dataset=dataset,
-                batch_size=1,
-                num_workers=cfg.get("num_workers", 2),
-                pin_memory=cfg.get("pin_memory", False),
-                drop_last=cfg.get("drop_last", False),
-            )
+                dataset = datasets[0]
         else:
-            if not self.multilingual:
-                src_file_list = [cfg.src_file_name]
-                tgt_file_list = [cfg.tgt_file_name]
-            else:
-                src_file_list = cfg.src_file_name
-                tgt_file_list = cfg.tgt_file_name
+            src_file_list = cfg.src_file_name
+            tgt_file_list = cfg.tgt_file_name
+            if isinstance(src_file_list, str):
+                src_file_list = [src_file_list]
+            if isinstance(tgt_file_list, str):
+                tgt_file_list = [tgt_file_list]
 
             if len(src_file_list) != len(tgt_file_list):
-                raise ValueError(
-                    'The same number of filepaths must be passed in for source and target while training multilingual.'
-                )
+                raise ValueError('The same number of filepaths must be passed in for source and target.')
 
             datasets = []
             for idx, src_file in enumerate(src_file_list):
@@ -546,12 +542,12 @@ class MTEncDecModel(EncDecNLPModel):
                     cache_data_per_node=cfg.get("cache_data_per_node", False),
                     use_cache=cfg.get("use_cache", False),
                     reverse_lang_direction=cfg.get("reverse_lang_direction", False),
-                    prepend_id=self.multilingual_ids[idx],
+                    prepend_id=self.multilingual_ids[idx] if self.multilingual else None,
                 )
                 dataset.batchify(self.encoder_tokenizer, self.decoder_tokenizer)
                 datasets.append(dataset)
 
-            if self.multilingual:
+            if len(datasets) > 1:
                 dataset = ConcatDataset(
                     datasets=datasets,
                     shuffle=cfg.get('shuffle'),
@@ -560,13 +556,6 @@ class MTEncDecModel(EncDecNLPModel):
                     sampling_probabilities=cfg.get('concat_sampling_probabilities'),
                     global_rank=self.global_rank,
                     world_size=self.world_size,
-                )
-                return torch.utils.data.DataLoader(
-                    dataset=dataset,
-                    batch_size=1,
-                    num_workers=cfg.get("num_workers", 2),
-                    pin_memory=cfg.get("pin_memory", False),
-                    drop_last=cfg.get("drop_last", False),
                 )
             else:
                 dataset = datasets[0]
@@ -578,7 +567,7 @@ class MTEncDecModel(EncDecNLPModel):
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=1,
-            sampler=sampler,
+            sampler=None if cfg.get("use_tarred_dataset", False) else sampler,
             num_workers=cfg.get("num_workers", 2),
             pin_memory=cfg.get("pin_memory", False),
             drop_last=cfg.get("drop_last", False),
@@ -639,7 +628,7 @@ class MTEncDecModel(EncDecNLPModel):
                 cache_data_per_node=cfg.get("cache_data_per_node", False),
                 use_cache=cfg.get("use_cache", False),
                 reverse_lang_direction=cfg.get("reverse_lang_direction", False),
-                prepend_id=self.multilingual_ids[prepend_idx],
+                prepend_id=self.multilingual_ids[prepend_idx] if self.multilingual else None,
             )
             dataset.batchify(self.encoder_tokenizer, self.decoder_tokenizer)
 
@@ -672,7 +661,9 @@ class MTEncDecModel(EncDecNLPModel):
             self.source_processor = EnJaProcessor(source_lang)
         elif source_lang == 'zh':
             self.source_processor = ChineseProcessor()
-        elif source_lang is not None and source_lang not in ['ja', 'zh']:
+        elif source_lang == 'hi':
+            self.source_processor = IndicProcessor(source_lang)
+        elif source_lang is not None and source_lang not in ['ja', 'zh', 'hi']:
             self.source_processor = MosesProcessor(source_lang)
 
         if self.decoder_tokenizer_library == 'byte-level':
@@ -681,15 +672,23 @@ class MTEncDecModel(EncDecNLPModel):
             self.target_processor = EnJaProcessor(target_lang)
         elif target_lang == 'zh':
             self.target_processor = ChineseProcessor()
-        elif target_lang is not None and target_lang not in ['ja', 'zh']:
+        elif target_lang == 'hi':
+            self.target_processor = IndicProcessor(target_lang)
+        elif target_lang is not None and target_lang not in ['ja', 'zh', 'hi']:
             self.target_processor = MosesProcessor(target_lang)
 
         return self.source_processor, self.target_processor
 
+    def ids_to_postprocessed_text(self, beam_ids, tokenizer, processor, filter_beam_ids=True):
+        if filter_beam_ids:
+            beam_ids = self.filter_predicted_ids(beam_ids)
+        translations = [tokenizer.ids_to_text(tr) for tr in beam_ids.cpu().numpy()]
+        if processor is not None:
+            translations = [processor.detokenize(translation.split(' ')) for translation in translations]
+        return translations
+
     @torch.no_grad()
-    def batch_translate(
-        self, src: torch.LongTensor, src_mask: torch.LongTensor,
-    ):
+    def batch_translate(self, src: torch.LongTensor, src_mask: torch.LongTensor, return_beam_scores: bool = False):
         """	
         Translates a minibatch of inputs from source language to target language.	
         Args:	
@@ -703,25 +702,56 @@ class MTEncDecModel(EncDecNLPModel):
         try:
             self.eval()
             src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
-            beam_results = self.beam_search(encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask)
-            beam_results = self.filter_predicted_ids(beam_results)
+            best_translations = self.beam_search(
+                encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask, return_beam_scores=return_beam_scores
+            )
+            if return_beam_scores:
+                all_translations, scores, best_translations = best_translations
+                scores = scores.view(-1)
+                all_translations = self.ids_to_postprocessed_text(
+                    all_translations, self.decoder_tokenizer, self.target_processor, filter_beam_ids=True
+                )
 
-            translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
-            inputs = [self.encoder_tokenizer.ids_to_text(inp) for inp in src.cpu().numpy()]
-            if self.target_processor is not None:
-                translations = [
-                    self.target_processor.detokenize(translation.split(' ')) for translation in translations
-                ]
+            best_translations = self.ids_to_postprocessed_text(
+                best_translations, self.decoder_tokenizer, self.target_processor, filter_beam_ids=True
+            )
+            inputs = self.ids_to_postprocessed_text(
+                src, self.encoder_tokenizer, self.source_processor, filter_beam_ids=False
+            )
 
-            if self.source_processor is not None:
-                inputs = [self.source_processor.detokenize(item.split(' ')) for item in inputs]
         finally:
             self.train(mode=mode)
-        return inputs, translations
+        if return_beam_scores:
+            return inputs, all_translations, scores.data.cpu().numpy().tolist(), best_translations
+
+        return inputs, best_translations
+
+    def prepare_inference_batch(self, text, prepend_ids=[], target=False):
+        inputs = []
+        processor = self.source_processor if not target else self.target_processor
+        tokenizer = self.encoder_tokenizer if not target else self.decoder_tokenizer
+        for txt in text:
+            if processor is not None:
+                txt = processor.normalize(txt)
+                txt = processor.tokenize(txt)
+            ids = tokenizer.text_to_ids(txt)
+            ids = prepend_ids + [tokenizer.bos_id] + ids + [tokenizer.eos_id]
+            inputs.append(ids)
+        max_len = max(len(txt) for txt in inputs)
+        src_ids_ = np.ones((len(inputs), max_len)) * tokenizer.pad_id
+        for i, txt in enumerate(inputs):
+            src_ids_[i][: len(txt)] = txt
+
+        src_mask = torch.FloatTensor((src_ids_ != tokenizer.pad_id)).to(self.device)
+        src = torch.LongTensor(src_ids_).to(self.device)
+
+        return src, src_mask
 
     # TODO: We should drop source/target_lang arguments in favor of using self.src/tgt_language
     @torch.no_grad()
-    def translate(self, text: List[str], source_lang: str = None, target_lang: str = None) -> List[str]:
+    def translate(
+        self, text: List[str], source_lang: str = None, target_lang: str = None, return_beam_scores: bool = False
+    ) -> List[str]:
         """
         Translates list of sentences from source language to target language.
         Should be regular text, this method performs its own tokenization/de-tokenization
@@ -746,22 +776,14 @@ class MTEncDecModel(EncDecNLPModel):
             prepend_ids = [src_symbol if src_symbol in self.multilingual_ids else tgt_symbol]
         try:
             self.eval()
-            inputs = []
-            for txt in text:
-                if self.source_processor is not None:
-                    txt = self.source_processor.normalize(txt)
-                    txt = self.source_processor.tokenize(txt)
-                ids = self.encoder_tokenizer.text_to_ids(txt)
-                ids = prepend_ids + [self.encoder_tokenizer.bos_id] + ids + [self.encoder_tokenizer.eos_id]
-                inputs.append(ids)
-            max_len = max(len(txt) for txt in inputs)
-            src_ids_ = np.ones((len(inputs), max_len)) * self.encoder_tokenizer.pad_id
-            for i, txt in enumerate(inputs):
-                src_ids_[i][: len(txt)] = txt
-
-            src_mask = torch.FloatTensor((src_ids_ != self.encoder_tokenizer.pad_id)).to(self.device)
-            src = torch.LongTensor(src_ids_).to(self.device)
-            _, translations = self.batch_translate(src, src_mask)
+            src, src_mask = self.prepare_inference_batch(text, prepend_ids)
+            if return_beam_scores:
+                _, all_translations, scores, best_translations = self.batch_translate(
+                    src, src_mask, return_beam_scores=True
+                )
+                return all_translations, scores, best_translations
+            else:
+                _, translations = self.batch_translate(src, src_mask, return_beam_scores=False)
         finally:
             self.train(mode=mode)
         return translations
