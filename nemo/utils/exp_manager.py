@@ -641,9 +641,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         ### This section should be ok as rank zero will delete all excess checkpoints, since all other ranks are
         ### instantiated after rank zero. models_to_delete should be 0 for all other ranks.
         models_to_delete = len(best_k_models) - self.save_top_k
-        logging.info(f'Number of models to delete: {models_to_delete}')
+        logging.debug(f'Number of models to delete: {models_to_delete}')
         for _ in range(models_to_delete):
-            model = best_k_models[-1]
+            model = best_k_models.pop(-1)
             self.best_k_models.pop(model)
             self._del_model(model)
             logging.debug(f"Removed checkpoint: {model}")
