@@ -18,7 +18,6 @@ g2p_en
 pydub
 pyannote.core
 pyannote.metrics
-pyamg
 torch-stft
 ipywidgets
 matplotlib

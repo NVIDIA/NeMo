@@ -13,10 +13,10 @@
 # limitations under the License.
 
 import os
+import re
 import subprocess
 import sys
 import time
-import re
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
@@ -639,7 +639,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         best_k_models = sorted(self.best_k_models, key=self.best_k_models.get, reverse=_reverse)
 
         models_to_delete = len(best_k_models) - self.save_top_k
-        logging.info(models_to_delete)
+        logging.info(f'Number of models to delete: {models_to_delete}')
         for _ in range(models_to_delete):
             model = best_k_models[-1]
             self.best_k_models.pop(model)
