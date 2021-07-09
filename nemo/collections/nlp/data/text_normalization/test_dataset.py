@@ -15,11 +15,15 @@
 from copy import deepcopy
 from typing import List
 
-from nltk import word_tokenize
 from tqdm import tqdm
 
 import nemo.collections.nlp.data.text_normalization.constants as constants
-from nemo.collections.nlp.data.text_normalization.utils import normalize_str, read_data_file, remove_puncts
+from nemo.collections.nlp.data.text_normalization.utils import (
+    basic_tokenize,
+    normalize_str,
+    read_data_file,
+    remove_puncts,
+)
 from nemo.utils.decorators.experimental import experimental
 
 __all__ = ['TextNormalizationTestDataset']
@@ -33,10 +37,12 @@ class TextNormalizationTestDataset:
     Args:
         input_file: path to the raw data file (e.g., train.tsv). For more info about the data format, refer to the `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`.
         mode: should be one of the values ['tn', 'itn', 'joint'].  `tn` mode is for TN only. `itn` mode is for ITN only. `joint` is for training a system that can do both TN and ITN at the same time.
+        lang: Language of the dataset
         keep_puncts: whether to keep punctuations in the inputs/outputs
     """
 
-    def __init__(self, input_file: str, mode: str, keep_puncts: bool = False):
+    def __init__(self, input_file: str, mode: str, lang: str, keep_puncts: bool = False):
+        self.lang = lang
         insts = read_data_file(input_file)
 
         # Build inputs and targets
@@ -68,8 +74,8 @@ class TextNormalizationTestDataset:
                     input_words = w_words
                     output_words = processed_s_words
                 # Basic tokenization
-                input_words = word_tokenize(' '.join(input_words))
-                output_words = word_tokenize(' '.join(output_words))
+                input_words = basic_tokenize(' '.join(input_words), lang)
+                output_words = basic_tokenize(' '.join(output_words), lang)
                 # Update self.directions, self.inputs, self.targets
                 self.directions.append(direction)
                 self.inputs.append(' '.join(input_words))
@@ -83,7 +89,7 @@ class TextNormalizationTestDataset:
         return len(self.inputs)
 
     @staticmethod
-    def is_same(pred: str, target: str, inst_dir: str):
+    def is_same(pred: str, target: str, inst_dir: str, lang : str):
         """
         Function for checking whether the predicted string can be considered
         the same as the target string
@@ -92,17 +98,18 @@ class TextNormalizationTestDataset:
             pred: Predicted string
             target: Target string
             inst_dir: Direction of the instance (i.e., INST_BACKWARD or INST_FORWARD).
+            lang: Language
         Return: an int value (0/1) indicating whether pred and target are the same.
         """
         if inst_dir == constants.INST_BACKWARD:
             pred = remove_puncts(pred)
             target = remove_puncts(target)
-        pred = normalize_str(pred)
-        target = normalize_str(target)
+        pred = normalize_str(pred, lang)
+        target = normalize_str(target, lang)
         return int(pred == target)
 
     @staticmethod
-    def compute_sent_accuracy(preds: List[str], targets: List[str], inst_directions: List[str]):
+    def compute_sent_accuracy(preds: List[str], targets: List[str], inst_directions: List[str], lang : str):
         """
         Compute the sentence accuracy metric.
 
@@ -110,6 +117,7 @@ class TextNormalizationTestDataset:
             preds: List of predicted strings.
             targets: List of target strings.
             inst_directions: A list of str where each str indicates the direction of the corresponding instance (i.e., INST_BACKWARD or INST_FORWARD).
+            lang: Language
         Return: the sentence accuracy score
         """
         assert len(preds) == len(targets)
@@ -118,7 +126,7 @@ class TextNormalizationTestDataset:
         # Sentence Accuracy
         correct_count = 0
         for inst_dir, pred, target in zip(inst_directions, preds, targets):
-            correct_count += TextNormalizationTestDataset.is_same(pred, target, inst_dir)
+            correct_count += TextNormalizationTestDataset.is_same(pred, target, inst_dir, lang)
         sent_accuracy = correct_count / len(targets)
 
         return sent_accuracy

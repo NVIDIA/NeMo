@@ -39,6 +39,7 @@ USAGE Example:
 # python duplex_text_normalization_train.py
         data.base_dir=PATH_TO_DATASET_DIR
         mode={tn,itn,joint}
+        lang={en,ru}
 
 There are 3 different modes. `tn` mode is for training a system for TN only.
 `itn` mode is for training a system for ITN. `joint` is for training a system
@@ -50,12 +51,14 @@ following command:
 # python duplex_text_normalization_train.py
         data.base_dir=PATH_TO_DATASET_DIR
         mode={tn,itn,joint}
+        lang={en,ru}
         decoder_model.do_training=false
 
 Or you can also train only a decoder (without training a tagger):
 # python duplex_text_normalization_train.py
         data.base_dir=PATH_TO_DATASET_DIR
         mode={tn,itn,joint}
+        lang={en,ru}
         tagger_model.do_training=false
 
 Information on the arguments:
@@ -63,6 +66,8 @@ Information on the arguments:
 Most arguments in the example config file are quite self-explanatory (e.g.,
 `decoder_model.optim.lr` refers to the learning rate for training the decoder).
 Some arguments we want to mention are:
+
++ lang: The language of the dataset.
 
 + data.base_dir: The path to the dataset directory. It is expected that the
 directory contains three files: train.tsv, dev.tsv, and test.tsv.

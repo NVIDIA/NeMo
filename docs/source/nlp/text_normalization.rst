@@ -66,7 +66,10 @@ You can change any of these parameters directly from the config file or update t
 The config file contains three main sections. The first section contains the configs for the tagger, the second section is about the decoder,
 and the last section is about the dataset. Most arguments in the example config file are quite self-explanatory (e.g.,
 *decoder_model.optim.lr* refers to the learning rate for training the decoder). We have set most of the hyper-parameters to
-be the values that we found to be effective. Some arguments that you may want to modify are:
+be the values that we found to be effective (for the English subset of the Google TN dataset). Some arguments that you may want
+to modify are:
+
+- *lang*: The language of the dataset.
 
 - *data.base_dir*: The path to the dataset directory. It is expected that the directory contains three files: train.tsv, dev.tsv, and test.tsv.
 
