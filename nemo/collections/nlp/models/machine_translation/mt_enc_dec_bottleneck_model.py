@@ -29,7 +29,6 @@ from pytorch_lightning.utilities import rank_zero_only
 from sacrebleu import corpus_bleu
 
 from nemo.collections.common.losses import NLLLoss
-from nemo.collections.common.parts import form_attention_mask
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTBottleneckModelConfig
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.collections.nlp.modules.common.transformer import TopKSequenceGenerator, AttentionBridge
