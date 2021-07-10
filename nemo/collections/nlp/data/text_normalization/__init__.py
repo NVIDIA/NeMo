@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from nemo.collections.nlp.data.text_normalization.constants
 from nemo.collections.nlp.data.text_normalization.decoder_dataset import TextNormalizationDecoderDataset
 from nemo.collections.nlp.data.text_normalization.tagger_dataset import TextNormalizationTaggerDataset
 from nemo.collections.nlp.data.text_normalization.test_dataset import TextNormalizationTestDataset
