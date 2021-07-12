@@ -371,7 +371,7 @@ class MTEncDecModel(EncDecNLPModel):
             log_dict = {}
             for x in output:
                 if "log" in x:
-                    for k, v in x["log"]:
+                    for k, v in x["log"].items():
                         log_dict[k] = log_dict.get(k, []) + [v]
 
             for k, v in log_dict.items():
