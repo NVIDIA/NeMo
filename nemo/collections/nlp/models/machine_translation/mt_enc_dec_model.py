@@ -377,10 +377,8 @@ class MTEncDecModel(EncDecNLPModel):
             for k, v in log_dict.items():
                 if dataloader_idx == 0:
                     self.log(f"{mode}_{k}", np.mean(v), sync_dist=True)
-                    getattr(self, f"{mode}_{k}").reset()
                 else:
                     self.log(f"{mode}_{k}_dl_index_{dataloader_idx}", np.mean(v), sync_dist=True)
-                    getattr(self, f"{mode}_{k}_dl_index_{dataloader_idx}").reset()
 
 
         if len(loss_list) > 1:
