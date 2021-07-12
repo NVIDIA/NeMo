@@ -268,7 +268,7 @@ class MTBottleneckModel(MTEncDecModel):
         # add attention orthogonality loss
         loss = loss + warmup_coef * ortho_loss_coef * ortho_loss
 
-        info_dict["computed_loss"] = computed_loss.detach().cpu()
+        info_dict["computed_loss"] = -computed_loss.detach().cpu()
         if torch.is_tensor(ortho_loss):
             ortho_loss = ortho_loss.detach().cpu()
         info_dict["ortho_loss"] = ortho_loss
