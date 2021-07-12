@@ -18,8 +18,9 @@ import torch
 from .loss_inputs import ALL_NUM_MEASUREMENTS_ARE_ZERO, NO_ZERO_NUM_MEASUREMENTS, SOME_NUM_MEASUREMENTS_ARE_ZERO
 from .perplexity_inputs import NO_PROBS_NO_LOGITS, ONLY_LOGITS1, ONLY_LOGITS100, ONLY_PROBS, PROBS_AND_LOGITS
 from .pl_utils import LossTester, PerplexityTester
-from nemo.collections.common.metrics.classification_accuracy import TopKClassificationAccuracy
 from nemo.collections.common.losses.smoothed_cross_entropy import SmoothedCrossEntropyLoss
+from nemo.collections.common.metrics.classification_accuracy import TopKClassificationAccuracy
+
 
 class TestCommonMetrics:
     top_k_logits = torch.tensor([[0.1, 0.3, 0.2, 0.0], [0.9, 0.6, 0.2, 0.3], [0.2, 0.1, 0.4, 0.3]],)  # 1  # 0  # 2
@@ -194,26 +195,26 @@ class TestCommonMetrics:
 
 
 class TestCommonLosses:
-    m = torch.nn.LogSoftmax()
-    logtis = torch.tensor([[[0.1, 0.3, 0.2, 0.0], [0.9, 0.6, 0.2, 0.3], [0.2, 0.1, 0.4, 0.3]]],)  # 1  # 0  # 2
-    log_probs = m(logtis)
-    """
-    tensor([[0.2363, 0.2887, 0.2612, 0.2138],
-        [0.3589, 0.2659, 0.1782, 0.1970],
-        [0.2363, 0.2138, 0.2887, 0.2612]])
-    
-    [1,0,0,0],
-    [1,0,0,0],
-    [0,0,1,0]]
-    """
-
     @pytest.mark.unit
     def test_smoothed_cross_entropy_loss(self):
+        logits = torch.tensor([[[0.1, 0.3, 0.2, 0.0], [0.9, 0.6, 0.2, 0.3], [0.2, 0.1, 0.4, 0.3]]],)  # 1  # 0  # 2
+        log_probs = torch.nn.functional.log_softmax(logits, dim=-1)
         labels = torch.tensor([[0, 0, 2]])
-        loss = SmoothedCrossEntropyLoss(pad_id=3)
-        neg_log_likelihood = loss(log_probs=self.log_probs, labels=labels)
+
+        loss = SmoothedCrossEntropyLoss(pad_id=3)  # the pad id typically is max_lablel_id + 1, 3 here
+        neg_log_likelihood = loss(log_probs=log_probs, labels=labels)
         assert abs(neg_log_likelihood - 1.2366) < 1e-3
 
+    @pytest.mark.unit
+    def test_smoothed_cross_entropy_loss_less(self):
+        # case that labels contains pad_id=3  [0,1,2,3] but output logits is of dim=3 ([0,1,2])
+        logits_less = torch.tensor([[[0.1, 0.3, 0.2], [0.9, 0.6, 0.2], [0.2, 0.1, 0.4]]],)  # 1  # 0  # 2
+        log_probs = torch.nn.functional.log_softmax(logits_less, dim=-1)
+        labels = torch.tensor([[0, 0, 2]])
+
+        loss = SmoothedCrossEntropyLoss(pad_id=3)  # the pad id typically is max_lablel_id + 1, 3 here
+        neg_log_likelihood = loss(log_probs=log_probs, labels=labels)
+        assert abs(neg_log_likelihood - 0.9824) < 1e-3
 
 
 @pytest.mark.parametrize("ddp", [True, False])
@@ -247,7 +248,6 @@ class TestPerplexity(PerplexityTester):
     ],
 )
 class TestLoss(LossTester):
-
     def test_loss(self, ddp, dist_sync_on_step, loss_sum_or_avg, num_measurements, take_avg_loss):
         self.run_class_loss_test(
             ddp=ddp,
@@ -256,5 +256,3 @@ class TestLoss(LossTester):
             dist_sync_on_step=dist_sync_on_step,
             take_avg_loss=take_avg_loss,
         )
-
-   
