@@ -21,6 +21,15 @@ from nemo.collections.asr.parts.submodules.jasper import get_same_padding, init_
 
 
 class StatsPoolLayer(nn.Module):
+    """
+    Statistics and time average pooling (TAP) layer
+    This computes mean and variance statistics across time dimension (dim=-1)
+    input:
+        feat_in: input channel feature length
+    output:
+        pooled: statistics of feature input
+    """
+
     def __init__(self, feat_in, pool_mode='xvector'):
         super().__init__()
         self.pool_mode = pool_mode
@@ -43,6 +52,16 @@ class StatsPoolLayer(nn.Module):
 
 
 def lens_to_mask(lens, max_len, device=None):
+    """
+    outputs masking labels for list of lengths of audio features, with max length of any 
+    mask as max_len
+    input:
+        lens: list of lens
+        max_len: max length of any audio feature
+    output:
+        mask: masked labels
+        num_values: sum of mask values for each feature (useful for computing statistics later)
+    """
     lens_mat = torch.arange(max_len).to(device)
     lens = lens * max_len
     mask = lens_mat[:max_len].unsqueeze(0) < lens.unsqueeze(1)
@@ -52,12 +71,34 @@ def lens_to_mask(lens, max_len, device=None):
 
 
 def get_statistics_with_mask(x, m, dim=2, eps=1e-10):
+    """
+    compute mean and standard deviation of input(x) provided with its masking labels (m)
+    input:
+        x: feature input 
+        m: averaged mask labels 
+    output:
+        mean: mean of input features
+        std: stadard deviation of input features
+    """
     mean = torch.sum((m * x), dim=dim)
     std = torch.sqrt((m * (x - mean.unsqueeze(dim)).pow(2)).sum(dim).clamp(eps))
     return mean, std
 
 
 class TDNN_Module(nn.Module):
+    """
+    Time Delayed Neural Module (TDNN) - 1D
+    input:
+        inp_filters: input filter channels for conv layer
+        out_filters: output filter channels for conv layer
+        kernel_size: kernel weight size for conv layer
+        dilation: dilation for conv layer
+        stride: stride for conv layer
+        padding: padding for conv layer (default None: chooses padding value such that input and output feature shape matches)
+    output:
+        tdnn layer output 
+    """
+
     def __init__(self, inp_filters, out_filters, kernel_size=1, dilation=1, stride=1, padding=None):
         super(TDNN_Module, self).__init__()
         if padding is None:
@@ -81,6 +122,19 @@ class TDNN_Module(nn.Module):
 
 
 class SE_Module(nn.Module):
+    """
+    Squeeze and Excite module implementation with conv1d layers
+    input:
+        inp_filters: input filter channel size 
+        se_filters: intermediate squeeze and excite channel output and input size
+        out_filters: output filter channel size
+        kernel_size: kernel_size for both conv1d layers
+        dilation: dilation size for both conv1d layers
+
+    output:
+        squeeze and excite layer output
+    """
+
     def __init__(self, inp_filters, se_filters, out_filters, kernel_size=1, dilation=1):
         super(SE_Module, self).__init__()
         self.se_layer = nn.Sequential(
@@ -105,7 +159,15 @@ class SE_Module(nn.Module):
 
 class SE_TDNN_Module(nn.Module):
     """
-    Modified SE_TDNN group module from ECAPA implementation for faster training and inference
+    Modified building SE_TDNN group module block from ECAPA implementation for faster training and inference
+    Reference: ECAPA-TDNN Embeddings for Speaker Diarization (https://arxiv.org/pdf/2104.01466.pdf)
+    inputs:
+        inp_filters: input filter channel size 
+        out_filters: output filter channel size
+        group_scale: scale value to group wider conv channels (deafult:8)
+        se_channels: squeeze and excite output channel size (deafult: 1024/8= 128)
+        kernel_size: kernel_size for group conv1d layers (default: 1)
+        dilation: dilation size for group conv1d layers  (default: 1)
     """
 
     def __init__(
@@ -149,6 +211,16 @@ class SE_TDNN_Module(nn.Module):
 
 
 class AttentivePoolLayer(nn.Module):
+    """
+    Attention pooling layer for pooling speaker embeddings
+    Reference: ECAPA-TDNN Embeddings for Speaker Diarization (https://arxiv.org/pdf/2104.01466.pdf)
+    inputs:
+        inp_filters: input feature channel length from encoder
+        attention_channels: intermediate attention channel size
+        kernel_size: kernel_size for TDNN and attention conv1d layers (default: 1)
+        dilation: dilation size for TDNN and attention conv1d layers  (default: 1) 
+    """
+
     def __init__(self, inp_filters, attention_channels=128, kernel_size=1, dilation=1, eps=1e-10):
         super(AttentivePoolLayer, self).__init__()
 
@@ -161,7 +233,6 @@ class AttentivePoolLayer(nn.Module):
                 in_channels=attention_channels, out_channels=inp_filters, kernel_size=kernel_size, dilation=dilation,
             ),
         )
-
         self.eps = eps
 
     def forward(self, x, length=None):

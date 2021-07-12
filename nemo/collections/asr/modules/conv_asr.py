@@ -344,6 +344,22 @@ class ConvASRDecoderClassification(NeuralModule, Exportable):
 
 
 class ECAPA_Encoder(NeuralModule, Exportable):
+    """
+    Modified ECAPA Encoder layer without Res2Net module for faster training and inference which achieves
+    better numbers on speaker diarization tasks
+
+    input:
+        feat_in: input feature shape (mel spec feature shape)
+        filters: list of filter shapes for SE_TDNN modules 
+        kernel_sizes: list of kernel shapes for SE_TDNN modules
+        dilations: list of dilations for group conv se layer
+        scale: scale value to group wider conv channels (deafult:8)
+    
+    output:
+        outputs : encoded output 
+        output_length: masked output lengths
+    """
+
     @property
     def input_types(self):
         """Returns definitions of module input ports.
@@ -407,7 +423,7 @@ class SpeakerDecoder(NeuralModule, Exportable):
         num_classes (int): Number of unique speakers in dataset
         emb_sizes (list) : shapes of intermediate embedding layers (we consider speaker embbeddings from 1st of this layers)
                 Defaults to [1024,1024]
-        pool_mode (str) : Pooling stratergy type. options are 'gram','xvector','superVector'.
+        pool_mode (str) : Pooling stratergy type. options are 'xvector','tap', 'ecapa'
                 Defaults to 'xvector'
         init_mode (str): Describes how neural network parameters are
             initialized. Options are ['xavier_uniform', 'xavier_normal',
