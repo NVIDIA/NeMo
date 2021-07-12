@@ -36,12 +36,10 @@ class CardinalFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, deterministic: bool = True):
+    def __init__(self, tn_cardinal: GraphFst, deterministic: bool = True):
         super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
 
-        from nemo_text_processing.text_normalization.ru.taggers.cardinal import CardinalFst
-
-        graph = CardinalFst(deterministic=False).cardinal_numbers
+        graph = tn_cardinal.cardinal_numbers
         self.graph = graph.invert().optimize()
 
         optional_sign = pynini.closure(

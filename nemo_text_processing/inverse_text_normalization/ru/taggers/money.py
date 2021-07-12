@@ -26,7 +26,7 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-class DateFst(GraphFst):
+class MoneyFst(GraphFst):
     """
     Finite state transducer for classifying cardinals, e.g. 
         -23 -> cardinal { negative: "true"  integer: "twenty three" } }
@@ -36,10 +36,11 @@ class DateFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, tn_date: GraphFst, deterministic: bool = True):
-        super().__init__(name="date", kind="classify", deterministic=deterministic)
+    def __init__(self, tn_money, deterministic: bool = True):
+        super().__init__(name="money", kind="classify", deterministic=deterministic)
 
-        graph = tn_date.final_graph
+        graph = tn_money.final_graph
         graph = graph.invert().optimize()
-        graph = self.add_tokens(pynutil.insert("month: \"") + graph + pynutil.insert("\""))
+        graph = pynutil.insert("integer: \"") + graph + pynutil.insert("\"")
+        graph = self.add_tokens(graph)
         self.fst = graph.optimize()

@@ -19,6 +19,7 @@ from nemo_text_processing.text_normalization.ru.taggers.date import DateFst
 from nemo_text_processing.text_normalization.ru.taggers.decimals import DecimalFst
 from nemo_text_processing.text_normalization.ru.taggers.electronic import ElectronicFst
 from nemo_text_processing.text_normalization.ru.taggers.measure import MeasureFst
+from nemo_text_processing.text_normalization.ru.taggers.money import MoneyFst
 from nemo_text_processing.text_normalization.ru.taggers.ordinal import OrdinalFst
 from nemo_text_processing.text_normalization.taggers.punctuation import PunctuationFst
 from nemo_text_processing.text_normalization.taggers.whitelist import WhiteListFst
@@ -49,24 +50,29 @@ class ClassifyFst(GraphFst):
         super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
 
         cardinal = CardinalFst(deterministic=deterministic)
+        self.cardinal = cardinal
         cardinal_graph = cardinal.fst
 
         ordinal = OrdinalFst(deterministic=deterministic)
+        self.ordinal = ordinal
         ordinal_graph = ordinal.fst
 
-        decimal = DecimalFst(cardinal=cardinal, ordinal=ordinal, deterministic=deterministic)
-        decimal_graph = decimal.fst
+        self.decimal = DecimalFst(cardinal=cardinal, ordinal=ordinal, deterministic=deterministic)
+        decimal_graph = self.decimal.fst
 
         # fraction = FractionFst(deterministic=deterministic, cardinal=cardinal)
         # fraction_graph = fraction.fst
-        measure = MeasureFst(cardinal=cardinal, decimal=decimal, deterministic=deterministic)
+        measure = MeasureFst(cardinal=cardinal, decimal=self.decimal, deterministic=deterministic)
         measure_graph = measure.fst
-        date_graph = DateFst(cardinal=cardinal, ordinal=ordinal, deterministic=deterministic).fst
+        self.date = DateFst(cardinal=cardinal, ordinal=ordinal, deterministic=deterministic)
+        date_graph = self.date.fst
         word_graph = WordFst(deterministic=deterministic).fst
         # time_graph = TimeFst(cardinal=cardinal, deterministic=deterministic).fst
         # telephone_graph = TelephoneFst(deterministic=deterministic).fst
-        electonic_graph = ElectronicFst(deterministic=deterministic).fst
-        # money_graph = MoneyFst(cardinal=cardinal, decimal=decimal, deterministic=deterministic).fst
+        self.electronic = ElectronicFst(deterministic=deterministic)
+        electronic_graph = self.electronic.fst
+        self.money = MoneyFst(cardinal=cardinal, decimal=self.decimal, deterministic=deterministic)
+        money_graph = self.money.fst
         whitelist_graph = WhiteListFst(input_case=input_case, deterministic=deterministic).fst
         punct_graph = PunctuationFst(deterministic=deterministic).fst
 
@@ -78,9 +84,9 @@ class ClassifyFst(GraphFst):
             | pynutil.add_weight(measure_graph, 1.1)
             | pynutil.add_weight(cardinal_graph, 1.1)
             | pynutil.add_weight(ordinal_graph, 1.1)
-            # | pynutil.add_weight(money_graph, 1.1)
+            | pynutil.add_weight(money_graph, 1.1)
             # | pynutil.add_weight(telephone_graph, 1.1)
-            | pynutil.add_weight(electonic_graph, 1.1)
+            | pynutil.add_weight(electronic_graph, 1.1)
             # | pynutil.add_weight(fraction_graph, 1.1)
             | pynutil.add_weight(word_graph, 100)
         )

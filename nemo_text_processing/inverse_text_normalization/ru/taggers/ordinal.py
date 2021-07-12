@@ -35,15 +35,12 @@ class OrdinalFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, deterministic: bool = True):
+    def __init__(self, tn_ordinal: GraphFst, deterministic: bool = True):
         super().__init__(name="ordinal", kind="classify", deterministic=deterministic)
 
-        from nemo_text_processing.text_normalization.ru.taggers.ordinal import OrdinalFst
+        tn_ordinal = tn_ordinal.ordinal_numbers
 
-        ordinal_tn = OrdinalFst(deterministic=False)
-        ordinal_tn = ordinal_tn.ordinal_numbers
-
-        graph = ordinal_tn.invert().optimize()
+        graph = tn_ordinal.invert().optimize()
         self.graph = graph
         graph = pynutil.insert("integer: \"") + graph + pynutil.insert("\"")
         graph = self.add_tokens(graph)

@@ -90,6 +90,51 @@ class NormalizerWithAudio(Normalizer):
         self.verbalizer = VerbalizeFinalFst(deterministic=False)
         self.parser = TokenParser()
 
+    # def normalize(
+    #     self,
+    #     text: str,
+    #     n_tagged: int,
+    #     punct_pre_process: bool = True,
+    #     punct_post_process: bool = True,
+    #     verbose: bool = False,
+    # ) -> str:
+    #     """
+    #     Main function. Normalizes tokens from written to spoken form
+    #         e.g. 12 kg -> twelve kilograms
+    #
+    #     Args:
+    #         text: string that may include semiotic classes
+    #         n_tagged: number of tagged options to consider, -1 - to get all possible tagged options
+    #         punct_pre_process: whether to perform punctuation pre-processing, for example, [25] -> [ 25 ]
+    #         punct_post_process: whether to normalize punctuation
+    #         verbose: whether to print intermediate meta information
+    #
+    #     Returns:
+    #         normalized text options (usually there are multiple ways of normalizing a given semiotic class)
+    #     """
+    #     if punct_pre_process:
+    #         text = pre_process(text)
+    #     text = text.strip()
+    #     if not text:
+    #         if verbose:
+    #             print(text)
+    #         return text
+    #
+    #     text = pynini.escape(text)
+    #     if n_tagged == -1:
+    #         tagged_texts = rewrite.rewrites(text, self.tagger.fst)
+    #     else:
+    #         tagged_texts = rewrite.top_rewrites(text, self.tagger.fst, nshortest=n_tagged)
+    #     normalized_texts = []
+    #     for tagged_text in tagged_texts:
+    #         self._verbalize(tagged_text, normalized_texts)
+    #     if len(normalized_texts) == 0:
+    #         raise ValueError()
+    #     if punct_post_process:
+    #         normalized_texts = [post_process_punctuation(t) for t in normalized_texts]
+    #     normalized_texts = set(normalized_texts)
+    #     return normalized_texts
+
     def normalize(
         self,
         text: str,
@@ -121,13 +166,7 @@ class NormalizerWithAudio(Normalizer):
             return text
 
         text = pynini.escape(text)
-        if n_tagged == -1:
-            tagged_texts = rewrite.rewrites(text, self.tagger.fst)
-        else:
-            tagged_texts = rewrite.top_rewrites(text, self.tagger.fst, nshortest=n_tagged)
-        normalized_texts = []
-        for tagged_text in tagged_texts:
-            self._verbalize(tagged_text, normalized_texts)
+        normalized_texts = rewrite.rewrites(text, (self.tagger.fst @ self.verbalizer.fst).optimize())
         if len(normalized_texts) == 0:
             raise ValueError()
         if punct_post_process:
