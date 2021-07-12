@@ -1,0 +1,10 @@
+primero~1.º
+decimotercero~13.º
+vigésimo primero~21.º
+vigésimo primer~21.er
+vigésimo tercero~23.º
+centésimo undécimo~111.º
+centésimo trigésimo cuarto~134.º
+tercera~3.ª
+primer~1.er
+tercer~3.er
