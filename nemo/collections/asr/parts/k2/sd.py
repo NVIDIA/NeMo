@@ -237,7 +237,8 @@ class SDLoss(torch.nn.Module):
 
         # In crf training den_tot_scores can exceed num_tot_scores.
         # It means that the model is going to diverge.
-        assert tot_scores.nelement() == 0 or torch.all(tot_scores <= 0.0), "denominator took over"
+        # It can also be triggered when switching the lm_graph, so I commented it out for now.
+        # assert tot_scores.nelement() == 0 or torch.all(tot_scores <= 0.0), "denominator took over"
 
         if self.use_mbr:
             num_lats, den_lats = calc_scores_result[2:]
