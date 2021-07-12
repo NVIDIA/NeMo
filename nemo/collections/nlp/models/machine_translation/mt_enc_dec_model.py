@@ -366,8 +366,6 @@ class MTEncDecModel(EncDecNLPModel):
                 getattr(self, f'{mode}_loss_{dataloader_idx}').reset()
 
             # add logs if available
-            # FIXME: TEST ME
-            import pudb; pudb.set_trace()
             log_dict = {}
             for x in output:
                 if "log" in x:
