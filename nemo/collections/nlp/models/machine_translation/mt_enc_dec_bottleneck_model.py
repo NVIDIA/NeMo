@@ -405,7 +405,7 @@ class MTBottleneckModel(MTEncDecModel):
             'ground_truths': ground_truths,
             'num_non_pad_tokens': num_non_pad_tokens,
             'log': {
-                k: v.detach.cpu().numpy() if torch.is_tensor(v) else v
+                k: v.detach().cpu().numpy() if torch.is_tensor(v) else v
                 for k, v in info_dict.items()
             },
         }
