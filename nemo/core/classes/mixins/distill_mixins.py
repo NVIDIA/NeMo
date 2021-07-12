@@ -406,5 +406,5 @@ class ScaledDistillationLossMixin:
     @property
     def grad_scale(self):
         raise NotImplementedError(
-            "The class that inherits ScaledDistillationLossMixin must override the propertyb`grad_scale`."
+            "The class that inherits ScaledDistillationLossMixin must override the property `grad_scale`."
         )
