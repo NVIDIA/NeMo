@@ -39,7 +39,8 @@ class SmoothedCrossEntropyLoss(Loss):
             Intermediate values allow to control the trade-off between eval
             time (proportional to the number of batches) and eval performance
             (proportional to the number of context tokens)
-        pad_id (int): padding id
+        pad_id (int): padding id. 
+            In most cases pad_id is max_label+1. For example labels=[0,1,2,3,4], the pad_id shoud be 5.
         eps (float): the small eps number to avoid division buy zero
     """
 
@@ -91,7 +92,15 @@ class SmoothedCrossEntropyLoss(Loss):
 
         batch_size, seq_len, vocab_size = log_probs.size()
         smoothing = vocab_size * self._label_smoothing / (vocab_size - 1)
-        target_log_probs = log_probs.gather(2, labels.unsqueeze(2)).squeeze(2)
+
+        if self._pad_id:
+            # To deal with general cases, and speical case
+            # that has padding label e.g. 5, but model output of shape pad_id, e.g. [0,1,2,3,4]
+            zero_pad = torch.zeros(log_probs.shape[:-1]).unsqueeze(-1).to(log_probs)
+            log_probs_padded = torch.cat((log_probs, zero_pad), dim=-1)
+            target_log_probs = log_probs_padded.gather(-1, labels.unsqueeze(-1)).squeeze(-1)
+        else:
+            target_log_probs = log_probs.gather(2, labels.unsqueeze(2)).squeeze(2)
 
         smoothing_log_probs = log_probs.mean(dim=-1)
         neg_log_likelihood = (1.0 - smoothing) * target_log_probs + smoothing * smoothing_log_probs

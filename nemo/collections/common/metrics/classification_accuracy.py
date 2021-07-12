@@ -52,14 +52,20 @@ class TopKClassificationAccuracy(Metric):
 
     Args:
         top_k: Optional list of integers. Defaults to [1].
+        ignore_id: Optional integer. Ignore label=ignore_id in labels and corresponding indices in predictions. 
+            Typically used for excluding padding_id.
+            For example. labels=[0,1,2,3,4,5], and pred=[0,1,1,1,1]. If we would like to ignore labels=5, then we will get accuracy=2/4.
+            Defaults to None.
 
     Returns:
         res: a torch.Tensor object with two elements: [correct_count, total_count]. To correctly compute average
         accuracy, compute acc=correct_count/total_count
     """
 
-    def __init__(self, top_k=None, dist_sync_on_step=False):
+    def __init__(self, top_k=None, dist_sync_on_step=False, ignore_id=None):
         super().__init__(dist_sync_on_step=dist_sync_on_step)
+
+        self.ignore_id = ignore_id
 
         if top_k is None:
             top_k = [1]
@@ -80,14 +86,21 @@ class TopKClassificationAccuracy(Metric):
         with torch.no_grad():
             predictions = self.top_k_predicted_labels(logits)
             predictions = predictions.t()
-            correct = predictions.eq(labels.view(1, -1)).expand_as(predictions)
+            correct = predictions == labels
+
+            if self.ignore_id:
+                remain_labels = labels != self.ignore_id
+                total_k = remain_labels.sum()
+                not_ignored_labels = remain_labels.expand_as(predictions)
+            else:
+                not_ignored_labels = torch.ones_like(predictions).bool()
+                total_k = labels.shape[0]
 
             correct_counts_k = []
             total_counts_k = []
 
             for k in self.top_k:
-                correct_k = correct[:k].reshape(-1).long().sum()
-                total_k = labels.shape[0]
+                correct_k = correct[:k][not_ignored_labels[:k]].long().sum()
 
                 correct_counts_k.append(correct_k)
                 total_counts_k.append(total_k)
