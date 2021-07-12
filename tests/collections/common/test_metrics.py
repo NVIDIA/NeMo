@@ -19,7 +19,7 @@ from .loss_inputs import ALL_NUM_MEASUREMENTS_ARE_ZERO, NO_ZERO_NUM_MEASUREMENTS
 from .perplexity_inputs import NO_PROBS_NO_LOGITS, ONLY_LOGITS1, ONLY_LOGITS100, ONLY_PROBS, PROBS_AND_LOGITS
 from .pl_utils import LossTester, PerplexityTester
 from nemo.collections.common.metrics.classification_accuracy import TopKClassificationAccuracy
-
+from nemo.collections.common.losses.smoothed_cross_entropy import SmoothedCrossEntropyLoss
 
 class TestCommonMetrics:
     top_k_logits = torch.tensor([[0.1, 0.3, 0.2, 0.0], [0.9, 0.6, 0.2, 0.3], [0.2, 0.1, 0.4, 0.3]],)  # 1  # 0  # 2
@@ -193,6 +193,29 @@ class TestCommonMetrics:
         assert abs(acc_top1 - 0.75) < 1e-3  # 3/4
 
 
+class TestCommonLosses:
+    m = torch.nn.LogSoftmax()
+    logtis = torch.tensor([[[0.1, 0.3, 0.2, 0.0], [0.9, 0.6, 0.2, 0.3], [0.2, 0.1, 0.4, 0.3]]],)  # 1  # 0  # 2
+    log_probs = m(logtis)
+    """
+    tensor([[0.2363, 0.2887, 0.2612, 0.2138],
+        [0.3589, 0.2659, 0.1782, 0.1970],
+        [0.2363, 0.2138, 0.2887, 0.2612]])
+    
+    [1,0,0,0],
+    [1,0,0,0],
+    [0,0,1,0]]
+    """
+
+    @pytest.mark.unit
+    def test_smoothed_cross_entropy_loss(self):
+        labels = torch.tensor([[0, 0, 2]])
+        loss = SmoothedCrossEntropyLoss(pad_id=3)
+        neg_log_likelihood = loss(log_probs=self.log_probs, labels=labels)
+        assert abs(neg_log_likelihood - 1.2366) < 1e-3
+
+
+
 @pytest.mark.parametrize("ddp", [True, False])
 @pytest.mark.parametrize("dist_sync_on_step", [True, False])
 @pytest.mark.parametrize(
@@ -224,6 +247,7 @@ class TestPerplexity(PerplexityTester):
     ],
 )
 class TestLoss(LossTester):
+
     def test_loss(self, ddp, dist_sync_on_step, loss_sum_or_avg, num_measurements, take_avg_loss):
         self.run_class_loss_test(
             ddp=ddp,
@@ -232,3 +256,5 @@ class TestLoss(LossTester):
             dist_sync_on_step=dist_sync_on_step,
             take_avg_loss=take_avg_loss,
         )
+
+   
