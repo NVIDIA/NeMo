@@ -378,7 +378,6 @@ class MTEncDecModel(EncDecNLPModel):
                 else:
                     self.log(f"{mode}_{k}_dl_index_{dataloader_idx}", np.mean(v), sync_dist=True)
 
-
         if len(loss_list) > 1:
             self.log(f"{mode}_loss_avg", np.mean(loss_list), sync_dist=True)
             self.log(f"{mode}_sacreBLEU_avg", np.mean(sb_score_list), sync_dist=True)

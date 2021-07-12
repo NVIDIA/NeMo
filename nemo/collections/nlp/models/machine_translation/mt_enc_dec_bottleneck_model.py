@@ -31,7 +31,7 @@ from sacrebleu import corpus_bleu
 from nemo.collections.common.losses import NLLLoss
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTBottleneckModelConfig
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
-from nemo.collections.nlp.modules.common.transformer import TopKSequenceGenerator, AttentionBridge
+from nemo.collections.nlp.modules.common.transformer import AttentionBridge, TopKSequenceGenerator
 from nemo.core.classes.common import typecheck
 from nemo.utils import logging, model_utils
 
@@ -62,16 +62,11 @@ class MTBottleneckModel(MTEncDecModel):
 
         # TODO: add support in label smoothing for per-sample reconstruction loss
         if not self.recon_per_token:
-            loss_fn = NLLLoss(
-                ignore_index=self.decoder_tokenizer.pad_id,
-                reduction='none',
-            )
+            loss_fn = NLLLoss(ignore_index=self.decoder_tokenizer.pad_id, reduction='none',)
             self.loss_fn = self.eval_loss_fn = loss_fn
 
         if self.model_type not in ["seq2seq", "seq2seq-br", "seq2seq-mim", "seq2seq-vae"]:
-            raise ValueError("Unknown model_type = {model_type}".format(
-                model_type=self.model_type,
-            ))
+            raise ValueError("Unknown model_type = {model_type}".format(model_type=self.model_type,))
 
         if self.model_type != "seq2seq":
             # project bridge dimension back to decoder hidden dimensions
@@ -81,20 +76,18 @@ class MTBottleneckModel(MTEncDecModel):
                 self.latent2hidden = torch.nn.Identity()
 
             self.att_bridge = AttentionBridge(
-                hidden_size=self.encoder.hidden_size,
-                k=self.att_bridge_k,
-                bridge_size=self.att_bridge_size,
+                hidden_size=self.encoder.hidden_size, k=self.att_bridge_k, bridge_size=self.att_bridge_size,
             )
 
             # project dimension of encoder hidden to bridge dimension
-            if (self.encoder.hidden_size != self.att_bridge_size):
+            if self.encoder.hidden_size != self.att_bridge_size:
                 self.hidden2latent_mean = torch.nn.Linear(self.encoder.hidden_size, self.att_bridge_size)
             else:
                 self.hidden2latent_mean = torch.nn.Identity()
 
             # for probabilistic latent variable models we also need variance
-            if (self.model_type in ["seq2seq-mim", "seq2seq-vae"]):
-                if (self.encoder.hidden_size != self.att_bridge_size):
+            if self.model_type in ["seq2seq-mim", "seq2seq-vae"]:
+                if self.encoder.hidden_size != self.att_bridge_size:
                     self.hidden2latent_logv = torch.nn.Linear(self.encoder.hidden_size, self.att_bridge_size)
                 else:
                     self.hidden2latent_logv = torch.nn.Identity()
@@ -130,11 +123,7 @@ class MTBottleneckModel(MTEncDecModel):
             # seq2seq-br, seq2seq-mim, seq2seq-vae
 
             # project hidden to a fixed size bridge using k attention heads
-            res = self.att_bridge(
-                hidden=hidden,
-                hidden_mask=hidden_mask,
-                return_ortho_loss=return_ortho_loss,
-            )
+            res = self.att_bridge(hidden=hidden, hidden_mask=hidden_mask, return_ortho_loss=return_ortho_loss,)
 
             if return_ortho_loss:
                 bridge_hidden, ortho_loss = res
@@ -165,18 +154,14 @@ class MTBottleneckModel(MTEncDecModel):
             return z, z_mean, z_logv, z_mask
 
     @typecheck()
-    def forward(self, src, src_mask, tgt, tgt_mask, labels, train=True,
-                return_info=False):
+    def forward(self, src, src_mask, tgt, tgt_mask, labels, train=True, return_info=False):
         """
         return_info - if True, returns loss, info_dict with additional information
                       regarding the loss that can be logged
         """
         info_dict = {}
 
-        src_hiddens = self.encoder(
-            input_ids=src,
-            encoder_mask=src_mask,
-        )
+        src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask,)
 
         # build posterior distribution q(x|z)
         z, z_mean, z_logv, bridge_mask, ortho_loss = self.sample_z(
@@ -191,10 +176,7 @@ class MTBottleneckModel(MTEncDecModel):
         bridge_hiddens_dec = self.latent2hidden(z)
 
         tgt_hiddens = self.decoder(
-            input_ids=tgt,
-            decoder_mask=tgt_mask,
-            encoder_embeddings=bridge_hiddens_dec,
-            encoder_mask=bridge_mask,
+            input_ids=tgt, decoder_mask=tgt_mask, encoder_embeddings=bridge_hiddens_dec, encoder_mask=bridge_mask,
         )
 
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
@@ -210,10 +192,9 @@ class MTBottleneckModel(MTEncDecModel):
             # averaging of log_p_x_given_z per sample
             output_mask = (labels != self.decoder_tokenizer.pad_id).type_as(log_probs)
 
-            log_p_x_given_z_per_token = -recon_loss_fn(
-                log_probs=log_probs,
-                labels=labels,
-            ).view(log_probs.shape[:2]) * output_mask
+            log_p_x_given_z_per_token = (
+                -recon_loss_fn(log_probs=log_probs, labels=labels,).view(log_probs.shape[:2]) * output_mask
+            )
 
             # probability per sample
             log_p_x_given_z = log_p_x_given_z_per_token.sum(-1).mean()
@@ -247,10 +228,7 @@ class MTBottleneckModel(MTEncDecModel):
 
         if self.model_type in ["seq2seq-mim", "seq2seq-vae"]:
             # tokens = tgt_mask.sum()
-            q_z_given_x = torch.distributions.Normal(
-                loc=z_mean,
-                scale=torch.exp(0.5 * z_logv),
-            )
+            q_z_given_x = torch.distributions.Normal(loc=z_mean, scale=torch.exp(0.5 * z_logv),)
             # average latent distribution to match averaging of observations
             if self.recon_per_token:
                 # TODO: replace mean with division by number of tokens
@@ -259,10 +237,7 @@ class MTBottleneckModel(MTEncDecModel):
                 log_q_z_given_x = q_z_given_x.log_prob(z).sum(-1).sum(-1).mean()
 
             # build prior distribution
-            p_z = torch.distributions.Normal(
-                loc=torch.zeros_like(z),
-                scale=torch.ones_like(z),
-            )
+            p_z = torch.distributions.Normal(loc=torch.zeros_like(z), scale=torch.ones_like(z),)
             # average latent distribution to match averaging of observations
             if self.recon_per_token:
                 # TODO: replace mean with division by number of tokens
@@ -388,13 +363,11 @@ class MTBottleneckModel(MTEncDecModel):
         num_measurements = labels.shape[0] * labels.shape[1]
         if dataloader_idx == 0:
             getattr(self, f'{mode}_loss')(
-                loss=eval_loss,
-                num_measurements=num_measurements,
+                loss=eval_loss, num_measurements=num_measurements,
             )
         else:
             getattr(self, f'{mode}_loss_{dataloader_idx}')(
-                loss=eval_loss,
-                num_measurements=num_measurements,
+                loss=eval_loss, num_measurements=num_measurements,
             )
         np_tgt = tgt_ids.detach().cpu().numpy()
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
@@ -404,8 +377,5 @@ class MTBottleneckModel(MTEncDecModel):
             'translations': translations,
             'ground_truths': ground_truths,
             'num_non_pad_tokens': num_non_pad_tokens,
-            'log': {
-                k: v.detach().cpu().numpy() if torch.is_tensor(v) else v
-                for k, v in info_dict.items()
-            },
+            'log': {k: v.detach().cpu().numpy() if torch.is_tensor(v) else v for k, v in info_dict.items()},
         }

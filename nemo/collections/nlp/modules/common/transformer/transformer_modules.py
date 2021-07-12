@@ -17,11 +17,11 @@
 import math
 from dataclasses import dataclass
 
+import numpy as np
 import torch
 from omegaconf.omegaconf import MISSING
 from torch import nn
 from torch.nn.functional import gelu
-import numpy as np
 
 from nemo.collections.common.parts import form_attention_mask
 
