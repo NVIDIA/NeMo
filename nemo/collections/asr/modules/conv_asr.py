@@ -479,7 +479,7 @@ class SpeakerDecoder(NeuralModule, Exportable):
         if self.pool_mode == 'xvector' or self.pool_mode == 'tap':
             self._pooling = StatsPoolLayer(feat_in=feat_in, pool_mode=self.pool_mode)
             affine_type = 'linear'
-        elif self.pool_mode == 'ecapa':
+        elif self.pool_mode == 'attention':
             self._pooling = AttentivePoolLayer(inp_filters=feat_in, attention_channels=attention_channels)
             affine_type = 'conv'
 
