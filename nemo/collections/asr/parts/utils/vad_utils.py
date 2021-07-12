@@ -103,7 +103,8 @@ def write_vad_infer_manifest(file, args_func):
                 else:
                     status = 'end'
                     write_duration = left + time_length
-                    current_offset -= time_length                
+                    current_offset -= time_length
+
                 offset_inc = left
                 left = 0
             else:
