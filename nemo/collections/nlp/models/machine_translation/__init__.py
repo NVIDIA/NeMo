@@ -13,4 +13,4 @@
 # limitations under the License.
 
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
-#from nemo.collections.nlp.models.machine_translation.mt_enc_dec_bottleneck_model import MTBottleneckModel
+from nemo.collections.nlp.models.machine_translation.mt_enc_dec_bottleneck_model import MTBottleneckModel

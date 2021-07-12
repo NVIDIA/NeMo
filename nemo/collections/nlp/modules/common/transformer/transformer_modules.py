@@ -22,9 +22,9 @@ from omegaconf.omegaconf import MISSING
 from torch import nn
 from torch.nn.functional import gelu
 
-# from nemo.collections.common.parts import form_attention_mask
+from nemo.collections.common.parts import form_attention_mask
 
-__all__ = ["TransformerEmbedding"]
+__all__ = ["TransformerEmbedding", "AttentionBridge"]
 
 
 class FixedPositionalEncoding(nn.Module):
