@@ -374,7 +374,7 @@ class MTEncDecModel(EncDecNLPModel):
                     for k, v in x["log"]:
                         log_dict[k] = log_dict.get(k, []) + [v]
 
-            for k, v in log_dict:
+            for k, v in log_dict.items():
                 if dataloader_idx == 0:
                     self.log(f"{mode}_{k}", np.mean(v), sync_dist=True)
                     getattr(self, f"{mode}_{k}").reset()
