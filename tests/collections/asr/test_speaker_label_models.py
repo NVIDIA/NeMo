@@ -78,7 +78,7 @@ class EncDecSpeechLabelModelTest(TestCase):
 
         decoder = {
             'cls': 'nemo.collections.asr.modules.SpeakerDecoder',
-            'params': {'feat_in': 3072, 'num_classes': 2, 'pool_mode': 'ecapa', 'emb_sizes': 192},
+            'params': {'feat_in': 3072, 'num_classes': 2, 'pool_mode': 'attention', 'emb_sizes': 192},
         }
 
         modelConfig = DictConfig(

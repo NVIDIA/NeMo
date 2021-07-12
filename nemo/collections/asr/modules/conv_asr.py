@@ -19,7 +19,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from omegaconf import MISSING, ListConfig, OmegaConf
-from torch.nn.modules.conv import Conv1d
 
 from nemo.collections.asr.parts.submodules.jasper import JasperBlock, MaskedConv1d, init_weights, jasper_activations
 from nemo.collections.asr.parts.submodules.tdnn_attention import (
