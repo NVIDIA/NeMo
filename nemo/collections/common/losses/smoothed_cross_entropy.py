@@ -94,7 +94,7 @@ class SmoothedCrossEntropyLoss(Loss):
         smoothing = vocab_size * self._label_smoothing / (vocab_size - 1)
 
         if self._pad_id:
-            # To deal with general cases, and speical case
+            # To deal with general cases, and special case
             # that has padding label e.g. 5, but model output of shape pad_id, e.g. [0,1,2,3,4]
             zero_pad = torch.zeros(log_probs.shape[:-1]).unsqueeze(-1).to(log_probs)
             log_probs_padded = torch.cat((log_probs, zero_pad), dim=-1)
