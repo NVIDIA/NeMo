@@ -95,6 +95,28 @@ class MTBottleneckModel(MTEncDecModel):
             # seq2seq
             self.latent2hidden = torch.nn.Identity()
 
+    def eval_epoch_end(self, outputs, mode):
+        # call parent for logging
+        super().eval_epoch_end(outputs, mode)
+
+        # if user specifies one validation dataloader, then PTL reverts to giving a list of dictionary instead of a list of list of dictionary
+        if isinstance(outputs[0], dict):
+            outputs = [outputs]
+
+        for dataloader_idx, output in enumerate(outputs):
+            # add logs if available in outputs
+            log_dict = {}
+            for x in output:
+                if "log" in x:
+                    for k, v in x["log"].items():
+                        log_dict[k] = log_dict.get(k, []) + [v]
+
+            for k, v in log_dict.items():
+                if dataloader_idx == 0:
+                    self.log(f"{mode}_{k}", np.mean(v), sync_dist=True)
+                else:
+                    self.log(f"{mode}_{k}_dl_index_{dataloader_idx}", np.mean(v), sync_dist=True)
+
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
         """

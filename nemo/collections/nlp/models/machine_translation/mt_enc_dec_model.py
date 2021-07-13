@@ -365,19 +365,6 @@ class MTEncDecModel(EncDecNLPModel):
                 self.log(f"{mode}_sacreBLEU_dl_index_{dataloader_idx}", sb_score, sync_dist=True)
                 getattr(self, f'{mode}_loss_{dataloader_idx}').reset()
 
-            # add logs if available
-            log_dict = {}
-            for x in output:
-                if "log" in x:
-                    for k, v in x["log"].items():
-                        log_dict[k] = log_dict.get(k, []) + [v]
-
-            for k, v in log_dict.items():
-                if dataloader_idx == 0:
-                    self.log(f"{mode}_{k}", np.mean(v), sync_dist=True)
-                else:
-                    self.log(f"{mode}_{k}_dl_index_{dataloader_idx}", np.mean(v), sync_dist=True)
-
         if len(loss_list) > 1:
             self.log(f"{mode}_loss_avg", np.mean(loss_list), sync_dist=True)
             self.log(f"{mode}_sacreBLEU_avg", np.mean(sb_score_list), sync_dist=True)
