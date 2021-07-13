@@ -760,7 +760,7 @@ class ONNXGreedyBatchedRNNTInfer:
 
     def _setup_blank_index(self):
         # ASSUME: Single input with no time length information
-        dynamic_dim = 32
+        dynamic_dim = 257
         shapes = self.encoder_inputs[0].type.tensor_type.shape.dim
         ip_shape = []
         for shape in shapes:
@@ -785,7 +785,7 @@ class ONNXGreedyBatchedRNNTInfer:
             f"Enc-Dec-Joint step was evaluated, blank token id = {self._blank_index}; vocab size = {log_probs.shape[-1]}"
         )
 
-    def __call__(self, audio_signal: torch.Tensor):
+    def __call__(self, audio_signal: torch.Tensor, length: torch.Tensor):
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
         Output token is generated auto-repressively.
 
@@ -799,22 +799,121 @@ class ONNXGreedyBatchedRNNTInfer:
         """
         with torch.no_grad():
             # Apply optional preprocessing
-            encoder_output = self.run_encoder(audio_signal=audio_signal)
-            encoder_output = encoder_output.transpose(1, 2)  # (B, T, D)
+            encoder_output, encoded_lengths = self.run_encoder(audio_signal=audio_signal, length=length)
+            encoder_output = encoder_output.transpose([0, 2, 1])  # (B, T, D)
             logitlen = encoded_lengths
 
             inseq = encoder_output  # [B, T, D]
-            hypotheses, timesteps, alignments = self._greedy_decode(inseq, logitlen, device=inseq.device)
+            hypotheses, timestamps = self._greedy_decode(inseq, logitlen)
 
-            # Pack the hypotheses results
-            packed_result = pack_hypotheses(hypotheses, timesteps, logitlen, alignments=alignments)
+            # # Pack the hypotheses results
+            packed_result = pack_hypotheses(hypotheses, timestamps, logitlen, None)
+            del hypotheses
 
-            del hypotheses, timesteps
+        return packed_result
 
-        self.decoder.train(decoder_training_state)
-        self.joint.train(joint_training_state)
+    def _greedy_decode(self, x, out_len):
+        # x: [B, T, D]
+        # out_len: [B]
 
-        return (packed_result,)
+        # Initialize state
+        batchsize = x.shape[0]
+        hidden = self._get_initial_states(batchsize)
+        target_lengths = torch.ones(batchsize, dtype=torch.int32)
+
+        # Output string buffer
+        label = [[] for _ in range(batchsize)]
+        timesteps = [[] for _ in range(batchsize)]
+
+        # Last Label buffer + Last Label without blank buffer
+        # batch level equivalent of the last_label
+        last_label = torch.full([batchsize, 1], fill_value=self._blank_index, dtype=torch.long).numpy()
+
+        # Mask buffers
+        blank_mask = torch.full([batchsize], fill_value=0, dtype=torch.bool).numpy()
+
+        # Get max sequence length
+        max_out_len = out_len.max()
+        for time_idx in range(max_out_len):
+            f = x[:, time_idx : time_idx + 1, :]  #  x.narrow(dim=1, start=time_idx, length=1)  # [B, 1, D]
+
+            # Prepare t timestamp batch variables
+            not_blank = True
+            symbols_added = 0
+
+            # Reset blank mask
+            blank_mask *= False
+
+            # Update blank mask with time mask
+            # Batch: [B, T, D], but Bi may have seq len < max(seq_lens_in_batch)
+            # Forcibly mask with "blank" tokens, for all sample where current time step T > seq_len
+            blank_mask = time_idx >= out_len
+            # Start inner loop
+            while not_blank and (self.max_symbols_per_step is None or symbols_added < self.max_symbols_per_step):
+
+                # Batch prediction and joint network steps
+                # If very first prediction step, submit SOS tag (blank) to pred_step.
+                # This feeds a zero tensor as input to AbstractRNNTDecoder to prime the state
+                if time_idx == 0 and symbols_added == 0:
+                    g = torch.tensor([self._blank_index] * batchsize, dtype=torch.int32).view(-1, 1)
+                else:
+                    g = last_label
+
+                # Batched joint step - Output = [B, V + 1]
+                logp, hidden_prime = self.run_decoder_joint(f, g, target_lengths, *hidden)[:, 0, 0, :]
+
+                if logp.dtype != torch.float32:
+                    logp = logp.float()
+
+                # Get index k, of max prob for batch
+                v, k = logp.max(1)
+                del v
+
+                # Update blank mask with current predicted blanks
+                # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
+                k_is_blank = k == self._blank_index
+                blank_mask.bitwise_or_(k_is_blank)
+
+                del k_is_blank
+                del logp
+
+                # If all samples predict / have predicted prior blanks, exit loop early
+                # This is equivalent to if single sample predicted k
+                if blank_mask.all():
+                    not_blank = False
+
+                else:
+                    # Collect batch indices where blanks occurred now/past
+                    blank_indices = []
+                    if hidden is not None:
+                        blank_indices = (blank_mask == 1).nonzero(as_tuple=False)
+
+                    # Recover prior state for all samples which predicted blank now/past
+                    if hidden is not None:
+                        # LSTM has 2 states
+                        for state_id in range(len(hidden)):
+                            hidden_prime[state_id][:, blank_indices, :] = hidden[state_id][:, blank_indices, :]
+
+                    # Recover prior predicted label for all samples which predicted blank now/past
+                    k[blank_indices] = last_label[blank_indices, 0]
+
+                    # Update new label and hidden state for next iteration
+                    last_label = k.clone().view(-1, 1)
+                    hidden = hidden_prime
+
+                    # Update predicted labels, accounting for time mask
+                    # If blank was predicted even once, now or in the past,
+                    # Force the current predicted label to also be blank
+                    # This ensures that blanks propogate across all timesteps
+                    # once they have occured (normally stopping condition of sample level loop).
+                    for kidx, ki in enumerate(k):
+                        if blank_mask[kidx] == 0:
+                            label[kidx].append(ki)
+                            timesteps[kidx].append(time_idx)
+
+                    symbols_added += 1
+
+        return label, timesteps
 
     def run_encoder(self, audio_signal, length):
         ip = {
@@ -836,6 +935,7 @@ class ONNXGreedyBatchedRNNTInfer:
             self.decoder_joint_inputs[1].name: targets.cpu().numpy(),
             self.decoder_joint_inputs[2].name: target_length.cpu().numpy(),
         }
+        print(self.decoder_joint_inputs)
 
         num_states = 0
         if states is not None and len(states) > 0:
@@ -849,7 +949,6 @@ class ONNXGreedyBatchedRNNTInfer:
         if num_states > 0:
             new_states = dec_out[-num_states:]
             dec_out = dec_out[:-num_states]
-
         else:
             new_states = None
 

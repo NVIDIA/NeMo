@@ -122,10 +122,10 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             A tuple of input examples.
         """
         length = 1
-        targets = torch.randint(0, self.vocab_size, size=(16, length), dtype=torch.int32).to(
+        targets = torch.randint(0, self.vocab_size, size=(1, length), dtype=torch.int32).to(
             next(self.parameters()).device
         )
-        target_length = torch.randint(0, length, size=(16,), dtype=torch.int32).to(next(self.parameters()).device)
+        target_length = torch.randint(0, length, size=(1,), dtype=torch.int32).to(next(self.parameters()).device)
         states = tuple(self.initialize_state(targets.float()))
         return (targets, target_length, states)
 
@@ -639,7 +639,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
         Returns:
             A tuple of input examples.
         """
-        B, T, U = 16, 256, 1
+        B, T, U = 1, 8192, 1
         encoder_outputs = torch.randn(B, self.encoder_hidden, T).to(next(self.parameters()).device)
         decoder_outputs = torch.randn(B, self.pred_hidden, U).to(next(self.parameters()).device)
         return (encoder_outputs, decoder_outputs)

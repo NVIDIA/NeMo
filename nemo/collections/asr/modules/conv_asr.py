@@ -80,7 +80,7 @@ class ConvASREncoder(NeuralModule, Exportable):
         Returns:
             A tuple of input examples.
         """
-        input_example = torch.randn(16, self._feat_in, 256).to(next(self.parameters()).device)
+        input_example = torch.randn(1, self._feat_in, 8192).to(next(self.parameters()).device)
 
         if hasattr(self, '_rnnt_export') and self._rnnt_export:
             lens = torch.randint(0, input_example.shape[-1], size=(input_example.shape[0],))
