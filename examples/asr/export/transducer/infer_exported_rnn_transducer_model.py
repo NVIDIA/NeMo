@@ -91,6 +91,9 @@ def main():
     nemo_model = EncDecRNNTBPEModel.restore_from(nemo_model)  # type: EncDecRNNTBPEModel
     tokenizer = nemo_model.tokenizer
 
+    if torch.cuda.is_available():
+        nemo_model = nemo_model.to('cuda')
+
     audio_filepath = ["/media/smajumdar/data/Datasets/Librispeech/LibriSpeech/test-clean-processed/61-70968-0004.wav"]
 
     actual_transcripts = nemo_model.transcribe(audio_filepath)[0]
@@ -110,12 +113,17 @@ def main():
         all_hypothesis = []
         for test_batch in tqdm(temporary_datalayer, desc="ONNX Transcribing"):
             input_signal, input_signal_length = test_batch[0], test_batch[1]
+            if torch.cuda.is_available():
+                input_signal = input_signal.to('cuda')
+                input_signal_length = input_signal_length.to('cuda')
+
             processed_audio, processed_audio_len = nemo_model.preprocessor(
                 input_signal=input_signal, length=input_signal_length
             )
             hypotheses = decoding(audio_signal=processed_audio, length=processed_audio_len)
             hypotheses = decode_hypothesis(hypotheses, tokenizer, blank_id=decoding._blank_index)  # type: List[str]
 
+            texts = [h.text for h in hypotheses]
             all_hypothesis += hypotheses
 
             del processed_audio, processed_audio_len

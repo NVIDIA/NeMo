@@ -46,7 +46,12 @@ def pack_hypotheses(
     logitlen: torch.Tensor,
     alignments: Optional[List[List[int]]] = None,
 ) -> List[rnnt_utils.Hypothesis]:
-    logitlen_cpu = logitlen.to("cpu")
+
+    if hasattr(logitlen, 'cpu'):
+        logitlen_cpu = logitlen.to('cpu')
+    else:
+        logitlen_cpu = logitlen
+
     return [
         rnnt_utils.Hypothesis(
             y_sequence=torch.tensor(sent, dtype=torch.long),
@@ -859,7 +864,7 @@ class ONNXGreedyBatchedRNNTInfer:
                 if time_idx == 0 and symbols_added == 0:
                     g = torch.tensor([self._blank_index] * batchsize, dtype=torch.int32).view(-1, 1)
                 else:
-                    g = last_label
+                    g = last_label.astype(np.int32)
 
                 # Batched joint step - Output = [B, V + 1]
                 joint_out, hidden_prime = self.run_decoder_joint(f, g, target_lengths, *hidden)
@@ -889,7 +894,7 @@ class ONNXGreedyBatchedRNNTInfer:
                     # Collect batch indices where blanks occurred now/past
                     blank_indices = []
                     if hidden is not None:
-                        blank_indices = (blank_mask == 1).nonzero(as_tuple=False)
+                        blank_indices = (blank_mask == 1).nonzero()
 
                     # Recover prior state for all samples which predicted blank now/past
                     if hidden is not None:
@@ -901,7 +906,7 @@ class ONNXGreedyBatchedRNNTInfer:
                     k[blank_indices] = last_label[blank_indices, 0]
 
                     # Update new label and hidden state for next iteration
-                    last_label = k.clone().view(-1, 1)
+                    last_label = k.copy().reshape(-1, 1)
                     hidden = hidden_prime
 
                     # Update predicted labels, accounting for time mask
@@ -949,7 +954,10 @@ class ONNXGreedyBatchedRNNTInfer:
         if states is not None and len(states) > 0:
             num_states = len(states)
             for idx, state in enumerate(states):
-                ip[self.decoder_joint_inputs[len(ip)].name] = state.cpu().numpy()
+                if hasattr(state, 'cpu'):
+                    state = state.cpu().numpy()
+
+                ip[self.decoder_joint_inputs[len(ip)].name] = state
 
         dec_out = self.decoder_joint.run(None, ip)
 
@@ -979,7 +987,7 @@ class ONNXGreedyBatchedRNNTInfer:
                 else:
                     ip_shape.append(int(shape.dim_value))
 
-            input_states.append(torch.randn(*ip_shape))
+            input_states.append(torch.zeros(*ip_shape))
 
         return input_states
 
