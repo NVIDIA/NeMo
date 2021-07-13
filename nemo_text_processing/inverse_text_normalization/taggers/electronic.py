@@ -49,8 +49,8 @@ class ElectronicFst(GraphFst):
             + pynutil.insert("\"")
         )
         single_alphanum = pynini.closure(alpha_num + delete_extra_space) + alpha_num
-        server = single_alphanum | pynini.string_file(get_abs_path("data/electronic/server_name.tsv")).invert()
-        domain = single_alphanum | pynini.string_file(get_abs_path("data/electronic/domain.tsv")).invert()
+        server = single_alphanum | pynini.string_file(get_abs_path("data/electronic/server_name.tsv"))
+        domain = single_alphanum | pynini.string_file(get_abs_path("data/electronic/domain.tsv"))
         domain_graph = (
             pynutil.insert("domain: \"")
             + server

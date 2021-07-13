@@ -1,4 +1,10 @@
 a dot b c at g mail dot com~a.bc@gmail.com
+a at gmail dot com~a@gmail.com
+a at m s n dot fr~a@msn.fr
+a at a o l dot com~a@aol.com
+a at m s n dot com~a@msn.com
+a at nvidia dot com~a@nvidia.com
+a dot b c at nvidia dot com~a.bc@nvidia.com
 c d f at a b c dot e d u~cdf@abc.edu
 a b c at g mail dot a b c~abc@gmail.abc
 a b c at a b c dot com~abc@abc.com
