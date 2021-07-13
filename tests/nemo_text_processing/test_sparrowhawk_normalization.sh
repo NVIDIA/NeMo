@@ -21,42 +21,42 @@ runtest () {
 }
 
 testTNCardinal() {
-  input=$PROJECT_DIR/data_text_normalization/test_cases_cardinal.txt
+  input=$PROJECT_DIR/data_text_normalization/en/test_cases_cardinal.txt
   runtest $input
 }
 
 testTNDate() {
-  input=$PROJECT_DIR/data_text_normalization/test_cases_date.txt
+  input=$PROJECT_DIR/data_text_normalization/en/test_cases_date.txt
   runtest $input
 }
 
 testTNDecimal() {
-  input=$PROJECT_DIR/data_text_normalization/test_cases_decimal.txt
+  input=$PROJECT_DIR/data_text_normalization/en/test_cases_decimal.txt
   runtest $input
 }
 
 testTNOrdinal() {
-  input=$PROJECT_DIR/data_text_normalization/test_cases_ordinal.txt
+  input=$PROJECT_DIR/data_text_normalization/en/test_cases_ordinal.txt
   runtest $input
 }
 
 testTNTime() {
-  input=$PROJECT_DIR/data_text_normalization/test_cases_time.txt
+  input=$PROJECT_DIR/data_text_normalization/en/test_cases_time.txt
   runtest $input
 }
 
 testTNMeasure() {
-  input=$PROJECT_DIR/data_text_normalization/test_cases_measure.txt
+  input=$PROJECT_DIR/data_text_normalization/en/test_cases_measure.txt
   runtest $input
 }
 
 testTNMoney() {
-  input=$PROJECT_DIR/data_text_normalization/test_cases_money.txt
+  input=$PROJECT_DIR/data_text_normalization/en/test_cases_money.txt
   runtest $input
 }
 
 testTNWhitelist() {
-  input=$PROJECT_DIR/data_text_normalization/test_cases_whitelist.txt
+  input=$PROJECT_DIR/data_text_normalization/en/test_cases_whitelist.txt
   runtest $input
 }
 

@@ -20,14 +20,14 @@ from utils import PYNINI_AVAILABLE, get_test_cases_multiple
 
 class TestNormalizeWithAudio:
 
-    normalizer = NormalizerWithAudio(input_case='cased') if PYNINI_AVAILABLE else None
+    normalizer_en = NormalizerWithAudio(input_case='cased', lang='en') if PYNINI_AVAILABLE else None
 
-    @parameterized.expand(get_test_cases_multiple('data_text_normalization/test_cases_normalize_with_audio.txt'))
+    @parameterized.expand(get_test_cases_multiple('data_text_normalization/en/test_cases_normalize_with_audio.txt'))
     @pytest.mark.skipif(
         not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_norm(self, test_input, expected):
-        pred = self.normalizer.normalize(test_input, n_tagged=700)
+        pred = self.normalizer_en.normalize(test_input, n_tagged=700)
         assert len(set(pred).intersection(set(expected))) == len(expected), f'pred: {pred}'
