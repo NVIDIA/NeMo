@@ -1,0 +1,136 @@
+name: &name DuplexTextNormalization
+mode: joint      # Three possible choices ['tn', 'itn', 'joint']
+
+# Pretrained Nemo Models
+tagger_pretrained_model: null
+decoder_pretrained_model: null
+
+# Tagger
+tagger_trainer:
+  gpus: 1        # the number of gpus, 0 for CPU
+  num_nodes: 1
+  max_epochs: 5  # the number of training epochs
+  checkpoint_callback: false  # provided by exp_manager
+  logger: false  # provided by exp_manager
+  accumulate_grad_batches: 1 # accumulates grads every k batches
+  gradient_clip_val: 0.0
+  amp_level: O0 # O1/O2 for mixed precision
+  precision: 32 # Should be set to 16 for O1 and O2 to enable the AMP.
+  accelerator: ddp
+
+tagger_model:
+  do_training: true
+  transformer: distilroberta-base
+  tokenizer: ${tagger_model.transformer}
+  nemo_path: ${tagger_exp_manager.exp_dir}/tagger_model.nemo # exported .nemo path
+
+  optim:
+    name: adamw
+    lr: 5e-5
+    weight_decay: 0.01
+
+    sched:
+      name: WarmupAnnealing
+
+      # pytorch lightning args
+      monitor: val_token_precision
+      reduce_on_plateau: false
+
+      # scheduler config override
+      warmup_steps: null
+      warmup_ratio: 0.1
+      last_epoch: -1
+
+tagger_exp_manager:
+  exp_dir: exps # where to store logs and checkpoints
+  name: tagger_training # name of experiment
+  create_tensorboard_logger: True
+  create_checkpoint_callback: True
+  checkpoint_callback_params:
+    save_top_k: 3
+    monitor: "val_token_precision"
+    mode: "max"
+    save_best_model: true
+    always_save_nemo: true
+
+# Decoder
+decoder_trainer:
+  gpus: 1 # the number of gpus, 0 for CPU
+  num_nodes: 1
+  max_epochs: 3  # the number of training epochs
+  checkpoint_callback: false  # provided by exp_manager
+  logger: false  # provided by exp_manager
+  accumulate_grad_batches: 1 # accumulates grads every k batches
+  gradient_clip_val: 0.0
+  amp_level: O0 # O1/O2 for mixed precision
+  precision: 32 # Should be set to 16 for O1 and O2 to enable the AMP.
+  accelerator: ddp
+
+decoder_model:
+  do_training: true
+  transformer: t5-base
+  tokenizer: ${decoder_model.transformer}
+  nemo_path: ${decoder_exp_manager.exp_dir}/decoder_model.nemo # exported .nemo path
+
+  optim:
+    name: adamw
+    lr: 2e-4
+    weight_decay: 0.01
+
+    sched:
+      name: WarmupAnnealing
+
+      # pytorch lightning args
+      monitor: val_loss
+      reduce_on_plateau: false
+
+      # scheduler config override
+      warmup_steps: null
+      warmup_ratio: 0.0
+      last_epoch: -1
+
+decoder_exp_manager:
+  exp_dir: exps # where to store logs and checkpoints
+  name: decoder_training # name of experiment
+  create_tensorboard_logger: True
+  create_checkpoint_callback: True
+  checkpoint_callback_params:
+    save_top_k: 3
+    monitor: "val_loss"
+    mode: "min"
+    save_best_model: true
+    always_save_nemo: true
+
+# Data
+data:
+  base_dir: ??? # /path/to/data
+
+  train_ds:
+    data_path: ${data.base_dir}/train.tsv
+    batch_size: 64
+    shuffle: true
+    do_basic_tokenize: false
+    max_decoder_len: 80
+    mode: ${mode}
+    # Refer to the text_normalization doc for more information about data augmentation
+    tagger_data_augmentation: true
+    decoder_data_augmentation: true
+
+  validation_ds:
+    data_path: ${data.base_dir}/dev.tsv
+    batch_size: 64
+    shuffle: false
+    do_basic_tokenize: false
+    max_decoder_len: 80
+    mode: ${mode}
+
+  test_ds:
+    data_path: ${data.base_dir}/test.tsv
+    batch_size: 64
+    shuffle: false
+    mode: ${mode}
+
+# Inference
+inference:
+  interactive: false  # Set to true if you want to enable the interactive mode when running duplex_text_normalization_test.py
+  errors_log_fp: errors.txt # Path to the file for logging the errors
