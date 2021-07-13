@@ -744,6 +744,7 @@ class ONNXGreedyBatchedRNNTInfer:
 
         # Will be populated at runtime
         self._blank_index = None
+        self.max_symbols_per_step = max_symbols_per_step
 
         self._setup_encoder_input_output_keys()
         self._setup_decoder_joint_input_output_keys()
@@ -781,6 +782,37 @@ class ONNXGreedyBatchedRNNTInfer:
         logging.info(
             f"Enc-Dec-Joint step was evaluated, blank token id = {self._blank_index}; vocab size = {log_probs.shape[-1]}"
         )
+
+    def __call__(self, audio_signal: torch.Tensor):
+        """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
+        Output token is generated auto-repressively.
+
+        Args:
+            encoder_output: A tensor of size (batch, features, timesteps).
+            encoded_lengths: list of int representing the length of each sequence
+                output sequence.
+
+        Returns:
+            packed list containing batch number of sentences (Hypotheses).
+        """
+        with torch.no_grad():
+            # Apply optional preprocessing
+            encoder_output = self.run_encoder(audio_signal=audio_signal)
+            encoder_output = encoder_output.transpose(1, 2)  # (B, T, D)
+            logitlen = encoded_lengths
+
+            inseq = encoder_output  # [B, T, D]
+            hypotheses, timesteps, alignments = self._greedy_decode(inseq, logitlen, device=inseq.device)
+
+            # Pack the hypotheses results
+            packed_result = pack_hypotheses(hypotheses, timesteps, logitlen, alignments=alignments)
+
+            del hypotheses, timesteps
+
+        self.decoder.train(decoder_training_state)
+        self.joint.train(joint_training_state)
+
+        return (packed_result,)
 
     def run_encoder(self, audio_signal):
         ip = {self.encoder_inputs[0].name: audio_signal.cpu().numpy()}

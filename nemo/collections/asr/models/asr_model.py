@@ -181,6 +181,9 @@ class ExportableEncDecJointModel(Exportable):
 
         format = self.get_format(output)
 
+        # Assign special flag for RNNT export of encoder
+        self.input_module._rnnt_export = True
+
         if input_example is None:
             encoder_examples, decoder_examples = self._get_input_example()
             input_example = [encoder_examples, decoder_examples]
@@ -551,8 +554,6 @@ class ExportableEncDecJointModel(Exportable):
         dynamic_axes = {**dynamic_axes, **output_state_dynamic_axes}
 
         return dynamic_axes
-
-
 
     def _augment_output_filename(self, output, prepend: str):
         path, filename = os.path.split(output)

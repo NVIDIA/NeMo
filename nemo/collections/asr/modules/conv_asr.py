@@ -23,6 +23,7 @@ from omegaconf import MISSING, ListConfig, OmegaConf
 from nemo.collections.asr.parts.submodules.jasper import (
     JasperBlock,
     MaskedConv1d,
+    SqueezeExcite,
     ParallelBlock,
     init_weights,
     jasper_activations,
@@ -61,9 +62,12 @@ class ConvASREncoder(NeuralModule, Exportable):
     def _prepare_for_export(self, **kwargs):
         m_count = 0
         for m in self.modules():
-            if isinstance(m, MaskedConv1d):
-                m.use_mask = False
-                m_count += 1
+            # if isinstance(m, MaskedConv1d):
+            #     m.use_mask = False
+            #     m_count += 1
+            if isinstance(m, SqueezeExcite):
+                m._se_pool_step = m._se_pool_step_export
+
         Exportable._prepare_for_export(self, **kwargs)
         logging.warning(f"Turned off {m_count} masked convolutions")
 
@@ -74,7 +78,12 @@ class ConvASREncoder(NeuralModule, Exportable):
             A tuple of input examples.
         """
         input_example = torch.randn(16, self._feat_in, 256).to(next(self.parameters()).device)
-        return tuple([input_example])
+
+        if hasattr(self, '_rnnt_export') and self._rnnt_export:
+            lens = torch.randint(0, input_example.shape[-1], size=(input_example.shape[0],))
+            return tuple([input_example, lens])
+        else:
+            return tuple([input_example])
 
     @property
     def disabled_deployment_input_names(self):
@@ -522,13 +531,13 @@ class ECAPAEncoder(NeuralModule, Exportable):
 
     input:
         feat_in: input feature shape (mel spec feature shape)
-        filters: list of filter shapes for SE_TDNN modules 
+        filters: list of filter shapes for SE_TDNN modules
         kernel_sizes: list of kernel shapes for SE_TDNN modules
         dilations: list of dilations for group conv se layer
         scale: scale value to group wider conv channels (deafult:8)
-    
+
     output:
-        outputs : encoded output 
+        outputs : encoded output
         output_length: masked output lengths
     """
 
