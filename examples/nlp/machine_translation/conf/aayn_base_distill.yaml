@@ -144,15 +144,15 @@ model:
     model_path: '/teacher_dataset/AAYNBase/2021-06-17_18-04-54/checkpoints/AAYNBase.nemo'
 
     # loss weights
-    distillation_loss_weight: 1.0
-    student_train_loss_weight: 1.0
-    cosine_loss_weight: 1.0
+    distillation_loss_weight: 0.5 # logits from teacher
+    student_train_loss_weight: 0.5
+    cosine_loss_weight: 1.0 # not implemented yet for NMT
 
     # encoder matching
-    distill_encoder: False  # attempts to distill encoder as well if model shapes are compatible
+    distill_encoder: False  #  not implemented yet for NMT
 
     # logits temperature
-    temperature: 1.0
+    temperature: 2.0 # ranges from 1 to 10 (Hinton)
 
     # preserve memory for secondary loss computation (true by default)
     preserve_distillation_memory: false

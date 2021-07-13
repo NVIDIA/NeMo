@@ -16,7 +16,7 @@ from nemo.core.classes.mixins.distill_mixins import DistillationMixin
 import torch
 
 
-class MultiLayerPerceptron(torch.nn.Module, DistillationMixin):
+class MultiLayerPerceptron(torch.nn.Module):
     """
     A simple MLP that can either be used independently or put on top
     of pretrained models (such as BERT) and act as a classifier.
@@ -56,12 +56,6 @@ class MultiLayerPerceptron(torch.nn.Module, DistillationMixin):
         output_states = hidden_states[:]
         for i in range(self.layers):
             output_states = getattr(self, f'layer{i}')(output_states)
-
-        # # Hinton Distillation
-        # if self.is_being_distilled():
-        #     temp_log_probs = torch.nn.functional.log_softmax(output_states / self.distill_cfg.get('temperature', 1.0))
-        #     self.distillation_registration_step(log_prob=temp_log_probs)
-        #     del temp_log_probs
 
         if self.log_softmax:
             output_states = torch.log_softmax(output_states, dim=-1)
