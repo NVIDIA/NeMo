@@ -157,15 +157,14 @@ model:
     # preserve memory for secondary loss computation (true by default)
     preserve_distillation_memory: false
 
-    # optional - distillation loss config
-    # loss:
-    #   primary:
-    #     _target_: 'torch.nn.KLDivLoss'
-    #     log_target: true
-    #     reduction: 'batchmean'
-
-    #   cosine:
-    #     _target_: 'nemo.collections.common.losses.cosine_embedding.CosineEmbeddingLossWrapper'
+    loss:
+      primary:
+        _target_: 'nemo.collections.common.losses.distillation_losses.ScaledKLDivLoss'
+        temperature: ${model.distillation.temperature}
+        log_target: true
+        reduction: 'batchmean'
+      cosine:
+        _target_: 'nemo.collections.common.losses.distillation_losses.CosineEmbeddingLossWrapper'
 
 trainer:
   gpus: 4

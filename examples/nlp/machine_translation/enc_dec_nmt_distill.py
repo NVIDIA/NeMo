@@ -109,7 +109,7 @@ def main(cfg: MTEncDecConfig) -> None:
     logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
 
     # training is managed by PyTorch Lightning
-    trainer = Trainer(**cfg.trainer)
+    trainer = Trainer(**cfg.trainer, track_grad_norm=1)
 
     # tokenizers will be trained and and tarred training data will be created if needed
     # model config is then updated
