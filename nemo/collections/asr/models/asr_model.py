@@ -126,12 +126,11 @@ class ExportableEncDecJointModel(Exportable):
         joint_names = self.joint_module.disabled_deployment_output_names
         return set.union(encoder_names, decoder_names, joint_names)
 
-    def forward_for_encoder_export(self, encoder_inputs, length=None):
+    def forward_for_encoder_export(self, encoder_inputs, length):
         encoder_output = self.input_module(encoder_inputs, length)
-        if isinstance(encoder_output, tuple):
-            encoder_output = encoder_output[0]
+        encoder_output, encoded_length = encoder_output
 
-        return encoder_output
+        return encoder_output, encoded_length
 
     def forward_for_decoder_joint_export(self, encoder_output, decoder_inputs, decoder_lengths, state_h, state_c):
         decoder, joint = self.output_module, self.joint_module

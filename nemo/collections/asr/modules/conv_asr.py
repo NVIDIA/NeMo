@@ -62,9 +62,12 @@ class ConvASREncoder(NeuralModule, Exportable):
     def _prepare_for_export(self, **kwargs):
         m_count = 0
         for m in self.modules():
-            # if isinstance(m, MaskedConv1d):
-            #     m.use_mask = False
-            #     m_count += 1
+            if isinstance(m, MaskedConv1d):
+                if hasattr(self, '_rnnt_export') and self._rnnt_export:
+                    pass
+                else:
+                    m.use_mask = False
+                    m_count += 1
             if isinstance(m, SqueezeExcite):
                 m._se_pool_step = m._se_pool_step_export
 
@@ -88,12 +91,18 @@ class ConvASREncoder(NeuralModule, Exportable):
     @property
     def disabled_deployment_input_names(self):
         """Implement this method to return a set of input names disabled for export"""
-        return set(["length"])
+        if hasattr(self, '_rnnt_export') and self._rnnt_export:
+            return set([])
+        else:
+            return set(["length"])
 
     @property
     def disabled_deployment_output_names(self):
         """Implement this method to return a set of output names disabled for export"""
-        return set(["encoded_lengths"])
+        if hasattr(self, '_rnnt_export') and self._rnnt_export:
+            return set([])
+        else:
+            return set(["encoded_lengths"])
 
     def save_to(self, save_path: str):
         pass
