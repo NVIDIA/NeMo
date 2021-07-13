@@ -1,5 +1,5 @@
 name: "FastPitch"
-sample_rate: 22050
+sample_rate: 44100
 train_dataset: ???
 validation_datasets: ???
 prior_folder: ???
@@ -11,8 +11,9 @@ model:
   max_token_duration: 75
   n_mel_channels: 80
   pitch_embedding_kernel_size: 3
-  n_window_size: 1024
-  n_window_stride: 256
+  n_window_size: 2048
+  n_window_stride: 512
+  fmax: null
   pitch_fmin: 80
   pitch_fmax: 640
   pitch_avg: 211.27540199742586
@@ -152,7 +153,7 @@ model:
     n_layers: 2
 
   optim:
-    name: lamb
+    name: adam
     lr: 1e-1
     betas: [0.9, 0.98]
     weight_decay: 1e-6
