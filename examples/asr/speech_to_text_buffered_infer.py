@@ -25,16 +25,6 @@ import torch
 
 from nemo.utils import logging
 
-try:
-    from torch.cuda.amp import autocast
-except ImportError:
-    from contextlib import contextmanager
-
-    @contextmanager
-    def autocast(enabled=None):
-        yield
-
-
 can_gpu = torch.cuda.is_available()
 import json
 import os
@@ -106,7 +96,6 @@ def main():
     asr_model.eval()
     asr_model = asr_model.to(asr_model.device)
 
-    res = {}
     feature_stride = cfg.preprocessor['window_stride']
     model_stride_in_secs = feature_stride * args.model_stride
     total_buffer = args.total_buffer_in_secs
