@@ -19,23 +19,21 @@ This script serves three goals:
     (3) Serves as CI test for pre-trained checkpoint
 """
 
+import copy
+import json
+import math
+import os
 from argparse import ArgumentParser
 
 import torch
+from omegaconf import OmegaConf
 
+import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.metrics.wer import word_error_rate
+from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
 from nemo.utils import logging
 
 can_gpu = torch.cuda.is_available()
-import json
-import os
-from omegaconf import OmegaConf
-import copy
-import nemo.collections.asr as nemo_asr
-import torch
-from nemo.collections.asr.metrics.wer import word_error_rate
-
-import math
-from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
 
 
 def get_wer_feat(mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg, model_stride_in_secs, device):
@@ -60,6 +58,7 @@ def get_wer_feat(mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg
     wer = word_error_rate(hypotheses=hyps, references=refs)
     return hyps, refs, wer
 
+
 def main():
     parser = ArgumentParser()
     parser.add_argument(
@@ -67,10 +66,20 @@ def main():
     )
     parser.add_argument("--test_manifest", type=str, required=True, help="path to evaluation data")
     parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--total_buffer_in_secs", type=float, default=4.0, help="Length of buffer (chunk + left and right padding) in seconds ")
+    parser.add_argument(
+        "--total_buffer_in_secs",
+        type=float,
+        default=4.0,
+        help="Length of buffer (chunk + left and right padding) in seconds ",
+    )
     parser.add_argument("--chunk_len_in_ms", type=int, default=1600, help="Chunk length in milliseconds")
     parser.add_argument("--output_path", type=str, help="path to output file", default=None)
-    parser.add_argument("--model_stride", type=int, default=8, help="Model downsampling factor, 8 for Citrinet models and 4 for Conformer models")
+    parser.add_argument(
+        "--model_stride",
+        type=int,
+        default=8,
+        help="Model downsampling factor, 8 for Citrinet models and 4 for Conformer models",
+    )
 
     args = parser.parse_args()
     torch.set_grad_enabled(False)
@@ -107,20 +116,33 @@ def main():
     print(tokens_per_chunk, mid_delay)
 
     frame_asr = FrameBatchASR(
-                        asr_model=asr_model,
-                        frame_len=chunk_len,
-                        total_buffer=args.total_buffer_in_secs,
-                        batch_size=args.batch_size,)
+        asr_model=asr_model, frame_len=chunk_len, total_buffer=args.total_buffer_in_secs, batch_size=args.batch_size,
+    )
 
-    hyps, refs, wer = get_wer_feat(args.test_manifest, frame_asr, chunk_len, tokens_per_chunk, mid_delay,
-                                        cfg.preprocessor, model_stride_in_secs, asr_model.device)
+    hyps, refs, wer = get_wer_feat(
+        args.test_manifest,
+        frame_asr,
+        chunk_len,
+        tokens_per_chunk,
+        mid_delay,
+        cfg.preprocessor,
+        model_stride_in_secs,
+        asr_model.device,
+    )
     logging.info(f"WER is {round(wer, 2)} when decoded with a delay of {round(mid_delay*model_stride_in_secs, 2)}s")
 
     if args.output_path is not None:
 
-        fname = (os.path.splitext(os.path.basename(args.asr_model))[0] + "_" +
-                 os.path.splitext(os.path.basename(args.test_manifest))[0] + "_" +
-                 str(args.chunk_len_in_ms) + "_" + str(int(total_buffer * 1000)) + ".json")
+        fname = (
+            os.path.splitext(os.path.basename(args.asr_model))[0]
+            + "_"
+            + os.path.splitext(os.path.basename(args.test_manifest))[0]
+            + "_"
+            + str(args.chunk_len_in_ms)
+            + "_"
+            + str(int(total_buffer * 1000))
+            + ".json"
+        )
         hyp_json = os.path.join(args.output_path, fname)
         os.makedirs(args.output_path, exist_ok=True)
         with open(hyp_json, "w") as out_f:
