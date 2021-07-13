@@ -75,23 +75,23 @@ model:
       last_epoch: -1
       warmup_ratio: 0.1
 
-  encoder_tokenizer:
-    library: yttm
-    tokenizer_model: null
-    vocab_size: null # vocab size for training bpe
-    bpe_dropout: null
-    vocab_file: null
-    special_tokens: null
-    training_sample_size: null # valid for sentencepiece tokenizer
+  encoder_tokenizer:                                                                                                                 
+    library: yttm                                                                                                                    
+    tokenizer_model: /raid/82137/AAYNBase/2021-06-17_18-04-54/checkpoints/abb8f67c1d0f47bc8ce88cac13dfc868_tokenizer.BPE.8192.model                                                  
+    vocab_size: null                                                                                                                 
+    bpe_dropout: null                                                                                                                
+    vocab_file: null                                                                                                                 
+    special_tokens: null                                                                                                             
+    training_sample_size: null   
 
-  decoder_tokenizer:
-    library: yttm
-    tokenizer_model: null
-    vocab_size: null # vocab size for training bpe
-    bpe_dropout: null
-    vocab_file: null
-    special_tokens: null
-    training_sample_size: null # valid for sentencepiece tokenizer
+  decoder_tokenizer:                                                                                                                 
+    library: yttm                                                                                                                    
+    tokenizer_model: /raid/82137/AAYNBase/2021-06-17_18-04-54/checkpoints/600b4abaf3194178bc521cbc7f2c5be9_tokenizer.BPE.8192.model                                                  
+    vocab_size: null                                                                                                                 
+    bpe_dropout: null                                                                                                                
+    vocab_file: null                                                                                                                 
+    special_tokens: null                                                                                                             
+    training_sample_size: null 
 
   encoder:
     library: nemo
@@ -158,14 +158,14 @@ model:
     preserve_distillation_memory: false
 
     # optional - distillation loss config
-    loss:
-      primary:
-        _target_: 'torch.nn.KLDivLoss'
-        log_target: true
-        reduction: 'batchmean'
+    # loss:
+    #   primary:
+    #     _target_: 'torch.nn.KLDivLoss'
+    #     log_target: true
+    #     reduction: 'batchmean'
 
-      cosine:
-        _target_: 'nemo.collections.common.losses.cosine_embedding.CosineEmbeddingLossWrapper'
+    #   cosine:
+    #     _target_: 'nemo.collections.common.losses.cosine_embedding.CosineEmbeddingLossWrapper'
 
 trainer:
   gpus: 4

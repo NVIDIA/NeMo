@@ -206,6 +206,7 @@ class PositionWiseFF(nn.Module):
         self.act_fn = ACT2FN[hidden_act]
 
     def forward(self, hidden_states):
+        # print(f'HIDDEN SHAPE {hidden_states.shape}, {hidden_states.device}')
         output_states = self.dense_in(hidden_states)
         output_states = self.act_fn(output_states)
         output_states = self.dense_out(output_states)

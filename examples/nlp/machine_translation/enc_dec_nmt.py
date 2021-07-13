@@ -124,10 +124,10 @@ def main(cfg: MTEncDecConfig) -> None:
     # everything needed to train translation models is encapsulated in the NeMo MTEncdDecModel
     mt_model = MTEncDecModel(cfg.model, trainer=trainer)
 
-    logging.info("\n\n************** Model parameters and their sizes ***********")
-    for name, param in mt_model.named_parameters():
-        print(name, param.size())
-    logging.info("***********************************************************\n\n")
+    # logging.info("\n\n************** Model parameters and their sizes ***********")
+    # for name, param in mt_model.named_parameters():
+    #     print(name, param.size())
+    # logging.info("***********************************************************\n\n")
 
     if cfg.do_training:
         trainer.fit(mt_model)

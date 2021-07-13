@@ -7,7 +7,7 @@ STEPS=100000
 EXPNAME=STUDENT_DISTILLED_LOCAL
 
 # yttm bpe --data /raid/wmt_16/train.clean.en-de.shuffled.common --model /raid/wmt_16/tokenizer.BPE.${VOCAB_SIZE}.model --vocab_size $VOCAB_SIZE && \
-# yttm bpe --data /raid/wmt_16/train.clean.en-de.shuffled.common --model /raid/wmt_16/tokenizer.BPE.32000.model --vocab_size 32000 --coverage 0.999
+# yttm bpe --data /raid/wmt_16/train.clean.en-de.shuffled.common --model /raid/wmt_16/tokenizer.BPE.8192.model --vocab_size 8192 --coverage 0.999
 
 python enc_dec_nmt_distill.py \
 --config-path=conf \

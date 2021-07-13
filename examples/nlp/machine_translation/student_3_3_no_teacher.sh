@@ -2,8 +2,8 @@
 PROJECT=nmt-de-en
 STEPS=100000
 WANDBLOGIN=1589819cfa34108320cd27634a3f764a29b211d8
-DISTILLATION_LOSS_WEIGHT=0.5
-STUDENT_TRAIN_LOSS_WEIGHT=0.5
+DISTILLATION_LOSS_WEIGHT=0.0
+STUDENT_TRAIN_LOSS_WEIGHT=1.0
 TEMPERATURE=10.0
 EXPNAME=STUDENT_3_3_NMT_DE_EN_DL_${DISTILLATION_LOSS_WEIGHT}_SL_${STUDENT_TRAIN_LOSS_WEIGHT}_TEMP_${TEMPERATURE}
 
@@ -54,6 +54,6 @@ model.distillation.temperature=${TEMPERATURE} \
 +exp_manager.wandb_logger_kwargs.project=nmt-de-en \
 +exp_manager.create_checkpoint_callback=True \
 +exp_manager.checkpoint_callback_params.monitor=val_sacreBLEU \
-+exp_manager.exp_dir=/raid/exp_results_student \
++exp_manager.exp_dir=/raid/exp_results_student_no_teacher \
 +exp_manager.checkpoint_callback_params.mode=max \
 +exp_manager.checkpoint_callback_params.always_save_nemo=True
