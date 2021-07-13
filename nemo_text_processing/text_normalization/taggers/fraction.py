@@ -43,7 +43,12 @@ class FractionFst(GraphFst):
         numerator = (
             pynutil.insert("numerator: \"") + cardinal_graph + (pynini.cross("/", "\" ") | pynini.cross(" / ", "\" "))
         )
-        denominator = pynutil.insert("denominator: \"") + cardinal_graph + pynutil.insert("\"")
+
+        endings = ["rd", "th", "st", "nd"]
+        endings += [x.upper() for x in endings]
+        optional_end = pynini.closure(pynini.cross(pynini.union(*endings), ""), 0, 1)
+
+        denominator = pynutil.insert("denominator: \"") + cardinal_graph + optional_end + pynutil.insert("\"")
 
         self.graph = pynini.closure(integer, 0, 1) + numerator + denominator
         final_graph = self.add_tokens(self.graph)
