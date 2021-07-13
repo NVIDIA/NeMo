@@ -307,6 +307,7 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
             stride_last = lcfg.get('stride_last', False)
             aggregation_mode = lcfg.get('aggregation_mode', 'sum')
             block_dropout = lcfg.get('block_dropout', 0.0)
+            parallel_residual_mode = lcfg.get('parallel_residual_mode', 'sum')
 
             parallel_blocks = []
             for kernel_size in lcfg['kernel']:
@@ -342,7 +343,7 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
                 encoder_layers.append(parallel_blocks[0])
             else:
                 encoder_layers.append(
-                    ParallelBlock(parallel_blocks, aggregation_mode=aggregation_mode, block_dropout_prob=block_dropout)
+                    ParallelBlock(parallel_blocks, aggregation_mode=aggregation_mode, block_dropout_prob=block_dropout, residual_mode=parallel_residual_mode, in_filters=feat_in, out_filters=lcfg['filters'])
                 )
             feat_in = lcfg['filters']
 

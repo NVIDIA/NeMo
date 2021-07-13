@@ -976,13 +976,28 @@ class ParallelBlock(nn.Module):
             mode. Acts as a regularization technique.
     """
 
-    def __init__(self, blocks, aggregation_mode: str = "sum", block_dropout_prob: int = 0.0):
+    def __init__(self, blocks, aggregation_mode: str = "sum", block_dropout_prob: int = 0.0, residual_mode: str = "sum", in_filters=None, out_filters=None):
         super().__init__()
         self.blocks = nn.ModuleList(blocks)
+
+        self.supported_aggregations = ["sum", "dropout"]
+        if aggregation_mode not in self.supported_aggregations:
+            raise ValueError(f"Got non-supported aggregation mode: {aggregation_mode}. Supported values are {self.supported_aggregations}.")
         self.aggregation_mode = aggregation_mode
+
         if aggregation_mode == "dropout":
             self.weights = nn.Parameter(torch.ones(1, len(blocks), 1, 1), requires_grad=False)
             self.dropout = nn.Dropout(block_dropout_prob)
+
+        self.supported_residuals = ["sum", "conv"]
+        if residual_mode not in self.supported_residuals:
+            raise ValueError(f"Got non-supported residual mode: {residual_mode}. Supported values are {self.supported_residuals}.")
+        self.residual_mode = residual_mode
+
+        if residual_mode == "conv":
+            if in_filters is None or out_filters is None:
+                raise ValueError("in_filters and out_filters have to be specified when using 'conv' residual mode.")
+            self.res_conv = MaskedConv1d(in_filters, out_filters, kernel_size=1, bias=False, use_mask=True)
 
     def get_dropout_mask(self):
         weights = self.dropout(self.weights)
@@ -1005,8 +1020,6 @@ class ParallelBlock(nn.Module):
         if len(self.blocks) == 1:
             return self.blocks[0](x)
 
-        input_feat = x[0][-1]
-        in_channels = input_feat.shape[-2]
 
         result = None
         max_mask = None
@@ -1019,7 +1032,6 @@ class ParallelBlock(nn.Module):
             output, mask = block(x)
 
             weighted_output = output[-1]
-            out_channels = weighted_output.shape[-2]
             if self.aggregation_mode == "dropout":
                 weighted_output = scaling_weights[:, i, :, :] * output[-1]
 
@@ -1032,6 +1044,10 @@ class ParallelBlock(nn.Module):
                 max_mask = mask
             else:
                 max_mask = torch.max(torch.stack([mask, max_mask]), dim=0)[0]
-        if in_channels == out_channels:
+        input_feat = x[0][-1]
+        lens = x[1]
+        if self.residual_mode == "sum":
             result = result + input_feat
+        elif self.residual_mode == "conv":
+            result = result + self.res_conv(input_feat, lens)[0]
         return [result], max_mask

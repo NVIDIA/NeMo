@@ -305,14 +305,14 @@ class TestParallelBlock:
         return block
 
     @pytest.mark.unit
-    def test_blocks_with_same_input_output_channels(self):
+    def test_blocks_with_same_input_output_channels_sum_residual(self):
         blocks = []
         in_planes = 8
         out_planes = 8
         for _ in range(2):
             blocks.append(self.contrust_jasper_block(inplanes=in_planes, planes=out_planes))
 
-        block = jasper.ParallelBlock(blocks)
+        block = jasper.ParallelBlock(blocks, residual_mode='sum')
         x = torch.randn(1, in_planes, 140)
         xlen = torch.tensor([131])
         y, ylen = block(([x], xlen))
@@ -321,14 +321,45 @@ class TestParallelBlock:
         assert ylen[0] == 131
 
     @pytest.mark.unit
-    def test_blocks_with_different_input_output_channels(self):
+    def test_blocks_with_different_input_output_channels_sum_residual(self):
         blocks = []
         in_planes = 8
         out_planes = 16
         for _ in range(2):
             blocks.append(self.contrust_jasper_block(inplanes=in_planes, planes=out_planes))
 
-        block = jasper.ParallelBlock(blocks)
+        block = jasper.ParallelBlock(blocks, residual_mode='sum')
+        x = torch.randn(1, in_planes, 140)
+        xlen = torch.tensor([131])
+
+        with pytest.raises(RuntimeError):
+            block(([x], xlen))
+
+    @pytest.mark.unit
+    def test_blocks_with_same_input_output_channels_conv_residual(self):
+        blocks = []
+        in_planes = 8
+        out_planes = 8
+        for _ in range(2):
+            blocks.append(self.contrust_jasper_block(inplanes=in_planes, planes=out_planes))
+
+        block = jasper.ParallelBlock(blocks, residual_mode='conv', in_filters=in_planes, out_filters=out_planes)
+        x = torch.randn(1, in_planes, 140)
+        xlen = torch.tensor([131])
+        y, ylen = block(([x], xlen))
+
+        assert y[0].shape == torch.Size([1, out_planes, 140])
+        assert ylen[0] == 131
+
+    @pytest.mark.unit
+    def test_blocks_with_different_input_output_channels_conv_residual(self):
+        blocks = []
+        in_planes = 8
+        out_planes = 16
+        for _ in range(2):
+            blocks.append(self.contrust_jasper_block(inplanes=in_planes, planes=out_planes))
+
+        block = jasper.ParallelBlock(blocks, residual_mode='conv', in_filters=in_planes, out_filters=out_planes)
         x = torch.randn(1, in_planes, 140)
         xlen = torch.tensor([131])
         y, ylen = block(([x], xlen))
