@@ -160,9 +160,10 @@ model:
     # optional - distillation loss config
     loss:
       primary:
-        _target_: 'torch.nn.KLDivLoss'
+        _target_: 'nemo.collections.common.losses.distillation_losses.scaled_kld.ScaledKLDivLoss'
         log_target: true
         reduction: 'batchmean'
+        temperature: ${model.distillation.temperature}
 
       cosine:
         _target_: 'nemo.collections.common.losses.cosine_embedding.CosineEmbeddingLossWrapper'
