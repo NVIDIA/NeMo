@@ -127,7 +127,7 @@ class TestExportable:
 
             # enc_logits + (all decoder inputs - state tuple) + flattened state list
             assert len(onnx_model.graph.input) == (1 + (len(input_examples) - 1) + num_states)
-            assert onnx_model.graph.input[0].name == 'enc_logits'
+            assert onnx_model.graph.input[0].name == 'encoder_outputs'
             assert onnx_model.graph.input[1].name == 'targets'
             assert onnx_model.graph.input[2].name == 'target_length'
 

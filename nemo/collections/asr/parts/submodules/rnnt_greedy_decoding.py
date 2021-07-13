@@ -25,11 +25,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
+
 from dataclasses import dataclass
 from typing import List, Optional, Union
 
 import torch
+import numpy as np
 
 from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.utils import rnnt_utils
@@ -836,6 +837,7 @@ class ONNXGreedyBatchedRNNTInfer:
         max_out_len = out_len.max()
         for time_idx in range(max_out_len):
             f = x[:, time_idx : time_idx + 1, :]  #  x.narrow(dim=1, start=time_idx, length=1)  # [B, 1, D]
+            f = f.transpose([0, 2, 1])
 
             # Prepare t timestamp batch variables
             not_blank = True
@@ -860,19 +862,20 @@ class ONNXGreedyBatchedRNNTInfer:
                     g = last_label
 
                 # Batched joint step - Output = [B, V + 1]
-                logp, hidden_prime = self.run_decoder_joint(f, g, target_lengths, *hidden)[:, 0, 0, :]
+                joint_out, hidden_prime = self.run_decoder_joint(f, g, target_lengths, *hidden)
+                logp, pred_lengths = joint_out
+                logp = logp[:, 0, 0, :]
 
-                if logp.dtype != torch.float32:
-                    logp = logp.float()
+                # if logp.dtype != torch.float32:
+                #     logp = logp.float()
 
                 # Get index k, of max prob for batch
-                v, k = logp.max(1)
-                del v
+                k = np.argmax(logp, axis=1).astype(np.int32)
 
                 # Update blank mask with current predicted blanks
                 # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
                 k_is_blank = k == self._blank_index
-                blank_mask.bitwise_or_(k_is_blank)
+                blank_mask |= k_is_blank
 
                 del k_is_blank
                 del logp
@@ -930,12 +933,17 @@ class ONNXGreedyBatchedRNNTInfer:
             targets = torch.zeros(enc_logits.shape[0], 1, dtype=torch.int32)
             target_length = torch.ones(enc_logits.shape[0], dtype=torch.int32)
 
+        if hasattr(targets, 'cpu'):
+            targets = targets.cpu().numpy()
+
+        if hasattr(target_length, 'cpu'):
+            target_length = target_length.cpu().numpy()
+
         ip = {
             self.decoder_joint_inputs[0].name: enc_logits,
-            self.decoder_joint_inputs[1].name: targets.cpu().numpy(),
-            self.decoder_joint_inputs[2].name: target_length.cpu().numpy(),
+            self.decoder_joint_inputs[1].name: targets,
+            self.decoder_joint_inputs[2].name: target_length,
         }
-        print(self.decoder_joint_inputs)
 
         num_states = 0
         if states is not None and len(states) > 0:

@@ -325,7 +325,7 @@ class ExportableEncDecJointModel(Exportable):
                     None,
                     encoder_decoder_input_list,
                     decoder_joint_output_example,
-                    self._join_input_output_names(["enc_logits"], decoder_input_names, input_state_names),
+                    self._join_input_output_names(["encoder_outputs"], decoder_input_names, input_state_names),
                     self._join_input_output_names(joint_output_names, decoder_output_names, output_state_names),
                     use_dynamic_axes,
                     do_constant_folding,
@@ -345,7 +345,7 @@ class ExportableEncDecJointModel(Exportable):
                     decoder_joint_output_example,
                     encoder_decoder_input_list,
                     encoder_decoder_input_dict,
-                    self._join_input_output_names(["enc_logits"], decoder_input_names, input_state_names),
+                    self._join_input_output_names(["encoder_outputs"], decoder_input_names, input_state_names),
                     check_tolerance,
                     check_trace,
                 )
@@ -508,6 +508,10 @@ class ExportableEncDecJointModel(Exportable):
                 }
                 dynamic_axes = {
                     **dynamic_axes,
+                    **exportable.get_input_dynamic_axes(self.joint_module, input_names),
+                }
+                dynamic_axes = {
+                    **dynamic_axes,
                     **exportable.get_output_dynamic_axes(self.joint_module, output_names),
                 }
                 dynamic_axes = self._get_state_dynamic_axes(dynamic_axes, input_names, output_names)
@@ -516,7 +520,7 @@ class ExportableEncDecJointModel(Exportable):
 
     def _get_state_dynamic_axes(self, dynamic_axes, input_names, output_names):
         # Explicitly add `enc_logits`:
-        dynamic_axes['enc_logits'] = dynamic_axes['outputs']
+        # dynamic_axes['enc_logits'] = dynamic_axes['outputs']
 
         reduced_input_names = []
         for name in input_names:
