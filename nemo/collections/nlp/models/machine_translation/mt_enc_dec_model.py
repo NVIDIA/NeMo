@@ -792,7 +792,6 @@ class MTEncDecModel(EncDecNLPModel):
     def list_available_models(cls) -> Optional[Dict[str, str]]:
         """
         This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
-
         Returns:
             List of available pre-trained models.
         """
