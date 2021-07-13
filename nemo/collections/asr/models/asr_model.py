@@ -182,6 +182,8 @@ class ExportableEncDecJointModel(Exportable):
 
         # Assign special flag for RNNT export of encoder
         self.input_module._rnnt_export = True
+        self.output_module._rnnt_export = True
+        self.joint_module._rnnt_export = True
 
         if input_example is None:
             encoder_examples, decoder_examples = self._get_input_example()
@@ -293,6 +295,10 @@ class ExportableEncDecJointModel(Exportable):
                 )
 
                 self._export_flag_module = 'decoder_joint'
+
+                # Extract just the encoder logits and remove the encoder lengths
+                if type(encoder_output_example) in (list, tuple):
+                    encoder_output_example = encoder_output_example[0]
 
                 encoder_decoder_input_list = [encoder_output_example] + list(decoder_input_list)
                 encoder_decoder_input_dict = decoder_input_dict

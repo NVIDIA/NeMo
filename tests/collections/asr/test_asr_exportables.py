@@ -87,14 +87,14 @@ class TestExportable:
             assert onnx_model.graph.input[0].name == 'audio_signal'
             assert onnx_model.graph.output[0].name == 'logprobs'
 
-    @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
-    )
+    # @pytest.mark.skipif(
+    #     not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+    # )
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_EncDecRNNTModel_export_to_onnx(self, citrinet_rnnt_model):
         citrinet_rnnt_model.freeze()
-        model = citrinet_rnnt_model.cuda()
+        model = citrinet_rnnt_model  # .cuda()
 
         with tempfile.TemporaryDirectory() as tmpdir:
             fn = 'citri_rnnt.onnx'
@@ -105,10 +105,12 @@ class TestExportable:
             assert os.path.exists(encoder_filename)
             onnx_model = onnx.load(encoder_filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
-            assert len(onnx_model.graph.input) == 1
-            assert len(onnx_model.graph.output) == 1
+            assert len(onnx_model.graph.input) == 2
+            assert len(onnx_model.graph.output) == 2
             assert onnx_model.graph.input[0].name == 'audio_signal'
+            assert onnx_model.graph.input[1].name == 'length'
             assert onnx_model.graph.output[0].name == 'outputs'
+            assert onnx_model.graph.output[1].name == 'encoded_lengths'
 
             decoder_joint_filename = os.path.join(tmpdir, 'Decoder-Joint-' + fn)
             assert os.path.exists(decoder_joint_filename)

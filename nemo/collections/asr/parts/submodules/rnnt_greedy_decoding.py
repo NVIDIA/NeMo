@@ -769,7 +769,9 @@ class ONNXGreedyBatchedRNNTInfer:
             else:
                 ip_shape.append(int(shape.dim_value))
 
-        enc_logits = self.run_encoder(audio_signal=torch.randn(*ip_shape))
+        enc_logits, encoded_length = self.run_encoder(
+            audio_signal=torch.randn(*ip_shape), length=torch.randint(0, 1, size=(dynamic_dim,))
+        )
 
         # prepare states
         states = self._get_initial_states(batchsize=dynamic_dim)
@@ -814,11 +816,14 @@ class ONNXGreedyBatchedRNNTInfer:
 
         return (packed_result,)
 
-    def run_encoder(self, audio_signal):
-        ip = {self.encoder_inputs[0].name: audio_signal.cpu().numpy()}
+    def run_encoder(self, audio_signal, length):
+        ip = {
+            self.encoder_inputs[0].name: audio_signal.cpu().numpy(),
+            self.encoder_inputs[1].name: length.cpu().numpy(),
+        }
         enc_out = self.encoder.run(None, ip)
-        enc_out = enc_out[0]  # ASSUME: single output
-        return enc_out
+        enc_out, encoded_length = enc_out  # ASSUME: single output
+        return enc_out, encoded_length
 
     def run_decoder_joint(self, enc_logits, targets, target_length, *states):
         # ASSUME: Decoder is RNN Transducer
