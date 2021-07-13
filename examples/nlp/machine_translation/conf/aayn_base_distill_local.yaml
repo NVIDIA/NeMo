@@ -159,12 +159,13 @@ model:
 
     loss:
       primary:
-        _target_: 'nemo.collections.common.losses.distillation_losses.ScaledKLDivLoss'
-        temperature: ${model.distillation.temperature}
+        _target_: 'nemo.collections.common.losses.distillation_losses.scaled_kld.ScaledKLDivLoss'
         log_target: true
         reduction: 'batchmean'
+        temperature: ${model.distillation.temperature}
+
       cosine:
-        _target_: 'nemo.collections.common.losses.distillation_losses.CosineEmbeddingLossWrapper'
+        _target_: 'nemo.collections.common.losses.cosine_embedding.CosineEmbeddingLossWrapper'
 
 trainer:
   gpus: 4
