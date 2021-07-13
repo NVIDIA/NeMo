@@ -2,8 +2,8 @@
 PROJECT=nmt-de-en
 STEPS=100000
 WANDBLOGIN=1589819cfa34108320cd27634a3f764a29b211d8
-DISTILLATION_LOSS_WEIGHT=0.5
-STUDENT_TRAIN_LOSS_WEIGHT=$(( 1 - DISTILLATION_LOSS_WEIGHT ))
+DISTILLATION_LOSS_WEIGHT=0.0
+STUDENT_TRAIN_LOSS_WEIGHT=$(( 1.0 - $DISTILLATION_LOSS_WEIGHT | bc ))
 TEMPERATURE=10.0
 EXPNAME=STUDENT_3_3_NMT_DE_EN_DL_${DISTILLATION_LOSS_WEIGHT}_SL_${STUDENT_TRAIN_LOSS_WEIGHT}_TEMP_${TEMPERATURE}
 
@@ -15,10 +15,11 @@ EXPNAME=STUDENT_3_3_NMT_DE_EN_DL_${DISTILLATION_LOSS_WEIGHT}_SL_${STUDENT_TRAIN_
 python enc_dec_nmt_distill.py \
 --config-path=conf \
 --config-name=aayn_base_distill_local \
-trainer.gpus=1 \
+trainer.gpus=2 \
 ~trainer.max_epochs \
 +trainer.max_steps=100000 \
 +trainer.val_check_interval=1000 \
++trainer.track_grad_norm=1 \
 model.beam_size=4 \
 model.max_generation_delta=5 \
 model.label_smoothing=0.1 \
