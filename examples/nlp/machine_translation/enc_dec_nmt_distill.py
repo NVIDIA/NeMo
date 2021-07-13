@@ -119,22 +119,10 @@ def main(cfg: MTEncDecConfig) -> None:
     # experiment logs, checkpoints, and auto-resume are managed by exp_manager and PyTorch Lightning
     exp_manager(trainer, cfg.exp_manager)
 
-    # everything needed to train translation models is encapsulated in the NeMo MTEncdDecModel
-    # mt_model = MTEncDecModel(cfg.model, trainer=trainer)
-
     teacher_student_model = DistillationModelPT(cfg=cfg.model, trainer=trainer)
-
-    # TODO: student teacher params
-    # logging.info("\n\n************** Model parameters and their sizes ***********")
-    # for name, param in mt_model.named_parameters():
-    #     print(name, param.size())
-    # logging.info("***********************************************************\n\n")
 
     if cfg.do_training:
         trainer.fit(teacher_student_model)
-
-    # if cfg.do_testing:
-    #     trainer.test(teacher_student_model)
 
 
 if __name__ == '__main__':
