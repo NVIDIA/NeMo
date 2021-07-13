@@ -4,7 +4,7 @@ Entity Linking
 ====================================
 
 Entity linking is the process of matching concepts mentioned in natural language to their unique IDs and canonical forms stored 
-in a knowledge based. For example, an entity linking model might match the phrase ``blood thinners`` mentioned in conversation 
+in a knowledge base. For example, an entity linking model might match the phrase ``blood thinners`` mentioned in conversation 
 to the knowledge base concept UID45623 anticoagulant. Entity linking applications range from helping automate ingestion of 
 large amounts of data to assisting in real time concept normalization.
 
@@ -16,7 +16,7 @@ be used to build a knowledge base embedding index.
 .. image:: https://github.com/NVIDIA/NeMo/blob/entity-linking-documentation/docs/source/nlp/entity_linking_overview.jpg
   :alt: Entity-Linking-Overview
 
-Our BERT-based + Self Alignment Pretraining implementation allows you to train an entity linking encoder. We also provide example code
+Our BERT-base + Self Alignment Pretraining implementation allows you to train an entity linking encoder. We also provide example code
 on building an index with `Medical UMLS <https://www.nlm.nih.gov/research/umls/index.html>`_ concepts `NeMo/examples/nlp/entity_linking/build_index.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/entity_linking/build_index.py>`__.
 
 Please try the example Entity Linking model in a Jupyter notebook (can run on `Google's Colab <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.2/tutorials/nlp/Entity_Linking_Medical.ipynb>`__).
