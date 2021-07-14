@@ -19,10 +19,10 @@ from nemo_text_processing.inverse_text_normalization.ru.taggers.decimals import 
 from nemo_text_processing.inverse_text_normalization.ru.taggers.electronic import ElectronicFst
 from nemo_text_processing.inverse_text_normalization.ru.taggers.money import MoneyFst
 from nemo_text_processing.inverse_text_normalization.ru.taggers.ordinal import OrdinalFst
-from nemo_text_processing.inverse_text_normalization.taggers.punctuation import PunctuationFst
-from nemo_text_processing.inverse_text_normalization.taggers.whitelist import WhiteListFst
-from nemo_text_processing.inverse_text_normalization.taggers.word import WordFst
-from nemo_text_processing.text_normalization.graph_utils import GraphFst, delete_extra_space, delete_space
+from nemo_text_processing.inverse_text_normalization.en.taggers.punctuation import PunctuationFst
+from nemo_text_processing.inverse_text_normalization.en.taggers.whitelist import WhiteListFst
+from nemo_text_processing.inverse_text_normalization.en.taggers.word import WordFst
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, delete_extra_space, delete_space
 from nemo_text_processing.text_normalization.ru.taggers.tokenize_and_classify import ClassifyFst as TNClassifyFst
 
 try:

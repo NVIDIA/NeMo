@@ -74,7 +74,7 @@ def parse_args():
     parser = ArgumentParser()
     parser.add_argument("input_string", help="input string", type=str)
     parser.add_argument("--lang", help="select target language", type=str, default='en', choices=['en', 'ru'])
-    parser.add_argument("-lang", "--language", help="language", choices=['en'], default="en", type=str)
+    parser.add_argument("-lang", "--language", help="language", choices=['en', 'ru'], default="en", type=str)
     parser.add_argument("--verbose", help="print info for debugging", action='store_true')
     return parser.parse_args()
 

@@ -14,7 +14,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.graph_utils import NEMO_SPACE, GraphFst, delete_extra_space
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SPACE, GraphFst, delete_extra_space
 
 try:
     import pynini

@@ -15,7 +15,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.graph_utils import GraphFst
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
 
 try:
     import pynini

@@ -15,7 +15,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.graph_utils import GraphFst, insert_space
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, insert_space
 
 try:
     import pynini
