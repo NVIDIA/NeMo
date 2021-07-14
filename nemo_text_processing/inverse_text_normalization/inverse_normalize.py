@@ -23,20 +23,20 @@ class InverseNormalizer(Normalizer):
     """
     Inverse normalizer that converts text from spoken to written form. Useful for ASR postprocessing. 
     Input is expected to have no punctuation and be lower cased.
+
+    Args:
+        lang: language specifying the ITN, by default: English.
     """
 
-    def __init__(self, lang='en'):
-        if lang == 'ru':
-            from nemo_text_processing.inverse_text_normalization.ru.taggers.tokenize_and_classify import ClassifyFst
-            from nemo_text_processing.inverse_text_normalization.ru.verbalizers.verbalize_final import (
+    def __init__(self, lang: str = 'en'):
+        if lang == 'en':
+            from nemo_text_processing.inverse_text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.inverse_text_normalization.en.verbalizers.verbalize_final import (
                 VerbalizeFinalFst,
             )
-        elif lang == 'en':
-            from nemo_text_processing.inverse_text_normalization.taggers.tokenize_and_classify import ClassifyFst
-            from nemo_text_processing.inverse_text_normalization.verbalizers.verbalize_final import VerbalizeFinalFst
-        elif lang == 'es':
-            from nemo_text_processing.inverse_text_normalization.es.taggers.tokenize_and_classify import ClassifyFst
-            from nemo_text_processing.inverse_text_normalization.es.verbalizers.verbalize_final import (
+        elif lang == 'ru':
+            from nemo_text_processing.inverse_text_normalization.ru.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.inverse_text_normalization.ru.verbalizers.verbalize_final import (
                 VerbalizeFinalFst,
             )
 
@@ -74,11 +74,12 @@ def parse_args():
     parser = ArgumentParser()
     parser.add_argument("input_string", help="input string", type=str)
     parser.add_argument("--lang", help="select target language", type=str, default='en', choices=['en', 'ru'])
+    parser.add_argument("-lang", "--language", help="language", choices=['en'], default="en", type=str)
     parser.add_argument("--verbose", help="print info for debugging", action='store_true')
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    inverse_normalizer = InverseNormalizer(lang=args.lang)
+    inverse_normalizer = InverseNormalizer(lang=args.language)
     print(inverse_normalizer.inverse_normalize(args.input_string, verbose=args.verbose))
