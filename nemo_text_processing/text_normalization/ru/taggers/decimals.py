@@ -15,14 +15,14 @@
 
 from collections import defaultdict
 
-from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
-from nemo_text_processing.text_normalization.graph_utils import (
+from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_DIGIT,
     NEMO_SPACE,
     GraphFst,
     insert_space,
-    load_labels,
+    get_abs_path
 )
+from nemo_text_processing.text_normalization.en.utils import load_labels
 
 try:
     import pynini

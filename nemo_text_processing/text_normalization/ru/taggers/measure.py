@@ -13,12 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
-from nemo_text_processing.text_normalization.graph_utils import (
+from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_NON_BREAKING_SPACE,
     NEMO_SIGMA,
     GraphFst,
     delete_space,
+    get_abs_path
 )
 from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA
 
