@@ -192,8 +192,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             input_signal=input_signal, length=input_signal_length,
         )
 
-        encoded, _ = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
-        logits, embs = self.decoder(encoder_output=encoded)
+        encoded, length = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
+        logits, embs = self.decoder(encoder_output=encoded, length=length)
         return logits, embs
 
     # PTL-specific methods

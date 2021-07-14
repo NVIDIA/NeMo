@@ -103,7 +103,7 @@ model:
     feat_in: *enc_feat_out
     num_classes: 7205
     pool_mode: 'xvector'
-    emb_sizes: 512,512
+    emb_sizes: [512,512]
     angular: False
 
   loss:
