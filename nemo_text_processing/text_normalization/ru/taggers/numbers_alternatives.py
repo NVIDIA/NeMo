@@ -14,8 +14,9 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, GraphFst
+from nemo_text_processing.text_normalization.en.utils import load_labels
+from nemo_text_processing.text_normalization.ru.utils import get_abs_path
 
 try:
     import pynini
@@ -33,7 +34,7 @@ class AlternativeFormatsFst(GraphFst):
     """
 
     def __init__(self):
-        one_alternatives = load_labels(get_abs_path('ru/data/cardinals_alternatives.tsv'))
+        one_alternatives = load_labels(get_abs_path('data/cardinals_alternatives.tsv'))
         one_thousand_map = []
         for k in one_alternatives:
             default, alternative = k
@@ -42,8 +43,8 @@ class AlternativeFormatsFst(GraphFst):
 
         self.one_thousand_alternative = pynini.cdrewrite(one_thousand_map, "[BOS]", "", NEMO_SIGMA)
 
-        t = pynini.Far(get_abs_path('ru/data/utils/universal_thousands_punct.far'))
-        b = pynini.Far(get_abs_path('ru/data/utils/util_byte.far'), mode='r')
+        t = pynini.Far(get_abs_path('data/utils/universal_thousands_punct.far'))
+        b = pynini.Far(get_abs_path('data/utils/util_byte.far'), mode='r')
 
         # # TODO use NEMO_SIGMA?
         # # TODO nominatives - what's their purpose here?

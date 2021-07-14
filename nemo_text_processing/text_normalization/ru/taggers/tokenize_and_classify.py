@@ -14,6 +14,9 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, delete_extra_space, delete_space
+from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
+from nemo_text_processing.text_normalization.en.taggers.whitelist import WhiteListFst
+from nemo_text_processing.text_normalization.en.taggers.word import WordFst
 from nemo_text_processing.text_normalization.ru.taggers.cardinal import CardinalFst
 from nemo_text_processing.text_normalization.ru.taggers.date import DateFst
 from nemo_text_processing.text_normalization.ru.taggers.decimals import DecimalFst
@@ -23,9 +26,6 @@ from nemo_text_processing.text_normalization.ru.taggers.money import MoneyFst
 from nemo_text_processing.text_normalization.ru.taggers.number_names import NumberNamesFst
 from nemo_text_processing.text_normalization.ru.taggers.numbers_alternatives import AlternativeFormatsFst
 from nemo_text_processing.text_normalization.ru.taggers.ordinal import OrdinalFst
-from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
-from nemo_text_processing.text_normalization.en.taggers.whitelist import WhiteListFst
-from nemo_text_processing.text_normalization.en.taggers.word import WordFst
 
 try:
     import pynini

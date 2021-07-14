@@ -13,15 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo_text_processing.inverse_text_normalization.en.taggers.punctuation import PunctuationFst
+from nemo_text_processing.inverse_text_normalization.en.taggers.whitelist import WhiteListFst
+from nemo_text_processing.inverse_text_normalization.en.taggers.word import WordFst
 from nemo_text_processing.inverse_text_normalization.ru.taggers.cardinal import CardinalFst
 from nemo_text_processing.inverse_text_normalization.ru.taggers.date import DateFst
 from nemo_text_processing.inverse_text_normalization.ru.taggers.decimals import DecimalFst
 from nemo_text_processing.inverse_text_normalization.ru.taggers.electronic import ElectronicFst
 from nemo_text_processing.inverse_text_normalization.ru.taggers.money import MoneyFst
 from nemo_text_processing.inverse_text_normalization.ru.taggers.ordinal import OrdinalFst
-from nemo_text_processing.inverse_text_normalization.en.taggers.punctuation import PunctuationFst
-from nemo_text_processing.inverse_text_normalization.en.taggers.whitelist import WhiteListFst
-from nemo_text_processing.inverse_text_normalization.en.taggers.word import WordFst
 from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, delete_extra_space, delete_space
 from nemo_text_processing.text_normalization.ru.taggers.tokenize_and_classify import ClassifyFst as TNClassifyFst
 

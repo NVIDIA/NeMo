@@ -18,7 +18,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_SIGMA,
     GraphFst,
     delete_space,
-    get_abs_path
+    get_abs_path,
 )
 from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA
 

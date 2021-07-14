@@ -74,7 +74,6 @@ class VerbalizeFst(GraphFst):
 
         if not deterministic:
             roman_graph = RomanFst(deterministic=deterministic).fst
-            universal_graph = UniversalFst(deterministic=deterministic).fst
-            graph |= roman_graph | universal_graph
+            graph |= roman_graph
 
         self.fst = graph

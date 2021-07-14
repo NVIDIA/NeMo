@@ -92,9 +92,8 @@ class ClassifyFst(GraphFst):
 
         if not deterministic:
             roman_graph = RomanFst(deterministic=deterministic).fst
-            universal_graph = UniversalFst(deterministic=deterministic).fst
             # the weight for roman_graph matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
-            classify |= pynutil.add_weight(roman_graph, 100) | pynutil.add_weight(universal_graph, 1.1)
+            classify |= pynutil.add_weight(roman_graph, 100)
 
         punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=1.1) + pynutil.insert(" }")
         token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")

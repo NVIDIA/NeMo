@@ -26,7 +26,7 @@
 # acceptor (G).
 
 from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
-from nemo_text_processing.text_normalization.en.utils import get_abs_path
+from nemo_text_processing.text_normalization.ru.utils import get_abs_path
 
 try:
     import pynini
@@ -45,16 +45,16 @@ class NumberNamesFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="number_names", kind="classify", deterministic=deterministic)
 
-        a = pynini.Far(get_abs_path('ru/data/utils/util_arithmetic.far'), mode='r')
+        a = pynini.Far(get_abs_path('data/utils/util_arithmetic.far'), mode='r')
         d = a['DELTA_STAR']
         f = a['IARITHMETIC_RESTRICTED']
-        g = pynini.Fst.read(get_abs_path('ru/data/utils/g.fst'))
+        g = pynini.Fst.read(get_abs_path('data/utils/g.fst'))
         fg = (d @ (f @ (f @ (f @ g).optimize()).optimize()).optimize()).optimize()
 
         assert rewrite.top_rewrite("230", fg) == "(+ 200 30 +)"
 
         # Compiles lexicon transducers (L).
-        cardinal_name = pynini.string_file(get_abs_path("ru/data/cardinals.tsv"))
+        cardinal_name = pynini.string_file(get_abs_path("data/cardinals.tsv"))
         cardinal_l = (pynini.closure(cardinal_name + pynini.accep(" ")) + cardinal_name).optimize()
 
         # TODO fix e issues in ordinal.tsv vocabulary
