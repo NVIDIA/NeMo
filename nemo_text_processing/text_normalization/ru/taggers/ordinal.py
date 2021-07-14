@@ -13,6 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Adapted from https://github.com/google/TextNormalizationCoveringGrammars
+# Russian minimally supervised number grammar.
+#
+# Supports cardinals and ordinals in all inflected forms.
+#
+# The language-specific acceptor G was compiled with digit, teen, decade,
+# century, and big power-of-ten preterminals. The lexicon transducer is
+# highly ambiguous, but no LM is used.
+
+# Intersects the universal factorization transducer (F) with language-specific
+# acceptor (G).
+
 
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, GraphFst
 from nemo_text_processing.text_normalization.en.utils import get_abs_path
