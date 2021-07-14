@@ -963,8 +963,8 @@ class JasperBlock(nn.Module):
 class ParallelBlock(nn.Module):
     """
     Computational module that computes several `blocks` independently from each other and aggregates the outputs.
-    Due to a particular way of structuring inputs with sequence masks in Jasper-like blocks, this module focuses
-    specifically on the Jasper family.
+    It expects audio inputs to be passed together with lengths, just like Jasper blocks, and all outputs to have
+    the same dimensions but it does not impose any additional requirements on the structure of the blocks themselves.
 
     Args:
         blocks: List of Jasper blocks that will be computed concurently. It is expected that they accept the same
@@ -1003,7 +1003,7 @@ class ParallelBlock(nn.Module):
         self.aggregation_mode = aggregation_mode
 
         if aggregation_mode == "dropout":
-            self.weights = nn.Parameter(torch.ones(1, len(blocks), 1, 1), requires_grad=False)
+            self.weights = nn.Parameter(torch.ones(len(blocks)), requires_grad=False)
             self.dropout = nn.Dropout(block_dropout_prob)
 
         self.supported_residuals = ["sum", "conv"]
@@ -1051,7 +1051,7 @@ class ParallelBlock(nn.Module):
 
             weighted_output = output[-1]
             if self.aggregation_mode == "dropout":
-                weighted_output = scaling_weights[:, i, :, :] * output[-1]
+                weighted_output = scaling_weights[i] * output[-1]
 
             if result is None:
                 result = weighted_output
