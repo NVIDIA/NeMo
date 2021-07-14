@@ -13,7 +13,7 @@
 # limitations under the License.
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import torch
 import torch.nn as nn
@@ -23,9 +23,9 @@ from omegaconf import MISSING, ListConfig, OmegaConf
 from nemo.collections.asr.parts.submodules.jasper import JasperBlock, MaskedConv1d, init_weights, jasper_activations
 from nemo.collections.asr.parts.submodules.tdnn_attention import (
     AttentivePoolLayer,
-    SE_TDNN_Module,
     StatsPoolLayer,
-    TDNN_Module,
+    TDNNModule,
+    TDNNSEModule,
 )
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
@@ -342,10 +342,11 @@ class ConvASRDecoderClassification(NeuralModule, Exportable):
         return self._num_classes
 
 
-class ECAPA_Encoder(NeuralModule, Exportable):
+class ECAPAEncoder(NeuralModule, Exportable):
     """
     Modified ECAPA Encoder layer without Res2Net module for faster training and inference which achieves
     better numbers on speaker diarization tasks
+    Reference: ECAPA-TDNN Embeddings for Speaker Diarization (https://arxiv.org/pdf/2104.01466.pdf)
 
     input:
         feat_in: input feature shape (mel spec feature shape)
@@ -381,14 +382,22 @@ class ECAPA_Encoder(NeuralModule, Exportable):
             }
         )
 
-    def __init__(self, feat_in, filters, kernel_sizes, dilations, scale=8, init_mode='xavier_uniform'):
-        super(ECAPA_Encoder, self).__init__()
+    def __init__(
+        self,
+        feat_in: int,
+        filters: list,
+        kernel_sizes: list,
+        dilations: list,
+        scale: int = 8,
+        init_mode: str = 'xavier_uniform',
+    ):
+        super().__init__()
         self.layers = nn.ModuleList()
-        self.layers.append(TDNN_Module(feat_in, filters[0], kernel_size=kernel_sizes[0], dilation=dilations[0]))
+        self.layers.append(TDNNModule(feat_in, filters[0], kernel_size=kernel_sizes[0], dilation=dilations[0]))
 
         for i in range(len(filters) - 2):
             self.layers.append(
-                SE_TDNN_Module(
+                TDNNSEModule(
                     filters[i],
                     filters[i + 1],
                     group_scale=scale,
@@ -397,7 +406,7 @@ class ECAPA_Encoder(NeuralModule, Exportable):
                     dilation=dilations[i + 1],
                 )
             )
-        self.feature_agg = TDNN_Module(filters[-1], filters[-1], kernel_sizes[-1], dilations[-1])
+        self.feature_agg = TDNNModule(filters[-1], filters[-1], kernel_sizes[-1], dilations[-1])
         self.apply(lambda x: init_weights(x, mode=init_mode))
 
     def forward(self, audio_signal, length=None):
@@ -422,8 +431,11 @@ class SpeakerDecoder(NeuralModule, Exportable):
         num_classes (int): Number of unique speakers in dataset
         emb_sizes (list) : shapes of intermediate embedding layers (we consider speaker embbeddings from 1st of this layers)
                 Defaults to [1024,1024]
-        pool_mode (str) : Pooling stratergy type. options are 'xvector','tap', 'ecapa'
-                Defaults to 'xvector'
+        pool_mode (str) : Pooling stratergy type. options are 'xvector','tap', 'attention'
+                Defaults to 'xvector (mean and variance)'
+                tap (temporal average pooling: just mean)
+                attention (attention based pooling)
+
         init_mode (str): Describes how neural network parameters are
             initialized. Options are ['xavier_uniform', 'xavier_normal',
             'kaiming_uniform','kaiming_normal'].
@@ -444,7 +456,7 @@ class SpeakerDecoder(NeuralModule, Exportable):
         return OrderedDict(
             {
                 "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
-                "length": NeuralType(('B',), LengthsType()),
+                "length": NeuralType(('B',), LengthsType(), optional=True),
             }
         )
 
@@ -459,15 +471,15 @@ class SpeakerDecoder(NeuralModule, Exportable):
 
     def __init__(
         self,
-        feat_in,
-        num_classes,
-        emb_sizes=[256],
-        pool_mode='xvector',
-        angular=False,
-        attention_channels=128,
-        init_mode="xavier_uniform",
+        feat_in: int,
+        num_classes: int,
+        emb_sizes: Optional[Union[int, list]] = 256,
+        pool_mode: str = 'xvector',
+        angular: bool = False,
+        attention_channels: int = 128,
+        init_mode: str = "xavier_uniform",
     ):
-        super(SpeakerDecoder, self).__init__()
+        super().__init__()
         self.angular = angular
         self.emb_id = 2
         bias = False if self.angular else True
@@ -488,7 +500,7 @@ class SpeakerDecoder(NeuralModule, Exportable):
 
         emb_layers = []
         for shape_in, shape_out in zip(shapes[:-1], shapes[1:]):
-            layer = self.affineLayer(shape_in, shape_out, learn_mean=False, affine_type=affine_type)
+            layer = self.affine_layer(shape_in, shape_out, learn_mean=False, affine_type=affine_type)
             emb_layers.append(layer)
 
         self.emb_layers = nn.ModuleList(emb_layers)
@@ -497,7 +509,7 @@ class SpeakerDecoder(NeuralModule, Exportable):
 
         self.apply(lambda x: init_weights(x, mode=init_mode))
 
-    def affineLayer(
+    def affine_layer(
         self, inp_shape, out_shape, learn_mean=True, affine_type='conv',
     ):
         if affine_type == 'conv':

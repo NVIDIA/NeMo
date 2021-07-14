@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from typing import List
+
 import torch
 from numpy import inf
 from torch import nn as nn
@@ -26,11 +28,14 @@ class StatsPoolLayer(nn.Module):
     This computes mean and variance statistics across time dimension (dim=-1)
     input:
         feat_in: input channel feature length
+        pool_mode: type of pool mode
+        supported modes are xvector (mean and variance),
+        tap (mean)
     output:
         pooled: statistics of feature input
     """
 
-    def __init__(self, feat_in, pool_mode='xvector'):
+    def __init__(self, feat_in: int, pool_mode: str = 'xvector'):
         super().__init__()
         self.pool_mode = pool_mode
         self.feat_in = feat_in
@@ -51,7 +56,7 @@ class StatsPoolLayer(nn.Module):
         return pooled
 
 
-def lens_to_mask(lens, max_len, device=None):
+def lens_to_mask(lens: List[int], max_len: int, device: str = None):
     """
     outputs masking labels for list of lengths of audio features, with max length of any 
     mask as max_len
@@ -70,7 +75,7 @@ def lens_to_mask(lens, max_len, device=None):
     return mask, num_values
 
 
-def get_statistics_with_mask(x, m, dim=2, eps=1e-10):
+def get_statistics_with_mask(x: torch.Tensor, m: torch.Tensor, dim: int = 2, eps: float = 1e-10):
     """
     compute mean and standard deviation of input(x) provided with its masking labels (m)
     input:
@@ -85,7 +90,7 @@ def get_statistics_with_mask(x, m, dim=2, eps=1e-10):
     return mean, std
 
 
-class TDNN_Module(nn.Module):
+class TDNNModule(nn.Module):
     """
     Time Delayed Neural Module (TDNN) - 1D
     input:
@@ -99,8 +104,16 @@ class TDNN_Module(nn.Module):
         tdnn layer output 
     """
 
-    def __init__(self, inp_filters, out_filters, kernel_size=1, dilation=1, stride=1, padding=None):
-        super(TDNN_Module, self).__init__()
+    def __init__(
+        self,
+        inp_filters: int,
+        out_filters: int,
+        kernel_size: int = 1,
+        dilation: int = 1,
+        stride: int = 1,
+        padding: int = None,
+    ):
+        super().__init__()
         if padding is None:
             padding = get_same_padding(kernel_size, stride=stride, dilation=dilation)
 
@@ -121,7 +134,7 @@ class TDNN_Module(nn.Module):
         return self.bn(x)
 
 
-class SE_Module(nn.Module):
+class SEModule(nn.Module):
     """
     Squeeze and Excite module implementation with conv1d layers
     input:
@@ -135,8 +148,8 @@ class SE_Module(nn.Module):
         squeeze and excite layer output
     """
 
-    def __init__(self, inp_filters, se_filters, out_filters, kernel_size=1, dilation=1):
-        super(SE_Module, self).__init__()
+    def __init__(self, inp_filters: int, se_filters: int, out_filters: int, kernel_size: int = 1, dilation: int = 1):
+        super().__init__()
         self.se_layer = nn.Sequential(
             nn.Conv1d(inp_filters, se_filters, kernel_size=kernel_size, dilation=dilation,),
             nn.ReLU(),
@@ -157,7 +170,7 @@ class SE_Module(nn.Module):
         return out * input
 
 
-class SE_TDNN_Module(nn.Module):
+class TDNNSEModule(nn.Module):
     """
     Modified building SE_TDNN group module block from ECAPA implementation for faster training and inference
     Reference: ECAPA-TDNN Embeddings for Speaker Diarization (https://arxiv.org/pdf/2104.01466.pdf)
@@ -172,15 +185,15 @@ class SE_TDNN_Module(nn.Module):
 
     def __init__(
         self,
-        inp_filters,
-        out_filters,
-        group_scale=8,
-        se_channels=128,
-        kernel_size=1,
-        dilation=1,
-        init_mode='xavier_uniform',
+        inp_filters: int,
+        out_filters: int,
+        group_scale: int = 8,
+        se_channels: int = 128,
+        kernel_size: int = 1,
+        dilation: int = 1,
+        init_mode: str = 'xavier_uniform',
     ):
-        super(SE_TDNN_Module, self).__init__()
+        super().__init__()
         self.out_filters = out_filters
         padding_val = get_same_padding(kernel_size=kernel_size, dilation=dilation, stride=1)
 
@@ -193,14 +206,14 @@ class SE_TDNN_Module(nn.Module):
             groups=group_scale,
         )
         self.group_tdnn_block = nn.Sequential(
-            TDNN_Module(inp_filters, out_filters, kernel_size=1, dilation=1),
+            TDNNModule(inp_filters, out_filters, kernel_size=1, dilation=1),
             group_conv,
             nn.ReLU(),
             nn.BatchNorm1d(out_filters),
-            TDNN_Module(out_filters, out_filters, kernel_size=1, dilation=1),
+            TDNNModule(out_filters, out_filters, kernel_size=1, dilation=1),
         )
 
-        self.se_layer = SE_Module(out_filters, se_channels, out_filters)
+        self.se_layer = SEModule(out_filters, se_channels, out_filters)
 
         self.apply(lambda x: init_weights(x, mode=init_mode))
 
@@ -221,13 +234,20 @@ class AttentivePoolLayer(nn.Module):
         dilation: dilation size for TDNN and attention conv1d layers  (default: 1) 
     """
 
-    def __init__(self, inp_filters, attention_channels=128, kernel_size=1, dilation=1, eps=1e-10):
-        super(AttentivePoolLayer, self).__init__()
+    def __init__(
+        self,
+        inp_filters: int,
+        attention_channels: int = 128,
+        kernel_size: int = 1,
+        dilation: int = 1,
+        eps: float = 1e-10,
+    ):
+        super().__init__()
 
         self.feat_in = 2 * inp_filters
 
         self.attention_layer = nn.Sequential(
-            TDNN_Module(inp_filters * 3, attention_channels, kernel_size=kernel_size, dilation=dilation),
+            TDNNModule(inp_filters * 3, attention_channels, kernel_size=kernel_size, dilation=dilation),
             nn.Tanh(),
             nn.Conv1d(
                 in_channels=attention_channels, out_channels=inp_filters, kernel_size=kernel_size, dilation=dilation,

@@ -66,19 +66,19 @@ class EncDecSpeechLabelModelTest(TestCase):
     def test_ecapa_enc_dec(self):
         preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
         encoder = {
-            'cls': 'nemo.collections.asr.modules.ECAPA_Encoder',
+            'cls': 'nemo.collections.asr.modules.ECAPAEncoder',
             'params': {
                 'feat_in': 80,
-                'filters': [1024, 1024, 1024, 1024, 3072],
+                'filters': [4, 4, 4, 4, 3],
                 'kernel_sizes': [5, 3, 3, 3, 1],
                 'dilations': [1, 1, 1, 1, 1],
-                'scale': 8,
+                'scale': 2,
             },
         }
 
         decoder = {
             'cls': 'nemo.collections.asr.modules.SpeakerDecoder',
-            'params': {'feat_in': 3072, 'num_classes': 2, 'pool_mode': 'attention', 'emb_sizes': 192},
+            'params': {'feat_in': 3, 'num_classes': 2, 'pool_mode': 'attention', 'emb_sizes': 192},
         }
 
         modelConfig = DictConfig(
