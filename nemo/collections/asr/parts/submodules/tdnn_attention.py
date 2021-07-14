@@ -134,7 +134,7 @@ class TDNNModule(nn.Module):
         return self.bn(x)
 
 
-class SEModule(nn.Module):
+class MaskedSEModule(nn.Module):
     """
     Squeeze and Excite module implementation with conv1d layers
     input:
@@ -213,7 +213,7 @@ class TDNNSEModule(nn.Module):
             TDNNModule(out_filters, out_filters, kernel_size=1, dilation=1),
         )
 
-        self.se_layer = SEModule(out_filters, se_channels, out_filters)
+        self.se_layer = MaskedSEModule(out_filters, se_channels, out_filters)
 
         self.apply(lambda x: init_weights(x, mode=init_mode))
 
