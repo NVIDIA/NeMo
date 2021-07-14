@@ -17,12 +17,15 @@
 import math
 from dataclasses import dataclass
 
+import numpy as np
 import torch
 from omegaconf.omegaconf import MISSING
 from torch import nn
 from torch.nn.functional import gelu
 
-__all__ = ["TransformerEmbedding"]
+from nemo.collections.common.parts import form_attention_mask
+
+__all__ = ["TransformerEmbedding", "AttentionBridge"]
 
 
 class FixedPositionalEncoding(nn.Module):
@@ -208,3 +211,57 @@ class PositionWiseFF(nn.Module):
         output_states = self.dense_out(output_states)
         output_states = self.layer_dropout(output_states)
         return output_states
+
+
+class AttentionBridge(torch.nn.Module):
+    """
+    A multi-head attention bridge to project a variable-size hidden states
+    to k hidden states (per attention head).
+
+    Code is based on the paper https://arxiv.org/pdf/1703.03130.pdf
+    """
+
+    def __init__(self, hidden_size, k, bridge_size):
+        """
+        hidden_size - size of input hidden state
+        k - number of attention heads
+        bridge_size - size of internal feed forward weights (i.e., attention head size)
+        """
+        super().__init__()
+
+        self.hidden_size = hidden_size
+        self.k = k
+        self.bridge_size = bridge_size
+
+        self.attn_scale = np.sqrt(np.sqrt(self.bridge_size))
+
+        # build model
+
+        self.W1 = torch.nn.Linear(hidden_size, bridge_size, bias=False)
+        self.W2 = torch.nn.Linear(bridge_size, k, bias=False)
+        self.act = torch.nn.ReLU()
+
+    def forward(self, hidden, hidden_mask=None, return_ortho_loss=False):
+        """
+        Project hidden [B x N x H] to fixed-size [B x k x H]
+
+        return_ortho_loss - if True returns loss term to encourage
+                              orthogonal attention vectors
+        """
+
+        attention_scores = self.W2(self.act(self.W1(hidden) / self.attn_scale) / self.attn_scale).transpose(-1, -2)
+
+        attention_mask = form_attention_mask(hidden_mask)
+        if attention_mask is not None:
+            attention_mask.squeeze_(1)
+            attention_scores = attention_scores + attention_mask.to(attention_scores.dtype)
+
+        A = torch.softmax(attention_scores, dim=-1)
+        M = A @ hidden
+
+        if return_ortho_loss:
+            ortho_loss = ((A @ A.transpose(-1, -2)) - torch.eye(self.k).type_as(A)).pow(2).sum()
+
+            return M, ortho_loss
+        else:
+            return M
