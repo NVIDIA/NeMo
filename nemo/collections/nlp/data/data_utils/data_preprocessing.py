@@ -58,6 +58,9 @@ __all__ = [
     'get_vocab',
     'find_newlines',
     'load_data_indices',
+    'chinese_punctuation',
+    'check_chinese_char',
+    'normalize_chinese_answer',
 ]
 
 DATABASE_EXISTS_TMP = '{} dataset has already been processed and stored at {}'
@@ -90,6 +93,62 @@ class DataProcessor(object):
                 #     line = list(unicode(cell, 'utf-8') for cell in line)
                 lines.append(line)
             return lines
+
+
+chinese_punctuation = {
+    '——',
+    '‘',
+    '’',
+    '“',
+    '”',
+    '…',
+    '、',
+    '。',
+    '〈',
+    '〉',
+    '《',
+    '》',
+    '「',
+    '」',
+    '『',
+    '』',
+    '【',
+    '】',
+    '〔',
+    '〕',
+    '！',
+    '（',
+    '）',
+    '，',
+    '．',
+    '：',
+    '；',
+    '？',
+}
+
+
+def check_chinese_char(ch):
+    """Check if a character is in Chinese."""
+    if u'\u4e00' <= ch <= u'\u9fff' or ch in chinese_punctuation:
+        return True
+    else:
+        return False
+
+
+def normalize_chinese_answer(text):
+    """Remove the Chinese punctuation and separate Chinese answers to char-level"""
+
+    def remove_punc(text):
+        exclude = chinese_punctuation
+        return ''.join(ch for ch in text if ch not in exclude)
+
+    def separate_char(text):
+        ch_list = []
+        for ch in text:
+            ch_list.append(ch)
+        return ch_list
+
+    return separate_char(remove_punc(text))
 
 
 def normalize_answer(s):
