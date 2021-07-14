@@ -1001,56 +1001,6 @@ pipeline {
               sh 'ls -lha examples/nlp/language_modeling'
             }
         }
-        stage('L2: Pretraining BERT pretraining from Text with char tokenizer') {
-            steps {
-              sh 'cd examples/nlp/language_modeling && \
-              python bert_pretraining.py \
-              --config-name=bert_pretraining_from_text_config.yaml \
-              trainer.gpus=[0] \
-              trainer.precision=16 \
-              trainer.amp_level=O1 \
-              +trainer.fast_dev_run=true \
-              model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
-              model.train_ds.batch_size=32 \
-              model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
-              model.validation_ds.batch_size=32 \
-              model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
-              model.optim.lr=0.01 \
-              model.optim.sched.warmup_ratio=0.1 \
-              model.tokenizer.tokenizer_name=char \
-              model.tokenizer.vocab_file=/home/TestData/nlp/vocabs/mini_vocab.txt \
-              model.mask_prob=0.15 \
-              model.short_seq_prob=0.1 \
-              exp_manager.exp_dir=PretrainingBERTFromTextchartok \
-              '
-              sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTFromTextchartok'
-            }
-        }
-        stage('L2: Pretraining BERT pretraining from Text with word tokenizer') {
-            steps {
-              sh 'cd examples/nlp/language_modeling && \
-              python bert_pretraining.py \
-              --config-name=bert_pretraining_from_text_config.yaml \
-              trainer.gpus=[1] \
-              trainer.precision=16 \
-              trainer.amp_level=O1 \
-              +trainer.fast_dev_run=true \
-              model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
-              model.train_ds.batch_size=32 \
-              model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
-              model.validation_ds.batch_size=32 \
-              model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
-              model.optim.lr=0.01 \
-              model.optim.sched.warmup_ratio=0.1 \
-              model.tokenizer.tokenizer_name=word \
-              model.tokenizer.vocab_file=/home/TestData/nlp/vocabs/mini_vocab.txt \
-              model.mask_prob=0.15 \
-              model.short_seq_prob=0.1 \
-              exp_manager.exp_dir=PretrainingBERTFromTextwordtok \
-              '
-              sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTFromTextwordtok'
-            }
-        }
       }
     }
 
