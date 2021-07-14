@@ -46,7 +46,7 @@ class MoneyFst(GraphFst):
         unit_plural = pynini.string_file(get_abs_path("ru/data/currency/currency_plural.tsv"))
 
         # adding weight to make sure the space is preserved for ITN
-        optional_delimiter = pynini.closure(pynini.cross(NEMO_SPACE, ""), 0, 1)
+        optional_delimiter = pynini.closure(pynutil.add_weight(pynini.cross(NEMO_SPACE, ""), -100), 0, 1)
         graph_unit_singular = (
             optional_delimiter + pynutil.insert(" currency: \"") + unit_singular + pynutil.insert("\"")
         )
