@@ -20,7 +20,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 from omegaconf import MISSING, ListConfig, OmegaConf
 
-from nemo.collections.asr.parts.submodules.jasper import JasperBlock, MaskedConv1d, ParallelBlock, init_weights, jasper_activations
+from nemo.collections.asr.parts.submodules.jasper import (
+    JasperBlock,
+    MaskedConv1d,
+    ParallelBlock,
+    init_weights,
+    jasper_activations,
+)
 from nemo.collections.asr.parts.submodules.tdnn_attention import (
     AttentivePoolLayer,
     StatsPoolLayer,
