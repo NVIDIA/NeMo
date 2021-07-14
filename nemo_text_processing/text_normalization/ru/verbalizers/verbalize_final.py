@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.graph_utils import GraphFst, delete_extra_space, delete_space
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, delete_extra_space, delete_space
 from nemo_text_processing.text_normalization.ru.verbalizers.verbalize import VerbalizeFst
-from nemo_text_processing.text_normalization.verbalizers.word import WordFst
+from nemo_text_processing.text_normalization.en.verbalizers.word import WordFst
 
 try:
     import pynini

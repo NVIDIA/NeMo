@@ -25,7 +25,8 @@
 # Intersects the universal factorization transducer (F) with language-specific
 # acceptor (G).
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, get_abs_path
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
+from nemo_text_processing.text_normalization.en.utils import get_abs_path
 
 try:
     import pynini

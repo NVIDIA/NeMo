@@ -3,7 +3,7 @@ try:
     from pynini.lib import pynutil
     from pynini.lib import rewrite
     from nemo_text_processing.text_normalization.taggers.cardinal import CardinalFst
-    from nemo_text_processing.text_normalization.graph_utils import (
+    from nemo_text_processing.text_normalization.en.graph_utils import (
         NEMO_NON_BREAKING_SPACE,
         NEMO_SIGMA,
         SINGULAR_TO_PLURAL,
