@@ -21,8 +21,6 @@ from typing import List, Tuple
 from joblib import Parallel, delayed
 from nemo_text_processing.text_normalization.data_loader_utils import post_process_punctuation, pre_process
 from nemo_text_processing.text_normalization.normalize import Normalizer
-from nemo_text_processing.text_normalization.taggers.tokenize_and_classify import ClassifyFst
-from nemo_text_processing.text_normalization.verbalizers.verbalize_final import VerbalizeFinalFst
 
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import ASRModel
@@ -42,6 +40,7 @@ The script provides multiple normalization options and chooses the best one that
 To run this script with a .json manifest file:
     python normalize_with_audio.py \
            --audio_data PATH/TO/MANIFEST.JSON \
+           --language en \
            --model QuartzNet15x5Base-En \
            --verbose
     
@@ -54,6 +53,7 @@ To run this script with a .json manifest file:
 To run with a single audio file, specify path to audio and text with:
     python normalize_with_audio.py \
            --audio_data PATH/TO/AUDIO.WAV \
+           --language en \
            --text raw text OR PATH/TO/.TXT/FILE
            --model QuartzNet15x5Base-En \
            --verbose
@@ -70,11 +70,14 @@ class NormalizerWithAudio(Normalizer):
 
     Args:
         input_case: expected input capitalization
+        lang: language
     """
 
-    def __init__(self, input_case: str):
-        super().__init__(input_case)
-
+    def __init__(self, input_case: str, lang: str = 'en'):
+        super().__init__(input_case=input_case, lang=lang)
+        if lang == 'en':
+            from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
         self.tagger = ClassifyFst(input_case=input_case, deterministic=False)
         self.verbalizer = VerbalizeFinalFst(deterministic=False)
 
@@ -221,6 +224,7 @@ def parse_args():
     parser.add_argument(
         "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )
+    parser.add_argument("--language", help="language", choices=["en"], default="en", type=str)
     parser.add_argument("--audio_data", help="path to an audio file or .json manifest")
     parser.add_argument(
         '--model', type=str, default='QuartzNet15x5Base-En', help='Pre-trained model name or path to model checkpoint'
@@ -268,7 +272,7 @@ def normalize_manifest(args):
     Args:
         args.audio_data: path to .json manifest file.
     """
-    normalizer = NormalizerWithAudio(input_case=args.input_case)
+    normalizer = NormalizerWithAudio(input_case=args.input_case, lang=args.language)
     manifest_out = args.audio_data.replace('.json', '_normalized.json')
     asr_model = None
     with open(args.audio_data, 'r') as f:
@@ -291,7 +295,7 @@ if __name__ == "__main__":
 
     start = time.time()
     if args.text:
-        normalizer = NormalizerWithAudio(input_case=args.input_case)
+        normalizer = NormalizerWithAudio(input_case=args.input_case, lang=args.language)
         if os.path.exists(args.text):
             with open(args.text, 'r') as f:
                 args.text = f.read().strip()
