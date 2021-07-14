@@ -18,6 +18,7 @@ Starts docker container with production backend with plugged in grammars. This i
 Arguments:
 ^^^^^^^^^
 * ``GRAMMARS`` - ``tn_grammars`` or ``itn_grammars`` to export either TN or ITN grammars from :doc:`nemo_text_processing <../nemo_text_processing/intro>`.
+* ``LANGUAGE`` - `en` for English
 * ``INPUT_CASE`` - ``cased`` or ``lower_cased`` (lower_cased is supported only in TN grammars).
 * ``MODE`` - choose ``test`` to run test on the grammars inside the container.
 
@@ -27,10 +28,10 @@ For example:
 .. code-block:: bash
 
     # to export ITN grammars
-    bash export_grammar.sh --GRAMMARS=itn_grammars
+    bash export_grammar.sh --GRAMMARS=itn_grammars --LANGUAGE=en
 
     # to export and test TN grammars
-    bash export_grammar.sh --GRAMMARS=itn_grammars --INPUT_CASE=cased --MODE=test
+    bash export_grammar.sh --GRAMMARS=itn_grammars --INPUT_CASE=cased --MODE=test --LANGUAGE=en
 
 This script runs the following steps in sequence:
 
@@ -38,7 +39,7 @@ Exports grammar `ClassifyFst` and `VerbalizeFst` from :doc:`nemo_text_processing
 
 .. code-block:: bash
 
-    python pynini_export.py <--output_dir OUTPUT_DIR> <--grammars GRAMMARS> <--input_case INPUT_CASE>
+    python pynini_export.py <--output_dir OUTPUT_DIR> <--grammars GRAMMARS> <--input_case INPUT_CASE> <--language LANGUAGE>
 
 Builds C++ production backend docker
 

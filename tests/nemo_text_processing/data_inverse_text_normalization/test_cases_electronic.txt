@@ -1,7 +1,0 @@
-a dot b c at g mail dot com~a.bc@gmail.com
-c d f at a b c dot e d u~cdf@abc.edu
-a b c at g mail dot a b c~abc@gmail.abc
-a b c at a b c dot com~abc@abc.com
-a s d f one two three at a b c dot com~asdf123@abc.com
-a one b two at a b c dot com~a1b2@abc.com
-a b three dot s d d dot three at g mail dot com~ab3.sdd.3@gmail.com
