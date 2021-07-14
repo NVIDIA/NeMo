@@ -34,7 +34,7 @@ def parse_test_case_file(file_name: str):
     return test_pairs
 
 
-def get_test_cases_multiple(file_name: str = 'data_text_normalization/test_cases_normalize_with_audio.txt'):
+def get_test_cases_multiple(file_name: str = 'data_text_normalization/en/test_cases_normalize_with_audio.txt'):
     """
     Prepares tests pairs for audio based TN tests
     """
