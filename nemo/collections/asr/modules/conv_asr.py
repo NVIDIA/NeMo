@@ -343,7 +343,14 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
                 encoder_layers.append(parallel_blocks[0])
             else:
                 encoder_layers.append(
-                    ParallelBlock(parallel_blocks, aggregation_mode=aggregation_mode, block_dropout_prob=block_dropout, residual_mode=parallel_residual_mode, in_filters=feat_in, out_filters=lcfg['filters'])
+                    ParallelBlock(
+                        parallel_blocks,
+                        aggregation_mode=aggregation_mode,
+                        block_dropout_prob=block_dropout,
+                        residual_mode=parallel_residual_mode,
+                        in_filters=feat_in,
+                        out_filters=lcfg['filters'],
+                    )
                 )
             feat_in = lcfg['filters']
 

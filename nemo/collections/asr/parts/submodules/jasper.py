@@ -974,15 +974,32 @@ class ParallelBlock(nn.Module):
             dropout training with different blocks being dropped out during training.
         block_dropout_prob: a probability of dropping any individual block during training with "dropout" aggregation
             mode. Acts as a regularization technique.
+        residual_mode: an optional string indicating how residuals will be applied. Supported values are
+            ['sum', 'conv']. In 'sum' mode input features are summed together with the output. This will fail if the
+            number of channels in the input is different from the number of channels in an output tensor. In 'conv' mode
+            inputs are passed through pointwise convolution to make input channel dimension match output channel
+            dimension. In this mode `in_filters` and `out_filters` params are required.
+        in_filters: number of filters (channels) in the input tensor of each block.
+        out_filters: number of filters (channels) in the output tensor of each block.
     """
 
-    def __init__(self, blocks, aggregation_mode: str = "sum", block_dropout_prob: int = 0.0, residual_mode: str = "sum", in_filters=None, out_filters=None):
+    def __init__(
+        self,
+        blocks,
+        aggregation_mode: str = "sum",
+        block_dropout_prob: int = 0.0,
+        residual_mode: str = "sum",
+        in_filters: int = None,
+        out_filters: int = None,
+    ):
         super().__init__()
         self.blocks = nn.ModuleList(blocks)
 
         self.supported_aggregations = ["sum", "dropout"]
         if aggregation_mode not in self.supported_aggregations:
-            raise ValueError(f"Got non-supported aggregation mode: {aggregation_mode}. Supported values are {self.supported_aggregations}.")
+            raise ValueError(
+                f"Got non-supported aggregation mode: {aggregation_mode}. Supported values are {self.supported_aggregations}."
+            )
         self.aggregation_mode = aggregation_mode
 
         if aggregation_mode == "dropout":
@@ -991,7 +1008,9 @@ class ParallelBlock(nn.Module):
 
         self.supported_residuals = ["sum", "conv"]
         if residual_mode not in self.supported_residuals:
-            raise ValueError(f"Got non-supported residual mode: {residual_mode}. Supported values are {self.supported_residuals}.")
+            raise ValueError(
+                f"Got non-supported residual mode: {residual_mode}. Supported values are {self.supported_residuals}."
+            )
         self.residual_mode = residual_mode
 
         if residual_mode == "conv":
@@ -1019,7 +1038,6 @@ class ParallelBlock(nn.Module):
         """
         if len(self.blocks) == 1:
             return self.blocks[0](x)
-
 
         result = None
         max_mask = None
