@@ -26,9 +26,6 @@ from nemo_text_processing.text_normalization.token_parser import TokenParser
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import ASRModel
 
-# from nemo_text_processing.text_normalization.taggers.tokenize_and_classify import ClassifyFst
-# from nemo_text_processing.text_normalization.verbalizers.verbalize_final import VerbalizeFinalFst
-
 
 try:
     import pynini
@@ -77,8 +74,7 @@ class NormalizerWithAudio(Normalizer):
         input_case: expected input capitalization
         lang: language
     """
-
-   def __init__(self, input_case: str, lang: str = 'en'):
+    def __init__(self, input_case: str, lang: str = 'en'):
         super().__init__(input_case=input_case, lang=lang)
         if lang == 'en':
             from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
