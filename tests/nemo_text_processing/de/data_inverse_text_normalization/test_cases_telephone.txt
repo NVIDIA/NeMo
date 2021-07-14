@@ -1,0 +1,4 @@
+eins zwei drei eins zwei drei fünf sechs sieben acht~123-123-5678
+zero zwei drei eins zwei drei fünf sechs sieben acht~023-123-5678
+null zwei drei eins zwei drei fünf sechs sieben acht~023-123-5678
+null zwei drei eins zwei drei fünf sechs sieben acht~023-123-5678

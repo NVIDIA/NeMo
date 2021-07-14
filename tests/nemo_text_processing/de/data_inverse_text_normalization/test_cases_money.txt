@@ -1,0 +1,4 @@
+zwei dollar~$2
+ein cent~$0.01
+zwei dollar zwanzig~$2,20
+zwei dollar und zwanzig cent~$2,20
