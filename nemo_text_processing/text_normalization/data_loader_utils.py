@@ -13,9 +13,7 @@
 # limitations under the License.
 
 
-import csv
 import json
-import os
 import re
 from collections import defaultdict, namedtuple
 from typing import Dict, List, Optional, Set, Tuple
