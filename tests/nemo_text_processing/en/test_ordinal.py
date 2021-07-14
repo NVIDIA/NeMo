@@ -18,13 +18,14 @@ from nemo_text_processing.inverse_text_normalization.inverse_normalize import In
 from nemo_text_processing.text_normalization.normalize import Normalizer
 from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
 from parameterized import parameterized
-from utils import PYNINI_AVAILABLE, parse_test_case_file
+
+from ..utils import PYNINI_AVAILABLE, parse_test_case_file
 
 
-class TestTelephone:
+class TestOrdinal:
     inverse_normalizer_en = InverseNormalizer(lang='en') if PYNINI_AVAILABLE else None
 
-    @parameterized.expand(parse_test_case_file('data_inverse_text_normalization/en/test_cases_telephone.txt'))
+    @parameterized.expand(parse_test_case_file('en/data_inverse_text_normalization/test_cases_ordinal.txt'))
     @pytest.mark.skipif(
         not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
     )
@@ -37,7 +38,7 @@ class TestTelephone:
     normalizer_en = Normalizer(input_case='cased', lang='en') if PYNINI_AVAILABLE else None
     normalizer_with_audio_en = NormalizerWithAudio(input_case='cased', lang='en') if PYNINI_AVAILABLE else None
 
-    @parameterized.expand(parse_test_case_file('data_text_normalization/en/test_cases_telephone.txt'))
+    @parameterized.expand(parse_test_case_file('en/data_text_normalization/test_cases_ordinal.txt'))
     @pytest.mark.skipif(
         not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
     )

@@ -40,7 +40,7 @@ The script provides multiple normalization options and chooses the best one that
 To run this script with a .json manifest file:
     python normalize_with_audio.py \
            --audio_data PATH/TO/MANIFEST.JSON \
-           --lang en \
+           --language en \
            --model QuartzNet15x5Base-En \
            --verbose
     
@@ -53,7 +53,7 @@ To run this script with a .json manifest file:
 To run with a single audio file, specify path to audio and text with:
     python normalize_with_audio.py \
            --audio_data PATH/TO/AUDIO.WAV \
-           --lang en \
+           --language en \
            --text raw text OR PATH/TO/.TXT/FILE
            --model QuartzNet15x5Base-En \
            --verbose
@@ -272,7 +272,7 @@ def normalize_manifest(args):
     Args:
         args.audio_data: path to .json manifest file.
     """
-    normalizer = NormalizerWithAudio(input_case=args.input_case)
+    normalizer = NormalizerWithAudio(input_case=args.input_case, lang=args.language)
     manifest_out = args.audio_data.replace('.json', '_normalized.json')
     asr_model = None
     with open(args.audio_data, 'r') as f:
@@ -295,7 +295,7 @@ if __name__ == "__main__":
 
     start = time.time()
     if args.text:
-        normalizer = NormalizerWithAudio(input_case=args.input_case)
+        normalizer = NormalizerWithAudio(input_case=args.input_case, lang=args.language)
         if os.path.exists(args.text):
             with open(args.text, 'r') as f:
                 args.text = f.read().strip()

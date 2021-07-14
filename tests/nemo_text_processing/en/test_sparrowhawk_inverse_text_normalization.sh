@@ -21,42 +21,42 @@ runtest () {
 }
 
 testITNCardinal() {
-  input=$PROJECT_DIR/data_inverse_text_normalization/en/test_cases_cardinal.txt
+  input=$PROJECT_DIR/en/data_inverse_text_normalization/test_cases_cardinal.txt
   runtest $input
 }
 
 testITNDate() {
-  input=$PROJECT_DIR/data_inverse_text_normalization/en/test_cases_date.txt
+  input=$PROJECT_DIR/en/data_inverse_text_normalization/test_cases_date.txt
   runtest $input
 }
 
 testITNDecimal() {
-  input=$PROJECT_DIR/data_inverse_text_normalization/en/test_cases_decimal.txt
+  input=$PROJECT_DIR/en/data_inverse_text_normalization/test_cases_decimal.txt
   runtest $input
 }
 
 testITNOrdinal() {
-  input=$PROJECT_DIR/data_inverse_text_normalization/en/test_cases_ordinal.txt
+  input=$PROJECT_DIR/en/data_inverse_text_normalization/test_cases_ordinal.txt
   runtest $input
 }
 
 testITNTime() {
-  input=$PROJECT_DIR/data_inverse_text_normalization/en/test_cases_time.txt
+  input=$PROJECT_DIR/en/data_inverse_text_normalization/test_cases_time.txt
   runtest $input
 }
 
 testITNMeasure() {
-  input=$PROJECT_DIR/data_inverse_text_normalization/en/test_cases_measure.txt
+  input=$PROJECT_DIR/en/data_inverse_text_normalization/test_cases_measure.txt
   runtest $input
 }
 
 testITNMoney() {
-  input=$PROJECT_DIR/data_inverse_text_normalization/en/test_cases_money.txt
+  input=$PROJECT_DIR/en/data_inverse_text_normalization/test_cases_money.txt
   runtest $input
 }
 
 testITNWhitelist() {
-  input=$PROJECT_DIR/data_inverse_text_normalization/en/test_cases_whitelist.txt
+  input=$PROJECT_DIR/en/data_inverse_text_normalization/test_cases_whitelist.txt
   runtest $input
 }
 
