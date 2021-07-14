@@ -47,7 +47,6 @@ class VerbalizeFst(GraphFst):
         whitelist_graph = WhiteListFst().fst
         telephone_graph = TelephoneFst().fst
         electronic_graph = ElectronicFst().fst
-
         graph = (
             time_graph
             | date_graph
@@ -60,5 +59,4 @@ class VerbalizeFst(GraphFst):
             | telephone_graph
             | electronic_graph
         )
-
         self.fst = graph
