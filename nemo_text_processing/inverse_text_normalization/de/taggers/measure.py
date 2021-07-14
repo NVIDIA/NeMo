@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
 from nemo_text_processing.inverse_text_normalization.de.graph_utils import (
     NEMO_SIGMA,
     GraphFst,
@@ -22,6 +21,7 @@ from nemo_text_processing.inverse_text_normalization.de.graph_utils import (
     delete_space,
     get_singulars,
 )
+from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
 
 try:
     import pynini

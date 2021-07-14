@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo_text_processing.inverse_text_normalization.de.graph_utils import GraphFst
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.cardinal import CardinalFst
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.date import DateFst
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.decimal import DecimalFst
@@ -23,7 +24,6 @@ from nemo_text_processing.inverse_text_normalization.de.verbalizers.ordinal impo
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.telephone import TelephoneFst
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.time import TimeFst
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.whitelist import WhiteListFst
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import GraphFst
 
 
 class VerbalizeFst(GraphFst):

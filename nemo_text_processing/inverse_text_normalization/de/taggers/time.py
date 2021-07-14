@@ -14,8 +14,6 @@
 # limitations under the License.
 
 
-from nemo_text_processing.inverse_text_normalization.de.taggers.cardinal import CardinalFst
-from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
 from nemo_text_processing.inverse_text_normalization.de.graph_utils import (
     GraphFst,
     convert_space,
@@ -23,6 +21,8 @@ from nemo_text_processing.inverse_text_normalization.de.graph_utils import (
     delete_space,
     insert_space,
 )
+from nemo_text_processing.inverse_text_normalization.de.taggers.cardinal import CardinalFst
+from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
 from pynini.lib.pynutil import insert
 
 try:

@@ -15,16 +15,17 @@
 
 
 from collections import defaultdict
+from string import punctuation
 
-from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
-from nemo_text_processing.inverse_text_normalization.de.utils import load_labels
 from nemo_text_processing.inverse_text_normalization.de.graph_utils import (
     NEMO_DIGIT,
     NEMO_SIGMA,
     NEMO_SPACE,
     GraphFst,
+    delete_extra_space,
     delete_space,
 )
+from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path, load_labels
 
 try:
     import pynini
@@ -58,6 +59,8 @@ def get_ties_digit(digit_path, tie_path):
             for ti in ties[s[0]]:
                 word = di + f" {AND} " + ti
                 d.append((word, s))
+                word = di + f"{AND}" + ti
+                d.append((word, s))
 
     return pynini.string_map(d)
 
@@ -66,7 +69,7 @@ class CardinalFst(GraphFst):
     """
     Finite state transducer for classifying cardinals
         e.g. minus twenty three -> cardinal { integer: "23" negative: "-" } }
-    Numbers below thirteen are not converted. 
+    Numbers below ten are not converted. 
     """
 
     def __init__(self):
@@ -84,9 +87,11 @@ class CardinalFst(GraphFst):
             get_abs_path("data/numbers/digit.tsv"), get_abs_path("data/numbers/ties.tsv")
         )
         graph_ties = graph_ties_digit | (graph_ties + pynutil.insert("0"))
-        self.graph_ties = graph_ties
+        self.graph_ties = graph_ties.optimize()
 
-        graph_hundred_component = pynini.union(graph_digit + delete_space + graph_hundred, pynutil.insert("0"))
+        graph_hundred_component = pynini.union(
+            pynini.union(graph_digit + delete_space, pynutil.insert('1')) + graph_hundred, pynutil.insert("0")
+        )
         graph_hundred_component += delete_space
         graph_hundred_component += pynini.union(
             graph_teen,
@@ -95,15 +100,17 @@ class CardinalFst(GraphFst):
             pynutil.insert("0") + graph_digit,
         )
 
-        graph_hundred_component_at_least_one_none_zero_digit = graph_hundred_component @ (
-            pynini.closure(NEMO_DIGIT) + (NEMO_DIGIT - "0") + pynini.closure(NEMO_DIGIT)
+        graph_hundred_component_at_least_one_none_zero_digit = (
+            graph_hundred_component
+            @ (pynini.closure(NEMO_DIGIT) + (NEMO_DIGIT - "0") + pynini.closure(NEMO_DIGIT)).optimize()
         )
         self.graph_hundred_component_at_least_one_none_zero_digit = (
             graph_hundred_component_at_least_one_none_zero_digit
         )
 
         graph_thousands = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("tausend"),
+            pynini.union(graph_hundred_component_at_least_one_none_zero_digit + delete_space, pynutil.insert('1'))
+            + pynutil.delete("tausend"),
             pynutil.insert("000", weight=0.1),
         )
 
@@ -169,8 +176,12 @@ class CardinalFst(GraphFst):
             graph_zero,
         )
 
-        graph = graph @ pynini.union(
-            pynutil.delete(pynini.closure("0")) + pynini.difference(NEMO_DIGIT, "0") + pynini.closure(NEMO_DIGIT), "0"
+        graph = (
+            graph
+            @ pynini.union(
+                pynutil.delete(pynini.closure("0")) + pynini.difference(NEMO_DIGIT, "0") + pynini.closure(NEMO_DIGIT),
+                "0",
+            ).optimize()
         )
 
         graph_exception = pynini.project(pynini.union(graph_digit, graph_zero), 'input')

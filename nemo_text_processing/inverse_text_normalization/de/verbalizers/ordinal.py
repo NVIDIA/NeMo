@@ -13,7 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import NEMO_NOT_QUOTE, NEMO_SIGMA, GraphFst, delete_space
+from nemo_text_processing.inverse_text_normalization.de.graph_utils import (
+    NEMO_NOT_QUOTE,
+    NEMO_SIGMA,
+    GraphFst,
+    delete_space,
+)
 
 try:
     import pynini
@@ -37,17 +42,10 @@ class OrdinalFst(GraphFst):
             + delete_space
             + pynutil.delete("\"")
             + pynini.closure(NEMO_NOT_QUOTE, 1)
+            + pynutil.insert('.')
             + pynutil.delete("\"")
         )
 
-        delete_morpho_marker = (
-            pynutil.delete("morphosyntactic_features:")
-            + delete_space
-            + pynutil.delete("\"")
-            + pynini.closure(NEMO_NOT_QUOTE)
-            + pynutil.delete("\"")
-        )
-
-        graph = delete_integer_marker + delete_space + delete_morpho_marker
+        graph = delete_integer_marker
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

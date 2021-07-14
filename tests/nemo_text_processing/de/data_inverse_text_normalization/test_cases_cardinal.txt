@@ -1,3 +1,7 @@
+hundert~100
+tausend~1000
+hundert zwanzig~120
+tausend zwanzig~1020
 neun billionen sieben hundert neun und achtzig milliarden drei hundert zwei und achtzig millionen fuenf hundert sechs und dreissig tausend ein hundert dreissig~9789382536130
 zwei hundert vier und fuenfzig~254
 ein hundert sieben und vierzig tausend vier hundert ein und fuenfzig~147451
@@ -49,13 +53,10 @@ achtzehntausenddreizehn~18013
 ein tausend sechs und zwanzig~1026
 eintausendsechsundzwanzig~1026
 ein tausend ein hundert sechs und zwanzig~1126
-eintausendeinhundertsechsundzwanzig~1026
+eintausendeinhundertsechsundzwanzig~1126
 achtzehn millionen vier hundert fünfzig tausend neun hundert neunzig~18450990
+achtzehnmillionenvierhundertfünfzigtausendneunhundertneunzig~18450990
 achtzehn millionen vierhundertfünfzigtausendneunhundertneunzig~18450990
 achtzehn millionen neun hundert vierzig tausend sieben hundert zwei und zwanzig~18940722
 achtzehn millionen sechs hundert neunzig tausend neun hundert sechzehn~18690916
 achtzehn tausend acht hundert achtzig~18880
-hundert~100
-tausend~1000
-hundert zwanzig~120
-tausend zwanzig~1020

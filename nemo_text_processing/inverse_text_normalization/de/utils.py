@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import csv
 import os
 from typing import Union
-import csv
 
 
 def get_abs_path(rel_path):
@@ -27,6 +27,7 @@ def get_abs_path(rel_path):
     Returns absolute path
     """
     return os.path.dirname(os.path.abspath(__file__)) + '/' + rel_path
+
 
 def load_labels(abs_path):
     """

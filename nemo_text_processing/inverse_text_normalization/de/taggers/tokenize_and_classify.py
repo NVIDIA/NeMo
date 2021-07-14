@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo_text_processing.inverse_text_normalization.de.graph_utils import GraphFst, delete_extra_space, delete_space
 from nemo_text_processing.inverse_text_normalization.de.taggers.cardinal import CardinalFst
 from nemo_text_processing.inverse_text_normalization.de.taggers.date import DateFst
 from nemo_text_processing.inverse_text_normalization.de.taggers.decimal import DecimalFst
@@ -25,7 +26,6 @@ from nemo_text_processing.inverse_text_normalization.de.taggers.telephone import
 from nemo_text_processing.inverse_text_normalization.de.taggers.time import TimeFst
 from nemo_text_processing.inverse_text_normalization.de.taggers.whitelist import WhiteListFst
 from nemo_text_processing.inverse_text_normalization.de.taggers.word import WordFst
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import GraphFst, delete_extra_space, delete_space
 
 try:
     import pynini
@@ -55,27 +55,27 @@ class ClassifyFst(GraphFst):
         decimal = DecimalFst(cardinal)
         decimal_graph = decimal.fst
 
-        measure_graph = MeasureFst(cardinal=cardinal, decimal=decimal).fst
-        date_graph = DateFst(ordinal=ordinal, cardinal=cardinal).fst
+        # measure_graph = MeasureFst(cardinal=cardinal, decimal=decimal).fst
+        # date_graph = DateFst(ordinal=ordinal, cardinal=cardinal).fst
         word_graph = WordFst().fst
-        time_graph = TimeFst().fst
-        money_graph = MoneyFst(cardinal=cardinal, decimal=decimal).fst
-        whitelist_graph = WhiteListFst().fst
+        # time_graph = TimeFst().fst
+        # money_graph = MoneyFst(cardinal=cardinal, decimal=decimal).fst
+        # whitelist_graph = WhiteListFst().fst
         punct_graph = PunctuationFst().fst
-        electronic_graph = ElectronicFst().fst
-        telephone_graph = TelephoneFst().fst
+        # electronic_graph = ElectronicFst().fst
+        # telephone_graph = TelephoneFst().fst
 
         classify = (
-            pynutil.add_weight(whitelist_graph, 1.01)
-            | pynutil.add_weight(time_graph, 1.1)
-            | pynutil.add_weight(date_graph, 1.09)
-            | pynutil.add_weight(decimal_graph, 1.1)
-            | pynutil.add_weight(measure_graph, 1.1)
-            | pynutil.add_weight(cardinal_graph, 1.1)
+            # pynutil.add_weight(whitelist_graph, 1.01)
+            # | pynutil.add_weight(time_graph, 1.1)
+            # | pynutil.add_weight(date_graph, 1.09)
+            # | pynutil.add_weight(decimal_graph, 1.1)
+            # | pynutil.add_weight(measure_graph, 1.1)
+            pynutil.add_weight(cardinal_graph, 1.1)
             | pynutil.add_weight(ordinal_graph, 1.1)
-            | pynutil.add_weight(money_graph, 1.1)
-            | pynutil.add_weight(telephone_graph, 1.1)
-            | pynutil.add_weight(electronic_graph, 1.1)
+            # | pynutil.add_weight(money_graph, 1.1)
+            # | pynutil.add_weight(telephone_graph, 1.1)
+            # | pynutil.add_weight(electronic_graph, 1.1)
             | pynutil.add_weight(word_graph, 100)
         )
 

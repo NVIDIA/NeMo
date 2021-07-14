@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
 from nemo_text_processing.inverse_text_normalization.de.graph_utils import NEMO_CHAR, GraphFst
+from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
 
 try:
     import pynini
@@ -23,8 +23,6 @@ try:
     PYNINI_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     PYNINI_AVAILABLE = False
-
-suffixes = ["ten", "tem", "ter", "tes", "te"]
 
 
 class OrdinalFst(GraphFst):
@@ -44,30 +42,18 @@ class OrdinalFst(GraphFst):
         graph_ties = pynini.string_file(get_abs_path("data/ordinals/ties.tsv"))
         graph_thousands = pynini.string_file(get_abs_path("data/ordinals/thousands.tsv"))
 
-        graph = None
-        self.graph = None
-        for suffix in suffixes:
-            tmp = (
+        suffixes = pynini.union("ten", "tem", "ter", "tes", "te")
+
+        self.graph = (
+            (
                 pynini.closure(NEMO_CHAR)
                 + pynini.closure(pynini.union(graph_digit, graph_thousands, graph_ties), 0, 1)
-                + pynutil.delete(suffix)
-            ) @ cardinal_graph
-            if self.graph is None:
-                self.graph = tmp
-                graph = (
-                    pynutil.insert("integer: \"")
-                    + tmp
-                    + pynutil.insert("\"")
-                    + pynutil.insert(f" morphosyntactic_features: \"{suffix}\"")
-                )
-            else:
-                self.graph |= tmp
-                graph |= (
-                    pynutil.insert("integer: \"")
-                    + tmp
-                    + pynutil.insert("\"")
-                    + pynutil.insert(f" morphosyntactic_features: \"{suffix}\"")
-                )
+                + pynutil.delete(suffixes)
+            )
+            @ cardinal_graph
+        ).optimize()
 
+        graph = pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
+        self.graph = self.graph.optimize()
         final_graph = self.add_tokens(graph)
         self.fst = final_graph.optimize()
