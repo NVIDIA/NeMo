@@ -45,14 +45,14 @@ class AlternativeFormatsFst(GraphFst):
         t = pynini.Far(get_abs_path('ru/data/utils/universal_thousands_punct.far'))
         b = pynini.Far(get_abs_path('ru/data/utils/util_byte.far'), mode='r')
 
-        # TODO use NEMO_SIGMA?
-        # TODO nominatives - what's their purpose here?
-        sigma_star = pynini.closure(b['kBytes'])
-        nominatives = pynini.string_file(get_abs_path("ru/data/nominatives.tsv"))
-        nominative_filter = pynutil.add_weight(pynini.cross("", ""), -1)
-        nominative_filter = nominatives @ pynini.cdrewrite(
-            nominative_filter, pynini.union("[BOS]", " "), pynini.union(" ", "[EOS]"), sigma_star
-        )
+        # # TODO use NEMO_SIGMA?
+        # # TODO nominatives - what's their purpose here?
+        # sigma_star = pynini.closure(b['kBytes'])
+        # nominatives = pynini.string_file(get_abs_path("ru/data/nominatives.tsv"))
+        # nominative_filter = pynutil.add_weight(pynini.cross("", ""), -1)
+        # nominative_filter = nominatives @ pynini.cdrewrite(
+        #     nominative_filter, pynini.union("[BOS]", " "), pynini.union(" ", "[EOS]"), sigma_star
+        # )
 
         # skipped I and D in numbers.grm
 

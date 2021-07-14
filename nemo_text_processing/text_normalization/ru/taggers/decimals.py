@@ -16,7 +16,13 @@
 from collections import defaultdict
 
 from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
-from nemo_text_processing.text_normalization.graph_utils import NEMO_DIGIT, GraphFst, insert_space, load_labels
+from nemo_text_processing.text_normalization.graph_utils import (
+    NEMO_DIGIT,
+    NEMO_SPACE,
+    GraphFst,
+    insert_space,
+    load_labels,
+)
 
 try:
     import pynini
@@ -84,12 +90,25 @@ class DecimalFst(GraphFst):
             NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT
         ) @ cardinal_numbers_with_leading_zeros + decimal_endings_map['10000']
 
+        quantity = pynini.union("1000", "1000000", "1000000000")
+        self.optional_quantity = (
+            (pynini.string_file(get_abs_path("ru/data/cardinals.tsv")).invert() @ quantity).project("input").optimize()
+        )
+        optional_quantity = pynutil.insert("quantity: \"") + self.optional_quantity + pynutil.insert("\"")
+        optional_quantity = pynini.closure(pynini.accep(NEMO_SPACE) + optional_quantity, 0, 1)
+
         self.graph_fractional = graph_fractional
         graph_fractional = pynutil.insert("fractional_part: \"") + graph_fractional + pynutil.insert("\"")
-        self.final_graph = cardinal.optional_graph_negative + graph_integer + insert_space + graph_fractional
+        self.final_graph = (
+            cardinal.optional_graph_negative + graph_integer + insert_space + graph_fractional + optional_quantity
+        )
 
         self.final_graph = self.add_tokens(self.final_graph)
         self.fst = self.final_graph.optimize()
+
+        # from pynini.lib.rewrite import top_rewrites
+        # import pdb; pdb.set_trace()
+        # print(top_rewrites("две целых и пять десятых тысячи", self.final_graph, 5))
 
 
 if __name__ == '__main__':

@@ -14,13 +14,7 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
-from nemo_text_processing.text_normalization.graph_utils import (
-    NEMO_NOT_QUOTE,
-    NEMO_SIGMA,
-    GraphFst,
-    delete_space,
-    insert_space,
-)
+from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_QUOTE, NEMO_SIGMA, NEMO_SPACE, GraphFst
 
 try:
     import pynini
@@ -51,7 +45,8 @@ class MoneyFst(GraphFst):
         unit_singular = pynini.string_file(get_abs_path("ru/data/currency/currency_singular.tsv"))
         unit_plural = pynini.string_file(get_abs_path("ru/data/currency/currency_plural.tsv"))
 
-        optional_delimiter = pynini.closure(pynini.cross(" ", ""), 0, 1)
+        # adding weight to make sure the space is preserved for ITN
+        optional_delimiter = pynini.closure(pynini.cross(NEMO_SPACE, ""), 0, 1)
         graph_unit_singular = (
             optional_delimiter + pynutil.insert(" currency: \"") + unit_singular + pynutil.insert("\"")
         )
@@ -74,32 +69,28 @@ class MoneyFst(GraphFst):
         tagger_graph = (graph_integer.optimize() | graph_decimal.optimize()).optimize()
 
         # verbalizer
-        integer = (
-            pynutil.delete("integer_part:")
-            + delete_space
-            + pynutil.delete("\"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
-        )
-        unit = (
-            pynutil.delete("currency:")
-            + delete_space
-            + pynutil.delete("\"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
-        )
-        unit = delete_space + pynutil.insert(" ") + unit
-
-        verbalizer_graph_cardinal = (integer + unit).optimize()
-
         integer = pynutil.delete("\"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
         integer_part = pynutil.delete("integer_part: ") + integer
+
+        unit = (
+            pynutil.delete("currency: ")
+            + pynutil.delete("\"")
+            + pynini.closure(NEMO_NOT_QUOTE, 1)
+            + pynutil.delete("\"")
+        )
+        unit = pynini.accep(NEMO_SPACE) + unit
+
+        verbalizer_graph_cardinal = (integer_part + unit).optimize()
+
         fractional_part = pynutil.delete("fractional_part: ") + integer
+        optional_quantity = pynini.closure(pynini.accep(NEMO_SPACE) + pynutil.delete("quantity: ") + integer, 0, 1)
+
         verbalizer_graph_decimal = (
             pynutil.delete('decimal { ')
             + integer_part
             + pynini.accep(" ")
             + fractional_part
+            + optional_quantity
             + pynutil.delete(" }")
             + unit
         )
@@ -111,7 +102,7 @@ class MoneyFst(GraphFst):
 
         # from pynini.lib.rewrite import top_rewrites
         # import pdb; pdb.set_trace()
-        # print(top_rewrites("2,5 руб.", tagger_graph, 5))
         # print(top_rewrites("2,5 руб.", self.final_graph, 5))
+        # print(top_rewrites('втором целых пяти десятым тысячи рублям', pynini.invert(tagger_graph), 5))
         # print(top_rewrites('decimal { integer_part: "второго целых" fractional_part: "пяти десятые" } currency: "рублях"', verbalizer_graph_decimal, 5))
         # print()

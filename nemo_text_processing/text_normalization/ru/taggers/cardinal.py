@@ -14,8 +14,6 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.graph_utils import GraphFst, insert_space
-from nemo_text_processing.text_normalization.ru.taggers.number_names import NumberNamesFst
-from nemo_text_processing.text_normalization.ru.taggers.numbers_alternatives import AlternativeFormatsFst
 
 try:
     import pynini
@@ -36,14 +34,11 @@ class CardinalFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, deterministic: bool = False):
+    def __init__(self, number_names: GraphFst, alternative_formats: GraphFst, deterministic: bool = False):
         super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
 
-        print('Ru TN only support non-deterministic cases and produces multiple normalization options.')
-        n = NumberNamesFst()
-        cardinal = n.cardinal_number_names
+        cardinal = number_names.cardinal_number_names
 
-        alternative_formats = AlternativeFormatsFst()
         one_thousand_alternative = alternative_formats.one_thousand_alternative
         separators = alternative_formats.separators
 

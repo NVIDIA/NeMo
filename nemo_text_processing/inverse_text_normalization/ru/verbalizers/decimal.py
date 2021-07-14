@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space
+from nemo_text_processing.text_normalization.graph_utils import NEMO_NOT_QUOTE, NEMO_SPACE, GraphFst, delete_space
 
 try:
     import pynini
@@ -42,7 +42,8 @@ class DecimalFst(GraphFst):
         integer = pynutil.delete(" \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
         integer_part = pynutil.delete("integer_part:") + integer
         fractional_part = pynutil.delete("fractional_part:") + integer
+        optional_quantity = pynini.closure(pynini.accep(NEMO_SPACE) + pynutil.delete("quantity:") + integer, 0, 1)
 
-        graph = optional_sign + integer_part + delete_space + fractional_part
+        graph = optional_sign + integer_part + delete_space + fractional_part + optional_quantity
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

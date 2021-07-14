@@ -20,6 +20,8 @@ from nemo_text_processing.text_normalization.ru.taggers.decimals import DecimalF
 from nemo_text_processing.text_normalization.ru.taggers.electronic import ElectronicFst
 from nemo_text_processing.text_normalization.ru.taggers.measure import MeasureFst
 from nemo_text_processing.text_normalization.ru.taggers.money import MoneyFst
+from nemo_text_processing.text_normalization.ru.taggers.number_names import NumberNamesFst
+from nemo_text_processing.text_normalization.ru.taggers.numbers_alternatives import AlternativeFormatsFst
 from nemo_text_processing.text_normalization.ru.taggers.ordinal import OrdinalFst
 from nemo_text_processing.text_normalization.taggers.punctuation import PunctuationFst
 from nemo_text_processing.text_normalization.taggers.whitelist import WhiteListFst
@@ -48,12 +50,20 @@ class ClassifyFst(GraphFst):
 
     def __init__(self, input_case: str, deterministic: bool = True):
         super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
+        print('Ru TN only support non-deterministic cases and produces multiple normalization options.')
 
-        cardinal = CardinalFst(deterministic=deterministic)
+        numbert_names = NumberNamesFst()
+        alternative_formats = AlternativeFormatsFst()
+
+        cardinal = CardinalFst(
+            number_names=numbert_names, alternative_formats=alternative_formats, deterministic=deterministic
+        )
         self.cardinal = cardinal
         cardinal_graph = cardinal.fst
 
-        ordinal = OrdinalFst(deterministic=deterministic)
+        ordinal = OrdinalFst(
+            number_names=numbert_names, alternative_formats=alternative_formats, deterministic=deterministic
+        )
         self.ordinal = ordinal
         ordinal_graph = ordinal.fst
 

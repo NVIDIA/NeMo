@@ -16,8 +16,6 @@
 
 from nemo_text_processing.text_normalization.data_loader_utils import get_abs_path
 from nemo_text_processing.text_normalization.graph_utils import NEMO_SIGMA, GraphFst
-from nemo_text_processing.text_normalization.ru.taggers.number_names import NumberNamesFst
-from nemo_text_processing.text_normalization.ru.taggers.numbers_alternatives import AlternativeFormatsFst
 
 try:
     import pynini
@@ -38,17 +36,13 @@ class OrdinalFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, deterministic=False):
+    def __init__(self, number_names: GraphFst, alternative_formats: GraphFst, deterministic=False):
         super().__init__(name="ordinal", kind="classify", deterministic=deterministic)
 
-        print('Ru TN only support non-deterministic cases and produces multiple normalization options.')
-
-        alternative_formats = AlternativeFormatsFst()
         one_thousand_alternative = alternative_formats.one_thousand_alternative
         separators = alternative_formats.separators
 
-        n = NumberNamesFst()
-        ordinal = n.ordinal_number_names
+        ordinal = number_names.ordinal_number_names
 
         ordinal |= ordinal @ one_thousand_alternative
         ordinal_numbers = separators @ ordinal

@@ -14,10 +14,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.graph_utils import GraphFst, delete_extra_space
-from nemo_text_processing.text_normalization.ru.taggers.cardinal import CardinalFst as CardinalFstTN
-from nemo_text_processing.text_normalization.ru.taggers.decimals import DecimalFst as DecimalFstTN
-from nemo_text_processing.text_normalization.ru.taggers.ordinal import OrdinalFst as OrdinalFstTN
+from nemo_text_processing.text_normalization.graph_utils import NEMO_SPACE, GraphFst, delete_extra_space
 
 try:
     import pynini
@@ -47,10 +44,14 @@ class DecimalFst(GraphFst):
 
         graph_fractional_part = pynini.invert(tn_decimal.graph_fractional).optimize()
         graph_integer_part = pynini.invert(tn_decimal.integer_part).optimize()
+        optional_graph_quantity = pynini.invert(tn_decimal.optional_quantity).optimize()
 
         graph_fractional = pynutil.insert("fractional_part: \"") + graph_fractional_part + pynutil.insert("\"")
         graph_integer = pynutil.insert("integer_part: \"") + graph_integer_part + pynutil.insert("\"")
-        self.final_graph_wo_sign = graph_integer + pynini.accep(" ") + graph_fractional
+        optional_graph_quantity = pynutil.insert("quantity: \"") + optional_graph_quantity + pynutil.insert("\"")
+        optional_quantity = pynini.closure(pynini.accep(NEMO_SPACE) + optional_graph_quantity, 0, 1)
+
+        self.final_graph_wo_sign = graph_integer + pynini.accep(NEMO_SPACE) + graph_fractional + optional_quantity
         final_graph = optional_graph_negative + self.final_graph_wo_sign
 
         final_graph = self.add_tokens(final_graph)
