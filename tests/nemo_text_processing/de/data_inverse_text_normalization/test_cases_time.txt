@@ -14,6 +14,7 @@ drei viertel zwölf~11:45 Uhr
 dreiviertel zwölf~11:45 Uhr
 viertel vor zwölf~11:45 Uhr
 drei minuten vor zwölf~11:57 Uhr
+zweiundzwanzig vor zwölf~11:38 Uhr
 drei minuten nach zwölf~12:03 Uhr
 viertel nach zwölf~12:15 Uhr
 zehn nach zwölf~12:10 Uhr
