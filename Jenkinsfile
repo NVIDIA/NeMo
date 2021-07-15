@@ -25,7 +25,7 @@ pipeline {
 
     stage('Copyright Headers check') {
       steps {
-        sh 'python /home/TestData/check_copyright_header.py --dir .'
+        sh 'python scripts/check_copyright_header.py --dir .'
       }
     }
 
