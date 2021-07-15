@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ def main():
 
     current_year = int(datetime.today().year)
     starting_year = 2020
-    python_header_path = "/home/TestData/py_cprheader.txt"
+    python_header_path = "tests/py_cprheader.txt"
     with open(python_header_path, 'r') as original:
         pyheader = original.read().split("\n")
         pyheader_lines = len(pyheader)
@@ -76,7 +76,6 @@ def main():
             problematic_files.append(filename)
             continue
 
-        problem = False
         found = False
         for i, line in enumerate(data):
             if re.search(re.compile("Copyright.*NVIDIA.*", re.IGNORECASE), line):
@@ -90,14 +89,13 @@ def main():
                         year_good = True
                         break
                     year_line_aff = year_line.split(".")
-                    year_line_aff = year_line_aff[0] + "& AFFILIATES." + year_line_aff[1]
+                    year_line_aff = year_line_aff[0] + " & AFFILIATES." + year_line_aff[1]
                     if year_line_aff in data[i]:
                         year_good = True
                         break
                 if not year_good:
                     problematic_files.append(filename)
                     print(f"{filename} had an error with the year")
-                    problem = True
                     break
                 while "opyright" in data[i]:
                     i += 1
@@ -105,7 +103,6 @@ def main():
                     if pyheader[j] not in data[i + j - 1]:
                         problematic_files.append(filename)
                         print(f"{filename} missed the line: {pyheader[j]}")
-                        problem = True
                         break
             if found:
                 break
