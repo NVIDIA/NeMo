@@ -72,8 +72,8 @@ class ClassifyFst(GraphFst):
 
         # fraction = FractionFst(deterministic=deterministic, cardinal=cardinal)
         # fraction_graph = fraction.fst
-        measure = MeasureFst(cardinal=cardinal, decimal=self.decimal, deterministic=deterministic)
-        measure_graph = measure.fst
+        self.measure = MeasureFst(cardinal=cardinal, decimal=self.decimal, deterministic=deterministic)
+        measure_graph = self.measure.fst
         self.date = DateFst(cardinal=cardinal, ordinal=ordinal, deterministic=deterministic)
         date_graph = self.date.fst
         word_graph = WordFst(deterministic=deterministic).fst

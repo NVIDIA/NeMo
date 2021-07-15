@@ -58,27 +58,10 @@ class NumberNamesFst(GraphFst):
         cardinal_l = (pynini.closure(cardinal_name + pynini.accep(" ")) + cardinal_name).optimize()
 
         # TODO fix e issues in ordinal.tsv vocabulary
-        ordinal_name = pynini.string_file(get_abs_path("ru/data/ordinals.tsv"))
+        ordinal_name = pynini.string_file(get_abs_path("data/ordinals.tsv"))
         ordinal_l = (pynini.closure(cardinal_name + pynini.accep(" ")) + ordinal_name).optimize()
 
         # Composes L with the leaf transducer (P), then composes that with FG.
         p = a['LEAVES']
         self.ordinal_number_names = (fg @ (p @ ordinal_l)).optimize()
         self.cardinal_number_names = (fg @ (p @ cardinal_l)).optimize()
-
-
-if __name__ == "__main__":
-    numbers = NumberNamesFst()
-
-    examples = {"tn": ["2", "53"], "itn": ["два", "пятьдесят три"]}
-    invert = pynini.invert(numbers.cardinal_number_names)
-    invert = invert.optimize()
-    for written, spoken in zip(examples['tn'], examples['itn']):
-        try:
-            assert spoken in rewrite.rewrites(written, numbers.cardinal_number_names), 'TN failed'
-            assert written == rewrite.top_rewrite(spoken, invert), 'ITN failed'
-        except:
-            import pdb
-
-            pdb.set_trace()
-            print()

@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
-from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst
 
 try:
     import pynini
@@ -22,24 +20,22 @@ try:
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
-
     PYNINI_AVAILABLE = False
 
 
-class MoneyFst(GraphFst):
+class MeasureFst(GraphFst):
     """
-    Finite state transducer for verbalizing money, e.g.
-        money {  integer_part: "пять" currency: "рублей" } -> пять рублей
-
-    Args:
-        decimal: DecimalFst
-        deterministic: if True will provide a single transduction option,
-            for False multiple transduction are generated (used for audio-based normalization)
+    Finite state transducer for verbalizing electronic
+        e.g. tokens { electronic { username: "cdf1" domain: "abc.edu" } } -> cdf1@abc.edu
     """
 
-    def __init__(self, deterministic: bool = True):
-        super().__init__(name="money", kind="verbalize", deterministic=deterministic)
+    def __init__(self):
+        super().__init__(name="measure", kind="verbalize")
 
-        graph = pynini.closure(RU_ALPHA | " ")
+        graph = pynutil.delete("integer: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
+
+        # from pynini.lib.rewrite import top_rewrites
+        # import pdb; pdb.set_trace()
+        # print(top_rewrites('integer: "12кг"', graph, 5))

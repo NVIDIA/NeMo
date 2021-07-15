@@ -15,7 +15,8 @@
 import pytest
 from nemo_text_processing.inverse_text_normalization.inverse_normalize import InverseNormalizer
 from parameterized import parameterized
-from utils import PYNINI_AVAILABLE, parse_test_case_file
+
+from .utils import PYNINI_AVAILABLE, parse_test_case_file
 
 
 class TestRuInverseNormalize:
@@ -31,16 +32,16 @@ class TestRuInverseNormalize:
     # def test_denorm_cardinal(self, test_input, expected):
     #     pred = self.normalizer.inverse_normalize(test_input, verbose=False)
     #     assert expected == pred
-    #
-    # @parameterized.expand(parse_test_case_file('ru_data_inverse_text_normalization/test_cases_ordinal.txt'))
-    # @pytest.mark.skipif(
-    #     not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
-    # )
-    # @pytest.mark.run_only_on('CPU')
-    # @pytest.mark.unit
-    # def test_denorm_ordinal(self, test_input, expected):
-    #     pred = self.normalizer.inverse_normalize(test_input, verbose=False)
-    #     assert expected == pred
+
+    @parameterized.expand(parse_test_case_file('ru_data_inverse_text_normalization/test_cases_ordinal.txt'))
+    @pytest.mark.skipif(
+        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
+    )
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_denorm_ordinal(self, test_input, expected):
+        pred = self.normalizer.inverse_normalize(test_input, verbose=False)
+        assert expected == pred
 
     # @parameterized.expand(parse_test_case_file('ru_data_inverse_text_normalization/test_cases_ordinal_hard.txt'))
     # @pytest.mark.skipif(
@@ -61,7 +62,7 @@ class TestRuInverseNormalize:
     # def test_denorm_decimal(self, test_input, expected):
     #     pred = self.normalizer.inverse_normalize(test_input, verbose=False)
     #     assert expected == pred
-
+    #
     # @parameterized.expand(parse_test_case_file('ru_data_text_normalization/test_cases_decimal.txt'))
     # @pytest.mark.skipif(
     #     not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
@@ -71,7 +72,7 @@ class TestRuInverseNormalize:
     # def test_denorm_electronic(self, test_input, expected):
     #     pred = self.normalizer.inverse_normalize(test_input, verbose=False)
     #     assert expected == pred
-
+    #
     # @parameterized.expand(parse_test_case_file('ru_data_text_normalization/test_cases_date.txt'))
     # @pytest.mark.skipif(
     #     not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
@@ -81,7 +82,7 @@ class TestRuInverseNormalize:
     # def test_denorm_date(self, test_input, expected):
     #     pred = self.normalizer.inverse_normalize(test_input, verbose=False)
     #     assert expected == pred
-
+    #
     # @parameterized.expand(parse_test_case_file('ru_data_text_normalization/test_cases_measure.txt'))
     # @pytest.mark.skipif(
     #     not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
@@ -91,13 +92,13 @@ class TestRuInverseNormalize:
     # def test_denorm_measure(self, test_input, expected):
     #     pred = self.normalizer.inverse_normalize(test_input, verbose=False)
     #     assert expected == pred
-
-    @parameterized.expand(parse_test_case_file('ru_data_inverse_text_normalization/test_cases_money.txt'))
-    @pytest.mark.skipif(
-        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
-    )
-    @pytest.mark.run_only_on('CPU')
-    @pytest.mark.unit
-    def test_denorm_measure(self, test_input, expected):
-        pred = self.normalizer.inverse_normalize(test_input, verbose=False)
-        assert expected == pred
+    #
+    # @parameterized.expand(parse_test_case_file('ru_data_inverse_text_normalization/test_cases_money.txt'))
+    # @pytest.mark.skipif(
+    #     not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
+    # )
+    # @pytest.mark.run_only_on('CPU')
+    # @pytest.mark.unit
+    # def test_denorm_money(self, test_input, expected):
+    #     pred = self.normalizer.inverse_normalize(test_input, verbose=False)
+    #     assert expected == pred

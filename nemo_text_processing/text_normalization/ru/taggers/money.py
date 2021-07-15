@@ -12,13 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_NOT_QUOTE,
-    NEMO_SIGMA,
-    NEMO_SPACE,
-    GraphFst,
-    get_abs_path,
-)
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, NEMO_SIGMA, NEMO_SPACE, GraphFst
+from nemo_text_processing.text_normalization.ru.utils import get_abs_path
 
 try:
     import pynini
@@ -46,8 +41,8 @@ class MoneyFst(GraphFst):
         cardinal_graph = cardinal.cardinal_numbers
         decimal_graph = decimal.final_graph
 
-        unit_singular = pynini.string_file(get_abs_path("ru/data/currency/currency_singular.tsv"))
-        unit_plural = pynini.string_file(get_abs_path("ru/data/currency/currency_plural.tsv"))
+        unit_singular = pynini.string_file(get_abs_path("data/currency/currency_singular.tsv"))
+        unit_plural = pynini.string_file(get_abs_path("data/currency/currency_plural.tsv"))
 
         # adding weight to make sure the space is preserved for ITN
         optional_delimiter = pynini.closure(pynutil.add_weight(pynini.cross(NEMO_SPACE, ""), -100), 0, 1)

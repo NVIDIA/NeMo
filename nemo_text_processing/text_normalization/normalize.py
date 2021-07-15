@@ -45,6 +45,12 @@ class Normalizer:
         if lang == 'en':
             from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
+        elif lang == 'ru':
+            # Ru TN only support non-deterministic cases and produces multiple normalization options
+            # use normalize_with_audio.py
+            from nemo_text_processing.text_normalization.ru.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.text_normalization.ru.verbalizers.verbalize_final import VerbalizeFinalFst
+
         self.tagger = ClassifyFst(input_case=input_case, deterministic=True)
         self.verbalizer = VerbalizeFinalFst(deterministic=True)
         self.parser = TokenParser()

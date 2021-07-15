@@ -27,7 +27,7 @@
 
 
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, GraphFst
-from nemo_text_processing.text_normalization.en.utils import get_abs_path
+from nemo_text_processing.text_normalization.ru.utils import get_abs_path
 
 try:
     import pynini
@@ -60,7 +60,7 @@ class OrdinalFst(GraphFst):
         ordinal_numbers = separators @ ordinal
 
         # to handle cases like 2-ая
-        endings = pynini.string_file(get_abs_path("ru/data/ordinal_endings.tsv"))
+        endings = pynini.string_file(get_abs_path("data/ordinal_endings.tsv"))
         not_dash = pynini.closure(pynini.difference(NEMO_SIGMA, "-"))
         del_ending = pynini.cdrewrite(pynini.cross("-" + not_dash, ""), "", "[EOS]", NEMO_SIGMA)
         ordinal_numbers_marked = (

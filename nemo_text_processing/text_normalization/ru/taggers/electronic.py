@@ -19,10 +19,10 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_NOT_QUOTE,
     GraphFst,
     delete_space,
-    get_abs_path,
     insert_space,
 )
 from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA, TO_LATIN
+from nemo_text_processing.text_normalization.ru.utils import get_abs_path
 
 try:
     import pynini

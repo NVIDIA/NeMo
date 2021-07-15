@@ -14,12 +14,14 @@
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_NON_BREAKING_SPACE,
+    NEMO_NOT_QUOTE,
     NEMO_SIGMA,
+    NEMO_SPACE,
     GraphFst,
-    delete_space,
-    get_abs_path,
+    insert_space,
 )
 from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA
+from nemo_text_processing.text_normalization.ru.utils import get_abs_path
 
 try:
     import pynini
@@ -47,12 +49,15 @@ class MeasureFst(GraphFst):
 
     def __init__(self, cardinal: GraphFst, decimal: GraphFst, deterministic: bool = True):
         super().__init__(name="measure", kind="classify", deterministic=deterministic)
+
+        # adding weight to make sure the space is preserved for ITN
+        delete_space = pynini.closure(pynutil.delete(pynini.union(NEMO_SPACE, NEMO_NON_BREAKING_SPACE)), 0, 1)
         cardinal_graph = cardinal.cardinal_numbers
 
         # if not deterministic:
         #     cardinal_graph |= cardinal.range_graph
 
-        graph_unit = pynini.string_file(get_abs_path("ru/data/measurements.tsv"))
+        graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
 
         # TODO add vocab for singular/plural
         graph_unit_plural = graph_unit
@@ -82,7 +87,7 @@ class MeasureFst(GraphFst):
             + unit_plural
         )
 
-        subgraph_cardinal = (
+        cardinal_space_plural = (
             pynutil.insert("cardinal { ")
             + optional_graph_negative
             + pynutil.insert("integer: \"")
@@ -94,7 +99,7 @@ class MeasureFst(GraphFst):
         )
 
         # TODO one -> fix for Ru
-        subgraph_cardinal |= (
+        cardinal_space_singular = (
             pynutil.insert("cardinal { ")
             + optional_graph_negative
             + pynutil.insert("integer: \"")
@@ -147,14 +152,67 @@ class MeasureFst(GraphFst):
         #     pynutil.insert("fraction { ") + fraction.graph + delete_space + pynutil.insert(" } ") + unit_plural
         # )
 
-        final_graph = (
+        tagger_graph = (
             subgraph_decimal
-            | subgraph_cardinal
-            | cardinal_dash_alpha
+            | cardinal_space_singular
+            | cardinal_space_plural
+            # | cardinal_dash_alpha
             | alpha_dash_cardinal
             | decimal_dash_alpha
             | alpha_dash_decimal
             # | subgraph_fraction
+        ).optimize()
+
+        # verbalizer
+        unit = pynutil.delete("units: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"") + delete_space
+
+        optional_sign = pynini.closure(pynini.cross("negative: \"true\" ", "минус "), 0, 1)
+        integer = pynutil.delete(" \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        integer_part = pynutil.delete("integer_part:") + integer
+        fractional_part = pynutil.delete("fractional_part:") + integer
+        graph_decimal = optional_sign + integer_part + pynini.accep(" ") + fractional_part
+
+        graph_decimal = (
+            pynutil.delete("decimal {")
+            + delete_space
+            # + optional_sign
+            # + delete_space
+            + graph_decimal
+            + delete_space
+            + pynutil.delete("}")
         )
-        final_graph = self.add_tokens(final_graph)
-        self.fst = final_graph.optimize()
+
+        graph_cardinal = (
+            pynutil.delete("cardinal {")
+            + delete_space
+            # + optional_sign
+            # + delete_space
+            + optional_sign
+            + pynutil.delete("integer: \"")
+            + pynini.closure(NEMO_NOT_QUOTE, 1)
+            + pynutil.delete("\"")
+            + delete_space
+            + pynutil.delete("}")
+        )
+
+        # graph_fraction = (
+        #     pynutil.delete("fraction {") + delete_space + fraction.graph + delete_space + pynutil.delete("}")
+        # )
+        # graph = (graph_cardinal | graph_decimal | graph_fraction) + delete_space + insert_space + unit
+
+        verbalizer_graph = (graph_cardinal | graph_decimal) + delete_space + insert_space + unit
+
+        # SH adds "preserve_order: true" by default
+        preserve_order = pynutil.delete("preserve_order:") + delete_space + pynutil.delete("true") + delete_space
+        verbalizer_graph |= (
+            unit + insert_space + (graph_cardinal | graph_decimal) + delete_space + pynini.closure(preserve_order)
+        )
+        verbalizer_graph = verbalizer_graph.optimize()
+
+        self.final_graph = (tagger_graph @ verbalizer_graph).optimize()
+        self.fst = self.add_tokens(self.final_graph).optimize()
+
+        # from pynini.lib.rewrite import top_rewrites
+        # import pdb;
+        # pdb.set_trace()
+        # print(top_rewrites("12 кг", self.fst, 5))

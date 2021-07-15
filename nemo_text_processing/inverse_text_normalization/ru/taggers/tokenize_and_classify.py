@@ -19,6 +19,7 @@ from nemo_text_processing.inverse_text_normalization.ru.taggers.cardinal import 
 from nemo_text_processing.inverse_text_normalization.ru.taggers.date import DateFst
 from nemo_text_processing.inverse_text_normalization.ru.taggers.decimals import DecimalFst
 from nemo_text_processing.inverse_text_normalization.ru.taggers.electronic import ElectronicFst
+from nemo_text_processing.inverse_text_normalization.ru.taggers.measure import MeasureFst
 from nemo_text_processing.inverse_text_normalization.ru.taggers.money import MoneyFst
 from nemo_text_processing.inverse_text_normalization.ru.taggers.ordinal import OrdinalFst
 from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, delete_extra_space, delete_space
@@ -53,7 +54,7 @@ class ClassifyFst(GraphFst):
         decimal = DecimalFst(tn_decimal=tn_classify.decimal)
         decimal_graph = decimal.fst
 
-        # measure_graph = MeasureFst(cardinal=cardinal, decimal=decimal).fst
+        measure_graph = MeasureFst(tn_measure=tn_classify.measure).fst
         date_graph = DateFst(tn_date=tn_classify.date).fst
         word_graph = WordFst().fst
         # time_graph = TimeFst().fst
@@ -66,16 +67,15 @@ class ClassifyFst(GraphFst):
         classify = (
             # pynutil.add_weight(whitelist_graph, 1.01)
             # | pynutil.add_weight(time_graph, 1.1)
-            # pynutil.add_weight(date_graph, 1.09)
-            # pynutil.add_weight(decimal_graph, 1.1)
-            # | pynutil.add_weight(measure_graph, 1.1)
-            # | pynutil.add_weight(cardinal_graph, 1.1)
-            # | pynutil.add_weight(ordinal_graph, 1.1)
-            pynutil.add_weight(money_graph, 1.1)
+            pynutil.add_weight(date_graph, 1.09)
+            | pynutil.add_weight(decimal_graph, 1.1)
+            | pynutil.add_weight(measure_graph, 1.1)
+            | pynutil.add_weight(ordinal_graph, 1.1)
+            | pynutil.add_weight(money_graph, 1.1)
             # | pynutil.add_weight(telephone_graph, 1.1)
-            # | pynutil.add_weight(electronic_graph, 1.1)
-            # | pynutil.add_weight(cardinal_graph, 1.1)
-            # | pynutil.add_weight(word_graph, 100)
+            | pynutil.add_weight(electronic_graph, 1.1)
+            | pynutil.add_weight(cardinal_graph, 1.1)
+            | pynutil.add_weight(word_graph, 100)
         )
 
         punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=1.1) + pynutil.insert(" }")

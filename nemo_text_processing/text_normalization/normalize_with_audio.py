@@ -230,7 +230,7 @@ def parse_args():
     parser.add_argument(
         "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )
-    parser.add_argument("-lang", "--language", help="language", choices=["en"], default="en", type=str)
+    parser.add_argument("-lang", "--language", help="language", choices=["en", "ru"], default="en", type=str)
     parser.add_argument("--audio_data", help="path to an audio file or .json manifest")
     parser.add_argument(
         '--model', type=str, default='QuartzNet15x5Base-En', help='Pre-trained model name or path to model checkpoint'
