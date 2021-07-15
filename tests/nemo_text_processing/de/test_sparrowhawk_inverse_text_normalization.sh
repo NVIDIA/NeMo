@@ -40,6 +40,11 @@ testITNOrdinal() {
   runtest $input
 }
 
+testITNFraction() {
+  input=$PROJECT_DIR/de/data_inverse_text_normalization/test_cases_fraction.txt
+  runtest $input
+}
+
 testITNTime() {
   input=$PROJECT_DIR/de/data_inverse_text_normalization/test_cases_time.txt
   runtest $input
@@ -57,6 +62,21 @@ testITNMoney() {
 
 testITNWhitelist() {
   input=$PROJECT_DIR/de/data_inverse_text_normalization/test_cases_whitelist.txt
+  runtest $input
+}
+
+testITNTelephone() {
+  input=$PROJECT_DIR/de/data_inverse_text_normalization/test_cases_telephone.txt
+  runtest $input
+}
+
+testITNElectronic() {
+  input=$PROJECT_DIR/de/data_inverse_text_normalization/test_cases_electronic.txt
+  runtest $input
+}
+
+testITNWord() {
+  input=$PROJECT_DIR/de/data_inverse_text_normalization/test_cases_word.txt
   runtest $input
 }
 
