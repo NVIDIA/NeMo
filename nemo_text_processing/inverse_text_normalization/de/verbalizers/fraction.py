@@ -13,7 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import GraphFst
+from nemo_text_processing.inverse_text_normalization.de.graph_utils import (
+    NEMO_NOT_QUOTE,
+    GraphFst,
+    delete_space,
+    insert_space,
+)
+
+try:
+    import pynini
+    from pynini.lib import pynutil
+
+    PYNINI_AVAILABLE = True
+except (ModuleNotFoundError, ImportError):
+    PYNINI_AVAILABLE = False
 
 
 class FractionFst(GraphFst):
@@ -23,3 +36,29 @@ class FractionFst(GraphFst):
 
     def __init__(self):
         super().__init__(name="fraction", kind="verbalize")
+        delete_integer_marker = (
+            pynutil.delete("integer_part: \"")
+            + pynini.closure(NEMO_NOT_QUOTE, 1)
+            + pynutil.delete("\"")
+            + insert_space
+        )
+
+        delete_numerator_marker = (
+            pynutil.delete("numerator: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        )
+
+        delete_denominator_marker = (
+            pynutil.insert('/')
+            + pynutil.delete("denominator: \"")
+            + pynini.closure(NEMO_NOT_QUOTE, 1)
+            + pynutil.delete("\"")
+        )
+
+        graph = (
+            pynini.closure(delete_integer_marker + delete_space, 0, 1)
+            + delete_numerator_marker
+            + delete_space
+            + delete_denominator_marker
+        )
+        delete_tokens = self.delete_tokens(graph)
+        self.fst = delete_tokens.optimize()

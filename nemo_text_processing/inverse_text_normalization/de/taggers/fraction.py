@@ -13,7 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import GraphFst
+from nemo_text_processing.inverse_text_normalization.de.graph_utils import (
+    NEMO_CHAR,
+    NEMO_SIGMA,
+    GraphFst,
+    convert_space,
+    delete_extra_space,
+    delete_space,
+    get_singulars,
+    insert_space,
+)
+from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
+
+try:
+    import pynini
+    from pynini.lib import pynutil
+
+    PYNINI_AVAILABLE = True
+except (ModuleNotFoundError, ImportError):
+    PYNINI_AVAILABLE = False
 
 
 class FractionFst(GraphFst):
@@ -21,6 +39,19 @@ class FractionFst(GraphFst):
     Finite state transducer for classifying fraction
     """
 
-    def __init__(self):
+    def __init__(self, cardinal: GraphFst):
         super().__init__(name="fraction", kind="classify")
         # integer_part # numerator # denominator
+
+        cardinal_graph = cardinal.graph_no_exception
+        fractional = pynini.string_file(get_abs_path("data/fractions.tsv"))
+
+        self.fractional = ((pynini.closure(NEMO_CHAR) + fractional) @ cardinal_graph).optimize()
+
+        integer = pynutil.insert("integer_part: \"") + cardinal_graph + pynutil.insert("\"")
+        numerator = pynutil.insert("numerator: \"") + cardinal_graph + pynutil.insert("\"")
+        denominator = pynutil.insert("denominator: \"") + self.fractional + pynutil.insert("\"")
+
+        graph = pynini.closure(integer + delete_space, 0, 1) + numerator + delete_space + insert_space + denominator
+        final_graph = self.add_tokens(graph)
+        self.fst = final_graph.optimize()
