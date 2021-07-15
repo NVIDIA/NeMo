@@ -21,10 +21,11 @@ import librosa
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from pyannote.core import Annotation, Segment
+from pyannote.core import Annotation, Segment, Timeline
 from pyannote.metrics import detection
 
 from nemo.utils import logging
+from sklearn.model_selection import ParameterGrid
 
 
 """
@@ -279,10 +280,11 @@ def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
 
         round_final = np.round(preds, 4)
         np.savetxt(overlap_filepath, round_final, delimiter='\n')
+        
+        return overlap_filepath
 
     except Exception as e:
         raise (e)
-
 
 def generate_vad_segment_table(vad_pred_dir, threshold, shift_len, num_workers):
     """
@@ -325,39 +327,162 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
     """
     See discription in generate_overlap_vad_seq.
     """
-    threshold = per_args['threshold']
+    # threshold = per_args['threshold']
     shift_len = per_args['shift_len']
     out_dir = per_args['out_dir']
 
     name = pred_filepath.split("/")[-1].rsplit(".", 1)[0]
-
     sequence = np.loadtxt(pred_filepath)
-    start = 0
-    start_list = [0]
-    dur_list = []
-    state_list = []
-    current_state = "non-speech"
-    for i in range(len(sequence) - 1):
-        current_state = "non-speech" if sequence[i] <= threshold else "speech"
-        next_state = "non-speech" if sequence[i + 1] <= threshold else "speech"
-        if next_state != current_state:
-            dur = i * shift_len + shift_len - start  # shift_len for handling joint
-            state_list.append(current_state)
-            dur_list.append(dur)
+    # start = 0
+    # start_list = [0]
+    # dur_list = []
+    # state_list = []
+    # current_state = "non-speech"
 
-            start = (i + 1) * shift_len
-            start_list.append(start)
+    # for i in range(len(sequence) - 1):
+    #     current_state = "non-speech" if sequence[i] <= threshold else "speech"
+    #     next_state = "non-speech" if sequence[i + 1] <= threshold else "speech"
+    #     if next_state != current_state:
+    #         dur = i * shift_len + shift_len - start  # shift_len for handling joint
+    #         state_list.append(current_state)
+    #         dur_list.append(dur)
 
-    dur_list.append((i + 1) * shift_len + shift_len - start)
-    state_list.append(current_state)
+    #         start = (i + 1) * shift_len
+    #         start_list.append(start)
 
-    seg_table = pd.DataFrame({'start': start_list, 'dur': dur_list, 'vad': state_list})
-    seg_speech_table = seg_table[seg_table['vad'] == 'speech']
+    # dur_list.append((i + 1) * shift_len + shift_len - start)
+    # state_list.append(current_state)
+
+    active_segments = binarization(sequence, per_args)
+    seg_speech_table = pd.DataFrame(active_segments, columns =['start', 'end'])
+    seg_speech_table['dur'] = seg_speech_table['end'] - seg_speech_table['start'] + shift_len
+    seg_speech_table['vad'] = 'speech'
+
+    # seg_table = pd.DataFrame({'start': start_list, 'dur': dur_list, 'vad': state_list})
+    # seg_speech_table = seg_table[seg_table['vad'] == 'speech']
 
     save_name = name + ".txt"
     save_path = os.path.join(out_dir, save_name)
-    seg_speech_table.to_csv(save_path, sep='\t', index=False, header=False)
+    seg_speech_table.to_csv(save_path, columns=['start', 'dur', 'vad'], sep='\t', index=False, header=False)
     return save_path
+
+def binarization(sequence, per_args):
+    """
+    Reference
+    Paper: Gregory Gelly and Jean-Luc Gauvain. "Minimum Word Error Training of RNN-based Voice Activity Detection", InterSpeech 2015. 
+    Implementation: https://github.com/pyannote/pyannote-audio/blob/master/pyannote/audio/utils/signal.py 
+
+
+    • an onset and offset thresholds for the detection of the beginning and end of a speech segment;
+    • padding durations before and after each speech segment;
+    • a threshold for short speech segment deletion;
+    • and a threshold for small silence deletion.
+    """
+
+    onset = per_args.get('onset', 0.5)
+    offset = per_args.get('offset', 0.5)
+
+    pad_onset = per_args.get('pad_onset', 0.0)
+    pad_offset = per_args.get('pad_offset', 0.0)
+    min_duration_on = per_args.get('min_duration_on', 0)
+    min_duration_off = per_args.get('min_duration_off', 0)
+    shift_len = per_args.get('shift_len', 0.01)
+
+    onset, offset = cal_vad_onset_offset(per_args.get('scale', 'absolute'), onset, offset)
+
+    print(onset, offset)
+    start_list = []
+    dur_list = []
+
+    active = False
+    active_segments = set()
+    
+    for i in range(1, len(sequence)):
+        # currently active
+        if active:
+            # switching from active to inactive
+            if sequence[i] < offset:
+                active_segments.add((start * shift_len - pad_onset, i * shift_len + pad_offset))
+                start = i
+                active = False
+
+        # currently inactive
+        else:
+            # switching from inactive to active
+            if sequence[i] > onset:
+                start = i * shift_len
+                active = True
+
+    # if active at the end, add final segment            
+    if active:
+        active_segments.add((start * shift_len - pad_onset, i * shift_len + pad_offset))
+
+    # Merge overlap active due to padding
+    active_segments = merge_overlap_segment(active_segments)
+    # Filter short active segments
+    if min_duration_on > 0.0:
+        active_segments = filter_short_segments(active_segments, min_duration_on)
+    
+    if min_duration_off > 0.0:
+        inactive_segments = get_gap_segments(segments)
+        short_inactive_segments= set(inactive_segments) - set(filter_short_segments(inactive_segments, min_duration_off))
+        active_segments.extend(list(short_inactive_segments))
+        active_segments = merge_overlap_segment(active_segments)
+
+
+    return active_segments
+
+    #     current_state = "non-speech" if sequence[i] <= threshold else "speech"
+    #     next_state = "non-speech" if sequence[i + 1] <= threshold else "speech"
+    #     if next_state != current_state:
+    #         dur = i * shift_len + shift_len - start  # shift_len for handling joint
+    #         state_list.append(current_state)
+    #         dur_list.append(dur)
+
+    #         start = (i + 1) * shift_len
+    #         start_list.append(start)
+
+    # dur_list.append((i + 1) * shift_len + shift_len - start)
+    # state_list.append(current_state)
+
+def filter_short_segments(segments, threshold):
+    return [seg for seg in segments if seg[1]-seg[0] >= threshold]
+
+
+def get_gap_segments(segments):
+    gap_segments = []
+    segments.sort(key=lambda x: x[0])
+    for i in range(len(segments)-1):
+        gap_segments.append([segments[i][1], segments[i+1][0]])
+    
+    return gap_segments
+
+def merge_overlap_segment(segments):
+    segments=[list(i) for i in segments]
+    segments.sort(key=lambda x: x[0])
+    merged = []
+    for segment in segments:
+        if not merged or merged[-1][1] < segment[0]:
+            merged.append(segment)
+        else:
+            merged[-1][1] = max(merged[-1][1], segment[1])
+    return merged
+
+
+def cal_vad_onset_offset(scale, onset, offset):
+    if scale == "absolute":
+        mini = 0
+        maxi = 1
+    elif scale == "relative":
+        mini = np.nanmin(data)
+        maxi = np.nanmax(data)
+    elif scale == "percentile":
+        mini = np.nanpercentile(data, 1)
+        maxi = np.nanpercentile(data, 99)
+
+    onset = mini + onset * (maxi - mini)
+    offset = mini + offset * (maxi - mini)
+    return onset, offset
 
 
 def vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_file):
@@ -387,7 +512,10 @@ def vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_
     return reference, hypothesis
 
 
-def vad_tune_threshold_on_dev(thresholds, vad_pred, groundtruth_RTTM, vad_pred_method="frame", focus_metric="DetER"):
+def get_parameter_grid(params):
+    return list(ParameterGrid(params))
+
+def vad_tune_threshold_on_dev(params, vad_pred, groundtruth_RTTM, vad_pred_method="frame", focus_metric="DetER"):
     """
     Tune threshold on dev set. Return best threshold which gives the lowest detection error rate (DetER) in thresholds.
     Args:
@@ -399,16 +527,17 @@ def vad_tune_threshold_on_dev(thresholds, vad_pred, groundtruth_RTTM, vad_pred_m
     Returns:
         best_threhsold (float): threshold that gives lowest DetER.
     """
-    threshold_perf = {}
-    best_threhsold = thresholds[0]
+    all_perf = {}
     min_score = 100
 
-    try:
-        thresholds[0] >= 0 and thresholds[-1] <= 1
-    except:
-        raise ValueError("Invalid threshold! Should be in [0, 1]")
+    # try:
+    #     onsets[0] >= 0 and onsets[-1] <= 1
+    # except:
+    #     raise ValueError("Invalid onset! Should be in [0, 1]")
 
-    for threshold in thresholds:
+    params_grid = get_parameter_grid(params)
+
+    for param in params_grid:
         metric = detection.DetectionErrorRate()
         paired_filenames, groundtruth_RTTM_dict, vad_pred_dict = pred_rttm_map(
             vad_pred, groundtruth_RTTM, vad_pred_method
@@ -419,14 +548,17 @@ def vad_tune_threshold_on_dev(thresholds, vad_pred, groundtruth_RTTM, vad_pred_m
             groundtruth_RTTM_file = groundtruth_RTTM_dict[filename]
 
             if os.path.isdir(vad_pred):
-                table_out_dir = os.path.join(vad_pred, "table_output_" + str(threshold))
+                table_out_dir = os.path.join(vad_pred, "table_output_" + str(param))
             else:
-                table_out_dir = os.path.join("tmp_table_outputs", "table_output_" + str(threshold))
+                table_out_dir = os.path.join("tmp_table_outputs", "table_output_" + str(param))
 
             if not os.path.exists(table_out_dir):
                 os.makedirs(table_out_dir)
 
-            per_args = {"threshold": threshold, "shift_len": 0.01, "out_dir": table_out_dir}
+            per_args = {"shift_len": 0.01, "out_dir": table_out_dir}
+            per_args = {**per_args, **param}
+            print(per_args)
+            
             vad_table_filepath = generate_vad_segment_table_per_file(vad_pred_filepath, per_args)
 
             reference, hypothesis = vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_file)
@@ -446,13 +578,13 @@ def vad_tune_threshold_on_dev(thresholds, vad_pred, groundtruth_RTTM, vad_pred_m
         else:
             raise ValueError("Metric we care most should be only in 'DetER', 'FA'or 'MISS'!")
 
-        threshold_perf[threshold] = {'DetER (%)': DetER, 'FA (%)': FA, 'MISS (%)': MISS}
-        logging.info(f"threshold {threshold}, {threshold_perf[threshold]}")
+        all_perf[str(param)] = {'DetER (%)': DetER, 'FA (%)': FA, 'MISS (%)': MISS}
+        logging.info(f"parameter {param}, {all_perf[str(param)] }")
         del report
         metric.reset()  # reset internal accumulator
         if score < min_score:
             min_score = score
-            best_threhsold = threshold
+            best_threhsold = param
     return best_threhsold
 
 

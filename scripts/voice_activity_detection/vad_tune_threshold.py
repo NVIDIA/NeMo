@@ -22,7 +22,7 @@ from nemo.utils import logging
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--threshold_range", help="range of threshold in list 'START,END,STEP' to be tuned on", required=True
+        "--onset_range", help="range of onset in list 'START,END,STEP' to be tuned on", required=True
     )
     parser.add_argument(
         "--vad_pred", help="Directory of vad predictions or a file contains the paths of them.", required=True
@@ -46,13 +46,17 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    params = {}
     try:
-        start, stop, step = [float(i) for i in args.threshold_range.split(",")]
-        thresholds = np.arange(start, stop, step)
+        if args.onset_range:
+            start, stop, step = [float(i) for i in args.onset_range.split(",")]
+            onsets = np.arange(start, stop, step)
+            params['onset'] = onsets
+
     except:
         raise ValueError("Theshold input is invalid! Please enter it as a 'START,STOP,STEP' ")
 
     best_threhsold = vad_tune_threshold_on_dev(
-        thresholds, args.vad_pred, args.groundtruth_RTTM, args.vad_pred_method, args.focus_metric
+        params, args.vad_pred, args.groundtruth_RTTM, args.vad_pred_method, args.focus_metric
     )
-    logging.info(f"Best threshold selected from {thresholds} is {best_threhsold}!")
+    logging.info(f"Best onset selected from {onsets} is {best_threhsold}!")
