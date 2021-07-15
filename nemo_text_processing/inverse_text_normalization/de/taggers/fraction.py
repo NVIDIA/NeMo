@@ -15,12 +15,9 @@
 
 from nemo_text_processing.inverse_text_normalization.de.graph_utils import (
     NEMO_CHAR,
-    NEMO_SIGMA,
     GraphFst,
-    convert_space,
     delete_extra_space,
     delete_space,
-    get_singulars,
     insert_space,
 )
 from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path

@@ -21,7 +21,6 @@ from nemo_text_processing.inverse_text_normalization.de.graph_utils import (
     delete_space,
     insert_space,
 )
-from nemo_text_processing.inverse_text_normalization.de.taggers.cardinal import CardinalFst
 from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
 
 try:
@@ -64,9 +63,6 @@ class TimeFst(GraphFst):
         quarters = (
             pynini.cross("viertel", "15") | pynini.cross("drei viertel", "45") | pynini.cross("dreiviertel", "45")
         )
-
-        # only used for < 1000 thousand -> 0 weight
-        cardinal = pynutil.add_weight(CardinalFst().graph_no_exception, weight=-0.7)
         oclock = pynutil.delete("uhr")
 
         final_graph_hour = pynutil.insert("hours: \"") + hour + pynutil.insert("\"")

@@ -14,7 +14,6 @@
 
 import csv
 import os
-from typing import Union
 
 
 def get_abs_path(rel_path):

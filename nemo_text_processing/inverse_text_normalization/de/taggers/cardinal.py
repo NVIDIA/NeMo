@@ -15,14 +15,11 @@
 
 
 from collections import defaultdict
-from string import punctuation
 
 from nemo_text_processing.inverse_text_normalization.de.graph_utils import (
     NEMO_DIGIT,
-    NEMO_SIGMA,
     NEMO_SPACE,
     GraphFst,
-    delete_extra_space,
     delete_space,
 )
 from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path, load_labels
