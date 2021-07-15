@@ -51,19 +51,19 @@ class ClassifyFst(GraphFst):
 
     def __init__(self, input_case: str, deterministic: bool = True):
         super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
-        print('Ru TN only support non-deterministic cases and produces multiple normalization options.')
+        print('Ru TN only supports non-deterministic cases and produces multiple normalization options.')
 
-        numbert_names = NumberNamesFst()
+        number_names = NumberNamesFst()
         alternative_formats = AlternativeFormatsFst()
 
         cardinal = CardinalFst(
-            number_names=numbert_names, alternative_formats=alternative_formats, deterministic=deterministic
+            number_names=number_names, alternative_formats=alternative_formats, deterministic=deterministic
         )
         self.cardinal = cardinal
         cardinal_graph = cardinal.fst
 
         ordinal = OrdinalFst(
-            number_names=numbert_names, alternative_formats=alternative_formats, deterministic=deterministic
+            number_names=number_names, alternative_formats=alternative_formats, deterministic=deterministic
         )
         self.ordinal = ordinal
         ordinal_graph = ordinal.fst
@@ -79,7 +79,8 @@ class ClassifyFst(GraphFst):
         date_graph = self.date.fst
         word_graph = WordFst(deterministic=deterministic).fst
         # time_graph = TimeFst(cardinal=cardinal, deterministic=deterministic).fst
-        # telephone_graph = TelephoneFst(cardinal=cardinal, deterministic=deterministic).fst
+        self.telephone = TelephoneFst(number_names=number_names, deterministic=deterministic)
+        telephone_graph = self.telephone.fst
         self.electronic = ElectronicFst(deterministic=deterministic)
         electronic_graph = self.electronic.fst
         self.money = MoneyFst(cardinal=cardinal, decimal=self.decimal, deterministic=deterministic)
@@ -96,7 +97,7 @@ class ClassifyFst(GraphFst):
             | pynutil.add_weight(cardinal_graph, 1.1)
             | pynutil.add_weight(ordinal_graph, 1.1)
             | pynutil.add_weight(money_graph, 1.1)
-            # | pynutil.add_weight(telephone_graph, 1.1)
+            | pynutil.add_weight(telephone_graph, 1.1)
             | pynutil.add_weight(electronic_graph, 1.1)
             # | pynutil.add_weight(fraction_graph, 1.1)
             | pynutil.add_weight(word_graph, 100)

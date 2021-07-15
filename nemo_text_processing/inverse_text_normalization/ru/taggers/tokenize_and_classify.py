@@ -22,6 +22,7 @@ from nemo_text_processing.inverse_text_normalization.ru.taggers.electronic impor
 from nemo_text_processing.inverse_text_normalization.ru.taggers.measure import MeasureFst
 from nemo_text_processing.inverse_text_normalization.ru.taggers.money import MoneyFst
 from nemo_text_processing.inverse_text_normalization.ru.taggers.ordinal import OrdinalFst
+from nemo_text_processing.inverse_text_normalization.ru.taggers.telephone import TelephoneFst
 from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, delete_extra_space, delete_space
 from nemo_text_processing.text_normalization.ru.taggers.tokenize_and_classify import ClassifyFst as TNClassifyFst
 
@@ -62,7 +63,7 @@ class ClassifyFst(GraphFst):
         whitelist_graph = WhiteListFst().fst
         punct_graph = PunctuationFst().fst
         electronic_graph = ElectronicFst().fst
-        # telephone_graph = TelephoneFst().fst
+        telephone_graph = TelephoneFst(tn_telephone=tn_classify.telephone).fst
 
         classify = (
             # pynutil.add_weight(whitelist_graph, 1.01)
@@ -72,7 +73,7 @@ class ClassifyFst(GraphFst):
             | pynutil.add_weight(measure_graph, 1.1)
             | pynutil.add_weight(ordinal_graph, 1.1)
             | pynutil.add_weight(money_graph, 1.1)
-            # | pynutil.add_weight(telephone_graph, 1.1)
+            | pynutil.add_weight(telephone_graph, 1.1)
             | pynutil.add_weight(electronic_graph, 1.1)
             | pynutil.add_weight(cardinal_graph, 1.1)
             | pynutil.add_weight(word_graph, 100)

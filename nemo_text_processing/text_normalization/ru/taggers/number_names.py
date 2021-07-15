@@ -57,6 +57,12 @@ class NumberNamesFst(GraphFst):
         cardinal_name = pynini.string_file(get_abs_path("data/cardinals.tsv"))
         cardinal_l = (pynini.closure(cardinal_name + pynini.accep(" ")) + cardinal_name).optimize()
 
+        # Numbers up to 1000 in nominative case (to use, for example, with telephone)
+        nominative_up_to_thousand_name = pynini.string_file(get_abs_path("data/cardinals_nominative_case.tsv"))
+        nominative_up_to_thousand_name_l = (
+            pynini.closure(nominative_up_to_thousand_name + pynini.accep(" ")) + nominative_up_to_thousand_name
+        ).optimize()
+
         # TODO fix e issues in ordinal.tsv vocabulary
         ordinal_name = pynini.string_file(get_abs_path("data/ordinals.tsv"))
         ordinal_l = (pynini.closure(cardinal_name + pynini.accep(" ")) + ordinal_name).optimize()
@@ -65,3 +71,4 @@ class NumberNamesFst(GraphFst):
         p = a['LEAVES']
         self.ordinal_number_names = (fg @ (p @ ordinal_l)).optimize()
         self.cardinal_number_names = (fg @ (p @ cardinal_l)).optimize()
+        self.nominative_up_to_thousand_names = (fg @ (p @ nominative_up_to_thousand_name_l)).optimize()

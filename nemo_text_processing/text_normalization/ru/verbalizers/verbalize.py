@@ -22,6 +22,7 @@ from nemo_text_processing.text_normalization.ru.verbalizers.electronic import El
 from nemo_text_processing.text_normalization.ru.verbalizers.measure import MeasureFst
 from nemo_text_processing.text_normalization.ru.verbalizers.money import MoneyFst
 from nemo_text_processing.text_normalization.ru.verbalizers.ordinal import OrdinalFst
+from nemo_text_processing.text_normalization.ru.verbalizers.telephone import TelephoneFst
 
 
 class VerbalizeFst(GraphFst):
@@ -50,6 +51,7 @@ class VerbalizeFst(GraphFst):
         electronic_graph = electronic.fst
         whitelist_graph = WhiteListFst().fst
         money_graph = MoneyFst().fst
+        telephone_graph = TelephoneFst().fst
 
         graph = (
             measure_graph
@@ -60,5 +62,6 @@ class VerbalizeFst(GraphFst):
             | electronic_graph
             | money_graph
             | whitelist_graph
+            | telephone_graph
         )
         self.fst = graph

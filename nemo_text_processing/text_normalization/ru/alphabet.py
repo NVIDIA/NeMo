@@ -13,7 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.utils import get_abs_path
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NON_BREAKING_SPACE, NEMO_SPACE
+from nemo_text_processing.text_normalization.ru.utils import get_abs_path
 
 try:
     import pynini
@@ -56,8 +57,8 @@ try:
     ]
 
     REWRITE_STRESSED = pynini.closure(pynini.string_map(RU_STRESSED_MAP).optimize() | RU_ALPHA).optimize()
-
-    TO_LATIN = pynini.string_file(get_abs_path("ru/data/cyrillic_to_latin.tsv"))
+    TO_LATIN = pynini.string_file(get_abs_path("data/cyrillic_to_latin.tsv"))
+    RU_ALPHA_OR_SPACE = pynini.union(RU_ALPHA, NEMO_SPACE, NEMO_NON_BREAKING_SPACE).optimize()
 
 except (ModuleNotFoundError, ImportError):
     # Create placeholders
