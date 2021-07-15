@@ -187,8 +187,6 @@ class CardinalFst(GraphFst):
 
         graph_exception = pynini.project(pynini.union(graph_digit, graph_zero), 'input')
 
-        # graph = pynini.cdrewrite(pynutil.delete(f"{AND}"), NEMO_SPACE, NEMO_SPACE, NEMO_SIGMA) @ graph
-
         self.graph_no_exception = graph
 
         self.graph = (pynini.project(graph, "input") - graph_exception.arcsort()) @ graph

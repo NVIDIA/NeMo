@@ -90,9 +90,10 @@ class DecimalFst(GraphFst):
         final_graph_wo_sign = graph_integer + delete_extra_space + point + delete_extra_space + graph_fractional
         final_graph = optional_graph_negative + final_graph_wo_sign
 
-        self.final_graph_wo_negative = final_graph_wo_sign | get_quantity(
-            final_graph_wo_sign, cardinal.graph_hundred_component_at_least_one_none_zero_digit
-        )
+        self.final_graph_wo_negative = (
+            final_graph_wo_sign
+            | get_quantity(final_graph_wo_sign, cardinal.graph_hundred_component_at_least_one_none_zero_digit)
+        ).optimize()
         final_graph |= optional_graph_negative + get_quantity(
             final_graph_wo_sign, cardinal.graph_hundred_component_at_least_one_none_zero_digit
         )

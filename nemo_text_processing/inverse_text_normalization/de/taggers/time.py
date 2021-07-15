@@ -23,7 +23,6 @@ from nemo_text_processing.inverse_text_normalization.de.graph_utils import (
 )
 from nemo_text_processing.inverse_text_normalization.de.taggers.cardinal import CardinalFst
 from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
-from pynini.lib.pynutil import insert
 
 try:
     import pynini
@@ -118,7 +117,19 @@ class TimeFst(GraphFst):
             + pynutil.insert("\"")
         )
 
-        final_graph = ((graph_hm | graph_mh | graph_m_vor_h | graph_m_nach_h) + final_time_zone_optional).optimize()
+        # suffix
+        optional_graph_suffix = pynini.closure(
+            delete_extra_space
+            + pynutil.insert("suffix: \"")
+            + pynini.union('abends', 'nachmittags')
+            + pynutil.insert("\""),
+            0,
+            1,
+        )
+
+        final_graph = (
+            (graph_hm | graph_mh | graph_m_vor_h | graph_m_nach_h) + optional_graph_suffix + final_time_zone_optional
+        ).optimize()
 
         final_graph = self.add_tokens(final_graph)
 
