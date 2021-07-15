@@ -16,6 +16,7 @@ import tempfile
 
 import onnx
 import pytest
+import torch.cuda
 from omegaconf import DictConfig, ListConfig
 
 from nemo.collections.asr.models import (
@@ -94,7 +95,10 @@ class TestExportable:
     @pytest.mark.unit
     def test_EncDecRNNTModel_export_to_onnx(self, citrinet_rnnt_model):
         citrinet_rnnt_model.freeze()
-        model = citrinet_rnnt_model  # .cuda()
+        model = citrinet_rnnt_model.train()
+
+        # if torch.cuda.is_available():
+        #     model = model.to('cuda')
 
         with tempfile.TemporaryDirectory() as tmpdir:
             fn = 'citri_rnnt.onnx'

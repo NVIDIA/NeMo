@@ -632,6 +632,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
     def _prepare_for_export(self, **kwargs):
         self.freeze()
         self._fuse_loss_wer = False
+        self.log_softmax = False
 
     def input_example(self):
         """

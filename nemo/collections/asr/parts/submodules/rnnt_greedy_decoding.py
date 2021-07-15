@@ -493,7 +493,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                     # Get index k, of max prob for batch
                     v, k = logp.max(1)
+
+                    print("pt v", logp[:, :10])
                     del v, g
+
+                    print('pt t u', time_idx, symbols_added, 'k', k)
+                    # print("pt states", hidden_prime[0][:, :, :20])
 
                     # Update blank mask with current predicted blanks
                     # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
@@ -841,7 +846,7 @@ class ONNXGreedyBatchedRNNTInfer:
         # Get max sequence length
         max_out_len = out_len.max()
         for time_idx in range(max_out_len):
-            f = x[:, time_idx : time_idx + 1, :]  #  x.narrow(dim=1, start=time_idx, length=1)  # [B, 1, D]
+            f = x[:, time_idx : time_idx + 1, :]  # [B, 1, D]
             f = f.transpose([0, 2, 1])
 
             # Prepare t timestamp batch variables
@@ -871,11 +876,13 @@ class ONNXGreedyBatchedRNNTInfer:
                 logp, pred_lengths = joint_out
                 logp = logp[:, 0, 0, :]
 
-                # if logp.dtype != torch.float32:
-                #     logp = logp.float()
+                print("onnx v", logp[:, :10])
 
                 # Get index k, of max prob for batch
                 k = np.argmax(logp, axis=1).astype(np.int32)
+
+                print('onnx t u', time_idx, symbols_added, 'k', k)
+                print("onnx states", hidden_prime[0][:, :, :20])
 
                 # Update blank mask with current predicted blanks
                 # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
@@ -894,7 +901,9 @@ class ONNXGreedyBatchedRNNTInfer:
                     # Collect batch indices where blanks occurred now/past
                     blank_indices = []
                     if hidden is not None:
-                        blank_indices = (blank_mask == 1).nonzero()
+                        blank_indices = blank_mask.astype(np.int32).nonzero()
+                        if type(blank_indices) in (list, tuple):
+                            blank_indices = blank_indices[0]
 
                     # Recover prior state for all samples which predicted blank now/past
                     if hidden is not None:
@@ -924,9 +933,15 @@ class ONNXGreedyBatchedRNNTInfer:
         return label, timesteps
 
     def run_encoder(self, audio_signal, length):
+        if hasattr(audio_signal, 'cpu'):
+            audio_signal = audio_signal.cpu().numpy()
+
+        if hasattr(length, 'cpu'):
+            length = length.cpu().numpy()
+
         ip = {
-            self.encoder_inputs[0].name: audio_signal.cpu().numpy(),
-            self.encoder_inputs[1].name: length.cpu().numpy(),
+            self.encoder_inputs[0].name: audio_signal,
+            self.encoder_inputs[1].name: length,
         }
         enc_out = self.encoder.run(None, ip)
         enc_out, encoded_length = enc_out  # ASSUME: single output
