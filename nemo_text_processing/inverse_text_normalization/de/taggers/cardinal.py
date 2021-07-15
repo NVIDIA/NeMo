@@ -94,10 +94,11 @@ class CardinalFst(GraphFst):
         )
         graph_hundred_component += delete_space
         graph_hundred_component += pynini.union(
-            graph_teen,
-            pynutil.insert("00"),  #  fourteen
-            graph_ties,  # twenty, twenty four,
-            pynutil.insert("0") + graph_digit,
+            pynutil.insert("00"),
+            pynini.closure(pynutil.delete(AND) + delete_space, 0, 1)
+            + pynini.union(
+                graph_teen, graph_ties, pynutil.insert("0") + graph_digit,  #  fourteen  # twenty, twenty four,
+            ),
         )
 
         graph_hundred_component_at_least_one_none_zero_digit = (

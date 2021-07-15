@@ -49,6 +49,7 @@ class DateFst(GraphFst):
             + delete_space
             + pynutil.delete("\"")
             + pynini.closure(NEMO_NOT_QUOTE, 1)
+            + pynutil.insert('.')
             + pynutil.delete("\"")
         )
         year = (
@@ -62,9 +63,7 @@ class DateFst(GraphFst):
 
         # (day) month year
         graph_dmy = (
-            pynini.closure(day + delete_extra_space, 0, 1)
-            + month
-            + pynini.closure(delete_space + pynutil.insert(", ") + year, 0, 1)
+            pynini.closure(day + delete_extra_space, 0, 1) + month + pynini.closure(delete_extra_space + year, 0, 1)
         )
 
         optional_preserve_order = pynini.closure(

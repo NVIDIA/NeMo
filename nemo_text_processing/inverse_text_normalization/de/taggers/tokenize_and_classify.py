@@ -56,22 +56,22 @@ class ClassifyFst(GraphFst):
         decimal_graph = decimal.fst
 
         # measure_graph = MeasureFst(cardinal=cardinal, decimal=decimal).fst
-        # date_graph = DateFst(ordinal=ordinal, cardinal=cardinal).fst
+        date_graph = DateFst(ordinal=ordinal, cardinal=cardinal).fst
         word_graph = WordFst().fst
         # time_graph = TimeFst().fst
         # money_graph = MoneyFst(cardinal=cardinal, decimal=decimal).fst
-        # whitelist_graph = WhiteListFst().fst
+        whitelist_graph = WhiteListFst().fst
         punct_graph = PunctuationFst().fst
         # electronic_graph = ElectronicFst().fst
         # telephone_graph = TelephoneFst().fst
 
         classify = (
-            # pynutil.add_weight(whitelist_graph, 1.01)
+            pynutil.add_weight(whitelist_graph, 1.01)
             # | pynutil.add_weight(time_graph, 1.1)
-            # | pynutil.add_weight(date_graph, 1.09)
-            # | pynutil.add_weight(decimal_graph, 1.1)
+            | pynutil.add_weight(date_graph, 1.09)
+            | pynutil.add_weight(decimal_graph, 1.1)
             # | pynutil.add_weight(measure_graph, 1.1)
-            pynutil.add_weight(cardinal_graph, 1.1)
+            | pynutil.add_weight(cardinal_graph, 1.1)
             | pynutil.add_weight(ordinal_graph, 1.1)
             # | pynutil.add_weight(money_graph, 1.1)
             # | pynutil.add_weight(telephone_graph, 1.1)

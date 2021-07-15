@@ -5,3 +5,4 @@ ein hundert zwanzig millionen~120 millionen
 zehn millionen~10 millionen
 minus sechzig komma zwei vier null null~-60,2400
 acht hundert achtzehn komma drei null drei~818,303
+achthundertachtzehn komma drei null drei~818,303

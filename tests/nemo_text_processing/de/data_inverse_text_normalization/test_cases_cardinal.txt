@@ -1,4 +1,9 @@
 hundert~100
+hundertundzwei~102
+hundertundzwanzig~120
+tausendundzwanzig~1020
+tausendundeinhundertzwanzig~tausendundeinhundertzwanzig
+hundert und elf~111
 tausend~1000
 hundert zwanzig~120
 tausend zwanzig~1020

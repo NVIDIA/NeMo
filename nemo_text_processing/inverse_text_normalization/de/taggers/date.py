@@ -20,6 +20,7 @@ from nemo_text_processing.inverse_text_normalization.de.graph_utils import (
     delete_extra_space,
     delete_space,
 )
+from nemo_text_processing.inverse_text_normalization.de.taggers.cardinal import AND
 from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
 
 try:
@@ -48,6 +49,17 @@ def _get_month_graph():
     return month_graph
 
 
+def _get_single_or_double_digit():
+    return (
+        pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
+        | pynini.string_file(get_abs_path("data/numbers/teen.tsv"))
+    ).optimize()
+
+
+def _get_single_digit():
+    return pynini.string_file(get_abs_path("data/numbers/digit.tsv")).optimize()
+
+
 class DateFst(GraphFst):
     """
     Finite state transducer for classifying date, 
@@ -72,7 +84,6 @@ class DateFst(GraphFst):
         month_graph = pynutil.insert("month: \"") + month_graph + pynutil.insert("\"")
 
         day_graph = pynutil.insert("day: \"") + pynutil.add_weight(ordinal_graph, -0.7) + pynutil.insert("\"")
-        optional_day_graph = pynini.closure(delete_extra_space + day_graph, 0, 1)
         optional_graph_year = pynini.closure(
             delete_extra_space
             + pynutil.insert("year: \"")
@@ -82,8 +93,12 @@ class DateFst(GraphFst):
             1,
         )
         graph_dmy = day_graph + delete_extra_space + month_graph + optional_graph_year
-        # graph_year = pynutil.insert("year: \"") + (year_graph | _get_range_graph()) + pynutil.insert("\"")
-        graph_year = pynutil.insert("year: \"") + (year_graph) + pynutil.insert("\"")
+        graph_year = (
+            pynutil.insert("year: \"")
+            + year_graph
+            + pynini.closure(pynini.accep('er') + pynini.closure(pynini.accep('n'), 0, 1), 0, 1)
+            + pynutil.insert("\"")
+        )
 
         final_graph = graph_dmy | graph_year
         final_graph += pynutil.insert(" preserve_order: true")
@@ -95,30 +110,25 @@ class DateFst(GraphFst):
         Transducer for year, e.g. twenty twenty -> 2020
         """
 
-        def _get_thousands_graph():
+        def _get_graph():
             """
-            ein tausend (neun hundert) [vierzehn/sechs und zwanzig/sieben]
+            ein tausend (elf hundert) [vierzehn/sechs und zwanzig/sieben]
             """
-            graph_hundred_component = (graph_digit + delete_space + pynutil.delete("hundert")) | pynutil.insert("0")
-            graph = (
-                graph_digit
-                + delete_space
-                + pynutil.delete("tausend")
-                + delete_space
-                + graph_hundred_component
-                + delete_space
-                + (graph_teen | self.cardinal.graph_ties | (pynutil.insert("0") + graph_digit))
-            )
-            return graph
-
-        def _get_hundreds_graph():
-            """
-            neunzehn hundert [vierzehn/sechs und zwanzig/sieben]
-            """
-            graph = (
-                (graph_teen | self.cardinal.graph_ties)
+            graph_hundred_prefix = (
+                _get_single_or_double_digit()
                 + delete_space
                 + pynutil.delete("hundert")
+                + pynini.closure(delete_space + pynutil.delete(AND), 0, 1)
+            )
+            graph_thousand_prefix = (
+                _get_single_digit()
+                + delete_space
+                + pynutil.delete("tausend")
+                + pynini.closure(delete_space + pynutil.delete(AND), 0, 1)
+                + pynutil.insert('0')
+            )
+            graph = (
+                pynini.union(graph_hundred_prefix, graph_thousand_prefix)
                 + delete_space
                 + (graph_teen | self.cardinal.graph_ties | (pynutil.insert("0") + graph_digit))
             )
@@ -127,8 +137,7 @@ class DateFst(GraphFst):
         year_graph = (
             # 20 19, 40 12, 2012 - assuming no limit on the year
             ((graph_teen | self.cardinal.graph_ties) + delete_space + (self.cardinal.graph_ties | graph_teen))
-            | _get_thousands_graph()
-            | _get_hundreds_graph()
+            | _get_graph()
         )
         year_graph.optimize()
         return year_graph
