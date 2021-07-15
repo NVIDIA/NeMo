@@ -31,7 +31,8 @@ except (ModuleNotFoundError, ImportError):
 
 class FractionFst(GraphFst):
     """
-    Finite state transducer for verbalizing fraction, 
+    Finite state transducer for verbalizing fraction
+        e.g. tokens { fraction { integer_part: "1" numerator: "2" denominator: "3"} } -> 1 2/3
     """
 
     def __init__(self):

@@ -34,12 +34,15 @@ except (ModuleNotFoundError, ImportError):
 
 class MeasureFst(GraphFst):
     """
-    Finite state transducer for classifying measure
-        e.g. minus twelve kilograms -> measure { negative: "true" cardinal { integer: "12" } units: "kg" }
+    Finite state transducer for classifying measure. Allows for plural form for unit.
+        e.g. minus elf kilogramm -> measure { negative: "true" cardinal { integer: "11" } units: "kg" }
+        e.g. drei stunden -> measure { cardinal { integer: "3" } units: "h" }
+        e.g. ein halb kilogramm -> measure { fraction { numerator: "1" denominator: "2" } units: "h" }
 
     Args:
         cardinal: CardinalFst
         decimal: DecimalFst
+        fraction: FractionFst
     """
 
     def __init__(self, cardinal: GraphFst, decimal: GraphFst, fraction: GraphFst):

@@ -32,7 +32,7 @@ except (ModuleNotFoundError, ImportError):
 class DateFst(GraphFst):
     """
     Finite state transducer for verbalizing date, e.g.
-        date { day: "5" month: "january" year: "2012" preserve_order: true } -> 5 february 2012
+        date { day: "5" month: "januar" year: "2012" preserve_order: true } -> 5 januar 2012
     """
 
     def __init__(self):

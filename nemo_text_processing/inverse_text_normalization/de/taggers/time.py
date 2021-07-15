@@ -36,12 +36,19 @@ except (ModuleNotFoundError, ImportError):
 class TimeFst(GraphFst):
     """
     Finite state transducer for classifying time
-        e.g. twelve thirty -> time { hours: "12" minutes: "30" }
-        e.g. twelve past one -> time { minutes: "12" hours: "1" }
-        e.g. two o clock a m -> time { hours: "2" suffix: "a.m." }
-        e.g. quarter to two -> time { hours: "1" minutes: "45" }
-        e.g. quarter past two -> time { hours: "2" minutes: "15" }
-        e.g. half past two -> time { hours: "2" minutes: "30" }
+        e.g. acht uhr -> time { hours: "8" minutes: "00" }
+        e.g. dreizehn uhr -> time { hours: "13" minutes: "00" }
+        e.g. dreizehn uhr zehn -> time { hours: "13" minutes: "10" }
+        e.g. acht uhr abends -> time { hours: "8" minutes: "00" suffix: "abends"}
+        e.g. acht uhr nachmittags -> time { hours: "8" minutes: "00" suffix: "nachmittags"}
+        e.g. viertel vor zwölf -> time { minutes: "45" hours: "11" }
+        e.g. viertel nach zwölf -> time { minutes: "15" hours: "12" }
+        e.g. halb zwölf -> time { minutes: "30" hours: "11" }
+        e.g. viertel zwölf -> time { minutes: "15" hours: "11" }
+        e.g. drei minuten vor zwölf -> time { minutes: "57" hours: "11" }
+        e.g. drei vor zwölf -> time { minutes: "57" hours: "11" }
+        e.g. drei minuten nach zwölf -> time { minutes: "03" hours: "12" }
+        e.g. drei viertel zwölf -> time { minutes: "45" hours: "11" }
     """
 
     def __init__(self):
@@ -54,7 +61,9 @@ class TimeFst(GraphFst):
         hour = pynini.string_file(get_abs_path("data/time/hour.tsv"))
         minute = pynini.string_file(get_abs_path("data/time/minute.tsv"))
         half = pynini.cross("halb", "30")
-        quarters = pynini.cross("viertel", "15") | pynini.cross("drei viertel", "45")
+        quarters = (
+            pynini.cross("viertel", "15") | pynini.cross("drei viertel", "45") | pynini.cross("dreiviertel", "45")
+        )
 
         # only used for < 1000 thousand -> 0 weight
         cardinal = pynutil.add_weight(CardinalFst().graph_no_exception, weight=-0.7)
@@ -79,7 +88,7 @@ class TimeFst(GraphFst):
         # vierzehn uhr zehn
         graph_hm = final_graph_hour + delete_extra_space + final_graph_minute
 
-        # 10 nach vier, vierzehn nach vier, viertel nach vier
+        # zehn nach vier, vierzehn nach vier, viertel nach vier
         graph_m_nach_h = (
             pynutil.insert("minutes: \"")
             + pynini.union(minute + pynini.closure(delete_space + pynutil.delete("minuten"), 0, 1), quarters)

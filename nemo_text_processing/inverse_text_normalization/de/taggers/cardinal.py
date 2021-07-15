@@ -39,7 +39,14 @@ except (ModuleNotFoundError, ImportError):
 AND = "und"
 
 
-def get_ties_digit(digit_path, tie_path):
+def get_ties_digit(digit_path: str, tie_path: str):
+    """
+    getting all inverse normalizations for numbers between 21 - 100
+
+    Args:
+        digit_path: file to digit tsv
+        tie_path: file to tie tsv, e.g. 20, 30, etc.
+    """
 
     digits = defaultdict(list)
     ties = defaultdict(list)
@@ -67,9 +74,20 @@ def get_ties_digit(digit_path, tie_path):
 
 class CardinalFst(GraphFst):
     """
-    Finite state transducer for classifying cardinals
-        e.g. minus twenty three -> cardinal { integer: "23" negative: "-" } }
-    Numbers below ten are not converted. 
+    Finite state transducer for classifying cardinals. Numbers below ten are not converted. 
+    Allows both compound numeral strings or separated by whitespace.
+    "und" (en: "and") can be inserted between "hundert" and following number or "tausend" and following single or double digit number.
+
+        e.g. minus drei und zwanzig -> cardinal { integer: "23" negative: "-" } }
+        e.g. minusdreiundzwanzig -> cardinal { integer: "23" } }
+        e.g. dreizehn -> cardinal { integer: "13" } }
+        e.g. hundert -> cardinal { integer: "100" } }
+        e.g. einhundert -> cardinal { integer: "100" } }
+        e.g. tausend -> cardinal { integer: "1000" } }
+        e.g. eintausend -> cardinal { integer: "1000" } }
+        e.g. tausendundzwanzig -> cardinal { integer: "1020" } }
+        e.g. hundertundzwanzig -> cardinal { integer: "120" } }
+    
     """
 
     def __init__(self):

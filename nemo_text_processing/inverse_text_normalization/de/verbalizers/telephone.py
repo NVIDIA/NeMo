@@ -27,8 +27,8 @@ except (ModuleNotFoundError, ImportError):
 class TelephoneFst(GraphFst):
     """
     Finite state transducer for verbalizing telephone, e.g.
-        telephone { number_part: "123-123-5678" }
-        -> 123-123-5678 
+        telephone { number_part: "(0411) 1234-1234" }
+        -> (0411) 1234-1234 
     """
 
     def __init__(self):

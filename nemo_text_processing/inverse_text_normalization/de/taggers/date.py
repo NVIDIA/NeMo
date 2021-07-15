@@ -43,13 +43,16 @@ except (ModuleNotFoundError, ImportError):
 
 def _get_month_graph():
     """
-    Transducer for month, e.g. march -> march
+    Transducer for month, e.g. april -> april
     """
     month_graph = pynini.string_file(get_abs_path("data/months.tsv"))
     return month_graph
 
 
-def _get_single_or_double_digit():
+def _get_digit_or_teen():
+    """
+    Transducer for single digit or teens
+    """
     return (
         pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
         | pynini.string_file(get_abs_path("data/numbers/teen.tsv"))
@@ -57,18 +60,25 @@ def _get_single_or_double_digit():
 
 
 def _get_single_digit():
+    """
+    Transducer for single digit
+    """
     return pynini.string_file(get_abs_path("data/numbers/digit.tsv")).optimize()
 
 
 class DateFst(GraphFst):
     """
-    Finite state transducer for classifying date, 
-        e.g. january fifth twenty twelve -> date { month: "january" day: "5" year: "2012" preserve_order: true }
-        e.g. the fifth of january twenty twelve -> date { day: "5" month: "january" year: "2012" preserve_order: true }
-        e.g. twenty twenty -> date { year: "2012" preserve_order: true }
+    Finite state transducer for classifying date, in the form of (day) month (year) or year
+        e.g. vierundzwanzigster juli zwei tausend dreizehn -> date { day: "24" month: "juli" year: "2013" preserve_order: true }
+        e.g. neunzehnachtzig -> date { year: "1980" preserve_order: true }
+        e.g. neunzehnachtziger -> date { year: "1980er" preserve_order: true }
+        e.g. neunzehnhundertundachtzig -> date { year: "1980" preserve_order: true }
+        e.g. vierzehnter januar -> date { day: "24" month: "januar"  preserve_order: true }
+        e.g. zwanzig zwanzig -> date { year: "2020" preserve_order: true }
 
     Args:
         ordinal: OrdinalFst
+        cardinal: CardinalFst
     """
 
     def __init__(self, ordinal: GraphFst, cardinal: GraphFst):
@@ -107,7 +117,7 @@ class DateFst(GraphFst):
 
     def _get_year_graph(self):
         """
-        Transducer for year, e.g. twenty twenty -> 2020
+        Transducer for year
         """
 
         def _get_graph():
@@ -115,7 +125,7 @@ class DateFst(GraphFst):
             ein tausend (elf hundert) [vierzehn/sechs und zwanzig/sieben]
             """
             graph_hundred_prefix = (
-                _get_single_or_double_digit()
+                _get_digit_or_teen()
                 + delete_space
                 + pynutil.delete("hundert")
                 + pynini.closure(delete_space + pynutil.delete(AND), 0, 1)

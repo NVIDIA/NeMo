@@ -32,7 +32,7 @@ except (ModuleNotFoundError, ImportError):
 class OrdinalFst(GraphFst):
     """
     Finite state transducer for verbalizing ordinal, e.g.
-       ordinal { integer: "13" } -> 13th
+       ordinal { integer: "13" } -> 13.
     """
 
     def __init__(self):

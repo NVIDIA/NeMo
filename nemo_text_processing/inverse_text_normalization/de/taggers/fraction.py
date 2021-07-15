@@ -37,6 +37,12 @@ except (ModuleNotFoundError, ImportError):
 class FractionFst(GraphFst):
     """
     Finite state transducer for classifying fraction
+        e.g. ein halb -> tokens { fraction { numerator: "1" denominator: "2" } }
+        e.g. eineinhalb -> tokens { fraction { integer_part: "1" numerator: "1" denominator: "2" } }
+        e.g. drei zwei hundertstel -> tokens { fraction { integer_part: "3" numerator: "2" denominator: "100" } }
+    
+    Args:
+        cardinal: CardinalFst
     """
 
     def __init__(self, cardinal: GraphFst):

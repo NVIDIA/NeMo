@@ -28,36 +28,28 @@ except (ModuleNotFoundError, ImportError):
 class TelephoneFst(GraphFst):
     """
     Finite state transducer for classifying telephone numbers, e.g. 
-        one two three one two three five six seven eight -> { number_part: "123-123-5678" }
+        null vier eins eins eins zwei drei vier eins zwei drei vier -> { number_part: "(0411) 1234-1234" }
     """
 
     def __init__(self):
         super().__init__(name="telephone", kind="classify")
-        delete_space = pynutil.delete(' ')
         # country code, number_part, extension
-        add_separator = pynutil.insert(" ")  # between components
-        digit = pynini.invert(
-            pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
-            | pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
-        ).optimize()
+        separator = pynini.accep(" ")  # between components
+        zero = pynini.invert(pynini.string_file(get_abs_path("data/numbers/zero.tsv")))
+        digit = (pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv"))) | zero).optimize()
 
         number_part = (
-            (
-                (pynini.closure(digit + insert_space, 2, 2) + digit + pynutil.delete("-"))
-                | (
-                    pynutil.delete("(")
-                    + pynini.closure(digit + insert_space, 2, 2)
-                    + digit
-                    + pynutil.delete(")")
-                    + pynini.closure(pynutil.delete("-"), 0, 1)
-                    + delete_space
-                )
-            )
-            + add_separator
+            pynutil.delete("(")
+            + zero
+            + insert_space
             + pynini.closure(digit + insert_space, 2, 2)
             + digit
+            + pynutil.delete(")")
+            + separator
+            + pynini.closure(digit + insert_space, 3, 3)
+            + digit
             + pynutil.delete("-")
-            + add_separator
+            + insert_space
             + pynini.closure(digit + insert_space, 3, 3)
             + digit
         )

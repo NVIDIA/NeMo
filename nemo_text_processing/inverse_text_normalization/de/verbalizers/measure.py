@@ -33,6 +33,7 @@ class MeasureFst(GraphFst):
     Args:
         decimal: DecimalFst
         cardinal: CardinalFst
+        fraction: FractionFst
     """
 
     def __init__(self, decimal: GraphFst, cardinal: GraphFst, fraction: GraphFst):

@@ -33,8 +33,8 @@ except (ModuleNotFoundError, ImportError):
 def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstLike') -> 'pynini.FstLike':
     """
     Returns FST that transforms either a cardinal or decimal followed by a quantity into a numeral,
-    e.g. one million -> integer_part: "1" quantity: "million"
-    e.g. one point five million -> integer_part: "1" fractional_part: "5" quantity: "million"
+    e.g. eine million -> integer_part: "1" quantity: "million"
+    e.g. eins komma vier millionen -> integer_part: "1" fractional_part: "4" quantity: "millionen"
 
     Args: 
         decimal: decimal FST
@@ -44,8 +44,19 @@ def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstL
         pynutil.delete(pynini.closure("0")) + pynini.difference(NEMO_DIGIT, "0") + pynini.closure(NEMO_DIGIT)
     )
     suffix = pynini.union(
-        "million", "millionen", "milliarde", "milliarden", "billion", "billionen"
-    )  # "quadrillion", "quintillion", "sextillion")
+        "million",
+        "millionen",
+        "milliarde",
+        "milliarden",
+        "billion",
+        "billionen",
+        "billiarde",
+        "billiarden",
+        "trillion",
+        "trillionen",
+        "trilliarde",
+        "trilliarden",
+    )
     res = (
         pynutil.insert("integer_part: \"")
         + numbers
@@ -55,14 +66,14 @@ def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstL
         + suffix
         + pynutil.insert("\"")
     )
-    res |= decimal + delete_extra_space + pynutil.insert("quantity: \"") + (suffix | "tausend") + pynutil.insert("\"")
+    res |= decimal + delete_extra_space + pynutil.insert("quantity: \"") + suffix + pynutil.insert("\"")
     return res
 
 
 class DecimalFst(GraphFst):
     """
     Finite state transducer for classifying decimal
-        e.g. minus twelve point five o o six billion -> decimal { negative: "true" integer_part: "12"  fractional_part: "5006" quantity: "billion" }
+        e.g. minus elf komma zwei null null sechs billionen -> decimal { negative: "true" integer_part: "11"  fractional_part: "2006" quantity: "billionen" }
         e.g. eine billion -> decimal { integer_part: "1" quantity: "billion" }
     Args:
         cardinal: CardinalFst

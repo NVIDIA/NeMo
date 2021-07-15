@@ -49,7 +49,6 @@ try:
     delete_extra_space = pynini.cross(pynini.closure(NEMO_WHITE_SPACE, 1), " ")
 
     suppletive = pynini.string_file(get_abs_path("data/suppletive.tsv"))
-    # _v = pynini.union("a", "e", "i", "o", "u")
     _c = pynini.union(
         "b", "c", "d", "f", "g", "h", "j", "k", "l", "m", "n", "p", "q", "r", "s", "t", "v", "w", "x", "y", "z", "ß"
     )
@@ -102,7 +101,6 @@ except (ModuleNotFoundError, ImportError):
     delete_extra_space = None
 
     suppletive = None
-    # _v = pynini.union("a", "e", "i", "o", "u")
     _c = None
     _ies = None
     _es = None

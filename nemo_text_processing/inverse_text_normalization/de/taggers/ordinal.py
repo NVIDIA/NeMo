@@ -28,7 +28,7 @@ except (ImportError, ModuleNotFoundError):
 class OrdinalFst(GraphFst):
     """
     Finite state transducer for classifying ordinal
-        e.g. thirteenth -> ordinal { integer: "13" }
+        e.g. dreizehnter -> ordinal { integer: "13" }
 
     Args:
         cardinal: CardinalFst

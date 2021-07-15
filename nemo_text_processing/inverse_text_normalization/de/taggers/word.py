@@ -27,7 +27,7 @@ except (ModuleNotFoundError, ImportError):
 class WordFst(GraphFst):
     """
     Finite state transducer for classifying plain tokens, that do not belong to any special class. This can be considered as the default class.
-        e.g. sleep -> tokens { name: "sleep" }
+        e.g. hallo -> tokens { name: "hallo" }
     """
 
     def __init__(self):

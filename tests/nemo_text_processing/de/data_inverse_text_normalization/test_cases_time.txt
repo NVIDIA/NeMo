@@ -11,6 +11,7 @@ null uhr siebzehn~00:17 Uhr
 zwölf uhr nachts~12:00 Uhr nachts
 halb zwölf~11:30 Uhr
 drei viertel zwölf~11:45 Uhr
+dreiviertel zwölf~11:45 Uhr
 viertel vor zwölf~11:45 Uhr
 drei minuten vor zwölf~11:57 Uhr
 drei minuten nach zwölf~12:03 Uhr

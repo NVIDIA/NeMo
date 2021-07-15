@@ -32,7 +32,7 @@ except (ModuleNotFoundError, ImportError):
 class WordFst(GraphFst):
     """
     Finite state transducer for verbalizing plain tokens
-        e.g. tokens { name: "sleep" } -> sleep
+        e.g. tokens { name: "hallo" } -> hallo
     """
 
     def __init__(self):
