@@ -37,8 +37,8 @@ class MeasureFst(GraphFst):
     def __init__(self, tn_measure, deterministic: bool = True):
         super().__init__(name="measure", kind="classify", deterministic=deterministic)
 
-        graph = tn_measure.final_graph
-        graph = graph.invert().optimize()
+        tn_measure = tn_measure.tagger_graph_default @ tn_measure.verbalizer_graph
+        graph = tn_measure.invert().optimize()
         graph = pynutil.insert("integer: \"") + graph + pynutil.insert("\"")
         graph = self.add_tokens(graph)
         self.fst = graph.optimize()

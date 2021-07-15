@@ -26,6 +26,7 @@ from nemo_text_processing.text_normalization.ru.taggers.money import MoneyFst
 from nemo_text_processing.text_normalization.ru.taggers.number_names import NumberNamesFst
 from nemo_text_processing.text_normalization.ru.taggers.numbers_alternatives import AlternativeFormatsFst
 from nemo_text_processing.text_normalization.ru.taggers.ordinal import OrdinalFst
+from nemo_text_processing.text_normalization.ru.taggers.telephone import TelephoneFst
 
 try:
     import pynini
@@ -78,7 +79,7 @@ class ClassifyFst(GraphFst):
         date_graph = self.date.fst
         word_graph = WordFst(deterministic=deterministic).fst
         # time_graph = TimeFst(cardinal=cardinal, deterministic=deterministic).fst
-        # telephone_graph = TelephoneFst(deterministic=deterministic).fst
+        # telephone_graph = TelephoneFst(cardinal=cardinal, deterministic=deterministic).fst
         self.electronic = ElectronicFst(deterministic=deterministic)
         electronic_graph = self.electronic.fst
         self.money = MoneyFst(cardinal=cardinal, decimal=self.decimal, deterministic=deterministic)

@@ -45,14 +45,14 @@ class VerbalizeFst(GraphFst):
         measure_graph = MeasureFst().fst
 
         graph = (
-            # whitelist_graph
-            # | cardinal_graph
-            # | ordinal_graph
-            # | decimal_graph
-            # | electronic_graph
-            # | date_graph
-            # | money_graph
-            measure_graph
+            whitelist_graph
+            | cardinal_graph
+            | ordinal_graph
+            | decimal_graph
+            | electronic_graph
+            | date_graph
+            | money_graph
+            | measure_graph
         )
 
         self.fst = graph

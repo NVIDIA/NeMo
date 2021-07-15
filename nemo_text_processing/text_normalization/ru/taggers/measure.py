@@ -51,7 +51,9 @@ class MeasureFst(GraphFst):
         super().__init__(name="measure", kind="classify", deterministic=deterministic)
 
         # adding weight to make sure the space is preserved for ITN
-        delete_space = pynini.closure(pynutil.delete(pynini.union(NEMO_SPACE, NEMO_NON_BREAKING_SPACE)), 0, 1)
+        delete_space = pynini.closure(
+            pynutil.add_weight(pynutil.delete(pynini.union(NEMO_SPACE, NEMO_NON_BREAKING_SPACE)), -1), 0, 1
+        )
         cardinal_graph = cardinal.cardinal_numbers
 
         # if not deterministic:
@@ -152,15 +154,14 @@ class MeasureFst(GraphFst):
         #     pynutil.insert("fraction { ") + fraction.graph + delete_space + pynutil.insert(" } ") + unit_plural
         # )
 
+        self.tagger_graph_default = (subgraph_decimal | cardinal_space_singular | cardinal_space_plural).optimize()
+
         tagger_graph = (
-            subgraph_decimal
-            | cardinal_space_singular
-            | cardinal_space_plural
-            # | cardinal_dash_alpha
+            self.tagger_graph_default
+            | cardinal_dash_alpha
             | alpha_dash_cardinal
             | decimal_dash_alpha
             | alpha_dash_decimal
-            # | subgraph_fraction
         ).optimize()
 
         # verbalizer
@@ -207,10 +208,10 @@ class MeasureFst(GraphFst):
         verbalizer_graph |= (
             unit + insert_space + (graph_cardinal | graph_decimal) + delete_space + pynini.closure(preserve_order)
         )
-        verbalizer_graph = verbalizer_graph.optimize()
+        self.verbalizer_graph = verbalizer_graph.optimize()
 
-        self.final_graph = (tagger_graph @ verbalizer_graph).optimize()
-        self.fst = self.add_tokens(self.final_graph).optimize()
+        final_graph = (tagger_graph @ verbalizer_graph).optimize()
+        self.fst = self.add_tokens(final_graph).optimize()
 
         # from pynini.lib.rewrite import top_rewrites
         # import pdb;
