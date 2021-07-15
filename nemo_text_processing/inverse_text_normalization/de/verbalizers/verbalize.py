@@ -41,14 +41,15 @@ class VerbalizeFst(GraphFst):
         ordinal_graph = OrdinalFst().fst
         decimal = DecimalFst()
         decimal_graph = decimal.fst
-        measure_graph = MeasureFst(decimal=decimal, cardinal=cardinal).fst
+        fraction = FractionFst()
+        fraction_graph = fraction.fst
+        measure_graph = MeasureFst(decimal=decimal, cardinal=cardinal, fraction=fraction).fst
         money_graph = MoneyFst(decimal=decimal).fst
         time_graph = TimeFst().fst
         date_graph = DateFst().fst
         whitelist_graph = WhiteListFst().fst
         telephone_graph = TelephoneFst().fst
         electronic_graph = ElectronicFst().fst
-        fraction_graph = FractionFst().fst
         graph = (
             time_graph
             | date_graph

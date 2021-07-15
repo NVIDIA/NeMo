@@ -36,6 +36,7 @@ class FractionFst(GraphFst):
 
     def __init__(self):
         super().__init__(name="fraction", kind="verbalize")
+        optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "-") + delete_space, 0, 1)
         delete_integer_marker = (
             pynutil.delete("integer_part: \"")
             + pynini.closure(NEMO_NOT_QUOTE, 1)
@@ -59,6 +60,7 @@ class FractionFst(GraphFst):
             + delete_numerator_marker
             + delete_space
             + delete_denominator_marker
-        )
-        delete_tokens = self.delete_tokens(graph)
+        ).optimize()
+        self.numbers = graph
+        delete_tokens = self.delete_tokens(optional_sign + graph)
         self.fst = delete_tokens.optimize()

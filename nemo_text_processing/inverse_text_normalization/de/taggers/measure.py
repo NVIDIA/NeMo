@@ -42,7 +42,7 @@ class MeasureFst(GraphFst):
         decimal: DecimalFst
     """
 
-    def __init__(self, cardinal: GraphFst, decimal: GraphFst):
+    def __init__(self, cardinal: GraphFst, decimal: GraphFst, fraction: GraphFst):
         super().__init__(name="measure", kind="classify")
 
         cardinal_graph = cardinal.graph_no_exception
@@ -72,6 +72,16 @@ class MeasureFst(GraphFst):
             + delete_extra_space
             + unit
         )
+
+        subgraph_fraction = (
+            pynutil.insert("fraction { ")
+            + optional_graph_negative
+            + fraction.final_graph_wo_negative
+            + pynutil.insert(" }")
+            + delete_extra_space
+            + unit
+        )
+
         subgraph_cardinal = (
             pynutil.insert("cardinal { ")
             + optional_graph_negative
@@ -82,6 +92,6 @@ class MeasureFst(GraphFst):
             + delete_extra_space
             + unit
         )
-        final_graph = subgraph_decimal | subgraph_cardinal
+        final_graph = subgraph_decimal | subgraph_cardinal | subgraph_fraction
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

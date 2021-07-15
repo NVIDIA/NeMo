@@ -35,7 +35,7 @@ class MeasureFst(GraphFst):
         cardinal: CardinalFst
     """
 
-    def __init__(self, decimal: GraphFst, cardinal: GraphFst):
+    def __init__(self, decimal: GraphFst, cardinal: GraphFst, fraction: GraphFst):
         super().__init__(name="measure", kind="verbalize")
         optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "-"), 0, 1)
         unit = (
@@ -64,6 +64,16 @@ class MeasureFst(GraphFst):
             + delete_space
             + pynutil.delete("}")
         )
-        graph = (graph_cardinal | graph_decimal) + delete_space + pynutil.insert(" ") + unit
+        graph_fraction = (
+            pynutil.delete("fraction {")
+            + delete_space
+            + optional_sign
+            + delete_space
+            + fraction.numbers
+            + delete_space
+            + pynutil.delete("}")
+        )
+
+        graph = (graph_cardinal | graph_decimal | graph_fraction) + delete_space + pynutil.insert(" ") + unit
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

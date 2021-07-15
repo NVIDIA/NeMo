@@ -32,7 +32,7 @@ class DecimalFst(GraphFst):
 
     def __init__(self):
         super().__init__(name="decimal", kind="verbalize")
-        optionl_sign = pynini.closure(pynini.cross("negative: \"true\"", "-") + delete_space, 0, 1)
+        optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "-") + delete_space, 0, 1)
         integer = (
             pynutil.delete("integer_part:")
             + delete_space
@@ -58,8 +58,8 @@ class DecimalFst(GraphFst):
             + pynutil.delete("\"")
         )
         optional_quantity = pynini.closure(pynutil.insert(" ") + quantity + delete_space, 0, 1)
-        graph = optional_integer + optional_fractional + optional_quantity
+        graph = (optional_integer + optional_fractional + optional_quantity).optimize()
         self.numbers = graph
-        graph = optionl_sign + graph
+        graph = optional_sign + graph
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

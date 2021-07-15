@@ -53,5 +53,12 @@ class FractionFst(GraphFst):
         denominator = pynutil.insert("denominator: \"") + self.fractional + pynutil.insert("\"")
 
         graph = pynini.closure(integer + delete_space, 0, 1) + numerator + delete_space + insert_space + denominator
+        graph = graph.optimize()
+        self.final_graph_wo_negative = graph
+
+        optional_graph_negative = pynini.closure(
+            pynutil.insert("negative: ") + pynini.cross("minus", "\"true\"") + delete_extra_space, 0, 1
+        )
+        graph = optional_graph_negative + graph
         final_graph = self.add_tokens(graph)
         self.fst = final_graph.optimize()

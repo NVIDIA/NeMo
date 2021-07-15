@@ -30,3 +30,4 @@ ein achtzigstel~1/80
 ein neunzigstel~1/90
 ein hundertstel~1/100
 einzweiundzwanzigstel~1/22
+minus einzweiundzwanzigstel~-1/22
