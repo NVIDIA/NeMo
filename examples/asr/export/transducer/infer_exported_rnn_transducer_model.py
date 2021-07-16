@@ -94,10 +94,16 @@ def main():
     if torch.cuda.is_available():
         nemo_model = nemo_model.to('cuda')
 
-    audio_filepath = ["/media/smajumdar/data/Datasets/Librispeech/LibriSpeech/test-clean-processed/61-70968-0004.wav"]
+    audio_filepath = ["/media/smajumdar/data/Datasets/Librispeech/LibriSpeech/test-clean-processed/61-70968-0004.wav",
+                      "/media/smajumdar/data/Datasets/Librispeech/LibriSpeech/test-other-processed/367-130732-0000.wav",
+                      "/media/smajumdar/data/Datasets/Librispeech/LibriSpeech/test-other-processed/367-130732-0001.wav",
+                      "/media/smajumdar/data/Datasets/Librispeech/LibriSpeech/test-other-processed/367-130732-0002.wav"]
 
     actual_transcripts = nemo_model.transcribe(audio_filepath)[0]
-    print("Actual transcripts", actual_transcripts)
+
+    print("Pytorch Transcripts:")
+    for transcript in actual_transcripts:
+        print(">", transcript)
 
     # Work in tmp directory - will store manifest file there
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -122,14 +128,16 @@ def main():
             )
             hypotheses = decoding(audio_signal=processed_audio, length=processed_audio_len)
             hypotheses = decode_hypothesis(hypotheses, tokenizer, blank_id=decoding._blank_index)  # type: List[str]
-
             texts = [h.text for h in hypotheses]
-            all_hypothesis += hypotheses
+
+            all_hypothesis += texts
 
             del processed_audio, processed_audio_len
             del test_batch
 
-    print("ONNX transcripts", all_hypothesis)
+    print("ONNX Transcripts:")
+    for transcript in all_hypothesis:
+        print(">", transcript)
 
 
 # def main():
