@@ -112,6 +112,9 @@ To run a tutorial:
    * - TTS
      - Speech Synthesis
      - `Tacotron2 Training <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/2_TTS_Tacotron2_Training.ipynb>`_
+   * - TTS
+     - Speech Synthesis
+     - `TalkNet Training <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/3_TTS_TalkNet_Training.ipynb>`_
    * - Tools
      - CTC Segmentation
      - `CTC Segmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tools/CTC_Segmentation_Tutorial.ipynb>`_
