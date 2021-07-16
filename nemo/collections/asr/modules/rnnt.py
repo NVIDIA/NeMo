@@ -122,7 +122,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             A tuple of input examples.
         """
         length = 1
-        targets = torch.randint(0, self.vocab_size, size=(1, length), dtype=torch.int32).to(
+        targets = torch.full(fill_value=self.blank_idx, size=(1, length), dtype=torch.int32).to(
             next(self.parameters()).device
         )
         target_length = torch.randint(0, length, size=(1,), dtype=torch.int32).to(next(self.parameters()).device)
@@ -182,7 +182,12 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         # state maintenance is unnecessary during training forward call
         # to get state, use .predict() method.
-        g, states = self.predict(y, state=states, add_sos=True)  # (B, U, D)
+        if hasattr(self, '_rnnt_export') and self._rnnt_export:
+            add_sos = False
+        else:
+            add_sos = True
+
+        g, states = self.predict(y, state=states, add_sos=add_sos)  # (B, U, D)
         g = g.transpose(1, 2)  # (B, D, U)
 
         return g, target_length, states
