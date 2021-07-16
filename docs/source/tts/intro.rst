@@ -47,8 +47,8 @@ Available Models
 ################
 
 NeMo supports a variety of models that can be used for TTS. For beginners, we recommend starting with the FastPitch +
-HiFiGAN combination. Then we suggest trying using (TalkNet or FastPitch) + HiFiGAN if you want to continue exploring
-the two stage pipeline, or the FastPitch_HifiGan_E2E model for the end-to-end pipeline.
+HiFiGAN combination. Then we suggest trying using FastPitch_HifiGan_E2E if you want to start exploring
+the end-to-end pipeline.
 
 .. list-table:: *TTS Models*
    :widths: 5 5 10 25
