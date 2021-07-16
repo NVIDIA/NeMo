@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from nemo_text_processing.inverse_text_normalization.utils import get_abs_path
-from nemo_text_processing.text_normalization.graph_utils import NEMO_CHAR, GraphFst, delete_space
+from nemo_text_processing.text_normalization.graph_utils import NEMO_SIGMA, GraphFst, delete_space
 
 try:
     import pynini
@@ -46,9 +46,9 @@ class OrdinalFst(GraphFst):
 
         ordinal_graph_union = pynini.union(graph_digit, graph_teens, graph_twenties, graph_ties, graph_hundreds,)
 
-        accept_o_endings = NEMO_CHAR.closure() + pynini.accep("o")
-        accept_a_endings = NEMO_CHAR.closure() + pynini.accep("a")
-        accept_er_endings = NEMO_CHAR.closure() + pynini.accep("er")
+        accept_o_endings = NEMO_SIGMA + pynini.accep("o")
+        accept_a_endings = NEMO_SIGMA + pynini.accep("a")
+        accept_er_endings = NEMO_SIGMA.closure() + pynini.accep("er")
 
         ordinal_graph_o = accept_o_endings @ ordinal_graph_union
         ordinal_graph_a = accept_a_endings @ ordinal_graph_union
@@ -59,9 +59,7 @@ class OrdinalFst(GraphFst):
         optional_numbers_in_front = (pynutil.add_weight(ordinal_graph_union, -0.1) + delete_space.closure()).closure()
 
         graph_o_suffix = (optional_numbers_in_front + ordinal_graph_o) @ cardinal_graph
-
         graph_a_suffix = (optional_numbers_in_front + ordinal_graph_a) @ cardinal_graph
-
         graph_er_suffix = (optional_numbers_in_front + ordinal_graph_er) @ cardinal_graph
 
         graph = (
