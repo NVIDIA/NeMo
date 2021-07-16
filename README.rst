@@ -153,7 +153,7 @@ Note that RNNT requires numba to be installed from conda.
 
   conda remove numba
   pip uninstall numba
-  conda install -c conda conda
+  conda install -c numba numba
 
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
