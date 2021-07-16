@@ -23,6 +23,7 @@ from omegaconf import MISSING, ListConfig, OmegaConf
 from nemo.collections.asr.parts.submodules.jasper import (
     JasperBlock,
     MaskedConv1d,
+    ParallelBlock,
     SqueezeExcite,
     ParallelBlock,
     init_weights,
