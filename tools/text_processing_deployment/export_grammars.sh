@@ -32,8 +32,9 @@
 
 GRAMMARS="itn_grammars" # tn_grammars
 INPUT_CASE="cased" # lower_cased, only for tn_grammars
-LANGUAGE="en" # language
+LANGUAGE="en" # language, 'en' supports both TN and ITN, 'ru' ITN only
 MODE=""
+FORCE="" # use to --FORCE="-f" to force grammar re-built
 
 for ARG in "$@"
 do
@@ -49,13 +50,16 @@ done
 echo "GRAMMARS = $GRAMMARS"
 echo "MODE = $MODE"
 echo "LANGUAGE = $LANGUAGE"
+echo "INPUT_CASE = $INPUT_CASE"
 
 python pynini_export.py --output_dir=. --grammars=${GRAMMARS} --input_case=${INPUT_CASE} --language=${LANGUAGE}|| exit 1
 find . -name "Makefile" -type f -delete
-bash docker/build.sh
+bash docker/build.sh $FORCE
 
 if [[ $MODE == "test" ]]; then
   MODE=${MODE}_${GRAMMARS}
 fi
 
-bash docker/launch.sh $MODE
+bash docker/launch.sh $MODE $LANGUAGE
+
+# echo "два" | ../../src/bin/normalizer_main --config=sparrowhawk_configuration.ascii_proto

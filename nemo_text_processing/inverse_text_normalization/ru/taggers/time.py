@@ -14,7 +14,8 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, insert_space
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
+from nemo_text_processing.text_normalization.ru.taggers.electronic import ElectronicFst as TNElectronicFst
 
 try:
     import pynini
@@ -25,26 +26,21 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-class CardinalFst(GraphFst):
+class TimeFst(GraphFst):
     """
     Finite state transducer for classifying cardinals, e.g. 
-       "тысяча один" ->  cardinal { integer: "1 001" }
+        -23 -> cardinal { negative: "true"  integer: "twenty three" } }
 
     Args:
-        tn_cardinal: Text normalization Cardinal graph
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, tn_cardinal: GraphFst, deterministic: bool = True):
-        super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
+    def __init__(self, tn_time: GraphFst, deterministic: bool = True):
+        super().__init__(name="time", kind="classify", deterministic=deterministic)
 
-        graph = tn_cardinal.cardinal_numbers
-        self.graph = graph.invert().optimize()
-
-        optional_sign = pynini.closure(
-            pynutil.insert("negative: ") + pynini.cross("минус ", "\"-\"") + insert_space, 0, 1
-        )
-        graph = optional_sign + pynutil.insert("integer: \"") + graph + pynutil.insert("\"")
+        graph = tn_time.final_graph
+        graph = pynini.invert(graph).optimize()
+        graph = pynutil.insert("hours: \"") + graph + pynutil.insert("\"")
         graph = self.add_tokens(graph)
         self.fst = graph.optimize()

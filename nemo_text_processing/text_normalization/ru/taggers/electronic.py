@@ -68,8 +68,8 @@ class ElectronicFst(GraphFst):
         tagger_graph = (username + domain_graph).optimize()
 
         # verbalizer
-        graph_digit = pynini.string_file(get_abs_path("ru/data/digits_nominative_case.tsv")).optimize()
-        graph_symbols = pynini.string_file(get_abs_path("ru/data/electronic/symbols.tsv")).optimize()
+        graph_digit = pynini.string_file(get_abs_path("data/digits_nominative_case.tsv")).optimize()
+        graph_symbols = pynini.string_file(get_abs_path("data/electronic/symbols.tsv")).optimize()
         user_name = (
             pynutil.delete("username:")
             + delete_space
@@ -96,8 +96,8 @@ class ElectronicFst(GraphFst):
             + pynini.closure(graph_symbols + insert_space)
             + pynini.closure((graph_digit | NEMO_ALPHA) + insert_space, 1)
         )
-        server_common = pynini.string_file(get_abs_path("ru/data/electronic/server_name.tsv")) + insert_space
-        domain_common = pynini.cross(".", "точка ") + pynini.string_file(get_abs_path("ru/data/electronic/domain.tsv"))
+        server_common = pynini.string_file(get_abs_path("data/electronic/server_name.tsv")) + insert_space
+        domain_common = pynini.cross(".", "точка ") + pynini.string_file(get_abs_path("data/electronic/domain.tsv"))
         domain = (
             pynutil.delete("domain:")
             + delete_space

@@ -39,7 +39,7 @@ class Normalizer:
         lang: language specifying the TN rules, by default: English
     """
 
-    def __init__(self, input_case: str, lang: str = 'en'):
+    def __init__(self, input_case: str, lang: str = 'en', deterministic=True):
         assert input_case in ["lower_cased", "cased"]
 
         if lang == 'en':
@@ -51,8 +51,8 @@ class Normalizer:
             from nemo_text_processing.text_normalization.ru.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.text_normalization.ru.verbalizers.verbalize_final import VerbalizeFinalFst
 
-        self.tagger = ClassifyFst(input_case=input_case, deterministic=True)
-        self.verbalizer = VerbalizeFinalFst(deterministic=True)
+        self.tagger = ClassifyFst(input_case=input_case, deterministic=deterministic)
+        self.verbalizer = VerbalizeFinalFst(deterministic=deterministic)
         self.parser = TokenParser()
 
     def normalize_list(self, texts: List[str], verbose=False) -> List[str]:

@@ -74,18 +74,8 @@ class NormalizerWithAudio(Normalizer):
         lang: language
     """
 
-    def __init__(self, input_case: str, lang: str = 'en'):
-        super().__init__(input_case=input_case, lang=lang)
-        if lang == 'en':
-            from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
-            from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
-        elif lang == 'ru':
-            from nemo_text_processing.text_normalization.ru.taggers.tokenize_and_classify import ClassifyFst
-            from nemo_text_processing.text_normalization.ru.verbalizers.verbalize_final import VerbalizeFinalFst
-
-        self.tagger = ClassifyFst(input_case=input_case, deterministic=False)
-        self.verbalizer = VerbalizeFinalFst(deterministic=False)
-        self.parser = TokenParser()
+    def __init__(self, input_case: str, lang: str = 'en', deterministic=False):
+        super().__init__(input_case=input_case, lang=lang, deterministic=deterministic)
 
     def normalize(
         self,
@@ -118,6 +108,7 @@ class NormalizerWithAudio(Normalizer):
             return text
 
         text = pynini.escape(text)
+
         if n_tagged == -1:
             tagged_texts = rewrite.rewrites(text, self.tagger.fst)
         else:

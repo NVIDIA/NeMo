@@ -21,6 +21,7 @@ from nemo_text_processing.inverse_text_normalization.ru.verbalizers.measure impo
 from nemo_text_processing.inverse_text_normalization.ru.verbalizers.money import MoneyFst
 from nemo_text_processing.inverse_text_normalization.ru.verbalizers.ordinal import OrdinalFst
 from nemo_text_processing.inverse_text_normalization.ru.verbalizers.telephone import TelephoneFst
+from nemo_text_processing.inverse_text_normalization.ru.verbalizers.time import TimeFst
 from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
 
 
@@ -45,6 +46,7 @@ class VerbalizeFst(GraphFst):
         date_graph = DateFst().fst
         measure_graph = MeasureFst().fst
         telephone_graph = TelephoneFst().fst
+        time_graph = TimeFst().fst
 
         graph = (
             whitelist_graph
@@ -56,6 +58,7 @@ class VerbalizeFst(GraphFst):
             | money_graph
             | measure_graph
             | telephone_graph
+            | time_graph
         )
 
         self.fst = graph

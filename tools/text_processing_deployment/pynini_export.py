@@ -93,7 +93,7 @@ def export_grammars(output_dir, grammars):
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--output_dir", help="output directory for grammars", required=True, type=str)
-    parser.add_argument("--language", help="language", choices=["en"], type=str, default='en')
+    parser.add_argument("--language", help="language", choices=["en", "ru"], type=str, default='en')
     parser.add_argument(
         "--grammars", help="grammars to be exported", choices=["tn_grammars", "itn_grammars"], type=str, required=True
     )
@@ -116,4 +116,16 @@ if __name__ == '__main__':
             ClassifyFst as TNClassifyFst,
         )
         from nemo_text_processing.text_normalization.en.verbalizers.verbalize import VerbalizeFst as TNVerbalizeFst
-    export_grammars(output_dir=args.output_dir, grammars=locals()[args.grammars](input_case=args.input_case))
+    elif args.language == 'ru':
+        from nemo_text_processing.inverse_text_normalization.ru.taggers.tokenize_and_classify import (
+            ClassifyFst as ITNClassifyFst,
+        )
+        from nemo_text_processing.inverse_text_normalization.ru.verbalizers.verbalize import (
+            VerbalizeFst as ITNVerbalizeFst,
+        )
+
+        if args.grammars == 'tn_grammars':
+            raise ValueError(f'Only ITN is supported for RU to deployment in Sparowhawk.')
+
+    output_dir = os.path.join(args.output_dir, args.language)
+    export_grammars(output_dir=output_dir, grammars=locals()[args.grammars](input_case=args.input_case))

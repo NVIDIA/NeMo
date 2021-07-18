@@ -25,7 +25,11 @@ def get_abs_path(rel_path):
         
     Returns absolute path
     """
-    return os.path.dirname(os.path.abspath(__file__)) + '/' + rel_path
+    abs_path = os.path.dirname(os.path.abspath(__file__)) + os.sep + rel_path
+
+    if not os.path.exists(abs_path):
+        raise ValueError(f'{abs_path} does not exist')
+    return abs_path
 
 
 def load_labels(abs_path):

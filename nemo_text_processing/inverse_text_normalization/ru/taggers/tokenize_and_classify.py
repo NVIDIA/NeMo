@@ -23,6 +23,7 @@ from nemo_text_processing.inverse_text_normalization.ru.taggers.measure import M
 from nemo_text_processing.inverse_text_normalization.ru.taggers.money import MoneyFst
 from nemo_text_processing.inverse_text_normalization.ru.taggers.ordinal import OrdinalFst
 from nemo_text_processing.inverse_text_normalization.ru.taggers.telephone import TelephoneFst
+from nemo_text_processing.inverse_text_normalization.ru.taggers.time import TimeFst
 from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, delete_extra_space, delete_space
 from nemo_text_processing.text_normalization.ru.taggers.tokenize_and_classify import ClassifyFst as TNClassifyFst
 
@@ -58,7 +59,7 @@ class ClassifyFst(GraphFst):
         measure_graph = MeasureFst(tn_measure=tn_classify.measure).fst
         date_graph = DateFst(tn_date=tn_classify.date).fst
         word_graph = WordFst().fst
-        # time_graph = TimeFst().fst
+        time_graph = TimeFst(tn_time=tn_classify.time).fst
         money_graph = MoneyFst(tn_money=tn_classify.money).fst
         whitelist_graph = WhiteListFst().fst
         punct_graph = PunctuationFst().fst
@@ -67,8 +68,8 @@ class ClassifyFst(GraphFst):
 
         classify = (
             # pynutil.add_weight(whitelist_graph, 1.01)
-            # | pynutil.add_weight(time_graph, 1.1)
-            pynutil.add_weight(date_graph, 1.09)
+            pynutil.add_weight(time_graph, 1.1)
+            | pynutil.add_weight(date_graph, 1.09)
             | pynutil.add_weight(decimal_graph, 1.1)
             | pynutil.add_weight(measure_graph, 1.1)
             | pynutil.add_weight(ordinal_graph, 1.1)

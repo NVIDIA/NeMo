@@ -59,8 +59,8 @@ class DateFst(GraphFst):
         # Ru format: DD-MM-YYYY or DD-MM-YY
         month_abbr_to_names = pynini.string_file(get_abs_path("data/whitelist.tsv")).optimize()
 
-        delete_sep = pynutil.add_weight(pynini.cross("/", " "), 1.09) | pynutil.add_weight(
-            pynini.cross(pynini.union("-", "."), " "), 1.1
+        delete_sep = pynutil.add_weight(pynini.cross("-", " "), 1.09) | pynutil.add_weight(
+            pynini.cross(pynini.union("/", "."), " "), 1.1
         )
         # TODO do we need both cardinal and ordinal for days? or ordinals are enough?
         # TODO add format: 02.12.98 -> "ноль второго двенадцатого..."
@@ -75,7 +75,7 @@ class DateFst(GraphFst):
         ).optimize()
 
         # add @ map to the cases of the months
-        month_number_to_abbr = pynini.string_file(get_abs_path("ru/data/months/numbers.tsv")).optimize()
+        month_number_to_abbr = pynini.string_file(get_abs_path("data/months/numbers.tsv")).optimize()
         month_number_to_abbr = (
             ((pynini.union("0", "1") + NEMO_DIGIT) | NEMO_DIGIT).optimize() @ month_number_to_abbr
         ).optimize()

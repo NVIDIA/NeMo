@@ -56,18 +56,8 @@ class AlternativeFormatsFst(GraphFst):
         self.one_thousand_alternative = pynini.cdrewrite(one_thousand_map, "[BOS]", "", NEMO_SIGMA)
 
         t = pynini.Far(get_abs_path('data/utils/universal_thousands_punct.far'))
-        b = pynini.Far(get_abs_path('data/utils/util_byte.far'), mode='r')
-
-        # # TODO use NEMO_SIGMA?
-        # # TODO nominatives - what's their purpose here?
-        # sigma_star = pynini.closure(b['kBytes'])
-        # nominatives = pynini.string_file(get_abs_path("ru/data/nominatives.tsv"))
-        # nominative_filter = pynutil.add_weight(pynini.cross("", ""), -1)
-        # nominative_filter = nominatives @ pynini.cdrewrite(
-        #     nominative_filter, pynini.union("[BOS]", " "), pynini.union(" ", "[EOS]"), sigma_star
-        # )
-
-        # skipped I and D in numbers.grm
-
-        # TODO add support for space separated numbers "12 000"
-        self.separators = t['dot_thousands'] | t['no_delimiter'] | t['space_thousands']
+        self.separators = (
+            pynutil.add_weight(t['dot_thousands'], 1)
+            | pynutil.add_weight(t['no_delimiter'], 1)
+            | pynutil.add_weight(t['space_thousands'], -1)
+        )

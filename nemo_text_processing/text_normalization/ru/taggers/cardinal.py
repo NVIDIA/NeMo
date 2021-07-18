@@ -26,7 +26,7 @@ except (ModuleNotFoundError, ImportError):
 class CardinalFst(GraphFst):
     """
     Finite state transducer for classifying cardinals, e.g. 
-        -23 -> cardinal { negative: "true"  integer: "twenty three" } }
+        "1 001" ->  cardinal { integer: "тысяча один" }
 
     Args:
         deterministic: if True will provide a single transduction option,
@@ -63,32 +63,3 @@ class CardinalFst(GraphFst):
 
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
-
-
-if __name__ == '__main__':
-    fst = CardinalFst()
-    from pynini.lib.rewrite import rewrites
-
-    d = {
-        "147691": "сто сорок семь тысяч шестьсот девяносто один\"",
-        "2300": "две тысячи триста\"",
-        "-2300": "две тысячи триста\"",
-        "002300": "две тысячи триста\"",
-        "2.300": "две тысячи триста\"",
-    }
-
-    def _test(written, spoken):
-        output = rewrites(written, fst.fst)
-        if written == '147691':
-            import pdb
-
-            pdb.set_trace()
-        test_passed = False
-        for x in output:
-            if spoken in x:
-                test_passed = True
-
-        assert test_passed, f'{written} failed'
-
-    for k, v in d.items():
-        _test(k, v)
