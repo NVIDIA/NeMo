@@ -53,7 +53,7 @@ class DateFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal: GraphFst, ordinal: GraphFst, deterministic: bool):
+    def __init__(self, number_names: GraphFst, ordinal: GraphFst, deterministic: bool):
         super().__init__(name="date", kind="classify", deterministic=deterministic)
 
         # Ru format: DD-MM-YYYY or DD-MM-YY
@@ -65,9 +65,8 @@ class DateFst(GraphFst):
         # TODO do we need both cardinal and ordinal for days? or ordinals are enough?
         # TODO add format: 02.12.98 -> "ноль второго двенадцатого..."
 
-        numbers = (
-            cardinal.cardinal_numbers_with_leading_zeros | ordinal.ordinal_numbers_with_leading_zeros
-        ).optimize()
+        numbers = (number_names.cardinal_number_names | ordinal.ordinal_numbers_with_leading_zeros).optimize()
+
         day = (
             pynutil.insert("day: \"")
             + ((pynini.union("0", "1", "2", "3") + NEMO_DIGIT) | NEMO_DIGIT) @ numbers
@@ -122,5 +121,11 @@ class DateFst(GraphFst):
         graph_dmy = day + delete_extra_space + month + year
         verbalizer_graph = graph_dmy + delete_space
 
-        self.final_graph = (tagger_graph @ verbalizer_graph).optimize()
-        self.fst = self.add_tokens(self.final_graph).optimize()
+        self.final_graph = pynini.compose(tagger_graph, verbalizer_graph).optimize()
+        self.fst = pynutil.insert("day: \"") + self.final_graph + pynutil.insert("\"")
+        self.fst = self.add_tokens(self.fst).optimize()
+
+        # from pynini.lib.rewrite import top_rewrites
+        # import pdb; pdb.set_trace()
+        # print(top_rewrites("12.02.2001", self.fst, 5))
+        # print()

@@ -13,12 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_NOT_QUOTE,
-    GraphFst,
-    delete_extra_space,
-    delete_space,
-)
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
+from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA
 
 try:
     import pynini
@@ -44,36 +40,6 @@ class DateFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="date", kind="verbalize", deterministic=deterministic)
 
-        day = (
-            pynutil.delete("day:")
-            + delete_space
-            + pynutil.delete("\"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
-        )
-
-        month = (
-            pynutil.delete("month:")
-            + delete_space
-            + pynutil.delete("\"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
-        )
-
-        year = (
-            pynutil.delete("year:")
-            + delete_space
-            + pynutil.delete("\"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + delete_space
-            + pynutil.delete("\"")
-        )
-        year = pynini.closure(delete_extra_space + year, 0, 1)
-
-        # day month year
-        graph_dmy = day + delete_extra_space + month + year
-
-        final_graph = graph_dmy + delete_space
-
-        delete_tokens = self.delete_tokens(final_graph)
+        graph = pynutil.delete("day: \"") + pynini.closure(RU_ALPHA | " ", 1) + pynutil.delete("\"")
+        delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

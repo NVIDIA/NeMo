@@ -32,6 +32,11 @@ class DateFst(GraphFst):
 
     def __init__(self):
         super().__init__(name="date", kind="verbalize")
-        graph = pynutil.delete("month: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        graph = pynutil.delete("day: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
         delete_tokens = self.delete_tokens(graph.optimize())
         self.fst = delete_tokens.optimize()
+
+        # from pynini.lib.rewrite import top_rewrites
+        # import pdb; pdb.set_trace()
+        # print(top_rewrites('day: "12.дек-2006"', graph, 5))
+        # print()

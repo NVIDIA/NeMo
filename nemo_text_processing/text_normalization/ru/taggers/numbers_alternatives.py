@@ -57,7 +57,7 @@ class AlternativeFormatsFst(GraphFst):
 
         t = pynini.Far(get_abs_path('data/utils/universal_thousands_punct.far'))
         self.separators = (
-            pynutil.add_weight(t['dot_thousands'], 1)
-            | pynutil.add_weight(t['no_delimiter'], 1)
-            | pynutil.add_weight(t['space_thousands'], -1)
+            pynutil.add_weight(t['dot_thousands'], 0.1)
+            | pynutil.add_weight(t['no_delimiter'], 0.1)
+            | pynutil.add_weight(t['space_thousands'], -0.1)
         )

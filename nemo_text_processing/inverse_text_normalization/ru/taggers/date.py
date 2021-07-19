@@ -38,7 +38,6 @@ class DateFst(GraphFst):
     def __init__(self, tn_date: GraphFst, deterministic: bool = True):
         super().__init__(name="date", kind="classify", deterministic=deterministic)
 
-        graph = tn_date.final_graph
-        graph = graph.invert().optimize()
-        graph = self.add_tokens(pynutil.insert("month: \"") + graph + pynutil.insert("\""))
+        graph = pynini.invert(tn_date.final_graph).optimize()
+        graph = self.add_tokens(pynutil.insert("day: \"") + graph + pynutil.insert("\""))
         self.fst = graph.optimize()
