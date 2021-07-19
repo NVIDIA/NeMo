@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 
 
 from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
-from nemo_text_processing.text_normalization.ru.taggers.electronic import ElectronicFst as TNElectronicFst
 
 try:
     import pynini
@@ -28,18 +27,19 @@ except (ModuleNotFoundError, ImportError):
 
 class ElectronicFst(GraphFst):
     """
-    Finite state transducer for classifying cardinals, e.g. 
-        -23 -> cardinal { negative: "true"  integer: "twenty three" } }
+    Finite state transducer for classifying electronic, e.g.
+        "эй би собака эн ди точка ру" -> electronic { username: "ab@nd.ru" }
 
     Args:
+        tn_electronic: Text normalization Electronic graph
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, deterministic: bool = True):
+    def __init__(self, tn_electronic, deterministic: bool = True):
         super().__init__(name="electronic", kind="classify", deterministic=deterministic)
 
-        graph = TNElectronicFst(deterministic=False).final_graph
+        graph = tn_electronic.final_graph
         graph = graph.invert().optimize()
         graph = pynutil.insert("username: \"") + graph + pynutil.insert("\"")
         graph = self.add_tokens(graph)

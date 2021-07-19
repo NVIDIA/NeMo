@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,10 +26,11 @@ except (ModuleNotFoundError, ImportError):
 
 class TelephoneFst(GraphFst):
     """
-    Finite state transducer for classifying cardinals, e.g. 
-        -23 -> cardinal { negative: "true"  integer: "twenty three" } }
+    Finite state transducer for classifying telephone, e.g.
+        "восемь девятьсот тринадцать девятьсот восемьдесят три пятьдесят шесть ноль один" -> telephone { number_part: "8-913-983-56-01" }
 
     Args:
+        tn_telephone: Text normalization telephone graph
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """

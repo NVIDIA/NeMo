@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ except (ModuleNotFoundError, ImportError):
 class MoneyFst(GraphFst):
     """
     Finite state transducer for verbalizing electronic
-        e.g. tokens { electronic { username: "cdf1" domain: "abc.edu" } } -> cdf1@abc.edu
+        e.g. money { integer_part: "2 руб." } -> "2 руб."
     """
 
     def __init__(self):

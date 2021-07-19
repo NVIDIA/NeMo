@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,10 +28,11 @@ except (ModuleNotFoundError, ImportError):
 
 class TimeFst(GraphFst):
     """
-    Finite state transducer for classifying cardinals, e.g. 
-        -23 -> cardinal { negative: "true"  integer: "twenty three" } }
+    Finite state transducer for classifying time, e.g.
+        "два часа пятнадцать минут" -> time { hours: "02:15" }
 
     Args:
+        tn_time: Text Normalization Time graph
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """

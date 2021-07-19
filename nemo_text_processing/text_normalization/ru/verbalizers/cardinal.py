@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 # Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,8 +26,8 @@ except (ModuleNotFoundError, ImportError):
 
 class CardinalFst(GraphFst):
     """
-    Finite state transducer for verbalizing roman numerals
-        e.g. tokens { roman { integer: "one" } } -> one
+    Finite state transducer for verbalizing cardinals
+        e.g. cardinal { integer: "тысяча один" } -> "тысяча один"
 
     Args:
         deterministic: if True will provide a single transduction option,

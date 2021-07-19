@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 # Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,18 +36,10 @@ except (ModuleNotFoundError, ImportError):
 class TimeFst(GraphFst):
     """
     Finite state transducer for classifying time, e.g.
-        12:30 a.m. est -> time { hours: "twelve" minutes: "thirty" suffix: "a m" zone: "e s t" }
-        2.30 a.m. -> time { hours: "two" minutes: "thirty" suffix: "a m" }
-        02.30 a.m. -> time { hours: "two" minutes: "thirty" suffix: "a m" }
-        2.00 a.m. -> time { hours: "two" suffix: "a m" }
-        2 a.m. -> time { hours: "two" suffix: "a m" }
-        02:00 -> time { hours: "two" }
-        2:00 -> time { hours: "two" }
-
-        14:00 ->
+        "02:15" ->
     
     Args:
-        cardinal: CardinalFst
+        number_names: Number_names graph
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
@@ -62,11 +54,6 @@ class TimeFst(GraphFst):
         increment_hour = pynini.string_file(get_abs_path("data/time/increment_hour.tsv"))
         convert_hour = pynini.string_file(get_abs_path("data/time/time_convert.tsv"))
         hour_names = pynini.string_file(get_abs_path("data/time/hour_names.tsv"))
-
-        # from pynini.lib.rewrite import top_rewrites
-        # import pdb; pdb.set_trace()
-        # print(top_rewrites("15", increment_hour, 5))
-        # print(top_rewrites("15", convert_hour, 5))
 
         number = pynini.closure(pynini.cross("0", ""), 0, 1) + number_names.nominative_up_to_thousand_names
         hour_options = pynini.project(increment_hour, "input")

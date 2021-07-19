@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,8 +26,7 @@ except (ModuleNotFoundError, ImportError):
 class DateFst(GraphFst):
     """
     Finite state transducer for verbalizing date, e.g.
-        date { month: "january" day: "5" year: "2012" preserve_order: true } -> february 5 2012
-        date { day: "5" month: "january" year: "2012" preserve_order: true } -> 5 february 2012
+        date { day: "02.03.89" }  -> "02.03.89"
     """
 
     def __init__(self):
@@ -35,8 +34,3 @@ class DateFst(GraphFst):
         graph = pynutil.delete("day: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
         delete_tokens = self.delete_tokens(graph.optimize())
         self.fst = delete_tokens.optimize()
-
-        # from pynini.lib.rewrite import top_rewrites
-        # import pdb; pdb.set_trace()
-        # print(top_rewrites('day: "12.дек-2006"', graph, 5))
-        # print()

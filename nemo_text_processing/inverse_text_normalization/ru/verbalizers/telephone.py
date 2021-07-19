@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,8 +25,8 @@ except (ModuleNotFoundError, ImportError):
 
 class TelephoneFst(GraphFst):
     """
-    Finite state transducer for verbalizing electronic
-        e.g. tokens { electronic { username: "cdf1" domain: "abc.edu" } } -> cdf1@abc.edu
+    Finite state transducer for verbalizing telephone
+        e.g. telephone { number_part: "8-913-983-56-01" } -> "8-913-983-56-01"
     """
 
     def __init__(self):

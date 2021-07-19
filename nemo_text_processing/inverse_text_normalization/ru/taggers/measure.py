@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,10 +26,11 @@ except (ModuleNotFoundError, ImportError):
 
 class MeasureFst(GraphFst):
     """
-    Finite state transducer for classifying cardinals, e.g. 
-        -23 -> cardinal { negative: "true"  integer: "twenty three" } }
+    Finite state transducer for classifying measure, e.g.
+        "два килограма" -> measure { cardinal { integer: "2 кг" } }
 
     Args:
+        tn_measure: Text normalization Cardinal graph
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
@@ -42,7 +43,3 @@ class MeasureFst(GraphFst):
         graph = pynutil.insert("cardinal { integer: \"") + graph + pynutil.insert("\" }")
         graph = self.add_tokens(graph)
         self.fst = graph.optimize()
-
-        # from pynini.lib.rewrite import top_rewrites
-        # import pdb; pdb.set_trace()
-        # print(top_rewrites("двенадцать килограм", self.fst, 5))

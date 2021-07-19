@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,8 +25,8 @@ except (ModuleNotFoundError, ImportError):
 
 class MeasureFst(GraphFst):
     """
-    Finite state transducer for verbalizing electronic
-        e.g. tokens { electronic { username: "cdf1" domain: "abc.edu" } } -> cdf1@abc.edu
+    Finite state transducer for verbalizing measure
+        e.g. measure { cardinal { integer: "2 кг" } } -> "2 кг"
     """
 
     def __init__(self):
@@ -41,8 +41,3 @@ class MeasureFst(GraphFst):
         )
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
-
-        # # [' tokens {  measure {  cardinal { integer: "12 кг"  }  }  } ']
-        # from pynini.lib.rewrite import top_rewrites
-        # import pdb; pdb.set_trace()
-        # print(top_rewrites(' cardinal { integer: "12 кг"  } ', graph, 5))

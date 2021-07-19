@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ except (ModuleNotFoundError, ImportError):
 class DecimalFst(GraphFst):
     """
     Finite state transducer for verbalizing decimal, e.g.
-        decimal { negative: "true" integer_part: "2," fractional_part: "5" } -> -2,5
+        decimal { negative: "true" integer_part: "3," fractional_part: "2" } -> -3,2
 
     Args:
         deterministic: if True will provide a single transduction option,

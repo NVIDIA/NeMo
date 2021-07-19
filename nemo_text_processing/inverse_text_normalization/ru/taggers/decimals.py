@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,9 +27,10 @@ except (ModuleNotFoundError, ImportError):
 class DecimalFst(GraphFst):
     """
     Finite state transducer for classifying decimal
-        e.g. "минус две целых пять десятых" -> negative: "true" integer_part: "2," fractional_part: "5"
+        e.g. "минус три целых две десятых" -> decimal { negative: "true" integer_part: "3," fractional_part: "2" }
 
     Args:
+        tn_decimal: Text normalization Decimal graph
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """

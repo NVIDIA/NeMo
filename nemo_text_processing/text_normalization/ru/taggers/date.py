@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,11 +28,6 @@ try:
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
-    # Add placeholders for global variables
-    graph_teen = None
-    graph_digit = None
-    ties_graph = None
-
     PYNINI_AVAILABLE = True
 
 
@@ -48,19 +43,19 @@ class DateFst(GraphFst):
         2012 -> date { year: "twenty twelve" }
 
     Args:
-        ordinal: OrdinalFst
+        number_names: NumberNames graph
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, number_names: GraphFst, ordinal: GraphFst, deterministic: bool):
+    def __init__(self, number_names: GraphFst, deterministic: bool):
         super().__init__(name="date", kind="classify", deterministic=deterministic)
 
         # Ru format: DD-MM-YYYY or DD-MM-YY
         month_abbr_to_names = pynini.string_file(get_abs_path("data/whitelist.tsv")).optimize()
 
-        delete_sep = pynutil.add_weight(pynini.cross("-", " "), 1.09) | pynutil.add_weight(
-            pynini.cross(pynini.union("/", "."), " "), 1.1
+        delete_sep = pynutil.add_weight(pynini.cross(".", " "), 1.09) | pynutil.add_weight(
+            pynini.cross(pynini.union("/", "-"), " "), 1.1
         )
 
         numbers = number_names.ordinal_number_names
@@ -72,10 +67,10 @@ class DateFst(GraphFst):
 
         month_number_to_abbr = pynini.string_file(get_abs_path("data/months/numbers.tsv")).optimize()
         month_number_to_abbr = (
-            ((pynini.union("0", "1") + NEMO_DIGIT) | NEMO_DIGIT).optimize() @ month_number_to_abbr
+            (((pynutil.add_weight(pynini.cross("0", ""), -0.1) | pynini.accep("1")) + NEMO_DIGIT) | NEMO_DIGIT).optimize() @ month_number_to_abbr
         ).optimize()
 
-        month_name = ((month_number_to_abbr @ month_abbr_to_names) | month_abbr_to_names).optimize()
+        month_name = ((month_number_to_abbr @ month_abbr_to_names) | pynutil.add_weight(month_abbr_to_names, 0.1)).optimize()
         month = (pynutil.insert("month: \"") + month_name + pynutil.insert("\"")).optimize()
         year = pynini.compose(((NEMO_DIGIT ** 4) | (NEMO_DIGIT ** 2)), numbers).optimize()
         year_word_singular = ["год", "года", "году", "годом", "годе"]

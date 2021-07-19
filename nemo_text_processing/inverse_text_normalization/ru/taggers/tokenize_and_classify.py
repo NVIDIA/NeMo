@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ class ClassifyFst(GraphFst):
         money_graph = MoneyFst(tn_money=tn_classify.money).fst
         whitelist_graph = WhiteListFst().fst
         punct_graph = PunctuationFst().fst
-        electronic_graph = ElectronicFst().fst
+        electronic_graph = ElectronicFst(tn_electronic=tn_classify.electronic).fst
         telephone_graph = TelephoneFst(tn_telephone=tn_classify.telephone).fst
 
         classify = (
