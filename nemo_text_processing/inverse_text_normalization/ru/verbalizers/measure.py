@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space
 
 try:
     import pynini
@@ -32,10 +32,17 @@ class MeasureFst(GraphFst):
     def __init__(self):
         super().__init__(name="measure", kind="verbalize")
 
-        graph = pynutil.delete("integer: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        graph = (
+            pynutil.delete(" cardinal { integer: \"")
+            + pynini.closure(NEMO_NOT_QUOTE, 1)
+            + pynutil.delete("\"")
+            + delete_space
+            + pynutil.delete("}")
+        )
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
 
+        # # [' tokens {  measure {  cardinal { integer: "12 кг"  }  }  } ']
         # from pynini.lib.rewrite import top_rewrites
         # import pdb; pdb.set_trace()
-        # print(top_rewrites('integer: "12кг"', graph, 5))
+        # print(top_rewrites(' cardinal { integer: "12 кг"  } ', graph, 5))

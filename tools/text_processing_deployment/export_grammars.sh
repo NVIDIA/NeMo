@@ -33,7 +33,7 @@
 GRAMMARS="itn_grammars" # tn_grammars
 INPUT_CASE="cased" # lower_cased, only for tn_grammars
 LANGUAGE="en" # language, 'en' supports both TN and ITN, 'ru' ITN only
-MODE=""
+MODE="export"
 FORCE="" # use to --FORCE="-f" to force grammar re-built
 
 for ARG in "$@"
@@ -62,4 +62,4 @@ fi
 
 bash docker/launch.sh $MODE $LANGUAGE
 
-# echo "два" | ../../src/bin/normalizer_main --config=sparrowhawk_configuration.ascii_proto
+# echo "двенадцать килограм" | ../../src/bin/normalizer_main --config=sparrowhawk_configuration.ascii_proto

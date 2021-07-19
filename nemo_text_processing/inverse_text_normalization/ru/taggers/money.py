@@ -39,6 +39,6 @@ class MoneyFst(GraphFst):
 
         graph = tn_money.final_graph
         graph = graph.invert().optimize()
-        graph = pynutil.insert("integer: \"") + graph + pynutil.insert("\"")
+        graph = pynutil.insert("integer_part: \"") + graph + pynutil.insert("\"")
         graph = self.add_tokens(graph)
         self.fst = graph.optimize()

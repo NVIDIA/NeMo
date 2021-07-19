@@ -39,7 +39,7 @@ class MeasureFst(GraphFst):
 
         tn_measure = tn_measure.tagger_graph_default @ tn_measure.verbalizer_graph
         graph = tn_measure.invert().optimize()
-        graph = pynutil.insert("integer: \"") + graph + pynutil.insert("\"")
+        graph = pynutil.insert("cardinal { integer: \"") + graph + pynutil.insert("\" }")
         graph = self.add_tokens(graph)
         self.fst = graph.optimize()
 
