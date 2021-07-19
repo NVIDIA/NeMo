@@ -39,7 +39,7 @@ USAGE Example:
 # python duplex_text_normalization_train.py
         data.base_dir=PATH_TO_DATASET_DIR
         mode={tn,itn,joint}
-        lang={en,ru}
+        lang={en,ru,de}
 
 There are 3 different modes. `tn` mode is for training a system for TN only.
 `itn` mode is for training a system for ITN. `joint` is for training a system
@@ -51,14 +51,14 @@ following command:
 # python duplex_text_normalization_train.py
         data.base_dir=PATH_TO_DATASET_DIR
         mode={tn,itn,joint}
-        lang={en,ru}
+        lang={en,ru,de}
         decoder_model.do_training=false
 
 Or you can also train only a decoder (without training a tagger):
 # python duplex_text_normalization_train.py
         data.base_dir=PATH_TO_DATASET_DIR
         mode={tn,itn,joint}
-        lang={en,ru}
+        lang={en,ru,de}
         tagger_model.do_training=false
 
 Information on the arguments:

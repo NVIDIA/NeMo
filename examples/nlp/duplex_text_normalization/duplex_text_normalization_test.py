@@ -28,7 +28,7 @@ USAGE Example:
         decoder_pretrained_model=PATH_TO_TRAINED_DECODER
         data.test_ds.data_path=PATH_TO_TEST_FILE
         mode={tn,itn,joint}
-        lang={en,ru}
+        lang={en,ru,de}
 
 The script also supports the `interactive` mode where a user can just make the model
 run on any input text:
@@ -36,7 +36,7 @@ run on any input text:
         tagger_pretrained_model=PATH_TO_TRAINED_TAGGER
         decoder_pretrained_model=PATH_TO_TRAINED_DECODER
         mode={tn,itn,joint}
-        lang={en,ru}
+        lang={en,ru,de}
         inference.interactive=true
 
 This script uses the `/examples/nlp/duplex_text_normalization/conf/duplex_tn_config.yaml`
