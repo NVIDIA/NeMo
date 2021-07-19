@@ -18,9 +18,7 @@ from collections import OrderedDict
 from typing import List
 
 from nemo_text_processing.text_normalization.data_loader_utils import post_process_punctuation, pre_process
-from nemo_text_processing.text_normalization.taggers.tokenize_and_classify import ClassifyFst
 from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
-from nemo_text_processing.text_normalization.verbalizers.verbalize_final import VerbalizeFinalFst
 from tqdm import tqdm
 
 try:
@@ -38,11 +36,15 @@ class Normalizer:
 
     Args:
         input_case: expected input capitalization
+        lang: language specifying the TN rules, by default: English
     """
 
-    def __init__(self, input_case: str):
+    def __init__(self, input_case: str, lang: str = 'en'):
         assert input_case in ["lower_cased", "cased"]
 
+        if lang == 'en':
+            from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
         self.tagger = ClassifyFst(input_case=input_case, deterministic=True)
         self.verbalizer = VerbalizeFinalFst(deterministic=True)
         self.parser = TokenParser()
@@ -220,6 +222,7 @@ class Normalizer:
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("input_string", help="input string", type=str)
+    parser.add_argument("--language", help="language", choices=["en"], default="en", type=str)
     parser.add_argument(
         "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )
