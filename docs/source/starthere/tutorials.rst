@@ -72,7 +72,10 @@ To run a tutorial:
      - `Online Noise Augmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
    * - ASR
      - ASR for Telephony Speech
-     - `ASR for Telephony Speech <https://github.com/NVIDIA/NeMo/blob/v1.1.0/tutorials/asr/ASR_for_telephony_speech.ipynb>`_
+     - `ASR for Telephony Speech <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_for_telephony_speech.ipynb>`_
+   * - ASR
+     - Streaming inference for ASR
+     - `Streaming inference <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Streaming_ASR.ipynb>`_
    * - NLP
      - Using Pretrained Language Models for Downstream Tasks
      - `Pretrained Language Models for Downstream Tasks <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/01_Pretrained_Language_Models_for_Downstream_Tasks.ipynb>`_
@@ -97,6 +100,9 @@ To run a tutorial:
    * - NLP
      - Punctuation and Capitalization
      - `Punctuation and Capitalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
+   * - NLP
+     - Entity Linking
+     - `Entity Linking <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.2/tutorials/nlp/Entity_Linking_Medical.ipynb>`_
    * - NLP
      - Named Entity Recognition - BioMegatron
      - `Named Entity Recognition - BioMegatron <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Token_Classification-BioMegatron.ipynb>`_
