@@ -62,18 +62,14 @@ class DateFst(GraphFst):
         delete_sep = pynutil.add_weight(pynini.cross("-", " "), 1.09) | pynutil.add_weight(
             pynini.cross(pynini.union("/", "."), " "), 1.1
         )
-        # TODO do we need both cardinal and ordinal for days? or ordinals are enough?
-        # TODO add format: 02.12.98 -> "ноль второго двенадцатого..."
 
-        numbers = (number_names.cardinal_number_names | ordinal.ordinal_numbers_with_leading_zeros).optimize()
+        numbers = number_names.ordinal_number_names
 
         day = (
-            pynutil.insert("day: \"")
-            + ((pynini.union("0", "1", "2", "3") + NEMO_DIGIT) | NEMO_DIGIT) @ numbers
-            + pynutil.insert("\"")
-        ).optimize()
+            (pynutil.add_weight(pynini.cross("0", ""), -0.1) | pynini.union("1", "2", "3")) + NEMO_DIGIT
+        ) | NEMO_DIGIT
+        day = (pynutil.insert("day: \"") + pynini.compose(day, numbers) + pynutil.insert("\"")).optimize()
 
-        # add @ map to the cases of the months
         month_number_to_abbr = pynini.string_file(get_abs_path("data/months/numbers.tsv")).optimize()
         month_number_to_abbr = (
             ((pynini.union("0", "1") + NEMO_DIGIT) | NEMO_DIGIT).optimize() @ month_number_to_abbr
@@ -81,7 +77,7 @@ class DateFst(GraphFst):
 
         month_name = ((month_number_to_abbr @ month_abbr_to_names) | month_abbr_to_names).optimize()
         month = (pynutil.insert("month: \"") + month_name + pynutil.insert("\"")).optimize()
-        year = (((NEMO_DIGIT ** 4) | (NEMO_DIGIT ** 2)) @ numbers).optimize()
+        year = pynini.compose(((NEMO_DIGIT ** 4) | (NEMO_DIGIT ** 2)), numbers).optimize()
         year_word_singular = ["год", "года", "году", "годом", "годе"]
         year_word_plural = ["годы", "годов", "годам", "годами", "годам"]
 
@@ -126,6 +122,7 @@ class DateFst(GraphFst):
         self.fst = self.add_tokens(self.fst).optimize()
 
         # from pynini.lib.rewrite import top_rewrites
-        # import pdb; pdb.set_trace()
-        # print(top_rewrites("12.02.2001", self.fst, 5))
+        # import pdb;
+        # pdb.set_trace()
+        # print(top_rewrites("01.02.2001", self.fst, 5))
         # print()
