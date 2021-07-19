@@ -34,4 +34,5 @@ RUN cd protobuf-2.5.0 && ./configure && make && make install && ldconfig
 RUN conda install -c conda-forge thrax=1.3.4 -y
 RUN git clone https://github.com/yzhang123/sparrowhawk.git
 RUN cd sparrowhawk &&  git checkout test &&   apt-get install -y autoconf &&     bash autoreconf && ./configure && make && make install && ldconfig
+RUN git clone https://github.com/kward/shunit2.git
 RUN echo "DONE"

@@ -34,9 +34,9 @@ Before you begin using NeMo, it's assumed you meet the following prerequisites.
 
 #. You have Python version 3.6, 3.7 or 3.8.
 
-#. You have Pytorch version 1.7.1.
+#. You have Pytorch version 1.8.1.
 
-#. You have access to a Volta, Turing, or an NVIDIA Ampere architecture-based A100 GPU for training.
+#. You have access to an NVIDIA GPU for training.
 
 .. _quick_start_guide:
 
@@ -47,10 +47,10 @@ This NeMo Quick Start Guide is a starting point for users who want to try out Ne
 
 If you're new to NeMo, the best way to get started is to take a look at the following tutorials:
 
-* `Text Classification (Sentiment Analysis) <https://github.com/NVIDIA/NeMo/blob/main/tutorials/Text_Classification_Sentiment_Analysis>`__ - demonstrates the Text Classification model using the NeMo NLP collection.
-* `NeMo Primer <https://github.com/NVIDIA/NeMo/blob/main/tutorials/00_NeMo_Primer.ipynb>`__ - introduces NeMo, PyTorch Lightning, and OmegaConf, and shows how to use, modify, save, and restore NeMo models.
-* `NeMo Models <https://github.com/NVIDIA/NeMo/blob/main/tutorials/01_NeMo_Models.ipynb>`__ - explains the fundamental concepts of the NeMo model.
-* `NeMo voice swap demo <https://github.com/NVIDIA/NeMo/blob/main/tutorials/NeMo_voice_swap_app.ipynb>`__ - demonstrates how to swap a voice in the audio fragment with a computer generated one using NeMo.
+* `Text Classification (Sentiment Analysis) <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/Text_Classification_Sentiment_Analysis>`__ - demonstrates the Text Classification model using the NeMo NLP collection.
+* `NeMo Primer <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/00_NeMo_Primer.ipynb>`__ - introduces NeMo, PyTorch Lightning, and OmegaConf, and shows how to use, modify, save, and restore NeMo models.
+* `NeMo Models <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/01_NeMo_Models.ipynb>`__ - explains the fundamental concepts of the NeMo model.
+* `NeMo voice swap demo <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/NeMo_voice_swap_app.ipynb>`__ - demonstrates how to swap a voice in the audio fragment with a computer generated one using NeMo.
 
 Below we is the code snippet of Audio Translator application.
 
@@ -105,7 +105,7 @@ Use this installation mode if you want the latest released version.
 
     apt-get update && apt-get install -y libsndfile1 ffmpeg
     pip install Cython
-    pip install nemo_toolkit[all]==1.0.0rc1
+    pip install nemo_toolkit[all]
 
 Pip from source
 ~~~~~~~~~~~~~~~
@@ -116,8 +116,8 @@ Use this installation mode if you want the version from a particular GitHub bran
     apt-get update && apt-get install -y libsndfile1 ffmpeg
     pip install Cython
     python -m pip install git+https://github.com/NVIDIA/NeMo.git@{BRANCH}#egg=nemo_toolkit[all]
-    # For v1.0.0, replace {BRANCH} with v1.0.0 like so:
-    # python -m pip install git+https://github.com/NVIDIA/NeMo.git@v1.0.0#egg=nemo_toolkit[all]
+    # For v1.0.2, replace {BRANCH} with v1.0.2 like so:
+    # python -m pip install git+https://github.com/NVIDIA/NeMo.git@v1.0.2#egg=nemo_toolkit[all]
 
 From source
 ~~~~~~~~~~~
@@ -132,23 +132,13 @@ Use this installation mode if you are contributing to NeMo.
 
 Docker containers
 ~~~~~~~~~~~~~~~~~
-The easiest way to start training with NeMo is by using `NeMo's container <https://ngc.nvidia.com/catalog/containers/nvidia:nemo>`_.
-The container includes all the dependencies and NeMo 1.0.0b3 already installed.
-
-.. code-block:: bash
-
-    docker run --gpus all -it --rm --shm-size=8g \
-    -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/nemo:1.0.0rc1
-
-
-If you chose to work with the ``main`` branch, we recommend using `NVIDIA's PyTorch container version 20.11-py3 <https://ngc.nvidia.com/containers/nvidia:pytorch/tags>`_, then install from GitHub.
+If you chose to work with the ``main`` branch, we recommend using `NVIDIA's PyTorch container version 21.05-py3 <https://ngc.nvidia.com/containers/nvidia:pytorch/tags>`_, then install from GitHub.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:20.11-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:21.05-py3
 
 
 FAQ
@@ -159,9 +149,9 @@ Have a look at our `discussions board <https://github.com/NVIDIA/NeMo/discussion
 Contributing
 ------------
 
-We welcome community contributions! Refer to the `CONTRIBUTING.md <https://github.com/NVIDIA/NeMo/blob/main/CONTRIBUTING.md>`_  file for the process.
+We welcome community contributions! Refer to the `CONTRIBUTING.md <https://github.com/NVIDIA/NeMo/blob/stable/CONTRIBUTING.md>`_  file for the process.
 
 License
 -------
 
-NeMo is under `Apache 2.0 license <https://github.com/NVIDIA/NeMo/blob/main/LICENSE>`_.
+NeMo is under `Apache 2.0 license <https://github.com/NVIDIA/NeMo/blob/stable/LICENSE>`_.

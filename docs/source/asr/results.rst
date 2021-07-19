@@ -71,17 +71,28 @@ To perform inference and transcribe a sample of speech after loading the model, 
 Setting the argument ``logprobs`` to ``True`` returns the log probabilities instead of transcriptions. For more information, see :doc:`./api.html#modules`.
 The audio files should be 16KHz monochannel wav files.
 
+Fine-tuning on Different Datasets
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+There are multiple ASR tutorials provided in the :ref:`Tutorials <tutorials>` section. Most of these tutorials explain how to instantiate a pre-trained model, prepare the model for fine-tuning on some dataset (in the same language) as a demonstration.
+
+
 Automatic Speech Recognition Models
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+-----------------------------------
+
+Below is a list of all the ASR models that are available in NeMo for specific languages, as well as auxiliary language models for certain languages.
+
+Language Models for ASR
+^^^^^^^^^^^^^^^^^^^^^^^
 
 .. csv-table::
-   :file: data/asr_results.csv
+   :file: data/asrlm_results.csv
    :align: left
    :widths: 30, 30, 40
    :header-rows: 1
 
+|
 
-   
 Speech Recognition (Languages)
 ------------------------------
 

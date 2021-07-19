@@ -10,7 +10,7 @@ for audio files, parameters for any augmentation being performed, as well as the
 this page cover each of these in more detail.
 
 Example configuration files for all of the NeMo ASR scripts can be found in the
-`config directory of the examples <https://github.com/NVIDIA/NeMo/tree/v1.0.0/examples/asr/conf>`_.
+`config directory of the examples <https://github.com/NVIDIA/NeMo/tree/v1.0.2/examples/asr/conf>`_.
 
 
 Dataset Configuration

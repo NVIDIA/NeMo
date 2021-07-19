@@ -31,18 +31,24 @@ def parse_test_case_file(file_name: str):
         for line in f:
             spoken, written = line.split('~')
             test_pairs.append((spoken, written.strip("\n")))
-    print(test_pairs)
     return test_pairs
 
 
-def get_test_cases_multiple(file_name: str = 'data_text_normalization/test_cases_normalize_with_audio.txt'):
+def get_test_cases_multiple(file_name: str = 'data_text_normalization/en/test_cases_normalize_with_audio.txt'):
     """
     Prepares tests pairs for audio based TN tests
     """
     test_pairs = []
     with open(os.path.dirname(os.path.abspath(__file__)) + os.path.sep + file_name, 'r') as f:
+        written = None
+        normalized_options = []
         for line in f:
-            written, normalized_options = line.split('~')
-            normalized_options = normalized_options.strip().split('|')
-            test_pairs.append((written, normalized_options))
+            if line.startswith('~'):
+                if written:
+                    test_pairs.append((written, normalized_options))
+                    normalized_options = []
+                written = line.strip().replace('~', '')
+            else:
+                normalized_options.append(line.strip())
+    test_pairs.append((written, normalized_options))
     return test_pairs

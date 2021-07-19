@@ -42,6 +42,49 @@ _EXT_DICT = {
 }
 
 
+def get_input_names(self):
+    if not (hasattr(self, 'input_types')):
+        raise NotImplementedError('For export to work you must define input_types')
+    input_names = list(self.input_types.keys())
+    return input_names
+
+
+def get_output_names(self):
+    if not (hasattr(self, 'output_types')):
+        raise NotImplementedError('For export to work you must define output_types')
+    output_names = list(self.output_types.keys())
+    return output_names
+
+
+def get_input_dynamic_axes(self, input_names):
+    dynamic_axes = defaultdict(list)
+    for name in input_names:
+        dynamic_axes = {
+            **dynamic_axes,
+            **Exportable._extract_dynamic_axes(name, self.input_types[name]),
+        }
+    return dynamic_axes
+
+
+def get_output_dynamic_axes(self, output_names):
+    dynamic_axes = defaultdict(list)
+    for name in output_names:
+        dynamic_axes = {
+            **dynamic_axes,
+            **Exportable._extract_dynamic_axes(name, self.output_types[name]),
+        }
+    return dynamic_axes
+
+
+def to_onnxrt_input(input_names, input_list, input_dict):
+    odict = {}
+    for k, v in input_dict.items():
+        odict[k] = v.cpu().numpy()
+    for i, input in enumerate(input_list):
+        odict[input_names[i]] = input.cpu().numpy()
+    return odict
+
+
 class Exportable(ABC):
     """
     This Interface should be implemented by particular classes derived from nemo.core.NeuralModule or nemo.core.ModelPT.
@@ -64,42 +107,6 @@ class Exportable(ABC):
     def output_module(self):
         return self
 
-    def get_input_names(self):
-        if not (hasattr(self, 'input_types')):
-            raise NotImplementedError('For export to work you must define input_types')
-        input_names = list(self.input_types.keys())
-        # remove unnecessary inputs for input_ports
-        for name in self.disabled_deployment_input_names:
-            input_names.remove(name)
-        return input_names
-
-    def get_output_names(self):
-        if not (hasattr(self, 'output_types')):
-            raise NotImplementedError('For export to work you must define output_types')
-        output_names = list(self.output_types.keys())
-        # remove unnecessary inputs for input_ports
-        for name in self.disabled_deployment_output_names:
-            output_names.remove(name)
-        return output_names
-
-    def get_input_dynamic_axes(self, input_names):
-        dynamic_axes = defaultdict(list)
-        for name in input_names:
-            dynamic_axes = {
-                **dynamic_axes,
-                **self._extract_dynamic_axes(name, self.input_types[name]),
-            }
-        return dynamic_axes
-
-    def get_output_dynamic_axes(self, output_names):
-        dynamic_axes = defaultdict(list)
-        for name in output_names:
-            dynamic_axes = {
-                **dynamic_axes,
-                **self._extract_dynamic_axes(name, self.output_types[name]),
-            }
-        return dynamic_axes
-
     def export(
         self,
         output: str,
@@ -109,14 +116,13 @@ class Exportable(ABC):
         export_params=True,
         do_constant_folding=True,
         keep_initializers_as_inputs=False,
-        onnx_opset_version: int = 12,
+        onnx_opset_version: int = 13,
         try_script: bool = False,
         set_eval: bool = True,
-        check_trace: bool = True,
+        check_trace: bool = False,
         use_dynamic_axes: bool = True,
         dynamic_axes=None,
         check_tolerance=0.01,
-        forward_method=None,
     ):
         my_args = locals()
         del my_args['self']
@@ -129,16 +135,18 @@ class Exportable(ABC):
             typecheck.set_typecheck_enabled(enabled=False)
 
             # Allow user to completely override forward method to export
-            if forward_method is None and hasattr(type(self), "forward_for_export"):
+            if hasattr(type(self), "forward_for_export"):
                 forward_method = type(self).forward_for_export
-
-            if forward_method:
                 old_forward_method = type(self).forward
                 type(self).forward = forward_method
+            else:
+                forward_method = None
 
             # Set module to eval mode
             if set_eval:
-                self.eval()
+                self.freeze()
+                self.input_module.freeze()
+                self.output_module.freeze()
 
             format = self.get_format(output)
 
@@ -155,10 +163,16 @@ class Exportable(ABC):
             # process possible kwargs
             if isinstance(input_list[-1], dict):
                 input_dict = input_list[-1]
-                input_list = tuple(input_list[:-1])
+                input_list = input_list[:-1]
 
-            input_names = self.input_module.get_input_names()
-            output_names = self.output_module.get_output_names()
+            input_names = get_input_names(self.input_module)
+            # remove unnecessary inputs for input_ports
+            for name in self.disabled_deployment_input_names:
+                input_names.remove(name)
+            output_names = get_output_names(self.output_module)
+            # remove unnecessary inputs for input_ports
+            for name in self.disabled_deployment_output_names:
+                output_names.remove(name)
 
             output_example = self.forward(*input_list, **input_dict)
 
@@ -170,12 +184,11 @@ class Exportable(ABC):
                     except Exception as e:
                         print("jit.script() failed!", e)
 
-            with torch.jit.optimized_execution(True), torch.no_grad():
                 if format == ExportFormat.TORCHSCRIPT:
                     if jitted_model is None:
-                        jitted_model = torch.jit.trace(
+                        jitted_model = torch.jit.trace_module(
                             self,
-                            input_example,
+                            {"forward": tuple(input_list) + tuple(input_dict.values())},
                             strict=False,
                             optimize=True,
                             check_trace=check_trace,
@@ -192,8 +205,8 @@ class Exportable(ABC):
 
                     # dynamic axis is a mapping from input/output_name => list of "dynamic" indices
                     if dynamic_axes is None and use_dynamic_axes:
-                        dynamic_axes = self.input_module.get_input_dynamic_axes(input_names)
-                        dynamic_axes = {**dynamic_axes, **self.output_module.get_output_dynamic_axes(output_names)}
+                        dynamic_axes = get_input_dynamic_axes(self.input_module, input_names)
+                        dynamic_axes = {**dynamic_axes, **get_output_dynamic_axes(self.output_module, output_names)}
 
                     torch.onnx.export(
                         jitted_model,
@@ -213,7 +226,32 @@ class Exportable(ABC):
                     # Verify the model can be read, and is valid
                     onnx_model = onnx.load(output)
                     onnx.checker.check_model(onnx_model, full_check=True)
+                    test_runtime = check_trace
+                    if test_runtime:
+                        try:
+                            import onnxruntime
+                        except (ImportError, ModuleNotFoundError):
+                            test_runtime = False
+                            logging.warning(
+                                f"ONNX generated at {output}, not verified - please install onnxruntime.\n"
+                            )
 
+                    if test_runtime:
+                        sess = onnxruntime.InferenceSession(onnx_model.SerializeToString())
+
+                        ort_out = sess.run(None, to_onnxrt_input(input_names, input_list, input_dict))
+                        all_good = True
+                        for out_name, out in enumerate(ort_out):
+                            expected = output_example[out_name].cpu()
+                            if not torch.allclose(
+                                torch.from_numpy(out), expected, rtol=check_tolerance, atol=100 * check_tolerance
+                            ):
+                                all_good = False
+                                logging.info(
+                                    f"onnxruntime results mismatch! PyTorch(expected):\n{expected}\nONNXruntime:\n{out}"
+                                )
+                        status = "SUCCESS" if all_good else "FAIL"
+                        logging.info(f"ONNX generated at {output} verified with onnxruntime : " + status)
                 else:
                     raise ValueError(f'Encountered unknown export format {format}.')
         finally:

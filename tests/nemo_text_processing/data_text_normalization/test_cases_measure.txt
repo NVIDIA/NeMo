@@ -1,7 +1,0 @@
-12kg~twelve kilograms
-12/kg~twelve per kilogram
-12kg/kg~twelve kilograms per kilogram
-1 mbps~one megabit per second
-3 mbps~three megabits per second
-3 cc/s~three c c per second
-100 million kg~one hundred million kilograms

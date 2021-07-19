@@ -81,7 +81,8 @@ class TestWaveGlow:
         typecheck.set_typecheck_enabled(enabled=False)
         with tempfile.TemporaryDirectory() as tmpdir, model.nemo_infer():
             # Generate filename in the temporary directory.
-            tmp_file_name = os.path.join("waveglow.onnx")
+            # TODO: Change `waveglow.ts` to `waveglow.onnx` for > 21.05
+            tmp_file_name = os.path.join("waveglow.ts")
 
             n_mels = 80
             # Test export.
@@ -91,7 +92,7 @@ class TestWaveGlow:
             res1 = model.waveglow(*inp1)
             res2 = model.waveglow(*inp2)
             assert torch.allclose(res1, res2, rtol=0.01, atol=0.1)
-
+            WaveGlowModel.forward_for_export = forward_wrapper
             model.export(
                 tmp_file_name,
                 verbose=True,
@@ -101,7 +102,6 @@ class TestWaveGlow:
                 check_trace=False,
                 do_constant_folding=True,
                 dynamic_axes={"spec": [0], "z": [0], "audio": [0]},
-                forward_method=forward_wrapper,
             )
 
 

@@ -18,6 +18,7 @@ import os
 import pickle as pkl
 from typing import Dict, List, Optional, Union
 
+import librosa
 import torch
 from omegaconf import DictConfig
 from omegaconf.omegaconf import open_dict
@@ -28,6 +29,7 @@ from nemo.collections.asr.losses.angularloss import AngularSoftmaxLoss
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.asr.parts.utils.speaker_utils import embedding_normalize
 from nemo.collections.common.losses import CrossEntropyLoss as CELoss
 from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.core.classes import ModelPT
@@ -190,8 +192,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             input_signal=input_signal, length=input_signal_length,
         )
 
-        encoded, _ = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
-        logits, embs = self.decoder(encoder_output=encoded)
+        encoded, length = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
+        logits, embs = self.decoder(encoder_output=encoded, length=length)
         return logits, embs
 
     # PTL-specific methods
@@ -337,6 +339,29 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
         logging.info(f"Changed decoder output to # {self.decoder._num_classes} classes.")
 
+    @torch.no_grad()
+    def get_embedding(self, path2audio_file):
+        audio, sr = librosa.load(path2audio_file, sr=None)
+        target_sr = self._cfg.train_ds.get('sample_rate', 16000)
+        if sr != target_sr:
+            audio = librosa.core.resample(audio, sr, target_sr)
+        audio_length = audio.shape[0]
+        device = self.device
+        audio_signal, audio_signal_len = (
+            torch.tensor([audio], device=device),
+            torch.tensor([audio_length], device=device),
+        )
+        mode = self.training
+        self.freeze()
+
+        _, embs = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+
+        self.train(mode=mode)
+        if mode is True:
+            self.unfreeze()
+        del audio_signal, audio_signal_len
+        return embs
+
 
 class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
     """
@@ -357,6 +382,7 @@ class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
         slices = torch.cat([x['slices'] for x in outputs])
         emb_shape = embs.shape[-1]
         embs = embs.view(-1, emb_shape).cpu().numpy()
+        embs = embedding_normalize(embs)
         out_embeddings = {}
         start_idx = 0
         with open(self.test_manifest, 'r') as manifest:

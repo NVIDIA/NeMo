@@ -13,9 +13,8 @@
 # limitations under the License.
 
 
-import csv
 import json
-import os
+import re
 from collections import defaultdict, namedtuple
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -187,27 +186,56 @@ def training_data_to_sentences(data: List[Instance]) -> Tuple[List[str], List[st
     return un_normalized, normalized, categories
 
 
-def load_labels(abs_path):
+def post_process_punctuation(text: str) -> str:
     """
-    loads relative path file as dictionary
+    Normalized quotes and spaces
 
     Args:
-        abs_path: absolute path
+        text: text
 
-    Returns dictionary of mappings
+    Returns: text with normalized spaces and quotes
     """
-    label_tsv = open(abs_path)
-    labels = list(csv.reader(label_tsv, delimiter="\t"))
-    return labels
+    text = (
+        text.replace('( ', '(')
+        .replace(' )', ')')
+        .replace('{ ', '{')
+        .replace(' }', '}')
+        .replace('[ ', '[')
+        .replace(' ]', ']')
+        .replace('  ', ' ')
+        .replace('”', '"')
+        .replace("’", "'")
+        .replace("»", '"')
+        .replace("«", '"')
+        .replace("\\", "")
+        .replace("„", '"')
+        .replace("´", "'")
+        .replace("’", "'")
+        .replace('“', '"')
+        .replace("‘", "'")
+        .replace('`', "'")
+        .replace('- -', "--")
+    )
+
+    for punct in "!,.:;?":
+        text = text.replace(f' {punct}', punct)
+    return text.strip()
 
 
-def get_abs_path(rel_path):
+def pre_process(text: str) -> str:
     """
-    Get absolute path
+    Adds space around punctuation marks
 
     Args:
-        rel_path: relative path to this file
-        
-    Returns absolute path
+        text: string that may include semiotic classes
+
+    Returns: text with spaces around punctuation marks
     """
-    return os.path.dirname(os.path.abspath(__file__)) + '/' + rel_path
+    space_both = '*<=>^[]{}'
+    for punct in space_both:
+        text = text.replace(punct, ' ' + punct + ' ')
+
+    text = text.replace('--', ' ' + '--' + ' ')
+    # remove extra space
+    text = re.sub(r' +', ' ', text)
+    return text

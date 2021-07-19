@@ -32,10 +32,11 @@ from dataclasses import dataclass
 from typing import Optional
 
 import torch
+from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.asr.parts.numba.numba_utils import NUMBA_INSTALLATION_MESSAGE
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
+from nemo.core.utils.numba_utils import NUMBA_INSTALLATION_MESSAGE
 from nemo.utils import logging, model_utils
 
 try:
@@ -144,6 +145,9 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
     # Resolve loss functions sequentially
     loss_kwargs = {} if loss_kwargs is None else loss_kwargs
 
+    if isinstance(loss_kwargs, DictConfig):
+        loss_kwargs = OmegaConf.to_container(loss_kwargs, resolve=True)
+
     # Get actual loss name for `default`
     if loss_name == 'default':
         loss_name = loss_config.loss_name
@@ -156,7 +160,8 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
     elif loss_name == 'warprnnt_numba':
-        loss_func = RNNTLossNumba(blank=blank_idx, reduction='none')
+        fastemit_lambda = loss_kwargs.pop('fastemit_lambda', 0.0)
+        loss_func = RNNTLossNumba(blank=blank_idx, reduction='none', fastemit_lambda=fastemit_lambda)
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
     else:
@@ -194,7 +199,19 @@ class RNNTLoss(Loss):
         albiet there is a small speed penalty for JIT numba compile.
 
         Note:
-            Requires the pytorch bindings to be installed prior to calling this class.
+            Requires Numba 0.53.0 or later to be installed to use this loss function.
+
+        Losses can be selected via the config, and optionally be passed keyword arguments as follows.
+
+        Examples:
+            .. code-block:: yaml
+
+                model:  # RNNT Model config
+                    ...
+                    loss:
+                        loss_name: "warprnnt_numba"
+                        warprnnt_numba_kwargs:
+                            fastemit_lambda: 0.0
 
         Warning:
             In the case that GPU memory is exhausted in order to compute RNNTLoss, it might cause
