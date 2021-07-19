@@ -23,8 +23,8 @@ from nemo_text_processing.inverse_text_normalization.de.taggers.money import Mon
 from nemo_text_processing.inverse_text_normalization.de.taggers.ordinal import OrdinalFst
 from nemo_text_processing.inverse_text_normalization.de.taggers.telephone import TelephoneFst
 from nemo_text_processing.inverse_text_normalization.de.taggers.time import TimeFst
+from nemo_text_processing.inverse_text_normalization.de.taggers.whitelist import WhiteListFst
 from nemo_text_processing.inverse_text_normalization.en.taggers.punctuation import PunctuationFst
-from nemo_text_processing.inverse_text_normalization.en.taggers.whitelist import WhiteListFst
 from nemo_text_processing.inverse_text_normalization.en.taggers.word import WordFst
 
 try:
