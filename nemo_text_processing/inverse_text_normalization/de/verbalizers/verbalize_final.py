@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 
 from nemo_text_processing.inverse_text_normalization.de.graph_utils import GraphFst, delete_extra_space, delete_space
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.verbalize import VerbalizeFst
-from nemo_text_processing.inverse_text_normalization.de.verbalizers.word import WordFst
+from nemo_text_processing.inverse_text_normalization.en.verbalizers.word import WordFst
 
 try:
     import pynini

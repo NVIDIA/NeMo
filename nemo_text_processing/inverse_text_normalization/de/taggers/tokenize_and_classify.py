@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,11 +21,11 @@ from nemo_text_processing.inverse_text_normalization.de.taggers.fraction import 
 from nemo_text_processing.inverse_text_normalization.de.taggers.measure import MeasureFst
 from nemo_text_processing.inverse_text_normalization.de.taggers.money import MoneyFst
 from nemo_text_processing.inverse_text_normalization.de.taggers.ordinal import OrdinalFst
-from nemo_text_processing.inverse_text_normalization.de.taggers.punctuation import PunctuationFst
 from nemo_text_processing.inverse_text_normalization.de.taggers.telephone import TelephoneFst
 from nemo_text_processing.inverse_text_normalization.de.taggers.time import TimeFst
-from nemo_text_processing.inverse_text_normalization.de.taggers.whitelist import WhiteListFst
-from nemo_text_processing.inverse_text_normalization.de.taggers.word import WordFst
+from nemo_text_processing.inverse_text_normalization.en.taggers.punctuation import PunctuationFst
+from nemo_text_processing.inverse_text_normalization.en.taggers.whitelist import WhiteListFst
+from nemo_text_processing.inverse_text_normalization.en.taggers.word import WordFst
 
 try:
     import pynini
