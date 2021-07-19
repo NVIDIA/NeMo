@@ -78,24 +78,14 @@ class TimeFst(GraphFst):
         graph_minute = graph_0_to_100 @ pynini.union(*digits_1_to_60)
         graph_minute_verbose = pynini.cross("media", "30") | pynini.cross("cuarto", "15")
 
-        final_graph_hour = (
-            pynutil.insert("hours: \"") 
-            + (graph_1oclock | graph_hour)
-            + pynutil.insert("\"")
-        )
-                
+        final_graph_hour = pynutil.insert("hours: \"") + (graph_1oclock | graph_hour) + pynutil.insert("\"")
+
         final_graph_minute = (
             pynutil.insert("minutes: \"")
-            + pynini.closure(
-                (pynutil.delete("y")
-                | pynutil.delete("con"))
-                + delete_space,
-                0, 1
-            )
+            + pynini.closure((pynutil.delete("y") | pynutil.delete("con")) + delete_space, 0, 1)
             + (graph_minute | graph_minute_verbose)
             + pynutil.insert("\"")
         )
-
 
         final_suffix = pynutil.insert("suffix: \"") + convert_space(suffix_graph) + pynutil.insert("\"")
         final_suffix_optional = pynini.closure(delete_space + insert_space + final_suffix, 0, 1)
@@ -106,16 +96,13 @@ class TimeFst(GraphFst):
         # un cuarto para las cinco
         graph_mh = (
             pynutil.insert("minutes: \"")
-            + pynini.union(
-                pynini.cross("un cuarto para", "45"),
-                pynini.cross("cuarto para", "45"),
-            )
+            + pynini.union(pynini.cross("un cuarto para", "45"), pynini.cross("cuarto para", "45"),)
             + pynutil.insert("\"")
             + delete_extra_space
             + pynutil.insert("hours: \"")
             + time_to_graph
             + pynutil.insert("\"")
-        )        
+        )
 
         # las diez menos diez
         graph_time_to = (
@@ -127,7 +114,7 @@ class TimeFst(GraphFst):
             + delete_space
             + pynutil.delete("menos")
             + delete_space
-            + pynini.union( 
+            + pynini.union(
                 pynini.cross("cinco", "55"),
                 pynini.cross("diez", "50"),
                 pynini.cross("cuarto", "45"),
@@ -136,9 +123,7 @@ class TimeFst(GraphFst):
             )
             + pynutil.insert("\"")
         )
-        final_graph = (
-            (graph_hm | graph_mh | graph_time_to) + final_suffix_optional 
-        ).optimize()
+        final_graph = ((graph_hm | graph_mh | graph_time_to) + final_suffix_optional).optimize()
 
         final_graph = self.add_tokens(final_graph)
 

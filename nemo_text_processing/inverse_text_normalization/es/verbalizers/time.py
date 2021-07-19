@@ -79,7 +79,7 @@ class TimeFst(GraphFst):
         )
         optional_zone = pynini.closure(zone, 0, 1)
         graph = (
-            hour 
+            hour
             + delete_space
             + pynutil.insert(":")
             + (minute @ add_leading_zero_to_double_digit)
