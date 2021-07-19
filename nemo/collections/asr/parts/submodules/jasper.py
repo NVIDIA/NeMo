@@ -162,53 +162,6 @@ def get_asymtric_padding(kernel_size, stride, dilation, future_context):
     return (left_context, right_context)
 
 
-class StatsPoolLayer(nn.Module):
-    def __init__(self, feat_in, pool_mode='xvector'):
-        super().__init__()
-        self.feat_in = 0
-        if pool_mode == 'gram':
-            gram = True
-            super_vector = False
-        elif pool_mode == 'superVector':
-            gram = True
-            super_vector = True
-        else:
-            gram = False
-            super_vector = False
-
-        if gram:
-            self.feat_in += feat_in ** 2
-        else:
-            self.feat_in += 2 * feat_in
-
-        if super_vector and gram:
-            self.feat_in += 2 * feat_in
-
-        self.gram = gram
-        self.super = super_vector
-
-    def forward(self, encoder_output):
-
-        mean = encoder_output.mean(dim=-1)  # Time Axis
-        std = encoder_output.std(dim=-1)
-
-        pooled = torch.cat([mean, std], dim=-1)
-
-        if self.gram:
-            time_len = encoder_output.shape[-1]
-            # encoder_output = encoder_output
-            cov = encoder_output.bmm(encoder_output.transpose(2, 1))  # cov matrix
-            cov = cov.view(cov.shape[0], -1) / time_len
-
-        if self.gram and not self.super:
-            return cov
-
-        if self.super and self.gram:
-            pooled = torch.cat([pooled, cov], dim=-1)
-
-        return pooled
-
-
 class MaskedConv1d(nn.Module):
     __constants__ = ["use_conv_mask", "real_out_channels", "heads"]
 
@@ -958,3 +911,114 @@ class JasperBlock(nn.Module):
             return xs + [out], lens
 
         return [out], lens
+
+
+class ParallelBlock(nn.Module):
+    """
+    Computational module that computes several `blocks` independently from each other and aggregates the outputs.
+    It expects audio inputs to be passed together with lengths, just like Jasper blocks, and all outputs to have
+    the same dimensions but it does not impose any additional requirements on the structure of the blocks themselves.
+
+    Args:
+        blocks: List of Jasper blocks that will be computed concurently. It is expected that they accept the same
+            input and return outputs with the same number of channels.
+        aggregation_mode: an optional string, indicating how the outputs will be aggregated. Supported values are
+            ['sum', 'dropout']. "sum" value forces outputs to be summed together. "dropout" value enables tower
+            dropout training with different blocks being dropped out during training.
+        block_dropout_prob: a probability of dropping any individual block during training with "dropout" aggregation
+            mode. Acts as a regularization technique.
+        residual_mode: an optional string indicating how residuals will be applied. Supported values are
+            ['sum', 'conv']. In 'sum' mode input features are summed together with the output. This will fail if the
+            number of channels in the input is different from the number of channels in an output tensor. In 'conv' mode
+            inputs are passed through pointwise convolution to make input channel dimension match output channel
+            dimension. In this mode `in_filters` and `out_filters` params are required.
+        in_filters: number of filters (channels) in the input tensor of each block.
+        out_filters: number of filters (channels) in the output tensor of each block.
+    """
+
+    def __init__(
+        self,
+        blocks,
+        aggregation_mode: str = "sum",
+        block_dropout_prob: int = 0.0,
+        residual_mode: str = "sum",
+        in_filters: int = None,
+        out_filters: int = None,
+    ):
+        super().__init__()
+        self.blocks = nn.ModuleList(blocks)
+
+        self.supported_aggregations = ["sum", "dropout"]
+        if aggregation_mode not in self.supported_aggregations:
+            raise ValueError(
+                f"Got non-supported aggregation mode: {aggregation_mode}. Supported values are {self.supported_aggregations}."
+            )
+        self.aggregation_mode = aggregation_mode
+
+        if aggregation_mode == "dropout":
+            self.weights = nn.Parameter(torch.ones(len(blocks)), requires_grad=False)
+            self.dropout = nn.Dropout(block_dropout_prob)
+
+        self.supported_residuals = ["sum", "conv"]
+        if residual_mode not in self.supported_residuals:
+            raise ValueError(
+                f"Got non-supported residual mode: {residual_mode}. Supported values are {self.supported_residuals}."
+            )
+        self.residual_mode = residual_mode
+
+        if residual_mode == "conv":
+            if in_filters is None or out_filters is None:
+                raise ValueError("in_filters and out_filters have to be specified when using 'conv' residual mode.")
+            self.res_conv = MaskedConv1d(in_filters, out_filters, kernel_size=1, bias=False, use_mask=True)
+
+    def get_dropout_mask(self):
+        weights = self.dropout(self.weights)
+        while torch.sum(weights) == 0 and self.dropout.p < 1.0:
+            weights = self.dropout(self.weights)
+        return weights
+
+    def forward(self, x: Tuple[List[Tensor], Optional[Tensor]]):
+        """
+        Forward pass computing aggregated output.
+
+        Args:
+            x: tuple of padded signal and lengths the signal. The shape of the signal is [B, D, T]. The lengths are
+                1D torch tensor of length B.
+
+        Returns:
+           torch tensor after passing input throught each block and aggregating these outputs according to the
+           aggregation mode.
+        """
+        if len(self.blocks) == 1:
+            return self.blocks[0](x)
+
+        result = None
+        max_mask = None
+
+        scaling_weights = None
+        if self.aggregation_mode == "dropout":
+            scaling_weights = self.get_dropout_mask()
+
+        for i, block in enumerate(self.blocks):
+            output, mask = block(x)
+
+            weighted_output = output[-1]
+            if self.aggregation_mode == "dropout":
+                weighted_output = scaling_weights[i] * output[-1]
+
+            if result is None:
+                result = weighted_output
+            else:
+                result = result + weighted_output
+
+            if max_mask is None:
+                max_mask = mask
+            else:
+                max_mask = torch.max(torch.stack([mask, max_mask]), dim=0)[0]
+        input_feat = x[0][-1]
+        lens = x[1]
+        if self.residual_mode == "sum":
+            result = result + input_feat
+        elif self.residual_mode == "conv":
+            result = result + self.res_conv(input_feat, lens)[0]
+        return [result], max_mask
