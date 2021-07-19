@@ -89,7 +89,7 @@ class TextNormalizationTestDataset:
         return len(self.inputs)
 
     @staticmethod
-    def is_same(pred: str, target: str, inst_dir: str, lang : str):
+    def is_same(pred: str, target: str, inst_dir: str, lang: str):
         """
         Function for checking whether the predicted string can be considered
         the same as the target string
@@ -109,7 +109,7 @@ class TextNormalizationTestDataset:
         return int(pred == target)
 
     @staticmethod
-    def compute_sent_accuracy(preds: List[str], targets: List[str], inst_directions: List[str], lang : str):
+    def compute_sent_accuracy(preds: List[str], targets: List[str], inst_directions: List[str], lang: str):
         """
         Compute the sentence accuracy metric.
 
