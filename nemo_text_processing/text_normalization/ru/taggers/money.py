@@ -61,7 +61,7 @@ class MoneyFst(GraphFst):
             pynutil.insert("integer_part: \"")
             + ((NEMO_SIGMA - "1") @ cardinal_graph)
             + pynutil.insert("\"")
-            + graph_unit_plural
+            + (graph_unit_plural)
         )
 
         graph_integer |= singular_graph

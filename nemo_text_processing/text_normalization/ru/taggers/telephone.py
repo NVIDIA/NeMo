@@ -48,7 +48,7 @@ class TelephoneFst(GraphFst):
 
         country_code = (
             pynutil.insert("country_code: \"")
-            + pynini.closure(pynutil.delete("+"), 0, 1)
+            + pynini.closure(pynutil.add_weight(pynutil.delete("+"), 0.1), 0, 1)
             + number
             + separator
             + pynutil.insert("\"")

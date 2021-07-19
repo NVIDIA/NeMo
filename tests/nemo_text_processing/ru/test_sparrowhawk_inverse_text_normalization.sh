@@ -20,35 +20,35 @@ runtest () {
   done < "$input"
 }
 
-#testITNCardinal() {
-#  input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_cardinal.txt
-#  runtest $input
-#}
-#
-#testITNOrdinal() {
-#  input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_ordinal.txt
-#  runtest $input
-#}
-#
-#testITNDate() {
-#  input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_date.txt
-#  runtest $input
-#}
-#
-#testITNDecimal() {
-#  input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_decimal.txt
-#  runtest $input
-#}
-#
-#testITNElectronic() {
-#  input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_electronic.txt
-#  runtest $input
-#}
-#
-#testITNTime() {
-#  input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_time.txt
-#  runtest $input
-#}
+testITNCardinal() {
+  input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_cardinal.txt
+  runtest $input
+}
+
+testITNOrdinal() {
+  input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_ordinal.txt
+  runtest $input
+}
+
+testITNDate() {
+  input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_date.txt
+  runtest $input
+}
+
+testITNDecimal() {
+  input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_decimal.txt
+  runtest $input
+}
+
+testITNElectronic() {
+  input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_electronic.txt
+  runtest $input
+}
+
+testITNTime() {
+  input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_time.txt
+  runtest $input
+}
 
 testITNMeasure() {
   input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_measure.txt
@@ -65,11 +65,11 @@ testITNMoney() {
 ##  runtest $input
 ##}
 ##
-#testITNTelephone() {
-#  input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_telephone.txt
-#  runtest $input
-#}
-#
+testITNTelephone() {
+  input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_telephone.txt
+  runtest $input
+}
+
 #testITNWord() {
 #  input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_word.txt
 #  runtest $input
