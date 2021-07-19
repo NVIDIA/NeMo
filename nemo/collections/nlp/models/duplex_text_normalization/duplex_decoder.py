@@ -141,7 +141,7 @@ class DuplexDecoderModel(NLPModel):
         model, tokenizer = self.model, self._tokenizer
         try:
             model_max_len = model.config.n_positions
-        except:
+        except AttributeError:
             model_max_len = 512
         ctx_size = constants.DECODE_CTX_SIZE
         extra_id_0 = constants.EXTRA_ID_0
