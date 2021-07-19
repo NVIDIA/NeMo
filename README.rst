@@ -58,6 +58,7 @@ Key Features
     * `Question answering <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/question_answering.html>`_
     * `GLUE benchmark <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/glue_benchmark.html>`_
     * `Information retrieval <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/information_retrieval.html>`_
+    * `Dialogue State Tracking <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/sgd_qa.html>`_
     * `NGC collection of pre-trained NLP models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_nlp>`_
 * `Speech synthesis (TTS) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tts/intro.html#>`_
     * Spectrogram generation: Tacotron2, GlowTTS, FastSpeech2, FastPitch,
@@ -93,19 +94,17 @@ Documentation
   :scale: 100%
   :target:  https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/
 
-+---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
-| Version | Status      | Description                                                                                                                      |
-+=========+=============+==================================================================================================================================+
-| Latest  | |main|      | `Documentation of the latest (i.e. main) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/>`_          |
-+---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
-| Next    | |v1.0.2|    | `Documentation of the most recent release: v1.0.2 <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.2/>`_       |
-+---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
-| Stable  | |stable|    | `Documentation of the stable (i.e. stable) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/>`_      |
-+---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
++---------+-------------+------------------------------------------------------------------------------------------------------------------------------------------+
+| Version | Status      | Description                                                                                                                              |
++=========+=============+==========================================================================================================================================+
+| Latest  | |main|      | `Documentation of the latest (i.e. main) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/>`_                  |
++---------+-------------+------------------------------------------------------------------------------------------------------------------------------------------+
+| Stable  | |stable|    | `Documentation of the stable (i.e. most recent release) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/>`_ |
++---------+-------------+------------------------------------------------------------------------------------------------------------------------------------------+
 
 Tutorials
 ---------
-A great way to start with NeMo is by checking `one of our tutorials <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.2/starthere/tutorials.html>`_.
+A great way to start with NeMo is by checking `one of our tutorials <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/starthere/tutorials.html>`_.
 
 Getting help with NeMo
 ----------------------
@@ -147,6 +146,16 @@ Use this installation mode if you are contributing to NeMo.
     cd NeMo
     ./reinstall.sh
 
+RNNT
+~~~~
+Note that RNNT requires numba to be installed from conda.
+
+.. code-block:: bash
+
+  conda remove numba
+  pip uninstall numba
+  conda install -c numba numba
+
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
 
@@ -161,14 +170,14 @@ If you chose to work with main branch, we recommend using NVIDIA's PyTorch conta
 Examples
 --------
 
-Many example can be found under `"Examples" <https://github.com/NVIDIA/NeMo/tree/main/examples>`_ folder.
+Many example can be found under `"Examples" <https://github.com/NVIDIA/NeMo/tree/stable/examples>`_ folder.
 
 
 Contributing
 ------------
 
-We welcome community contributions! Please refer to the  `CONTRIBUTING.md <https://github.com/NVIDIA/NeMo/blob/main/CONTRIBUTING.md>`_ CONTRIBUTING.md for the process.
+We welcome community contributions! Please refer to the  `CONTRIBUTING.md <https://github.com/NVIDIA/NeMo/blob/stable/CONTRIBUTING.md>`_ CONTRIBUTING.md for the process.
 
 License
 -------
-NeMo is under `Apache 2.0 license <https://github.com/NVIDIA/NeMo/blob/main/LICENSE>`_.
+NeMo is under `Apache 2.0 license <https://github.com/NVIDIA/NeMo/blob/stable/LICENSE>`_.

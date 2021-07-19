@@ -14,7 +14,7 @@ Our BERT-based model implementation allows you to train and detect both of these
 
 .. note::
 
-    We recommend you try the Joint Intent and Slot Classification model in a Jupyter notebook (can run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.): `NeMo/tutorials/nlp/Joint_Intent_and_Slot_Classification.ipynb <https://github.com/NVIDIA/NeMo/blob/main/tutorials/nlp/Joint_Intent_and_Slot_Classification.ipynb>`__.
+    We recommend you try the Joint Intent and Slot Classification model in a Jupyter notebook (can run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.): `NeMo/tutorials/nlp/Joint_Intent_and_Slot_Classification.ipynb <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/nlp/Joint_Intent_and_Slot_Classification.ipynb>`__.
 
     Connect to an instance with a GPU (**Runtime** -> **Change runtime type** -> select **GPU** for the hardware accelerator).
 
@@ -115,7 +115,7 @@ For each query, the model classifies it as one the intents from the intent dicti
 it as one of the slots from the slot dictionary, including out of scope slot for all the remaining words in the query which does not 
 fall in another slot category. Out of scope slot (``O``) is a part of slot dictionary that the model is trained on.
 
-Example of model configuration file for training the model can be found at: `NeMo/examples/nlp/intent_slot_classification/conf/intent_slot_classification.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/intent_slot_classification/conf/intent_slot_classification_config.yaml>`__.
+Example of model configuration file for training the model can be found at: `NeMo/examples/nlp/intent_slot_classification/conf/intent_slot_classification.yaml <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/intent_slot_classification/conf/intent_slot_classification_config.yaml>`__.
 In the configuration file, define the parameters of the training and the model, although most of the default values will work well.
 
 The specification can be roughly grouped into three categories:
@@ -152,7 +152,7 @@ More details about parameters in the spec file can be found below:
 | **test_ds.prefix**                        | string          | ``test``                                                                         | A prefix for the test file names.                                                                            |
 +-------------------------------------------+-----------------+----------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------+
 
-For additional config parameters common to all NLP models, refer to the `nlp_model doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/nlp_model.rst#model-nlp>`__.
+For additional config parameters common to all NLP models, refer to the `nlp_model doc <https://github.com/NVIDIA/NeMo/blob/stable/docs/source/nlp/nlp_model.rst#model-nlp>`__.
 
 The following is an example of the command for training the model:
 

@@ -184,7 +184,7 @@ class NLPDDPPlugin(DDPPlugin):
             return distributed_sampler_kwargs
 
         else:
-            return super().distributed_sampler_kwargs
+            return super(NLPDDPPlugin, self).distributed_sampler_kwargs
 
 
 class NLPCheckpointConnector(CheckpointConnector):
