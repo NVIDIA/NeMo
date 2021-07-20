@@ -123,6 +123,7 @@ def main():
     # Instantiate pytorch model
     nemo_model = args.nemo_model
     nemo_model = ASRModel.restore_from(nemo_model, map_location='cpu')  # type: ASRModel
+    nemo_model.freeze()
 
     if torch.cuda.is_available():
         nemo_model = nemo_model.to('cuda')
