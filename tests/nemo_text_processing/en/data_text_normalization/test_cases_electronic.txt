@@ -14,3 +14,5 @@ email is abc1@gmail.com~email is a b c one at g mail dot com
 test .b@gmail.com~test . b at g mail dot com
 abs@nvidia.com~a b s at nvidia dot com
 email is a-1.b3_c&-d@gma4i-l.com test~email is a dash one dot b three underscore c ampersand dash d at g m a four i dash l dot com test
+nvidia.com~nvidia dot com
+test.com~t e s t dot com
