@@ -14,6 +14,7 @@
 # limitations under the License.
 
 
+from nemo.core.classes.modelPT import ModelPT
 from os import path
 import tempfile
 
@@ -24,8 +25,9 @@ from nemo.utils.app_state import AppState
 
 
 class SaveRestoreConnector:
-    def __init__(self):
-        pass
+    def __init__(self, model: ModelPT):
+	    self._model = model
+        
 
     def _default_save_to(self, save_path: str):
         """

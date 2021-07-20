@@ -88,10 +88,10 @@ class ModelPT(LightningModule, Model):
         """
         # set global vars in AppState
         app_state = AppState()
-        _MODEL_CONFIG_YAML = "model_config.yaml"
-        _MODEL_WEIGHTS = "model_weights.ckpt"
-        _MODEL_IS_RESTORED = False
-        _NEMO_FILE_FOLDER = None
+        app_state.model_config_yaml = "model_config.yaml"
+        app_state.model_weights_ckpt = "model_weights.ckpt"
+        app_state.model_is_restored = False
+        app_state.nemo_file_folder = None
 
         # Convert config to a DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
