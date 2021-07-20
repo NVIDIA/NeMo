@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.utils import get_abs_path
+from nemo_text_processing.inverse_text_normalization.es.utils import get_abs_path
 from nemo_text_processing.text_normalization.graph_utils import GraphFst, delete_space, insert_space
 
 try:
@@ -44,10 +44,10 @@ class TelephoneFst(GraphFst):
 
         # create `single_digits` and `double_digits` graphs as these will be
         # the building blocks of possible telephone numbers
-        graph_digit = pynini.string_file(get_abs_path("es/data/numbers/digit.tsv"))
-        graph_ties = pynini.string_file(get_abs_path("es/data/numbers/ties.tsv"))
-        graph_teen = pynini.string_file(get_abs_path("es/data/numbers/teen.tsv"))
-        graph_twenties = pynini.string_file(get_abs_path("es/data/numbers/twenties.tsv"))
+        graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
+        graph_ties = pynini.string_file(get_abs_path("data/numbers/ties.tsv"))
+        graph_teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv"))
+        graph_twenties = pynini.string_file(get_abs_path("data/numbers/twenties.tsv"))
 
         single_digits = pynini.invert(graph_digit).optimize() | pynini.cross("0", "cero")
 

@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.utils import get_abs_path
+from nemo_text_processing.inverse_text_normalization.es.utils import get_abs_path
 from nemo_text_processing.text_normalization.graph_utils import (
     NEMO_DIGIT,
     NEMO_SIGMA,
@@ -51,9 +51,9 @@ class MoneyFst(GraphFst):
         cardinal_graph = cardinal.graph_no_exception
         graph_decimal_final = decimal.final_graph_wo_negative
 
-        unit_singular = pynini.string_file(get_abs_path("es/data/currency_singular.tsv"))
+        unit_singular = pynini.string_file(get_abs_path("data/currency_singular.tsv"))
         unit_singular = pynini.invert(unit_singular)
-        unit_plural = pynini.string_file(get_abs_path("es/data/currency_plural.tsv"))
+        unit_plural = pynini.string_file(get_abs_path("data/currency_plural.tsv"))
         unit_plural = pynini.invert(unit_plural)
 
         graph_unit_singular = pynutil.insert("currency: \"") + convert_space(unit_singular) + pynutil.insert("\"")

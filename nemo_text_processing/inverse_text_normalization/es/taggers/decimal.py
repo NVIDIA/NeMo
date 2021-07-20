@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.utils import get_abs_path
+from nemo_text_processing.inverse_text_normalization.es.utils import get_abs_path
 from nemo_text_processing.text_normalization.graph_utils import NEMO_DIGIT, GraphFst, delete_extra_space, delete_space
 
 try:
@@ -66,8 +66,8 @@ class DecimalFst(GraphFst):
 
         cardinal_graph = cardinal.graph_no_exception | pynini.string_file(get_abs_path("data/numbers/es/zero.tsv"))
 
-        graph_decimal = pynini.string_file(get_abs_path("es/data/numbers/digit.tsv"))
-        graph_decimal |= pynini.string_file(get_abs_path("es/data/numbers/zero.tsv")) | pynini.cross("o", "0")
+        graph_decimal = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
+        graph_decimal |= pynini.string_file(get_abs_path("data/numbers/zero.tsv")) | pynini.cross("o", "0")
 
         graph_decimal = pynini.closure(graph_decimal + delete_space) + graph_decimal
         graph_decimal |= cardinal_graph

@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo_text_processing.inverse_text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
+from nemo_text_processing.inverse_text_normalization.en.verbalizers.verbalize import VerbalizeFst
+from nemo_text_processing.inverse_text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
+
 from nemo.utils import logging
 
 try:

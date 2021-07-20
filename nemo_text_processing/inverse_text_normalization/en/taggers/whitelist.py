@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.utils import get_abs_path
+from nemo_text_processing.inverse_text_normalization.en.utils import get_abs_path
 from nemo_text_processing.text_normalization.graph_utils import GraphFst, convert_space
 
 try:
@@ -35,6 +35,6 @@ class WhiteListFst(GraphFst):
     def __init__(self):
         super().__init__(name="whitelist", kind="classify")
 
-        whitelist = pynini.string_file(get_abs_path("en/data/whitelist.tsv")).invert()
+        whitelist = pynini.string_file(get_abs_path("data/whitelist.tsv")).invert()
         graph = pynutil.insert("name: \"") + convert_space(whitelist) + pynutil.insert("\"")
         self.fst = graph.optimize()

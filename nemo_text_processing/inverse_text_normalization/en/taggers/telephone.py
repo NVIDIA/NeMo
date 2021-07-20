@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.utils import get_abs_path
+from nemo_text_processing.inverse_text_normalization.en.utils import get_abs_path
 from nemo_text_processing.text_normalization.graph_utils import GraphFst, delete_space, insert_space
 
 try:
@@ -36,7 +36,7 @@ class TelephoneFst(GraphFst):
         delete_space = pynutil.delete(' ')
         # country code, number_part, extension
         add_separator = pynutil.insert(" ")  # between components
-        digit = pynini.invert(pynini.string_file(get_abs_path("en/data/numbers/digit.tsv"))).optimize() | pynini.cross(
+        digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv"))).optimize() | pynini.cross(
             "0", pynini.union("o", "oh", "zero")
         )
 

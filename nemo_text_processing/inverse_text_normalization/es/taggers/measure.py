@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.utils import get_abs_path
+from nemo_text_processing.inverse_text_normalization.es.utils import get_abs_path
 from nemo_text_processing.text_normalization.graph_utils import (
     NEMO_SIGMA,
     GraphFst,
@@ -47,9 +47,9 @@ class MeasureFst(GraphFst):
 
         cardinal_graph = cardinal.graph_no_exception
 
-        graph_unit_singular = pynini.string_file(get_abs_path("es/data/measurements_singular.tsv"))
+        graph_unit_singular = pynini.string_file(get_abs_path("data/measurements_singular.tsv"))
         graph_unit_singular = pynini.invert(graph_unit_singular)  # singular -> abbr
-        graph_unit_plural = pynini.string_file(get_abs_path("es/data/measurements_plural.tsv"))
+        graph_unit_plural = pynini.string_file(get_abs_path("data/measurements_plural.tsv"))
         graph_unit_plural = pynini.invert(graph_unit_plural)  # plural -> abbr
 
         optional_graph_negative = pynini.closure(

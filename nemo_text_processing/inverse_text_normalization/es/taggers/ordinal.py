@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.utils import get_abs_path
+from nemo_text_processing.inverse_text_normalization.es.utils import get_abs_path
 from nemo_text_processing.text_normalization.graph_utils import NEMO_SIGMA, GraphFst, delete_space
 
 try:
@@ -38,11 +38,11 @@ class OrdinalFst(GraphFst):
         super().__init__(name="ordinal", kind="classify")
 
         cardinal_graph = cardinal.graph_no_exception
-        graph_digit = pynini.string_file(get_abs_path("es/data/ordinals/digit.tsv"))
-        graph_teens = pynini.string_file(get_abs_path("es/data/ordinals/teen.tsv"))
-        graph_twenties = pynini.string_file(get_abs_path("es/data/ordinals/twenties.tsv"))
-        graph_ties = pynini.string_file(get_abs_path("es/data/ordinals/ties.tsv"))
-        graph_hundreds = pynini.string_file(get_abs_path("es/data/ordinals/hundreds.tsv"))
+        graph_digit = pynini.string_file(get_abs_path("data/ordinals/digit.tsv"))
+        graph_teens = pynini.string_file(get_abs_path("data/ordinals/teen.tsv"))
+        graph_twenties = pynini.string_file(get_abs_path("data/ordinals/twenties.tsv"))
+        graph_ties = pynini.string_file(get_abs_path("data/ordinals/ties.tsv"))
+        graph_hundreds = pynini.string_file(get_abs_path("data/ordinals/hundreds.tsv"))
 
         ordinal_graph_union = pynini.union(graph_digit, graph_teens, graph_twenties, graph_ties, graph_hundreds,)
 

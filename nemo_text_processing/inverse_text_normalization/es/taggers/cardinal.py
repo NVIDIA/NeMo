@@ -14,7 +14,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.inverse_text_normalization.utils import get_abs_path, num_to_word
+from nemo_text_processing.inverse_text_normalization.es.utils import get_abs_path, num_to_word
 from nemo_text_processing.text_normalization.graph_utils import (
     NEMO_DIGIT,
     NEMO_SIGMA,
@@ -41,12 +41,12 @@ class CardinalFst(GraphFst):
 
     def __init__(self):
         super().__init__(name="cardinal", kind="classify")
-        graph_zero = pynini.string_file(get_abs_path("es/datanumbers/zero.tsv"))
-        graph_digit = pynini.string_file(get_abs_path("es/data/numbers/digit.tsv"))
-        graph_ties = pynini.string_file(get_abs_path("es/data/numbers/ties.tsv"))
-        graph_teen = pynini.string_file(get_abs_path("es/data/numbers/teen.tsv"))
-        graph_twenties = pynini.string_file(get_abs_path("es/data/numbers/twenties.tsv"))
-        graph_hundreds = pynini.string_file(get_abs_path("es/data/numbers/hundreds.tsv"))
+        graph_zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
+        graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
+        graph_ties = pynini.string_file(get_abs_path("data/numbers/ties.tsv"))
+        graph_teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv"))
+        graph_twenties = pynini.string_file(get_abs_path("data/numbers/twenties.tsv"))
+        graph_hundreds = pynini.string_file(get_abs_path("data/numbers/hundreds.tsv"))
 
         graph_hundred_component = graph_hundreds | pynutil.insert("0")
         graph_hundred_component += delete_space
