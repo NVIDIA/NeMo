@@ -171,194 +171,216 @@ class ExportableEncDecJointModel(Exportable):
         qual_name = self.__module__ + '.' + self.__class__.__qualname__
         output_descr = qual_name + ' exported to ONNX'
 
-        # try:
-        # Disable typechecks
-        typecheck.set_typecheck_enabled(enabled=False)
+        try:
+            # Disable typechecks
+            typecheck.set_typecheck_enabled(enabled=False)
 
-        # Set module to eval mode
-        self._set_eval(set_eval)
+            # Set module to eval mode
+            self._set_eval(set_eval)
 
-        format = self.get_format(output)
+            format = self.get_format(output)
 
-        # Assign special flag for RNNT export of encoder
-        self.input_module._rnnt_export = True
-        self.output_module._rnnt_export = True
-        self.joint_module._rnnt_export = True
+            # Assign special flag for RNNT export of encoder
+            self.input_module._rnnt_export = True
+            self.output_module._rnnt_export = True
+            self.joint_module._rnnt_export = True
 
-        if input_example is None:
-            encoder_examples, decoder_examples = self._get_input_example()
-            input_example = [encoder_examples, decoder_examples]
-        else:
-            assert type(input_example) in (list, tuple) and len(input_example) == 2, (
-                "input_example must " "be a list of two tensors," "for encoder and decoder input"
-            )
-            encoder_examples, decoder_examples = input_example
-
-        if output_example is not None:
-            assert type(output_example) in (list, tuple) and len(output_example) == 2, (
-                "output_example must " "be a list of two tensors," "for encoder and decoder+joint" " output"
-            )
-            encoder_output_example, decoder_joint_output_example = output_example
-        else:
-            encoder_output_example = None
-            decoder_joint_output_example = None
-
-        my_args['input_example'] = input_example
-
-        # Run (posibly overridden) prepare method before calling forward()
-        self._prepare_for_export(**my_args)
-
-        encoder_input_list, encoder_input_dict = self._setup_input_example(encoder_examples)
-        decoder_input_list, decoder_input_dict = self._setup_input_example(decoder_examples)
-
-        encoder_input_names, decoder_input_names = self._process_input_names()
-        encoder_output_names, decoder_output_names, joint_output_names = self._process_output_names()
-
-        # process decoder states; by convension states must be the last in the list and must be wrapped in a tuple
-        (
-            decoder_input_list,
-            decoder_input_names,
-            input_state_names,
-            num_states,
-            output_state_names,
-            state_names,
-        ) = self._process_states_names(decoder_input_list, decoder_input_names)
-
-        with torch.jit.optimized_execution(True), torch.no_grad():
-            # Encoder export
-            encoder_jitted_model = self._try_jit_compile_model(self.input_module, try_script)
-
-            if format == exportable.ExportFormat.TORCHSCRIPT:
-                # Allow user to completely override forward method to export
-                forward_method, original_forward_method = self._wrap_forward_method('encoder')
-                encoder_output_example = self.forward(*encoder_input_list, **encoder_input_dict)
-
-                self._export_torchscript(
-                    encoder_jitted_model,
-                    self._augment_output_filename(output, "Encoder"),
-                    encoder_input_dict,
-                    encoder_input_list,
-                    check_trace,
-                    check_tolerance,
-                    verbose,
-                )
-
-                encoder_decoder_input_list = [encoder_output_example] + list(decoder_input_list)
-                encoder_decoder_input_dict = decoder_input_dict
-
-                # Allow user to completely override forward method to export
-                forward_method, _ = self._wrap_forward_method('decoder_joint')
-                decoder_joint_output_example = self.forward(*encoder_decoder_input_list, **encoder_decoder_input_dict)
-
-                self._export_torchscript(
-                    None,
-                    self._augment_output_filename(output, "Decoder-Joint"),
-                    encoder_decoder_input_dict,
-                    tuple(encoder_decoder_input_list),
-                    check_trace,
-                    check_tolerance,
-                    verbose,
-                )
-
-            elif format == exportable.ExportFormat.ONNX:
-                # Allow user to completely override forward method to export
-                forward_method, original_forward_method = self._wrap_forward_method('encoder')
-                encoder_output_example = self.forward(*encoder_input_list, **encoder_input_dict)
-
-                self._export_flag_module = 'encoder'
-
-                self._export_onnx(
-                    encoder_jitted_model,
-                    encoder_examples,
-                    encoder_output_example,
-                    encoder_input_names,
-                    encoder_output_names,
-                    use_dynamic_axes,
-                    do_constant_folding,
-                    dynamic_axes,
-                    self._augment_output_filename(output, "Encoder"),
-                    export_params,
-                    keep_initializers_as_inputs,
-                    onnx_opset_version,
-                    verbose,
-                )
-
-                # Verify the model can be read, and is valid
-                self._verify_onnx_export(
-                    self._augment_output_filename(output, "Encoder"),
-                    encoder_output_example,
-                    encoder_input_list,
-                    encoder_input_dict,
-                    encoder_input_names,
-                    check_tolerance,
-                    check_trace,
-                )
-
-                self._export_flag_module = 'decoder_joint'
-
-                # Extract just the encoder logits and remove the encoder lengths
-                if type(encoder_output_example) in (list, tuple):
-                    encoder_output_example = encoder_output_example[0]
-
-                encoder_decoder_input_list = [encoder_output_example] + list(decoder_input_list)
-                encoder_decoder_input_dict = decoder_input_dict
-
-                encoder_decoder_input_list = tuple(encoder_decoder_input_list)
-
-                # Allow user to completely override forward method to export
-                forward_method, _ = self._wrap_forward_method('decoder_joint')
-                decoder_joint_output_example = self.forward(*encoder_decoder_input_list, **encoder_decoder_input_dict)
-                decoder_joint_output_example = tuple(decoder_joint_output_example)
-
-                # Resolve output states
-                if num_states > 0:
-                    if type(decoder_joint_output_example[-1]) == tuple:
-                        raise TypeError("Since input states are available, forward must emit flattened states")
-
-                    # remove the name of the states
-                    logging.info(
-                        f"Replacing output state name {decoder_output_names[-1]} with {str(output_state_names)}"
-                    )
-                    decoder_output_names = decoder_output_names[:-1]
-
-                self._export_onnx(
-                    None,
-                    encoder_decoder_input_list,
-                    decoder_joint_output_example,
-                    self._join_input_output_names(["encoder_outputs"], decoder_input_names, input_state_names),
-                    self._join_input_output_names(joint_output_names, decoder_output_names, output_state_names),
-                    use_dynamic_axes,
-                    do_constant_folding,
-                    dynamic_axes,
-                    self._augment_output_filename(output, "Decoder-Joint"),
-                    export_params,
-                    keep_initializers_as_inputs,
-                    onnx_opset_version,
-                    verbose,
-                )
-
-                graph_state_names = [f"{name}.1" for name in state_names]
-
-                # Verify the model can be read, and is valid
-                self._verify_onnx_export(
-                    self._augment_output_filename(output, "Decoder-Joint"),
-                    decoder_joint_output_example,
-                    encoder_decoder_input_list,
-                    encoder_decoder_input_dict,
-                    self._join_input_output_names(["encoder_outputs"], decoder_input_names, input_state_names),
-                    check_tolerance,
-                    check_trace,
-                )
-
+            if input_example is None:
+                encoder_examples, decoder_examples = self._get_input_example()
+                input_example = [encoder_examples, decoder_examples]
             else:
-                raise ValueError(f'Encountered unknown export format {format}.')
+                assert type(input_example) in (list, tuple) and len(input_example) == 2, (
+                    "input_example must " "be a list of two tensors," "for encoder and decoder input"
+                )
+                encoder_examples, decoder_examples = input_example
 
-        # except Exception as e:
-        #     raise e
-        # finally:
-        #     typecheck.set_typecheck_enabled(enabled=True)
-        #     if forward_method:
-        #         type(self).forward = original_forward_method
+            if output_example is not None:
+                assert type(output_example) in (list, tuple) and len(output_example) == 2, (
+                    "output_example must " "be a list of two tensors," "for encoder and decoder+joint" " output"
+                )
+                encoder_output_example, decoder_joint_output_example = output_example
+            else:
+                encoder_output_example = None
+                decoder_joint_output_example = None
+
+            my_args['input_example'] = input_example
+
+            # Run (posibly overridden) prepare method before calling forward()
+            self._prepare_for_export(**my_args)
+
+            encoder_input_list, encoder_input_dict = self._setup_input_example(encoder_examples)
+            decoder_input_list, decoder_input_dict = self._setup_input_example(decoder_examples)
+
+            encoder_input_names, decoder_input_names = self._process_input_names()
+            encoder_output_names, decoder_output_names, joint_output_names = self._process_output_names()
+
+            # process decoder states; by convension states must be the last in the list and must be wrapped in a tuple
+            (
+                decoder_input_list,
+                decoder_input_names,
+                input_state_names,
+                num_states,
+                output_state_names,
+                state_names,
+            ) = self._process_states_names(decoder_input_list, decoder_input_names)
+
+            with torch.jit.optimized_execution(True), torch.no_grad():
+                # Encoder export
+                encoder_jitted_model = self._try_jit_compile_model(self.input_module, try_script)
+
+                if format == exportable.ExportFormat.TORCHSCRIPT:
+                    raise NotImplementedError()
+                    # # Allow user to completely override forward method to export
+                    # forward_method, original_forward_method = self._wrap_forward_method('encoder')
+                    # encoder_output_example = self.forward(*encoder_input_list, **encoder_input_dict)
+                    #
+                    # self._export_torchscript(
+                    #     encoder_jitted_model,
+                    #     self._augment_output_filename(output, "Encoder"),
+                    #     encoder_input_dict,
+                    #     encoder_input_list,
+                    #     check_trace,
+                    #     check_tolerance,
+                    #     verbose,
+                    # )
+                    #
+                    # self._export_flag_module = 'decoder_joint'
+                    #
+                    # # Extract just the encoder logits and remove the encoder lengths
+                    # if type(encoder_output_example) in (list, tuple):
+                    #     encoder_output_example = encoder_output_example[0]
+                    #
+                    # encoder_decoder_input_list = [encoder_output_example] + list(decoder_input_list)
+                    # encoder_decoder_input_dict = decoder_input_dict
+                    #
+                    # encoder_decoder_input_list = tuple(encoder_decoder_input_list)
+                    #
+                    # # Allow user to completely override forward method to export
+                    # forward_method, _ = self._wrap_forward_method('decoder_joint')
+                    # decoder_joint_output_example = self.forward(*encoder_decoder_input_list, **encoder_decoder_input_dict)
+                    # decoder_joint_output_example = tuple(decoder_joint_output_example)
+                    #
+                    # # Resolve output states
+                    # if num_states > 0:
+                    #     if type(decoder_joint_output_example[-1]) == tuple:
+                    #         raise TypeError("Since input states are available, forward must emit flattened states")
+                    #
+                    #     # remove the name of the states
+                    #     logging.info(
+                    #         f"Replacing output state name {decoder_output_names[-1]} with {str(output_state_names)}"
+                    #     )
+                    #     decoder_output_names = decoder_output_names[:-1]
+                    #
+                    # self._export_torchscript(
+                    #     None,
+                    #     self._augment_output_filename(output, "Decoder-Joint"),
+                    #     encoder_decoder_input_dict,
+                    #     encoder_decoder_input_list,
+                    #     check_trace,
+                    #     check_tolerance,
+                    #     verbose,
+                    # )
+
+                elif format == exportable.ExportFormat.ONNX:
+                    # Allow user to completely override forward method to export
+                    forward_method, original_forward_method = self._wrap_forward_method('encoder')
+                    encoder_output_example = self.forward(*encoder_input_list, **encoder_input_dict)
+
+                    self._export_flag_module = 'encoder'
+
+                    self._export_onnx(
+                        encoder_jitted_model,
+                        encoder_examples,
+                        encoder_output_example,
+                        encoder_input_names,
+                        encoder_output_names,
+                        use_dynamic_axes,
+                        do_constant_folding,
+                        dynamic_axes,
+                        self._augment_output_filename(output, "Encoder"),
+                        export_params,
+                        keep_initializers_as_inputs,
+                        onnx_opset_version,
+                        verbose,
+                    )
+
+                    # Verify the model can be read, and is valid
+                    self._verify_onnx_export(
+                        self._augment_output_filename(output, "Encoder"),
+                        encoder_output_example,
+                        encoder_input_list,
+                        encoder_input_dict,
+                        encoder_input_names,
+                        check_tolerance,
+                        check_trace,
+                    )
+
+                    self._export_flag_module = 'decoder_joint'
+
+                    # Extract just the encoder logits and remove the encoder lengths
+                    if type(encoder_output_example) in (list, tuple):
+                        encoder_output_example = encoder_output_example[0]
+
+                    encoder_decoder_input_list = [encoder_output_example] + list(decoder_input_list)
+                    encoder_decoder_input_dict = decoder_input_dict
+
+                    encoder_decoder_input_list = tuple(encoder_decoder_input_list)
+
+                    # Allow user to completely override forward method to export
+                    forward_method, _ = self._wrap_forward_method('decoder_joint')
+                    decoder_joint_output_example = self.forward(*encoder_decoder_input_list, **encoder_decoder_input_dict)
+                    decoder_joint_output_example = tuple(decoder_joint_output_example)
+
+                    # Resolve output states
+                    if num_states > 0:
+                        if type(decoder_joint_output_example[-1]) == tuple:
+                            raise TypeError("Since input states are available, forward must emit flattened states")
+
+                        # remove the name of the states
+                        logging.info(
+                            f"Replacing output state name {decoder_output_names[-1]} with {str(output_state_names)}"
+                        )
+                        decoder_output_names = decoder_output_names[:-1]
+
+                    self._export_onnx(
+                        None,
+                        encoder_decoder_input_list,
+                        decoder_joint_output_example,
+                        self._join_input_output_names(["encoder_outputs"], decoder_input_names, input_state_names),
+                        self._join_input_output_names(joint_output_names, decoder_output_names, output_state_names),
+                        use_dynamic_axes,
+                        do_constant_folding,
+                        dynamic_axes,
+                        self._augment_output_filename(output, "Decoder-Joint"),
+                        export_params,
+                        keep_initializers_as_inputs,
+                        onnx_opset_version,
+                        verbose,
+                    )
+
+                    graph_state_names = [f"{name}.1" for name in state_names]
+
+                    # Verify the model can be read, and is valid
+                    self._verify_onnx_export(
+                        self._augment_output_filename(output, "Decoder-Joint"),
+                        decoder_joint_output_example,
+                        encoder_decoder_input_list,
+                        encoder_decoder_input_dict,
+                        self._join_input_output_names(["encoder_outputs"], decoder_input_names, input_state_names),
+                        check_tolerance,
+                        check_trace,
+                    )
+
+                else:
+                    raise ValueError(f'Encountered unknown export format {format}.')
+
+        except Exception as e:
+            raise e
+        finally:
+            typecheck.set_typecheck_enabled(enabled=True)
+            logging.warning("PyTorch Model has been significantly modified. In order to utilize model, delete this "
+                            "instance and create a new model.")
+
         return ([output], [output_descr])
 
     def _process_states_names(self, decoder_input_list, decoder_input_names):

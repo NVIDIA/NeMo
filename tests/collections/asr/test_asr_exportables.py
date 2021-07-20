@@ -97,9 +97,6 @@ class TestExportable:
         citrinet_rnnt_model.freeze()
         model = citrinet_rnnt_model.train()
 
-        # if torch.cuda.is_available():
-        #     model = model.to('cuda')
-
         with tempfile.TemporaryDirectory() as tmpdir:
             fn = 'citri_rnnt.onnx'
             filename = os.path.join(tmpdir, fn)
