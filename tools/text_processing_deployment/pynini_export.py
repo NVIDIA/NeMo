@@ -37,7 +37,8 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-# This script exports compiled grammars inside nemo_text_processing into OpenFst finite state archive files tokenize_and_classify.far and verbalize.far for production purposes
+# This script exports compiled grammars inside nemo_text_processing into OpenFst finite state archive files
+# tokenize_and_classify.far and verbalize.far for production purposes
 
 
 def _generator_main(file_name: str, graphs: Dict[str, pynini.FstLike]):
@@ -46,8 +47,7 @@ def _generator_main(file_name: str, graphs: Dict[str, pynini.FstLike]):
 
     Args:
         file_name: exported file name
-        graph: Pynini WFST graph to be exported
-        rule_name: rule name for graph in created FAR file
+        graphs: Mapping of a rule name and Pynini WFST graph to be exported
 
     """
     exporter = export.Exporter(file_name)
@@ -77,6 +77,7 @@ def export_grammars(output_dir, grammars):
 
     Args:
         output_dir: directory to export FAR files to. Subdirectories will be created for tagger and verbalizer respectively.
+        grammars: grammars to be exported
     """
 
     for category, graphs in grammars.items():
@@ -115,4 +116,6 @@ if __name__ == '__main__':
             ClassifyFst as TNClassifyFst,
         )
         from nemo_text_processing.text_normalization.en.verbalizers.verbalize import VerbalizeFst as TNVerbalizeFst
-    export_grammars(output_dir=args.output_dir, grammars=locals()[args.grammars](input_case=args.input_case))
+
+    output_dir = os.path.join(args.output_dir, args.language)
+    export_grammars(output_dir=output_dir, grammars=locals()[args.grammars](input_case=args.input_case))
