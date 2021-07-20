@@ -67,8 +67,8 @@ class MTBottleneckModel(MTEncDecModel):
             depth=6,
             max_freq=10,
             freq_base=2,
-            input_channels=3,
-            input_axis=2,
+            input_channels=1,
+            input_axis=1,
             num_latents=32,
             latent_dim=1024,
             cross_heads=1,
@@ -225,6 +225,8 @@ class MTBottleneckModel(MTEncDecModel):
                       regarding the loss that can be logged
         """
         import pudb; pudb.set_trace()
+        b, n = src.shape
+        src_hiddens = self.perceiver(data=src.unsqueeze(-1), mask=src_mask)
 
         info_dict = {}
 
