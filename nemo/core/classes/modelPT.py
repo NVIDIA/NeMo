@@ -34,6 +34,7 @@ from pytorch_lightning.utilities import rank_zero_only
 import nemo
 from nemo.core import optim
 from nemo.core.classes.common import Model
+from nemo.core.connectors import save_restore_connector
 from nemo.core.optim import prepare_lr_scheduler
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import logging, model_utils
@@ -116,6 +117,7 @@ class ModelPT(LightningModule, Model):
         self._scheduler = None
         self.trainer = trainer  # reference required for self.*_rank
         self._trainer = self.trainer  # alias for backward compatibility
+        self._save_restore_connector = SaveRestoreConnector(self)
 
         self._set_model_guid()
 
@@ -1350,6 +1352,14 @@ class ModelPT(LightningModule, Model):
         self._cfg = cfg
         self._set_hparams(self._cfg)
         self._hparams_initial = copy.deepcopy(self._hparams)
+
+    @property
+    def save_restore_connector(self) -> SaveRestoreConnector:
+        return self._save_restore_connector
+
+    @save_restore_connector.setter
+    def save_restore_connector(self, connector: SaveRestoreConnector):
+        self._save_restore_connector = connector
 
     @staticmethod
     def _make_nemo_file_from_folder(filename, source_dir):
