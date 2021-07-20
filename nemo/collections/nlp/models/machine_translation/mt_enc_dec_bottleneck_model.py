@@ -35,7 +35,12 @@ from nemo.collections.nlp.modules.common.transformer import AttentionBridge, Top
 from nemo.core.classes.common import typecheck
 from nemo.utils import logging, model_utils
 
+
+from nemo.collections.nlp.models.machine_translation.perceiver import Perceiver
+
 __all__ = ['MTBottleneckModel']
+
+class
 
 
 class MTBottleneckModel(MTEncDecModel):
@@ -60,7 +65,46 @@ class MTBottleneckModel(MTEncDecModel):
         self.non_recon_warmup_batches: int = cfg.get("non_recon_warmup_batches", 200000)
         self.recon_per_token: bool = cfg.get("recon_per_token", True)
 
-        import pudb; pudb.set_trace()
+        self.perceiver = Perceiver(
+            num_freq_bands=6,
+            depth=6,
+            max_freq=10,
+            freq_base=2,
+            input_channels=3,
+            input_axis=2,
+            num_latents=32,
+            latent_dim=1024,
+            cross_heads=1,
+            latent_heads=16,
+            cross_dim_head=64,
+            latent_dim_head=64,
+            num_classes=1000, # TODO: update me
+            attn_dropout=0.1,
+            ff_dropout=0.1,
+            weight_tie_layers=True,
+            fourier_encode_data=True,
+            self_per_cross_attn=1,
+            self_attn_rel_pos=True
+        )
+        # model = TransformerEncoderNM(
+        #     vocab_size=cfg.get('vocab_size'),
+        #     hidden_size=cfg.get('hidden_size'),
+        #     num_layers=cfg.get('num_layers'),
+        #     inner_size=cfg.get('inner_size'),
+        #     max_sequence_length=cfg.get('max_sequence_length', 512),
+        #     embedding_dropout=cfg.get('embedding_dropout', 0.0),
+        #     learn_positional_encodings=cfg.get('learn_positional_encodings', False),
+        #     num_attention_heads=cfg.get('num_attention_heads'),
+        #     ffn_dropout=cfg.get('ffn_dropout', 0.0),
+        #     attn_score_dropout=cfg.get('attn_score_dropout', 0.0),
+        #     attn_layer_dropout=cfg.get('attn_layer_dropout', 0.0),
+        #     hidden_act=cfg.get('hidden_act', 'relu'),
+        #     mask_future=cfg.get('mask_future', False),
+        #     pre_ln=cfg.get('pre_ln', False),
+        #     pre_ln_final_layer_norm=pre_ln_final_layer_norm,
+        #     num_token_types=cfg.get('num_token_types', 2),
+        # )
+
 
         # TODO: add support in label smoothing for per-sample reconstruction loss
         if not self.recon_per_token:
@@ -183,6 +227,8 @@ class MTBottleneckModel(MTEncDecModel):
         return_info - if True, returns loss, info_dict with additional information
                       regarding the loss that can be logged
         """
+        import pudb; pudb.set_trace()
+
         info_dict = {}
 
         src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask,)
