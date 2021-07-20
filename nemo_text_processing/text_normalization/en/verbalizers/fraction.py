@@ -40,11 +40,11 @@ class FractionFst(GraphFst):
         super().__init__(name="fraction", kind="verbalize", deterministic=deterministic)
         suffix = OrdinalFst().suffix
 
-        integer = pynutil.delete("integer: \"") + pynini.closure(NEMO_NOT_QUOTE) + pynutil.delete("\" ")
+        integer = pynutil.delete("integer_part: \"") + pynini.closure(NEMO_NOT_QUOTE) + pynutil.delete("\" ")
         numerator = pynutil.delete("numerator: \"") + pynini.closure(NEMO_NOT_QUOTE) + pynutil.delete("\" ")
         numerator_one = pynutil.delete("numerator: \"") + pynini.accep("one") + pynutil.delete("\" ")
         denominator = pynutil.delete("denominator: \"") + (
-            pynini.closure(NEMO_NOT_QUOTE) @ suffix | pynini.cross('four', 'quarter')
+            pynini.closure(NEMO_NOT_QUOTE) @ suffix | pynutil.add_weight(pynini.cross('four', 'quarter'), -1)
         )
         conjunction = pynutil.insert("and ")
         if not deterministic:
@@ -64,7 +64,7 @@ class FractionFst(GraphFst):
         )
 
         graph = integer + denominator_half | (fraction_with_one | fraction_default)
-        graph |= pynini.cross("numerator: \"one\" denominator: \"two\"", "one half")
+        graph |= pynutil.add_weight(pynini.cross("numerator: \"one\" denominator: \"two\"", "one half"), -1)
         graph |= (numerator | numerator_one) + insert_space + denominator_one_two
 
         self.graph = graph
