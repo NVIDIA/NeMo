@@ -212,8 +212,9 @@ class Exportable(ABC):
         onnx.checker.check_model(onnx_model, full_check=True)
         test_runtime = check_trace
 
-        print("verify graph ips", [x.name for x in onnx_model.graph.input])
-        print("verify graph ops", [x.name for x in onnx_model.graph.output])
+        if test_runtime:
+            logging.info(f"Graph ips: {[x.name for x in onnx_model.graph.input]}")
+            logging.infp(f"Graph ops: {[x.name for x in onnx_model.graph.output]}")
 
         if test_runtime:
             self._verify_runtime(

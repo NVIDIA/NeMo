@@ -13,11 +13,11 @@
 # limitations under the License.
 import logging
 import os
+import re
 from abc import ABC, abstractmethod
 from typing import List, Optional, Union
 
 import torch
-import re
 from omegaconf import OmegaConf
 
 from nemo.core.classes import ModelPT, exportable, typecheck

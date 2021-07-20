@@ -29,8 +29,8 @@
 from dataclasses import dataclass
 from typing import List, Optional, Union
 
-import torch
 import numpy as np
+import torch
 
 from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.utils import rnnt_utils
