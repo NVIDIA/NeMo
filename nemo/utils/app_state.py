@@ -395,3 +395,11 @@ class AppState(metaclass=Singleton):
     def model_is_restored(self, is_restored: bool):
         self.model_is_restored = is_restored
 
+    @property
+    def nemo_file_folder(self) -> str:
+        return self._nemo_file_folder
+
+    @nemo_file_folder.setter
+    def nemo_file_folder(self, path: str):
+        self._nemo_file_folder = path
+
