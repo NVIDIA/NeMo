@@ -169,7 +169,7 @@ def rttm_to_labels(rttm_filename):
     return labels
 
 
-def get_time_stamps(embeddings_file, reco2num, manifest_path, sample_rate, window, shift):
+def get_time_stamps(embeddings_file, reco2num, manifest_path):
     """
     Loads embedding file and generates time stamps based on window and shift for speaker embeddings 
     clustering.
@@ -217,16 +217,9 @@ def get_time_stamps(embeddings_file, reco2num, manifest_path, sample_rate, windo
             if audio not in time_stamps:
                 time_stamps[audio] = []
             start = offset
-            slice_end = start + duration
-            base = math.ceil((duration - window) / shift)
-            slices = 1 if base < 0 else base + 1
-            for slice_id in range(slices):
-                end = start + window
-                if end > slice_end:
-                    end = slice_end
-                stamp = '{:.3f} {:.3f} '.format(start, end)
-                time_stamps[audio].append(stamp)
-                start = offset + (slice_id + 1) * shift
+            end = start + duration
+            stamp = '{:.3f} {:.3f} '.format(start, end)
+            time_stamps[audio].append(stamp)
 
     return embeddings, time_stamps, speakers
 
@@ -328,23 +321,13 @@ def get_DER(all_reference, all_hypothesis):
 
 
 def perform_diarization(
-    embeddings_file=None,
-    reco2num=2,
-    manifest_path=None,
-    sample_rate=16000,
-    window=1.5,
-    shift=0.75,
-    audio_rttm_map=None,
-    out_rttm_dir=None,
-    max_num_speakers=8,
+    embeddings_file=None, reco2num=2, manifest_path=None, audio_rttm_map=None, out_rttm_dir=None, max_num_speakers=8,
 ):
     """
     Performs diarization with embeddings generated based on VAD time stamps with recording 2 num of speakers (reco2num)
     for spectral clustering 
     """
-    embeddings, time_stamps, speakers = get_time_stamps(
-        embeddings_file, reco2num, manifest_path, sample_rate, window, shift
-    )
+    embeddings, time_stamps, speakers = get_time_stamps(embeddings_file, reco2num, manifest_path)
     logging.info("Performing Clustering")
     all_reference, all_hypothesis = perform_clustering(
         embeddings, time_stamps, speakers, audio_rttm_map, out_rttm_dir, max_num_speakers
@@ -409,6 +392,49 @@ def write_rttm2manifest(paths2audio_files, paths2rttm_files, manifest_file):
             outfile.write("\n")
             f.close()
     return manifest_file
+
+
+def segments_manifest_to_subsegments_manifest(
+    segments_manifest_file: str, sub_segments_manifest_file: str = None, window: float = 1.5, shift: float = 0.75
+):
+    if sub_segments_manifest_file is None:
+        pwd = os.getcwd()
+        sub_segments_manifest_file = os.path.join(pwd, 'sub_segments.json')
+
+    with open(segments_manifest_file, 'r') as segments_manifest, open(
+        sub_segments_manifest_file, 'w'
+    ) as sub_segments_manifest:
+        segments = segments_manifest.readlines()
+        for segment in segments:
+            segment = segment.strip()
+            dic = json.loads(segment)
+            audio, offset, duration, label = dic['audio_filepath'], dic['offset'], dic['duration'], dic['label']
+            sub_segments = get_sub_time_segments(offset=offset, window=window, shift=shift, duration=duration)
+
+            for sub_segment in sub_segments:
+                start, dur = sub_segment
+                if dur > 0.5:
+                    meta = {"audio_filepath": audio, "offset": start, "duration": dur, "label": label}
+                    json.dump(meta, sub_segments_manifest)
+                    sub_segments_manifest.write("\n")
+
+    return sub_segments_manifest_file
+
+
+def get_sub_time_segments(offset, window, shift, duration):
+    sub_segments = []
+    start = offset
+    slice_end = start + duration
+    base = math.ceil((duration - window) / shift)
+    slices = 1 if base < 0 else base + 1
+    for slice_id in range(slices):
+        end = start + window
+        if end > slice_end:
+            end = slice_end
+        sub_segments.append((start, end - start))
+        start = offset + (slice_id + 1) * shift
+
+    return sub_segments
 
 
 def embedding_normalize(embs, use_std=False, eps=1e-10):

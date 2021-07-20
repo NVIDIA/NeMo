@@ -30,7 +30,12 @@ from tqdm import tqdm
 from nemo.collections.asr.models.classification_models import EncDecClassificationModel
 from nemo.collections.asr.models.label_models import ExtractSpeakerEmbeddingsModel
 from nemo.collections.asr.parts.mixins.mixins import DiarizationMixin
-from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map, perform_diarization, write_rttm2manifest
+from nemo.collections.asr.parts.utils.speaker_utils import (
+    audio_rttm_map,
+    perform_diarization,
+    segments_manifest_to_subsegments_manifest,
+    write_rttm2manifest,
+)
 from nemo.collections.asr.parts.utils.vad_utils import (
     generate_overlap_vad_seq,
     generate_vad_segment_table,
@@ -343,17 +348,21 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             if not os.path.exists(self._speaker_manifest_path):
                 raise NotFoundError("Oracle VAD based manifest file not found")
 
-        self._extract_embeddings(self._speaker_manifest_path)
+        self.sub_segments_manifest_path = os.path.join(self._speaker_dir, 'sub_segments.json')
+        self.sub_segments_manifest_path = segments_manifest_to_subsegments_manifest(
+            segments_manifest_file=self._speaker_manifest_path,
+            sub_segments_manifest_file=self.sub_segments_manifest_path,
+            window=self._cfg.diarizer.speaker_embeddings.window_length_in_sec,
+            shift=self._cfg.diarizer.speaker_embeddings.shift_length_in_sec,
+        )
+        self._extract_embeddings(self.sub_segments_manifest_path)
         out_rttm_dir = os.path.join(self._out_dir, 'pred_rttms')
         os.makedirs(out_rttm_dir, exist_ok=True)
 
         perform_diarization(
             embeddings_file=self._embeddings_file,
             reco2num=self._num_speakers,
-            manifest_path=self._speaker_manifest_path,
-            sample_rate=self._cfg.sample_rate,
-            window=self._cfg.diarizer.speaker_embeddings.window_length_in_sec,
-            shift=self._cfg.diarizer.speaker_embeddings.shift_length_in_sec,
+            manifest_path=self.sub_segments_manifest_path,
             audio_rttm_map=self.AUDIO_RTTM_MAP,
             out_rttm_dir=out_rttm_dir,
             max_num_speakers=self.max_num_speakers,
