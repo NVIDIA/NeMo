@@ -40,9 +40,6 @@ from nemo.collections.nlp.models.machine_translation.perceiver import Perceiver
 
 __all__ = ['MTBottleneckModel']
 
-class
-
-
 class MTBottleneckModel(MTEncDecModel):
     """
     Machine translation model which supports bottleneck architecture,
