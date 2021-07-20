@@ -22,10 +22,10 @@ Quick Start:
     import soundfile as sf
     from nemo.collections.tts.models.base import SpectrogramGenerator, Vocoder
 
-    # Download and load the pretrained tacotron2 model
-    spec_generator = SpectrogramGenerator.from_pretrained("tts_en_tacotron2")
-    # Download and load the pretrained waveglow model
-    vocoder = Vocoder.from_pretrained("tts_waveglow_88m")
+    # Download and load the pretrained fastpitch model
+    spec_generator = SpectrogramGenerator.from_pretrained(model_name="tts_en_fastpitch").cuda()
+    # Download and load the pretrained hifigan model
+    vocoder = Vocoder.from_pretrained(model_name="tts_hifigan").cuda()
 
     # All spectrogram generators start by parsing raw strings to a tokenized version of the string
     parsed = spec_generator.parse("You can type your sentence here to get nemo to produce speech.")
@@ -46,9 +46,9 @@ Quick Start:
 Available Models
 ################
 
-NeMo supports a variety of models that can be used for TTS. For beginners, we recommend starting with the Tacotron2 +
-WaveGlow combination. Then we suggest trying using (TalkNet or FastPitch) + HiFiGAN if you want to continue exploring
-the two stage pipeline, or the FastPitch_HifiGan_E2E model for the end-to-end pipeline.
+NeMo supports a variety of models that can be used for TTS. For beginners, we recommend starting with the FastPitch +
+HiFiGAN combination. Then we suggest trying using FastPitch_HifiGan_E2E if you want to start exploring
+the end-to-end pipeline.
 
 .. list-table:: *TTS Models*
    :widths: 5 5 10 25
@@ -72,7 +72,7 @@ the two stage pipeline, or the FastPitch_HifiGan_E2E model for the end-to-end pi
      - Non-autoregressive transformer-based spectrogram generator that predicts duration, energy, and pitch
    * - FastPitch
      - :class:`SpectrogramGenerator<nemo.collections.tts.models.base.SpectrogramGenerator>`
-     - (Coming soon)
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_en_fastpitch
      - Non-autoregressive transformer-based spectrogram generator that predicts duration and pitch
    * - TalkNet
      - :class:`SpectrogramGenerator<nemo.collections.tts.models.base.SpectrogramGenerator>`
@@ -100,11 +100,11 @@ the two stage pipeline, or the FastPitch_HifiGan_E2E model for the end-to-end pi
      - GAN-based vocoder
    * - FastPitch_HifiGan_E2E
      - :class:`TextToWaveform<nemo.collections.tts.models.base.TextToWaveform>`
-     - (Coming soon)
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_en_e2e_fastpitchhifigan
      - End-to-end model based on composing FastPitch and HiFiGAN
    * - FastSpeech2_HifiGan_E2E
      - :class:`TextToWaveform<nemo.collections.tts.models.base.TextToWaveform>`
-     - (Coming soon)
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_en_e2e_fastspeech2hifigan
      - End-to-end model based on composing FastSpeech2 and HiFiGAN
 
 Base Classes
@@ -146,8 +146,8 @@ TTS Training
 
 Training of TTS models can be done using the scripts inside the NeMo ``examples/tts folders``. The majority of the TTS
 YAML configurations should work out of the box with the LJSpeech dataset. If you want to train on other data, it is
-recommended that you walk through the Tacotron 2 Training notebook. Please pay special attention to the sample rate and
-FFT parameters for new data.
+recommended that you walk through the Tacotron 2 Training notebook. It is applicable to most of NeMo's spectrogram
+generator models. Please pay special attention to the sample rate and FFT parameters for new data.
 
 Some models, like FastSpeech 2, require supplementary data such as phoneme durations, pitches, and energies.
 For more information about how to preprocess datasets for such models, see the `TTS Datasets <./datasets.html>`__ page.
