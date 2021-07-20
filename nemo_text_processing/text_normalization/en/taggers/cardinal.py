@@ -93,7 +93,7 @@ class CardinalFst(GraphFst):
         """
         Finite state transducer for classifying serial.
             The serial is a combination of digits, letters and dashes, e.g.:
-            c325-b -> tokens { serial { value: "c three two five b" } }
+            c325-b -> tokens { cardinal { integer: "c three two five b" } }
         """
         alpha = NEMO_ALPHA
 

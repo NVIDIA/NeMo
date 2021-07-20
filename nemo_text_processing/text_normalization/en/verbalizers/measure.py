@@ -72,5 +72,8 @@ class MeasureFst(GraphFst):
         # SH adds "preserve_order: true" by default
         preserve_order = pynutil.delete("preserve_order:") + delete_space + pynutil.delete("true") + delete_space
         graph |= unit + insert_space + (graph_cardinal | graph_decimal) + delete_space + pynini.closure(preserve_order)
+
+        address = pynutil.delete("units: \"address\" ") + delete_space + graph_cardinal + delete_space + preserve_order
+        graph |= pynutil.add_weight(address, -0.1)
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
