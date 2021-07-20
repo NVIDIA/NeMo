@@ -360,8 +360,6 @@ class ExportableEncDecJointModel(Exportable):
                         verbose,
                     )
 
-                    graph_state_names = [f"{name}.1" for name in state_names]
-
                     # Verify the model can be read, and is valid
                     self._verify_onnx_export(
                         self._augment_output_filename(output, "Decoder-Joint"),
@@ -372,6 +370,9 @@ class ExportableEncDecJointModel(Exportable):
                         check_tolerance,
                         check_trace,
                     )
+
+                    # replace forward method with original forward method
+                    type(self).forward = original_forward_method
 
                 else:
                     raise ValueError(f'Encountered unknown export format {format}.')
