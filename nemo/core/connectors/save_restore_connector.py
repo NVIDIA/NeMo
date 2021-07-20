@@ -26,13 +26,11 @@ from nemo.utils.app_state import AppState
 
 
 class SaveRestoreConnector:
+    def __init__(self, model: ModelPT):
+        self._model = model
 
-	def __init__(self, model: ModelPT):
-		self._model = model
-
-
-	def _default_save_to(self, save_path: str):
-		"""
+    def _default_save_to(self, save_path: str):
+        """
 		Saves model instance (weights and configuration) into .nemo file.
 		You can use "restore_from" method to fully restore instance from .nemo file.
 
@@ -44,20 +42,21 @@ class SaveRestoreConnector:
 			save_path: Path to .nemo file where model instance should be saved
 
 		"""
-		app_state = AppState()
+        app_state = AppState()
 
-		with tempfile.TemporaryDirectory() as tmpdir:
-			config_yaml = path.join(tmpdir, app_state.model_config_yaml)
-			model_weights = path.join(tmpdir, app_state.model_weights_ckpt)
-			self._model.to_config_file(path2yaml_file=config_yaml)
-			if hasattr(self._model, 'artifacts') and self._model.artifacts is not None:
-			self._model._handle_artifacts(nemo_file_folder=tmpdir)
-			# We should not update self._cfg here - the model can still be in use
-			self._model._update_artifact_paths(path2yaml_file=config_yaml)
-			torch.save(self._model.state_dict(), model_weights)
-			self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_yaml = path.join(tmpdir, app_state.model_config_yaml)
+            model_weights = path.join(tmpdir, app_state.model_weights_ckpt)
+            self._model.to_config_file(path2yaml_file=config_yaml)
+            if hasattr(self._model, 'artifacts') and self._model.artifacts is not None:
+                self._model._handle_artifacts(nemo_file_folder=tmpdir)
+                # We should not update self._cfg here - the model can still be in use
+                self._model._update_artifact_paths(path2yaml_file=config_yaml)
+                torch.save(self._model.state_dict(), model_weights)
+                self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
-	@staticmethod
-	def _make_nemo_file_from_folder(filename, source_dir):
-		with tarfile.open(filename, "w:gz") as tar:
-			tar.add(source_dir, arcname=".")
+    @staticmethod
+    def _make_nemo_file_from_folder(filename, source_dir):
+        with tarfile.open(filename, "w:gz") as tar:
+            tar.add(source_dir, arcname=".")
+
