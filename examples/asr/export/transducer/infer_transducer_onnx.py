@@ -38,7 +38,8 @@ python infer_transducer_onnx.py \
     --dataset_manifest="<Either pass a manifest file path here>" \
     --audio_dir="<Or pass a directory containing preprocessed monochannel audio files>" \
     --max_symbold_per_step=5 \
-    --batch_size=32
+    --batch_size=32 \
+    --log
     
 # Export and compare a NeMo and ONNX model
 python infer_transducer_onnx.py \
@@ -47,7 +48,8 @@ python infer_transducer_onnx.py \
     --dataset_manifest="<Either pass a manifest file path here>" \
     --audio_dir="<Or pass a directory containing preprocessed monochannel audio files>" \
     --max_symbold_per_step=5 \
-    --batch_size=32
+    --batch_size=32 \
+    --log
 """
 
 
@@ -68,6 +70,7 @@ def parse_arguments():
     parser.add_argument('--export', action='store_true', help="Whether to export the model into onnx prior to eval")
     parser.add_argument('--max_symbold_per_step', type=int, default=5, required=False, help='Number of decoding steps')
     parser.add_argument('--batch_size', type=int, default=32, help='Batchsize')
+    parser.add_argument('--log', action='store_true', help='Log the predictions between pytorch and onnx')
 
     args = parser.parse_args()
     return args
@@ -152,6 +155,9 @@ def main():
 
         # Push nemo model to CPU
         nemo_model = nemo_model.to('cpu')
+        nemo_model.preprocessor.featurizer.dither = 0.0
+        nemo_model.preprocessor.featurizer.pad_to = 0
+
         temporary_datalayer = nemo_model._setup_transcribe_dataloader(config)
 
         all_hypothesis = []
@@ -175,14 +181,14 @@ def main():
             del processed_audio, processed_audio_len
             del test_batch
 
-    for pt_transcript, onnx_transcript in zip(actual_transcripts, all_hypothesis):
-        print(f"Pytorch Transcripts : {pt_transcript}")
-        print(f"ONNX Transcripts    : {onnx_transcript}")
-
-    print()
+    if args.log:
+        for pt_transcript, onnx_transcript in zip(actual_transcripts, all_hypothesis):
+            print(f"Pytorch Transcripts : {pt_transcript}")
+            print(f"ONNX Transcripts    : {onnx_transcript}")
+        print()
 
     # Measure error rate between onnx and pytorch transcipts
-    pt_onnx_wer = word_error_rate(actual_transcripts, all_hypothesis, use_cer=True)
+    pt_onnx_wer = word_error_rate(all_hypothesis, actual_transcripts, use_cer=True)
     print("Character error rate between Pytorch and ONNX :", pt_onnx_wer)
 
 
