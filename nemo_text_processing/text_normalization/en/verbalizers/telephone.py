@@ -60,7 +60,6 @@ class TelephoneFst(GraphFst):
 
         optional_extension = pynini.closure(
             delete_space
-            + add_separator
             + insert_space
             + pynutil.delete("extension: \"")
             + pynini.closure(NEMO_NOT_QUOTE, 1)

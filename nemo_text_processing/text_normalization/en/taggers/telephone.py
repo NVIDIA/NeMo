@@ -73,13 +73,16 @@ class TelephoneFst(GraphFst):
             | (pynutil.delete("(") + area_part + (pynutil.delete(") ") | pynutil.delete(")-")))
         ) + add_separator
 
-        number_words = area_part + pynini.closure(
+        del_separator = pynini.closure(pynini.union("-", " "), 0, 1)
+        number_length = ((NEMO_DIGIT + del_separator) | (NEMO_ALPHA + del_separator)) ** 7
+        number_words = pynini.closure(
             (NEMO_DIGIT @ digit) + (insert_space | pynini.cross("-", ', '))
             | NEMO_ALPHA
             | (NEMO_ALPHA + pynini.cross("-", ' '))
         )
-
-        number_part = pynutil.insert("number_part: \"") + number_words + pynutil.insert("\"")
+        number_words = pynini.compose(number_length, number_words)
+        number_part = area_part + number_words
+        number_part = pynutil.insert("number_part: \"") + number_part + pynutil.insert("\"")
         extension = (
             pynutil.insert("extension : \"")
             + pynini.closure(digit + insert_space, 0, 3)
