@@ -16,9 +16,10 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.collections.asr.parts.numba import __NUMBA_MINIMUM_VERSION__, numba_utils
 from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_numpy import RNNTLoss as RNNTLoss_Numpy
 from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_pytorch import RNNTLossNumba
+from nemo.core.utils import numba_utils
+from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 
 DEVICES = ['cpu']
 
@@ -45,6 +46,10 @@ def wrap_and_call(fn, acts, labels, device):
     costs = fn(acts, labels, lengths, label_lengths)
     cost = torch.sum(costs)
     cost.backward()
+
+    if 'cuda' in device:
+        torch.cuda.synchronize()
+
     return costs.data.cpu().numpy(), acts.grad.data.cpu().numpy()
 
 
@@ -87,6 +92,7 @@ class TestRNNTLossPytorch:
                 ]
             ]
         )
+
         assert np.allclose(pt_cost, expected_cost, rtol=1e-6), "small_test costs mismatch."
         assert np.allclose(pt_grads, expected_grads), "small_test gradient mismatch."
 
@@ -110,6 +116,25 @@ class TestRNNTLossPytorch:
 
         assert np.allclose(pt_cost, np_cost, rtol=1e-6), "small_random_test costs mismatch."
         assert np.allclose(pt_grads, np_grads), "small_random_test gradient mismatch."
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize('device', DEVICES)
+    @pytest.mark.parametrize('fastemit_lambda', [1.0, 0.01, 0.00001])
+    def test_case_small_random_fastemit_reg(self, device, fastemit_lambda):
+        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+
+        rng = np.random.RandomState(0)
+        acts = rng.randn(1, 4, 3, 3)
+        labels = [[1, 2]]
+
+        fn_pt = RNNTLossNumba(blank=0, reduction='sum', fastemit_lambda=fastemit_lambda)
+        pt_cost, pt_grads = wrap_and_call(fn_pt, acts, labels, device)
+
+        fn_np = RNNTLoss_Numpy(fastemit_lambda=fastemit_lambda)
+        np_cost, np_grads = wrap_and_call(fn_np, acts, labels, device)
+
+        assert np.allclose(pt_cost, np_cost, rtol=1e-6), "small_random_test costs mismatch."
+        assert np.allclose(pt_grads, np_grads, atol=1e-5, rtol=1e-5), "small_random_test gradient mismatch."
 
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)

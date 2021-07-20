@@ -43,11 +43,12 @@ class MeasureFst(GraphFst):
     Args:
         cardinal: CardinalFst
         decimal: DecimalFst
+        fraction: FractionFst
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal: GraphFst, decimal: GraphFst, deterministic: bool = True):
+    def __init__(self, cardinal: GraphFst, decimal: GraphFst, fraction: GraphFst, deterministic: bool = True):
         super().__init__(name="measure", kind="classify", deterministic=deterministic)
         cardinal_graph = cardinal.graph
 
@@ -144,6 +145,10 @@ class MeasureFst(GraphFst):
             + pynutil.insert(" } preserve_order: true")
         )
 
+        subgraph_fraction = (
+            pynutil.insert("fraction { ") + fraction.graph + delete_space + pynutil.insert(" } ") + unit_plural
+        )
+
         final_graph = (
             subgraph_decimal
             | subgraph_cardinal
@@ -151,6 +156,7 @@ class MeasureFst(GraphFst):
             | alpha_dash_cardinal
             | decimal_dash_alpha
             | alpha_dash_decimal
+            | subgraph_fraction
         )
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
