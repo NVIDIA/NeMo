@@ -14,6 +14,7 @@
 # limitations under the License.
 
 
+import tarfile
 from nemo.core.classes.modelPT import ModelPT
 from os import path
 import tempfile
@@ -47,10 +48,15 @@ class SaveRestoreConnector:
         with tempfile.TemporaryDirectory() as tmpdir:
             config_yaml = path.join(tmpdir, app_state.model_config_yaml)
             model_weights = path.join(tmpdir, app_state.model_weights_ckpt)
-            self.to_config_file(path2yaml_file=config_yaml)
-            if hasattr(self, 'artifacts') and self.artifacts is not None:
-                self._handle_artifacts(nemo_file_folder=tmpdir)
+            self._model.to_config_file(path2yaml_file=config_yaml)
+            if hasattr(self._model, 'artifacts') and self._model.artifacts is not None:
+                self._model._handle_artifacts(nemo_file_folder=tmpdir)
                 # We should not update self._cfg here - the model can still be in use
-                self._update_artifact_paths(path2yaml_file=config_yaml)
-            torch.save(self.state_dict(), model_weights)
+                self._model._update_artifact_paths(path2yaml_file=config_yaml)
+            torch.save(self._model.state_dict(), model_weights)
             self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
+
+    @staticmethod
+    def _make_nemo_file_from_folder(filename, source_dir):
+        with tarfile.open(filename, "w:gz") as tar:
+            tar.add(source_dir, arcname=".")

@@ -333,7 +333,6 @@ class ModelPT(LightningModule, Model):
             return
         else:
             self.save_restore_connector._default_save_to(save_path)
-            self._default_save_to(save_path)
 
     @classmethod
     def _default_restore_from(
@@ -1335,11 +1334,6 @@ class ModelPT(LightningModule, Model):
     @save_restore_connector.setter
     def save_restore_connector(self, connector: SaveRestoreConnector):
         self._save_restore_connector = connector
-
-    @staticmethod
-    def _make_nemo_file_from_folder(filename, source_dir):
-        with tarfile.open(filename, "w:gz") as tar:
-            tar.add(source_dir, arcname=".")
 
     @staticmethod
     def _unpack_nemo_file(path2file: str, out_folder: str) -> str:
