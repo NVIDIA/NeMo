@@ -92,7 +92,7 @@ def to_onnxrt_input(input_names, input_list, input_dict):
 
 def unpack_nested_neural_type(neural_type):
     if type(neural_type) in (list, tuple):
-        return neural_type[0]
+        return unpack_nested_neural_type(neural_type[0])
     return neural_type
 
 

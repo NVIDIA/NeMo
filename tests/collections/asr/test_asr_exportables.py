@@ -88,9 +88,9 @@ class TestExportable:
             assert onnx_model.graph.input[0].name == 'audio_signal'
             assert onnx_model.graph.output[0].name == 'logprobs'
 
-    # @pytest.mark.skipif(
-    #     not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
-    # )
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_EncDecRNNTModel_export_to_onnx(self, citrinet_rnnt_model):
@@ -117,9 +117,6 @@ class TestExportable:
             assert os.path.exists(decoder_joint_filename)
             onnx_model = onnx.load(decoder_joint_filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
-
-            # print("graph ips", [x.name for x in onnx_model.graph.input])
-            # print("graph ops", [x.name for x in onnx_model.graph.output])
 
             input_examples = model.decoder.input_example()
             assert type(input_examples[-1]) == tuple

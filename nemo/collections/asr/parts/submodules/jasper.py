@@ -193,53 +193,6 @@ def _masked_conv_init_lens(lens: torch.Tensor, current_maxlen: int, original_max
     return new_lens, new_max_lens
 
 
-class StatsPoolLayer(nn.Module):
-    def __init__(self, feat_in, pool_mode='xvector'):
-        super().__init__()
-        self.feat_in = 0
-        if pool_mode == 'gram':
-            gram = True
-            super_vector = False
-        elif pool_mode == 'superVector':
-            gram = True
-            super_vector = True
-        else:
-            gram = False
-            super_vector = False
-
-        if gram:
-            self.feat_in += feat_in ** 2
-        else:
-            self.feat_in += 2 * feat_in
-
-        if super_vector and gram:
-            self.feat_in += 2 * feat_in
-
-        self.gram = gram
-        self.super = super_vector
-
-    def forward(self, encoder_output):
-
-        mean = encoder_output.mean(dim=-1)  # Time Axis
-        std = encoder_output.std(dim=-1)
-
-        pooled = torch.cat([mean, std], dim=-1)
-
-        if self.gram:
-            time_len = encoder_output.shape[-1]
-            # encoder_output = encoder_output
-            cov = encoder_output.bmm(encoder_output.transpose(2, 1))  # cov matrix
-            cov = cov.view(cov.shape[0], -1) / time_len
-
-        if self.gram and not self.super:
-            return cov
-
-        if self.super and self.gram:
-            pooled = torch.cat([pooled, cov], dim=-1)
-
-        return pooled
-
-
 class MaskedConv1d(nn.Module):
     __constants__ = ["use_conv_mask", "real_out_channels", "heads"]
 

@@ -25,7 +25,6 @@ from nemo.collections.asr.parts.submodules.jasper import (
     MaskedConv1d,
     ParallelBlock,
     SqueezeExcite,
-    ParallelBlock,
     init_weights,
     jasper_activations,
 )

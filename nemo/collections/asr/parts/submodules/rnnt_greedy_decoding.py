@@ -493,12 +493,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                     # Get index k, of max prob for batch
                     v, k = logp.max(1)
-
-                    # print("pt v", logp[:, :10])
                     del v, g
-
-                    # print('pt t u', time_idx, symbols_added, 'k', k)
-                    # print("pt states", hidden_prime[0][:, :, :20])
 
                     # Update blank mask with current predicted blanks
                     # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
@@ -876,13 +871,8 @@ class ONNXGreedyBatchedRNNTInfer:
                 logp, pred_lengths = joint_out
                 logp = logp[:, 0, 0, :]
 
-                # print("onnx v", logp[:, :10])
-
                 # Get index k, of max prob for batch
                 k = np.argmax(logp, axis=1).astype(np.int32)
-
-                # print('onnx t u', time_idx, symbols_added, 'k', k)
-                # print("onnx states", hidden_prime[0][:, :, :20])
 
                 # Update blank mask with current predicted blanks
                 # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)

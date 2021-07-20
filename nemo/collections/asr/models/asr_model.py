@@ -328,7 +328,9 @@ class ExportableEncDecJointModel(Exportable):
 
                     # Allow user to completely override forward method to export
                     forward_method, _ = self._wrap_forward_method('decoder_joint')
-                    decoder_joint_output_example = self.forward(*encoder_decoder_input_list, **encoder_decoder_input_dict)
+                    decoder_joint_output_example = self.forward(
+                        *encoder_decoder_input_list, **encoder_decoder_input_dict
+                    )
                     decoder_joint_output_example = tuple(decoder_joint_output_example)
 
                     # Resolve output states
@@ -378,8 +380,10 @@ class ExportableEncDecJointModel(Exportable):
             raise e
         finally:
             typecheck.set_typecheck_enabled(enabled=True)
-            logging.warning("PyTorch Model has been significantly modified. In order to utilize model, delete this "
-                            "instance and create a new model.")
+            logging.warning(
+                "PyTorch Model has been significantly modified. In order to utilize model, delete this "
+                "instance and create a new model."
+            )
 
         return ([output], [output_descr])
 
@@ -424,16 +428,6 @@ class ExportableEncDecJointModel(Exportable):
             jitted_model = self
 
         dynamic_axes = self._get_dynamic_axes(dynamic_axes, input_names, output_names, use_dynamic_axes)
-
-        # if type(input_example[-1]) in (list, tuple):
-        #     name = input_names[-1]
-        #     del input_names[-1]
-        #     for i in range(len(input_example[-1])):
-        #         input_names.append(f'{name}_{i}')
-
-        # print(input_example)
-        # print(input_names)
-        # input_example = input_example[:2]
 
         torch.onnx.export(
             jitted_model,
@@ -541,9 +535,6 @@ class ExportableEncDecJointModel(Exportable):
         return dynamic_axes
 
     def _get_state_dynamic_axes(self, dynamic_axes, input_names, output_names):
-        # Explicitly add `enc_logits`:
-        # dynamic_axes['enc_logits'] = dynamic_axes['outputs']
-
         reduced_input_names = []
         for name in input_names:
             if 'input-' in name:
