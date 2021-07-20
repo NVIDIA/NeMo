@@ -141,7 +141,7 @@ model:
 
   # DISTILLATION DETAILS
   distillation:
-    model_path: '/gpfs/fs1/projects/ent_aiapps/users/scharles/nemo_models/teacher_24_6_de_en/AAYNBase.nemo'
+    model_path: '/nemo_models/teacher_24_6_de_en/AAYNBase.nemo'
 
     # loss weights
     distillation_loss_weight: 0.5 # logits from teacher
