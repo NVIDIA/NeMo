@@ -32,7 +32,7 @@
 
 GRAMMARS="itn_grammars" # tn_grammars
 INPUT_CASE="cased" # lower_cased, only for tn_grammars
-LANGUAGE="en" # language, 'en' supports both TN and ITN
+LANGUAGE="en" # language, 'en' supports both TN and ITN, 'de' supports only ITN
 MODE="export"
 
 for ARG in "$@"

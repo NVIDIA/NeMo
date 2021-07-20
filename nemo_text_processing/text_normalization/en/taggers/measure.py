@@ -177,7 +177,10 @@ class MeasureFst(GraphFst):
         """
         Finite state transducer for classifying serial.
             The serial is a combination of digits, letters and dashes, e.g.:
-            2788 San Tomas Expy, Santa Clara, CA 95051 -> tokens { cardinal { value: "one two" } }
+            2788 San Tomas Expy, Santa Clara, CA 95051 ->
+                units: "address" cardinal
+                { integer: "two seven eight eight San Tomas Expressway Santa Clara California nine five zero five one" }
+                 preserve_order: true
         """
         ordinal_verbalizer = OrdinalVerbalizer().graph
         ordinal_tagger = OrdinalTagger(cardinal=cardinal).graph
