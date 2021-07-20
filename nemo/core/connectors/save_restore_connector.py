@@ -14,13 +14,13 @@
 # limitations under the License.
 
 import os
-from os import path
 import tarfile
 import tempfile
+from os import path
 from typing import Optional, Union
-from omegaconf import DictConfig, OmegaConf
 
 import torch
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
@@ -42,7 +42,7 @@ class SaveRestoreConnector:
 		Args:
 			save_path: Path to .nemo file where model instance should be saved
 
-		"""
+	"""
         app_state = AppState()
 
         with tempfile.TemporaryDirectory() as tmpdir:

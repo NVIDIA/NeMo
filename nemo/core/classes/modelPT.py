@@ -32,13 +32,11 @@ from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.core import optim
 from nemo.core.classes.common import Model
-from nemo.core.optim import prepare_lr_scheduler
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
-from nemo.utils import logging, model_utils
-from nemo.utils import app_state
+from nemo.core.optim import prepare_lr_scheduler
+from nemo.utils import app_state, logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
-
 
 __all__ = ['ModelPT']
 
@@ -1294,4 +1292,3 @@ class ModelPT(LightningModule, Model):
                     return True
             else:
                 return False
-

@@ -402,4 +402,3 @@ class AppState(metaclass=Singleton):
     @nemo_file_folder.setter
     def nemo_file_folder(self, path: str):
         self._nemo_file_folder = path
-
