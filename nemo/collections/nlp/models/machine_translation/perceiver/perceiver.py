@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 from einops import rearrange, repeat
 
-from perceiver_pytorch.rotary import SinusoidalEmbeddings, apply_rotary_emb
+from .rotary import SinusoidalEmbeddings, apply_rotary_emb
 
 # helpers
 
