@@ -1,0 +1,46 @@
+NeMo can be installed in a number of ways. We can install just the core, collections, and even other tools such as
+text normlization and inverse normalization.
+
+How can we install these? From the NeMo folder we can run:
+
+  - pip install [--editable] .
+  - pip install [--editable] ".[all]"
+
+In either case, we install all of the code inside the nemo folder. Even though we require librosa for speech tasks, if
+we only install core, we can still run `from nemo.collections.asr import *`. It will crash saying librosa is not installed,
+but the key is that the code in the asr collection is still "installed".
+
+Is it possible to create a version of NeMo that can minimize our dependencies? Can we create collections or parts of the
+code base that only relies upon pip packages that are already in our pytorch container?
+This will make it easier for other teams to use standalone tools like our text normalization tools, or for other teams
+to depend on only torch portions of NeMo.
+
+My proposal is to split NeMo into two parts that can coexist:
+
+  - Parts that depend only on torch
+  - Parts that depend on ligthning, hydra, omegaconf, etc
+
+These parts I envision are:
+
+  - pip install .
+    - The new NeMo "core"
+    - Allows for simple utilities: logging, exportable
+  - pip install ".[text_normalization]"
+    - The text normalization tool
+    - We can have other tools here as well
+  - pip install ".[torch_all]"
+    - A collection of our torch modules
+  - pip install ".[torch_tts]"
+    - A collection of our torch modules
+  - pip install ".[lightning]"
+    - Our current "core" which includes ModelPT
+  - pip install ".[lightning_asr]"
+    - Our current asr collection. We can enable `pip install ".[asr]"` here as well for backwards compatibility
+  - pip install ".[all]"
+    - Installs all requirements. Everything in NeMo is expected to work here
+
+ToDos:
+  - Split any lightning away from new core
+  - Split all utils into sections for lightning and sections not for lightning
+  - Rework and minimize all requirement files
+  - Create new torch_tts collection

@@ -73,10 +73,6 @@ def req_file(filename, folder="requirements"):
 
 install_requires = req_file("requirements.txt")
 
-### pip install nemo_toolkit -- not install anything
-### pip install nemo_toolkit[core]
-### pip install nemo_toolkit[all]
-
 extras_require = {
     # User packages
     'test': req_file("requirements_test.txt") + req_file("requirements_lightning.txt"),
@@ -86,8 +82,8 @@ extras_require = {
     'nlp': req_file("requirements_nlp.txt") + req_file("requirements_lightning.txt"),
     'tts': req_file("requirements_tts.txt") + req_file("requirements_lightning.txt"),
     'text_processing': req_file("requirements_text_processing.txt"),
-    'tts_torch':  req_file("requirements_tts_torch.txt"),
-    'core': req_file(...),
+    # 'tts_torch': req_file("requirements_tts_torch.txt"),
+    # 'core': req_file(...),
 }
 
 extras_require['all'] = list(chain(extras_require.values()))
