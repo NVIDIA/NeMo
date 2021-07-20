@@ -23,7 +23,7 @@ from nemo_text_processing.inverse_text_normalization.en.verbalizers.ordinal impo
 from nemo_text_processing.inverse_text_normalization.en.verbalizers.telephone import TelephoneFst
 from nemo_text_processing.inverse_text_normalization.en.verbalizers.time import TimeFst
 from nemo_text_processing.inverse_text_normalization.en.verbalizers.whitelist import WhiteListFst
-from nemo_text_processing.text_normalization.graph_utils import GraphFst
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
 
 
 class VerbalizeFst(GraphFst):

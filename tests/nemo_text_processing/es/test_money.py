@@ -18,6 +18,7 @@ from nemo_text_processing.inverse_text_normalization.inverse_normalize import In
 from nemo_text_processing.text_normalization.normalize import Normalizer
 from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
 from parameterized import parameterized
+
 from ..utils import PYNINI_AVAILABLE, parse_test_case_file
 
 

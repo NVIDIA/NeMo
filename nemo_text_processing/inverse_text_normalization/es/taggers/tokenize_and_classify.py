@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo_text_processing.inverse_text_normalization.es.graph_utils import GraphFst, delete_extra_space, delete_space
 from nemo_text_processing.inverse_text_normalization.es.taggers.cardinal import CardinalFst
 from nemo_text_processing.inverse_text_normalization.es.taggers.decimal import DecimalFst
 from nemo_text_processing.inverse_text_normalization.es.taggers.electronic import ElectronicFst
@@ -23,7 +24,6 @@ from nemo_text_processing.inverse_text_normalization.es.taggers.punctuation impo
 from nemo_text_processing.inverse_text_normalization.es.taggers.telephone import TelephoneFst
 from nemo_text_processing.inverse_text_normalization.es.taggers.time import TimeFst
 from nemo_text_processing.inverse_text_normalization.es.taggers.word import WordFst
-from nemo_text_processing.text_normalization.graph_utils import GraphFst, delete_extra_space, delete_space
 
 try:
     import pynini

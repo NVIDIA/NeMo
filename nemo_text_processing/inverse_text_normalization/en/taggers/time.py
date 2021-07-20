@@ -16,7 +16,7 @@
 
 from nemo_text_processing.inverse_text_normalization.en.taggers.cardinal import CardinalFst
 from nemo_text_processing.inverse_text_normalization.en.utils import get_abs_path, num_to_word
-from nemo_text_processing.text_normalization.graph_utils import (
+from nemo_text_processing.text_normalization.en.graph_utils import (
     GraphFst,
     convert_space,
     delete_extra_space,
