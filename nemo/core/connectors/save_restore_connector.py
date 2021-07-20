@@ -14,19 +14,17 @@
 # limitations under the License.
 
 
-import tarfile
-from nemo.core.classes.modelPT import ModelPT
 from os import path
+import tarfile
 import tempfile
 
 import torch
-from nemo.utils import app_state
 
 from nemo.utils.app_state import AppState
 
 
 class SaveRestoreConnector:
-    def __init__(self, model: ModelPT):
+    def __init__(self, model):
         self._model = model
 
     def _default_save_to(self, save_path: str):
