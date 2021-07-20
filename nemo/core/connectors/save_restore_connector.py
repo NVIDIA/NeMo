@@ -18,10 +18,11 @@ from os import path
 import tarfile
 import tempfile
 from typing import Optional, Union
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 import torch
 
+from nemo.utils import logging
 from nemo.utils.app_state import AppState
 
 
@@ -84,6 +85,8 @@ class SaveRestoreConnector:
         Returns:
             An instance of type cls or its underlying config (if return_config is set).
         """
+	app_state = AppState()
+
         # Get path where the command is executed - the artifacts will be "retrieved" there
         # (original .nemo behavior)
         cwd = os.getcwd()
@@ -100,7 +103,7 @@ class SaveRestoreConnector:
                 self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
                 os.chdir(tmpdir)
                 if override_config_path is None:
-                    config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
+                    config_yaml = path.join(tmpdir, app_state.model_config_yaml)
                 else:
                     # can be str path or OmegaConf / DictConfig object
                     config_yaml = override_config_path
@@ -122,19 +125,19 @@ class SaveRestoreConnector:
                     app_state = AppState()
                     if app_state.model_parallel_rank is not None:
                         model_weights = path.join(
-                            tmpdir, f'mp_rank_{app_state.model_parallel_rank:02}', _MODEL_WEIGHTS
+                            tmpdir, f'mp_rank_{app_state.model_parallel_rank:02}', app_state.model_weights_ckpt
                         )
                     else:
-                        model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
+                        model_weights = path.join(tmpdir, app_state.model_weights_ckpt)
                     OmegaConf.set_struct(conf, True)
                     os.chdir(cwd)
-                    instance = cls.from_config_dict(config=conf)
+                    instance = self._model.from_config_dict(config=conf)
                     instance = instance.to(map_location)
                     instance.load_state_dict(torch.load(model_weights, map_location=map_location), strict=strict)
 
                     logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
             finally:
-                cls._set_model_restore_state(is_being_restored=False)
+                self._model._set_model_restore_state(is_being_restored=False)
                 os.chdir(cwd)
 
         return instance
