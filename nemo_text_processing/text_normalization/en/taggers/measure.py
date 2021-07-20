@@ -15,14 +15,18 @@
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_ALPHA,
+    NEMO_DIGIT,
     NEMO_NON_BREAKING_SPACE,
     NEMO_SIGMA,
+    NEMO_SPACE,
     SINGULAR_TO_PLURAL,
     GraphFst,
     convert_space,
     delete_space,
 )
+from nemo_text_processing.text_normalization.en.taggers.ordinal import OrdinalFst as OrdinalTagger
 from nemo_text_processing.text_normalization.en.utils import get_abs_path
+from nemo_text_processing.text_normalization.en.verbalizers.ordinal import OrdinalFst as OrdinalVerbalizer
 
 try:
     import pynini
@@ -149,6 +153,13 @@ class MeasureFst(GraphFst):
             pynutil.insert("fraction { ") + fraction.graph + delete_space + pynutil.insert(" } ") + unit_plural
         )
 
+        address = self.get_address_graph(cardinal)
+        address = (
+            pynutil.insert("units: \"address\" cardinal { integer: \"")
+            + address
+            + pynutil.insert("\" } preserve_order: true")
+        )
+
         final_graph = (
             subgraph_decimal
             | subgraph_cardinal
@@ -157,6 +168,66 @@ class MeasureFst(GraphFst):
             | decimal_dash_alpha
             | alpha_dash_decimal
             | subgraph_fraction
+            | address
         )
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
+
+    def get_address_graph(self, cardinal):
+        """
+        Finite state transducer for classifying serial.
+            The serial is a combination of digits, letters and dashes, e.g.:
+            2788 San Tomas Expy, Santa Clara, CA 95051 ->
+                units: "address" cardinal
+                { integer: "two seven eight eight San Tomas Expressway Santa Clara California nine five zero five one" }
+                 preserve_order: true
+        """
+        ordinal_verbalizer = OrdinalVerbalizer().graph
+        ordinal_tagger = OrdinalTagger(cardinal=cardinal).graph
+        ordinal_num = pynini.compose(
+            pynutil.insert("integer: \"") + ordinal_tagger + pynutil.insert("\""), ordinal_verbalizer
+        )
+
+        address_num = pynini.closure(NEMO_DIGIT, 1) @ cardinal.single_digits_graph
+
+        direction = (
+            pynini.cross("E", "East")
+            | pynini.cross("S", "South")
+            | pynini.cross("W", "West")
+            | pynini.cross("N", "North")
+        )
+        direction = pynini.closure(pynutil.add_weight(pynini.accep(NEMO_SPACE) + direction, -1), 0, 1)
+
+        address_words = pynini.string_file(get_abs_path("data/address/address_words.tsv"))
+        address_words = (
+            pynini.accep(NEMO_SPACE)
+            + pynini.closure(ordinal_num, 0, 1)
+            + pynini.closure(NEMO_ALPHA | NEMO_SPACE, 1)
+            + address_words
+        )
+
+        city = pynini.closure(NEMO_ALPHA | pynini.accep(NEMO_SPACE), 1)
+        city = pynini.closure(pynini.cross(",", "") + pynini.accep(NEMO_SPACE) + city, 0, 1)
+
+        state = pynini.invert(pynini.string_file(get_abs_path("data/address/states.tsv")))
+        state = pynini.closure(pynini.cross(",", "") + pynini.accep(NEMO_SPACE) + state, 0, 1)
+
+        zip_code = pynini.compose(NEMO_DIGIT ** 5, cardinal.single_digits_graph)
+        zip_code = pynini.closure(
+            pynutil.add_weight(
+                pynini.closure(pynini.cross(",", ""), 0, 1) + pynini.accep(NEMO_SPACE) + zip_code, -100
+            ),
+            0,
+            1,
+        )
+
+        address = (
+            address_num
+            + direction
+            + address_words
+            + pynini.closure(pynini.cross(".", ""), 0, 1)
+            + city
+            + state
+            + zip_code
+        )
+        return address
