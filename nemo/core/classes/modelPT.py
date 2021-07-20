@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import copy
-import hashlib
 import inspect
 import os
 import shutil
@@ -31,42 +30,16 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.utilities import rank_zero_only
 
-import nemo
 from nemo.core import optim
 from nemo.core.classes.common import Model
-from nemo.core.connectors import save_restore_connector
 from nemo.core.optim import prepare_lr_scheduler
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
 
-# Need to set them before EFF import as it is using them.
-_MODEL_CONFIG_YAML = "model_config.yaml"
-_MODEL_WEIGHTS = "model_weights.ckpt"
 
 __all__ = ['ModelPT']
-
-"""
-Internal global flags that determine core functionality of ModelPT.
-
-_MODEL_IS_RESTORED:
-    This flag determines the context of the model - whether the model is currently being
-    restored or not.
-    -   When set, it can be assumed that the model's will disable all automatic methods -
-        setup_training_data(), setup_validation/test_data() and their multi equivalents.
-    -   If a model is being restored from a archive file (tarfile), it can be assumed that
-        under this context, the cwd is *inside* the tarfile itself.
-
-_MODEL_RESTORE_PATH:
-    A string path to a a file from which the model is being restored.
-    This file can either be a PyTorch Lightning Checkpoint, or a archive (tarfile) that contains
-    artifact objects.
-    If it is an archive file, during restoration, the cwd will be temporarily moved to inside the
-    archive itself.
-"""
-_MODEL_IS_RESTORED = False
-_NEMO_FILE_FOLDER = None
 
 
 class ModelPT(LightningModule, Model):
@@ -94,6 +67,31 @@ class ModelPT(LightningModule, Model):
                 f"trainer constructor argument must be either None or pytroch_lightning.Trainer. But got {type(trainer)} instead."
             )
         super().__init__()
+
+        """
+        Internal global flags that determine core functionality of ModelPT.
+
+        _MODEL_IS_RESTORED:
+            This flag determines the context of the model - whether the model is currently being
+            restored or not.
+            -   When set, it can be assumed that the model's will disable all automatic methods -
+                setup_training_data(), setup_validation/test_data() and their multi equivalents.
+            -   If a model is being restored from a archive file (tarfile), it can be assumed that
+                under this context, the cwd is *inside* the tarfile itself.
+
+        _MODEL_RESTORE_PATH:
+            A string path to a a file from which the model is being restored.
+            This file can either be a PyTorch Lightning Checkpoint, or a archive (tarfile) that contains
+            artifact objects.
+            If it is an archive file, during restoration, the cwd will be temporarily moved to inside the
+            archive itself.
+        """
+        # set global vars in AppState
+        app_state = AppState()
+        _MODEL_CONFIG_YAML = "model_config.yaml"
+        _MODEL_WEIGHTS = "model_weights.ckpt"
+        _MODEL_IS_RESTORED = False
+        _NEMO_FILE_FOLDER = None
 
         # Convert config to a DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
@@ -316,30 +314,6 @@ class ModelPT(LightningModule, Model):
             with open(path2yaml_file, 'w') as fout:
                 OmegaConf.save(config=conf, f=fout, resolve=True)
 
-    def _default_save_to(self, save_path: str):
-        """
-        Saves model instance (weights and configuration) into .nemo file.
-        You can use "restore_from" method to fully restore instance from .nemo file.
-
-        .nemo file is an archive (tar.gz) with the following:
-            model_config.yaml - model configuration in .yaml format. You can deserialize this into cfg argument for model's constructor
-            model_wights.chpt - model checkpoint
-
-        Args:
-            save_path: Path to .nemo file where model instance should be saved
-
-        """
-        with tempfile.TemporaryDirectory() as tmpdir:
-            config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
-            model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
-            self.to_config_file(path2yaml_file=config_yaml)
-            if hasattr(self, 'artifacts') and self.artifacts is not None:
-                self._handle_artifacts(nemo_file_folder=tmpdir)
-                # We should not update self._cfg here - the model can still be in use
-                self._update_artifact_paths(path2yaml_file=config_yaml)
-            torch.save(self.state_dict(), model_weights)
-            self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
-
     @rank_zero_only
     def save_to(self, save_path: str):
         """
@@ -358,6 +332,7 @@ class ModelPT(LightningModule, Model):
         if not is_global_rank_zero():
             return
         else:
+            self.save_restore_connector._default_save_to(save_path)
             self._default_save_to(save_path)
 
     @classmethod

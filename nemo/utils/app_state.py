@@ -62,6 +62,8 @@ class AppState(metaclass=Singleton):
         self._tmpdir_name = None
         self._model_config_yaml = "model_config.yaml"
         self._model_weights_ckpt = "model_weights.ckpt"
+        self._model_is_restored = False
+        self._nemo_file_folder = None
         self._model_restore_path = None
         self._all_model_restore_paths = []
         self._model_guid_map = {}  # type: Dict[str, ModelMetadataRegistry]
@@ -384,3 +386,12 @@ class AppState(metaclass=Singleton):
         # Returns the global model idx and restoration path
         metadata = self._model_guid_map[guid]
         return metadata
+
+    @property
+    def model_is_restored(self) -> bool:
+        return self._model_is_restored
+
+    @model_is_restored.setter
+    def model_is_restored(self, is_restored: bool):
+        self.model_is_restored = is_restored
+
