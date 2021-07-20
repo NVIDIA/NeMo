@@ -206,8 +206,8 @@ class ModelPT(LightningModule, Model):
         # This is for backward compatibility, if the src objects exists simply inside of the tarfile
         # without its key having been overriden, this pathway will be used.
         src_obj_name = os.path.basename(src)
-        if _NEMO_FILE_FOLDER is not None:
-            src_obj_path = os.path.abspath(os.path.join(_NEMO_FILE_FOLDER, src_obj_name))
+        if app_state.nemo_file_folder is not None:
+            src_obj_path = os.path.abspath(os.path.join(app_state.nemo_file_folder, src_obj_name))
         else:
             src_obj_path = src_obj_name
 
@@ -219,7 +219,7 @@ class ModelPT(LightningModule, Model):
         # this is the case when artifact must be retried from the nemo file
         # we are assuming that the location of the right nemo file is available from _MODEL_RESTORE_PATH
         elif src.startswith("nemo:"):
-            return_path = os.path.abspath(os.path.join(_NEMO_FILE_FOLDER, src[5:]))
+            return_path = os.path.abspath(os.path.join(app_state.nemo_file_folder, src[5:]))
             artifact_item.path_type = model_utils.ArtifactPathType.TAR_PATH
 
         # backward compatibility implementation
@@ -1242,14 +1242,6 @@ class ModelPT(LightningModule, Model):
         self._cfg = cfg
         self._set_hparams(self._cfg)
         self._hparams_initial = copy.deepcopy(self._hparams)
-
-    @property
-    def save_restore_connector(self) -> SaveRestoreConnector:
-        return self._save_restore_connector
-
-    @save_restore_connector.setter
-    def save_restore_connector(self, connector: SaveRestoreConnector):
-        self._save_restore_connector = connector
 
     @staticmethod
     def _is_model_being_restored() -> bool:
