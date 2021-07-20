@@ -71,9 +71,9 @@ Below we is the code snippet of Audio Translator application.
     # Neural Machine Translation model
     nmt_model = nemo_nlp.models.MTEncDecModel.from_pretrained(model_name='nmt_ru_en_transformer6x6').cuda()
     # Spectrogram generator which takes text as an input and produces spectrogram
-    spectrogram_generator = nemo_tts.models.Tacotron2Model.from_pretrained(model_name="tts_en_tacotron2").cuda()
+    spectrogram_generator = nemo_tts.models.FastPitchModel.from_pretrained(model_name="tts_en_fastpitch").cuda()
     # Vocoder model which takes spectrogram and produces actual audio
-    vocoder = nemo_tts.models.WaveGlowModel.from_pretrained(model_name="tts_waveglow_88m").cuda()
+    vocoder = nemo_tts.models.HifiGanModel.from_pretrained(model_name="tts_hifigan").cuda()
     # Transcribe an audio file
     # IMPORTANT: The audio must be mono with 16Khz sampling rate
     # Get example from: https://nemo-public.s3.us-east-2.amazonaws.com/mcv-samples-ru/common_voice_ru_19034087.wav
@@ -84,7 +84,7 @@ Below we is the code snippet of Audio Translator application.
     print(english_text)
     # After this you should see English translation
     # Let's convert it into audio
-    # A helper function which combines Tacotron2 and WaveGlow to go directly from
+    # A helper function which combines FastPitch and HiFiGAN to go directly from
     # text to audio
     def text_to_audio(text):
       parsed = spectrogram_generator.parse(text)
