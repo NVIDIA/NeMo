@@ -112,4 +112,4 @@ class CardinalFst(GraphFst):
 
         if not self.deterministic:
             serial_graph += pynini.closure(pynini.accep("s") | pynini.cross("s", "es"), 0, 1)
-        return serial_graph
+        return pynutil.add_weight(serial_graph, 10)
