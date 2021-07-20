@@ -75,21 +75,31 @@ install_requires = req_file("requirements.txt")
 
 extras_require = {
     # User packages
-    'test': req_file("requirements_test.txt") + req_file("requirements_lightning.txt"),
-    # Collections Packages
-    'asr': req_file("requirements_asr.txt") + req_file("requirements_lightning.txt"),
-    'cv': req_file("requirements_cv.txt") + req_file("requirements_lightning.txt"),
-    'nlp': req_file("requirements_nlp.txt") + req_file("requirements_lightning.txt"),
-    'tts': req_file("requirements_tts.txt") + req_file("requirements_lightning.txt"),
+    'test': req_file("requirements_test.txt"),
+    # NeMo Tools
     'text_processing': req_file("requirements_text_processing.txt"),
-    # 'tts_torch': req_file("requirements_tts_torch.txt"),
-    # 'core': req_file(...),
+    # Torch Packages
+    'torch_tts': req_file("requirements_torch_tts.txt"),
+    # Lightning Collections Packages
+    'lightning': req_file("requirements_lightning.txt"),
+    'asr': req_file("requirements_asr.txt"),
+    'cv': req_file("requirements_cv.txt"),
+    'nlp': req_file("requirements_nlp.txt"),
+    'tts': req_file("requirements_tts.txt"),
+    # TODO: add `torch_all`, `lightning_asr` or just keep `asr`?
 }
 
 extras_require['all'] = list(chain(extras_require.values()))
 
-# TTS depends on ASR
-extras_require['tts'] = list(chain([extras_require['tts'], extras_require['asr']]))
+# Add lightning requirements as needed
+extras_require['test'] = list(chain([extras_require['tts'], extras_require['lightning']]))
+extras_require['asr'] = list(chain([extras_require['asr'], extras_require['lightning']]))
+extras_require['cv'] = list(chain([extras_require['cv'], extras_require['lightning']]))
+extras_require['nlp'] = list(chain([extras_require['nlp'], extras_require['lightning']]))
+extras_require['tts'] = list(chain([extras_require['tts'], extras_require['lightning']]))
+
+# TTS has extra dependencies
+extras_require['tts'] = list(chain([extras_require['tts'], extras_require['asr'], extras_require['torch_tts']]))
 
 tests_requirements = extras_require["test"]
 

@@ -44,3 +44,26 @@ ToDos:
   - Split all utils into sections for lightning and sections not for lightning
   - Rework and minimize all requirement files
   - Create new torch_tts collection
+
+
+Usage
+
+```python
+pip install -e ".[torch_tts]"
+
+import torch
+from nemo.collections.tts.modules.hifigan_modules import Generator
+
+gen = Generator(
+    resblock = 2,
+    upsample_rates = [8,8,4],
+    upsample_kernel_sizes = [16,16,8],
+    upsample_initial_channel = 256,
+    resblock_kernel_sizes = [3,5,7],
+    resblock_dilation_sizes = [[1,2], [2,6], [3,12]],
+)
+
+gen(x=torch.randn((8, 80, 100)))
+```
+
+Now you can use the hifigan generator in a pure torch setting.

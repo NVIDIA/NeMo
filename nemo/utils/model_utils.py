@@ -19,7 +19,6 @@ from enum import Enum
 from pathlib import Path
 from typing import List, Optional, Union
 
-import pytorch_lightning as pl
 import wrapt
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from omegaconf import errors as omegaconf_errors
@@ -335,7 +334,7 @@ def resolve_test_dataloaders(model: 'ModelPT'):
 
 
 @wrapt.decorator
-def wrap_training_step(wrapped, instance: pl.LightningModule, args, kwargs):
+def wrap_training_step(wrapped, instance: 'pl.LightningModule', args, kwargs):
     output_dict = wrapped(*args, **kwargs)
 
     if isinstance(output_dict, dict) and output_dict is not None and 'log' in output_dict:
