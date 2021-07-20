@@ -60,6 +60,8 @@ class MTBottleneckModel(MTEncDecModel):
         self.non_recon_warmup_batches: int = cfg.get("non_recon_warmup_batches", 200000)
         self.recon_per_token: bool = cfg.get("recon_per_token", True)
 
+        import pudb; pudb.set_trace()
+
         # TODO: add support in label smoothing for per-sample reconstruction loss
         if not self.recon_per_token:
             loss_fn = NLLLoss(ignore_index=self.decoder_tokenizer.pad_id, reduction='none',)
