@@ -1,1 +1,1 @@
-from perceiver.perceiver import Perceiver
+from .perceiver import Perceiver
