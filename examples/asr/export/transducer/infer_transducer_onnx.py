@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from argparse import ArgumentParser
-
 import glob
-import tempfile
-import os
 import json
+import os
+import tempfile
+from argparse import ArgumentParser
 
 import torch
 from tqdm import tqdm
@@ -26,6 +25,7 @@ from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.submodules.rnnt_greedy_decoding import ONNXGreedyBatchedRNNTInfer
 from nemo.utils import logging
+
 
 """
 Script to compare the outputs of a NeMo Pytorch based RNNT Model and its ONNX exported representation.
