@@ -18,6 +18,8 @@ import glob
 import tempfile
 import os
 import json
+
+import torch
 from tqdm import tqdm
 
 from nemo.collections.asr.metrics.wer import word_error_rate
@@ -35,7 +37,8 @@ python infer_transducer_onnx.py \
     --onnx_decoder="<path to onnx decoder-joint file>" \
     --dataset_manifest="<Either pass a manifest file path here>" \
     --audio_dir="<Or pass a directory containing preprocessed monochannel audio files>" \
-    --max_symbold_per_step=5
+    --max_symbold_per_step=5 \
+    --batch_size=32
     
 # Export and compare a NeMo and ONNX model
 python infer_transducer_onnx.py \
@@ -43,7 +46,8 @@ python infer_transducer_onnx.py \
     --export
     --dataset_manifest="<Either pass a manifest file path here>" \
     --audio_dir="<Or pass a directory containing preprocessed monochannel audio files>" \
-    --max_symbold_per_step=5
+    --max_symbold_per_step=5 \
+    --batch_size=32
 """
 
 
@@ -63,6 +67,7 @@ def parse_arguments():
 
     parser.add_argument('--export', action='store_true', help="Whether to export the model into onnx prior to eval")
     parser.add_argument('--max_symbold_per_step', type=int, default=5, required=False, help='Number of decoding steps')
+    parser.add_argument('--batch_size', type=int, default=32, help='Batchsize')
 
     args = parser.parse_args()
     return args
@@ -115,11 +120,16 @@ def resolve_audio_filepaths(args):
 def main():
     args = parse_arguments()
 
+    # Instantiate pytorch model
     nemo_model = args.nemo_model
     nemo_model = ASRModel.restore_from(nemo_model, map_location='cpu')  # type: ASRModel
 
+    if torch.cuda.is_available():
+        nemo_model = nemo_model.to('cuda')
+
     export_model_if_required(args, nemo_model)
 
+    # Instantiate RNNT Decoding loop
     encoder_model = args.onnx_encoder
     decoder_model = args.onnx_decoder
     max_symbols_per_step = args.max_symbold_per_step
@@ -127,17 +137,20 @@ def main():
 
     audio_filepath = resolve_audio_filepaths(args)
 
-    actual_transcripts = nemo_model.transcribe(audio_filepath)[0]
+    # Evaluate Pytorch Model (CPU/GPU)
+    actual_transcripts = nemo_model.transcribe(audio_filepath, batch_size=args.batch_size)[0]
 
-    # Work in tmp directory - will store manifest file there
+    # Evaluate ONNX model (on CPU)
     with tempfile.TemporaryDirectory() as tmpdir:
         with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
             for audio_file in audio_filepath:
                 entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
                 fp.write(json.dumps(entry) + '\n')
 
-        config = {'paths2audio_files': audio_filepath, 'batch_size': 4, 'temp_dir': tmpdir}
+        config = {'paths2audio_files': audio_filepath, 'batch_size': args.batch_size, 'temp_dir': tmpdir}
 
+        # Push nemo model to CPU
+        nemo_model = nemo_model.to('cpu')
         temporary_datalayer = nemo_model._setup_transcribe_dataloader(config)
 
         all_hypothesis = []
