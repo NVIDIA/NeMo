@@ -455,7 +455,9 @@ class ModelPT(LightningModule, Model):
             raise FileNotFoundError(f"Can't find {restore_path}")
 
         app_state.model_restore_path = os.path.abspath(os.path.expanduser(restore_path))
-        return cls._default_restore_from(restore_path, override_config_path, map_location, strict, return_config)
+        return cls.save_restore_connector._default_restore_from(
+            restore_path, override_config_path, map_location, strict, return_config
+        )
 
     @classmethod
     def load_from_checkpoint(

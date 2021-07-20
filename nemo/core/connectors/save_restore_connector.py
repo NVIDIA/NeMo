@@ -13,10 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import os
 from os import path
 import tarfile
 import tempfile
+from typing import Optional, Union
+from omegaconf import OmegaConf
 
 import torch
 
@@ -53,8 +55,100 @@ class SaveRestoreConnector:
                 torch.save(self._model.state_dict(), model_weights)
                 self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
+    def _default_restore_from(
+        self,
+        restore_path: str,
+        override_config_path: Optional[Union[OmegaConf, str]] = None,
+        map_location: Optional[torch.device] = None,
+        strict: bool = True,
+        return_config: bool = False,
+    ):
+        """
+        Restores model instance (weights and configuration) into .nemo file
+        Args:
+            restore_path: path to .nemo file from which model should be instantiated
+            override_config_path: path to a yaml config that will override the internal
+                config file or an OmegaConf / DictConfig object representing the model config.
+            map_location: Optional torch.device() to map the instantiated model to a device.
+                By default (None), it will select a GPU if available, falling back to CPU otherwise.
+            strict: Passed to load_state_dict. By default True
+            return_config: If set to true, will return just the underlying config of the restored
+                model as an OmegaConf DictConfig object without instantiating the model.
+
+            Example:
+                ```
+                model = nemo.collections.asr.models.EncDecCTCModel.restore_from('asr.nemo')
+                assert isinstance(model, nemo.collections.asr.models.EncDecCTCModel)
+                ```
+
+        Returns:
+            An instance of type cls or its underlying config (if return_config is set).
+        """
+        # Get path where the command is executed - the artifacts will be "retrieved" there
+        # (original .nemo behavior)
+        cwd = os.getcwd()
+
+        if map_location is None:
+            if torch.cuda.is_available():
+                map_location = torch.device('cuda')
+            else:
+                map_location = torch.device('cpu')
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            try:
+                self._model._set_model_restore_state(is_being_restored=True, folder=tmpdir)
+                self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+                os.chdir(tmpdir)
+                if override_config_path is None:
+                    config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
+                else:
+                    # can be str path or OmegaConf / DictConfig object
+                    config_yaml = override_config_path
+                if not isinstance(config_yaml, (OmegaConf, DictConfig)):
+                    conf = OmegaConf.load(config_yaml)
+                else:
+                    conf = config_yaml
+                if override_config_path is not None:
+                    # Resolve the override config
+                    conf = OmegaConf.to_container(conf, resolve=True)
+                    conf = OmegaConf.create(conf)
+                    # If override is top level config, extract just `model` from it
+                    if 'model' in conf:
+                        conf = conf.model
+
+                if return_config:
+                    instance = conf
+                else:
+                    app_state = AppState()
+                    if app_state.model_parallel_rank is not None:
+                        model_weights = path.join(
+                            tmpdir, f'mp_rank_{app_state.model_parallel_rank:02}', _MODEL_WEIGHTS
+                        )
+                    else:
+                        model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
+                    OmegaConf.set_struct(conf, True)
+                    os.chdir(cwd)
+                    instance = cls.from_config_dict(config=conf)
+                    instance = instance.to(map_location)
+                    instance.load_state_dict(torch.load(model_weights, map_location=map_location), strict=strict)
+
+                    logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
+            finally:
+                cls._set_model_restore_state(is_being_restored=False)
+                os.chdir(cwd)
+
+        return instance
+
     @staticmethod
     def _make_nemo_file_from_folder(filename, source_dir):
         with tarfile.open(filename, "w:gz") as tar:
             tar.add(source_dir, arcname=".")
 
+    @staticmethod
+    def _unpack_nemo_file(path2file: str, out_folder: str) -> str:
+        if not path.exists(path2file):
+            raise FileNotFoundError(f"{path2file} does not exist")
+        tar = tarfile.open(path2file, "r:gz")
+        tar.extractall(path=out_folder)
+        tar.close()
+        return out_folder
