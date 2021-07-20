@@ -34,7 +34,6 @@ GRAMMARS="itn_grammars" # tn_grammars
 INPUT_CASE="cased" # lower_cased, only for tn_grammars
 LANGUAGE="en" # language, 'en' supports both TN and ITN
 MODE="export"
-FORCE="" # use to --FORCE="-f" to force grammar re-built
 
 for ARG in "$@"
 do
@@ -54,7 +53,7 @@ echo "INPUT_CASE = $INPUT_CASE"
 
 python pynini_export.py --output_dir=. --grammars=${GRAMMARS} --input_case=${INPUT_CASE} --language=${LANGUAGE}|| exit 1
 find . -name "Makefile" -type f -delete
-bash docker/build.sh $FORCE
+bash docker/build.sh
 
 if [[ $MODE == "test" ]]; then
   MODE=${MODE}_${GRAMMARS}
