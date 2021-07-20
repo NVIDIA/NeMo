@@ -61,5 +61,3 @@ if [[ $MODE == "test" ]]; then
 fi
 
 bash docker/launch.sh $MODE $LANGUAGE
-
-# echo "двенадцать килограм" | ../../src/bin/normalizer_main --config=sparrowhawk_configuration.ascii_proto

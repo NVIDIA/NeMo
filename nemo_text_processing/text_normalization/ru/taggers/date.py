@@ -67,10 +67,15 @@ class DateFst(GraphFst):
 
         month_number_to_abbr = pynini.string_file(get_abs_path("data/months/numbers.tsv")).optimize()
         month_number_to_abbr = (
-            (((pynutil.add_weight(pynini.cross("0", ""), -0.1) | pynini.accep("1")) + NEMO_DIGIT) | NEMO_DIGIT).optimize() @ month_number_to_abbr
+            (
+                ((pynutil.add_weight(pynini.cross("0", ""), -0.1) | pynini.accep("1")) + NEMO_DIGIT) | NEMO_DIGIT
+            ).optimize()
+            @ month_number_to_abbr
         ).optimize()
 
-        month_name = ((month_number_to_abbr @ month_abbr_to_names) | pynutil.add_weight(month_abbr_to_names, 0.1)).optimize()
+        month_name = (
+            (month_number_to_abbr @ month_abbr_to_names) | pynutil.add_weight(month_abbr_to_names, 0.1)
+        ).optimize()
         month = (pynutil.insert("month: \"") + month_name + pynutil.insert("\"")).optimize()
         year = pynini.compose(((NEMO_DIGIT ** 4) | (NEMO_DIGIT ** 2)), numbers).optimize()
         year_word_singular = ["год", "года", "году", "годом", "годе"]
