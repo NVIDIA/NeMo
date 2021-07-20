@@ -69,7 +69,7 @@ class MTBottleneckModel(MTEncDecModel):
             freq_base=2,
             input_channels=1,
             input_axis=1,
-            num_latents=32,
+            num_latents=self.att_bridge_k,
             latent_dim=1024,
             cross_heads=1,
             latent_heads=16,
@@ -187,13 +187,18 @@ class MTBottleneckModel(MTEncDecModel):
         else:
             # seq2seq-br, seq2seq-mim, seq2seq-vae
 
-            # project hidden to a fixed size bridge using k attention heads
-            res = self.att_bridge(hidden=hidden, hidden_mask=hidden_mask, return_ortho_loss=return_ortho_loss,)
 
-            if return_ortho_loss:
-                bridge_hidden, ortho_loss = res
-            else:
-                bridge_hidden = res
+            # FIXME: REMOVE ME
+            bridge_hidden = hidden
+            ortho_loss = 0.0
+
+            # project hidden to a fixed size bridge using k attention heads
+            # res = self.att_bridge(hidden=hidden, hidden_mask=hidden_mask, return_ortho_loss=return_ortho_loss,)
+
+            # if return_ortho_loss:
+            #     bridge_hidden, ortho_loss = res
+            # else:
+            #     bridge_hidden = res
 
             # all bottleneck models have mean
             z_mean = self.hidden2latent_mean(bridge_hidden)
@@ -224,14 +229,9 @@ class MTBottleneckModel(MTEncDecModel):
         return_info - if True, returns loss, info_dict with additional information
                       regarding the loss that can be logged
         """
-        import pudb; pudb.set_trace()
-        b, n = src.shape
-        src_hiddens = self.perceiver(data=src.unsqueeze(-1), mask=src_mask)
-
         info_dict = {}
 
-        src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask,)
-
+        src_hiddens = self.perceiver(data=src.unsqueeze(-1), mask=src_mask.bool())
         # build posterior distribution q(x|z)
         z, z_mean, z_logv, bridge_mask, ortho_loss = self.sample_z(
             hidden=src_hiddens,
@@ -240,6 +240,19 @@ class MTBottleneckModel(MTEncDecModel):
             # to avoid recomputing attention bridge twice
             return_ortho_loss=True,
         )
+
+
+        # FIXME: REMOVE ME
+        # src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask,)
+
+        # # build posterior distribution q(x|z)
+        # z, z_mean, z_logv, bridge_mask, ortho_loss = self.sample_z(
+        #     hidden=src_hiddens,
+        #     hidden_mask=src_mask,
+        #     # we always return return_ortho_loss here even if ignored
+        #     # to avoid recomputing attention bridge twice
+        #     return_ortho_loss=True,
+        # )
 
         # build decoding distribution
         bridge_hiddens_dec = self.latent2hidden(z)

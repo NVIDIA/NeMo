@@ -246,7 +246,5 @@ class Perceiver(nn.Module):
                 x = self_attn(x, pos_emb=pos_emb) + x
                 x = self_ff(x) + x
 
-        # x = x.mean(dim=-2)
-        # return self.to_logits(x)
 
         return x
