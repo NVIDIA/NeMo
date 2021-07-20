@@ -214,7 +214,7 @@ class Exportable(ABC):
 
         if test_runtime:
             logging.info(f"Graph ips: {[x.name for x in onnx_model.graph.input]}")
-            logging.infp(f"Graph ops: {[x.name for x in onnx_model.graph.output]}")
+            logging.info(f"Graph ops: {[x.name for x in onnx_model.graph.output]}")
 
         if test_runtime:
             self._verify_runtime(

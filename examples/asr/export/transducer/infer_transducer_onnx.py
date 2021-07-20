@@ -62,6 +62,7 @@ def parse_arguments():
     parser.add_argument(
         '--onnx_decoder', type=str, default=None, required=False, help="Path to onnx decoder + joint model"
     )
+    parser.add_argument('--threshold', type=float, default=0.01, required=False)
 
     parser.add_argument('--dataset_manifest', type=str, default=None, required=False, help='Path to dataset manifest')
     parser.add_argument('--audio_dir', type=str, default=None, required=False, help='Path to directory of audio files')
@@ -188,8 +189,10 @@ def main():
         print()
 
     # Measure error rate between onnx and pytorch transcipts
-    pt_onnx_wer = word_error_rate(all_hypothesis, actual_transcripts, use_cer=True)
-    print("Character error rate between Pytorch and ONNX :", pt_onnx_wer)
+    pt_onnx_cer = word_error_rate(all_hypothesis, actual_transcripts, use_cer=True)
+    assert pt_onnx_cer < args.threshold, "Threshold violation !"
+
+    print("Character error rate between Pytorch and ONNX :", pt_onnx_cer)
 
 
 if __name__ == '__main__':
