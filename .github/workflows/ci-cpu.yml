@@ -29,13 +29,18 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
+    - name: Get pip cache dir
+      id: pip-cache
+      run: |
+        echo "::set-output name=dir::$(pip cache dir)"
+
     - name: Cache python dependencies
       uses: actions/cache@v2
       env:
         cache-name: cache-packages
       with:
-        path: ${{ env.pythonLocation }}
-        key: ${{ env.pythonLocation }}-${{ matrix.container-ver }}
+        path: ${{ steps.pip-cache.outputs.dir }}
+        key: ${{ steps.pip-cache.outputs.dir }}-${{ matrix.container-ver }}
 
     - name: Check copyright headers
       run:  |
