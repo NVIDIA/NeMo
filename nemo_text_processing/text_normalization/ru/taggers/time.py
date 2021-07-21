@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,14 +13,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_DIGIT,
-    NEMO_SIGMA,
-    GraphFst,
-    convert_space,
-    delete_space,
-    insert_space,
-)
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SPACE, GraphFst
 from nemo_text_processing.text_normalization.ru.utils import get_abs_path
 
 try:
@@ -85,10 +77,33 @@ class TimeFst(GraphFst):
         minutes |= mins_exception_ends_rest @ number + pynutil.insert(" минуты")
         minutes |= mins_other @ number + pynutil.insert(" минут")
 
-        self.final_graph = hour.optimize() + pynini.cross(":", " ") + optional_and + minutes.optimize()
-        self.fst = pynutil.insert("hours: \"") + self.final_graph + pynutil.insert("\"")
+        # 17:15 -> "пятнадцать минут шестого"
+        self.m_next_h = (
+            pynutil.insert("hours: \"")
+            + pynini.compose(hour_options, increment_hour)
+            + pynutil.insert("\"")
+            + pynini.cross(":", " ")
+            + pynutil.insert("minutes: \"")
+            + minutes
+            + pynutil.insert("\"")
+        )
+        self.hm = (
+            pynutil.insert("hours: \"")
+            + hour.optimize()
+            + pynutil.insert("\"")
+            + (pynini.cross(":", " ") + pynutil.insert("minutes: \"") + optional_and + minutes.optimize())
+            + pynutil.insert("\"")
+            + pynutil.insert(" preserve_order: true")
+        )
+        self.h = pynutil.insert("hours: \"") + hour + pynutil.insert("\"") + pynutil.delete(":00")
+
+        self.fst = self.m_next_h | self.hm | self.h
         self.fst = self.add_tokens(self.fst)
         self.fst = self.fst.optimize()
+
+        # from pynini.lib.rewrite import top_rewrites
+        # import pdb; pdb.set_trace()
+        # print(top_rewrites("17:15", self.mins_next_hour, 5))
 
         # from pynini.lib.rewrite import top_rewrites
         # import pdb; pdb.set_trace()
@@ -132,14 +147,8 @@ class TimeFst(GraphFst):
         #     1,
         # )
         #
-        # # 2:30 pm, 02:30, 2:00
-        # graph_hm = (
-        #     final_graph_hour
-        #     + pynutil.delete(":")
-        #     + (pynutil.delete("00") | insert_space + final_graph_minute)
-        #     + final_suffix_optional
-        #     + final_time_zone_optional
-        # )
+        # 2:30 pm, 02:30, 2:00
+
         #
         # # 2.xx pm/am
         # graph_hm2 = (

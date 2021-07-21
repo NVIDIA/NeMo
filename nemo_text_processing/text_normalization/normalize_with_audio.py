@@ -114,7 +114,9 @@ class NormalizerWithAudio(Normalizer):
         else:
             tagged_texts = rewrite.top_rewrites(text, self.tagger.fst, nshortest=n_tagged)
         normalized_texts = []
+
         for tagged_text in tagged_texts:
+            print(tagged_text)
             self._verbalize(tagged_text, normalized_texts)
         if len(normalized_texts) == 0:
             raise ValueError()
@@ -143,6 +145,7 @@ class NormalizerWithAudio(Normalizer):
             tokens = self.parser.parse()
             tags_reordered = self.generate_permutations(tokens)
             for tagged_text_reordered in tags_reordered:
+                print('-->', tagged_text_reordered)
                 try:
                     normalized_texts.extend(get_verbalized_text(tagged_text_reordered))
                 except pynini.lib.rewrite.Error:
