@@ -376,7 +376,10 @@ class MTBottleneckModel(MTEncDecModel):
         mode = self.training
         try:
             self.eval()
-            src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
+            src_hiddens = self.perceiver(data=src.unsqueeze(-1), mask=src_mask.bool())
+
+            # FIXME: REMOVE ME
+            # src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
 
             z, _, _, bridge_mask = self.sample_z(
                 hidden=src_hiddens,
