@@ -64,17 +64,17 @@ class MTBottleneckModel(MTEncDecModel):
 
         self.perceiver = Perceiver(
             num_freq_bands=6,
-            depth=4,
+            depth=3,
             max_freq=10,
             freq_base=2,
             input_channels=1,
             input_axis=1,
-            num_latents=self.att_bridge_k,
+            num_latents=16,
             latent_dim=1024,
             cross_heads=16,
             latent_heads=16,
-            cross_dim_head=64,
-            latent_dim_head=64,
+            cross_dim_head=32,
+            latent_dim_head=32,
             num_classes=1000, # TODO: update me
             attn_dropout=0.1,
             ff_dropout=0.1,
