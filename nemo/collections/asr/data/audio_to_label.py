@@ -175,8 +175,6 @@ def _sliced_seq_collate_fn(self, batch):
             sig_len = sig_len.item()
             dur = sig_len / self.featurizer.sample_rate
             if len(sig) < slice_length:
-                # pad = (0, int(slice_length - sig_len))
-                # sig = torch.nn.functional.pad(sig, pad)
                 sig = repeat_signal(sig, sig_len, slice_length)
             audio_signal.append(sig)
             num_slices.append(1)

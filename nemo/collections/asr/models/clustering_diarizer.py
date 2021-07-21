@@ -170,7 +170,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         spk_dl_config = {
             'manifest_filepath': manifest_file,
             'sample_rate': self._cfg.sample_rate,
-            'batch_size': 1,
+            'batch_size': self._cfg.batch_size,
             'time_length': self._cfg.diarizer.speaker_embeddings.window_length_in_sec,
             'shift_length': self._cfg.diarizer.speaker_embeddings.shift_length_in_sec,
             'trim_silence': False,
@@ -251,26 +251,27 @@ class ClusteringDiarizer(Model, DiarizationMixin):
     def _extract_embeddings(self, manifest_file):
         logging.info("Extracting embeddings for Diarization")
         self._setup_spkr_test_data(manifest_file)
-        uniq_names = []
         out_embeddings = defaultdict(list)
         self._speaker_model = self._speaker_model.to(self._device)
         self._speaker_model.eval()
-        with open(manifest_file, 'r') as manifest:
-            for line in manifest.readlines():
-                line = line.strip()
-                dic = json.loads(line)
-                uniq_names.append(dic['audio_filepath'].split('/')[-1].rsplit('.', 1)[0])
 
-        for i, test_batch in enumerate(tqdm(self._speaker_model.test_dataloader())):
+        all_embs = []
+        for test_batch in tqdm(self._speaker_model.test_dataloader()):
             test_batch = [x.to(self._device) for x in test_batch]
             audio_signal, audio_signal_len, labels, slices = test_batch
             with autocast():
                 _, embs = self._speaker_model.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
                 emb_shape = embs.shape[-1]
-                embs = embs.view(-1, emb_shape).type(torch.float32)
-                embs = embs.cpu().detach().numpy()
-                out_embeddings[uniq_names[i]].extend(embs)
+                embs = embs.view(-1, emb_shape)
+                all_embs.extend(embs.cpu().detach().numpy())
             del test_batch
+
+        with open(manifest_file, 'r') as manifest:
+            for i, line in enumerate(manifest.readlines()):
+                line = line.strip()
+                dic = json.loads(line)
+                uniq_name = os.path.basename(dic['audio_filepath']).rsplit('.', 1)[0]
+                out_embeddings[uniq_name].extend([all_embs[i]])
 
         embedding_dir = os.path.join(self._speaker_dir, 'embeddings')
         if not os.path.exists(embedding_dir):
