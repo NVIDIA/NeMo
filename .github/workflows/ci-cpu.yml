@@ -14,14 +14,11 @@ jobs:
   ci-cpu:
     runs-on: ubuntu-latest
 
-    env:
-      container-ver: 21.06-py3
-
     strategy:
       fail-fast: true
       matrix:
         container-ver:
-          - ${{ env.container-ver }}
+          - 21.06-py3
 
     container:
       image: nvcr.io/nvidia/pytorch:${{ matrix.container-ver }}
@@ -38,7 +35,7 @@ jobs:
         cache-name: cache-packages
       with:
         path: ${{ env.pythonLocation }}
-        key: ${{ env.pythonLocation }}-${{ env.container-ver }}
+        key: ${{ env.pythonLocation }}-${{ matrix.container-ver }}
 
     - name: Check copyright headers
       run:  |
