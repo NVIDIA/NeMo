@@ -97,8 +97,7 @@ class CardinalFst(GraphFst):
             pynutil.delete(pynini.closure("0")) + pynini.difference(NEMO_DIGIT, "0") + pynini.closure(NEMO_DIGIT), "0"
         )
 
-        labels_exception = [num_to_word(x) for x in range(0, 13)]
-        graph_exception = pynini.union(*labels_exception)
+        graph_exception = pynini.project(pynini.union(graph_digit, graph_zero), 'input')
 
         graph = pynini.cdrewrite(pynutil.delete("y"), NEMO_SPACE, NEMO_SPACE, NEMO_SIGMA) @ graph
 
