@@ -349,7 +349,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             if not os.path.exists(self._speaker_manifest_path):
                 raise NotFoundError("Oracle VAD based manifest file not found")
 
-        self.sub_segments_manifest_path = os.path.join(self._speaker_dir, 'sub_segments.json')
+        self.sub_segments_manifest_path = os.path.join(os.getcwd(), 'sub_segments.json')
         self.sub_segments_manifest_path = segments_manifest_to_subsegments_manifest(
             segments_manifest_file=self._speaker_manifest_path,
             sub_segments_manifest_file=self.sub_segments_manifest_path,
