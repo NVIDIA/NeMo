@@ -162,12 +162,12 @@ class MTDataPreproc:
             self.encoder_tokenizer, self.decoder_tokenizer = self.get_enc_dec_tokenizers(
                 encoder_tokenizer_name=cfg.encoder_tokenizer.get('library'),
                 encoder_model_name=cfg.encoder.get('model_name'),
-                encoder_tokenizer_model=self.encoder_tokenizer_model,
+                encoder_tokenizer_model=getattr(self, "encoder_tokenizer_model", None),
                 encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0),
                 encoder_r2l=cfg.encoder_tokenizer.get('r2l', False),
                 decoder_tokenizer_name=cfg.decoder_tokenizer.get('library'),
                 decoder_model_name=cfg.decoder.get('model_name'),
-                decoder_tokenizer_model=self.decoder_tokenizer_model,
+                decoder_tokenizer_model=getattr(self, "decoder_tokenizer_model", None),
                 decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
                 decoder_r2l=cfg.decoder_tokenizer.get('r2l', False),
             )

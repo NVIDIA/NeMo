@@ -1,0 +1,26 @@
+acht uhr~08:00 Uhr
+acht uhr morgens~08:00 Uhr morgens
+acht uhr nachts~08:00 Uhr nachts
+acht uhr abends~20:00 Uhr abends
+vier und zwanzig uhr~24:00 Uhr
+zwei uhr nachmittags~14:00 Uhr nachmittags
+zwölf uhr mittags~12:00 Uhr mittags
+achtzehn uhr~18:00 Uhr
+acht uhr sieben~08:07 Uhr
+null uhr siebzehn~00:17 Uhr
+zwölf uhr nachts~12:00 Uhr nachts
+halb zwölf~11:30 Uhr
+drei viertel zwölf~11:45 Uhr
+dreiviertel zwölf~11:45 Uhr
+viertel vor zwölf~11:45 Uhr
+drei minuten vor zwölf~11:57 Uhr
+zweiundzwanzig vor zwölf~11:38 Uhr
+drei minuten nach zwölf~12:03 Uhr
+viertel nach zwölf~12:15 Uhr
+zehn nach zwölf~12:10 Uhr
+zehn vor zwölf~11:50 Uhr
+halb zwölf abends~23:30 Uhr abends
+halb zwölf abends~23:30 Uhr abends
+viertel zwölf abends~23:15 Uhr abends
+viertel vor zwölf abends~23:45 Uhr abends
+viertel nach zwölf nachts~12:15 Uhr nachts
