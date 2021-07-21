@@ -157,13 +157,14 @@ def _fixed_seq_collate_fn(self, batch):
     return audio_signal, audio_lengths, tokens, tokens_lengths
 
 
-def _sliced_seq_collate_fn(self, batch):
+def _sliced_seq_collate_fn(self, batch, masked=False):
     """collate batch of audio sig, audio len, tokens, tokens len
     Args:
         batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
             LongTensor):  A tuple of tuples of signal, signal lengths,
             encoded tokens, and encoded tokens length.  This collate func
             assumes the signals are 1d torch tensors (i.e. mono audio).
+        masked: Apply true lengths as input to speaker extractor for masking effect
     """
     slice_length = self.featurizer.sample_rate * self.time_length
     _, audio_lengths, _, tokens_lengths = zip(*batch)
@@ -179,6 +180,9 @@ def _sliced_seq_collate_fn(self, batch):
             audio_signal.append(sig)
             num_slices.append(1)
             tokens.append(1)
+        if masked:
+            audio_lengths.append(int(sig_len))
+        else:
             audio_lengths.append(int(slice_length))
 
     if has_audio:

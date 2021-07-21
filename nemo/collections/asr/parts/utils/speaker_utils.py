@@ -245,9 +245,8 @@ def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rt
     all_reference = []
     no_references = False
 
-    if torch.cuda.is_available():
-        cuda = True
-    else:
+    cuda = True
+    if not torch.cuda.is_available():
         logging.warning("cuda=False, using CPU for Eigen decompostion. This might slow down the clustering process.")
         cuda = False
 
@@ -395,8 +394,25 @@ def write_rttm2manifest(paths2audio_files, paths2rttm_files, manifest_file):
 
 
 def segments_manifest_to_subsegments_manifest(
-    segments_manifest_file: str, sub_segments_manifest_file: str = None, window: float = 1.5, shift: float = 0.75
+    segments_manifest_file: str,
+    sub_segments_manifest_file: str = None,
+    window: float = 1.5,
+    shift: float = 0.75,
+    min_subsegement_duration: float = 0.05,
 ):
+    """
+    Generate subsegments manifest from segments manifest file
+    Args
+    input:
+        segments_manifest file (str): path to segments manifest file, typically from VAD output
+        sub_segments_manifest_file (str): path to output sub segments manifest file (default (None) : writes to current working directory)
+        window (float): window length for segments to sub segments division
+        shift (float): hop length for sub segments shift 
+        min_subsegments_duration (float): exclude sub segments smaller than this duration value
+    
+    output:
+        returns path to subsegment manifest file
+    """
     if sub_segments_manifest_file is None:
         pwd = os.getcwd()
         sub_segments_manifest_file = os.path.join(pwd, 'sub_segments.json')
@@ -413,7 +429,7 @@ def segments_manifest_to_subsegments_manifest(
 
             for sub_segment in sub_segments:
                 start, dur = sub_segment
-                if dur > 0.5:
+                if dur > min_subsegement_duration:
                     meta = {"audio_filepath": audio, "offset": start, "duration": dur, "label": label}
                     json.dump(meta, sub_segments_manifest)
                     sub_segments_manifest.write("\n")
@@ -421,7 +437,18 @@ def segments_manifest_to_subsegments_manifest(
     return sub_segments_manifest_file
 
 
-def get_sub_time_segments(offset, window, shift, duration):
+def get_sub_time_segments(offset: float, window: float, shift: float, duration: float):
+    """
+    return sub segments from a segment of audio file
+    Args
+    input:
+        offset (float): start time of audio segment
+        window (float): window length for segments to sub segments division
+        shift (float): hop length for sub segments shift 
+        duration (float): duration of segment
+    output:
+        sub_segments (List[tuple[float, float]]): subsegments generated for the segments as list of tuple of start and duration of each sub segment
+    """
     sub_segments = []
     start = offset
     slice_end = start + duration
