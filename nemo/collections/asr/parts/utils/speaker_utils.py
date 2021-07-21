@@ -395,7 +395,7 @@ def write_rttm2manifest(paths2audio_files, paths2rttm_files, manifest_file):
 
 def segments_manifest_to_subsegments_manifest(
     segments_manifest_file: str,
-    sub_segments_manifest_file: str = None,
+    subsegments_manifest_file: str = None,
     window: float = 1.5,
     shift: float = 0.75,
     min_subsegment_duration: float = 0.05,
@@ -405,51 +405,51 @@ def segments_manifest_to_subsegments_manifest(
     Args
     input:
         segments_manifest file (str): path to segments manifest file, typically from VAD output
-        sub_segments_manifest_file (str): path to output sub segments manifest file (default (None) : writes to current working directory)
-        window (float): window length for segments to sub segments division
-        shift (float): hop length for sub segments shift 
-        min_subsegments_duration (float): exclude sub segments smaller than this duration value
+        subsegments_manifest_file (str): path to output subsegments manifest file (default (None) : writes to current working directory)
+        window (float): window length for segments to subsegments length
+        shift (float): hop length for subsegments shift 
+        min_subsegments_duration (float): exclude subsegments smaller than this duration value
     
     output:
         returns path to subsegment manifest file
     """
-    if sub_segments_manifest_file is None:
+    if subsegments_manifest_file is None:
         pwd = os.getcwd()
-        sub_segments_manifest_file = os.path.join(pwd, 'sub_segments.json')
+        subsegments_manifest_file = os.path.join(pwd, 'subsegments.json')
 
     with open(segments_manifest_file, 'r') as segments_manifest, open(
-        sub_segments_manifest_file, 'w'
-    ) as sub_segments_manifest:
+        subsegments_manifest_file, 'w'
+    ) as subsegments_manifest:
         segments = segments_manifest.readlines()
         for segment in segments:
             segment = segment.strip()
             dic = json.loads(segment)
             audio, offset, duration, label = dic['audio_filepath'], dic['offset'], dic['duration'], dic['label']
-            sub_segments = get_sub_time_segments(offset=offset, window=window, shift=shift, duration=duration)
+            subsegments = get_subsegments(offset=offset, window=window, shift=shift, duration=duration)
 
-            for sub_segment in sub_segments:
-                start, dur = sub_segment
+            for subsegment in subsegments:
+                start, dur = subsegment
                 if dur > min_subsegment_duration:
                     meta = {"audio_filepath": audio, "offset": start, "duration": dur, "label": label}
-                    json.dump(meta, sub_segments_manifest)
-                    sub_segments_manifest.write("\n")
+                    json.dump(meta, subsegments_manifest)
+                    subsegments_manifest.write("\n")
 
-    return sub_segments_manifest_file
+    return subsegments_manifest_file
 
 
-def get_sub_time_segments(offset: float, window: float, shift: float, duration: float):
+def get_subsegments(offset: float, window: float, shift: float, duration: float):
     """
-    return sub segments from a segment of audio file
+    return subsegments from a segment of audio file
     Args
     input:
         offset (float): start time of audio segment
-        window (float): window length for segments to sub segments division
-        shift (float): hop length for sub segments shift 
+        window (float): window length for segments to subsegments length
+        shift (float): hop length for subsegments shift 
         duration (float): duration of segment
     output:
-        sub_segments (List[tuple[float, float]]): subsegments generated for the segments as list of tuple of start and duration of each sub segment
+        subsegments (List[tuple[float, float]]): subsegments generated for the segments as list of tuple of start and duration of each subsegment
     """
-    sub_segments = []
+    subsegments = []
     start = offset
     slice_end = start + duration
     base = math.ceil((duration - window) / shift)
@@ -458,10 +458,10 @@ def get_sub_time_segments(offset: float, window: float, shift: float, duration: 
         end = start + window
         if end > slice_end:
             end = slice_end
-        sub_segments.append((start, end - start))
+        subsegments.append((start, end - start))
         start = offset + (slice_id + 1) * shift
 
-    return sub_segments
+    return subsegments
 
 
 def embedding_normalize(embs, use_std=False, eps=1e-10):
