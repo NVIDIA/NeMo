@@ -15,6 +15,7 @@
 
 from nemo_text_processing.inverse_text_normalization.es.graph_utils import GraphFst
 from nemo_text_processing.inverse_text_normalization.es.verbalizers.cardinal import CardinalFst
+from nemo_text_processing.inverse_text_normalization.es.verbalizers.date import DateFst
 from nemo_text_processing.inverse_text_normalization.es.verbalizers.decimal import DecimalFst
 from nemo_text_processing.inverse_text_normalization.es.verbalizers.electronic import ElectronicFst
 from nemo_text_processing.inverse_text_normalization.es.verbalizers.measure import MeasureFst
@@ -41,14 +42,14 @@ class VerbalizeFst(GraphFst):
         measure_graph = MeasureFst(decimal=decimal, cardinal=cardinal).fst
         money_graph = MoneyFst(decimal=decimal).fst
         time_graph = TimeFst().fst
-        # date_graph = DateFst().fst
+        date_graph = DateFst().fst
         # whitelist_graph = WhiteListFst().fst
         telephone_graph = TelephoneFst().fst
         electronic_graph = ElectronicFst().fst
 
         graph = (
             time_graph
-            # | date_graph
+            | date_graph
             | money_graph
             | measure_graph
             | ordinal_graph
