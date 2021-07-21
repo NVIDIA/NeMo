@@ -181,6 +181,24 @@ class ExportableEncDecJointModel(Exportable):
             format = self.get_format(output)
 
             # Assign special flag for RNNT export of encoder
+            if not hasattr(self.input_module, '_rnnt_export'):
+                raise ValueError(
+                    f"{self.input_module.__class__.__name__} must have a bool attribute `_rnnt_export`, "
+                    f"which is necessary for RNNT export."
+                )
+
+            if not hasattr(self.output_module, '_rnnt_export'):
+                raise ValueError(
+                    f"{self.output_module.__class__.__name__} must have a bool attribute `_rnnt_export`, "
+                    f"which is necessary for RNNT export."
+                )
+
+            if not hasattr(self.joint_module, '_rnnt_export'):
+                raise ValueError(
+                    f"{self.joint_module.__class__.__name__} must have a bool attribute `_rnnt_export`, "
+                    f"which is necessary for RNNT export."
+                )
+
             self.input_module._rnnt_export = True
             self.output_module._rnnt_export = True
             self.joint_module._rnnt_export = True
@@ -384,6 +402,7 @@ class ExportableEncDecJointModel(Exportable):
             )
 
             # replace forward method with original forward method
+
             type(self).forward = original_forward_method
 
             # Reset special flag for RNNT export of encoder

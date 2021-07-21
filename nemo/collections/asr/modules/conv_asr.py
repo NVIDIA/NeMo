@@ -81,9 +81,9 @@ class ConvASREncoder(NeuralModule, Exportable):
             A tuple of input examples.
         """
         input_example = torch.randn(1, self._feat_in, 8192).to(next(self.parameters()).device)
+        lens = torch.randint(0, input_example.shape[-1], size=(input_example.shape[0],))
 
-        if hasattr(self, '_rnnt_export') and self._rnnt_export:
-            lens = torch.randint(0, input_example.shape[-1], size=(input_example.shape[0],))
+        if self._rnnt_export:
             return tuple([input_example, lens])
         else:
             return tuple([input_example])
@@ -215,6 +215,9 @@ class ConvASREncoder(NeuralModule, Exportable):
 
         self.encoder = torch.nn.Sequential(*encoder_layers)
         self.apply(lambda x: init_weights(x, mode=init_mode))
+
+        # Flag needed for RNNT export support
+        self._rnnt_export = False
 
     @typecheck()
     def forward(self, audio_signal, length=None):

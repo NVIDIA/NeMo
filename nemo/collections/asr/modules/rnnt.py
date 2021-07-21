@@ -175,6 +175,9 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             dropout=dropout,
         )
 
+        # Flag needed for RNNT export support
+        self._rnnt_export = False
+
     @typecheck()
     def forward(self, targets, target_length, states=None):
         # y: (B, U)
@@ -182,7 +185,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         # state maintenance is unnecessary during training forward call
         # to get state, use .predict() method.
-        if hasattr(self, '_rnnt_export') and self._rnnt_export:
+        if self._rnnt_export:
             add_sos = False
         else:
             add_sos = True
@@ -720,6 +723,9 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
             activation=self.activation,
             dropout=dropout,
         )
+
+        # Flag needed for RNNT export support
+        self._rnnt_export = False
 
     @typecheck()
     def forward(
