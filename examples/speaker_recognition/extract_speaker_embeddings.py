@@ -93,7 +93,6 @@ def main():
             shuffle=False,
             time_length=20,
             embedding_dir=args.embedding_dir,
-            num_workers=0,
         )
     )
     speaker_model.setup_test_data(test_config)

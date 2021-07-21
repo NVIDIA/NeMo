@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import io
-import math
 import os
 from typing import Dict, List, Optional, Union
 
@@ -174,7 +173,6 @@ def _sliced_seq_collate_fn(self, batch, masked=False):
     for sig, sig_len, tokens_i, _ in batch:
         if has_audio:
             sig_len = sig_len.item()
-            dur = sig_len / self.featurizer.sample_rate
             if len(sig) < slice_length:
                 sig = repeat_signal(sig, sig_len, slice_length)
             audio_signal.append(sig)

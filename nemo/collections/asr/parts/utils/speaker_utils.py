@@ -304,7 +304,7 @@ def get_DER(all_reference, all_hypothesis):
     collar in md-eval.pl, 0.5s should be applied for pyannote.metrics.
 
     """
-    metric = DiarizationErrorRate(collar=0.5, skip_overlap=True)
+    metric = DiarizationErrorRate(collar=0.5, skip_overlap=True, uem=None)
 
     for reference, hypothesis in zip(all_reference, all_hypothesis):
         metric(reference, hypothesis, detailed=True)
@@ -398,7 +398,7 @@ def segments_manifest_to_subsegments_manifest(
     sub_segments_manifest_file: str = None,
     window: float = 1.5,
     shift: float = 0.75,
-    min_subsegement_duration: float = 0.05,
+    min_subsegment_duration: float = 0.05,
 ):
     """
     Generate subsegments manifest from segments manifest file
@@ -429,7 +429,7 @@ def segments_manifest_to_subsegments_manifest(
 
             for sub_segment in sub_segments:
                 start, dur = sub_segment
-                if dur > min_subsegement_duration:
+                if dur > min_subsegment_duration:
                     meta = {"audio_filepath": audio, "offset": start, "duration": dur, "label": label}
                     json.dump(meta, sub_segments_manifest)
                     sub_segments_manifest.write("\n")
