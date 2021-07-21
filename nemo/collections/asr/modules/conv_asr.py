@@ -24,6 +24,7 @@ from nemo.collections.asr.parts.submodules.jasper import (
     JasperBlock,
     MaskedConv1d,
     ParallelBlock,
+    SqueezeExcite,
     init_weights,
     jasper_activations,
 )
@@ -62,8 +63,14 @@ class ConvASREncoder(NeuralModule, Exportable):
         m_count = 0
         for m in self.modules():
             if isinstance(m, MaskedConv1d):
-                m.use_mask = False
-                m_count += 1
+                if self._rnnt_export:
+                    pass
+                else:
+                    m.use_mask = False
+                    m_count += 1
+            if isinstance(m, SqueezeExcite):
+                m._se_pool_step = m._se_pool_step_export
+
         Exportable._prepare_for_export(self, **kwargs)
         logging.warning(f"Turned off {m_count} masked convolutions")
 
@@ -73,18 +80,29 @@ class ConvASREncoder(NeuralModule, Exportable):
         Returns:
             A tuple of input examples.
         """
-        input_example = torch.randn(16, self._feat_in, 256).to(next(self.parameters()).device)
-        return tuple([input_example])
+        input_example = torch.randn(1, self._feat_in, 8192).to(next(self.parameters()).device)
+        lens = torch.randint(0, input_example.shape[-1], size=(input_example.shape[0],))
+
+        if self._rnnt_export:
+            return tuple([input_example, lens])
+        else:
+            return tuple([input_example])
 
     @property
     def disabled_deployment_input_names(self):
         """Implement this method to return a set of input names disabled for export"""
-        return set(["length"])
+        if self._rnnt_export:
+            return set([])
+        else:
+            return set(["length"])
 
     @property
     def disabled_deployment_output_names(self):
         """Implement this method to return a set of output names disabled for export"""
-        return set(["encoded_lengths"])
+        if self._rnnt_export:
+            return set([])
+        else:
+            return set(["encoded_lengths"])
 
     def save_to(self, save_path: str):
         pass
@@ -197,6 +215,9 @@ class ConvASREncoder(NeuralModule, Exportable):
 
         self.encoder = torch.nn.Sequential(*encoder_layers)
         self.apply(lambda x: init_weights(x, mode=init_mode))
+
+        # Flag needed for RNNT export support
+        self._rnnt_export = False
 
     @typecheck()
     def forward(self, audio_signal, length=None):
@@ -522,13 +543,13 @@ class ECAPAEncoder(NeuralModule, Exportable):
 
     input:
         feat_in: input feature shape (mel spec feature shape)
-        filters: list of filter shapes for SE_TDNN modules 
+        filters: list of filter shapes for SE_TDNN modules
         kernel_sizes: list of kernel shapes for SE_TDNN modules
         dilations: list of dilations for group conv se layer
         scale: scale value to group wider conv channels (deafult:8)
-    
+
     output:
-        outputs : encoded output 
+        outputs : encoded output
         output_length: masked output lengths
     """
 

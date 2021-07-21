@@ -17,6 +17,7 @@ from typing import Callable, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch import Tensor
 from torch.nn.init import _calculate_correct_fan
 from torch.nn.modules.utils import _single
@@ -162,6 +163,36 @@ def get_asymtric_padding(kernel_size, stride, dilation, future_context):
     return (left_context, right_context)
 
 
+@torch.jit.script
+def _se_pool_step_export(x, context_window_tensor):
+    timesteps = x.shape[-1]
+    if timesteps < context_window_tensor:
+        y = F.adaptive_avg_pool1d(x, 1)
+    elif context_window_tensor < 0:
+        y = F.adaptive_avg_pool1d(x, 1)
+    else:
+        y = F.avg_pool1d(x, int(context_window_tensor), 1)  # [B, C, T - context_window + 1]
+    return y
+
+
+@torch.jit.script
+def _se_context_upsample(y: torch.Tensor, timesteps: int, interpolation_mode: str, context_window: torch.Tensor):
+    if context_window > 0:
+        y = torch.nn.functional.interpolate(y, size=timesteps, mode=interpolation_mode)
+    return y
+
+
+@torch.jit.script
+def _masked_conv_init_lens(lens: torch.Tensor, current_maxlen: int, original_maxlen: torch.Tensor):
+    if current_maxlen > original_maxlen:
+        new_lens = torch.arange(current_maxlen)
+        new_max_lens = torch.tensor(current_maxlen)
+    else:
+        new_lens = lens
+        new_max_lens = original_maxlen
+    return new_lens, new_max_lens
+
+
 class MaskedConv1d(nn.Module):
     __constants__ = ["use_conv_mask", "real_out_channels", "heads"]
 
@@ -245,8 +276,8 @@ class MaskedConv1d(nn.Module):
         # `self.lens` caches consecutive integers from 0 to `self.max_len` that are used to compute the mask for a
         # batch. Recomputed to bigger size as needed. Stored on a device of the latest batch lens.
         if self.use_mask:
-            self.max_len = 0
-            self.lens = None
+            self.max_len = torch.tensor(0)
+            self.lens = torch.tensor(0)
 
     def get_seq_len(self, lens):
         if self.same_padding or self.same_padding_asymmetric:
@@ -263,15 +294,7 @@ class MaskedConv1d(nn.Module):
 
     def forward(self, x, lens):
         if self.use_mask:
-            max_len = x.size(2)
-            if max_len > self.max_len:
-                self.lens = torch.arange(max_len)
-                self.max_len = max_len
-
-            self.lens = self.lens.to(lens.device)
-            mask = self.lens[:max_len].unsqueeze(0) < lens.unsqueeze(1)
-            x = x * mask.unsqueeze(1).to(device=x.device)
-            lens = self.get_seq_len(lens)
+            x, lens = self.update_masked_length(x, lens)
 
         # asymmtric pad if necessary
         if self.pad_layer is not None:
@@ -287,6 +310,15 @@ class MaskedConv1d(nn.Module):
             out = out.view(sh[0], self.real_out_channels, -1)
 
         return out, lens
+
+    def update_masked_length(self, x, lens):
+        max_len = x.size(2)
+        self.lens, self.max_len = _masked_conv_init_lens(self.lens, max_len, self.max_len)
+        self.lens = self.lens.to(lens.device)
+        mask = self.lens[:max_len].unsqueeze(0) < lens.unsqueeze(1)
+        x = x * mask.unsqueeze(1).to(device=x.device)
+        lens = self.get_seq_len(lens)
+        return x, lens
 
 
 class GroupShuffle(nn.Module):
@@ -369,19 +401,26 @@ class SqueezeExcite(nn.Module):
         # Computes in float32 to avoid instabilities during training with AMP.
         with torch.cuda.amp.autocast(enabled=False):
             x = x.float()
-            if timesteps < self.context_window:
-                y = self.gap(x)
-            else:
-                y = self.pool(x)  # [B, C, T - context_window + 1]
+            y = self._se_pool_step(x, timesteps)
             y = y.transpose(1, -1)  # [B, T - context_window + 1, C]
             y = self.fc(y)  # [B, T - context_window + 1, C]
             y = y.transpose(1, -1)  # [B, C, T - context_window + 1]
 
-        if self.context_window > 0:
-            y = torch.nn.functional.interpolate(y, size=timesteps, mode=self.interpolation_mode)
+        y = _se_context_upsample(y, timesteps, self.interpolation_mode, self.context_window_tensor)
 
         y = torch.sigmoid(y)
         return x * y
+
+    def _se_pool_step(self, x, timesteps):
+        if timesteps < self.context_window_tensor:
+            y = self.gap(x)
+        else:
+            y = self.pool(x)  # [B, C, T - context_window + 1]
+        return y
+
+    def _se_pool_step_export(self, x, timesteps):
+        y = _se_pool_step_export(x, self.context_window_tensor)
+        return y
 
     def change_context_window(self, context_window: int):
         """
@@ -405,6 +444,7 @@ class SqueezeExcite(nn.Module):
             logging.info(f"Changing Squeeze-Excitation context window from {self.context_window} to {context_window}")
 
         self.context_window = int(context_window)
+        self.context_window_tensor = torch.tensor(context_window, dtype=torch.int32)
 
         if self.context_window <= 0:
             if PYTORCH_QUANTIZATION_AVAILABLE and self._quantize:
