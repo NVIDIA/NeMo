@@ -64,7 +64,7 @@ class MTBottleneckModel(MTEncDecModel):
 
         self.perceiver = Perceiver(
             num_freq_bands=6,
-            depth=3,
+            depth=2,
             max_freq=10,
             freq_base=2,
             input_channels=1,
