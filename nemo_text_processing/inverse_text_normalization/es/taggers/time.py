@@ -56,26 +56,23 @@ class TimeFst(GraphFst):
         graph_teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv"))
         graph_twenties = pynini.string_file(get_abs_path("data/numbers/twenties.tsv"))
 
-        single_digits = graph_digit | pynini.cross("0", "cero")
-
-        double_digits = pynini.union(
+        graph_1_to_100 = pynini.union(
+            graph_digit,
             graph_twenties,
             graph_teen,
             (graph_ties + pynutil.insert("0")),
             (graph_ties + pynutil.delete(" y ") + graph_digit),
         )
 
-        graph_0_to_100 = pynini.union(single_digits, double_digits)
-
         # note that making graph_hours starting from 2 hours
         # "1 o'clock" will be treated differently because it
         # is singular
-        digits_2_to_24 = [str(digits) for digits in range(2, 24)]
-        digits_1_to_60 = [str(digits) for digits in range(1, 60)]
+        digits_2_to_23 = [str(digits) for digits in range(2, 24)]
+        digits_1_to_59 = [str(digits) for digits in range(1, 60)]
 
         graph_1oclock = pynini.cross("la una", "la 1")
-        graph_hour = pynini.cross("las ", "las ") + graph_0_to_100 @ pynini.union(*digits_2_to_24)
-        graph_minute = graph_0_to_100 @ pynini.union(*digits_1_to_60)
+        graph_hour = pynini.cross("las ", "las ") + graph_1_to_100 @ pynini.union(*digits_2_to_23)
+        graph_minute = graph_1_to_100 @ pynini.union(*digits_1_to_59)
         graph_minute_verbose = pynini.cross("media", "30") | pynini.cross("cuarto", "15")
 
         final_graph_hour = pynutil.insert("hours: \"") + (graph_1oclock | graph_hour) + pynutil.insert("\"")

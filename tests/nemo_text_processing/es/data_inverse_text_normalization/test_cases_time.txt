@@ -1,7 +1,5 @@
-las nueve y veinticinco~las 9:25
-las nueve veinticinco~las 9:25
-las dieciséis y cincuenta~las 16:50
 las dieciséis cincuenta~las 16:50
+la una~la una
 la una y diez~la 1:10
 la una diez~la 1:10
 la una con diez~la 1:10
@@ -11,3 +9,6 @@ las dos menos veinte~la 1:40
 las dos menos cuarto~la 1:45
 cuarto para las dos~la 1:45
 un cuarto para las dos~la 1:45
+las dos~las dos
+las veintitrés y media~las 23:30
+las veintitrés y cincuenta y nueve~las 23:59
