@@ -54,9 +54,7 @@ class DateFst(GraphFst):
         )
 
         # day month
-        graph_dm = (
-            day + delete_extra_space + pynutil.insert("de") + insert_space + month
-        )
+        graph_dm = day + delete_extra_space + pynutil.insert("de") + insert_space + month
 
         optional_preserve_order = pynini.closure(
             pynutil.delete("preserve_order:") + delete_space + pynutil.delete("true") + delete_space
