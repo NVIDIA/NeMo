@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import io
-import math
 import os
 from typing import Dict, List, Optional, Union
 
@@ -39,8 +38,8 @@ def repeat_signal(signal, sig_len, required_length):
     Returns:
         signal (FloatTensor): generated signal of required_length by repeating itself.
     """
-    repeat = required_length // sig_len
-    rem = required_length % sig_len
+    repeat = int(required_length // sig_len)
+    rem = int(required_length % sig_len)
     sub = signal[-rem:] if rem > 0 else torch.tensor([])
     rep_sig = torch.cat(repeat * [signal])
     signal = torch.cat((rep_sig, sub))
@@ -157,46 +156,39 @@ def _fixed_seq_collate_fn(self, batch):
     return audio_signal, audio_lengths, tokens, tokens_lengths
 
 
-def _sliced_seq_collate_fn(self, batch):
+def _sliced_seq_collate_fn(self, batch, masked=False):
     """collate batch of audio sig, audio len, tokens, tokens len
     Args:
         batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
             LongTensor):  A tuple of tuples of signal, signal lengths,
             encoded tokens, and encoded tokens length.  This collate func
             assumes the signals are 1d torch tensors (i.e. mono audio).
+        masked: Apply true lengths as input to speaker extractor for masking effect
     """
     slice_length = self.featurizer.sample_rate * self.time_length
     _, audio_lengths, _, tokens_lengths = zip(*batch)
-    shift = self.shift_length * self.featurizer.sample_rate
     has_audio = audio_lengths[0] is not None
 
     audio_signal, num_slices, tokens, audio_lengths = [], [], [], []
     for sig, sig_len, tokens_i, _ in batch:
         if has_audio:
             sig_len = sig_len.item()
-            dur = sig_len / self.featurizer.sample_rate
-            base = math.ceil((dur - self.time_length) / self.shift_length)
-            slice_length = int(slice_length)
-            shift = int(shift)
-            slices = 1 if base < 0 else base + 1
-            for slice_id in range(slices):
-                start_idx = slice_id * shift
-                end_idx = start_idx + slice_length
-                signal = sig[start_idx:end_idx]
-                if len(signal) < slice_length:
-                    signal = repeat_signal(signal, len(signal), slice_length)
-                audio_signal.append(signal)
-
-            num_slices.append(slices)
-            tokens.extend([tokens_i] * slices)
-            audio_lengths.extend([slice_length] * slices)
+            if len(sig) < slice_length:
+                sig = repeat_signal(sig, sig_len, slice_length)
+            audio_signal.append(sig)
+            num_slices.append(1)
+            tokens.append(1)
+        if masked:
+            audio_lengths.append(int(sig_len))
+        else:
+            audio_lengths.append(int(slice_length))
 
     if has_audio:
         audio_signal = torch.stack(audio_signal)
         audio_lengths = torch.tensor(audio_lengths)
     else:
         audio_signal, audio_lengths = None, None
-    tokens = torch.stack(tokens)
+    tokens = torch.tensor(tokens)
     tokens_lengths = torch.tensor(num_slices)  # each embedding length
 
     return audio_signal, audio_lengths, tokens, tokens_lengths

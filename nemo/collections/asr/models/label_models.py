@@ -120,7 +120,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         if self.task == 'diarization':
             logging.info("Setting up diarization parameters")
             _collate_func = self.dataset.sliced_seq_collate_fn
-            batch_size = 1
+            batch_size = config['batch_size']
             shuffle = False
         else:
             logging.info("Setting up identification parameters")
