@@ -393,7 +393,7 @@ class AppState(metaclass=Singleton):
 
     @model_is_restored.setter
     def model_is_restored(self, is_restored: bool):
-        self.model_is_restored = is_restored
+        self._model_is_restored = is_restored
 
     @property
     def nemo_file_folder(self) -> str:

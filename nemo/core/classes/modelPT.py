@@ -341,6 +341,7 @@ class ModelPT(LightningModule, Model):
         map_location: Optional[torch.device] = None,
         strict: bool = True,
         return_config: bool = False,
+        save_restore_connector: SaveRestoreConnector = SaveRestoreConnector,
     ):
         """
         Restores model instance (weights and configuration) from .nemo file.
@@ -369,7 +370,8 @@ class ModelPT(LightningModule, Model):
             raise FileNotFoundError(f"Can't find {restore_path}")
 
         app_state.model_restore_path = os.path.abspath(os.path.expanduser(restore_path))
-        return cls.save_restore_connector._default_restore_from(
+        cls.update_save_restore_connector(save_restore_connector(cls))
+        return cls._save_restore_connector._default_restore_from(
             restore_path, override_config_path, map_location, strict, return_config
         )
 
@@ -1284,3 +1286,10 @@ class ModelPT(LightningModule, Model):
                     return True
             else:
                 return False
+
+    @classmethod
+    def update_save_restore_connector(cls, save_restore_connector):
+        if hasattr(cls, '_save_restore_connector'):
+            cls._save_restore_connector = save_restore_connector
+        else:
+            setattr(cls, '_save_restore_connector', save_restore_connector)
