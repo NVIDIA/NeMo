@@ -148,6 +148,10 @@ def main(cfg: TranscriptionConfig):
 
     logging.info(f"Writing transcriptions into file: {cfg.output_filename}")
 
+    # if transcriptions form a tuple (from RNNT), extract just "best" hypothesis
+    if type(transcriptions) == tuple and len(transcriptions) == 2:
+        transcriptions = transcriptions[0]
+
     with open(cfg.output_filename, 'w', encoding='utf-8') as f:
         if cfg.audio_dir is not None:
             for idx, text in enumerate(transcriptions):
