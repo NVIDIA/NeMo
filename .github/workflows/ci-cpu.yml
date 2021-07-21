@@ -17,11 +17,11 @@ jobs:
 
     strategy:
       matrix:
-        container: [ ${{ env.container-ver }} ]
+        container-ver: [ ${{ env.container-ver }} ]
       fail-fast: true
 
     container:
-      image: nvcr.io/nvidia/pytorch:${{ matrix.container }}
+      image: nvcr.io/nvidia/pytorch:${{ matrix.container-ver }}
       credentials:
         username: ${{ secrets.nvcr_user }}
         password: ${{ secrets.nvcr_token }}
