@@ -353,9 +353,17 @@ class AppState(metaclass=Singleton):
     def model_config_yaml(self):
         return self._model_config_yaml
 
+    @model_config_yaml.setter
+    def model_config_yaml(self, path: str):
+        self._model_config_yaml = path
+
     @property
     def model_weights_ckpt(self):
         return self._model_weights_ckpt
+
+    @model_weights_ckpt.setter
+    def model_weights_ckpt(self, path: str):
+        self._model_weights_ckpt = path
 
     @property
     def model_restore_path(self):
