@@ -1,0 +1,67 @@
+name: CI-CPU
+
+env:
+  container-ver: 21.06-py3
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  ci-cpu:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        container: [ ${{ env.container-ver }} ]
+      fail-fast: true
+
+    container:
+      image: nvcr.io/nvidia/pytorch:${{ matrix.container }}
+      credentials:
+        username: ${{ secrets.nvcr_user }}
+        password: ${{ secrets.nvcr_token }}
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Cache python dependencies
+      uses: actions/cache@v2
+      env:
+        cache-name: cache-packages
+      with:
+        path: ${{ env.pythonLocation }}
+        key: ${{ env.pythonLocation }}-${{ env.container-ver }}
+
+    - name: Check copyright headers
+      run:  |
+        python tests/check_copyright_header.py --dir .
+
+    - name: Check style
+      run: |
+        python setup.py style
+
+    - name: Install dependencies
+      run: |
+        # install test requirements
+        pip install -r requirements/requirements_test.txt
+
+        # Install nemo requirements
+        for f in $(ls requirements/requirements*.txt); do pip install --disable-pip-version-check -r $f; done
+
+        # Install ITN requirements
+        /bin/bash nemo_text_processing/setup.sh
+
+        # Install NeMo
+        pip install ".[all]"
+
+        # Update Conda
+        conda install -c numba numba=0.53.1 -y
+
+    - name: CPU Tests
+      run: |
+        pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
