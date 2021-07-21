@@ -63,7 +63,7 @@ class ConvASREncoder(NeuralModule, Exportable):
         m_count = 0
         for m in self.modules():
             if isinstance(m, MaskedConv1d):
-                if hasattr(self, '_rnnt_export') and self._rnnt_export:
+                if self._rnnt_export:
                     pass
                 else:
                     m.use_mask = False
@@ -91,7 +91,7 @@ class ConvASREncoder(NeuralModule, Exportable):
     @property
     def disabled_deployment_input_names(self):
         """Implement this method to return a set of input names disabled for export"""
-        if hasattr(self, '_rnnt_export') and self._rnnt_export:
+        if self._rnnt_export:
             return set([])
         else:
             return set(["length"])
@@ -99,7 +99,7 @@ class ConvASREncoder(NeuralModule, Exportable):
     @property
     def disabled_deployment_output_names(self):
         """Implement this method to return a set of output names disabled for export"""
-        if hasattr(self, '_rnnt_export') and self._rnnt_export:
+        if self._rnnt_export:
             return set([])
         else:
             return set(["encoded_lengths"])
