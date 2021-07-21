@@ -17,7 +17,8 @@ jobs:
 
     strategy:
       matrix:
-        container-ver: [ ${{ env.container-ver }} ]
+        container-ver:
+          - ${{ env.container-ver }}
       fail-fast: true
 
     container:
