@@ -71,4 +71,4 @@ jobs:
 
     - name: CPU Tests
       run: |
-        pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat
+        pytest -m "not pleasefixme" --cpu --relax_numba_compat
