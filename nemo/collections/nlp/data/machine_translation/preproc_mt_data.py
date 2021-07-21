@@ -164,10 +164,12 @@ class MTDataPreproc:
                 encoder_model_name=cfg.encoder.get('model_name'),
                 encoder_tokenizer_model=self.encoder_tokenizer_model,
                 encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0),
+                encoder_r2l=cfg.encoder_tokenizer.get('r2l', False),
                 decoder_tokenizer_name=cfg.decoder_tokenizer.get('library'),
                 decoder_model_name=cfg.decoder.get('model_name'),
                 decoder_tokenizer_model=self.decoder_tokenizer_model,
                 decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
+                decoder_r2l=cfg.decoder_tokenizer.get('r2l', False),
             )
 
             # If using tarred dataset for training, automatically create it if needed
@@ -185,7 +187,7 @@ class MTDataPreproc:
                             f"Creating tarred dataset for src: {cfg.train_ds.get('src_file_name')} and tgt: {cfg.train_ds.get('tgt_file_name')}"
                         )
 
-                    if not cfg.get('multilingual'):
+                    if isinstance(cfg.train_ds.get('src_file_name'), str):
                         src_file_list = [cfg.train_ds.get('src_file_name')]
                         tgt_file_list = [cfg.train_ds.get('tgt_file_name')]
                         outdir_list = [cfg.get('preproc_out_dir')]
@@ -196,10 +198,6 @@ class MTDataPreproc:
                             langs = cfg.get('src_language')
                         elif isinstance(cfg.get('tgt_language'), ListConfig):
                             langs = cfg.get('tgt_language')
-                        else:
-                            raise ValueError(
-                                "Expect either cfg.src_language or cfg.tgt_language to be a list when multilingual=True."
-                            )
                         outdir_list = []
                         for lang in langs:
                             outdir_list.append(os.path.join(cfg.get('preproc_out_dir'), lang))
@@ -221,10 +219,12 @@ class MTDataPreproc:
                             encoder_model_name=cfg.encoder.get('model_name'),
                             encoder_tokenizer_model=self.encoder_tokenizer_model,
                             encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0),
+                            encoder_tokenizer_r2l=cfg.encoder_tokenizer.get('r2l', False),
                             decoder_tokenizer_name=cfg.decoder_tokenizer.get('library'),
                             decoder_model_name=cfg.decoder.get('model_name'),
                             decoder_tokenizer_model=self.decoder_tokenizer_model,
                             decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
+                            decoder_tokenizer_r2l=cfg.decoder_tokenizer.get('r2l', False),
                             max_seq_length=cfg.train_ds.get('max_seq_length', 512),
                             tokens_in_batch=cfg.train_ds.get('tokens_in_batch', 8192),
                             lines_per_dataset_fragment=cfg.train_ds.get('lines_per_dataset_fragment', 1000000),
@@ -239,7 +239,7 @@ class MTDataPreproc:
                     # update config
                     # self._cfg.train_ds.tar_files = self.tar_files_to_string(self.train_tar_files)
                     # self._cfg.train_ds.tar_files = self.train_tar_files
-                    if not cfg.get('multilingual'):
+                    if isinstance(cfg.train_ds.get('metadata_file'), str):
                         self._cfg.train_ds.metadata_file = metadata_file_list[0]
                     else:
                         self._cfg.train_ds.metadata_file = metadata_file_list
@@ -291,10 +291,12 @@ class MTDataPreproc:
         encoder_tokenizer_model=None,
         encoder_bpe_dropout=0.0,
         encoder_model_name=None,
+        encoder_r2l=False,
         decoder_tokenizer_name=None,
         decoder_tokenizer_model=None,
         decoder_bpe_dropout=0.0,
         decoder_model_name=None,
+        decoder_r2l=False,
     ):
 
         # if encoder_tokenizer_name != 'yttm' or decoder_tokenizer_name != 'yttm':
@@ -311,12 +313,14 @@ class MTDataPreproc:
             model_name=encoder_model_name,
             tokenizer_model=encoder_tokenizer_model,
             bpe_dropout=encoder_bpe_dropout,
+            r2l=encoder_r2l,
         )
         decoder_tokenizer = get_nmt_tokenizer(
             library=decoder_tokenizer_name,
             model_name=decoder_model_name,
             tokenizer_model=decoder_tokenizer_model,
             bpe_dropout=decoder_bpe_dropout,
+            r2l=decoder_r2l,
         )
 
         return encoder_tokenizer, decoder_tokenizer
@@ -346,12 +350,14 @@ class MTDataPreproc:
         out_dir,
         encoder_tokenizer_name,
         encoder_tokenizer_model,
+        encoder_tokenizer_r2l,
         encoder_bpe_dropout,
         encoder_model_name,
         decoder_tokenizer_name,
         decoder_tokenizer_model,
         decoder_bpe_dropout,
         decoder_model_name,
+        decoder_tokenizer_r2l,
         max_seq_length,
         min_seq_length,
         tokens_in_batch,
@@ -425,6 +431,8 @@ class MTDataPreproc:
                         decoder_bpe_dropout=decoder_bpe_dropout,
                         decoder_model_name=decoder_model_name,
                         fragment_index=fragment_index,
+                        encoder_tokenizer_r2l=encoder_tokenizer_r2l,
+                        decoder_tokenizer_r2l=decoder_tokenizer_r2l,
                     )
                     for fragment_index, lines_indices in enumerate(lines_partition)
                 )
@@ -533,10 +541,12 @@ class MTDataPreproc:
         encoder_tokenizer_model,
         encoder_bpe_dropout,
         encoder_model_name,
+        encoder_tokenizer_r2l,
         decoder_tokenizer_name,
         decoder_tokenizer_model,
         decoder_bpe_dropout,
         decoder_model_name,
+        decoder_tokenizer_r2l,
         fragment_index,
     ):
         start = lines_indices[0]
@@ -569,10 +579,12 @@ class MTDataPreproc:
             encoder_tokenizer_model=encoder_tokenizer_model,
             encoder_bpe_dropout=encoder_bpe_dropout,
             encoder_model_name=encoder_model_name,
+            encoder_tokenizer_r2l=encoder_tokenizer_r2l,
             decoder_tokenizer_name=decoder_tokenizer_name,
             decoder_tokenizer_model=decoder_tokenizer_model,
             decoder_bpe_dropout=decoder_bpe_dropout,
             decoder_model_name=decoder_model_name,
+            decoder_tokenizer_r2l=decoder_tokenizer_r2l,
             fragment_index=fragment_index,
         )
 
@@ -890,12 +902,14 @@ class MTDataPreproc:
         num_tokens,
         encoder_tokenizer_name,
         encoder_tokenizer_model,
+        encoder_tokenizer_r2l,
         encoder_bpe_dropout,
         encoder_model_name,
         decoder_tokenizer_name,
         decoder_tokenizer_model,
         decoder_bpe_dropout,
         decoder_model_name,
+        decoder_tokenizer_r2l,
         fragment_index,
     ):
         """
@@ -919,14 +933,16 @@ class MTDataPreproc:
             use_cache=False,
         )
         encoder_tokenizer, decoder_tokenizer = MTDataPreproc.get_enc_dec_tokenizers(
-            encoder_tokenizer_name,
-            encoder_tokenizer_model,
-            encoder_bpe_dropout,
-            encoder_model_name,
-            decoder_tokenizer_name,
-            decoder_tokenizer_model,
-            decoder_bpe_dropout,
-            decoder_model_name,
+            encoder_tokenizer_name=encoder_tokenizer_name,
+            encoder_tokenizer_model=encoder_tokenizer_model,
+            encoder_bpe_dropout=encoder_bpe_dropout,
+            encoder_model_name=encoder_model_name,
+            encoder_r2l=encoder_tokenizer_r2l,
+            decoder_tokenizer_name=decoder_tokenizer_name,
+            decoder_tokenizer_model=decoder_tokenizer_model,
+            decoder_bpe_dropout=decoder_bpe_dropout,
+            decoder_model_name=decoder_model_name,
+            decoder_r2l=decoder_tokenizer_r2l,
         )
         dataset.batchify(encoder_tokenizer, decoder_tokenizer)
 

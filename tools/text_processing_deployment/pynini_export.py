@@ -19,11 +19,6 @@ import time
 from argparse import ArgumentParser
 from typing import Dict
 
-from nemo_text_processing.inverse_text_normalization.taggers.tokenize_and_classify import ClassifyFst as ITNClassifyFst
-from nemo_text_processing.inverse_text_normalization.verbalizers.verbalize import VerbalizeFst as ITNVerbalizeFst
-from nemo_text_processing.text_normalization.taggers.tokenize_and_classify import ClassifyFst as TNClassifyFst
-from nemo_text_processing.text_normalization.verbalizers.verbalize import VerbalizeFst as TNVerbalizeFst
-
 from nemo.utils import logging
 
 try:
@@ -97,6 +92,7 @@ def export_grammars(output_dir, grammars):
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--output_dir", help="output directory for grammars", required=True, type=str)
+    parser.add_argument("--language", help="language", choices=["en"], type=str, default='en')
     parser.add_argument(
         "--grammars", help="grammars to be exported", choices=["tn_grammars", "itn_grammars"], type=str, required=True
     )
@@ -108,4 +104,15 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
+    if args.language == 'en':
+        from nemo_text_processing.inverse_text_normalization.en.taggers.tokenize_and_classify import (
+            ClassifyFst as ITNClassifyFst,
+        )
+        from nemo_text_processing.inverse_text_normalization.en.verbalizers.verbalize import (
+            VerbalizeFst as ITNVerbalizeFst,
+        )
+        from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify import (
+            ClassifyFst as TNClassifyFst,
+        )
+        from nemo_text_processing.text_normalization.en.verbalizers.verbalize import VerbalizeFst as TNVerbalizeFst
     export_grammars(output_dir=args.output_dir, grammars=locals()[args.grammars](input_case=args.input_case))
