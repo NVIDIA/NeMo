@@ -1,8 +1,5 @@
 name: CI-CPU
 
-env:
-  container-ver: 21.06-py3
-
 on:
   push:
     branches:
@@ -18,16 +15,16 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      container-url-main: nvcr.io/nvidia/pytorch:${{ env.container-ver }}
+      container-ver: 21.06-py3
 
     strategy:
       fail-fast: true
       matrix:
         container-ver:
-          - ${{ env.container-url-main }}
+          - ${{ env.container-ver }}
 
     container:
-      image: ${{ matrix.container-ver }}
+      image: nvcr.io/nvidia/pytorch:${{ matrix.container-ver }}
       credentials:
         username: ${{ secrets.nvcr_user }}
         password: ${{ secrets.nvcr_token }}
