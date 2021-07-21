@@ -170,7 +170,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         spk_dl_config = {
             'manifest_filepath': manifest_file,
             'sample_rate': self._cfg.sample_rate,
-            'batch_size': self._cfg.batch_size,
+            'batch_size': self._cfg.get('batch_size', 32),
             'time_length': self._cfg.diarizer.speaker_embeddings.window_length_in_sec,
             'shift_length': self._cfg.diarizer.speaker_embeddings.shift_length_in_sec,
             'trim_silence': False,
