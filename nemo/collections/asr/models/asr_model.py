@@ -371,9 +371,6 @@ class ExportableEncDecJointModel(Exportable):
                         check_trace,
                     )
 
-                    # replace forward method with original forward method
-                    type(self).forward = original_forward_method
-
                 else:
                     raise ValueError(f'Encountered unknown export format {format}.')
 
@@ -385,6 +382,14 @@ class ExportableEncDecJointModel(Exportable):
                 "PyTorch Model has been significantly modified. In order to utilize model, delete this "
                 "instance and create a new model."
             )
+
+            # replace forward method with original forward method
+            type(self).forward = original_forward_method
+
+            # Reset special flag for RNNT export of encoder
+            self.input_module._rnnt_export = False
+            self.output_module._rnnt_export = False
+            self.joint_module._rnnt_export = False
 
         return ([output], [output_descr])
 
