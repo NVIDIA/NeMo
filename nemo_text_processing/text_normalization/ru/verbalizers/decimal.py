@@ -27,7 +27,8 @@ except (ModuleNotFoundError, ImportError):
 class DecimalFst(GraphFst):
     """
     Finite state transducer for verbalizing decimal, e.g.
-        decimal { negative: "true" integer_part: "twelve" fractional_part: "five o o six" quantity: "billion" } -> minus twelve point five o o six billion
+        tokens { decimal { integer_part: "одно целая" fractional_part: "восемь сотых} } ->
+            "одно целая восемь сотых"
 
     Args:
         deterministic: if True will provide a single transduction option,

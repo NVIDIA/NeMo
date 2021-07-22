@@ -14,7 +14,6 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space, insert_space
-from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA
 
 try:
     import pynini
@@ -28,7 +27,7 @@ except (ModuleNotFoundError, ImportError):
 class TimeFst(GraphFst):
     """
     Finite state transducer for verbalizing electronic
-        e.g. tokens { electronic { username: "cdf1" domain: "abc.edu" } } -> c d f one at a b c dot e d u
+        e.g. time { hours: "два часа пятнадцать минут" } -> "два часа пятнадцать минут"
 
     Args:
         deterministic: if True will provide a single transduction option,

@@ -28,15 +28,15 @@ except (ModuleNotFoundError, ImportError):
 class TimeFst(GraphFst):
     """
     Finite state transducer for classifying time, e.g.
-        "02:15" ->
+        "02:15" -> time { hours: "два часа пятнадцать минут" }
     
     Args:
-        number_names: Number_names graph
+        number_names: number_names for cardinal and ordinal numbers
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, number_names: GraphFst, deterministic: bool = True):
+    def __init__(self, number_names: dict, deterministic: bool = True):
         super().__init__(name="time", kind="classify", deterministic=deterministic)
 
         increment_hour_ordinal = pynini.string_file(get_abs_path("data/time/increment_hour_ordinal.tsv"))

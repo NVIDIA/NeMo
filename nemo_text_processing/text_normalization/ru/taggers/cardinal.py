@@ -29,13 +29,13 @@ class CardinalFst(GraphFst):
         "1 001" ->  cardinal { integer: "тысяча один" }
 
     Args:
-        number_names: number names graph
-        alternative_formats: graph with alternative number formats
+        number_names: number_names for cardinal and ordinal numbers
+        alternative_formats: alternative number formats
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, number_names: GraphFst, alternative_formats: GraphFst, deterministic: bool = False):
+    def __init__(self, number_names: dict, alternative_formats: dict, deterministic: bool = False):
         super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
 
         cardinal_default = number_names['cardinal_number_names']

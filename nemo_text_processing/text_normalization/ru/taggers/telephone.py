@@ -28,18 +28,17 @@ except (ModuleNotFoundError, ImportError):
 class TelephoneFst(GraphFst):
     """
     Finite state transducer for classifying telephone, which includes country code, number part and extension 
-    country code optional: +*** 
-    number part: ***-***-****, or (***) ***-****
-    extension optional: 1-9999
+
     E.g 
-    8-913-985-56-78 -> telephone { country_code: "eight" number_part: "" extension: "one" }
+    "8-913-983-56-01" -> telephone { number_part: "восемь девятьсот тринадцать девятьсот восемьдесят три пятьдесят шесть ноль один" }
 
     Args:
+        number_names: number_names for cardinal and ordinal numbers
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, number_names: GraphFst, deterministic: bool = True):
+    def __init__(self, number_names: dict, deterministic: bool = True):
         super().__init__(name="telephone", kind="classify", deterministic=deterministic)
 
         separator = pynini.cross("-", " ")  # between components

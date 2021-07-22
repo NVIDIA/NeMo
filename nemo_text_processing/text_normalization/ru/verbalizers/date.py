@@ -28,11 +28,9 @@ except (ModuleNotFoundError, ImportError):
 class DateFst(GraphFst):
     """
     Finite state transducer for verbalizing date, e.g.
-        date { month: "february" day: "five" year: "twenty twelve" preserve_order: true } -> february fifth twenty twelve
-        date { day: "five" month: "february" year: "twenty twelve" preserve_order: true } -> the fifth of february twenty twelve
+        tokens { date { day: "первое мая" } } -> "первое мая"
 
     Args:
-        ordinal: OrdinalFst
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """

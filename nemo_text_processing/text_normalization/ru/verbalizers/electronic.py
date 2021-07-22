@@ -18,7 +18,6 @@ from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA
 
 try:
     import pynini
-    from pynini.lib import pynutil
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -28,7 +27,7 @@ except (ModuleNotFoundError, ImportError):
 class ElectronicFst(GraphFst):
     """
     Finite state transducer for verbalizing electronic
-        e.g. tokens { electronic { username: "cdf1" domain: "abc.edu" } } -> c d f one at a b c dot e d u
+        e.g. electronic { username: "эй би собака эн ди точка ру" } -> "эй би собака эн ди точка ру"
 
     Args:
         deterministic: if True will provide a single transduction option,

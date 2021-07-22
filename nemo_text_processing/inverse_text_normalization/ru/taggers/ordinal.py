@@ -13,10 +13,9 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, GraphFst
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
 
 try:
-    import pynini
     from pynini.lib import pynutil
 
     PYNINI_AVAILABLE = True

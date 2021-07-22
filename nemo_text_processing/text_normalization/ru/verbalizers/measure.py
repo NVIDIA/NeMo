@@ -18,7 +18,6 @@ from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA
 
 try:
     import pynini
-    from pynini.lib import pynutil
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -28,9 +27,7 @@ except (ModuleNotFoundError, ImportError):
 class MeasureFst(GraphFst):
     """
     Finite state transducer for verbalizing measure, e.g.
-        measure { negative: "true" cardinal { integer: "twelve" } units: "kilograms" } -> minus twelve kilograms
-        measure { decimal { integer_part: "twelve" fractional_part: "five" } units: "kilograms" } -> twelve point five kilograms
-        tokens { measure { units: "covid" decimal { integer_part: "nineteen"  fractional_part: "five" }  } } -> covid nineteen point five
+        measure { cardinal { integer: "два килограма" } } -> "два килограма"
     
     Args:
         deterministic: if True will provide a single transduction option,

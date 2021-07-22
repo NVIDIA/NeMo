@@ -27,7 +27,7 @@ except (ModuleNotFoundError, ImportError):
 class OrdinalFst(GraphFst):
     """
     Finite state transducer for verbalizing roman numerals
-        e.g. tokens { roman { integer: "one" } } -> one
+        e.g. ordinal { integer: "второе" } } -> "второе"
 
     Args:
         deterministic: if True will provide a single transduction option,

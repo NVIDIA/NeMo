@@ -28,11 +28,10 @@ except (ModuleNotFoundError, ImportError):
 
 class TelephoneFst(GraphFst):
     """
-    Finite state transducer for verbalizing money, e.g.
-        money {  integer_part: "пять" currency: "рублей" } -> пять рублей
+    Finite state transducer for verbalizing telephone, e.g.
+        telephone { number_part: "восемь девятьсот тринадцать девятьсот восемьдесят три пятьдесят шесть ноль один" } -> "восемь девятьсот тринадцать девятьсот восемьдесят три пятьдесят шесть ноль один"
 
     Args:
-        decimal: DecimalFst
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """

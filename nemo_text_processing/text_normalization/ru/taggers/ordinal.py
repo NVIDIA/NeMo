@@ -41,14 +41,16 @@ except (ModuleNotFoundError, ImportError):
 class OrdinalFst(GraphFst):
     """
     Finite state transducer for classifying cardinals, e.g. 
-        23 -> ordinal { integer: "twenty third" } }
+        "2" -> ordinal { integer: "второе" } }
 
     Args:
+        number_names: number_names for cardinal and ordinal numbers
+        alternative_formats: alternative format for cardinal and ordinal numbers
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, number_names: GraphFst, alternative_formats: GraphFst, deterministic=False):
+    def __init__(self, number_names: dict, alternative_formats: dict, deterministic=False):
         super().__init__(name="ordinal", kind="classify", deterministic=deterministic)
 
         one_thousand_alternative = alternative_formats['one_thousand_alternative']

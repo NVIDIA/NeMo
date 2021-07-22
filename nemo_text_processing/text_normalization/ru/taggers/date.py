@@ -37,12 +37,12 @@ class DateFst(GraphFst):
         "01.05" -> tokens { date { day: "первое мая" } }
 
     Args:
-        number_names: NumberNames graph
+        number_names: number_names for cardinal and ordinal numbers
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, number_names: GraphFst, deterministic: bool):
+    def __init__(self, number_names: dict, deterministic: bool):
         super().__init__(name="date", kind="classify", deterministic=deterministic)
 
         # Ru format: DD-MM-YYYY or DD-MM-YY
