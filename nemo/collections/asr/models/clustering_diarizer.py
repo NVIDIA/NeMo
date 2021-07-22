@@ -30,7 +30,12 @@ from tqdm import tqdm
 from nemo.collections.asr.models.classification_models import EncDecClassificationModel
 from nemo.collections.asr.models.label_models import ExtractSpeakerEmbeddingsModel
 from nemo.collections.asr.parts.mixins.mixins import DiarizationMixin
-from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map, perform_diarization, write_rttm2manifest
+from nemo.collections.asr.parts.utils.speaker_utils import (
+    audio_rttm_map,
+    perform_diarization,
+    segments_manifest_to_subsegments_manifest,
+    write_rttm2manifest,
+)
 from nemo.collections.asr.parts.utils.vad_utils import (
     generate_overlap_vad_seq,
     generate_vad_segment_table,
@@ -165,7 +170,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         spk_dl_config = {
             'manifest_filepath': manifest_file,
             'sample_rate': self._cfg.sample_rate,
-            'batch_size': 1,
+            'batch_size': self._cfg.get('batch_size', 32),
             'time_length': self._cfg.diarizer.speaker_embeddings.window_length_in_sec,
             'shift_length': self._cfg.diarizer.speaker_embeddings.shift_length_in_sec,
             'trim_silence': False,
@@ -246,26 +251,27 @@ class ClusteringDiarizer(Model, DiarizationMixin):
     def _extract_embeddings(self, manifest_file):
         logging.info("Extracting embeddings for Diarization")
         self._setup_spkr_test_data(manifest_file)
-        uniq_names = []
         out_embeddings = defaultdict(list)
         self._speaker_model = self._speaker_model.to(self._device)
         self._speaker_model.eval()
-        with open(manifest_file, 'r') as manifest:
-            for line in manifest.readlines():
-                line = line.strip()
-                dic = json.loads(line)
-                uniq_names.append(dic['audio_filepath'].split('/')[-1].rsplit('.', 1)[0])
 
-        for i, test_batch in enumerate(tqdm(self._speaker_model.test_dataloader())):
+        all_embs = []
+        for test_batch in tqdm(self._speaker_model.test_dataloader()):
             test_batch = [x.to(self._device) for x in test_batch]
             audio_signal, audio_signal_len, labels, slices = test_batch
             with autocast():
                 _, embs = self._speaker_model.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
                 emb_shape = embs.shape[-1]
-                embs = embs.view(-1, emb_shape).type(torch.float32)
-                embs = embs.cpu().detach().numpy()
-                out_embeddings[uniq_names[i]].extend(embs)
+                embs = embs.view(-1, emb_shape)
+                all_embs.extend(embs.cpu().detach().numpy())
             del test_batch
+
+        with open(manifest_file, 'r') as manifest:
+            for i, line in enumerate(manifest.readlines()):
+                line = line.strip()
+                dic = json.loads(line)
+                uniq_name = os.path.basename(dic['audio_filepath']).rsplit('.', 1)[0]
+                out_embeddings[uniq_name].extend([all_embs[i]])
 
         embedding_dir = os.path.join(self._speaker_dir, 'embeddings')
         if not os.path.exists(embedding_dir):
@@ -343,17 +349,21 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             if not os.path.exists(self._speaker_manifest_path):
                 raise NotFoundError("Oracle VAD based manifest file not found")
 
-        self._extract_embeddings(self._speaker_manifest_path)
+        self.subsegments_manifest_path = os.path.join(self._out_dir, 'subsegments.json')
+        self.subsegments_manifest_path = segments_manifest_to_subsegments_manifest(
+            segments_manifest_file=self._speaker_manifest_path,
+            subsegments_manifest_file=self.subsegments_manifest_path,
+            window=self._cfg.diarizer.speaker_embeddings.window_length_in_sec,
+            shift=self._cfg.diarizer.speaker_embeddings.shift_length_in_sec,
+        )
+        self._extract_embeddings(self.subsegments_manifest_path)
         out_rttm_dir = os.path.join(self._out_dir, 'pred_rttms')
         os.makedirs(out_rttm_dir, exist_ok=True)
 
         perform_diarization(
             embeddings_file=self._embeddings_file,
             reco2num=self._num_speakers,
-            manifest_path=self._speaker_manifest_path,
-            sample_rate=self._cfg.sample_rate,
-            window=self._cfg.diarizer.speaker_embeddings.window_length_in_sec,
-            shift=self._cfg.diarizer.speaker_embeddings.shift_length_in_sec,
+            manifest_path=self.subsegments_manifest_path,
             audio_rttm_map=self.AUDIO_RTTM_MAP,
             out_rttm_dir=out_rttm_dir,
             max_num_speakers=self.max_num_speakers,

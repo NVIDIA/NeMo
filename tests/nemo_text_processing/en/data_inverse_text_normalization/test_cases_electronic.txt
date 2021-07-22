@@ -1,0 +1,13 @@
+a dot b c at g mail dot com~a.bc@gmail.com
+a at gmail dot com~a@gmail.com
+a at m s n dot fr~a@msn.fr
+a at a o l dot com~a@aol.com
+a at m s n dot com~a@msn.com
+a at nvidia dot com~a@nvidia.com
+a dot b c at nvidia dot com~a.bc@nvidia.com
+c d f at a b c dot e d u~cdf@abc.edu
+a b c at g mail dot a b c~abc@gmail.abc
+a b c at a b c dot com~abc@abc.com
+a s d f one two three at a b c dot com~asdf123@abc.com
+a one b two at a b c dot com~a1b2@abc.com
+a b three dot s d d dot three at g mail dot com~ab3.sdd.3@gmail.com

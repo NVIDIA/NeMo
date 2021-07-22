@@ -46,6 +46,8 @@ URLS = {
     'DEV_OTHER': "http://www.openslr.org/resources/12/dev-other.tar.gz",
     'TEST_CLEAN': "http://www.openslr.org/resources/12/test-clean.tar.gz",
     'TEST_OTHER': "http://www.openslr.org/resources/12/test-other.tar.gz",
+    'DEV_CLEAN_2': "https://www.openslr.org/resources/31/dev-clean-2.tar.gz",
+    'TRAIN_CLEAN_5': "https://www.openslr.org/resources/31/train-clean-5.tar.gz",
 }
 
 
@@ -149,7 +151,8 @@ def main():
 
     if data_sets == "ALL":
         data_sets = "dev_clean,dev_other,train_clean_100,train_clean_360,train_other_500,test_clean,test_other"
-
+    if data_sets == "mini":
+        data_sets = "dev_clean_2,train_clean_5"
     for data_set in data_sets.split(','):
         logging.info("\n\nWorking on: {0}".format(data_set))
         filepath = os.path.join(data_root, data_set + ".tar.gz")
