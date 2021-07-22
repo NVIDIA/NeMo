@@ -292,7 +292,7 @@ class MTBottleneckModel(MTEncDecModel):
             info_dict["log_p_z"] = log_p_z.detach().cpu()
             info_dict["kl_div_q_p"] = (log_q_z_given_x - log_p_z).detach().cpu()
 
-        elif self.model_type in ["seq2seq", "seq2seq-br"]:
+        elif self.model_type in ["seq2seq", "seq2seq-br", "seq2seq-per"]:
             computed_loss = log_p_x_given_z
             display_loss = log_p_x_given_z_per_token
 
