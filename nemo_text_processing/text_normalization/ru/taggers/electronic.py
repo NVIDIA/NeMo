@@ -35,8 +35,8 @@ except (ModuleNotFoundError, ImportError):
 
 class ElectronicFst(GraphFst):
     """
-    Finite state transducer for classifying electronic: as URLs, email addresses, etc.
-        e.g. cdf1@abc.edu -> tokens { electronic { username: "cdf1" domain: "abc.edu" } }
+    Finite state transducer for classifying electronic: email addresses
+        e.g. "ab@nd.ru" -> electronic { username: "эй би собака эн ди точка ру" }
 
     Args:
         deterministic: if True will provide a single transduction option,

@@ -30,6 +30,7 @@ class CardinalFst(GraphFst):
 
     Args:
         number_names: number names graph
+        alternative_formats: graph with alternative number formats
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """

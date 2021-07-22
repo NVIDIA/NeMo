@@ -51,9 +51,8 @@ class MoneyFst(GraphFst):
         )
         graph_unit_plural = optional_delimiter + pynutil.insert(" currency: \"") + unit_plural + pynutil.insert("\"")
 
-        singular_graph = (
-            pynutil.insert("integer_part: \"") + pynini.cross("1", "один") + pynutil.insert("\"") + graph_unit_singular
-        )
+        one = pynini.compose(pynini.accep("1"), cardinal_graph).optimize()
+        singular_graph = pynutil.insert("integer_part: \"") + one + pynutil.insert("\"") + graph_unit_singular
 
         graph_decimal = decimal_graph + graph_unit_plural
 
@@ -98,10 +97,3 @@ class MoneyFst(GraphFst):
 
         self.final_graph = (tagger_graph @ verbalizer_graph).optimize()
         self.fst = self.add_tokens(self.final_graph).optimize()
-
-        # from pynini.lib.rewrite import top_rewrites
-        # import pdb; pdb.set_trace()
-        # print(top_rewrites("2,5 руб.", self.final_graph, 5))
-        # print(top_rewrites('втором целых пяти десятым тысячи рублям', pynini.invert(tagger_graph), 5))
-        # print(top_rewrites('decimal { integer_part: "второго целых" fractional_part: "пяти десятые" } currency: "рублях"', verbalizer_graph_decimal, 5))
-        # print()

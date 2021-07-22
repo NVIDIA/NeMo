@@ -34,15 +34,12 @@ except (ModuleNotFoundError, ImportError):
 
 class MeasureFst(GraphFst):
     """
-    Finite state transducer for classifying measure, suppletive aware, e.g. 
-        -12kg -> measure { negative: "true" cardinal { integer: "twelve" } units: "kilograms" }
-        1kg -> measure { cardinal { integer: "one" } units: "kilogram" }
-        .5kg -> measure { decimal { fractional_part: "five" } units: "kilograms" }
+    Finite state transducer for classifying measure,  e.g.
+        "2 кг" -> measure { cardinal { integer: "два килограма" } }
 
     Args:
         cardinal: CardinalFst
         decimal: DecimalFst
-        fraction: FractionFst
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
@@ -56,12 +53,8 @@ class MeasureFst(GraphFst):
         )
         cardinal_graph = cardinal.cardinal_numbers
 
-        # if not deterministic:
-        #     cardinal_graph |= cardinal.range_graph
-
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
 
-        # TODO add vocab for singular/plural
         graph_unit_plural = graph_unit
         optional_graph_negative = cardinal.optional_graph_negative
 
@@ -81,13 +74,7 @@ class MeasureFst(GraphFst):
             pynutil.insert("units: \"") + (graph_unit + optional_graph_unit2 | graph_unit2) + pynutil.insert("\"")
         )
 
-        subgraph_decimal = (
-            # pynutil.insert("decimal { ")
-            decimal.final_graph
-            + delete_space
-            # + pynutil.insert(" } ")
-            + unit_plural
-        )
+        subgraph_decimal = decimal.final_graph + delete_space + unit_plural
 
         cardinal_space_plural = (
             pynutil.insert("cardinal { ")
@@ -100,12 +87,12 @@ class MeasureFst(GraphFst):
             + unit_plural
         )
 
-        # TODO one -> fix for Ru
+        one = pynini.compose(pynini.accep("1"), cardinal_graph).optimize()
         cardinal_space_singular = (
             pynutil.insert("cardinal { ")
             + optional_graph_negative
             + pynutil.insert("integer: \"")
-            + pynini.cross("1", "one")
+            + one
             + delete_space
             + pynutil.insert("\"")
             + pynutil.insert(" } ")
@@ -132,7 +119,6 @@ class MeasureFst(GraphFst):
         )
 
         decimal_dash_alpha = (
-            # pynutil.insert("decimal { ")
             decimal.final_graph
             + pynini.cross('-', '')
             + pynutil.insert(" units: \"")
@@ -149,10 +135,6 @@ class MeasureFst(GraphFst):
             + decimal.final_graph
             + pynutil.insert(" } preserve_order: true")
         )
-
-        # subgraph_fraction = (
-        #     pynutil.insert("fraction { ") + fraction.graph + delete_space + pynutil.insert(" } ") + unit_plural
-        # )
 
         self.tagger_graph_default = (subgraph_decimal | cardinal_space_singular | cardinal_space_plural).optimize()
 
@@ -173,21 +155,11 @@ class MeasureFst(GraphFst):
         fractional_part = pynutil.delete("fractional_part:") + integer
         graph_decimal = optional_sign + integer_part + pynini.accep(" ") + fractional_part
 
-        graph_decimal = (
-            pynutil.delete("decimal {")
-            + delete_space
-            # + optional_sign
-            # + delete_space
-            + graph_decimal
-            + delete_space
-            + pynutil.delete("}")
-        )
+        graph_decimal = pynutil.delete("decimal {") + delete_space + graph_decimal + delete_space + pynutil.delete("}")
 
         graph_cardinal = (
             pynutil.delete("cardinal {")
             + delete_space
-            # + optional_sign
-            # + delete_space
             + optional_sign
             + pynutil.delete("integer: \"")
             + pynini.closure(NEMO_NOT_QUOTE, 1)
@@ -195,11 +167,6 @@ class MeasureFst(GraphFst):
             + delete_space
             + pynutil.delete("}")
         )
-
-        # graph_fraction = (
-        #     pynutil.delete("fraction {") + delete_space + fraction.graph + delete_space + pynutil.delete("}")
-        # )
-        # graph = (graph_cardinal | graph_decimal | graph_fraction) + delete_space + insert_space + unit
 
         verbalizer_graph = (graph_cardinal | graph_decimal) + delete_space + insert_space + unit
 
@@ -212,8 +179,3 @@ class MeasureFst(GraphFst):
 
         final_graph = (tagger_graph @ verbalizer_graph).optimize()
         self.fst = self.add_tokens(final_graph).optimize()
-
-        # from pynini.lib.rewrite import top_rewrites
-        # import pdb;
-        # pdb.set_trace()
-        # print(top_rewrites("12 кг", self.fst, 5))

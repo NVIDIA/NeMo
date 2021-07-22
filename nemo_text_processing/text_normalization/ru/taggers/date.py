@@ -34,13 +34,7 @@ except (ModuleNotFoundError, ImportError):
 class DateFst(GraphFst):
     """
     Finite state transducer for classifying date, e.g. 
-        jan. 5, 2012 -> date { month: "january" day: "five" year: "twenty twelve" preserve_order: true }
-        jan. 5 -> date { month: "january" day: "five" preserve_order: true }
-        5 january 2012 -> date { day: "five" month: "january" year: "twenty twelve" preserve_order: true }
-        2012-01-05 -> date { year: "twenty twelve" month: "january" day: "five" }
-        2012.01.05 -> date { year: "twenty twelve" month: "january" day: "five" }
-        2012/01/05 -> date { year: "twenty twelve" month: "january" day: "five" }
-        2012 -> date { year: "twenty twelve" }
+        "01.05" -> tokens { date { day: "первое мая" } }
 
     Args:
         number_names: NumberNames graph
@@ -60,7 +54,9 @@ class DateFst(GraphFst):
 
         numbers = number_names.ordinal_number_names
 
-        zero = (pynutil.add_weight(pynini.cross("0", ""), -0.1)) | (pynutil.add_weight(pynini.cross("0", "ноль "), 0.1))
+        zero = (pynutil.add_weight(pynini.cross("0", ""), -0.1)) | (
+            pynutil.add_weight(pynini.cross("0", "ноль "), 0.1)
+        )
         zero_digit = zero + pynini.compose(NEMO_DIGIT, numbers)
         digit_day = (pynini.union("1", "2", "3") + NEMO_DIGIT) | NEMO_DIGIT
         digit_day = pynini.compose(digit_day, numbers)
@@ -86,12 +82,11 @@ class DateFst(GraphFst):
 
         year_word = pynini.cross("г.", pynini.union(*year_word_singular))
         year_word |= pynini.cross("гг.", pynini.union(*year_word_plural))
-        year_word = pynini.closure(insert_space + year_word, 0, 1)
-        year = pynini.closure(
-            delete_sep + pynutil.insert("year: \"") + year + year_word + pynutil.insert("\""), 0, 1
-        ).optimize()
+        year_word = pynini.closure((insert_space | pynini.accep(" ")) + year_word, 0, 1)
+        year = pynutil.insert("year: \"") + year + year_word + pynutil.insert("\"")
+        year_optional = pynini.closure(delete_sep + year, 0, 1).optimize()
 
-        tagger_graph = day + delete_sep + month + year
+        tagger_graph = (day + delete_sep + month + year_optional) | year
 
         # Verbalizer
         day = (
@@ -116,16 +111,10 @@ class DateFst(GraphFst):
             + delete_space
             + pynutil.delete("\"")
         )
-        year = pynini.closure(delete_extra_space + year, 0, 1)
-        graph_dmy = day + delete_extra_space + month + year
-        verbalizer_graph = graph_dmy + delete_space
+        year_optional = pynini.closure(delete_extra_space + year, 0, 1)
+        graph_dmy = day + delete_extra_space + month + year_optional
+        verbalizer_graph = (graph_dmy | year) + delete_space
 
         self.final_graph = pynini.compose(tagger_graph, verbalizer_graph).optimize()
         self.fst = pynutil.insert("day: \"") + self.final_graph + pynutil.insert("\"")
         self.fst = self.add_tokens(self.fst).optimize()
-
-        # from pynini.lib.rewrite import top_rewrites
-        # import pdb;
-        # pdb.set_trace()
-        # print(top_rewrites("01.02.2001", self.fst, 5))
-        # print()

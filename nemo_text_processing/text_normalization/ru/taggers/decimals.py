@@ -51,10 +51,13 @@ def prepare_labels_for_insertion(file_path: str):
 class DecimalFst(GraphFst):
     """
     Finite state transducer for classifying decimal, e.g. 
-        -12.5006 billion -> decimal { negative: "true" integer_part: "12"  fractional_part: "five o o six" quantity: "billion" }
-        1 billion -> decimal { integer_part: "one" quantity: "billion" }
+        "1,08" -> tokens { decimal { integer_part: "одно целая" fractional_part: "восемь сотых} }
 
-    cardinal: CardinalFst
+    Args:
+        cardinal: CardinalFst
+        ordinal: OrdinalFst
+        deterministic: if True will provide a single transduction option,
+                for False multiple transduction are generated (used for audio-based normalization)
     """
 
     def __init__(self, cardinal: GraphFst, ordinal: GraphFst, deterministic: bool = False):
