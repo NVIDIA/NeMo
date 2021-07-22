@@ -46,7 +46,7 @@ class AlternativeFormatsFst(GraphFst):
     """
 
     def __init__(self):
-        one_alternatives = load_labels(get_abs_path('data/cardinals_alternatives.tsv'))
+        one_alternatives = load_labels(get_abs_path('data/numbers/cardinals_alternatives.tsv'))
         one_thousand_map = []
         for k in one_alternatives:
             default, alternative = k

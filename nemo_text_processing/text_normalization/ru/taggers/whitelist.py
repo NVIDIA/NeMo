@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, convert_space
-from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
+from nemo_text_processing.text_normalization.ru.utils import get_abs_path, load_labels
 
 try:
     import pynini
@@ -53,16 +53,6 @@ class WhiteListFst(GraphFst):
             graph = pynini.string_map(whitelist)
             return graph
 
-        def _get_whitelist_non_deterministic_graph(file="data/whitelist_alternatives.tsv"):
-            whitelist = load_labels(get_abs_path(file))
-            whitelist_lower = [(x.lower(), y.lower()) for x, y in whitelist]
-            whitelist_cased = [(x, y) for x, y in whitelist]
-            graph = pynini.string_map(whitelist_lower + whitelist_cased)
-            return graph
-
         graph = _get_whitelist_graph(input_case)
-        if not deterministic:
-            graph |= _get_whitelist_graph("lower_cased") | _get_whitelist_non_deterministic_graph()
-
-        graph = pynutil.insert("name: \"") + convert_space(graph) + pynutil.insert("\"")
-        self.fst = graph.optimize()
+        self.final_graph = convert_space(graph)
+        self.fst = (pynutil.insert("name: \"") + self.final_graph + pynutil.insert("\"")).optimize()

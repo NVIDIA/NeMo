@@ -60,20 +60,20 @@ testITNMoney() {
   runtest $input
 }
 
-##testITNWhitelist() {
-##  input=$PROJECT_DIR/en/data_inverse_text_normalization/test_cases_whitelist.txt
-##  runtest $input
-##}
-##
+testITNWhitelist() {
+  input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_whitelist.txt
+  runtest $input
+}
+
 testITNTelephone() {
   input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_telephone.txt
   runtest $input
 }
 
-#testITNWord() {
-#  input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_word.txt
-#  runtest $input
-#}
+testITNWord() {
+  input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_word.txt
+  runtest $input
+}
 
 # Load shUnit2
 . $PROJECT_DIR/../shunit2/shunit2

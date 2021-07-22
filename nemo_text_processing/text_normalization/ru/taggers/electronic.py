@@ -68,7 +68,7 @@ class ElectronicFst(GraphFst):
         tagger_graph = (username + domain_graph).optimize()
 
         # verbalizer
-        graph_digit = pynini.string_file(get_abs_path("data/digits_nominative_case.tsv")).optimize()
+        graph_digit = pynini.string_file(get_abs_path("data/numbers/digits_nominative_case.tsv")).optimize()
         graph_symbols = pynini.string_file(get_abs_path("data/electronic/symbols.tsv")).optimize()
         user_name = (
             pynutil.delete("username:")

@@ -112,3 +112,23 @@ class TestRuInverseNormalize:
     def test_denorm_time(self, test_input, expected):
         pred = self.normalizer.inverse_normalize(test_input, verbose=False)
         assert expected == pred
+
+    @parameterized.expand(parse_test_case_file('ru/data_inverse_text_normalization/test_cases_whitelist.txt'))
+    @pytest.mark.skipif(
+        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
+    )
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_denorm_time(self, test_input, expected):
+        pred = self.normalizer.inverse_normalize(test_input, verbose=False)
+        assert expected == pred
+
+    @parameterized.expand(parse_test_case_file('ru/data_inverse_text_normalization/test_cases_word.txt'))
+    @pytest.mark.skipif(
+        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
+    )
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_denorm_time(self, test_input, expected):
+        pred = self.normalizer.inverse_normalize(test_input, verbose=False)
+        assert expected == pred

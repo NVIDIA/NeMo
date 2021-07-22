@@ -15,7 +15,6 @@
 
 from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, delete_extra_space, delete_space
 from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
-from nemo_text_processing.text_normalization.en.taggers.whitelist import WhiteListFst
 from nemo_text_processing.text_normalization.en.taggers.word import WordFst
 from nemo_text_processing.text_normalization.ru.taggers.cardinal import CardinalFst
 from nemo_text_processing.text_normalization.ru.taggers.date import DateFst
@@ -28,6 +27,7 @@ from nemo_text_processing.text_normalization.ru.taggers.numbers_alternatives imp
 from nemo_text_processing.text_normalization.ru.taggers.ordinal import OrdinalFst
 from nemo_text_processing.text_normalization.ru.taggers.telephone import TelephoneFst
 from nemo_text_processing.text_normalization.ru.taggers.time import TimeFst
+from nemo_text_processing.text_normalization.ru.taggers.whitelist import WhiteListFst
 
 try:
     import pynini
@@ -57,24 +57,20 @@ class ClassifyFst(GraphFst):
         number_names = NumberNamesFst()
         alternative_formats = AlternativeFormatsFst()
 
-        cardinal = CardinalFst(
+        self.cardinal = CardinalFst(
             number_names=number_names, alternative_formats=alternative_formats, deterministic=deterministic
         )
-        self.cardinal = cardinal
-        cardinal_graph = cardinal.fst
+        cardinal_graph = self.cardinal.fst
 
-        ordinal = OrdinalFst(
+        self.ordinal = OrdinalFst(
             number_names=number_names, alternative_formats=alternative_formats, deterministic=deterministic
         )
-        self.ordinal = ordinal
-        ordinal_graph = ordinal.fst
+        ordinal_graph = self.ordinal.fst
 
-        self.decimal = DecimalFst(cardinal=cardinal, ordinal=ordinal, deterministic=deterministic)
+        self.decimal = DecimalFst(cardinal=self.cardinal, ordinal=self.ordinal, deterministic=deterministic)
         decimal_graph = self.decimal.fst
 
-        # fraction = FractionFst(deterministic=deterministic, cardinal=cardinal)
-        # fraction_graph = fraction.fst
-        self.measure = MeasureFst(cardinal=cardinal, decimal=self.decimal, deterministic=deterministic)
+        self.measure = MeasureFst(cardinal=self.cardinal, decimal=self.decimal, deterministic=deterministic)
         measure_graph = self.measure.fst
         self.date = DateFst(number_names=number_names, deterministic=deterministic)
         date_graph = self.date.fst
@@ -85,9 +81,10 @@ class ClassifyFst(GraphFst):
         telephone_graph = self.telephone.fst
         self.electronic = ElectronicFst(deterministic=deterministic)
         electronic_graph = self.electronic.fst
-        self.money = MoneyFst(cardinal=cardinal, decimal=self.decimal, deterministic=deterministic)
+        self.money = MoneyFst(cardinal=self.cardinal, decimal=self.decimal, deterministic=deterministic)
         money_graph = self.money.fst
-        whitelist_graph = WhiteListFst(input_case=input_case, deterministic=deterministic).fst
+        self.whitelist = WhiteListFst(input_case=input_case, deterministic=deterministic)
+        whitelist_graph = self.whitelist.fst
         punct_graph = PunctuationFst(deterministic=deterministic).fst
 
         classify = (
@@ -101,15 +98,8 @@ class ClassifyFst(GraphFst):
             | pynutil.add_weight(money_graph, 1.1)
             | pynutil.add_weight(telephone_graph, 1.1)
             | pynutil.add_weight(electronic_graph, 1.1)
-            # | pynutil.add_weight(fraction_graph, 1.1)
             | pynutil.add_weight(word_graph, 100)
         )
-
-        # if not deterministic:
-        #     roman_graph = RomanFst(deterministic=deterministic).fst
-        #     universal_graph = UniversalFst(deterministic=deterministic).fst
-        #     # the weight for roman_graph matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
-        #     classify |= pynutil.add_weight(roman_graph, 100) | pynutil.add_weight(universal_graph, 1.1)
 
         punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=1.1) + pynutil.insert(" }")
         token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")

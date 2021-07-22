@@ -78,15 +78,17 @@ class DateFst(GraphFst):
         year = pynini.compose(((NEMO_DIGIT ** 4) | (NEMO_DIGIT ** 2)), numbers).optimize()
         year |= zero_digit
         year_word_singular = ["год", "года", "году", "годом", "годе"]
-        year_word_plural = ["годы", "годов", "годам", "годами", "годам"]
+        year_word_plural = ["годы", "годов", "годам", "годами", "годам", "годах"]
 
         year_word = pynini.cross("г.", pynini.union(*year_word_singular))
         year_word |= pynini.cross("гг.", pynini.union(*year_word_plural))
-        year_word = pynini.closure((insert_space | pynini.accep(" ")) + year_word, 0, 1)
-        year = pynutil.insert("year: \"") + year + year_word + pynutil.insert("\"")
-        year_optional = pynini.closure(delete_sep + year, 0, 1).optimize()
+        year_word = (pynutil.add_weight(insert_space, -0.1) | pynutil.add_weight(pynini.accep(" "), 0.1)) + year_word
 
-        tagger_graph = (day + delete_sep + month + year_optional) | year
+        year_optional = pynutil.insert("year: \"") + year + pynini.closure(year_word, 0, 1) + pynutil.insert("\"")
+        year_optional = pynini.closure(delete_sep + year_optional, 0, 1).optimize()
+        year_only = pynutil.insert("year: \"") + year + year_word + pynutil.insert("\"")
+
+        tagger_graph = (day + delete_sep + month + year_optional) | year_only
 
         # Verbalizer
         day = (

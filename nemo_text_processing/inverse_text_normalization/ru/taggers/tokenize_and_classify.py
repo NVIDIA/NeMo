@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from nemo_text_processing.inverse_text_normalization.en.taggers.punctuation import PunctuationFst
-from nemo_text_processing.inverse_text_normalization.en.taggers.whitelist import WhiteListFst
 from nemo_text_processing.inverse_text_normalization.en.taggers.word import WordFst
 from nemo_text_processing.inverse_text_normalization.ru.taggers.cardinal import CardinalFst
 from nemo_text_processing.inverse_text_normalization.ru.taggers.date import DateFst
@@ -24,6 +23,7 @@ from nemo_text_processing.inverse_text_normalization.ru.taggers.money import Mon
 from nemo_text_processing.inverse_text_normalization.ru.taggers.ordinal import OrdinalFst
 from nemo_text_processing.inverse_text_normalization.ru.taggers.telephone import TelephoneFst
 from nemo_text_processing.inverse_text_normalization.ru.taggers.time import TimeFst
+from nemo_text_processing.inverse_text_normalization.ru.taggers.whitelist import WhiteListFst
 from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, delete_extra_space, delete_space
 from nemo_text_processing.text_normalization.ru.taggers.tokenize_and_classify import ClassifyFst as TNClassifyFst
 
@@ -61,14 +61,14 @@ class ClassifyFst(GraphFst):
         word_graph = WordFst().fst
         time_graph = TimeFst(tn_time=tn_classify.time).fst
         money_graph = MoneyFst(tn_money=tn_classify.money).fst
-        whitelist_graph = WhiteListFst().fst
+        whitelist_graph = WhiteListFst(tn_whitelist=tn_classify.whitelist).fst
         punct_graph = PunctuationFst().fst
         electronic_graph = ElectronicFst(tn_electronic=tn_classify.electronic).fst
         telephone_graph = TelephoneFst(tn_telephone=tn_classify.telephone).fst
 
         classify = (
-            # pynutil.add_weight(whitelist_graph, 1.01)
-            pynutil.add_weight(time_graph, 1.1)
+            pynutil.add_weight(whitelist_graph, 1.01)
+            | pynutil.add_weight(time_graph, 1.1)
             | pynutil.add_weight(date_graph, 1.09)
             | pynutil.add_weight(decimal_graph, 1.1)
             | pynutil.add_weight(measure_graph, 1.1)

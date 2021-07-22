@@ -60,7 +60,7 @@ class OrdinalFst(GraphFst):
         ordinal_numbers = separators @ ordinal
 
         # to handle cases like 2-ая
-        endings = pynini.string_file(get_abs_path("data/ordinal_endings.tsv"))
+        endings = pynini.string_file(get_abs_path("data/numbers/ordinal_endings.tsv"))
         not_dash = pynini.closure(pynini.difference(NEMO_SIGMA, "-"))
         del_ending = pynini.cdrewrite(pynini.cross("-" + not_dash, ""), "", "[EOS]", NEMO_SIGMA)
         ordinal_numbers_marked = (
@@ -78,13 +78,3 @@ class OrdinalFst(GraphFst):
         final_graph = pynutil.insert("integer: \"") + final_graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
-
-
-if __name__ == '__main__':
-    fst = OrdinalFst(deterministic=False).ordinal_numbers
-    from pynini.lib import rewrite
-
-    pred = rewrite.rewrites("2", fst)
-    assert len(pred) > 1 and "вторая" in pred
-    assert rewrite.rewrites("2-ая", fst) == ['вторая']
-    print(rewrite.rewrites("2-ая", fst))

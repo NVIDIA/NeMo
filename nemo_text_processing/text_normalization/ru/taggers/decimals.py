@@ -66,12 +66,12 @@ class DecimalFst(GraphFst):
         integer_part = cardinal.cardinal_numbers | ordinal.ordinal_numbers
         cardinal_numbers_with_leading_zeros = cardinal.cardinal_numbers_with_leading_zeros
 
-        delimiter_map = prepare_labels_for_insertion(get_abs_path("data/decimal_delimiter.tsv"))
+        delimiter_map = prepare_labels_for_insertion(get_abs_path("data/numbers/decimal_delimiter.tsv"))
         delimiter = (
             pynini.cross(",", "") + delimiter_map['@@decimal_delimiter@@'] + pynini.closure(pynutil.insert(" и"), 0, 1)
         ).optimize()
 
-        decimal_endings_map = prepare_labels_for_insertion(get_abs_path("data/decimal_endings.tsv"))
+        decimal_endings_map = prepare_labels_for_insertion(get_abs_path("data/numbers/decimal_endings.tsv"))
 
         self.integer_part = integer_part + delimiter
         graph_integer = pynutil.insert("integer_part: \"") + self.integer_part + pynutil.insert("\"")
@@ -89,7 +89,9 @@ class DecimalFst(GraphFst):
 
         quantity = pynini.union("1000", "1000000", "1000000000")
         self.optional_quantity = (
-            (pynini.string_file(get_abs_path("data/cardinals.tsv")).invert() @ quantity).project("input").optimize()
+            (pynini.string_file(get_abs_path("data/numbers/cardinals.tsv")).invert() @ quantity)
+            .project("input")
+            .optimize()
         )
         optional_quantity = pynutil.insert("quantity: \"") + self.optional_quantity + pynutil.insert("\"")
         optional_quantity = pynini.closure(pynini.accep(NEMO_SPACE) + optional_quantity, 0, 1)
