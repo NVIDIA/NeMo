@@ -8,3 +8,4 @@ dash_table
 numpy
 diff_match_patch
 editdistance
+tqdm
