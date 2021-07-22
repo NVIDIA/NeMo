@@ -9,3 +9,4 @@ numpy
 diff_match_patch
 editdistance
 tqdm
+pandas
