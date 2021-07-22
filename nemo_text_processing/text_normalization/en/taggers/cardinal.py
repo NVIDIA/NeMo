@@ -51,12 +51,16 @@ class CardinalFst(GraphFst):
 
         graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
         graph_zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
-        single_digits_graph = pynutil.add_weight(pynini.invert(graph_digit | graph_zero), 1.2) | pynutil.add_weight(
-            pynini.cross("0", "oh"), 1.1
-        )
+
+        single_digits_graph = pynini.invert(graph_digit | graph_zero)
         self.single_digits_graph = single_digits_graph + pynini.closure(pynutil.insert(" ") + single_digits_graph)
 
         if not deterministic:
+            single_digits_graph = pynutil.add_weight(
+                pynini.invert(graph_digit | graph_zero), 1.2
+            ) | pynutil.add_weight(pynini.cross("0", "oh"), 1.1)
+            self.single_digits_graph = single_digits_graph + pynini.closure(pynutil.insert(" ") + single_digits_graph)
+
             single_digits_graph_with_commas = pynini.closure(
                 self.single_digits_graph + insert_space, 1, 3
             ) + pynini.closure(
@@ -82,7 +86,13 @@ class CardinalFst(GraphFst):
             self.range_graph = self.range_graph.optimize()
 
         optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
-        final_graph = self.graph | pynutil.add_weight(self.get_serial_graph(), 1.2)
+
+        long_numbers = pynini.compose(NEMO_DIGIT ** (5, ...), self.single_digits_graph).optimize()
+        final_graph = (
+            pynutil.add_weight(self.graph, 1.2)
+            | pynutil.add_weight(self.get_serial_graph(), 1.2)
+            | pynutil.add_weight(long_numbers, 1.1)
+        )
 
         if not deterministic:
             final_graph |= self.range_graph
@@ -95,7 +105,7 @@ class CardinalFst(GraphFst):
         """
         Finite state transducer for classifying serial.
             The serial is a combination of digits, letters and dashes, e.g.:
-            c325-b -> tokens { serial { value: "c three two five b" } }
+            c325-b -> tokens { cardinal { integer: "c three two five b" } }
         """
         alpha = NEMO_ALPHA
 
@@ -114,4 +124,4 @@ class CardinalFst(GraphFst):
 
         if not self.deterministic:
             serial_graph += pynini.closure(pynini.accep("s") | pynini.cross("s", "es"), 0, 1)
-        return serial_graph
+        return pynutil.add_weight(serial_graph, 10)

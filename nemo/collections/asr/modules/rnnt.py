@@ -34,6 +34,7 @@ from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.common.parts import rnn
 from nemo.core.classes import typecheck
+from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
     ElementType,
@@ -47,7 +48,7 @@ from nemo.core.neural_types import (
 from nemo.utils import logging
 
 
-class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder):
+class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
     """A Recurrent Neural Network Transducer Decoder / Prediction Network (RNN-T Prediction Network).
     An RNN-T Decoder/Prediction network, comprised of a stateful LSTM model.
 
@@ -98,7 +99,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder):
         return {
             "targets": NeuralType(('B', 'T'), LabelsType()),
             "target_length": NeuralType(tuple('B'), LengthsType()),
-            "states": NeuralType(('D', 'B', 'D'), ElementType(), optional=True),
+            "states": [NeuralType(('D', 'B', 'D'), ElementType(), optional=True)],  # must always be last
         }
 
     @property
@@ -107,8 +108,36 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder):
         """
         return {
             "outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
-            "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+            "prednet_lengths": NeuralType(tuple('B'), LengthsType()),
+            "states": [NeuralType((('D', 'B', 'D')), ElementType(), optional=True)],  # must always be last
         }
+
+    def _prepare_for_export(self, **kwargs):
+        self.freeze()
+
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        length = 1
+        targets = torch.full(fill_value=self.blank_idx, size=(1, length), dtype=torch.int32).to(
+            next(self.parameters()).device
+        )
+        target_length = torch.randint(0, length, size=(1,), dtype=torch.int32).to(next(self.parameters()).device)
+        states = tuple(self.initialize_state(targets.float()))
+        return (targets, target_length, states)
+
+    @property
+    def disabled_deployment_input_names(self):
+        """Implement this method to return a set of input names disabled for export"""
+        return set([])
+
+    @property
+    def disabled_deployment_output_names(self):
+        """Implement this method to return a set of output names disabled for export"""
+        return set([])
 
     def __init__(
         self,
@@ -134,7 +163,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder):
         dropout = prednet.get('dropout', 0.0)
         self.random_state_sampling = random_state_sampling
 
-        self.prediction = self._predict(
+        self.prediction = self._predict_modules(
             vocab_size=vocab_size,  # add 1 for blank symbol
             pred_n_hidden=self.pred_hidden,
             pred_rnn_layers=self.pred_rnn_layers,
@@ -146,6 +175,9 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder):
             dropout=dropout,
         )
 
+        # Flag needed for RNNT export support
+        self._rnnt_export = False
+
     @typecheck()
     def forward(self, targets, target_length, states=None):
         # y: (B, U)
@@ -153,10 +185,15 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder):
 
         # state maintenance is unnecessary during training forward call
         # to get state, use .predict() method.
-        g, _ = self.predict(y, state=states, add_sos=True)  # (B, U, D)
+        if self._rnnt_export:
+            add_sos = False
+        else:
+            add_sos = True
+
+        g, states = self.predict(y, state=states, add_sos=add_sos)  # (B, U, D)
         g = g.transpose(1, 2)  # (B, D, U)
 
-        return g, target_length
+        return g, target_length, states
 
     def predict(
         self,
@@ -253,7 +290,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder):
         del y, start, state
         return g, hid
 
-    def _predict(
+    def _predict_modules(
         self,
         vocab_size,
         pred_n_hidden,
@@ -508,7 +545,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder):
         return state_list
 
 
-class RNNTJoint(rnnt_abstract.AbstractRNNTJoint):
+class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
     """A Recurrent Neural Network Transducer Joint Network (RNN-T Joint Network).
     An RNN-T Joint network, comprised of a feedforward model.
 
@@ -589,7 +626,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint):
         """
         if not self._fuse_loss_wer:
             return {
-                "outputs": NeuralType(('B', 'T', 'D', 'D'), LogprobsType()),
+                "outputs": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
             }
 
         else:
@@ -599,6 +636,32 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint):
                 "wer_numer": NeuralType(elements_type=ElementType(), optional=True),
                 "wer_denom": NeuralType(elements_type=ElementType(), optional=True),
             }
+
+    def _prepare_for_export(self, **kwargs):
+        self.freeze()
+        self._fuse_loss_wer = False
+        self.log_softmax = False
+
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        B, T, U = 1, 8192, 1
+        encoder_outputs = torch.randn(B, self.encoder_hidden, T).to(next(self.parameters()).device)
+        decoder_outputs = torch.randn(B, self.pred_hidden, U).to(next(self.parameters()).device)
+        return (encoder_outputs, decoder_outputs)
+
+    @property
+    def disabled_deployment_input_names(self):
+        """Implement this method to return a set of input names disabled for export"""
+        return set(["encoder_lengths", "transcripts", "transcript_lengths", "compute_wer"])
+
+    @property
+    def disabled_deployment_output_names(self):
+        """Implement this method to return a set of output names disabled for export"""
+        return set()
 
     def __init__(
         self,
@@ -652,7 +715,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint):
         # Optional arguments
         dropout = jointnet.get('dropout', 0.0)
 
-        self.pred, self.enc, self.joint_net = self._joint_net(
+        self.pred, self.enc, self.joint_net = self._joint_net_modules(
             num_classes=self._num_classes,  # add 1 for blank symbol
             pred_n_hidden=self.pred_hidden,
             enc_n_hidden=self.encoder_hidden,
@@ -660,6 +723,9 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint):
             activation=self.activation,
             dropout=dropout,
         )
+
+        # Flag needed for RNNT export support
+        self._rnnt_export = False
 
     @typecheck()
     def forward(
@@ -881,7 +947,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint):
 
         return res
 
-    def _joint_net(self, num_classes, pred_n_hidden, enc_n_hidden, joint_n_hidden, activation, dropout):
+    def _joint_net_modules(self, num_classes, pred_n_hidden, enc_n_hidden, joint_n_hidden, activation, dropout):
         """
         Prepare the trainable modules of the Joint Network
 

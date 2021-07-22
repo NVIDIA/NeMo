@@ -32,9 +32,8 @@
 
 GRAMMARS="itn_grammars" # tn_grammars
 INPUT_CASE="cased" # lower_cased, only for tn_grammars
-LANGUAGE="en" # language, 'en' supports both TN and ITN, 'ru' ITN only
+LANGUAGE="en" # language, 'en' supports both TN and ITN, {'de', 'ru'} supports ITN only
 MODE="export"
-FORCE="" # use to --FORCE="-f" to force grammar re-built
 
 for ARG in "$@"
 do

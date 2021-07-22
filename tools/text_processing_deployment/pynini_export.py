@@ -125,7 +125,7 @@ if __name__ == '__main__':
         )
 
         if args.grammars == 'tn_grammars':
-            raise ValueError(f'Only grammars for ITN task are supported for RU language to deploy in Sparrowhawk.')
+            raise ValueError('Only grammars for ITN task are supported for RU language to deploy in Sparrowhawk.')
     elif args.language == 'de':
         from nemo_text_processing.inverse_text_normalization.de.taggers.tokenize_and_classify import (
             ClassifyFst as ITNClassifyFst,
@@ -133,9 +133,7 @@ if __name__ == '__main__':
         from nemo_text_processing.inverse_text_normalization.de.verbalizers.verbalize import (
             VerbalizeFst as ITNVerbalizeFst,
         )
-
         if args.grammars == 'tn_grammars':
-            raise ValueError(f'Only grammars for ITN task are supported for DE language to deploy in Sparrowhawk.')
-
+            raise ValueError('Only grammars for ITN task are supported for German language to deploy in Sparrowhawk.')
     output_dir = os.path.join(args.output_dir, args.language)
     export_grammars(output_dir=output_dir, grammars=locals()[args.grammars](input_case=args.input_case))

@@ -40,6 +40,6 @@ docker run -it --rm \
   --ulimit memlock=-1 \
   --ulimit stack=67108864 \
   $MOUNTS \
-  -v $SCRIPT_DIR/../../../tests/nemo_text_processing:/workspace/tests \
+  -v $SCRIPT_DIR/../../../tests/nemo_text_processing/:/workspace/tests/ \
   -w $WORK_DIR \
   sparrowhawk:latest $CMD
