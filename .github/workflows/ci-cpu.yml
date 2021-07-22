@@ -71,4 +71,6 @@ jobs:
 
     - name: CPU Tests
       run: |
-        PYTHONDONTWRITEBYTECODE=1 pytest -m "not pleasefixme" --cpu --relax_numba_compat
+        cd tests/
+        pytest . -s -m "not pleasefixme" --cpu --relax_numba_compat
+        cd ..
