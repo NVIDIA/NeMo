@@ -39,16 +39,12 @@ class TimeFst(GraphFst):
     def __init__(self, number_names: GraphFst, deterministic: bool = True):
         super().__init__(name="time", kind="classify", deterministic=deterministic)
 
-        """
-        TODO
-        handle seconds: 11:35:00
-        """
-        increment_hour = pynini.string_file(get_abs_path("data/time/increment_hour.tsv"))
+        increment_hour_ordinal = pynini.string_file(get_abs_path("data/time/increment_hour_ordinal.tsv"))
+        increment_hour_cardinal = pynini.string_file(get_abs_path("data/time/increment_hour_cardinal.tsv"))
         convert_hour = pynini.string_file(get_abs_path("data/time/time_convert.tsv"))
-        hour_names = pynini.string_file(get_abs_path("data/time/hour_names.tsv"))
 
         number = pynini.closure(pynini.cross("0", ""), 0, 1) + number_names.nominative_up_to_thousand_names
-        hour_options = pynini.project(increment_hour, "input")
+        hour_options = pynini.project(increment_hour_ordinal, "input")
         hour_options = hour_options | pynini.project(convert_hour, "output")
 
         hour_exeption_ends_with_one = pynini.union(*["01", "21"])
@@ -76,18 +72,9 @@ class TimeFst(GraphFst):
         minutes = mins_exception_ends_with_one @ number + pynutil.insert(" минута")
         minutes |= mins_exception_ends_rest @ number + pynutil.insert(" минуты")
         minutes |= mins_other @ number + pynutil.insert(" минут")
-
-        # 17:15 -> "пятнадцать минут шестого"
-        self.m_next_h = (
-            pynutil.insert("hours: \"")
-            + pynini.compose(hour_options, increment_hour)
-            + pynutil.insert("\"")
-            + pynini.cross(":", " ")
-            + pynutil.insert("minutes: \"")
-            + minutes
-            + pynutil.insert("\"")
-        )
-        self.hm = (
+        self.minutes = minutes.optimize()
+        # 17:15 -> "семнадцать часов и пятнадцать минут"
+        hm = (
             pynutil.insert("hours: \"")
             + hour.optimize()
             + pynutil.insert("\"")
@@ -95,72 +82,34 @@ class TimeFst(GraphFst):
             + pynutil.insert("\"")
             + pynutil.insert(" preserve_order: true")
         )
-        self.h = pynutil.insert("hours: \"") + hour + pynutil.insert("\"") + pynutil.delete(":00")
+        h = pynutil.insert("hours: \"") + hour + pynutil.insert("\"") + pynutil.delete(":00")
+        self.graph_preserve_order = (hm | h).optimize()
 
-        self.fst = self.m_next_h | self.hm | self.h
-        self.fst = self.add_tokens(self.fst)
+        # 17:15 -> "пятнадцать минут шестого"
+        self.increment_hour_ordinal = pynini.compose(hour_options, increment_hour_ordinal).optimize()
+        m_next_h = (
+            pynutil.insert("hours: \"")
+            + self.increment_hour_ordinal
+            + pynutil.insert("\"")
+            + pynini.cross(":", " ")
+            + pynutil.insert("minutes: \"")
+            + minutes
+            + pynutil.insert("\"")
+        )
+
+        # 17:45 -> "без пятнадцати минут шесть"
+        self.mins_to_h = pynini.string_file(get_abs_path("data/time/minutes_to_hour.tsv")).optimize()
+        self.increment_hour_cardinal = pynini.compose(hour_options, increment_hour_cardinal).optimize()
+        m_to_h = (
+            pynutil.insert("hours: \"")
+            + self.increment_hour_cardinal
+            + pynutil.insert("\"")
+            + pynini.cross(":", " ")
+            + pynutil.insert("minutes: \"без ")
+            + self.mins_to_h
+            + pynutil.insert("\"")
+        )
+
+        self.final_graph = m_next_h | self.graph_preserve_order | m_to_h
+        self.fst = self.add_tokens(self.final_graph)
         self.fst = self.fst.optimize()
-
-        # from pynini.lib.rewrite import top_rewrites
-        # import pdb; pdb.set_trace()
-        # print(top_rewrites("17:15", self.mins_next_hour, 5))
-
-        # from pynini.lib.rewrite import top_rewrites
-        # import pdb; pdb.set_trace()
-        # print(top_rewrites("13:05", self.fst, 5))
-        # print()
-
-        # suffix_graph = pynini.string_file(get_abs_path("data/time_suffix.tsv"))
-        # time_zone_graph = pynini.string_file(get_abs_path("data/time_zone.tsv"))
-        #
-        # # only used for < 1000 thousand -> 0 weight
-        # cardinal = cardinal.graph
-        #
-        # labels_hour = [str(x) for x in range(0, 24)]
-        # labels_minute_single = [str(x) for x in range(1, 10)]
-        # labels_minute_double = [str(x) for x in range(10, 60)]
-        #
-        # delete_leading_zero_to_double_digit = (NEMO_DIGIT + NEMO_DIGIT) | (
-        #     pynini.closure(pynutil.delete("0"), 0, 1) + NEMO_DIGIT
-        # )
-        #
-        # graph_hour = delete_leading_zero_to_double_digit @ pynini.union(*labels_hour) @ cardinal
-        #
-        # graph_minute_single = pynini.union(*labels_minute_single) @ cardinal
-        # graph_minute_double = pynini.union(*labels_minute_double) @ cardinal
-        #
-        # final_graph_hour = pynutil.insert("hours: \"") + graph_hour + pynutil.insert("\"")
-        # final_graph_minute = (
-        #     pynutil.insert("minutes: \"")
-        #     + (pynini.cross("0", "o") + insert_space + graph_minute_single | graph_minute_double)
-        #     + pynutil.insert("\"")
-        # )
-        # final_suffix = pynutil.insert("suffix: \"") + convert_space(suffix_graph) + pynutil.insert("\"")
-        # final_suffix_optional = pynini.closure(delete_space + insert_space + final_suffix, 0, 1)
-        # final_time_zone_optional = pynini.closure(
-        #     delete_space
-        #     + insert_space
-        #     + pynutil.insert("zone: \"")
-        #     + convert_space(time_zone_graph)
-        #     + pynutil.insert("\""),
-        #     0,
-        #     1,
-        # )
-        #
-        # 2:30 pm, 02:30, 2:00
-
-        #
-        # # 2.xx pm/am
-        # graph_hm2 = (
-        #     final_graph_hour
-        #     + pynutil.delete(".")
-        #     + (pynutil.delete("00") | insert_space + final_graph_minute)
-        #     + delete_space
-        #     + insert_space
-        #     + final_suffix
-        #     + final_time_zone_optional
-        # )
-        # # 2 pm est
-        # graph_h = final_graph_hour + delete_space + insert_space + final_suffix + final_time_zone_optional
-        # final_graph = (graph_hm | graph_h | graph_hm2).optimize()
-        #

@@ -65,6 +65,9 @@ class DateFst(GraphFst):
         ) | NEMO_DIGIT
         day = (pynutil.insert("day: \"") + pynini.compose(day, numbers) + pynutil.insert("\"")).optimize()
 
+        # from pynini.lib.rewrite import rewrites, top_rewrites
+        # import pdb; pdb.set_trace()
+
         month_number_to_abbr = pynini.string_file(get_abs_path("data/months/numbers.tsv")).optimize()
         month_number_to_abbr = (
             (

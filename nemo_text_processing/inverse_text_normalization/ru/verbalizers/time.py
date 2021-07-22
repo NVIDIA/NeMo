@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space, insert_space
 
 try:
     import pynini
@@ -31,7 +31,19 @@ class TimeFst(GraphFst):
 
     def __init__(self):
         super().__init__(name="time", kind="verbalize")
+        hour = (
+            pynutil.delete("hours: ") + pynutil.delete("\"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        )
+        minutes = (
+            pynutil.delete("minutes: ")
+            + pynutil.delete("\"")
+            + pynini.closure(NEMO_NOT_QUOTE, 1)
+            + pynutil.delete("\"")
+        )
 
-        graph = pynutil.delete("hours: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        graph_preserve_order = pynutil.delete("hours: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        graph_reverse_order = hour + delete_space + pynutil.insert(":") + minutes + delete_space
+
+        graph = graph_preserve_order | graph_reverse_order
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

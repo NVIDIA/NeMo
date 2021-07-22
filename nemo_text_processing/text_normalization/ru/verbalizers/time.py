@@ -53,15 +53,11 @@ class TimeFst(GraphFst):
             + pynutil.delete("\"")
         )
 
-        graph = (
-            hour
-            + delete_space
-            + insert_space
-            + minutes
-            + delete_space
-            + insert_space
-            + pynutil.delete("preserve_order: true")
+        self.graph = (
+            hour + delete_space + insert_space + minutes + delete_space + pynutil.delete("preserve_order: true")
         )
-        graph |= minutes + delete_space + insert_space + hour + delete_space + insert_space
-        delete_tokens = self.delete_tokens(graph)
+        self.graph |= hour + delete_space
+        self.graph |= minutes + delete_space + insert_space + hour + delete_space
+
+        delete_tokens = self.delete_tokens(self.graph)
         self.fst = delete_tokens.optimize()

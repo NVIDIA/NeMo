@@ -138,6 +138,7 @@ class NormalizerWithAudio(Normalizer):
             tagged_text = pynini.escape(tagged_text)
             return rewrite.rewrites(tagged_text, self.verbalizer.fst)
 
+        print(tagged_text)
         try:
             normalized_texts.extend(get_verbalized_text(tagged_text))
         except pynini.lib.rewrite.Error:
