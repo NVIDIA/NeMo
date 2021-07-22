@@ -350,7 +350,7 @@ class AppState(metaclass=Singleton):
         self._checkpoint_callback_params = params
 
     @property
-    def model_config_yaml(self):
+    def model_config_yaml(self) -> str:
         return self._model_config_yaml
 
     @model_config_yaml.setter
@@ -358,7 +358,7 @@ class AppState(metaclass=Singleton):
         self._model_config_yaml = path
 
     @property
-    def model_weights_ckpt(self):
+    def model_weights_ckpt(self) -> str:
         return self._model_weights_ckpt
 
     @model_weights_ckpt.setter
