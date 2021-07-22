@@ -22,6 +22,7 @@ from nemo.collections.nlp.modules.common.huggingface.huggingface_decoder import 
 from nemo.collections.nlp.modules.common.huggingface.huggingface_encoder import HuggingFaceEncoderModule
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder import MegatronEncoderModule
 from nemo.collections.nlp.modules.common.transformer.transformer import TransformerDecoderNM, TransformerEncoderNM
+from nemo.collections.nlp.modules.common.transformer.perceiver import PerceiverEncoderNM
 
 
 def get_nemo_transformer(
@@ -66,24 +67,47 @@ def get_nemo_transformer(
         cfg = config_dict
 
     if encoder:
-        model = TransformerEncoderNM(
-            vocab_size=cfg.get('vocab_size'),
-            hidden_size=cfg.get('hidden_size'),
-            num_layers=cfg.get('num_layers'),
-            inner_size=cfg.get('inner_size'),
-            max_sequence_length=cfg.get('max_sequence_length', 512),
-            embedding_dropout=cfg.get('embedding_dropout', 0.0),
-            learn_positional_encodings=cfg.get('learn_positional_encodings', False),
-            num_attention_heads=cfg.get('num_attention_heads'),
-            ffn_dropout=cfg.get('ffn_dropout', 0.0),
-            attn_score_dropout=cfg.get('attn_score_dropout', 0.0),
-            attn_layer_dropout=cfg.get('attn_layer_dropout', 0.0),
-            hidden_act=cfg.get('hidden_act', 'relu'),
-            mask_future=cfg.get('mask_future', False),
-            pre_ln=cfg.get('pre_ln', False),
-            pre_ln_final_layer_norm=pre_ln_final_layer_norm,
-            num_token_types=cfg.get('num_token_types', 2),
-        )
+        # read architecture
+        arch = cfg.get('arch', "")
+        if arch == "":
+            model = TransformerEncoderNM(
+                vocab_size=cfg.get('vocab_size'),
+                hidden_size=cfg.get('hidden_size'),
+                num_layers=cfg.get('num_layers'),
+                inner_size=cfg.get('inner_size'),
+                max_sequence_length=cfg.get('max_sequence_length', 512),
+                embedding_dropout=cfg.get('embedding_dropout', 0.0),
+                learn_positional_encodings=cfg.get('learn_positional_encodings', False),
+                num_attention_heads=cfg.get('num_attention_heads'),
+                ffn_dropout=cfg.get('ffn_dropout', 0.0),
+                attn_score_dropout=cfg.get('attn_score_dropout', 0.0),
+                attn_layer_dropout=cfg.get('attn_layer_dropout', 0.0),
+                hidden_act=cfg.get('hidden_act', 'relu'),
+                mask_future=cfg.get('mask_future', False),
+                pre_ln=cfg.get('pre_ln', False),
+                pre_ln_final_layer_norm=pre_ln_final_layer_norm,
+                num_token_types=cfg.get('num_token_types', 2),
+            )
+        elif arch == "perceiver":
+            model = PerceiverEncoderNM(
+                vocab_size=cfg.get('vocab_size'),
+                hidden_size=cfg.get('hidden_size'),
+                hidden_steps=cfg.get('hidden_steps'),
+                num_layers=cfg.get('num_layers'),
+                inner_size=cfg.get('inner_size'),
+                max_sequence_length=cfg.get('max_sequence_length', 512),
+                embedding_dropout=cfg.get('embedding_dropout', 0.0),
+                learn_positional_encodings=cfg.get('learn_positional_encodings', False),
+                num_attention_heads=cfg.get('num_attention_heads'),
+                ffn_dropout=cfg.get('ffn_dropout', 0.0),
+                attn_score_dropout=cfg.get('attn_score_dropout', 0.0),
+                attn_layer_dropout=cfg.get('attn_layer_dropout', 0.0),
+                hidden_act=cfg.get('hidden_act', 'relu'),
+                mask_future=cfg.get('mask_future', False),
+                pre_ln=cfg.get('pre_ln', False),
+                pre_ln_final_layer_norm=pre_ln_final_layer_norm,
+                num_token_types=cfg.get('num_token_types', 2),
+            )
     else:
         model = TransformerDecoderNM(
             vocab_size=cfg.get('vocab_size'),

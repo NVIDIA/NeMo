@@ -1,0 +1,115 @@
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import copy
+from dataclasses import dataclass
+
+import torch
+import torch.nn as nn
+from omegaconf.omegaconf import MISSING
+
+from nemo.collections.common.parts import form_attention_mask
+from nemo.collections.nlp.modules.common.transformer.transformer_modules import AttentionBridge
+from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoder
+
+
+__all__ = ["PerceiverEncoder"]
+
+
+class PerceiverEncoder(TransformerDecoder):
+    def __init__(
+        self,
+        num_layers: int,
+        hidden_size: int,
+        hidden_steps: int,
+        inner_size: int,
+        num_attention_heads: int = 1,
+        attn_score_dropout: float = 0.0,
+        attn_layer_dropout: float = 0.0,
+        ffn_dropout: float = 0.0,
+        hidden_act: str = "relu",
+        pre_ln: bool = False,
+        pre_ln_final_layer_norm: bool = True,
+        init_hidden_method: str = "att_bridge",
+    ):
+        super().__init__(
+            num_layers=num_layers,
+            hidden_size=hidden_size,
+            inner_size=inner_size,
+            num_attention_heads=num_attention_heads,
+            attn_score_dropout=attn_score_dropout,
+            attn_layer_dropout=attn_layer_dropout,
+            ffn_dropout=ffn_dropout,
+            hidden_act=hidden_act,
+            pre_ln=pre_ln,
+            pre_ln_final_layer_norm=pre_ln_final_layer_norm,
+        )
+
+        self.init_hidden_method = init_hidden_method
+        self.hidden_steps = hidden_steps
+
+        if self.init_hidden_method == "params":
+            # learnable initial hidden values
+            self.init_hiddden = torch.nn.Parameter(
+                torch.nn.init.xavier_uniform_(torch.empty(hidden_steps, hidden_size))
+            )
+        elif self.init_hidden_method == "att_bridge":
+            # initialize latent with attention bridge
+            self.att_bridge = AttentionBridge(
+                hidden_size=hidden_size,
+                k=hidden_steps,
+                bridge_size=inner_size,
+            )
+        else:
+            raise ValueError("Unknown init_hidden_method = {init_hidden_method}. Supported methods: params, att_bridge")
+
+        # encoder is not auto-regressive
+        self.diagonal = None
+
+    def forward(self, encoder_states, encoder_mask, hidden_mems_list=None, return_mems=False):
+        """
+        Args:
+            encoder_states: output of the encoder (B x L_enc x H)
+            encoder_mask: encoder inputs mask (B x L_enc)
+            hidden_mems_list: list of the cached hidden states
+                for fast autoregressive generation which will be used instead
+                of hidden_states as keys and values if not None
+            return_mems: bool, whether to return outputs of all encoder layers
+                or the last layer only
+        """
+        if self.init_hidden_method == "params":
+            # learnable initial hidden values
+            hidden_states = self.init_hiddden
+        elif self.init_hidden_method == "att_bridge":
+            # initialize latent with attention bridge
+            hidden_states = self.att_bridge(
+                hidden=encoder_states,
+                hidden_mask=encoder_mask,
+            )
+
+        # TODO: test hidden_mask values are like encoder_mask
+        import pudb
+        pudb.set_trace()
+        # all hidden values are active
+        hidden_mask = torch.ones(init_hiddden.shape[0], init_hiddden.shape[1],
+                                 dtype=encoder_mask.dtype, device=encoder_mask.device)
+
+        return super().forward(
+            decoder_states=hidden_states,
+            decoder_mask=hidden_mask,
+            encoder_states=encoder_states,
+            encoder_mask=encoder_mask,
+            decoder_mems_list=hidden_mems_list,
+            return_mems=return_mems,
+        )

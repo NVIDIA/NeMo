@@ -40,6 +40,7 @@ from nemo.collections.nlp.models.machine_translation.perceiver import Perceiver
 
 __all__ = ['MTBottleneckModel']
 
+
 class MTBottleneckModel(MTEncDecModel):
     """
     Machine translation model which supports bottleneck architecture,
@@ -49,10 +50,6 @@ class MTBottleneckModel(MTEncDecModel):
     """
 
     def __init__(self, cfg: MTBottleneckModelConfig, trainer: Trainer = None):
-        super().__init__(cfg=cfg, trainer=trainer)
-
-        recon_per_token: bool = True
-
         self.model_type: str = cfg.get("model_type", "seq2seq-br")
         self.min_logv: float = cfg.get("min_logv", -6)
         self.ortho_loss_coef: float = cfg.get("ortho_loss_coef", 0.0)
@@ -62,53 +59,17 @@ class MTBottleneckModel(MTEncDecModel):
         self.non_recon_warmup_batches: int = cfg.get("non_recon_warmup_batches", 200000)
         self.recon_per_token: bool = cfg.get("recon_per_token", True)
 
-        self.perceiver = Perceiver(
-            num_freq_bands=6,
-            depth=2,
-            max_freq=10,
-            freq_base=2,
-            input_channels=1,
-            input_axis=1,
-            num_latents=16,
-            latent_dim=1024,
-            cross_heads=16,
-            latent_heads=16,
-            cross_dim_head=32,
-            latent_dim_head=32,
-            num_classes=1000, # TODO: update me
-            attn_dropout=0.1,
-            ff_dropout=0.1,
-            weight_tie_layers=True,
-            fourier_encode_data=True,
-            self_per_cross_attn=1,
-            self_attn_rel_pos=True
-        )
-        # model = TransformerEncoderNM(
-        #     vocab_size=cfg.get('vocab_size'),
-        #     hidden_size=cfg.get('hidden_size'),
-        #     num_layers=cfg.get('num_layers'),
-        #     inner_size=cfg.get('inner_size'),
-        #     max_sequence_length=cfg.get('max_sequence_length', 512),
-        #     embedding_dropout=cfg.get('embedding_dropout', 0.0),
-        #     learn_positional_encodings=cfg.get('learn_positional_encodings', False),
-        #     num_attention_heads=cfg.get('num_attention_heads'),
-        #     ffn_dropout=cfg.get('ffn_dropout', 0.0),
-        #     attn_score_dropout=cfg.get('attn_score_dropout', 0.0),
-        #     attn_layer_dropout=cfg.get('attn_layer_dropout', 0.0),
-        #     hidden_act=cfg.get('hidden_act', 'relu'),
-        #     mask_future=cfg.get('mask_future', False),
-        #     pre_ln=cfg.get('pre_ln', False),
-        #     pre_ln_final_layer_norm=pre_ln_final_layer_norm,
-        #     num_token_types=cfg.get('num_token_types', 2),
-        # )
+        # update encoder configuration
+        cfg.encoder.hidden_steps = self.att_bridge_k
 
+        super().__init__(cfg=cfg, trainer=trainer)
 
         # TODO: add support in label smoothing for per-sample reconstruction loss
         if not self.recon_per_token:
             loss_fn = NLLLoss(ignore_index=self.decoder_tokenizer.pad_id, reduction='none',)
             self.loss_fn = self.eval_loss_fn = loss_fn
 
-        if self.model_type not in ["seq2seq", "seq2seq-br", "seq2seq-mim", "seq2seq-vae"]:
+        if self.model_type not in ["seq2seq", "seq2seq-br", "seq2seq-mim", "seq2seq-vae", "seq2seq-per"]:
             raise ValueError("Unknown model_type = {model_type}".format(model_type=self.model_type,))
 
         if self.model_type != "seq2seq":
@@ -118,9 +79,12 @@ class MTBottleneckModel(MTEncDecModel):
             else:
                 self.latent2hidden = torch.nn.Identity()
 
-            self.att_bridge = AttentionBridge(
-                hidden_size=self.encoder.hidden_size, k=self.att_bridge_k, bridge_size=self.att_bridge_size,
-            )
+            if self.model_type == "seq2seq-per":
+                self.att_bridge = torch.nn.Identity()
+            else:
+                self.att_bridge = AttentionBridge(
+                    hidden_size=self.encoder.hidden_size, k=self.att_bridge_k, bridge_size=self.att_bridge_size,
+                )
 
             # project dimension of encoder hidden to bridge dimension
             if self.encoder.hidden_size != self.att_bridge_size:
@@ -185,20 +149,19 @@ class MTBottleneckModel(MTEncDecModel):
             z_mask = hidden_mask
             ortho_loss = 0.0
         else:
-            # seq2seq-br, seq2seq-mim, seq2seq-vae
+            # seq2seq-br, seq2seq-mim, seq2seq-vae, seq2seq-per
 
+            if self.model_type == "seq2seq-per":
+                bridge_hidden = hidden
+                ortho_loss = 0.0
+            else:
+                # project hidden to a fixed size bridge using k attention heads
+                res = self.att_bridge(hidden=hidden, hidden_mask=hidden_mask, return_ortho_loss=return_ortho_loss,)
 
-            # FIXME: REMOVE ME
-            bridge_hidden = hidden
-            ortho_loss = 0.0
-
-            # project hidden to a fixed size bridge using k attention heads
-            # res = self.att_bridge(hidden=hidden, hidden_mask=hidden_mask, return_ortho_loss=return_ortho_loss,)
-
-            # if return_ortho_loss:
-            #     bridge_hidden, ortho_loss = res
-            # else:
-            #     bridge_hidden = res
+                if return_ortho_loss:
+                    bridge_hidden, ortho_loss = res
+                else:
+                    bridge_hidden = res
 
             # all bottleneck models have mean
             z_mean = self.hidden2latent_mean(bridge_hidden)
@@ -231,7 +194,8 @@ class MTBottleneckModel(MTEncDecModel):
         """
         info_dict = {}
 
-        src_hiddens = self.perceiver(data=src.unsqueeze(-1), mask=src_mask.bool())
+        src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask,)
+
         # build posterior distribution q(x|z)
         z, z_mean, z_logv, bridge_mask, ortho_loss = self.sample_z(
             hidden=src_hiddens,
@@ -240,19 +204,6 @@ class MTBottleneckModel(MTEncDecModel):
             # to avoid recomputing attention bridge twice
             return_ortho_loss=True,
         )
-
-
-        # FIXME: REMOVE ME
-        # src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask,)
-
-        # # build posterior distribution q(x|z)
-        # z, z_mean, z_logv, bridge_mask, ortho_loss = self.sample_z(
-        #     hidden=src_hiddens,
-        #     hidden_mask=src_mask,
-        #     # we always return return_ortho_loss here even if ignored
-        #     # to avoid recomputing attention bridge twice
-        #     return_ortho_loss=True,
-        # )
 
         # build decoding distribution
         bridge_hiddens_dec = self.latent2hidden(z)
@@ -376,10 +327,7 @@ class MTBottleneckModel(MTEncDecModel):
         mode = self.training
         try:
             self.eval()
-            src_hiddens = self.perceiver(data=src.unsqueeze(-1), mask=src_mask.bool())
-
-            # FIXME: REMOVE ME
-            # src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
+            src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
 
             z, _, _, bridge_mask = self.sample_z(
                 hidden=src_hiddens,
