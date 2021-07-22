@@ -60,14 +60,13 @@ class DateFst(GraphFst):
 
         numbers = number_names.ordinal_number_names
 
-        day = (
-            (pynutil.add_weight(pynini.cross("0", ""), -0.1) | pynini.union("1", "2", "3")) + NEMO_DIGIT
-        ) | NEMO_DIGIT
-        day = (pynutil.insert("day: \"") + pynini.compose(day, numbers) + pynutil.insert("\"")).optimize()
+        zero = (pynutil.add_weight(pynini.cross("0", ""), -0.1)) | (pynutil.add_weight(pynini.cross("0", "ноль "), 0.1))
+        zero_digit = zero + pynini.compose(NEMO_DIGIT, numbers)
+        digit_day = (pynini.union("1", "2", "3") + NEMO_DIGIT) | NEMO_DIGIT
+        digit_day = pynini.compose(digit_day, numbers)
+        day = (pynutil.insert("day: \"") + (zero_digit | digit_day) + pynutil.insert("\"")).optimize()
 
-        # from pynini.lib.rewrite import rewrites, top_rewrites
-        # import pdb; pdb.set_trace()
-
+        digit_month = zero_digit | pynini.compose(pynini.accep("1") + NEMO_DIGIT, numbers)
         month_number_to_abbr = pynini.string_file(get_abs_path("data/months/numbers.tsv")).optimize()
         month_number_to_abbr = (
             (
@@ -79,8 +78,9 @@ class DateFst(GraphFst):
         month_name = (
             (month_number_to_abbr @ month_abbr_to_names) | pynutil.add_weight(month_abbr_to_names, 0.1)
         ).optimize()
-        month = (pynutil.insert("month: \"") + month_name + pynutil.insert("\"")).optimize()
+        month = (pynutil.insert("month: \"") + (month_name | digit_month) + pynutil.insert("\"")).optimize()
         year = pynini.compose(((NEMO_DIGIT ** 4) | (NEMO_DIGIT ** 2)), numbers).optimize()
+        year |= zero_digit
         year_word_singular = ["год", "года", "году", "годом", "годе"]
         year_word_plural = ["годы", "годов", "годам", "годами", "годам"]
 
