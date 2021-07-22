@@ -20,15 +20,15 @@ runtest () {
   done < "$input"
 }
 
-#testITNCardinal() {
-#  input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_cardinal.txt
-#  runtest $input
-#}
-#
-#testITNOrdinal() {
-#  input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_ordinal.txt
-#  runtest $input
-#}
+testITNCardinal() {
+  input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_cardinal.txt
+  runtest $input
+}
+
+testITNOrdinal() {
+  input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_ordinal.txt
+  runtest $input
+}
 
 testITNDate() {
   input=$PROJECT_DIR/ru/data_inverse_text_normalization/test_cases_date.txt
