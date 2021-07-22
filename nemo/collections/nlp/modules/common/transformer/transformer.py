@@ -65,7 +65,7 @@ class NeMoTransformerConfig:
 @dataclass
 class NeMoTransformerEncoderConfig(NeMoTransformerConfig):
     mask_future: bool = False
-    hidden_steps: int = 0
+    hidden_steps: int = 1
 
 
 @dataclass

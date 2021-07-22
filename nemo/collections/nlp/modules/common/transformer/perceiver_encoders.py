@@ -57,7 +57,6 @@ class PerceiverEncoder(TransformerDecoder):
         )
 
         self.init_hidden_method = init_hidden_method
-        self.hidden_steps = hidden_steps
 
         if self.init_hidden_method == "params":
             # learnable initial hidden values
