@@ -61,6 +61,9 @@ class NeMoTransformerConfig:
     model_name: Optional[str] = None
     pretrained: bool = False
 
+    # architecture details
+    arch: str = ''
+
 
 @dataclass
 class NeMoTransformerEncoderConfig(NeMoTransformerConfig):
