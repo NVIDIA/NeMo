@@ -326,7 +326,7 @@ class ModelPT(LightningModule, Model):
         if not is_global_rank_zero():
             return
         else:
-            self.save_restore_connector._default_save_to(save_path)
+            self._save_restore_connector._default_save_to(save_path)
 
     @classmethod
     def restore_from(
