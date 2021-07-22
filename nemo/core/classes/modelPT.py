@@ -87,10 +87,6 @@ class ModelPT(LightningModule, Model):
         """
         # set global vars in AppState
         app_state = AppState()
-        app_state.model_config_yaml = "model_config.yaml"
-        app_state.model_weights_ckpt = "model_weights.ckpt"
-        app_state.model_is_restored = False
-        app_state.nemo_file_folder = None
 
         # Convert config to a DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
@@ -120,7 +116,6 @@ class ModelPT(LightningModule, Model):
 
         # Set device_id in AppState
         if torch.cuda.is_available() and torch.cuda.current_device() is not None:
-            app_state = AppState()
             app_state.device_id = torch.cuda.current_device()
 
         if self._cfg is not None and not self._is_model_being_restored():
