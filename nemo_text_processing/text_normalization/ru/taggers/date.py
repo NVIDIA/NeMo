@@ -52,7 +52,7 @@ class DateFst(GraphFst):
             pynini.cross(pynini.union("/", "-"), " "), 1.1
         )
 
-        numbers = number_names.ordinal_number_names
+        numbers = number_names['ordinal_number_names']
 
         zero = (pynutil.add_weight(pynini.cross("0", ""), -0.1)) | (
             pynutil.add_weight(pynini.cross("0", "ноль "), 0.1)

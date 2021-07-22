@@ -35,7 +35,7 @@ class VerbalizeFinalFst(GraphFst):
         super().__init__(name="verbalize_final", kind="verbalize")
         verbalize = VerbalizeFst().fst
         word = WordFst().fst
-        types = verbalize  # | word
+        types = verbalize | word
         graph = (
             pynutil.delete("tokens")
             + delete_space

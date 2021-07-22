@@ -42,9 +42,8 @@ class TelephoneFst(GraphFst):
     def __init__(self, number_names: GraphFst, deterministic: bool = True):
         super().__init__(name="telephone", kind="classify", deterministic=deterministic)
 
-        # TODO restrict to only nominative case
         separator = pynini.cross("-", " ")  # between components
-        number = number_names.nominative_up_to_thousand_names
+        number = number_names['nominative_up_to_thousand_names']
 
         country_code = (
             pynutil.insert("country_code: \"")

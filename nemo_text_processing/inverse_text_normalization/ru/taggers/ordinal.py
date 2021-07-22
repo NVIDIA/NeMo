@@ -45,17 +45,3 @@ class OrdinalFst(GraphFst):
         graph = pynutil.insert("integer: \"") + graph + pynutil.insert("\"")
         graph = self.add_tokens(graph)
         self.fst = graph.optimize()
-
-
-if __name__ == '__main__':
-    from pynini.lib import rewrite
-
-    fst = OrdinalFst()
-    print(rewrite.rewrites("двадцатый", fst.graph))
-
-    import pdb
-
-    pdb.set_trace()
-    print(rewrite.rewrites("20", fst.ordinal_tn))
-    reformat = pynini.cdrewrite(pynini.cross('ый', '-ый'), "", "[EOS]", NEMO_SIGMA)
-    print(rewrite.rewrites("20", fst.ordinal_tn @ reformat))

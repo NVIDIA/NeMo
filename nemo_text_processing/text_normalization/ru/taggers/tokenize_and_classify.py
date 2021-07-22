@@ -22,8 +22,7 @@ from nemo_text_processing.text_normalization.ru.taggers.decimals import DecimalF
 from nemo_text_processing.text_normalization.ru.taggers.electronic import ElectronicFst
 from nemo_text_processing.text_normalization.ru.taggers.measure import MeasureFst
 from nemo_text_processing.text_normalization.ru.taggers.money import MoneyFst
-from nemo_text_processing.text_normalization.ru.taggers.number_names import NumberNamesFst
-from nemo_text_processing.text_normalization.ru.taggers.numbers_alternatives import AlternativeFormatsFst
+from nemo_text_processing.text_normalization.ru.taggers.number_names import get_alternative_formats, get_number_names
 from nemo_text_processing.text_normalization.ru.taggers.ordinal import OrdinalFst
 from nemo_text_processing.text_normalization.ru.taggers.telephone import TelephoneFst
 from nemo_text_processing.text_normalization.ru.taggers.time import TimeFst
@@ -54,8 +53,8 @@ class ClassifyFst(GraphFst):
         super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
         print('Ru TN only supports non-deterministic cases and produces multiple normalization options.')
 
-        number_names = NumberNamesFst()
-        alternative_formats = AlternativeFormatsFst()
+        number_names = get_number_names()
+        alternative_formats = get_alternative_formats()
 
         self.cardinal = CardinalFst(
             number_names=number_names, alternative_formats=alternative_formats, deterministic=deterministic

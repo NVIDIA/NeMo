@@ -38,10 +38,10 @@ class CardinalFst(GraphFst):
     def __init__(self, number_names: GraphFst, alternative_formats: GraphFst, deterministic: bool = False):
         super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
 
-        cardinal_default = number_names.cardinal_number_names
+        cardinal_default = number_names['cardinal_number_names']
 
-        one_thousand_alternative = alternative_formats.one_thousand_alternative
-        separators = alternative_formats.separators
+        one_thousand_alternative = alternative_formats['one_thousand_alternative']
+        separators = alternative_formats['separators']
 
         cardinal_numbers = cardinal_default | pynini.compose(cardinal_default, one_thousand_alternative)
         cardinal_numbers = pynini.compose(separators, cardinal_numbers)

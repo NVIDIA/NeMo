@@ -51,10 +51,10 @@ class OrdinalFst(GraphFst):
     def __init__(self, number_names: GraphFst, alternative_formats: GraphFst, deterministic=False):
         super().__init__(name="ordinal", kind="classify", deterministic=deterministic)
 
-        one_thousand_alternative = alternative_formats.one_thousand_alternative
-        separators = alternative_formats.separators
+        one_thousand_alternative = alternative_formats['one_thousand_alternative']
+        separators = alternative_formats['separators']
 
-        ordinal = number_names.ordinal_number_names
+        ordinal = number_names['ordinal_number_names']
 
         ordinal |= ordinal @ one_thousand_alternative
         ordinal_numbers = separators @ ordinal
