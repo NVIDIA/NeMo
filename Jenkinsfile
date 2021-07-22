@@ -71,8 +71,18 @@ pipeline {
           changeRequest target: 'main'
         }
       }
-      steps {
-        sh 'CUDA_VISIBLE_DEVICES="" pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
+      failFast true
+      parallel {
+        stage ('CPU Unit tests') {
+          steps {
+            sh 'CUDA_VISIBLE_DEVICES="" pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
+          }
+        }
+        stage ('ITN Unit tests') {
+          steps {
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/ -m "not pleasefixme" --cpu'
+          }
+        }
       }
     }
 
