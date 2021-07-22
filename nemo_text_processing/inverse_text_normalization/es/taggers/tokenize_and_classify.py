@@ -24,6 +24,7 @@ from nemo_text_processing.inverse_text_normalization.es.taggers.ordinal import O
 from nemo_text_processing.inverse_text_normalization.es.taggers.punctuation import PunctuationFst
 from nemo_text_processing.inverse_text_normalization.es.taggers.telephone import TelephoneFst
 from nemo_text_processing.inverse_text_normalization.es.taggers.time import TimeFst
+from nemo_text_processing.inverse_text_normalization.es.taggers.whitelist import WhiteListFst
 from nemo_text_processing.inverse_text_normalization.es.taggers.word import WordFst
 
 try:
@@ -59,14 +60,14 @@ class ClassifyFst(GraphFst):
         word_graph = WordFst().fst
         time_graph = TimeFst().fst
         money_graph = MoneyFst(cardinal=cardinal, decimal=decimal).fst
-        # whitelist_graph = WhiteListFst().fst
+        whitelist_graph = WhiteListFst().fst
         punct_graph = PunctuationFst().fst
         electronic_graph = ElectronicFst().fst
         telephone_graph = TelephoneFst().fst
 
         classify = (
-            # pynutil.add_weight(whitelist_graph, 1.01)
-            pynutil.add_weight(time_graph, 1.1)
+            pynutil.add_weight(whitelist_graph, 1.01)
+            | pynutil.add_weight(time_graph, 1.1)
             | pynutil.add_weight(date_graph, 1.09)
             | pynutil.add_weight(decimal_graph, 1.1)
             | pynutil.add_weight(measure_graph, 1.1)

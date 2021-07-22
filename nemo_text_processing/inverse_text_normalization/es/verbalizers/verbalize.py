@@ -23,6 +23,7 @@ from nemo_text_processing.inverse_text_normalization.es.verbalizers.money import
 from nemo_text_processing.inverse_text_normalization.es.verbalizers.ordinal import OrdinalFst
 from nemo_text_processing.inverse_text_normalization.es.verbalizers.telephone import TelephoneFst
 from nemo_text_processing.inverse_text_normalization.es.verbalizers.time import TimeFst
+from nemo_text_processing.inverse_text_normalization.es.verbalizers.whitelist import WhiteListFst
 
 
 class VerbalizeFst(GraphFst):
@@ -43,7 +44,7 @@ class VerbalizeFst(GraphFst):
         money_graph = MoneyFst(decimal=decimal).fst
         time_graph = TimeFst().fst
         date_graph = DateFst().fst
-        # whitelist_graph = WhiteListFst().fst
+        whitelist_graph = WhiteListFst().fst
         telephone_graph = TelephoneFst().fst
         electronic_graph = ElectronicFst().fst
 
@@ -55,7 +56,7 @@ class VerbalizeFst(GraphFst):
             | ordinal_graph
             | decimal_graph
             | cardinal_graph
-            # | whitelist_graph
+            | whitelist_graph
             | telephone_graph
             | electronic_graph
         )
