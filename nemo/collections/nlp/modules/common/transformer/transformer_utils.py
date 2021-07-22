@@ -69,7 +69,7 @@ def get_nemo_transformer(
     if encoder:
         # read architecture
         arch = cfg.get('arch', "")
-        if arch == "":
+        if not arch:
             model = TransformerEncoderNM(
                 vocab_size=cfg.get('vocab_size'),
                 hidden_size=cfg.get('hidden_size'),
