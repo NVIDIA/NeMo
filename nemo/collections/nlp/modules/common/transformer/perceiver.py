@@ -18,7 +18,7 @@ from typing import Optional
 import torch
 from omegaconf.omegaconf import MISSING
 
-from nemo.collections.nlp.modules.common.transformer.transformer import TransformerEncoderNM
+from nemo.collections.nlp.modules.common.transformer.transformer import TransformerEncoderNM, NeMoTransformerConfig
 from nemo.collections.nlp.modules.common.transformer.perceiver_encoders import PerceiverEncoder
 
 from nemo.core.classes.common import typecheck
@@ -26,8 +26,6 @@ from nemo.core.classes.exportable import Exportable
 
 
 __all__ = ["PerceiverEncoderNM"]
-
-# TODO: add config for Perceiver
 
 class PerceiverEncoderNM(TransformerEncoderNM):
     def __init__(
