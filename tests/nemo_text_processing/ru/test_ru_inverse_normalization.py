@@ -16,7 +16,7 @@ import pytest
 from nemo_text_processing.inverse_text_normalization.inverse_normalize import InverseNormalizer
 from parameterized import parameterized
 
-from .utils import PYNINI_AVAILABLE, parse_test_case_file
+from ..utils import PYNINI_AVAILABLE, parse_test_case_file
 
 
 class TestRuInverseNormalize:

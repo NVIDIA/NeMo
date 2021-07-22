@@ -104,19 +104,3 @@ class DecimalFst(GraphFst):
 
         self.final_graph = self.add_tokens(self.final_graph)
         self.fst = self.final_graph.optimize()
-
-        # from pynini.lib.rewrite import top_rewrites
-        # import pdb; pdb.set_trace()
-        # print(top_rewrites("две целых и пять десятых тысячи", self.final_graph, 5))
-
-
-if __name__ == '__main__':
-    from nemo_text_processing.text_normalization.ru.taggers.cardinal import CardinalFst
-    from pynini.lib import rewrite
-
-    fst = DecimalFst(CardinalFst())
-    print(rewrite.rewrites("2,3", fst.fst))
-    import pdb
-
-    pdb.set_trace()
-    print()

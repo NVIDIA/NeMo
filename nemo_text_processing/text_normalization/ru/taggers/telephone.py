@@ -85,9 +85,3 @@ class TelephoneFst(GraphFst):
         self.fst = self.add_tokens(
             pynutil.insert("number_part: ") + self.final_graph + pynutil.insert("\"")
         ).optimize()
-
-        # from pynini.lib.rewrite import top_rewrites
-        # import pdb; pdb.set_trace()
-        # print(top_rewrites("8-913-985-56-08", self.final_graph, 5))
-        # print(top_rewrites("8-913-985-56-00", tagger_graph, 5))
-        # print()

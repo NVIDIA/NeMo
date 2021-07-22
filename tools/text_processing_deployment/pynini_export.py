@@ -133,6 +133,7 @@ if __name__ == '__main__':
         from nemo_text_processing.inverse_text_normalization.de.verbalizers.verbalize import (
             VerbalizeFst as ITNVerbalizeFst,
         )
+
         if args.grammars == 'tn_grammars':
             raise ValueError('Only grammars for ITN task are supported for German language to deploy in Sparrowhawk.')
     output_dir = os.path.join(args.output_dir, args.language)

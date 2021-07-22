@@ -21,7 +21,6 @@ from typing import List, Tuple
 from joblib import Parallel, delayed
 from nemo_text_processing.text_normalization.data_loader_utils import post_process_punctuation, pre_process
 from nemo_text_processing.text_normalization.normalize import Normalizer
-from nemo_text_processing.text_normalization.token_parser import TokenParser
 
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import ASRModel
@@ -116,7 +115,6 @@ class NormalizerWithAudio(Normalizer):
         normalized_texts = []
 
         for tagged_text in tagged_texts:
-            print(tagged_text)
             self._verbalize(tagged_text, normalized_texts)
         if len(normalized_texts) == 0:
             raise ValueError()
@@ -138,7 +136,6 @@ class NormalizerWithAudio(Normalizer):
             tagged_text = pynini.escape(tagged_text)
             return rewrite.rewrites(tagged_text, self.verbalizer.fst)
 
-        print(tagged_text)
         try:
             normalized_texts.extend(get_verbalized_text(tagged_text))
         except pynini.lib.rewrite.Error:
@@ -146,7 +143,6 @@ class NormalizerWithAudio(Normalizer):
             tokens = self.parser.parse()
             tags_reordered = self.generate_permutations(tokens)
             for tagged_text_reordered in tags_reordered:
-                print('-->', tagged_text_reordered)
                 try:
                     normalized_texts.extend(get_verbalized_text(tagged_text_reordered))
                 except pynini.lib.rewrite.Error:
@@ -225,7 +221,7 @@ def parse_args():
     parser.add_argument(
         "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )
-    parser.add_argument("-lang", "--language", help="language", choices=["en", "ru"], default="en", type=str)
+    parser.add_argument("--language", help="language", choices=["en", "ru"], default="en", type=str)
     parser.add_argument("--audio_data", help="path to an audio file or .json manifest")
     parser.add_argument(
         '--model', type=str, default='QuartzNet15x5Base-En', help='Pre-trained model name or path to model checkpoint'
