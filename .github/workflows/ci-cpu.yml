@@ -64,13 +64,11 @@ jobs:
         /bin/bash nemo_text_processing/setup.sh
 
         # Install NeMo
-        pip install ".[all]"
+        pip install -e ".[all]"
 
         # Update Conda
         conda install -c numba numba=0.53.1 -y
 
     - name: CPU Tests
       run: |
-        cd tests/
-        pytest . -s -m "not pleasefixme" --cpu --relax_numba_compat
-        cd ..
+        pytest tests/ -s -m "not pleasefixme" --cpu --relax_numba_compat
