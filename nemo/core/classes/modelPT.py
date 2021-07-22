@@ -326,6 +326,7 @@ class ModelPT(LightningModule, Model):
         if not is_global_rank_zero():
             return
         else:
+            save_path = os.path.abspath(os.path.expanduser(save_path))
             self._save_restore_connector._default_save_to(save_path)
 
     @classmethod
@@ -360,11 +361,14 @@ class ModelPT(LightningModule, Model):
         Returns:
             An instance of type cls or its underlying config (if return_config is set).
         """
-        app_state = AppState()
+
+        restore_path = os.path.abspath(os.path.expanduser(restore_path))
         if not path.exists(restore_path):
             raise FileNotFoundError(f"Can't find {restore_path}")
 
-        app_state.model_restore_path = os.path.abspath(os.path.expanduser(restore_path))
+        app_state = AppState()
+        app_state.model_restore_path = restore_path
+
         cls.update_save_restore_connector(save_restore_connector(cls))
         return cls._save_restore_connector._default_restore_from(
             restore_path, override_config_path, map_location, strict, return_config
