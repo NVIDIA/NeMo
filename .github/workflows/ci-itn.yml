@@ -1,15 +1,16 @@
-name: CI-CPU
+name: CI-ITN
 
 on:
   push:
     branches:
       - main
+      - '**itn**'
       - 'action_**'
 
   pull_request:
     branches:
       - main
-      - 'action_**'
+      - '**itn**'
 
 jobs:
   ci-cpu:
@@ -45,15 +46,15 @@ jobs:
 
     - name: Install dependencies
       run: |
-        # Install nemo requirements
-        for f in $(ls requirements/requirements*.txt); do pip install --disable-pip-version-check -r $f; done
+#        Install nemo requirements
+#        for f in $(ls requirements/requirements*.txt); do pip install --disable-pip-version-check -r $f; done
+
+        # Install ITN requirements
+        /bin/bash nemo_text_processing/setup.sh
 
         # Install NeMo
-        pip install -e ".[all]"
-
-        # Update Conda
-        conda install -c numba numba=0.53.1 -y
+        pip install -e "."
 
     - name: CPU Tests
       run: |
-        pytest -m "not pleasefixme" --cpu --relax_numba_compat
+        pytest tests/nemo_text_processing/ -m "not pleasefixme" --cpu
