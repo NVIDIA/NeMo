@@ -18,7 +18,6 @@ from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA
 
 try:
     import pynini
-    from pynini.lib import pynutil
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -29,10 +28,9 @@ except (ModuleNotFoundError, ImportError):
 class MoneyFst(GraphFst):
     """
     Finite state transducer for verbalizing money, e.g.
-        money {  integer_part: "пять" currency: "рублей" } -> пять рублей
+        money {  "пять рублей" } -> пять рублей
 
     Args:
-        decimal: DecimalFst
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """

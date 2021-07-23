@@ -52,51 +52,29 @@ class MeasureFst(GraphFst):
             pynutil.add_weight(pynutil.delete(pynini.union(NEMO_SPACE, NEMO_NON_BREAKING_SPACE)), -1), 0, 1
         )
         cardinal_graph = cardinal.cardinal_numbers
-
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
-
-        graph_unit_plural = graph_unit
         optional_graph_negative = cardinal.optional_graph_negative
 
-        graph_unit2 = pynini.cross("/", "в") + delete_space + pynutil.insert(NEMO_NON_BREAKING_SPACE) + graph_unit
+        space_for_units = (
+            pynutil.add_weight(pynutil.insert(NEMO_NON_BREAKING_SPACE), -0.1)
+            | pynutil.add_weight(pynutil.insert(NEMO_SPACE), 0.1)
+        ).optimize()
+        slash_unit = (pynini.cross("/", "в") | pynini.cross("/", "за")) + space_for_units + graph_unit
 
-        optional_graph_unit2 = pynini.closure(
-            delete_space + pynutil.insert(NEMO_NON_BREAKING_SPACE) + graph_unit2, 0, 1,
-        )
+        unit_slash_unit = pynutil.add_weight(graph_unit + space_for_units + slash_unit, -0.1)
+        default_units = pynutil.insert("units: \"") + (graph_unit | unit_slash_unit) + pynutil.insert("\"")
+        slash_units = pynutil.insert("units: \"") + slash_unit + pynutil.insert("\"")
+        subgraph_decimal = decimal.final_graph + ((delete_space + default_units) | slash_units)
 
-        unit_plural = (
-            pynutil.insert("units: \"")
-            + (graph_unit_plural + optional_graph_unit2 | graph_unit2)
-            + pynutil.insert("\"")
-        )
-
-        unit_singular = (
-            pynutil.insert("units: \"") + (graph_unit + optional_graph_unit2 | graph_unit2) + pynutil.insert("\"")
-        )
-
-        subgraph_decimal = decimal.final_graph + delete_space + unit_plural
-
-        cardinal_space_plural = (
+        cardinal_space = (
             pynutil.insert("cardinal { ")
             + optional_graph_negative
             + pynutil.insert("integer: \"")
-            + ((NEMO_SIGMA - "1") @ cardinal_graph)
-            + delete_space
-            + pynutil.insert("\"")
-            + pynutil.insert(" } ")
-            + unit_plural
-        )
-
-        one = pynini.compose(pynini.accep("1"), cardinal_graph).optimize()
-        cardinal_space_singular = (
-            pynutil.insert("cardinal { ")
-            + optional_graph_negative
-            + pynutil.insert("integer: \"")
-            + one
-            + delete_space
-            + pynutil.insert("\"")
-            + pynutil.insert(" } ")
-            + unit_singular
+            + (NEMO_SIGMA @ cardinal_graph)
+            + (
+                (delete_space + pynutil.insert("\"") + pynutil.insert(" } ") + default_units)
+                | (pynutil.insert("\"") + pynutil.insert(" } ") + slash_units)
+            )
         )
 
         cardinal_dash_alpha = (
@@ -130,13 +108,12 @@ class MeasureFst(GraphFst):
             pynutil.insert("units: \"")
             + pynini.closure(RU_ALPHA, 1)
             + pynini.cross('-', '')
-            + pynutil.insert("\"")
-            + pynutil.insert(" decimal { ")
+            + pynutil.insert("\" ")
             + decimal.final_graph
-            + pynutil.insert(" } preserve_order: true")
+            + pynutil.insert(" preserve_order: true")
         )
 
-        self.tagger_graph_default = (subgraph_decimal | cardinal_space_singular | cardinal_space_plural).optimize()
+        self.tagger_graph_default = (subgraph_decimal | cardinal_space).optimize()
 
         tagger_graph = (
             self.tagger_graph_default
@@ -173,7 +150,11 @@ class MeasureFst(GraphFst):
         # SH adds "preserve_order: true" by default
         preserve_order = pynutil.delete("preserve_order:") + delete_space + pynutil.delete("true") + delete_space
         verbalizer_graph |= (
-            unit + insert_space + (graph_cardinal | graph_decimal) + delete_space + pynini.closure(preserve_order)
+            unit
+            + insert_space
+            + (graph_cardinal | graph_decimal)
+            + delete_space
+            + pynini.closure(preserve_order, 0, 1)
         )
         self.verbalizer_graph = verbalizer_graph.optimize()
 

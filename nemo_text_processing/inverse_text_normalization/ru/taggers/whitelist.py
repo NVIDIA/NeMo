@@ -13,10 +13,12 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, convert_space
+from nemo_text_processing.text_normalization.ru.utils import get_abs_path
 
 try:
     from pynini.lib import pynutil
+    import pynini
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -29,15 +31,13 @@ class WhiteListFst(GraphFst):
         "квартира" -> telephone { number_part: "кв." }
 
     Args:
-        tn_whitelist: Text normalization whitelist graph
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, tn_whitelist: GraphFst, deterministic: bool = True):
+    def __init__(self, deterministic: bool = True):
         super().__init__(name="whitelist", kind="classify", deterministic=deterministic)
-
-        tn_whitelist = tn_whitelist.final_graph
-        graph = tn_whitelist.invert().optimize()
-        graph = pynutil.insert("name: \"") + graph + pynutil.insert("\"")
+        print(get_abs_path("data/whitelist.tsv"))
+        whitelist = pynini.string_file(get_abs_path("data/whitelist.tsv")).invert()
+        graph = pynutil.insert("name: \"") + convert_space(whitelist) + pynutil.insert("\"")
         self.fst = graph.optimize()

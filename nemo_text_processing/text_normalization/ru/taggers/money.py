@@ -27,7 +27,7 @@ except (ModuleNotFoundError, ImportError):
 class MoneyFst(GraphFst):
     """
     Finite state transducer for classifying money, suppletive aware, e.g. 
-        "5руб." -> money {  integer_part: "пять" currency: "рублей" }
+        "5руб." -> money {  "пять рублей" }
 
     Args:
         cardinal: CardinalFst

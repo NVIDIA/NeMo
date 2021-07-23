@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NON_BREAKING_SPACE, NEMO_SPACE, GraphFst
 from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA
 
 try:
@@ -37,6 +37,6 @@ class MeasureFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="measure", kind="verbalize", deterministic=deterministic)
 
-        graph = pynini.closure(RU_ALPHA | " ")
+        graph = pynini.closure(RU_ALPHA | NEMO_SPACE | NEMO_NON_BREAKING_SPACE)
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
