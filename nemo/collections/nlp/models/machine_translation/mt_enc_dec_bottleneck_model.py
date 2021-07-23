@@ -50,6 +50,8 @@ class MTBottleneckModel(MTEncDecModel):
     """
 
     def __init__(self, cfg: MTBottleneckModelConfig, trainer: Trainer = None):
+        super().__init__(cfg=cfg, trainer=trainer)
+
         self.model_type: str = cfg.get("model_type", "seq2seq-br")
         self.min_logv: float = cfg.get("min_logv", -6)
         self.ortho_loss_coef: float = cfg.get("ortho_loss_coef", 0.0)
@@ -58,11 +60,6 @@ class MTBottleneckModel(MTEncDecModel):
         self.att_bridge_inner_size: int = cfg.get("att_bridge_inner_size", 1024)
         self.non_recon_warmup_batches: int = cfg.get("non_recon_warmup_batches", 200000)
         self.recon_per_token: bool = cfg.get("recon_per_token", True)
-
-        # update encoder configuration
-        cfg.encoder.hidden_steps = self.att_bridge_k
-
-        super().__init__(cfg=cfg, trainer=trainer)
 
         # TODO: add support in label smoothing for per-sample reconstruction loss
         if not self.recon_per_token:
