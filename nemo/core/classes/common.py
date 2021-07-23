@@ -24,9 +24,14 @@ from functools import total_ordering
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
-import hydra
+_HAS_HYDRA = True
+
+try:
+    import hydra
+    from omegaconf import DictConfig, OmegaConf
+except ModuleNotFoundError:
+    _HAS_HYDRA = False
 import wrapt
-from omegaconf import DictConfig, OmegaConf
 
 import nemo
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
@@ -417,22 +422,23 @@ class Typing(ABC):
 
 class Serialization(ABC):
     @classmethod
-    def from_config_dict(cls, config: DictConfig):
+    def from_config_dict(cls, config: 'DictConfig'):
         """Instantiates object using DictConfig-based configuration"""
         # Resolve the config dict
-        if isinstance(config, DictConfig):
-            config = OmegaConf.to_container(config, resolve=True)
-            config = OmegaConf.create(config)
-            OmegaConf.set_struct(config, True)
+        if _HAS_HYDRA:
+            if isinstance(config, DictConfig):
+                config = OmegaConf.to_container(config, resolve=True)
+                config = OmegaConf.create(config)
+                OmegaConf.set_struct(config, True)
 
-        config = maybe_update_config_version(config)
+            config = maybe_update_config_version(config)
 
         # Hydra 0.x API
-        if ('cls' in config or 'target' in config) and 'params' in config:
+        if ('cls' in config or 'target' in config) and 'params' in config and _HAS_HYDRA:
             # regular hydra-based instantiation
             instance = hydra.utils.instantiate(config=config)
         # Hydra 1.x API
-        elif '_target_' in config:
+        elif '_target_' in config and _HAS_HYDRA:
             # regular hydra-based instantiation
             instance = hydra.utils.instantiate(config=config)
         else:
@@ -440,7 +446,7 @@ class Serialization(ABC):
             imported_cls_tb = None
             # Attempt class path resolution from config `target` class (if it exists)
             if 'target' in config:
-                target_cls = config.target
+                target_cls = config["target"]  # No guarantee that this is a omegaconf class
                 imported_cls = None
                 try:
                     # try to import the target class
@@ -475,15 +481,16 @@ class Serialization(ABC):
             instance._cfg = config
         return instance
 
-    def to_config_dict(self) -> DictConfig:
+    def to_config_dict(self) -> 'DictConfig':
         """Returns object's configuration to config dictionary"""
-        if hasattr(self, '_cfg') and self._cfg is not None and isinstance(self._cfg, DictConfig):
+        if hasattr(self, '_cfg') and self._cfg is not None:
             # Resolve the config dict
-            config = OmegaConf.to_container(self._cfg, resolve=True)
-            config = OmegaConf.create(config)
-            OmegaConf.set_struct(config, True)
+            if _HAS_HYDRA and isinstance(self._cfg, DictConfig):
+                config = OmegaConf.to_container(self._cfg, resolve=True)
+                config = OmegaConf.create(config)
+                OmegaConf.set_struct(config, True)
 
-            config = maybe_update_config_version(config)
+                config = maybe_update_config_version(config)
 
             self._cfg = config
 

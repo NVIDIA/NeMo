@@ -81,22 +81,21 @@ extras_require = {
     # Torch Packages
     'torch_tts': req_file("requirements_torch_tts.txt"),
     # Lightning Collections Packages
-    'lightning': req_file("requirements_lightning.txt"),
+    'core': req_file("requirements_lightning.txt"),
     'asr': req_file("requirements_asr.txt"),
     'cv': req_file("requirements_cv.txt"),
     'nlp': req_file("requirements_nlp.txt"),
     'tts': req_file("requirements_tts.txt"),
-    # TODO: add `torch_all`, `lightning_asr` or just keep `asr`?
 }
 
 extras_require['all'] = list(chain(extras_require.values()))
 
 # Add lightning requirements as needed
-extras_require['test'] = list(chain([extras_require['tts'], extras_require['lightning']]))
-extras_require['asr'] = list(chain([extras_require['asr'], extras_require['lightning']]))
-extras_require['cv'] = list(chain([extras_require['cv'], extras_require['lightning']]))
-extras_require['nlp'] = list(chain([extras_require['nlp'], extras_require['lightning']]))
-extras_require['tts'] = list(chain([extras_require['tts'], extras_require['lightning']]))
+extras_require['test'] = list(chain([extras_require['tts'], extras_require['core']]))
+extras_require['asr'] = list(chain([extras_require['asr'], extras_require['core']]))
+extras_require['cv'] = list(chain([extras_require['cv'], extras_require['core']]))
+extras_require['nlp'] = list(chain([extras_require['nlp'], extras_require['core']]))
+extras_require['tts'] = list(chain([extras_require['tts'], extras_require['core']]))
 
 # TTS has extra dependencies
 extras_require['tts'] = list(chain([extras_require['tts'], extras_require['asr'], extras_require['torch_tts']]))

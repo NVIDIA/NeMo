@@ -8,6 +8,4 @@ scikit-learn
 sentencepiece<1.0.0
 tqdm>=4.41.0
 numba
-omegaconf>=2.1.0
-hydra-core>=1.1.0
 wget

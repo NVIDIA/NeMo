@@ -20,6 +20,20 @@ My proposal is to split NeMo into two parts that can coexist:
   - Parts that depend only on torch
   - Parts that depend on ligthning, hydra, omegaconf, etc
 
+"core"
+tts -> asr, torch_tts, lightning
+nlp -> lightning
+asr -> lightning
+all -> asr, nlp, tts
+
+text_normalization
+torch_tts
+
+~~lightning -> core [Not an install option]~~
+
+Make core installable. core will be our current.
+New "core" will be current core minus ModelPT, exp_manager, etc.
+
 These parts I envision are:
 
   - pip install .
@@ -28,13 +42,13 @@ These parts I envision are:
   - pip install ".[text_normalization]"
     - The text normalization tool
     - We can have other tools here as well
-  - pip install ".[torch_all]"
-    - A collection of our torch modules
+  - ~~pip install ".[torch_all]"~~
+    - ~~A collection of our torch modules~~
   - pip install ".[torch_tts]"
     - A collection of our torch modules
-  - pip install ".[lightning]"
+  - pip install ".[~~lightning~~core]"
     - Our current "core" which includes ModelPT
-  - pip install ".[lightning_asr]"
+  - pip install ".[~~lightning_asr~~asr]"
     - Our current asr collection. We can enable `pip install ".[asr]"` here as well for backwards compatibility
   - pip install ".[all]"
     - Installs all requirements. Everything in NeMo is expected to work here

@@ -26,5 +26,27 @@ from nemo.core.classes.dataset import Dataset, IterableDataset
 from nemo.core.classes.exportable import Exportable, ExportFormat
 from nemo.core.classes.loss import Loss
 
-# from nemo.core.classes.modelPT import ModelPT
+try:
+    import pytorch_lightning
+    import hydra
+    import omegaconf
+    from nemo.core.classes.modelPT import ModelPT
+except ModuleNotFoundError:
+    from nemo.utils import logging
+
+    class ModelPT:
+        def __init__(self, *args, **kwargs):
+            logging.error(
+                "You are trying to use nemo.core.modelPT without installing all of pytorch_lightning, hydra, and "
+                "omegaconf. Please install those packages before trying to access ModelPT."
+            )
+            exit(1)
+
+        def __call__(self, *args, **kwargs):
+            return self
+
+        def __getattr__(self, *args, **kwargs):
+            return self
+
+
 from nemo.core.classes.module import NeuralModule
