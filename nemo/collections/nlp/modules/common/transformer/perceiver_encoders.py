@@ -39,6 +39,7 @@ class PerceiverEncoder(TransformerDecoder):
         attn_layer_dropout: float = 0.0,
         ffn_dropout: float = 0.0,
         hidden_act: str = "relu",
+        mask_future: bool = False,
         pre_ln: bool = False,
         pre_ln_final_layer_norm: bool = True,
         init_hidden_method: str = "att_bridge",
@@ -73,8 +74,8 @@ class PerceiverEncoder(TransformerDecoder):
         else:
             raise ValueError("Unknown init_hidden_method = {init_hidden_method}. Supported methods: params, att_bridge")
 
-        # encoder is not auto-regressive
-        self.diagonal = None
+        # encoder does not have to be not auto-regressive
+        self.diagonal = 0 if mask_future else None
 
     def forward(self, encoder_states, encoder_mask, hidden_mems_list=None, return_mems=False):
         """
