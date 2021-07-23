@@ -14,12 +14,11 @@
 
 import random
 
-from nltk import word_tokenize
 from tqdm import tqdm
 from transformers import PreTrainedTokenizerBase
 
 import nemo.collections.nlp.data.text_normalization.constants as constants
-from nemo.collections.nlp.data.text_normalization.utils import read_data_file
+from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize, read_data_file
 from nemo.core.classes import Dataset
 from nemo.utils.decorators.experimental import experimental
 
@@ -41,6 +40,7 @@ class TextNormalizationDecoderDataset(Dataset):
         mode: should be one of the values ['tn', 'itn', 'joint'].  `tn` mode is for TN only. `itn` mode is for ITN only. `joint` is for training a system that can do both TN and ITN at the same time.
         max_len: maximum length of sequence in tokens. The code will discard any training instance whose input or output is longer than the specified max_len.
         decoder_data_augmentation (bool): a flag indicates whether to augment the dataset with additional data instances that may help the decoder become more robust against the tagger's errors. Refer to the doc for more info.
+        lang: language of the dataset
     """
 
     def __init__(
@@ -50,9 +50,12 @@ class TextNormalizationDecoderDataset(Dataset):
         mode: str,
         max_len: int,
         decoder_data_augmentation: bool,
+        lang: str,
     ):
         assert mode in constants.MODES
+        assert lang in constants.SUPPORTED_LANGS
         self.mode = mode
+        self.lang = lang
         raw_insts = read_data_file(input_file)
 
         # Convert raw instances to TaggerDataInstance
@@ -68,14 +71,19 @@ class TextNormalizationDecoderDataset(Dataset):
                         continue
                     # Create a DecoderDataInstance
                     inst = DecoderDataInstance(
-                        w_words, s_words, inst_dir, start_idx=ix, end_idx=ix + 1, semiotic_class=_class
+                        w_words, s_words, inst_dir, start_idx=ix, end_idx=ix + 1, lang=self.lang, semiotic_class=_class
                     )
                     insts.append(inst)
                     if decoder_data_augmentation:
                         noise_left = random.randint(1, 2)
                         noise_right = random.randint(1, 2)
                         inst = DecoderDataInstance(
-                            w_words, s_words, inst_dir, start_idx=ix - noise_left, end_idx=ix + 1 + noise_right
+                            w_words,
+                            s_words,
+                            inst_dir,
+                            start_idx=ix - noise_left,
+                            end_idx=ix + 1 + noise_right,
+                            lang=self.lang,
                         )
                         insts.append(inst)
 
@@ -139,10 +147,11 @@ class DecoderDataInstance:
         inst_dir: Indicates the direction of the instance (i.e., INST_BACKWARD for ITN or INST_FORWARD for TN).
         start_idx: The starting index of the input span in the original input text
         end_idx: The ending index of the input span (exclusively)
+        lang: Language of the instance
         semiotic_class: The semiotic class of the input span (can be set to None if not available)
     """
 
-    def __init__(self, w_words, s_words, inst_dir, start_idx, end_idx, semiotic_class=None):
+    def __init__(self, w_words, s_words, inst_dir, start_idx, end_idx, lang, semiotic_class=None):
         start_idx = max(start_idx, 0)
         end_idx = min(end_idx, len(w_words))
         ctx_size = constants.DECODE_CTX_SIZE
@@ -179,8 +188,8 @@ class DecoderDataInstance:
                 c_s_words[jx] = c_w_words[jx]
 
         # Extract input_words and output_words
-        c_w_words = word_tokenize(' '.join(c_w_words))
-        c_s_words = word_tokenize(' '.join(c_s_words))
+        c_w_words = basic_tokenize(' '.join(c_w_words), lang)
+        c_s_words = basic_tokenize(' '.join(c_s_words), lang)
         w_input = w_left + [extra_id_0] + c_w_words + [extra_id_1] + w_right
         s_input = s_left + [extra_id_0] + c_s_words + [extra_id_1] + s_right
         if inst_dir == constants.INST_BACKWARD:

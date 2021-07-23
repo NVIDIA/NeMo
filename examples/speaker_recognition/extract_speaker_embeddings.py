@@ -72,6 +72,8 @@ def main():
     if args.model_path.endswith('.nemo'):
         logging.info(f"Using local speaker model from {args.model_path}")
         speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(restore_path=args.model_path)
+    elif args.model_path.endswith('.ckpt'):
+        speaker_model = ExtractSpeakerEmbeddingsModel.load_from_checkpoint(checkpoint_path=args.model_path)
     else:
         speaker_model = ExtractSpeakerEmbeddingsModel.from_pretrained(model_name="speakerverification_speakernet")
         logging.info(f"using pretrained speaker verification model from NGC")
