@@ -4,12 +4,12 @@ on:
   push:
     branches:
       - main
-      - 'action_**'
+      - 'r1.**'
 
   pull_request:
     branches:
       - main
-      - 'action_**'
+      - 'r1.**'
 
 jobs:
   ci-cpu:

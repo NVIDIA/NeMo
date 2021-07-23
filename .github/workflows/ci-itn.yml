@@ -3,14 +3,15 @@ name: CI-ITN
 on:
   push:
     branches:
-      - main
       - '**itn**'
-      - 'action_**'
 
   pull_request:
     branches:
-      - main
       - '**itn**'
+
+  schedule:
+    # Run daily at 5:00 AM
+    - cron: '0 5 * * *'
 
 jobs:
   ci-itn:
@@ -38,9 +39,6 @@ jobs:
 
     - name: Install dependencies
       run: |
-        # Install nemo requirements
-        for f in $(ls requirements/requirements*.txt); do pip install --disable-pip-version-check -r $f; done
-
         # Install ITN requirements
         /bin/bash nemo_text_processing/setup.sh
 
