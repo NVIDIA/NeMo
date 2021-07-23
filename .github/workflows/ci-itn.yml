@@ -46,8 +46,8 @@ jobs:
 
     - name: Install dependencies
       run: |
-#        Install nemo requirements
-#        for f in $(ls requirements/requirements*.txt); do pip install --disable-pip-version-check -r $f; done
+        # Install nemo requirements
+        for f in $(ls requirements/requirements*.txt); do pip install --disable-pip-version-check -r $f; done
 
         # Install ITN requirements
         /bin/bash nemo_text_processing/setup.sh
