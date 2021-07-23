@@ -63,13 +63,22 @@ class OrdinalFst(GraphFst):
         graph_er_suffix = (optional_numbers_in_front + ordinal_graph_er) @ cardinal_graph
 
         graph = (
-            pynutil.insert("integer: \"") + graph_o_suffix + pynutil.insert("\"") + pynutil.insert(" suffix: \"o\"")
+            pynutil.insert("integer: \"")
+            + graph_o_suffix
+            + pynutil.insert("\"")
+            + pynutil.insert(" morphosyntactic_features: \"o\"")
         )
         graph |= (
-            pynutil.insert("integer: \"") + graph_a_suffix + pynutil.insert("\"") + pynutil.insert(" suffix: \"a\"")
+            pynutil.insert("integer: \"")
+            + graph_a_suffix
+            + pynutil.insert("\"")
+            + pynutil.insert(" morphosyntactic_features: \"a\"")
         )
         graph |= (
-            pynutil.insert("integer: \"") + graph_er_suffix + pynutil.insert("\"") + pynutil.insert(" suffix: \"er\"")
+            pynutil.insert("integer: \"")
+            + graph_er_suffix
+            + pynutil.insert("\"")
+            + pynutil.insert(" morphosyntactic_features: \"er\"")
         )
 
         final_graph = self.add_tokens(graph)

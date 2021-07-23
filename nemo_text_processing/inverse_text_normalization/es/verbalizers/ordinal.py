@@ -46,9 +46,9 @@ class OrdinalFst(GraphFst):
         )
 
         replace_suffix = pynini.union(
-            pynini.cross(" suffix: \"o\"", ".º"),
-            pynini.cross(" suffix: \"a\"", ".ª"),
-            pynini.cross(" suffix: \"er\"", ".er"),
+            pynini.cross(" morphosyntactic_features: \"o\"", ".º"),
+            pynini.cross(" morphosyntactic_features: \"a\"", ".ª"),
+            pynini.cross(" morphosyntactic_features: \"er\"", ".er"),
         )
 
         graph = graph + replace_suffix
