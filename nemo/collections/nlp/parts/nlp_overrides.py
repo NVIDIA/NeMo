@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 import os
 from typing import Any, Dict, List, Optional, Union
 
@@ -229,3 +230,7 @@ class NLPCheckpointConnector(CheckpointConnector):
                     )
                     atomic_save(checkpoint, filepath)
         return None
+
+
+# class NLPSaveRestoreConnector(SaveRestoreConnector):
+

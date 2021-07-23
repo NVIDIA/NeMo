@@ -15,6 +15,7 @@
 
 """Interfaces common to all Neural Modules and Models."""
 import hashlib
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 import traceback
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
@@ -622,6 +623,7 @@ class Model(Typing, Serialization, FileIO):
         map_location: Optional['torch.device'] = None,
         strict: bool = True,
         return_config: bool = False,
+        save_restore_connector: SaveRestoreConnector = SaveRestoreConnector,
     ):
         """
         Instantiates an instance of NeMo from NVIDIA NGC cloud
@@ -682,6 +684,7 @@ class Model(Typing, Serialization, FileIO):
             map_location=map_location,
             strict=strict,
             return_config=return_config,
+            save_restore_connector=save_restore_connector,
         )
         return instance
 
