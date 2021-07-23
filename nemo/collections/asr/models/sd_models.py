@@ -156,7 +156,7 @@ class EncDecCTCSDModel(EncDecCTCModel):
             )
 
         if self.spec_augmentation is not None and self.training:
-            processed_signal = self.spec_augmentation(input_spec=processed_signal)
+            processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
 
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         log_probs = self.decoder(encoder_output=encoded.float())
@@ -392,7 +392,7 @@ class EncDecCTCSDModelBPE(EncDecCTCModelBPE):
         assert not torch.isinf(processed_signal).any()
 
         if self.spec_augmentation is not None and self.training:
-            processed_signal = self.spec_augmentation(input_spec=processed_signal)
+            processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
 
         assert not torch.isnan(processed_signal).any()
         assert not torch.isinf(processed_signal).any()
