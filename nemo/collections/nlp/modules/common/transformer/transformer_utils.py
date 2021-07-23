@@ -67,7 +67,6 @@ def get_nemo_transformer(
         cfg = config_dict
 
     if encoder:
-        import pudb; pudb.set_trace()
         # read architecture
         arch = cfg.get('arch', "")
         if not arch:

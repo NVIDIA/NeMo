@@ -98,11 +98,8 @@ class PerceiverEncoder(TransformerDecoder):
                 hidden_mask=encoder_mask,
             )
 
-        # TODO: test hidden_mask values are like encoder_mask
-        import pudb
-        pudb.set_trace()
         # all hidden values are active
-        hidden_mask = torch.ones(init_hiddden.shape[0], init_hiddden.shape[1],
+        hidden_mask = torch.ones(hidden_states.shape[0], hidden_states.shape[1],
                                  dtype=encoder_mask.dtype, device=encoder_mask.device)
 
         return super().forward(
