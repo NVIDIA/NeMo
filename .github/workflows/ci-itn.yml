@@ -36,14 +36,6 @@ jobs:
         # install test requirements
         pip install -r requirements/requirements_test.txt
 
-    - name: Check copyright headers
-      run:  |
-        python tests/check_copyright_header.py --dir .
-
-    - name: Check style
-      run: |
-        python setup.py style
-
     - name: Install dependencies
       run: |
         # Install nemo requirements
