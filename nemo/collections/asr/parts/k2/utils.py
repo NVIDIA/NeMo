@@ -168,6 +168,7 @@ def intersect_with_self_loops(base_graph: k2.Fsa, aux_graph: k2.Fsa) -> k2.Fsa:
     # base_graph = k2.arc_sort(base_graph).to(base_graph.device)
     aux_graph_with_self_loops = k2.arc_sort(k2.add_epsilon_self_loops(aux_graph)).to(base_graph.device)
     result = k2.intersect(k2.arc_sort(base_graph), aux_graph_with_self_loops, treat_epsilons_specially=False)
+    setattr(result, "phones", result.labels)
     # result, a_arc_map, _ = k2.intersect(k2.arc_sort(base_graph), aux_graph_with_self_loops, treat_epsilons_specially=False, ret_arc_maps=True)
     # result.aux_labels = k2.index(base_graph.left_labels, a_arc_map)
     return result
@@ -196,17 +197,14 @@ def intersect_dense_failsafe(**kwargs):
 
 def get_tot_objf_and_num_frames(
         tot_scores: torch.Tensor,
-        frames_per_seq: torch.Tensor,
         reduction: str
     ) -> Tuple[torch.Tensor, torch.Tensor]:
     """Figures out the total score(log-prob) over all successful supervision segments
-    (i.e. those for which the total score wasn't -infinity), and the corresponding
-    number of frames of neural net output
+    (i.e. those for which the total score wasn't -infinity).
          Args:
             tot_scores: a Torch tensor of shape (num_segments,) containing total scores
                        from forward-backward
-            frames_per_seq: a Torch tensor of shape (num_segments,) containing the number of
-                           frames for each segment
+            reduction: a reduction type ('mean', 'sum' or 'none')
         Returns:
              Returns a tuple of 2 scalar tensors: (tot_score, finite_indices)
         where finite_indices is a tensor containing successful segment indexes, e.g.

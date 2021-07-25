@@ -52,9 +52,10 @@ python speech_to_text_bpe.py \
 ```
 """
 import pytorch_lightning as pl
-from omegaconf import OmegaConf
+import torch
+from omegaconf import OmegaConf, open_dict
 
-from nemo.collections.asr.models.sd_models import EncDecCTCSDModelBPE
+from nemo.collections.asr.models.sd_models import EncDecCTCSDModelBPE, EncDecCTCModelBPE
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -67,7 +68,29 @@ def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
+    with open_dict(cfg):
+        restore_path = cfg.pop('init_from_nemo', None)
+
     asr_model = EncDecCTCSDModelBPE(cfg=cfg.model, trainer=trainer)
+
+    if restore_path is not None:
+        checkpoint = EncDecCTCModelBPE.restore_from(
+            restore_path, map_location=torch.device('cpu')
+        )
+
+        try:
+            asr_model.encoder.load_state_dict(checkpoint.encoder.state_dict(), strict=False)
+            logging.info("Loaded encoder checkpoint")
+        except Exception:
+            logging.info("Could not load encoder checkpoint")
+
+        try:
+            asr_model.decoder.load_state_dict(checkpoint.decoder.state_dict(), strict=False)
+            logging.info("Loaded decoder checkpoint")
+        except Exception:
+            logging.info("Could not load decoder checkpoint")
+
+        del checkpoint
 
     trainer.fit(asr_model)
 

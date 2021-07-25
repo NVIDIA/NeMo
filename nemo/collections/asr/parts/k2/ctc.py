@@ -104,7 +104,6 @@ class CTCLoss(torch.nn.Module):
         tot_scores = num_tot_scores
         tot_scores, _ = get_tot_objf_and_num_frames(
             tot_scores,
-            supervisions[:, 2],
             self.reduction
         )
         return -tot_scores

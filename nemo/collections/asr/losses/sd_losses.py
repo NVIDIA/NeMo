@@ -41,9 +41,10 @@ class SDLoss(Loss):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, num_classes, reduction='mean_batch', backend='k2', loss_type='ctc', **loss_kwargs):
+    def __init__(self, num_classes, reduction='mean_batch', backend='k2', loss_type='ctc', loss_batch_size=0, **loss_kwargs):
         super().__init__()
         self._blank = num_classes
+        self.loss_batch_size = loss_batch_size
         if reduction == 'mean_batch':
             ctc_reduction = 'none'
             self._apply_batch_mean = True
@@ -75,9 +76,27 @@ class SDLoss(Loss):
         input_lengths = input_lengths.long()
         target_lengths = target_lengths.long()
         targets = targets.long()
-        loss = self._loss(
-            log_probs=log_probs, targets=targets, input_lengths=input_lengths, target_lengths=target_lengths
-        )
+        batch_size = log_probs.shape[0]
+        if self.loss_batch_size > 0 and self.loss_batch_size < batch_size:
+            loss_list = []
+            for batch_idx in range(0, batch_size, self.loss_batch_size):
+                begin = batch_idx
+                end = min(begin + self.loss_batch_size, batch_size)
+                loss_part = self._loss(
+                    log_probs=log_probs[begin:end],
+                    targets=targets[begin:end],
+                    input_lengths=input_lengths[begin:end],
+                    target_lengths=target_lengths[begin:end],
+                )
+                loss_list.append(loss_part)
+            loss = torch.cat(loss_list, 0)
+        else:
+            loss = self._loss(
+                log_probs=log_probs,
+                targets=targets,
+                input_lengths=input_lengths,
+                target_lengths=target_lengths,
+            )
         if self._apply_batch_mean:
             # torch.mean gives nan if loss is empty
             loss = torch.mean(loss) if loss.nelement() > 0 else torch.sum(loss)
