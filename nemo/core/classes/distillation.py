@@ -379,6 +379,10 @@ class DistillationModelPT(ModelPT):
         # Clear memory of primary loss
         del primary_loss_dict
 
+        # Weight the primary distillation loss
+        distillation_loss_weight = self.distillation_cfg.get('distillation_loss_weight', 1.0)
+        loss_value = distillation_loss_weight * loss_value
+
         # If the loss function inherits a Distillation Loss mixin, execute the mixin's operation on the gradient.
         if isinstance(self.transfer_loss_primary, ScaledDistillationLossMixin):
             loss_value = self.transfer_loss_primary.scale_gradients(self.student.parameters(), loss=loss_value)
