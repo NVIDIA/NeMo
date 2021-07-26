@@ -5,8 +5,8 @@ Machine Translation Models
 Machine translation is the task of translating text from one language to another. For example, from English to Spanish. Models are 
 based on the Transformer sequence-to-sequence architecture :cite:`nlp-machine_translation-vaswani2017attention`.
 
-An example script on how to train the model can be found here: `NeMo/examples/nlp/machine_translation/enc_dec_nmt.py <https://github.com/NVIDIA/NeMo/blob/v1.0.0/examples/nlp/machine_translation/enc_dec_nmt.py>`__.
-The default configuration file for the model can be found at: `NeMo/examples/nlp/machine_translation/conf/aayn_base.yaml <https://github.com/NVIDIA/NeMo/blob/v1.0.0/examples/nlp/machine_translation/conf/aayn_base.yaml>`__.
+An example script on how to train the model can be found here: `NeMo/examples/nlp/machine_translation/enc_dec_nmt.py <https://github.com/NVIDIA/NeMo/blob/v1.0.2/examples/nlp/machine_translation/enc_dec_nmt.py>`__.
+The default configuration file for the model can be found at: `NeMo/examples/nlp/machine_translation/conf/aayn_base.yaml <https://github.com/NVIDIA/NeMo/blob/v1.0.2/examples/nlp/machine_translation/conf/aayn_base.yaml>`__.
 
 Quick Start Guide
 -----------------
@@ -58,7 +58,7 @@ Data Format
 -----------
 
 Supervised machine translation models require parallel corpora which comprises many examples of sentences in a source language and 
-their corresponding translation in a target language. We use parallel data formatted as seperate text files for source and target 
+their corresponding translation in a target language. We use parallel data formatted as separate text files for source and target 
 languages where sentences in corresponding files are aligned like in the table below.
 
 .. list-table:: *Parallel Coprus*
@@ -85,12 +85,12 @@ We recommend applying the following steps to clean, normalize, and tokenize your
 
 #. Language ID filtering - This step filters out examples from your training dataset that aren't in the correct language. For example, 
    many datasets contain examples where source and target sentences are in the same language. You can use a pre-trained language ID 
-   classifier from `fastText <https://fasttext.cc/docs/en/language-identification.html>`__. You can then run our script using the 
+   classifier from `fastText <https://fasttext.cc/docs/en/language-identification.html>`__. Install fastText and then you can then run our script using the 
    ``lid.176.bin`` model downloaded from the fastText website.
 
    .. code ::
 
-       python NeMo/scripts/neural_machine_translation/filter_by_language.py \
+       python NeMo/scripts/neural_machine_translation/filter_langs_nmt.py \
          --input-src train.en \
          --input-tgt train.es \
          --output-src train_lang_filtered.en \
@@ -98,7 +98,7 @@ We recommend applying the following steps to clean, normalize, and tokenize your
          --source-lang en \
          --target-lang es \
          --removed-src train_noise.en \
-         --removed-tgt train_noise.de \
+         --removed-tgt train_noise.es \
          --fasttext-model lid.176.bin
 
 #. Length filtering - We filter out sentences from the data that are below a minimum length (1) or exceed a maximum length (250). We 
@@ -110,7 +110,7 @@ We recommend applying the following steps to clean, normalize, and tokenize your
 
        perl mosesdecoder/scripts/training/clean-corpus-n.perl -ratio 1.3 train en es train.filter 1 250
 
-#. Data cleaning - While language ID filtering can sometimes help with filtering out noisy sentences that contain too many puncutations, 
+#. Data cleaning - While language ID filtering can sometimes help with filtering out noisy sentences that contain too many punctuations, 
    it does not help in cases where the translations are potentially incorrect, disfluent,  or incomplete. We use `bicleaner <https://github.com/bitextor/bicleaner>`__ 
    a tool to identify such sentences. It trains a classifier based on many features included pre-trained language model fluency, word 
    alignment scores from a word-alignment model like `Giza++ <https://github.com/moses-smt/giza-pp>`__ etc. We use their available 
@@ -160,7 +160,7 @@ We recommend applying the following steps to clean, normalize, and tokenize your
 #. Tokenization and word segmentation for Chinese - Naturally written text often contains punctuation markers like commas, full-stops 
    and apostrophes that are attached to words. Tokenization by just splitting a string on spaces will result in separate token IDs for 
    very similar items like ``NeMo`` and ``NeMo.``. Tokenization splits punctuation from the word to create two separate tokens. In the 
-   previous example ``NeMo.`` becomes ``NeMo .`` which when split by space, results in two tokens and adressess the earlier problem. 
+   previous example ``NeMo.`` becomes ``NeMo .`` which when split by space, results in two tokens and addresses the earlier problem. 
    
    For example:
 
@@ -213,7 +213,7 @@ as follows:
 Applying BPE Tokenization, Batching, Bucketing and Padding
 ----------------------------------------------------------
 
-Given BPE tokenizers, and a cleaned parallel corpus, the following steps are applied to create a `TranslationDataset <https://github.com/NVIDIA/NeMo/blob/v1.0.0/nemo/collections/nlp/data/machine_translation/machine_translation_dataset.py#L64>`__ object.
+Given BPE tokenizers, and a cleaned parallel corpus, the following steps are applied to create a `TranslationDataset <https://github.com/NVIDIA/NeMo/blob/v1.0.2/nemo/collections/nlp/data/machine_translation/machine_translation_dataset.py#L64>`__ object.
 
 #. Text to IDs - This performs subword tokenization with the BPE model on an input string and maps it to a sequence of tokens for the 
    source and target text.
@@ -285,7 +285,7 @@ Tarred datasets can be configured as follows:
 
 Tarred datasets can be created in two ways:
 
-#. Using the Hydra config and `training script <https://github.com/NVIDIA/NeMo/blob/v1.0.0/examples/nlp/machine_translation/enc_dec_nmt.py>`__.
+#. Using the Hydra config and `training script <https://github.com/NVIDIA/NeMo/blob/v1.0.2/examples/nlp/machine_translation/enc_dec_nmt.py>`__.
 
    For example:
 
@@ -456,6 +456,122 @@ can be used to compute sacreBLEU scores.
 .. code ::
 
     cat test.en-es.translations | sacrebleu test.es
+
+Pretrained Encoders
+-------------------
+
+Pretrained BERT encoders from either `HuggingFace Transformers <https://huggingface.co/models>`__ 
+or `Megatron-LM <https://github.com/NVIDIA/Megatron-LM>`__ 
+can be used to to train NeMo NMT models.
+
+The ``library`` flag takes values: ``huggingface``, ``megatron``, and ``nemo``.
+
+The ``model_name`` flag is used to indicate a *named* model architecture.
+For example, we can use ``bert_base_cased`` from HuggingFace or ``megatron-bert-345m-cased`` from Megatron-LM.
+
+The ``pretrained`` flag indicates whether or not to download the pretrained weights (``pretrained=True``) or 
+instantiate the same model architecture with random weights (``pretrained=False``).
+
+To use a custom model architecture from a specific library, use ``model_name=null`` and then add the 
+custom configuration under the ``encoder`` configuration.
+
+HuggingFace
+^^^^^^^^^^^
+
+We have provided a `HuggingFace config file <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/machine_translation/conf/huggingface.yaml>`__
+to use with HuggingFace encoders. 
+
+To use the config file from CLI:
+
+.. code ::
+
+  --config-path=conf \
+  --config-name=huggingface \
+
+As an example, we can configure the NeMo NMT encoder to use ``bert-base-cased`` from HuggingFace 
+by using the ``huggingface`` config file and setting
+
+.. code ::
+
+  model.encoder.pretrained=true \
+  model.encoder.model_name=bert-base-cased \
+
+To use a custom architecture from HuggingFace we can use
+
+.. code ::
+
+  +model.encoder._target_=transformers.BertConfig \
+  +model.encoder.hidden_size=1536 \
+
+Note the ``+`` symbol is needed if we're not adding the arguments to the YAML config file.
+
+Megatron
+^^^^^^^^
+
+We have provided a `Megatron config file <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/machine_translation/conf/megatron.yaml>`__
+to use with Megatron encoders. 
+
+To use the config file from CLI:
+
+.. code ::
+
+  --config-path=conf \
+  --config-name=megatron \
+
+The ``checkpoint_file`` should be the path to Megatron-LM checkpoint:
+
+.. code ::
+
+  /path/to/your/megatron/checkpoint/model_optim_rng.pt
+
+In case your megatron model requires model parallelism, then ``checkpoint_file`` should point to the directory containing the
+standard Megatron-LM checkpoint format:
+
+.. code ::
+
+  3.9b_bert_no_rng
+  ├── mp_rank_00
+  │   └── model_optim_rng.pt
+  ├── mp_rank_01
+  │   └── model_optim_rng.pt
+  ├── mp_rank_02
+  │   └── model_optim_rng.pt
+  └── mp_rank_03
+      └── model_optim_rng.pt
+
+As an example, to train a NeMo NMT model with a 3.9B Megatron BERT encoder,
+we would use the following encoder configuration:
+
+.. code ::
+
+  model.encoder.checkpoint_file=/path/to/megatron/checkpoint/3.9b_bert_no_rng \
+  model.encoder.hidden_size=2560 \
+  model.encoder.num_attention_heads=40 \
+  model.encoder.num_layers=48 \
+  model.encoder.max_position_embeddings=512 \
+
+To train a Megatron 345M BERT, we would use
+
+.. code ::
+
+  model.encoder.model_name=megatron-bert-cased \
+  model.encoder.checkpoint_file=/path/to/your/megatron/checkpoint/model_optim_rng.pt \
+  model.encoder.hidden_size=1024 \
+  model.encoder.num_attention_heads=16 \
+  model.encoder.num_layers=24 \
+  model.encoder.max_position_embeddings=512 \
+
+If the pretrained megatron model used a custom vocab file, then set:
+
+.. code::
+
+  model.encoder_tokenizer.vocab_file=/path/to/your/megatron/vocab_file.txt
+  model.encoder.vocab_file=/path/to/your/megatron/vocab_file.txt
+
+
+Use ``encoder.model_name=megatron_bert_uncased`` for uncased models with custom vocabularies and
+use ``encoder.model_name=megatron_bert_cased`` for cased models with custom vocabularies.
+
 
 References
 ----------

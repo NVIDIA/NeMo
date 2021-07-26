@@ -194,9 +194,10 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
     @typecheck(output_types={"spect": NeuralType(('B', 'C', 'T'), MelSpectrogramType())})
     def generate_spectrogram(self, tokens: 'torch.tensor', speaker: int = 0, pace: float = 1.0) -> torch.tensor:
+        # FIXME: return masks as well?
         self.eval()
         spect, *_ = self(text=tokens, durs=None, pitch=None, speaker=speaker, pace=pace)
-        return spect.transpose(1, 2)
+        return spect
 
     def training_step(self, batch, batch_idx):
         attn_prior, durs, speakers = None, None, None
@@ -206,7 +207,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
         mels, spec_len = self.preprocessor(input_signal=audio, length=audio_lens)
 
-        mels_pred, _, log_durs_pred, pitch_pred, attn_soft, attn_logprob, attn_hard, attn_hard_dur, pitch = self(
+        mels_pred, _, _, log_durs_pred, pitch_pred, attn_soft, attn_logprob, attn_hard, attn_hard_dur, pitch = self(
             text=text,
             durs=durs,
             pitch=pitch,
@@ -275,7 +276,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         mels, mel_lens = self.preprocessor(input_signal=audio, length=audio_lens)
 
         # Calculate val loss on ground truth durations to better align L2 loss in time
-        mels_pred, _, log_durs_pred, pitch_pred, _, _, _, attn_hard_dur, pitch = self(
+        mels_pred, _, _, log_durs_pred, pitch_pred, _, _, _, attn_hard_dur, pitch = self(
             text=text,
             durs=durs,
             pitch=pitch,
@@ -390,6 +391,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def forward_for_export(self, text):
         (
             spect,
+            num_frames,
             durs_predicted,
             log_durs_predicted,
             pitch_predicted,
@@ -399,7 +401,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             attn_hard_dur,
             pitch,
         ) = self.fastpitch(text=text)
-        return spect, durs_predicted, log_durs_predicted, pitch_predicted
+        return spect, num_frames, durs_predicted, log_durs_predicted, pitch_predicted
 
     @property
     def disabled_deployment_input_names(self):

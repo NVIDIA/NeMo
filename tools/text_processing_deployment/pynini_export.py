@@ -19,11 +19,6 @@ import time
 from argparse import ArgumentParser
 from typing import Dict
 
-from nemo_text_processing.inverse_text_normalization.taggers.tokenize_and_classify import ClassifyFst as ITNClassifyFst
-from nemo_text_processing.inverse_text_normalization.verbalizers.verbalize import VerbalizeFst as ITNVerbalizeFst
-from nemo_text_processing.text_normalization.taggers.tokenize_and_classify import ClassifyFst as TNClassifyFst
-from nemo_text_processing.text_normalization.verbalizers.verbalize import VerbalizeFst as TNVerbalizeFst
-
 from nemo.utils import logging
 
 try:
@@ -42,7 +37,8 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-# This script exports compiled grammars inside nemo_text_processing into OpenFst finite state archive files tokenize_and_classify.far and verbalize.far for production purposes
+# This script exports compiled grammars inside nemo_text_processing into OpenFst finite state archive files
+# tokenize_and_classify.far and verbalize.far for production purposes
 
 
 def _generator_main(file_name: str, graphs: Dict[str, pynini.FstLike]):
@@ -51,8 +47,7 @@ def _generator_main(file_name: str, graphs: Dict[str, pynini.FstLike]):
 
     Args:
         file_name: exported file name
-        graph: Pynini WFST graph to be exported
-        rule_name: rule name for graph in created FAR file
+        graphs: Mapping of a rule name and Pynini WFST graph to be exported
 
     """
     exporter = export.Exporter(file_name)
@@ -82,6 +77,7 @@ def export_grammars(output_dir, grammars):
 
     Args:
         output_dir: directory to export FAR files to. Subdirectories will be created for tagger and verbalizer respectively.
+        grammars: grammars to be exported
     """
 
     for category, graphs in grammars.items():
@@ -97,6 +93,7 @@ def export_grammars(output_dir, grammars):
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--output_dir", help="output directory for grammars", required=True, type=str)
+    parser.add_argument("--language", help="language", choices=["en", "de"], type=str, default='en')
     parser.add_argument(
         "--grammars", help="grammars to be exported", choices=["tn_grammars", "itn_grammars"], type=str, required=True
     )
@@ -108,4 +105,26 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-    export_grammars(output_dir=args.output_dir, grammars=locals()[args.grammars](input_case=args.input_case))
+    if args.language == 'en':
+        from nemo_text_processing.inverse_text_normalization.en.taggers.tokenize_and_classify import (
+            ClassifyFst as ITNClassifyFst,
+        )
+        from nemo_text_processing.inverse_text_normalization.en.verbalizers.verbalize import (
+            VerbalizeFst as ITNVerbalizeFst,
+        )
+        from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify import (
+            ClassifyFst as TNClassifyFst,
+        )
+        from nemo_text_processing.text_normalization.en.verbalizers.verbalize import VerbalizeFst as TNVerbalizeFst
+    elif args.language == 'de':
+        from nemo_text_processing.inverse_text_normalization.de.taggers.tokenize_and_classify import (
+            ClassifyFst as ITNClassifyFst,
+        )
+        from nemo_text_processing.inverse_text_normalization.de.verbalizers.verbalize import (
+            VerbalizeFst as ITNVerbalizeFst,
+        )
+
+        if args.grammars == 'tn_grammars':
+            raise ValueError(f'"{args.language}" only supports Inverse Text Normalization task.')
+    output_dir = os.path.join(args.output_dir, args.language)
+    export_grammars(output_dir=output_dir, grammars=locals()[args.grammars](input_case=args.input_case))

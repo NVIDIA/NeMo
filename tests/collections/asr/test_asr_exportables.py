@@ -16,10 +16,20 @@ import tempfile
 
 import onnx
 import pytest
+import torch.cuda
 from omegaconf import DictConfig, ListConfig
 
-from nemo.collections.asr.models import EncDecClassificationModel, EncDecCTCModel, EncDecSpeakerLabelModel
+from nemo.collections.asr.models import (
+    EncDecClassificationModel,
+    EncDecCTCModel,
+    EncDecRNNTModel,
+    EncDecSpeakerLabelModel,
+)
 from nemo.collections.asr.modules import ConvASRDecoder, ConvASREncoder
+from nemo.core.utils import numba_utils
+from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
+
+NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cuda_is_supported(__NUMBA_MINIMUM_VERSION__)
 
 
 class TestExportable:
@@ -71,12 +81,65 @@ class TestExportable:
     def test_EncDecCitrinetModel_export_to_onnx(self, citrinet_model):
         model = citrinet_model.train()
         with tempfile.TemporaryDirectory() as tmpdir:
-            filename = os.path.join('.', 'citri.onnx')
+            filename = os.path.join(tmpdir, 'citri.onnx')
             model.export(output=filename)
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
             assert onnx_model.graph.input[0].name == 'audio_signal'
             assert onnx_model.graph.output[0].name == 'logprobs'
+
+    @pytest.mark.skipif(
+        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
+    )
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    def test_EncDecRNNTModel_export_to_onnx(self, citrinet_rnnt_model):
+        citrinet_rnnt_model.freeze()
+        model = citrinet_rnnt_model.train()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fn = 'citri_rnnt.onnx'
+            filename = os.path.join(tmpdir, fn)
+            model.export(output=filename, verbose=False, check_trace=True)
+
+            encoder_filename = os.path.join(tmpdir, 'Encoder-' + fn)
+            assert os.path.exists(encoder_filename)
+            onnx_model = onnx.load(encoder_filename)
+            onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+            assert len(onnx_model.graph.input) == 2
+            assert len(onnx_model.graph.output) == 2
+            assert onnx_model.graph.input[0].name == 'audio_signal'
+            assert onnx_model.graph.input[1].name == 'length'
+            assert onnx_model.graph.output[0].name == 'outputs'
+            assert onnx_model.graph.output[1].name == 'encoded_lengths'
+
+            decoder_joint_filename = os.path.join(tmpdir, 'Decoder-Joint-' + fn)
+            assert os.path.exists(decoder_joint_filename)
+            onnx_model = onnx.load(decoder_joint_filename)
+            onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+
+            input_examples = model.decoder.input_example()
+            assert type(input_examples[-1]) == tuple
+            num_states = len(input_examples[-1])
+            state_name = list(model.decoder.output_types.keys())[-1]
+
+            # enc_logits + (all decoder inputs - state tuple) + flattened state list
+            assert len(onnx_model.graph.input) == (1 + (len(input_examples) - 1) + num_states)
+            assert onnx_model.graph.input[0].name == 'encoder_outputs'
+            assert onnx_model.graph.input[1].name == 'targets'
+            assert onnx_model.graph.input[2].name == 'target_length'
+
+            if num_states > 0:
+                for idx, ip in enumerate(onnx_model.graph.input[3:]):
+                    assert ip.name == "input-" + state_name + '-' + str(idx + 1)
+
+            assert len(onnx_model.graph.output) == (len(input_examples) - 1) + num_states
+            assert onnx_model.graph.output[0].name == 'outputs'
+            assert onnx_model.graph.output[1].name == 'prednet_lengths'
+
+            if num_states > 0:
+                for idx, op in enumerate(onnx_model.graph.output[2:]):
+                    assert op.name == "output-" + state_name + '-' + str(idx + 1)
 
     def setup_method(self):
         self.preprocessor = {
@@ -298,4 +361,97 @@ def citrinet_model():
         {'preprocessor': DictConfig(preprocessor), 'encoder': DictConfig(encoder), 'decoder': DictConfig(decoder)}
     )
     citri_model = EncDecSpeakerLabelModel(cfg=modelConfig)
+    return citri_model
+
+
+@pytest.fixture()
+def citrinet_rnnt_model():
+    labels = list(chr(i % 28) for i in range(0, 1024))
+    model_defaults = {'enc_hidden': 640, 'pred_hidden': 256, 'joint_hidden': 320}
+
+    preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
+    encoder = {
+        '_target_': 'nemo.collections.asr.modules.ConvASREncoder',
+        'feat_in': 80,
+        'activation': 'relu',
+        'conv_mask': True,
+        'jasper': [
+            {
+                'filters': 512,
+                'repeat': 1,
+                'kernel': [5],
+                'stride': [1],
+                'dilation': [1],
+                'dropout': 0.0,
+                'residual': False,
+                'separable': True,
+                'se': True,
+                'se_context_size': -1,
+            },
+            {
+                'filters': 512,
+                'repeat': 5,
+                'kernel': [11],
+                'stride': [2],
+                'dilation': [1],
+                'dropout': 0.1,
+                'residual': True,
+                'separable': True,
+                'se': True,
+                'se_context_size': -1,
+                'stride_last': True,
+                'residual_mode': 'stride_add',
+            },
+            {
+                'filters': 512,
+                'repeat': 5,
+                'kernel': [13],
+                'stride': [1],
+                'dilation': [1],
+                'dropout': 0.1,
+                'residual': True,
+                'separable': True,
+                'se': True,
+                'se_context_size': -1,
+            },
+            {
+                'filters': 640,
+                'repeat': 1,
+                'kernel': [41],
+                'stride': [1],
+                'dilation': [1],
+                'dropout': 0.0,
+                'residual': True,
+                'separable': True,
+                'se': True,
+                'se_context_size': -1,
+            },
+        ],
+    }
+
+    decoder = {
+        '_target_': 'nemo.collections.asr.modules.RNNTDecoder',
+        'prednet': {'pred_hidden': 256, 'pred_rnn_layers': 1, 'dropout': 0.0},
+    }
+
+    joint = {
+        '_target_': 'nemo.collections.asr.modules.RNNTJoint',
+        'experimental_fuse_loss_wer': False,
+        'jointnet': {'joint_hidden': 320, 'activation': 'relu', 'dropout': 0.0},
+    }
+
+    decoding = {'strategy': 'greedy_batch', 'greedy': {'max_symbols': 5}}
+
+    modelConfig = DictConfig(
+        {
+            'preprocessor': DictConfig(preprocessor),
+            'labels': labels,
+            'model_defaults': DictConfig(model_defaults),
+            'encoder': DictConfig(encoder),
+            'decoder': DictConfig(decoder),
+            'joint': DictConfig(joint),
+            'decoding': DictConfig(decoding),
+        }
+    )
+    citri_model = EncDecRNNTModel(cfg=modelConfig)
     return citri_model

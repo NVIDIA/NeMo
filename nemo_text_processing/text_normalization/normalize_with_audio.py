@@ -14,15 +14,13 @@
 
 import json
 import os
-import re
 import time
 from argparse import ArgumentParser
 from typing import List, Tuple
 
+from joblib import Parallel, delayed
+from nemo_text_processing.text_normalization.data_loader_utils import post_process_punctuation, pre_process
 from nemo_text_processing.text_normalization.normalize import Normalizer
-from nemo_text_processing.text_normalization.taggers.tokenize_and_classify import ClassifyFst
-from nemo_text_processing.text_normalization.verbalizers.verbalize_final import VerbalizeFinalFst
-from tqdm import tqdm
 
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import ASRModel
@@ -42,6 +40,7 @@ The script provides multiple normalization options and chooses the best one that
 To run this script with a .json manifest file:
     python normalize_with_audio.py \
            --audio_data PATH/TO/MANIFEST.JSON \
+           --language en \
            --model QuartzNet15x5Base-En \
            --verbose
     
@@ -54,6 +53,7 @@ To run this script with a .json manifest file:
 To run with a single audio file, specify path to audio and text with:
     python normalize_with_audio.py \
            --audio_data PATH/TO/AUDIO.WAV \
+           --language en \
            --text raw text OR PATH/TO/.TXT/FILE
            --model QuartzNet15x5Base-En \
            --verbose
@@ -70,15 +70,25 @@ class NormalizerWithAudio(Normalizer):
 
     Args:
         input_case: expected input capitalization
+        lang: language
     """
 
-    def __init__(self, input_case: str):
-        super().__init__(input_case)
-
+    def __init__(self, input_case: str, lang: str = 'en'):
+        super().__init__(input_case=input_case, lang=lang)
+        if lang == 'en':
+            from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
         self.tagger = ClassifyFst(input_case=input_case, deterministic=False)
         self.verbalizer = VerbalizeFinalFst(deterministic=False)
 
-    def normalize(self, text: str, n_tagged: int, punct_post_process: bool = True, verbose: bool = False) -> str:
+    def normalize(
+        self,
+        text: str,
+        n_tagged: int,
+        punct_pre_process: bool = True,
+        punct_post_process: bool = True,
+        verbose: bool = False,
+    ) -> str:
         """
         Main function. Normalizes tokens from written to spoken form
             e.g. 12 kg -> twelve kilograms
@@ -86,12 +96,15 @@ class NormalizerWithAudio(Normalizer):
         Args:
             text: string that may include semiotic classes
             n_tagged: number of tagged options to consider, -1 - to get all possible tagged options
+            punct_pre_process: whether to perform punctuation pre-processing, for example, [25] -> [ 25 ]
             punct_post_process: whether to normalize punctuation
             verbose: whether to print intermediate meta information
 
         Returns:
             normalized text options (usually there are multiple ways of normalizing a given semiotic class)
         """
+        if punct_pre_process:
+            text = pre_process(text)
         text = text.strip()
         if not text:
             if verbose:
@@ -107,11 +120,10 @@ class NormalizerWithAudio(Normalizer):
         normalized_texts = []
         for tagged_text in tagged_texts:
             self._verbalize(tagged_text, normalized_texts)
-
         if len(normalized_texts) == 0:
             raise ValueError()
         if punct_post_process:
-            normalized_texts = [post_process(t) for t in normalized_texts]
+            normalized_texts = [post_process_punctuation(t) for t in normalized_texts]
         normalized_texts = set(normalized_texts)
         return normalized_texts
 
@@ -182,65 +194,10 @@ def calculate_cer(normalized_texts: List[str], transcript: str, remove_punct=Fal
         text_clean = text.replace('-', ' ').lower()
         if remove_punct:
             for punct in "!?:;,.-()*+-/<=>@^_":
-                text_clean = text_clean.replace(punct, " ")
-        text_clean = re.sub(r' +', ' ', text_clean)
+                text_clean = text_clean.replace(punct, "")
         cer = round(word_error_rate([transcript], [text_clean], use_cer=True) * 100, 2)
         normalized_options.append((text, cer))
     return normalized_options
-
-
-def pre_process(text: str) -> str:
-    """
-    Adds space around punctuation marks
-
-    Args:
-        text: string that may include semiotic classes
-
-    Returns: text with spaces around punctuation marks
-    """
-    text = text.replace('--', '-')
-    space_right = '!?:;,.-()*+-/<=>@^_'
-    space_both = '-()*+-/<=>@^_'
-
-    for punct in space_right:
-        text = text.replace(punct, punct + ' ')
-    for punct in space_both:
-        text = text.replace(punct, ' ' + punct + ' ')
-
-    # remove extra space
-    text = re.sub(r' +', ' ', text)
-    return text
-
-
-def post_process(text: str, punctuation='!,.:;?') -> str:
-    """
-    Normalized quotes and spaces
-
-    Args:
-        text: text
-
-    Returns: text with normalized spaces and quotes
-    """
-    text = (
-        text.replace('( ', '(')
-        .replace(' )', ')')
-        .replace('  ', ' ')
-        .replace('”', '"')
-        .replace("’", "'")
-        .replace("»", '"')
-        .replace("«", '"')
-        .replace("\\", "")
-        .replace("„", '"')
-        .replace("´", "'")
-        .replace("’", "'")
-        .replace('“', '"')
-        .replace("‘", "'")
-        .replace('`', "'")
-    )
-
-    for punct in punctuation:
-        text = text.replace(f' {punct}', punct)
-    return text.strip()
 
 
 def get_asr_model(asr_model: ASRModel):
@@ -267,6 +224,7 @@ def parse_args():
     parser.add_argument(
         "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )
+    parser.add_argument("--language", help="language", choices=["en"], default="en", type=str)
     parser.add_argument("--audio_data", help="path to an audio file or .json manifest")
     parser.add_argument(
         '--model', type=str, default='QuartzNet15x5Base-En', help='Pre-trained model name or path to model checkpoint'
@@ -280,9 +238,33 @@ def parse_args():
     parser.add_argument("--verbose", help="print info for debugging", action="store_true")
     parser.add_argument("--remove_punct", help="remove punctuation before calculating cer", action="store_true")
     parser.add_argument(
+        "--no_punct_pre_process", help="set to True to disable punctuation pre processing", action="store_true"
+    )
+    parser.add_argument(
         "--no_punct_post_process", help="set to True to disable punctuation post processing", action="store_true"
     )
     return parser.parse_args()
+
+
+def _normalize_line(normalizer: NormalizerWithAudio, line: str, asr_model: ASRModel = None):
+    line = json.loads(line)
+    audio = line['audio_filepath']
+    if 'transcript' in line:
+        transcript = line['transcript']
+    else:
+        transcript = asr_model.transcribe([audio])[0]
+
+    normalized_texts = normalizer.normalize(
+        text=line['text'],
+        verbose=args.verbose,
+        n_tagged=args.n_tagged,
+        punct_pre_process=not args.no_punct_pre_process,
+        punct_post_process=not args.no_punct_post_process,
+    )
+    normalized_text, cer = normalizer.select_best_match(normalized_texts, transcript, args.verbose, args.remove_punct)
+    line['nemo_normalized'] = normalized_text
+    line['CER_nemo_normalized'] = cer
+    return line
 
 
 def normalize_manifest(args):
@@ -290,31 +272,20 @@ def normalize_manifest(args):
     Args:
         args.audio_data: path to .json manifest file.
     """
-    normalizer = NormalizerWithAudio(input_case=args.input_case)
+    normalizer = NormalizerWithAudio(input_case=args.input_case, lang=args.language)
     manifest_out = args.audio_data.replace('.json', '_normalized.json')
     asr_model = None
     with open(args.audio_data, 'r') as f:
         with open(manifest_out, 'w') as f_out:
-            for line in tqdm(f):
-                line = json.loads(line)
-                audio = line['audio_filepath']
-                if 'transcript' in line:
-                    transcript = line['transcript']
-                else:
-                    if asr_model is None:
-                        asr_model = get_asr_model(args.model)
-                    transcript = asr_model.transcribe([audio])[0]
-                normalized_texts = normalizer.normalize(
-                    text=line['text'],
-                    verbose=args.verbose,
-                    n_tagged=args.n_tagged,
-                    punct_post_process=not args.no_punct_post_process,
-                )
-                normalized_text, cer = normalizer.select_best_match(
-                    normalized_texts, transcript, args.verbose, args.remove_punct
-                )
-                line['nemo_normalized'] = normalized_text
-                line['CER_nemo_normalized'] = cer
+            lines = f.readlines()
+            first_line = json.loads(lines[0])
+            if 'transcript' not in first_line:
+                asr_model = get_asr_model(args.model)
+            normalized_lines = Parallel(n_jobs=-1)(
+                delayed(_normalize_line)(normalizer, line, asr_model) for line in lines
+            )
+
+            for line in normalized_lines:
                 f_out.write(json.dumps(line, ensure_ascii=False) + '\n')
     print(f'Normalized version saved at {manifest_out}')
 
@@ -324,7 +295,7 @@ if __name__ == "__main__":
 
     start = time.time()
     if args.text:
-        normalizer = NormalizerWithAudio(input_case=args.input_case)
+        normalizer = NormalizerWithAudio(input_case=args.input_case, lang=args.language)
         if os.path.exists(args.text):
             with open(args.text, 'r') as f:
                 args.text = f.read().strip()
@@ -332,6 +303,7 @@ if __name__ == "__main__":
             text=args.text,
             verbose=args.verbose,
             n_tagged=args.n_tagged,
+            punct_pre_process=not args.no_punct_pre_process,
             punct_post_process=not args.no_punct_post_process,
         )
         if args.audio_data:

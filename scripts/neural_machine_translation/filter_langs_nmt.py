@@ -39,6 +39,8 @@ python filter_by_language.py --input-src train.en \
 
 
 logging.basicConfig(level=logging.INFO)
+# temp fix for the warning: "Warning : 'load_model' does not return WordVectorModel or SupervisedModel any more, but a 'FastText' object which is very similar."
+fasttext.FastText.eprint = lambda x: None
 
 
 def get_args():

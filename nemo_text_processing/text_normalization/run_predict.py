@@ -56,6 +56,7 @@ def write_file(file_path: str, data: List[str]):
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--input", help="input file path", required=True, type=str)
+    parser.add_argument("--language", help="language", choices=['en'], default="en", type=str)
     parser.add_argument("--output", help="output file path", required=True, type=str)
     parser.add_argument(
         "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
@@ -67,7 +68,7 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     file_path = args.input
-    normalizer = Normalizer(input_case=args.input_case)
+    normalizer = Normalizer(input_case=args.input_case, lang=args.language)
 
     print("Loading data: " + file_path)
     data = load_file(file_path)

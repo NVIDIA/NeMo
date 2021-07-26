@@ -21,6 +21,7 @@ from pytorch_lightning import Trainer
 from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTDataPreproc
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.core.config.modelPT import NemoConfig
 from nemo.core.config.pytorch_lightning import TrainerConfig
@@ -108,7 +109,9 @@ def main(cfg: MTEncDecConfig) -> None:
     logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
 
     # training is managed by PyTorch Lightning
-    trainer = Trainer(**cfg.trainer)
+    trainer_cfg = OmegaConf.to_container(cfg.trainer)
+    trainer_cfg.pop('plugins', None)
+    trainer = Trainer(plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes)], **trainer_cfg)
 
     # tokenizers will be trained and and tarred training data will be created if needed
     # model config is then updated

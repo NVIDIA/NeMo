@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import re
 import subprocess
 import sys
 import time
@@ -30,6 +31,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.utilities import rank_zero_only
+from pytorch_lightning.utilities.types import _METRIC
 
 from nemo.constants import NEMO_ENV_VARNAME_VERSION
 from nemo.utils import app_state, logging
@@ -69,7 +71,8 @@ class CallbackParams:
     save_top_k: Optional[int] = 3
     save_weights_only: Optional[bool] = False
     mode: Optional[str] = "min"
-    period: Optional[int] = 1
+    period: Optional[int] = None
+    every_n_val_epochs: Optional[int] = 1
     prefix: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     postfix: str = ".nemo"
     save_best_model: bool = False
@@ -235,7 +238,9 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         )
 
     if cfg.create_checkpoint_callback:
-        configure_checkpointing(trainer, log_dir, checkpoint_name, cfg.checkpoint_callback_params)
+        configure_checkpointing(
+            trainer, log_dir, checkpoint_name, cfg.resume_if_exists, cfg.checkpoint_callback_params
+        )
 
     if is_global_rank_zero():
         # Move files_to_copy to folder and add git information if present
@@ -582,7 +587,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     """ Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end
     """
 
-    def __init__(self, always_save_nemo=False, save_best_model=False, postfix=".nemo", **kwargs):
+    def __init__(self, always_save_nemo=False, save_best_model=False, postfix=".nemo", n_resume=False, **kwargs):
         # Parse and store "extended" parameters: save_best model and postfix.
         self.always_save_nemo = always_save_nemo
         self.save_best_model = save_best_model
@@ -597,6 +602,55 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(**kwargs)
+
+        if self.save_top_k != -1 and n_resume:
+            self.nemo_topk_check_previous_run()
+
+    def nemo_topk_check_previous_run(self):
+        try:
+            self.best_k_models
+            self.kth_best_model_path
+            self.best_model_score
+            self.best_model_path
+            self._del_model
+        except AttributeError:
+            raise AttributeError("Lightning's ModelCheckpoint was updated. NeMoModelCheckpoint will need an update.")
+        self.best_k_models = {}
+        self.kth_best_model_path = ""
+        self.best_model_score = None
+        self.best_model_path = ""
+
+        checkpoints = list(Path(self.dirpath).rglob("*.ckpt"))
+        for checkpoint in checkpoints:
+            checkpoint = str(checkpoint)
+            if checkpoint[-10:] == '-last.ckpt':
+                continue
+            index = checkpoint.find(self.monitor) + len(self.monitor) + 1  # Find monitor in str + 1 for '='
+            if index != -1:
+                match = re.search('[A-z]', checkpoint[index:])
+                if match:
+                    value = checkpoint[index : index + match.start() - 1]  # -1 due to separator hypen
+                    self.best_k_models[checkpoint] = float(value)
+        if len(self.best_k_models) < 1:
+            return  # No saved checkpoints yet
+
+        _reverse = False if self.mode == "min" else True
+
+        best_k_models = sorted(self.best_k_models, key=self.best_k_models.get, reverse=_reverse)
+
+        ### This section should be ok as rank zero will delete all excess checkpoints, since all other ranks are
+        ### instantiated after rank zero. models_to_delete should be 0 for all other ranks.
+        models_to_delete = len(best_k_models) - self.save_top_k
+        logging.debug(f'Number of models to delete: {models_to_delete}')
+        for _ in range(models_to_delete):
+            model = best_k_models.pop(-1)
+            self.best_k_models.pop(model)
+            self._del_model(model)
+            logging.debug(f"Removed checkpoint: {model}")
+
+        self.kth_best_model_path = best_k_models[-1]
+        self.best_model_path = best_k_models[0]
+        self.best_model_score = self.best_k_models[self.best_model_path]
 
     @rank_zero_only
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
@@ -645,8 +699,77 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             trainer.checkpoint_connector.restore(self.best_model_path, on_gpu=trainer.on_gpu)
         pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
 
+    def _del_model(self, filepath: str) -> None:
+        """ Overrides PTL method to account for model parallel checkpoints.
+            Updates checkpoint path based on model parallel rank.
+        """
+        app_state = AppState()
+        if app_state.model_parallel_size is not None:
+            # filepath needs to be updated to include mp_rank
+            dirname = os.path.dirname(filepath)
+            basename = os.path.basename(filepath)
+            filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
 
-def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, params: 'DictConfig'):
+            # each model parallel rank needs to remove its model
+            if app_state.data_parallel_rank == 0:
+                if self._fs.exists(filepath):
+                    self._fs.rm(filepath)
+                    logging.info(f"Removed model parallel checkpoint: {filepath}")
+
+        else:
+            return super()._del_model(filepath)
+
+    def _save_last_checkpoint(self, trainer: 'pl.Trainer', monitor_candidates: Dict[str, _METRIC]) -> None:
+        """ Overrides PTL method to account for model parallel checkpoints.
+            Checks for data parallel rank 0 rather than global rank 0.
+        """
+        app_state = AppState()
+        if app_state.model_parallel_size is not None:
+            if not self.save_last:
+                return
+
+            filepath = self._format_checkpoint_name(self.CHECKPOINT_NAME_LAST, monitor_candidates)
+            filepath = os.path.join(self.dirpath, f"{filepath}{self.FILE_EXTENSION}")
+
+            self._save_model(trainer, filepath)
+
+            # for model parallel we need to delete models for each model parallel rank
+            if self.last_model_path and self.last_model_path != filepath and app_state.data_parallel_rank == 0:
+                self._del_model(self.last_model_path)
+
+            self.last_model_path = filepath
+
+        else:
+            return super()._save_last_checkpoint(trainer, monitor_candidates)
+
+    def _save_none_monitor_checkpoint(self, trainer: 'pl.Trainer', monitor_candidates: Dict[str, _METRIC]) -> None:
+        """ Overrides PTL method to account for model parallel checkpoints.
+            Checks for data parallel rank 0 rather than global rank 0.
+        """
+        app_state = AppState()
+        if app_state.model_parallel_size is not None:
+            if self.monitor is not None or self.save_top_k == 0:
+                return
+
+            filepath = self._get_metric_interpolated_filepath_name(monitor_candidates, trainer)
+            self._save_model(trainer, filepath)
+
+            if (
+                self.save_top_k is None
+                and self.best_model_path
+                and self.best_model_path != filepath
+                and app_state.data_parallel_rank == 0
+            ):
+                self._del_model(self.best_model_path)
+
+            self.best_model_path = filepath
+        else:
+            return super()._save_none_monitor_checkpoint(trainer, monitor_candidates)
+
+
+def configure_checkpointing(
+    trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, resume: bool, params: 'DictConfig'
+):
     """ Adds ModelCheckpoint to trainer. Raises CheckpointMisconfigurationError if trainer already has a ModelCheckpoint
     callback or if trainer.weights_save_path was passed to Trainer.
     """
@@ -703,7 +826,14 @@ def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path,
                 f"{trainer.check_val_every_n_epoch} epochs to ensure that checkpointing will not error out."
             )
 
-    checkpoint_callback = NeMoModelCheckpoint(**params)
+    if params.period is not None:
+        logging.warning(
+            "The use of `period` in the checkpoint callback is deprecrated, please use `every_n_val_epochs` instead. "
+            "Overwriting `every_n_val_epochs` with `period`."
+        )
+        params.every_n_val_epochs = params.period
+
+    checkpoint_callback = NeMoModelCheckpoint(n_resume=resume, **params)
     checkpoint_callback.last_model_path = trainer.resume_from_checkpoint or ""
     trainer.callbacks.append(checkpoint_callback)
 

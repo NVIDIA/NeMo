@@ -29,6 +29,7 @@ from pytorch_lightning.utilities.cloud_io import atomic_save
 from torch.nn.parallel import DistributedDataParallel
 
 from nemo.collections.nlp.modules.common.megatron.megatron_bert import MegatronBertEncoder
+from nemo.collections.nlp.modules.common.megatron.megatron_encoder import MegatronEncoderModule
 from nemo.utils import AppState, logging
 
 
@@ -52,20 +53,18 @@ class NLPDDPPlugin(DDPPlugin):
         # call PTL init ddp
         super().init_ddp_connection()
 
-        # init model parallel
+        # init model parallel if needed
         app_state = AppState()
 
         if app_state.model_parallel_size is not None:
 
-            if isinstance(self.lightning_module.bert_model, MegatronBertEncoder):
-
-                if app_state.model_parallel_group is None:
-                    self.init_model_parallel(app_state.global_rank, app_state.world_size)
+            if self.lightning_module.has_megatron_encoder and not self.lightning_module.is_model_parallel_initialized:
+                self.init_model_parallel(app_state.global_rank, app_state.world_size)
 
     def start_training(self, trainer: 'Trainer') -> None:
         """ PTL Hook that is called after DPP is initialized. """
 
-        if isinstance(self.lightning_module.bert_model, MegatronBertEncoder):
+        if self.lightning_module.has_megatron_encoder:
             app_state = AppState()
             if app_state.model_parallel_size is not None:
                 # mpu grad clipping needs parameters to have the attribute model_parallel
@@ -74,12 +73,8 @@ class NLPDDPPlugin(DDPPlugin):
                     if not hasattr(p, 'model_parallel'):
                         p.model_parallel = False
 
-                # TODO: figure out how to override clip gradients again
-                # Update PTL trainer to use our _clip_gradients
-                # self._trainer.accelerator_backend._clip_gradients = self._clip_gradients
-
-                if get_checkpoint_version():
-                    # Restored from .nemo, checkpoint_version will already be set
+                if get_checkpoint_version() is not None:
+                    # megatron checkpoint already restored
                     pass
                 elif trainer.resume_from_checkpoint is not None:
                     # PTL auto-resuming, need to update checkpoint name
@@ -98,10 +93,13 @@ class NLPDDPPlugin(DDPPlugin):
                         logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
                         set_checkpoint_version(0)
                 else:
-                    logging.info(
-                        f"Restoring from pretrained model parallel checkpoint: {self.lightning_module.bert_model._restore_path}"
-                    )
-                    self.lightning_module.bert_model.restore_weights(self.lightning_module.bert_model._restore_path)
+                    self.lightning_module.restore_megatron_encoder_weights()
+            else:
+                if get_checkpoint_version() is not None:
+                    # megatron checkpoint already restored
+                    pass
+                else:
+                    self.lightning_module.restore_megatron_encoder_weights()
 
             self.lightning_module.register_megatron_checkpoint_version()
 
@@ -113,7 +111,7 @@ class NLPDDPPlugin(DDPPlugin):
 
         if app_state.model_parallel_size is not None:
 
-            if isinstance(self.lightning_module.bert_model, MegatronBertEncoder):
+            if self.has_megatron_encoder:
                 # check megatron checkpoint version
                 checkpoint_version = get_checkpoint_version()
                 if checkpoint_version is None:
@@ -140,6 +138,7 @@ class NLPDDPPlugin(DDPPlugin):
                 device_ids=device_ids,
                 output_device=device_ids[0],
                 process_group=app_state.data_parallel_group,
+                find_unused_parameters=True,
                 **self._ddp_kwargs,
             )
 
@@ -168,7 +167,6 @@ class NLPDDPPlugin(DDPPlugin):
                 app_state.data_parallel_size = mpu.get_data_parallel_world_size()
                 logging.info(f'mp_rank: {app_state.model_parallel_rank}')
                 logging.info(f'dp_rank: {app_state.data_parallel_rank}')
-                # TODO: get random seed from PTL
                 seed = os.environ.get("PL_GLOBAL_SEED", 1234)
                 # random seed must be set for megatron model parallel init
                 _set_random_seed(seed)
@@ -186,7 +184,7 @@ class NLPDDPPlugin(DDPPlugin):
             return distributed_sampler_kwargs
 
         else:
-            return super().distributed_sampler_kwargs
+            return super(NLPDDPPlugin, self).distributed_sampler_kwargs
 
 
 class NLPCheckpointConnector(CheckpointConnector):

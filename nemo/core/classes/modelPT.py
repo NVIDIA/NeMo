@@ -147,7 +147,6 @@ class ModelPT(LightningModule, Model):
                     f"and provide a valid configuration file to setup the validation data loader(s). \n"
                     f"Validation config : \n{OmegaConf.to_yaml(self._cfg.validation_ds)}"
                 )
-
             if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
                 logging.warning(
                     f"Please call the ModelPT.setup_test_data() or ModelPT.setup_multiple_test_data() method "
@@ -436,7 +435,7 @@ class ModelPT(LightningModule, Model):
                     instance = instance.to(map_location)
                     instance.load_state_dict(torch.load(model_weights, map_location=map_location), strict=strict)
 
-                    logging.info(f'Model {cls.__name__} was successfully restored from {restore_path}.')
+                    logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
             finally:
                 cls._set_model_restore_state(is_being_restored=False)
                 os.chdir(cwd)

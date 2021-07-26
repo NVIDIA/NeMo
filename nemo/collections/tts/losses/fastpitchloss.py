@@ -138,6 +138,7 @@ class MelLoss(Loss):
     def forward(self, spect_predicted, spect_tgt):
         spect_tgt.requires_grad = False
         spect_tgt = spect_tgt.transpose(1, 2)  # (B, T, H)
+        spect_predicted = spect_predicted.transpose(1, 2)  # (B, T, H)
 
         ldiff = spect_tgt.size(1) - spect_predicted.size(1)
         spect_predicted = F.pad(spect_predicted, (0, 0, 0, ldiff, 0, 0), value=0.0)

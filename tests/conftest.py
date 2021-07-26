@@ -47,6 +47,12 @@ def pytest_addoption(parser):
         action='store_true',
         help="pass this argument to active tests which download models from the cloud.",
     )
+    parser.addoption(
+        '--relax_numba_compat',
+        action='store_false',
+        help="numba compatibility checks will be relaxed to just availability of cuda, "
+        "without cuda compatibility matrix check",
+    )
 
 
 @pytest.fixture
@@ -174,3 +180,9 @@ def pytest_configure(config):
                 __TEST_DATA_FILENAME, test_data_local_size, test_dir
             )
         )
+
+    if config.option.relax_numba_compat is not None:
+        from nemo.core.utils import numba_utils
+
+        print("Setting numba compat :", config.option.relax_numba_compat)
+        numba_utils.set_numba_compat_strictness(strict=config.option.relax_numba_compat)

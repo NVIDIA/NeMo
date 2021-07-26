@@ -58,9 +58,11 @@ Key Features
     * `Question answering <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/question_answering.html>`_
     * `GLUE benchmark <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/glue_benchmark.html>`_
     * `Information retrieval <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/information_retrieval.html>`_
+    * `Entity Linking <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/entity_linking.html>`_
+    * `Dialogue State Tracking <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/sgd_qa.html>`_
     * `NGC collection of pre-trained NLP models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_nlp>`_
 * `Speech synthesis (TTS) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tts/intro.html#>`_
-    * Spectrogram generation: Tacotron2, GlowTTS, FastSpeech2, FastPitch,
+    * Spectrogram generation: Tacotron2, GlowTTS, FastSpeech2, FastPitch, FastSpeech2
     * Vocoders: WaveGlow, SqueezeWave, UniGlow, MelGAN, HiFiGAN
     * End-to-end speech generation: FastPitch_HifiGan_E2E, FastSpeech2_HifiGan_E2E
     * `NGC collection of pre-trained TTS models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_tts>`_
@@ -83,29 +85,27 @@ Documentation
   :scale: 100%
   :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/
 
-.. |v1.0.1| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=v1.0.1
+.. |v1.0.2| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=v1.0.2
   :alt: Documentation Status
   :scale: 100%
-  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.1/
+  :target: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.2/
 
 .. |stable| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=stable
   :alt: Documentation Status
   :scale: 100%
   :target:  https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/
 
-+---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
-| Version | Status      | Description                                                                                                                      |
-+=========+=============+==================================================================================================================================+
-| Latest  | |main|      | `Documentation of the latest (i.e. main) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/>`_          |
-+---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
-| Next    | |v1.0.1|    | `Documentation of the most recent release: v1.0.1 <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.1/>`_       |
-+---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
-| Stable  | |stable|    | `Documentation of the stable (i.e. stable) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/>`_      |
-+---------+-------------+----------------------------------------------------------------------------------------------------------------------------------+
++---------+-------------+------------------------------------------------------------------------------------------------------------------------------------------+
+| Version | Status      | Description                                                                                                                              |
++=========+=============+==========================================================================================================================================+
+| Latest  | |main|      | `Documentation of the latest (i.e. main) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/>`_                  |
++---------+-------------+------------------------------------------------------------------------------------------------------------------------------------------+
+| Stable  | |stable|    | `Documentation of the stable (i.e. most recent release) branch. <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/>`_ |
++---------+-------------+------------------------------------------------------------------------------------------------------------------------------------------+
 
 Tutorials
 ---------
-A great way to start with NeMo is by checking `one of our tutorials <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/v1.0.1/starthere/tutorials.html>`_.
+A great way to start with NeMo is by checking `one of our tutorials <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/starthere/tutorials.html>`_.
 
 Getting help with NeMo
 ----------------------
@@ -147,28 +147,38 @@ Use this installation mode if you are contributing to NeMo.
     cd NeMo
     ./reinstall.sh
 
+RNNT
+~~~~
+Note that RNNT requires numba to be installed from conda.
+
+.. code-block:: bash
+
+  conda remove numba
+  pip uninstall numba
+  conda install -c numba numba
+
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
 
-If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 21.03-py3 and then installing from GitHub.
+If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 21.05-py3 and then installing from GitHub.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:21.03-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:21.05-py3
 
 Examples
 --------
 
-Many example can be found under `"Examples" <https://github.com/NVIDIA/NeMo/tree/main/examples>`_ folder.
+Many example can be found under `"Examples" <https://github.com/NVIDIA/NeMo/tree/stable/examples>`_ folder.
 
 
 Contributing
 ------------
 
-We welcome community contributions! Please refer to the  `CONTRIBUTING.md <https://github.com/NVIDIA/NeMo/blob/main/CONTRIBUTING.md>`_ CONTRIBUTING.md for the process.
+We welcome community contributions! Please refer to the  `CONTRIBUTING.md <https://github.com/NVIDIA/NeMo/blob/stable/CONTRIBUTING.md>`_ CONTRIBUTING.md for the process.
 
 License
 -------
-NeMo is under `Apache 2.0 license <https://github.com/NVIDIA/NeMo/blob/main/LICENSE>`_.
+NeMo is under `Apache 2.0 license <https://github.com/NVIDIA/NeMo/blob/stable/LICENSE>`_.

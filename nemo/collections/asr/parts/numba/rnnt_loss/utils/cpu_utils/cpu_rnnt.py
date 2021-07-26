@@ -146,6 +146,7 @@ class CPURNNT:
         alphabet_size: int,
         workspace: torch.Tensor,
         blank: int,
+        fastemit_lambda: float,
         num_threads: int,
         batch_first: bool,
     ):
@@ -160,6 +161,8 @@ class CPURNNT:
             workspace: An allocated chunk of memory that will be sliced off and reshaped into required
                 blocks used as working memory.
             blank: Index of the RNNT blank token in the vocabulary. Generally the first or last token in the vocab.
+            fastemit_lambda: Float scaling factor for FastEmit regularization. Refer to
+                FastEmit: Low-latency Streaming ASR with Sequence-level Emission Regularization.
             num_threads: Number of OMP threads to launch.
             batch_first: Bool that decides if batch dimension is first or third.
         """
@@ -169,6 +172,7 @@ class CPURNNT:
         self.alphabet_size_ = alphabet_size
         self.workspace = workspace  # a flat vector of floatX numbers that represents allocated memory slices
         self.blank_ = blank
+        self.fastemit_lambda_ = fastemit_lambda
         self.num_threads_ = num_threads
         self.batch_first = batch_first
 
@@ -198,6 +202,10 @@ class CPURNNT:
         llBackward = self.compute_betas_and_grads(
             grad, rnntm.log_probs2, T, U, rnntm.alphas, rnntm.betas, labels, llForward
         )
+
+        # Scale llForward by FastEmit lambda
+        llForward *= 1.0 + self.fastemit_lambda_
+        llBackward *= 1.0 + self.fastemit_lambda_
 
         diff = (llForward - llBackward).abs()
         if diff > 0.1:
@@ -291,7 +299,9 @@ class CPURNNT:
 
                 if u < U - 1:
                     g = alphas[idx(t, u)] + betas[idx(t, u + 1)]
-                    grad[idx(t, u, labels[u])] = -torch.exp(log_probs[idx(t, u) * 2 + 1] + g - loglike)
+                    grad[idx(t, u, labels[u])] = -torch.exp(
+                        math.log1p(self.fastemit_lambda_) + log_probs[idx(t, u) * 2 + 1] + g - loglike
+                    )
 
         # // gradient to the last blank transition
         grad[idx(T - 1, U - 1, self.blank_)] = -torch.exp(
