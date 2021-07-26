@@ -36,8 +36,6 @@ from nemo.core.classes.common import typecheck
 from nemo.utils import logging, model_utils
 
 
-from nemo.collections.nlp.models.machine_translation.perceiver import Perceiver
-
 __all__ = ['MTBottleneckModel']
 
 

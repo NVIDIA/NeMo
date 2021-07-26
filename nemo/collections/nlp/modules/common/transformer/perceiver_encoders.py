@@ -42,6 +42,7 @@ class PerceiverEncoder(TransformerDecoder):
         mask_future: bool = False,
         pre_ln: bool = False,
         pre_ln_final_layer_norm: bool = True,
+        # TODO: add to config
         init_hidden_method: str = "att_bridge",
     ):
         super().__init__(
