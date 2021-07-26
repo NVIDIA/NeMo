@@ -102,8 +102,8 @@ class CTCLoss(torch.nn.Module):
             use_double_scores=True
         )
         tot_scores = num_tot_scores
-        tot_scores, _ = get_tot_objf_and_num_frames(
+        tot_scores, valid_mask = get_tot_objf_and_num_frames(
             tot_scores,
             self.reduction
         )
-        return -tot_scores
+        return - tot_scores[valid_mask]

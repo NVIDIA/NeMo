@@ -223,7 +223,7 @@ class SDLoss(torch.nn.Module):
         # tot_scores = num_tot_scores - self.den_scale * den_tot_scores
         # alaptev: I believe it is better to vary only gradients for the sake of comparability
         tot_scores = num_tot_scores - GradScale.apply(den_tot_scores, self.den_scale)
-        mmi_tot_scores, mmi_valid_indices = get_tot_objf_and_num_frames(
+        mmi_tot_scores, mmi_valid_mask = get_tot_objf_and_num_frames(
             tot_scores,
             self.reduction
         )
@@ -256,23 +256,21 @@ class SDLoss(torch.nn.Module):
             # In torch 1.9.0, sparse vectors do not support slicing,
             # So we have to make them dense.
             mbr_values = k2.sparse.abs((mbr_num_sparse + (-mbr_den_sparse)).coalesce()).to_dense()
-            # raise RuntimeError(mbr_values.shape[0], input_lengths.sum())
             mbr_loss_list = []
             begin = 0
             for l in input_lengths:
                 # We have to add one here because of the '-1' traisition
-                # At the lattices' ends.
+                # at the lattices' ends.
                 end = begin + l + 1
-                mbr_loss_list.append(mbr_values[begin:end].sum())
+                mbr_loss_list.append(mbr_values[begin:end].sum().unsqueeze(0))
                 begin = end
-            mbr_loss = torch.tensor(mbr_loss_list, device=mmi_tot_scores.device)
-            mbr_tot_scores, mbr_valid_indices = get_tot_objf_and_num_frames(
+            mbr_loss = torch.cat(mbr_loss_list)
+            mbr_tot_scores, mbr_valid_mask = get_tot_objf_and_num_frames(
                 mbr_loss,
                 self.reduction
             )
-            unique, counts = torch.cat((mmi_valid_indices, mbr_valid_indices)).unique(return_counts=True)
-            valid_indices = unique[counts > 1]
-            total_loss = mbr_tot_scores[valid_indices] - mmi_tot_scores[valid_indices]
+            valid_mask = mmi_valid_mask & mbr_valid_mask
+            total_loss = mbr_tot_scores[valid_mask] - mmi_tot_scores[valid_mask]
         else:
-            total_loss = - mmi_tot_scores[mmi_valid_indices]
+            total_loss = - mmi_tot_scores[mmi_valid_mask]
         return total_loss

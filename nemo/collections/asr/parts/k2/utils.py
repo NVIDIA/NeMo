@@ -206,16 +206,12 @@ def get_tot_objf_and_num_frames(
                        from forward-backward
             reduction: a reduction type ('mean', 'sum' or 'none')
         Returns:
-             Returns a tuple of 2 scalar tensors: (tot_score, finite_indices)
-        where finite_indices is a tensor containing successful segment indexes, e.g.
-        [ 0 1 3 4 5 ].
+             Returns a tuple of 2 scalar tensors: (tot_score, finite_mask)
+        where finite_mask is a tensor containing successful segment mask.
     """
-    mask = ~torch.isnan(tot_scores) & torch.ne(tot_scores, -float("inf"))
-    finite_indices = torch.nonzero(mask).squeeze(1)
+    finite_mask = ~torch.isnan(tot_scores) & torch.ne(tot_scores, -float("inf"))
     if reduction == 'mean':
-        tot_scores = tot_scores[finite_indices].mean()
+        tot_scores = tot_scores[finite_mask].mean()
     elif reduction == 'sum':
-        tot_scores = tot_scores[finite_indices].sum()
-    else:
-        tot_scores = tot_scores[finite_indices]
-    return tot_scores, finite_indices
+        tot_scores = tot_scores[finite_mask].sum()
+    return tot_scores, finite_mask
