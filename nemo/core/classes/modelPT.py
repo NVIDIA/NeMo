@@ -276,7 +276,9 @@ class ModelPT(LightningModule, Model):
             try:
                 # Step into the nemo archive to try and find the file
                 with tempfile.TemporaryDirectory() as archive_dir:
-                    self._unpack_nemo_file(path2file=model_metadata.restoration_path, out_folder=archive_dir)
+                    self._save_restore_connector._unpack_nemo_file(
+                        path2file=model_metadata.restoration_path, out_folder=archive_dir
+                    )
                     os.chdir(archive_dir)
                     for conf_path, artiitem in tarfile_artifacts:
                         # Get basename and copy it to nemo_file_folder
