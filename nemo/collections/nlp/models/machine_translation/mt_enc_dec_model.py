@@ -103,7 +103,7 @@ class MTEncDecModel(EncDecNLPModel):
                 )
             elif isinstance(self.src_language, ListConfig):
                 for lng in self.src_language:
-                    self.multilingual_ids.append(self.encoder_tokenizer.token_to_id("<" + lng + ">"))
+                    self.multilingual_ids.append(None)
             elif isinstance(self.tgt_language, ListConfig):
                 for lng in self.tgt_language:
                     self.multilingual_ids.append(self.encoder_tokenizer.token_to_id("<" + lng + ">"))
@@ -773,7 +773,11 @@ class MTEncDecModel(EncDecNLPModel):
                 raise ValueError("Expect source_lang and target_lang to infer for multilingual model.")
             src_symbol = self.encoder_tokenizer.token_to_id('<' + source_lang + '>')
             tgt_symbol = self.encoder_tokenizer.token_to_id('<' + target_lang + '>')
-            prepend_ids = [src_symbol if src_symbol in self.multilingual_ids else tgt_symbol]
+            if src_symbol in self.multilingual_ids:
+                prepend_ids = [src_symbol]
+            elif tgt_symbol in self.multilingual_ids:
+                prepend_ids = [tgt_symbol]
+
         try:
             self.eval()
             src, src_mask = self.prepare_inference_batch(text, prepend_ids)
