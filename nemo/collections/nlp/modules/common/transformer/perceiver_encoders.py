@@ -111,6 +111,10 @@ class PerceiverEncoder(TransformerDecoder):
             return_mems: bool, whether to return outputs of all encoder layers
                 or the last layer only
         """
+        # all hidden values are active
+        hidden_mask = torch.ones(hidden_states.shape[0], hidden_states.shape[1],
+                                 dtype=encoder_mask.dtype, device=encoder_mask.device)
+
         if self.init_hidden_method == "params":
             # learnable initial hidden values
             hidden_states = self.init_hiddden
@@ -120,10 +124,11 @@ class PerceiverEncoder(TransformerDecoder):
                 hidden=encoder_states,
                 hidden_mask=encoder_mask,
             )
+            hidden_states = self.final_enc(
+                encoder_states=hidden_states,
+                encoder_mask=hidden_mask,
+            )
 
-        # all hidden values are active
-        hidden_mask = torch.ones(hidden_states.shape[0], hidden_states.shape[1],
-                                 dtype=encoder_mask.dtype, device=encoder_mask.device)
 
         # FIXME: REMOVE ME
         for block in range(self.blocks):
