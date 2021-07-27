@@ -10,12 +10,10 @@ This collection can be installed in the following ways:
     > pip install git+https://github.com/blisc/NeMo.git@rework_reqs#egg=nemo_toolkit
     > ```
   - inside a requirements file
-    > git+https://github.com/blisc/NeMo.git@rework_reqs#egg=nemo_toolkit
+    > `git+https://github.com/blisc/NeMo.git@rework_reqs#egg=nemo_toolkit`
   - cloning from github, and then installing
     > ```bash
-    > git clone git+https://github.com/blisc/NeMo.git@rework_reqs#egg=nemo_toolkit &&
-    > cd NeMo &&
-    > pip install ".[torch_tts]"
+    >  git clone https://github.com/blisc/NeMo.git && cd NeMo && git checkout rework_reqs && pip install ".[torch_tts]"
     > ```
 
 ## Usage
