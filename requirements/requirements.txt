@@ -1,7 +1,7 @@
 numpy>=1.18.2
 onnx>=1.7.0
 python-dateutil
-torch
+torch>1.7
 wrapt
 ruamel.yaml
 scikit-learn
@@ -9,3 +9,5 @@ sentencepiece<1.0.0
 tqdm>=4.41.0
 numba
 wget
+frozendict
+unidecode

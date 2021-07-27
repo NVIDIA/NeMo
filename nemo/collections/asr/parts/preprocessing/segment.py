@@ -39,10 +39,11 @@ import random
 import librosa
 import numpy as np
 import soundfile as sf
-from kaldiio.matio import read_kaldi
-from kaldiio.utils import open_like_kaldi
-from pydub import AudioSegment as Audio
-from pydub.exceptions import CouldntDecodeError
+
+# from kaldiio.matio import read_kaldi
+# from kaldiio.utils import open_like_kaldi
+# from pydub import AudioSegment as Audio
+# from pydub.exceptions import CouldntDecodeError
 
 from nemo.utils import logging
 

@@ -1,10 +1,46 @@
+# Torch TTS Collection
+
+This section of code can be used by installing the requirements inside our *requirements.txt* and *requirements_torch_tts.txt*.
+
+## Usage
+
+This collection can be installed in the following ways:
+ - pip install from github
+    > `bash
+    > pip install git+https://github.com/blisc/NeMo.git@rework_reqs#egg=nemo_toolkit
+    > `
+  - inside a requirements file
+    > git+https://github.com/blisc/NeMo.git@rework_reqs#egg=nemo_toolkit
+  - cloning from github, and then installing
+    > `bash
+    > git clone git+https://github.com/blisc/NeMo.git@rework_reqs#egg=nemo_toolkit
+    > cd nemo
+    > pip install ".[torch_tts]"
+    > `
+
+## ToDos
+
+ - [] Populate *torch_tts*
+   - [x] Create a new datalayer that can be used interchangeably
+   - [] Add phone support
+   - [] Add TTS models
+ - [] Split Lightning away from core
+   - [x] v0.1 that hacks away a lot of lightning
+   - [] Clean up to make code less hacky
+   - [] Split up utils better
+ - [] Enable building *text_normlization* without installing lightning
+
+# Appendix
+
+## Pip install
+
 NeMo can be installed in a number of ways. We can install just the core, collections, and even other tools such as
 text normlization and inverse normalization.
 
 How can we install these? From the NeMo folder we can run:
 
-  - pip install [--editable] .
-  - pip install [--editable] ".[all]"
+  - pip install {--editable} .
+  - pip install {--editable} ".[all]"
 
 In either case, we install all of the code inside the nemo folder. Even though we require librosa for speech tasks, if
 we only install core, we can still run `from nemo.collections.asr import *`. It will crash saying librosa is not installed,
@@ -53,16 +89,10 @@ These parts I envision are:
   - pip install ".[all]"
     - Installs all requirements. Everything in NeMo is expected to work here
 
-ToDos:
-  - Split any lightning away from new core
-  - Split all utils into sections for lightning and sections not for lightning
-  - Rework and minimize all requirement files
-  - Create new torch_tts collection
-
 
 Usage
 
-```python
+`python
 pip install -e ".[torch_tts]"
 
 import torch
@@ -78,6 +108,13 @@ gen = Generator(
 )
 
 gen(x=torch.randn((8, 80, 100)))
-```
+`
 
 Now you can use the hifigan generator in a pure torch setting.
+
+
+
+
+`python
+from nemo.collections.tts.torch.data import TextMelAudioDataset
+`

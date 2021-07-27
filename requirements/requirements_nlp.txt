@@ -2,7 +2,6 @@ boto3
 h5py
 matplotlib>=3.3.2
 sentencepiece
-unidecode
 youtokentome>=1.0.5
 numpy
 rapidfuzz
