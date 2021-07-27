@@ -370,9 +370,11 @@ class ModelPT(LightningModule, Model):
         app_state.model_restore_path = restore_path
 
         cls.update_save_restore_connector(save_restore_connector(cls))
-        return cls._save_restore_connector._default_restore_from(
+        instance = cls._save_restore_connector._default_restore_from(
             restore_path, override_config_path, map_location, strict, return_config
         )
+        instance._save_restore_connector = save_restore_connector(instance)
+        return instance
 
     @classmethod
     def load_from_checkpoint(

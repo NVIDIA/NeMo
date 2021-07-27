@@ -27,7 +27,7 @@ from nemo.utils.app_state import AppState
 
 
 class SaveRestoreConnector:
-    def __init__(self, model):
+    def __init__(self, model=None):
         self._model = model
 
     def _default_save_to(self, save_path: str):
