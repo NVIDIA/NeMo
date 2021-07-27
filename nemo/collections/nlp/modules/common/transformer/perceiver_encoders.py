@@ -65,9 +65,9 @@ class PerceiverEncoder(TransformerDecoder):
         # FIXME: remove me
         self.blocks = blocks
         # share all weights
-        self.layers = nn.ModuleList([self.layers[0] for _ in range(num_layers)])
+        # self.layers = nn.ModuleList([self.layers[0] for _ in range(num_layers)])
         self.final_enc = TransformerEncoder(
-            num_layers=2,
+            num_layers=3,
             hidden_size=hidden_size,
             inner_size=inner_size,
             mask_future=mask_future,
