@@ -64,6 +64,7 @@ class PerceiverEncoder(TransformerDecoder):
 
         # FIXME: remove me
         self.blocks = blocks
+        self.hidden_steps = hidden_steps
         # share all weights
         # self.layers = nn.ModuleList([self.layers[0] for _ in range(num_layers)])
         self.final_enc = TransformerEncoder(
@@ -112,7 +113,7 @@ class PerceiverEncoder(TransformerDecoder):
                 or the last layer only
         """
         # all hidden values are active
-        hidden_mask = torch.ones(hidden_states.shape[0], hidden_states.shape[1],
+        hidden_mask = torch.ones(encoder_states.shape[0], self.hidden_steps,
                                  dtype=encoder_mask.dtype, device=encoder_mask.device)
 
         if self.init_hidden_method == "params":
