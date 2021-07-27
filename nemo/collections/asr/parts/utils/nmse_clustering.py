@@ -40,6 +40,16 @@ from nemo.utils import logging
 
 scaler = MinMaxScaler(feature_range=(0, 1))
 
+try:
+    from torch.linalg import eigh as eigh
+
+    TORCH_EIGN = True
+except ImportError:
+    TORCH_EIGN = False
+    from scipy.linalg import eigh as eigh
+
+    logging.warning("Using eigen decomposition from scipy, upgrade torch to 1.9 or higher for faster clustering")
+
 
 def isGraphFullyConnected(affinity_mat):
     return getTheLargestComponent(affinity_mat, 0).sum() == affinity_mat.shape[0]
@@ -131,16 +141,37 @@ def getLaplacian(X):
 
 
 def eigDecompose(Laplacian, cuda, device=None):
-    if cuda:
-        if device == None:
-            device = torch.cuda.current_device()
-        laplacian_torch = torch.from_numpy(Laplacian).float().to(device)
+    if TORCH_EIGN:
+        if cuda:
+            if device == None:
+                device = torch.cuda.current_device()
+            Laplacian = torch.from_numpy(Laplacian).float().to(device)
+        else:
+            Laplacian = torch.from_numpy(Laplacian).float()
+        lambdas, diffusion_map = eigh(Laplacian)
+        lambdas = lambdas.cpu().numpy()
+        diffusion_map = diffusion_map.cpu().numpy()
     else:
-        laplacian_torch = torch.from_numpy(Laplacian).float()
-    lambdas_torch, diffusion_map_torch = torch.linalg.eigh(laplacian_torch)
-    lambdas = lambdas_torch.cpu().numpy()
-    diffusion_map = diffusion_map_torch.cpu().numpy()
+        lambdas, diffusion_map = eigh(Laplacian)
+
     return lambdas, diffusion_map
+
+
+def getLamdaGaplist(lambdas):
+    lambdas = np.real(lambdas)
+    return list(lambdas[1:] - lambdas[:-1])
+
+
+def estimateNumofSpeakers(affinity_mat, max_num_speaker, is_cuda=False):
+    """
+    Estimates the number of speakers using eigen decompose on Laplacian Matrix.
+    """
+    Laplacian = getLaplacian(affinity_mat)
+    lambdas, _ = eigDecompose(Laplacian, is_cuda)
+    lambdas = np.sort(lambdas)
+    lambda_gap_list = getLamdaGaplist(lambdas)
+    num_of_spk = np.argmax(lambda_gap_list[: min(max_num_speaker, len(lambda_gap_list))]) + 1
+    return num_of_spk, lambdas, lambda_gap_list
 
 
 class _SpectralClustering:
@@ -363,7 +394,7 @@ class NMESC:
         """
 
         affinity_mat = getAffinityGraphMat(self.mat, p_neighbors)
-        est_num_of_spk, lambdas, lambda_gap_list = self.estimateNumofSpeakers(affinity_mat)
+        est_num_of_spk, lambdas, lambda_gap_list = estimateNumofSpeakers(affinity_mat, self.max_num_speaker, self.cuda)
         arg_sorted_idx = np.argsort(lambda_gap_list[: self.max_num_speaker])[::-1]
         max_key = arg_sorted_idx[0]
         max_eig_gap = lambda_gap_list[max_key] / (max(lambdas) + self.eps)
@@ -387,21 +418,6 @@ class NMESC:
                 p_value_list = list(range(1, self.max_N))
 
         return p_value_list
-
-    def getLamdaGaplist(self, lambdas):
-        lambdas = np.real(lambdas)
-        return list(lambdas[1:] - lambdas[:-1])
-
-    def estimateNumofSpeakers(self, affinity_mat):
-        """
-        Estimates the number of speakers using eigen decompose on Laplacian Matrix.
-        """
-        Laplacian = getLaplacian(affinity_mat)
-        lambdas, _ = eigDecompose(Laplacian, self.cuda)
-        lambdas = np.sort(lambdas)
-        lambda_gap_list = self.getLamdaGaplist(lambdas)
-        num_of_spk = np.argmax(lambda_gap_list[: min(self.max_num_speaker, len(lambda_gap_list))]) + 1
-        return num_of_spk, lambdas, lambda_gap_list
 
 
 def COSclustering(key, emb, oracle_num_speakers=None, max_num_speaker=8, min_samples=6, fixed_thres=None, cuda=False):
@@ -443,12 +459,13 @@ def COSclustering(key, emb, oracle_num_speakers=None, max_num_speaker=8, min_sam
         NME_mat_size=300,
         cuda=cuda,
     )
-    est_num_of_spk, p_hat_value = nmesc.NMEanalysis()
 
     if emb.shape[0] > min_samples:
+        est_num_of_spk, p_hat_value = nmesc.NMEanalysis()
         affinity_mat = getAffinityGraphMat(mat, p_hat_value)
     else:
         affinity_mat = mat
+        est_num_of_spk, _, _ = estimateNumofSpeakers(affinity_mat, max_num_speaker, cuda)
 
     if oracle_num_speakers:
         est_num_of_spk = oracle_num_speakers
