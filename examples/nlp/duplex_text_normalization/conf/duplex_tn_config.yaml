@@ -134,6 +134,7 @@ data:
     data_path: ${data.base_dir}/test.tsv
     batch_size: 64
     shuffle: false
+    do_basic_tokenize: false
     mode: ${mode}
 
 # Inference

@@ -41,6 +41,7 @@ class TextNormalizationDecoderDataset(Dataset):
         max_len: maximum length of sequence in tokens. The code will discard any training instance whose input or output is longer than the specified max_len.
         decoder_data_augmentation (bool): a flag indicates whether to augment the dataset with additional data instances that may help the decoder become more robust against the tagger's errors. Refer to the doc for more info.
         lang: language of the dataset
+        do_basic_tokenize: a flag indicates whether to do some basic tokenization for the inputs
     """
 
     def __init__(
@@ -51,6 +52,7 @@ class TextNormalizationDecoderDataset(Dataset):
         max_len: int,
         decoder_data_augmentation: bool,
         lang: str,
+        do_basic_tokenize: bool,
     ):
         assert mode in constants.MODES
         assert lang in constants.SUPPORTED_LANGS
@@ -71,7 +73,14 @@ class TextNormalizationDecoderDataset(Dataset):
                         continue
                     # Create a DecoderDataInstance
                     inst = DecoderDataInstance(
-                        w_words, s_words, inst_dir, start_idx=ix, end_idx=ix + 1, lang=self.lang, semiotic_class=_class
+                        w_words,
+                        s_words,
+                        inst_dir,
+                        start_idx=ix,
+                        end_idx=ix + 1,
+                        lang=self.lang,
+                        semiotic_class=_class,
+                        do_basic_tokenize=do_basic_tokenize,
                     )
                     insts.append(inst)
                     if decoder_data_augmentation:
@@ -84,6 +93,7 @@ class TextNormalizationDecoderDataset(Dataset):
                             start_idx=ix - noise_left,
                             end_idx=ix + 1 + noise_right,
                             lang=self.lang,
+                            do_basic_tokenize=do_basic_tokenize,
                         )
                         insts.append(inst)
 
@@ -149,9 +159,12 @@ class DecoderDataInstance:
         end_idx: The ending index of the input span (exclusively)
         lang: Language of the instance
         semiotic_class: The semiotic class of the input span (can be set to None if not available)
+        do_basic_tokenize: a flag indicates whether to do some basic tokenization for the inputs
     """
 
-    def __init__(self, w_words, s_words, inst_dir, start_idx, end_idx, lang, semiotic_class=None):
+    def __init__(
+        self, w_words, s_words, inst_dir, start_idx, end_idx, lang, semiotic_class=None, do_basic_tokenize=False
+    ):
         start_idx = max(start_idx, 0)
         end_idx = min(end_idx, len(w_words))
         ctx_size = constants.DECODE_CTX_SIZE
@@ -188,8 +201,9 @@ class DecoderDataInstance:
                 c_s_words[jx] = c_w_words[jx]
 
         # Extract input_words and output_words
-        c_w_words = basic_tokenize(' '.join(c_w_words), lang)
-        c_s_words = basic_tokenize(' '.join(c_s_words), lang)
+        if do_basic_tokenize:
+            c_w_words = basic_tokenize(' '.join(c_w_words), lang)
+            c_s_words = basic_tokenize(' '.join(c_s_words), lang)
         w_input = w_left + [extra_id_0] + c_w_words + [extra_id_1] + w_right
         s_input = s_left + [extra_id_0] + c_s_words + [extra_id_1] + s_right
         if inst_dir == constants.INST_BACKWARD:

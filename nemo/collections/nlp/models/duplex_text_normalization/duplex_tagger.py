@@ -277,16 +277,11 @@ class DuplexTaggerModel(NLPModel):
         logging.info(f'Creating {mode} dataset')
         input_file = cfg.data_path
         dataset = TextNormalizationTaggerDataset(
-            input_file,
-            self._tokenizer,
-            cfg.mode,
-            cfg.get('do_basic_tokenize', False),
-            cfg.get('tagger_data_augmentation', False),
-            cfg.lang,
+            input_file, self._tokenizer, cfg.mode, cfg.do_basic_tokenize, cfg.tagger_data_augmentation, cfg.lang,
         )
         data_collator = DataCollatorForTokenClassification(self._tokenizer)
         dl = torch.utils.data.DataLoader(
-            dataset=dataset, batch_size=cfg.batch_size, shuffle=cfg.shuffle, collate_fn=data_collator,
+            dataset=dataset, batch_size=cfg.batch_size, shuffle=cfg.shuffle, collate_fn=data_collator
         )
         running_time = perf_counter() - start_time
         logging.info(f'Took {running_time} seconds')
