@@ -95,13 +95,13 @@ If you look into the code we see that `TextMelAudioDataset` is a child of `nemo.
 
  - [ ] Populate *torch_tts*
    - [x] Create a new datalayer that can be used interchangeably
-   - [] Add phone support
-   - [] Add TTS models
- - [] Split Lightning away from core
+   - [ ] Add phone support
+   - [ ] Add TTS models
+ - [ ] Split Lightning away from core
    - [x] v0.1 that hacks away a lot of lightning
-   - [] Clean up to make code less hacky
-   - [] Split up utils better
- - [] Enable building *text_normlization* without installing lightning
+   - [ ] Clean up to make code less hacky
+   - [ ] Split up utils better
+ - [ ] Enable building *text_normlization* without installing lightning
 
 # Appendix
 
