@@ -58,9 +58,9 @@ class TextMelAudioDataset(Dataset):
         min_duration: Optional[float] = None,
         ignore_file: Optional[str] = None,
         trim: bool = False,
-        n_fft=None,
-        win_length=320,
-        hop_length=160,
+        n_fft=1024,
+        win_length=None,
+        hop_length=None,
         window="hann",
         n_mels=64,
         lowfreq=0,
@@ -70,9 +70,63 @@ class TextMelAudioDataset(Dataset):
         pitch_avg=0,
         pitch_std=1,
     ):
-        """TODO: Add description
+        """Dataset that loads audio, log mel specs, text tokens, duration / attention priors, pitches, and energies.
+        Log mels, priords, pitches, and energies will be computed on the fly and saved in the supplementary_folder if
+        they did not exist before.
+
+        Note: This dataset currently only support characters. Phone-support is next to be added.
+
+
+            destination (str, Path): Path to a directory containing the main data set folder, Similar to the directory
+            provided to the preprocessor script, which generates this dataset.
+            subdir (str): Either 'train', or 'valid', when using the standard script for generation.
+            n_fft (int): STFT parameter. Also detrmines the STFT filter length.
+            hop_length (int): STFT parameter.
+            num_snr (int): number of noisy samples per clean audio in the original dataset.
+
+
+        Args:
+            manifest_filepath (str, Path, List[str, Path]): Path(s) to the .json manifests containing information on the
+                dataset. Each line in the .json file should be valid json. Note: the .json file itself is not valid
+                json. Each line should contain the following:
+                    "audio_filepath": <PATH_TO_WAV>
+                    "mel_filepath": <PATH_TO_LOG_MEL_PT> (Optional)
+                    "duration": <Duration of audio clip in seconds> (Optional)
+                    "text": <THE_TRANSCRIPT> (Optional)
+            sample_rate (int): The sample rate of the audio. Or the sample rate that we will resample all files to.
+            supplementary_folder (Path): A folder that contains or will contain extra information such as log_mel if not
+                specified in the manifest .json file. It will also contain priors, pitches, and energies
+            max_duration (Optional[float]): Max duration of audio clips in seconds. All samples exceeding this will be
+                pruned prior to training. Note: Requires "duration" to be set in the manifest file. It does not load
+                audio to compute duration. Defaults to None which does not prune.
+            min_duration (Optional[float]): Min duration of audio clips in seconds. All samples lower than this will be
+                pruned prior to training. Note: Requires "duration" to be set in the manifest file. It does not load
+                audio to compute duration. Defaults to None which does not prune.
+            ignore_file (Optional[str, Path]): The location of a pickle-saved list of audio_ids (the stem of the audio
+                files) that will be pruned prior to training. Defaults to None which does not prune.
+            trim (Optional[bool]): Whether to apply librosa.effects.trim to the audio file. Defaults to False.
+            n_fft (Optional[int]): The number of fft samples. Defaults to 1024
+            win_length (Optional[int]): The length of the stft windows. Defaults to None which uses n_fft.
+            hop_length (Optional[int]): The hope length between fft computations. Defaults to None which uses n_fft//4.
+            window (Optional[str]): One of 'hann', 'hamming', 'blackman','bartlett', 'none'. Which corresponds to the
+                equivalent torch window function.
+            n_mels (Optional[int]): The number of mel filters. Defaults to 64.
+            lowfreq (Optional[int]): The lowfreq input to the mel filter calculation. Defaults to 0.
+            highfreq (Optional[int]): The highfreq input to the mel filter calculation. Defaults to None.
+            pitch_fmin (Optional[int]): The fmin input to librosa.pyin. Defaults to None.
+            pitch_fmax (Optional[int]): The fmax input to librosa.pyin. Defaults to None.
+            pitch_avg (Optional[float]): The mean that we use to normalize the pitch. Defaults to 0.
+            pitch_std (Optional[float]): The std that we use to normalize the pitch. Defaults to 1.
         """
         super().__init__()
+
+        self.pitch_fmin = pitch_fmin
+        self.pitch_fmax = pitch_fmax
+        self.pitch_avg = pitch_avg
+        self.pitch_std = pitch_std
+        self.win_length = win_length or n_fft
+        self.sample_rate = sample_rate
+        self.hop_len = hop_length or n_fft // 4
 
         audio_files = []
         total_duration = 0
@@ -161,7 +215,7 @@ class TextMelAudioDataset(Dataset):
         filterbanks = torch.tensor(
             librosa.filters.mel(sample_rate, n_fft, n_mels=n_mels, fmin=lowfreq, fmax=highfreq), dtype=torch.float
         ).unsqueeze(0)
-        self.register_buffer("fb", filterbanks)
+        self.fb = filterbanks
 
         torch_windows = {
             'hann': torch.hann_window,
@@ -174,64 +228,66 @@ class TextMelAudioDataset(Dataset):
         window_tensor = window_fn(win_length, periodic=False) if window_fn else None
 
         self.stft = lambda x: torch.stft(
-            input=x, n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=window_tensor.to(torch.float),
+            input=x,
+            n_fft=n_fft,
+            hop_length=self.hop_len,
+            win_length=self.win_length,
+            window=window_tensor.to(torch.float),
         )
-
-        self.pitch_fmin = pitch_fmin
-        self.pitch_fmax = pitch_fmax
-        self.pitch_avg = pitch_avg
-        self.pitch_std = pitch_std
-        self.win_length = win_length
-        self.sample_rate = sample_rate
-        self.hop_length = hop_length
 
     def __getitem__(self, index):
         spec = None
         sample = self.data[index]
 
-        features = self.featurizer.process(sample["audio_file"], trim=self.trim)
+        features = self.featurizer.process(sample["audio_filepath"], trim=self.trim)
         audio, audio_length = features, torch.tensor(features.shape[0]).long()
-        text, text_length = sample["text_tokens"].long(), torch.tensor(len(sample["text_tokens"])).long()
+        text, text_length = torch.tensor(sample["text_tokens"]).long(), torch.tensor(len(sample["text_tokens"])).long()
+        audio_stem = Path(sample["audio_filepath"]).stem
 
         # Load mel if it exists
-        audio_stem = Path(sample["audio_file"]).stem
-        mel_path = Path(self.supplementary_folder) / f"mel_{audio_stem}.npy"
-        if mel_path.exists():
-            log_mel = np.load(mel_path)
+        mel_path = sample["mel_filepath"]
+        if mel_path and Path(mel_path).exists():
+            log_mel = torch.load(mel_path)
         else:
-            # disable autocast to get full range of stft values
-            with torch.cuda.amp.autocast(enabled=False):
-                spec = self.stft(audio)
+            mel_path = Path(self.supplementary_folder) / f"mel_{audio_stem}.pt"
+            if mel_path.exists():
+                log_mel = torch.load(mel_path)
+            else:
+                # disable autocast to get full range of stft values
+                with torch.cuda.amp.autocast(enabled=False):
+                    spec = self.stft(audio)
 
-                # guard is needed for sqrt if grads are passed through
-                guard = CONSTANT  # TODO: Enable 0 if not self.use_grads else CONSTANT
-                if spec.dtype in [torch.cfloat, torch.cdouble]:
-                    spec = torch.view_as_real(spec)
-                spec = torch.sqrt(spec.pow(2).sum(-1) + guard)
+                    # guard is needed for sqrt if grads are passed through
+                    guard = CONSTANT  # TODO: Enable 0 if not self.use_grads else CONSTANT
+                    if spec.dtype in [torch.cfloat, torch.cdouble]:
+                        spec = torch.view_as_real(spec)
+                    spec = torch.sqrt(spec.pow(2).sum(-1) + guard)
 
-                mel = torch.matmul(self.fb.to(spec.dtype), spec)
+                    mel = torch.matmul(self.fb.to(spec.dtype), spec)
 
-                log_mel = torch.log(torch.clamp(mel, min=torch.finfo(mel.dtype).tiny))
-                np.save(mel_path, log_mel)
+                    log_mel = torch.log(torch.clamp(mel, min=torch.finfo(mel.dtype).tiny))
+                    torch.save(log_mel, mel_path)
 
-        log_mel_length = mel.shape[0]
+        log_mel = log_mel.squeeze(0)
+        log_mel_length = torch.tensor(log_mel.shape[1]).long()
 
         ### Make duration attention prior if not exist in the supplementary folder
         text_tokens = text
-        prior_path = Path(self.supplementary_folder) / f"pr_tl{len(text_tokens)}_al_{log_mel_length}.npy"
+        prior_path = Path(self.supplementary_folder) / f"pr_tl{len(text_tokens)}_al_{log_mel_length}.pt"
         if prior_path.exists():
-            duration_prior = np.load(prior_path)
+            duration_prior = torch.load(prior_path)
         else:
             duration_prior = beta_binomial_prior_distribution(len(text), log_mel_length)
-            np.save(prior_path, duration_prior)
+            duration_prior = torch.from_numpy(duration_prior)
+            torch.save(duration_prior, prior_path)
 
         # Load pitch file (F0s)
         pitch_path = (
             Path(self.supplementary_folder)
-            / f"{audio_stem}_pitch_pyin_fmin{self.pitch_fmin}_fmax{self.pitch_fmax}_fl{self.win_length}_hs{self.hop_len}.npy"
+            / f"{audio_stem}_pitch_pyin_fmin{self.pitch_fmin}_fmax{self.pitch_fmax}_fl{self.win_length}_hs{self.hop_len}.pt"
         )
         if pitch_path.exists():
-            pitch = np.load(pitch_path)
+            pitch = torch.load(pitch_path)
         else:
             pitch, _, _ = librosa.pyin(
                 audio.numpy(),
@@ -241,22 +297,24 @@ class TextMelAudioDataset(Dataset):
                 sr=self.sample_rate,
                 fill_na=0.0,
             )
-            np.save(pitch_path, pitch)
+            pitch = torch.from_numpy(pitch)
+            torch.save(pitch, pitch_path)
         # Standize pitch
         pitch -= self.pitch_avg
         pitch[pitch == -self.pitch_avg] = 0.0  # Zero out values that were perviously zero
         pitch /= self.pitch_std
 
         # Load energy file (L2-norm of the amplitude of each STFT frame of an utterance)
-        energy_path = Path(self.supplementary_folder) / f"{audio_stem}_energy_wl{self.win_length}_hs{self.hop_len}.npy"
+        energy_path = Path(self.supplementary_folder) / f"{audio_stem}_energy_wl{self.win_length}_hs{self.hop_len}.pt"
         if energy_path.exists():
-            energy = np.load(energy_path)
+            energy = torch.load(energy_path)
         else:
             if spec is None:
                 spec = self.stft(audio)
-            energy = np.linalg.norm(spec, axis=0)  # axis=0 since librosa.stft -> (freq bins, frames)
+            energy = torch.linalg.norm(spec.squeeze(0), axis=0)
+            logging.warning(f"energy: {energy.shape}")
             # Save to new file
-            np.save(energy_path, energy)
+            torch.save(energy, energy_path)
 
         return text, text_length, log_mel, log_mel_length, audio, audio_length, duration_prior, pitch, energy
 
@@ -265,30 +323,29 @@ class TextMelAudioDataset(Dataset):
 
     def _collate_fn(self, batch):
         pad_id = self.parser._blank_id
-        log_mel_pad = torch.finfo(batch[3][0].dtype).tiny
+        log_mel_pad = torch.finfo(batch[0][2].dtype).tiny
 
-        _, tokens_lengths, _, log_mel_lengths, _, audio_lengths, _, pitches, energies = zip(*batch)
+        _, tokens_lengths, _, log_mel_lengths, _, audio_lengths, duration_priors_list, pitches, energies = zip(*batch)
 
         max_tokens_len = max(tokens_lengths).item()
-        max_log_mel_len = max([len(i) for i in log_mel_lengths])
+        max_log_mel_len = max(log_mel_lengths)
         max_audio_len = max(audio_lengths).item()
         max_pitches_len = max([len(i) for i in pitches])
         max_energies_len = max([len(i) for i in energies])
-        if max_pitches_len != max_energies_len or max_pitches_len != max_mel_len:
+        if max_pitches_len != max_energies_len or max_pitches_len != max_log_mel_len:
             logging.warning(
                 f"max_pitches_len: {max_pitches_len} != max_energies_len: {max_energies_len} != "
-                f"max_mel_len:{max_mel_len}. Your training run will error out!"
+                f"max_mel_len:{max_log_mel_len}. Your training run will error out!"
             )
 
         # Define empty lists to be batched
-        duration_priors_list = batch[4]
         duration_priors = torch.zeros(
             len(duration_priors_list),
             max([prior_i.shape[0] for prior_i in duration_priors_list]),
             max([prior_i.shape[1] for prior_i in duration_priors_list]),
         )
         audios, tokens, log_mels, pitches, energies = [], [], [], [], []
-        for sample_tuple in batch:
+        for i, sample_tuple in enumerate(batch):
             token, token_len, log_mel, log_mel_len, audio, audio_len, duration_prior, pitch, energy = sample_tuple
             # Pad text tokens
             token_len = token_len.item()
@@ -297,7 +354,7 @@ class TextMelAudioDataset(Dataset):
                 token = torch.nn.functional.pad(token, pad, value=pad_id)
             tokens.append(token)
             # Pad mel
-            log_mel_len = log_mel_len.item()
+            log_mel_len = log_mel_len
             if log_mel_len < max_log_mel_len:
                 pad = (0, max_log_mel_len - log_mel_len)
                 log_mel = torch.nn.functional.pad(log_mel, pad, value=log_mel_pad)
@@ -311,10 +368,9 @@ class TextMelAudioDataset(Dataset):
             # Pad duration_prior
             duration_priors[i, : duration_prior.shape[0], : duration_prior.shape[1]] = duration_prior
             # Pad pitch
-            pitch = pitch.squeeze(0)
             if len(pitch) < max_pitches_len:
                 pad = (0, max_pitches_len - len(pitch))
-                pitch = torch.nn.functional.pad(pitch.squeeze(0), pad)
+                pitch = torch.nn.functional.pad(pitch, pad)
             pitches.append(pitch)
             # Pad energy
             if len(energy) < max_energies_len:
@@ -330,5 +386,15 @@ class TextMelAudioDataset(Dataset):
         log_mel_lengths = torch.stack(log_mel_lengths)
         pitches = torch.stack(pitches)
         energies = torch.stack(energies)
+
+        logging.debug(f"audios: {audios.shape}")
+        logging.debug(f"audio_lengths: {audio_lengths.shape}")
+        logging.debug(f"tokens: {tokens.shape}")
+        logging.debug(f"tokens_lengths: {tokens_lengths.shape}")
+        logging.debug(f"log_mels: {log_mels.shape}")
+        logging.debug(f"log_mel_lengths: {log_mel_lengths.shape}")
+        logging.debug(f"duration_priors: {duration_priors.shape}")
+        logging.debug(f"pitches: {pitches.shape}")
+        logging.debug(f"energies: {energies.shape}")
 
         return (tokens, tokens_lengths, log_mels, log_mel_lengths, duration_priors, pitches, energies)
