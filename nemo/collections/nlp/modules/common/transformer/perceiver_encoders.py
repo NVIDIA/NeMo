@@ -58,12 +58,16 @@ class PerceiverEncoder(TransformerDecoder):
             pre_ln_final_layer_norm=pre_ln_final_layer_norm,
         )
 
+        # FIXME: remove me
+        # share all weights
+        self.layers = nn.ModuleList([self.layers[0] for _ in range(num_layers)])
+
         self.init_hidden_method = init_hidden_method
 
         if self.init_hidden_method == "params":
             # learnable initial hidden values
             self.init_hiddden = torch.nn.Parameter(
-                torch.nn.init.xavier_uniform_(torch.empty(hidden_steps, hidden_size))
+                torch.nn.init.xavier_normal_(torch.empty(hidden_steps, hidden_size))
             )
         elif self.init_hidden_method == "att_bridge":
             # initialize latent with attention bridge

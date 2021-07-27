@@ -89,7 +89,6 @@ def get_nemo_transformer(
                 num_token_types=cfg.get('num_token_types', 2),
             )
         elif arch == "perceiver":
-            import pudb; pudb.set_trace()
             model = PerceiverEncoderNM(
                 vocab_size=cfg.get('vocab_size'),
                 hidden_size=cfg.get('hidden_size'),
