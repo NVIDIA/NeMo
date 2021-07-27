@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.utils.model_utils import import_class_by_path
 import os
 import tarfile
 import tempfile
@@ -25,12 +26,13 @@ from omegaconf import DictConfig, OmegaConf
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 
+# TODO: Rip as much save/restore from modelpt and put in the connector
+# TODO: Prioritize adding artifacts
+# TODO: Try to create connector methods for as much as possible, espcially anything I/O
+
 
 class SaveRestoreConnector:
-    def __init__(self, model=None):
-        self._model = model
-
-    def _default_save_to(self, save_path: str):
+    def _default_save_to(self, model, save_path: str):
         """
 			Saves model instance (weights and configuration) into .nemo file.
 			You can use "restore_from" method to fully restore instance from .nemo file.
@@ -48,12 +50,13 @@ class SaveRestoreConnector:
         with tempfile.TemporaryDirectory() as tmpdir:
             config_yaml = path.join(tmpdir, app_state.model_config_yaml)
             model_weights = path.join(tmpdir, app_state.model_weights_ckpt)
-            self._model.to_config_file(path2yaml_file=config_yaml)
-            if hasattr(self._model, 'artifacts') and self._model.artifacts is not None:
-                self._model._handle_artifacts(nemo_file_folder=tmpdir)
+            model.to_config_file(path2yaml_file=config_yaml)
+            if hasattr(model, 'artifacts') and model.artifacts is not None:
+                model._handle_artifacts(nemo_file_folder=tmpdir)
                 # We should not update self._cfg here - the model can still be in use
-                self._model._update_artifact_paths(path2yaml_file=config_yaml)
-            torch.save(self._model.state_dict(), model_weights)
+                model._update_artifact_paths(path2yaml_file=config_yaml)
+            # TODO: add connector method for saving weights
+            torch.save(model.state_dict(), model_weights)
             self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
     def _default_restore_from(
@@ -99,7 +102,6 @@ class SaveRestoreConnector:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
-                self._model._set_model_restore_state(is_being_restored=True, folder=tmpdir)
                 self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
                 os.chdir(tmpdir)
                 if override_config_path is None:
@@ -131,13 +133,16 @@ class SaveRestoreConnector:
                     model_weights = path.join(tmpdir, app_state.model_weights_ckpt)
                 OmegaConf.set_struct(conf, True)
                 os.chdir(cwd)
-                instance = self._model.from_config_dict(config=conf)
+                # get the class
+                class_ = import_class_by_path(conf.target)
+                class_._set_model_restore_state(is_being_restored=True, folder=tmpdir)
+                instance = class_.from_config_dict(config=conf)
                 instance = instance.to(map_location)
                 instance.load_state_dict(torch.load(model_weights, map_location=map_location), strict=strict)
 
                 logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
             finally:
-                self._model._set_model_restore_state(is_being_restored=False)
+                class_._set_model_restore_state(is_being_restored=False)
                 os.chdir(cwd)
 
         return instance

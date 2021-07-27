@@ -110,7 +110,7 @@ class ModelPT(LightningModule, Model):
         self._scheduler = None
         self.trainer = trainer  # reference required for self.*_rank
         self._trainer = self.trainer  # alias for backward compatibility
-        self._save_restore_connector = SaveRestoreConnector(self)
+        self._save_restore_connector = SaveRestoreConnector()
 
         self._set_model_guid()
 
@@ -329,7 +329,7 @@ class ModelPT(LightningModule, Model):
             return
         else:
             save_path = os.path.abspath(os.path.expanduser(save_path))
-            self._save_restore_connector._default_save_to(save_path)
+            self._save_restore_connector._default_save_to(self, save_path)
 
     @classmethod
     def restore_from(
@@ -339,7 +339,7 @@ class ModelPT(LightningModule, Model):
         map_location: Optional[torch.device] = None,
         strict: bool = True,
         return_config: bool = False,
-        save_restore_connector: SaveRestoreConnector = SaveRestoreConnector,
+        save_restore_connector: SaveRestoreConnector = SaveRestoreConnector(),
     ):
         """
         Restores model instance (weights and configuration) from .nemo file.
@@ -371,11 +371,11 @@ class ModelPT(LightningModule, Model):
         app_state = AppState()
         app_state.model_restore_path = restore_path
 
-        cls.update_save_restore_connector(save_restore_connector(cls))
+        cls.update_save_restore_connector(save_restore_connector)
         instance = cls._save_restore_connector._default_restore_from(
             restore_path, override_config_path, map_location, strict, return_config
         )
-        instance._save_restore_connector = save_restore_connector(instance)
+        instance._save_restore_connector = save_restore_connector
         return instance
 
     @classmethod
