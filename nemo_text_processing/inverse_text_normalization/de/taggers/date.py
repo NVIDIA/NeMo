@@ -31,7 +31,7 @@ except (ModuleNotFoundError, ImportError):
     graph_digit = None
     ties_graph = None
 
-    PYNINI_AVAILABLE = True
+    PYNINI_AVAILABLE = False
 
 
 def _get_month_graph():
