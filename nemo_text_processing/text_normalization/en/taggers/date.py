@@ -96,14 +96,13 @@ def _get_year_graph(deterministic: bool = True):
     2000 - 2009 will be verbalized as two thousand.
     """
     graph = get_hundreds_graph(deterministic)
-    graph = (
-        pynini.union("1", "2")
-        + NEMO_DIGIT
-        + NEMO_DIGIT
-        + NEMO_DIGIT
-        + pynini.closure(pynini.cross(" s", "s") | "s", 0, 1)
-    ) @ graph
-    return graph
+    graph_digits = pynini.union("1", "2") + NEMO_DIGIT ** (3)
+
+    year = pynini.compose(graph_digits, graph)
+    year |= pynini.compose(
+        graph_digits + pynini.closure(pynutil.delete(" "), 0, 1) + pynutil.delete("s"), graph
+    ) + pynutil.insert("!s")
+    return year
 
 
 class DateFst(GraphFst):
@@ -118,7 +117,7 @@ class DateFst(GraphFst):
         2012 -> date { year: "twenty twelve" }
 
     Args:
-        ordinal: OrdinalFst
+        cardinal: CardinalFst
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
@@ -161,6 +160,9 @@ class DateFst(GraphFst):
         )
         optional_day_graph = pynini.closure(delete_extra_space + day_graph, 0, 1)
 
+        two_digit_year = NEMO_DIGIT ** (2) @ (cardinal.single_digits_graph | cardinal_graph)
+        two_digit_year = pynutil.insert("year: \"") + two_digit_year + pynutil.insert("\"")
+
         year_graph = pynutil.insert("year: \"") + year_graph + pynutil.insert("\"")
         optional_graph_year = pynini.closure(delete_extra_space + year_graph, 0, 1,)
         graph_mdy = (
@@ -180,12 +182,18 @@ class DateFst(GraphFst):
             + day_graph
             + delete_sep
             + insert_space
-            + year_graph
+            + (year_graph | two_digit_year)
         )
 
-        graph_dmy = day_graph + delete_extra_space + month_graph + optional_graph_year
+        graph_dmy = (
+            day_graph
+            + delete_extra_space
+            + month_graph
+            + pynini.closure(pynutil.delete(","), 0, 1)
+            + optional_graph_year
+        )
         graph_ymd = (
-            year_graph
+            (year_graph | two_digit_year)
             + delete_sep
             + insert_space
             + month_numbers_graph
@@ -195,7 +203,11 @@ class DateFst(GraphFst):
             + day_graph
         )
 
-        final_graph = (graph_mdy | graph_dmy) + pynutil.insert(" preserve_order: true")
+        final_graph = graph_mdy | graph_dmy
+        if deterministic:
+            final_graph += pynutil.insert(" preserve_order: true")
+        else:
+            final_graph += pynini.closure(pynutil.insert(" preserve_order: true"), 0, 1)
         final_graph |= graph_ymd | year_graph_standalone
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

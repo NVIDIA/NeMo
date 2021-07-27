@@ -74,12 +74,7 @@ class NormalizerWithAudio(Normalizer):
     """
 
     def __init__(self, input_case: str, lang: str = 'en'):
-        super().__init__(input_case=input_case, lang=lang)
-        if lang == 'en':
-            from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
-            from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
-        self.tagger = ClassifyFst(input_case=input_case, deterministic=False)
-        self.verbalizer = VerbalizeFinalFst(deterministic=False)
+        super().__init__(input_case=input_case, lang=lang, deterministric=False)
 
     def normalize(
         self,
@@ -142,7 +137,6 @@ class NormalizerWithAudio(Normalizer):
 
         try:
             normalized_texts.extend(get_verbalized_text(tagged_text))
-        except pynini.lib.rewrite.Error:
             self.parser(tagged_text)
             tokens = self.parser.parse()
             tags_reordered = self.generate_permutations(tokens)
@@ -151,6 +145,16 @@ class NormalizerWithAudio(Normalizer):
                     normalized_texts.extend(get_verbalized_text(tagged_text_reordered))
                 except pynini.lib.rewrite.Error:
                     continue
+        except pynini.lib.rewrite.Error:
+            # self.parser(tagged_text)
+            # tokens = self.parser.parse()
+            # tags_reordered = self.generate_permutations(tokens)
+            # for tagged_text_reordered in tags_reordered:
+            #     try:
+            #         normalized_texts.extend(get_verbalized_text(tagged_text_reordered))
+            #     except pynini.lib.rewrite.Error:
+            #         continue
+            pass
 
     def select_best_match(
         self, normalized_texts: List[str], transcript: str, verbose: bool = False, remove_punct: bool = False

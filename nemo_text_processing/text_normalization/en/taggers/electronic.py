@@ -62,3 +62,18 @@ class ElectronicFst(GraphFst):
 
         final_graph = self.add_tokens(graph)
         self.fst = final_graph.optimize()
+
+
+"""
+Input : http://www.hkdailynews.com.hk/NewsDetail/index/77006Chang,S
+Target: h  t  t  p  c o l o n  s l a s h  s l a s h  w  w  w dot h  k  d a i l y n e w s dot c o m dot h  k  s l a s h  n e w s d e t a i l  s l a s h  i n d e x  s l a s h  s e v e n  s e v e n  o  o  s i x  c h a n g  c o m m a  s
+Output: {'http://www.hkdailynews.com.hk/NewsDetail/index/77006Chang,S'}
+
+# change to lower case
+Input : Games.com
+Target: g a m e s dot c o m
+Output: {'G a m e s dot c o m', 'Games.com', 'G a m e s dot com'}
+
+
+
+"""

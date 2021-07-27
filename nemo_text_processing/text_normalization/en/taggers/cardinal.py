@@ -56,9 +56,11 @@ class CardinalFst(GraphFst):
         self.single_digits_graph = single_digits_graph + pynini.closure(pynutil.insert(" ") + single_digits_graph)
 
         if not deterministic:
-            single_digits_graph = pynutil.add_weight(
-                pynini.invert(graph_digit | graph_zero), 1.2
-            ) | pynutil.add_weight(pynini.cross("0", "oh"), 1.1)
+            single_digits_graph = (
+                pynutil.add_weight(pynini.invert(graph_digit | graph_zero), 1.2)
+                | pynutil.add_weight(pynini.cross("0", "oh"), 1.1)
+                | pynutil.add_weight(pynini.cross("0", "o"), 1.1)
+            )
             self.single_digits_graph = single_digits_graph + pynini.closure(pynutil.insert(" ") + single_digits_graph)
 
             single_digits_graph_with_commas = pynini.closure(
@@ -94,6 +96,10 @@ class CardinalFst(GraphFst):
 
         if not deterministic:
             final_graph |= self.range_graph
+            remove_leading_zeros = pynini.closure(pynutil.delete("0"), 1) + pynini.compose(
+                pynini.closure(NEMO_DIGIT, 1), self.graph
+            )
+            final_graph |= remove_leading_zeros
 
         final_graph = optional_minus_graph + pynutil.insert("integer: \"") + final_graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)
@@ -117,9 +123,12 @@ class CardinalFst(GraphFst):
         delimiter = insert_space | pynini.cross("-", " ") | pynini.cross("/", " ")
         letter_num = pynini.closure(alpha + delimiter, 1) + num_graph
         num_letter = pynini.closure(num_graph + delimiter, 1) + alpha
+        num_delimiter_num = pynini.closure(num_graph + delimiter, 1) + num_graph
         next_alpha_or_num = pynini.closure(delimiter + (alpha | num_graph))
-        serial_graph = (letter_num | num_letter) + next_alpha_or_num
+        serial_graph = (letter_num | num_letter | num_delimiter_num) + next_alpha_or_num
 
         if not self.deterministic:
             serial_graph += pynini.closure(pynini.accep("s") | pynini.cross("s", "es"), 0, 1)
+
+        serial_graph.optimize()
         return pynutil.add_weight(serial_graph, 10)
