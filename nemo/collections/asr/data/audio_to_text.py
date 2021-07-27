@@ -378,6 +378,7 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
         pad_with_space=False,
         improved_version_g2p=False,
         phoneme_dict_path=None,
+        phoneme_prob=1.0
     ):
         """Constructs vocabulary from given parameters.
 
@@ -408,6 +409,7 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
                 pad_with_space=pad_with_space,
                 improved_version_g2p=improved_version_g2p,
                 phoneme_dict_path=phoneme_dict_path,
+                phoneme_prob=phoneme_prob
             )
         else:
             raise ValueError("Unsupported vocab type.")

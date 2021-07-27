@@ -44,6 +44,7 @@ model:
         pad_with_space: True
         chars: true
         improved_version_g2p: true
+        phoneme_prob: 0.5
     dataloader_params:
       drop_last: false
       shuffle: true

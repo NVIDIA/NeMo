@@ -17,6 +17,7 @@ import itertools
 import re
 import string
 import unicodedata
+import random
 from builtins import str as unicode
 from typing import List
 
@@ -61,14 +62,18 @@ class G2p:
         self,
         g2p_library,
         phoneme_dict_path=None,
+        phoneme_prob=1.0,
         use_seq2seq_for_oov=False,
         ignore_ambiguous_words=True,
         text_preprocessing_func=_text_preprocessing,
         word_tokenize_func=_word_tokenize,
+        rng=None
     ):
         self._g2p = g2p_library
         self.homograph2features = self._g2p.homograph2features
         self.g2p_dict = self._construct_grapheme2phoneme_dict(phoneme_dict_path)
+        self.phoneme_prob = phoneme_prob
+        self._rng = random.Random() if rng is None else rng
         self.use_seq2seq_for_oov = use_seq2seq_for_oov
         self.ignore_ambiguous_words = ignore_ambiguous_words
 
@@ -110,54 +115,61 @@ class G2p:
 
         prons = []
         for word, pos in words_and_pos_tags:
-            word_by_hyphen = word.split("-")
-
-            # punctuation
-            if re.search("[a-zA-Z]", word) is None:
-                pron = list(word)
-            # homograph
-            elif word in self.homograph2features:
-                pron1, pron2, pos1 = self.homograph2features[word]
-                if pos.startswith(pos1):
-                    pron = pron1
-                else:
-                    pron = pron2
-            # `'s` suffix
-            elif (
-                len(word) > 2
-                and word.endswith("'s")
-                and (word not in self.g2p_dict)
-                and (word[:-2] in self.g2p_dict)
-                and self.handle_ambiguous(word[:-2])
-            ):
-                pron = self.g2p_dict[word[:-2]][0] + ["Z"]
-            # `s` suffix
-            elif (
-                len(word) > 1
-                and word.endswith("s")
-                and (word not in self.g2p_dict)
-                and (word[:-1] in self.g2p_dict)
-                and self.handle_ambiguous(word[:-1])
-            ):
-                pron = self.g2p_dict[word[:-1]][0] + ["Z"]
-            # g2p dict
-            elif word in self.g2p_dict and self.handle_ambiguous(word):
-                pron = self.g2p_dict[word][0]
-            # word with hyphens
-            elif len(word_by_hyphen) > 1 and all(
-                [sub_word in self.g2p_dict and self.handle_ambiguous(sub_word) for sub_word in word_by_hyphen]
-            ):
-                pron = []
-                for sub_word in word_by_hyphen:
-                    pron.extend(self.g2p_dict[sub_word][0])
-                    pron.extend(["-"])
-                pron.pop()
+            if self._rng.random() > self.phoneme_prob:
+                pron = word
             else:
                 if self.use_seq2seq_for_oov:
                     # run gru-based seq2seq model from _g2p
                     pron = self._g2p.predict(word)
+                word_by_hyphen = word.split("-")
+
+                # punctuation
+                if re.search("[a-zA-Z]", word) is None:
+                    pron = list(word)
+                # homograph
+                elif word in self.homograph2features:
+                    pron1, pron2, pos1 = self.homograph2features[word]
+                    if pos.startswith(pos1):
+                        pron = pron1
+                    else:
+                        pron = pron2
+                # `'s` suffix
+                elif (
+                    len(word) > 2
+                    and word.endswith("'s")
+                    and (word not in self.g2p_dict)
+                    and (word[:-2] in self.g2p_dict)
+                    and self.handle_ambiguous(word[:-2])
+                ):
+                    pron = self.g2p_dict[word[:-2]][0] + ["Z"]
+                # `s` suffix
+                elif (
+                    len(word) > 1
+                    and word.endswith("s")
+                    and (word not in self.g2p_dict)
+                    and (word[:-1] in self.g2p_dict)
+                    and self.handle_ambiguous(word[:-1])
+                ):
+                    pron = self.g2p_dict[word[:-1]][0] + ["Z"]
+                # g2p dict
+                elif word in self.g2p_dict and self.handle_ambiguous(word):
+                    pron = self.g2p_dict[word][0]
+                # word with hyphens
+                elif len(word_by_hyphen) > 1 and all(
+                    [sub_word in self.g2p_dict and self.handle_ambiguous(sub_word) for sub_word in word_by_hyphen]
+                ):
+                    pron = []
+                    for sub_word in word_by_hyphen:
+                        pron.extend(self.g2p_dict[sub_word][0])
+                        pron.extend(["-"])
+                    pron.pop()
+>>>>>>> Updated TTS dataset to allow using mixed representations with configurable phoneme probability
                 else:
-                    pron = word
+                    if self.use_seq2seq_for_oov:
+                        # run gru-based seq2seq model from _g2p
+                        pron = _g2p.predict(word)
+                    else:
+                        pron = word
 
             prons.extend(pron)
 
@@ -279,6 +291,7 @@ class Phonemes(Base):
         add_blank_at="last_but_one",
         pad_with_space=False,
         improved_version_g2p=False,
+        phoneme_prob=1.0,
         phoneme_dict_path=None,
     ):
         labels = []
@@ -320,7 +333,10 @@ class Phonemes(Base):
         _g2p.variables = None
 
         if improved_version_g2p:
-            self.g2p = G2p(_g2p, phoneme_dict_path)
+            if chars:
+                self.g2p = G2p(phoneme_dict_path, phoneme_prob)
+            else:
+                self.g2p = G2p(phoneme_dict_path, 1.0)
         else:
             self.g2p = _g2p
 
@@ -355,3 +371,5 @@ class Phonemes(Base):
             ps = [space] + ps + [space]
 
         return [self._label2id[p] for p in ps]
+
+
