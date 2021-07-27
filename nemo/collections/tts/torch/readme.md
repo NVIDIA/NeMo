@@ -26,7 +26,9 @@ Now even though lightning isn't installed, we can still use parts from the torch
 
 ### TTS Dataset
 
-Let's import our dataset class and then get it set up with a simple torch forward call
+Let's import our dataset class and then loop through the batches. Note that in the sample .json files, we only have text
+and audio. Our dataset will then create the log_mels, priors, pitches, and energies and store them in `supplementary_folder`
+which in this case is `./debug0`.
 
 ```python
 import torch
@@ -34,9 +36,9 @@ import torch
 from nemo.collections.tts.torch.data import TextMelAudioDataset
 
 dataset = TextMelAudioDataset(
-  manifest_filepath="/data/speech/LJSpeech/nvidia_ljspeech_val.json",  # Path to file that describes the location of audio and text
+  manifest_filepath="PATH_TO/nvidia_ljspeech_val.json",  # Path to file that describes the location of audio and text
   sample_rate=22050,
-  supplementary_folder="/data/speech/LJSpeech/supplementary1",  # An additional folder that will store log_mels, priors, pitches, and energies
+  supplementary_folder="./debug0",  # An additional folder that will store log_mels, priors, pitches, and energies
   max_duration=20.,  # Max duration of samples in seconds
   min_duration=0.1,  # Min duration of samples in seconds
   ignore_file=None,
