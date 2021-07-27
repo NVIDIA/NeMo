@@ -67,7 +67,7 @@ class PerceiverEncoder(TransformerDecoder):
         # share all weights
         self.layers = nn.ModuleList([self.layers[0] for _ in range(num_layers)])
         self.final_enc = TransformerEncoder(
-            num_layers=3,
+            num_layers=2,
             hidden_size=hidden_size,
             inner_size=inner_size,
             mask_future=mask_future,
