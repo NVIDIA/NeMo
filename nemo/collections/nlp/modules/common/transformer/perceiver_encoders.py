@@ -45,7 +45,7 @@ class PerceiverEncoder(TransformerDecoder):
         pre_ln_final_layer_norm: bool = True,
         # TODO: add to config
         init_hidden_method: str = "att_bridge",
-        blocks=3,
+        blocks=2,
     ):
         super().__init__(
             # FIXME: REMOVE ME
@@ -67,7 +67,7 @@ class PerceiverEncoder(TransformerDecoder):
         # share all weights
         self.layers = nn.ModuleList([self.layers[0] for _ in range(num_layers)])
         self.final_enc = TransformerEncoder(
-            num_layers=1,
+            num_layers=3,
             hidden_size=hidden_size,
             inner_size=inner_size,
             mask_future=mask_future,
