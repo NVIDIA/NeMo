@@ -49,9 +49,6 @@ try:
     delete_extra_space = pynini.cross(pynini.closure(NEMO_WHITE_SPACE, 1), " ")
 
     suppletive = pynini.string_file(get_abs_path("data/suppletive.tsv"))
-    _c = pynini.union(
-        "b", "c", "d", "f", "g", "h", "j", "k", "l", "m", "n", "p", "q", "r", "s", "t", "v", "w", "x", "y", "z", "ß"
-    )
     # plural endung n/en maskuline Nomen mit den Endungen e, ent, and, ant, ist, or
     _n = NEMO_SIGMA + pynini.union("e") + pynutil.insert("n")
     _en = (
@@ -101,9 +98,11 @@ except (ModuleNotFoundError, ImportError):
     delete_extra_space = None
 
     suppletive = None
-    _c = None
-    _ies = None
-    _es = None
+    _n = None
+    _en = None
+    _nen = None
+    _fremd = None
+    _e = None
     _s = None
 
     graph_plural = None
