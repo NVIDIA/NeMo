@@ -85,6 +85,14 @@ def get_hundreds_graph(deterministic: bool = True):
             + (pynutil.delete("0") | insert_space + graph_digit),
             weight=-0.001,
         )
+        | pynutil.add_weight(
+            graph_digit
+            + insert_space
+            + pynini.cross("000", "thousand")
+            + pynini.closure(pynutil.delete(" "), 0, 1)
+            + pynini.accep("s"),
+            weight=-0.001,
+        )
     )
     return graph
 
@@ -96,13 +104,14 @@ def _get_year_graph(deterministic: bool = True):
     2000 - 2009 will be verbalized as two thousand.
     """
     graph = get_hundreds_graph(deterministic)
-    graph_digits = pynini.union("1", "2") + NEMO_DIGIT ** (3)
-
-    year = pynini.compose(graph_digits, graph)
-    year |= pynini.compose(
-        graph_digits + pynini.closure(pynutil.delete(" "), 0, 1) + pynutil.delete("s"), graph
-    ) + pynutil.insert("!s")
-    return year
+    graph = (
+        pynini.union("1", "2")
+        + NEMO_DIGIT
+        + NEMO_DIGIT
+        + NEMO_DIGIT
+        + pynini.closure(pynini.cross(" s", "s") | "s", 0, 1)
+    ) @ graph
+    return graph
 
 
 class DateFst(GraphFst):

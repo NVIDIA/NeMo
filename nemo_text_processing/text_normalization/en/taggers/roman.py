@@ -29,8 +29,8 @@ except (ModuleNotFoundError, ImportError):
 
 class RomanFst(GraphFst):
     """
-    Finite state transducer for classifying electronic: as URLs, email addresses, etc.
-        e.g. "IV" -> tokens { roman { integer: "two" } }
+    Finite state transducer for classifying roman numbers:
+        e.g. "IV" -> tokens { roman { integer: "four" } }
 
     Args:
         deterministic: if True will provide a single transduction option,

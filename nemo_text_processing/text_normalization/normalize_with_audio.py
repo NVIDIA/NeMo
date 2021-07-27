@@ -137,6 +137,7 @@ class NormalizerWithAudio(Normalizer):
 
         try:
             normalized_texts.extend(get_verbalized_text(tagged_text))
+            import pdb; pdb.set_trace()
             self.parser(tagged_text)
             tokens = self.parser.parse()
             tags_reordered = self.generate_permutations(tokens)
@@ -146,15 +147,14 @@ class NormalizerWithAudio(Normalizer):
                 except pynini.lib.rewrite.Error:
                     continue
         except pynini.lib.rewrite.Error:
-            # self.parser(tagged_text)
-            # tokens = self.parser.parse()
-            # tags_reordered = self.generate_permutations(tokens)
-            # for tagged_text_reordered in tags_reordered:
-            #     try:
-            #         normalized_texts.extend(get_verbalized_text(tagged_text_reordered))
-            #     except pynini.lib.rewrite.Error:
-            #         continue
-            pass
+            self.parser(tagged_text)
+            tokens = self.parser.parse()
+            tags_reordered = self.generate_permutations(tokens)
+            for tagged_text_reordered in tags_reordered:
+                try:
+                    normalized_texts.extend(get_verbalized_text(tagged_text_reordered))
+                except pynini.lib.rewrite.Error:
+                    continue
 
     def select_best_match(
         self, normalized_texts: List[str], transcript: str, verbose: bool = False, remove_punct: bool = False
