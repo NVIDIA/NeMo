@@ -45,10 +45,11 @@ class PerceiverEncoder(TransformerDecoder):
         pre_ln_final_layer_norm: bool = True,
         # TODO: add to config
         init_hidden_method: str = "att_bridge",
+        blocks=3,
     ):
         super().__init__(
             # FIXME: REMOVE ME
-            num_layers=num_layers//2,
+            num_layers=1,
             # num_layers=num_layers,
             hidden_size=hidden_size,
             inner_size=inner_size,
@@ -62,6 +63,7 @@ class PerceiverEncoder(TransformerDecoder):
         )
 
         # FIXME: remove me
+        self.blocks = blocks
         # share all weights
         self.layers = nn.ModuleList([self.layers[0] for _ in range(num_layers)])
         self.final_enc = TransformerEncoder(
@@ -124,18 +126,19 @@ class PerceiverEncoder(TransformerDecoder):
                                  dtype=encoder_mask.dtype, device=encoder_mask.device)
 
         # FIXME: REMOVE ME
-        hidden_states = super().forward(
-            decoder_states=hidden_states,
-            decoder_mask=hidden_mask,
-            encoder_states=encoder_states,
-            encoder_mask=encoder_mask,
-            decoder_mems_list=hidden_mems_list,
-            return_mems=return_mems,
-        )
-        hidden_states = self.final_enc(
-            encoder_states=hidden_states,
-            encoder_mask=hidden_mask,
-        )
+        for block in range(self.blocks):
+            hidden_states = super().forward(
+                decoder_states=hidden_states,
+                decoder_mask=hidden_mask,
+                encoder_states=encoder_states,
+                encoder_mask=encoder_mask,
+                decoder_mems_list=hidden_mems_list,
+                return_mems=return_mems,
+            )
+            hidden_states = self.final_enc(
+                encoder_states=hidden_states,
+                encoder_mask=hidden_mask,
+            )
 
         return hidden_states
 
