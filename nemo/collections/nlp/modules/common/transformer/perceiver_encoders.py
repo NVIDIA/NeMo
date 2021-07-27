@@ -22,6 +22,7 @@ from omegaconf.omegaconf import MISSING
 from nemo.collections.common.parts import form_attention_mask
 from nemo.collections.nlp.modules.common.transformer.transformer_modules import AttentionBridge
 from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoder
+from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
 
 
 __all__ = ["PerceiverEncoder"]
@@ -46,7 +47,9 @@ class PerceiverEncoder(TransformerDecoder):
         init_hidden_method: str = "att_bridge",
     ):
         super().__init__(
-            num_layers=num_layers,
+            # FIXME: REMOVE ME
+            num_layers=num_layers//2,
+            # num_layers=num_layers,
             hidden_size=hidden_size,
             inner_size=inner_size,
             num_attention_heads=num_attention_heads,
@@ -61,6 +64,19 @@ class PerceiverEncoder(TransformerDecoder):
         # FIXME: remove me
         # share all weights
         self.layers = nn.ModuleList([self.layers[0] for _ in range(num_layers)])
+        self.final_enc = TransformerEncoder(
+            num_layers=num_layers//2,
+            hidden_size=hidden_size,
+            inner_size=inner_size,
+            mask_future=mask_future,
+            num_attention_heads=num_attention_heads,
+            attn_score_dropout=attn_score_dropout,
+            attn_layer_dropout=attn_layer_dropout,
+            ffn_dropout=ffn_dropout,
+            hidden_act=hidden_act,
+            pre_ln=pre_ln,
+            pre_ln_final_layer_norm=pre_ln_final_layer_norm,
+        )
 
         self.init_hidden_method = init_hidden_method
 
@@ -107,7 +123,8 @@ class PerceiverEncoder(TransformerDecoder):
         hidden_mask = torch.ones(hidden_states.shape[0], hidden_states.shape[1],
                                  dtype=encoder_mask.dtype, device=encoder_mask.device)
 
-        return super().forward(
+        # FIXME: REMOVE ME
+        hidden_states = super().forward(
             decoder_states=hidden_states,
             decoder_mask=hidden_mask,
             encoder_states=encoder_states,
@@ -115,3 +132,18 @@ class PerceiverEncoder(TransformerDecoder):
             decoder_mems_list=hidden_mems_list,
             return_mems=return_mems,
         )
+        hidden_states = self.final_enc(
+            encoder_states=hidden_states,
+            encoder_mask=hidden_mask,
+        )
+
+        return hidden_states
+
+        # return super().forward(
+        #     decoder_states=hidden_states,
+        #     decoder_mask=hidden_mask,
+        #     encoder_states=encoder_states,
+        #     encoder_mask=encoder_mask,
+        #     decoder_mems_list=hidden_mems_list,
+        #     return_mems=return_mems,
+        # )
