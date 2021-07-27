@@ -20,7 +20,7 @@ This collection can be installed in the following ways:
 
 We can check that lightning is not installed by checking pip:
 ```bash
-pip list | grep lightining
+pip list | grep lightning
 ```
 Now even though lightning isn't installed, we can still use parts from the torch_tts collection.
 

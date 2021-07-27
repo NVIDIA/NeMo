@@ -76,15 +76,6 @@ class TextMelAudioDataset(Dataset):
 
         Note: This dataset currently only support characters. Phone-support is next to be added.
 
-
-            destination (str, Path): Path to a directory containing the main data set folder, Similar to the directory
-            provided to the preprocessor script, which generates this dataset.
-            subdir (str): Either 'train', or 'valid', when using the standard script for generation.
-            n_fft (int): STFT parameter. Also detrmines the STFT filter length.
-            hop_length (int): STFT parameter.
-            num_snr (int): number of noisy samples per clean audio in the original dataset.
-
-
         Args:
             manifest_filepath (str, Path, List[str, Path]): Path(s) to the .json manifests containing information on the
                 dataset. Each line in the .json file should be valid json. Note: the .json file itself is not valid
