@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nltk import word_tokenize
 from tqdm import tqdm
 from transformers import PreTrainedTokenizerBase
 
 import nemo.collections.nlp.data.text_normalization.constants as constants
-from nemo.collections.nlp.data.text_normalization.utils import read_data_file
+from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize, read_data_file
 from nemo.core.classes import Dataset
 from nemo.utils.decorators.experimental import experimental
 
@@ -37,8 +36,9 @@ class TextNormalizationTaggerDataset(Dataset):
         input_file: path to the raw data file (e.g., train.tsv). For more info about the data format, refer to the `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`.
         tokenizer: tokenizer of the model that will be trained on the dataset
         mode: should be one of the values ['tn', 'itn', 'joint'].  `tn` mode is for TN only. `itn` mode is for ITN only. `joint` is for training a system that can do both TN and ITN at the same time.
-        do_basic_tokenize: a flag indicates whether to do some basic tokenization (i.e., using word_tokenize() of nltk) before using the tokenizer of the model
+        do_basic_tokenize: a flag indicates whether to do some basic tokenization before using the tokenizer of the model
         tagger_data_augmentation (bool): a flag indicates whether to augment the dataset with additional data instances
+        lang: language of the dataset
     """
 
     def __init__(
@@ -48,9 +48,12 @@ class TextNormalizationTaggerDataset(Dataset):
         mode: str,
         do_basic_tokenize: bool,
         tagger_data_augmentation: bool,
+        lang: str,
     ):
         assert mode in constants.MODES
+        assert lang in constants.SUPPORTED_LANGS
         self.mode = mode
+        self.lang = lang
         raw_insts = read_data_file(input_file)
 
         # Convert raw instances to TaggerDataInstance
@@ -129,7 +132,7 @@ class TaggerDataInstance:
         w_words: List of words in the written form
         s_words: List of words in the spoken form
         direction: Indicates the direction of the instance (i.e., INST_BACKWARD for ITN or INST_FORWARD for TN).
-        do_basic_tokenize: a flag indicates whether to do some basic tokenization (i.e., using word_tokenize() of nltk) before using the tokenizer of the model
+        do_basic_tokenize: a flag indicates whether to do some basic tokenization before using the tokenizer of the model
     """
 
     def __init__(self, w_words, s_words, direction, do_basic_tokenize=False):
@@ -145,9 +148,9 @@ class TaggerDataInstance:
         for w_word, s_word in zip(w_words, s_words):
             # Basic tokenization (if enabled)
             if do_basic_tokenize:
-                w_word = ' '.join(word_tokenize(w_word))
+                w_word = ' '.join(basic_tokenize(w_word, self.lang))
                 if not s_word in constants.SPECIAL_WORDS:
-                    s_word = ' '.join(word_tokenize(s_word))
+                    s_word = ' '.join(basic_tokenize(s_word, self.lang))
             # Update input_words and labels
             if s_word == constants.SIL_WORD and direction == constants.INST_BACKWARD:
                 continue

@@ -1,0 +1,171 @@
+# The bottleneck architecture supports two architectures:
+#   1) No bottleneck: model_type=seq2seq, the usual NMT mdoel.
+#   2) Fixed-size bottleneck: model_type in [seq2seq-br, seq2seq-mim, seq2seq-vae],
+#      where the output of the encoder is projected to a fixed number of steps.
+# The loss of seq2seq-br is reconstruction only (like seq2seq).
+# The losses of seq2seq-mim, seq2seq-vae are MIM (https://arxiv.org/pdf/2003.02645.pdf)
+# and VAE (https://arxiv.org/pdf/1312.6114.pdf) correspondingly.
+name: AttentionIsAllYouNeedBottleneck
+do_training: True # set to False if only preprocessing data
+do_testing: False # set to True to run evaluation on test data after training
+
+model:
+  beam_size: 4
+  len_pen: 0.6
+  multilingual: False
+  max_generation_delta: 256
+  label_smoothing: 0.1
+  shared_tokenizer: True # train tokenizer model across src and tgt train data
+  preproc_out_dir: null # path to store data preprocessing outputs
+  src_language: 'en'
+  tgt_language: 'de'
+  model_type: 'seq2seq-br' # supports seq2seq, seq2seq-br, seq2seq-mim, seq2seq-vae (see description above)
+  min_logv: -8 # minimal allowed logv for seq2seq-mim
+  ortho_loss_coef: 0.0 # orthogonality coefficient for attention bridge
+  att_bridge_size: 512 # dimension of a step in attention bridge
+  att_bridge_k: 16 # fixed number of steps in attention bridge
+  att_bridge_inner_size: 1024 # feedforward size in attention bridge
+  non_recon_warmup_batches: 200000 # warm-up steps for seq2seq-mim, seq2seq-vae
+  recon_per_token: true # when false reconstruction is computed per sample, not per token
+
+  train_ds:
+    src_file_name: null
+    tgt_file_name: null
+    use_tarred_dataset: False # if true tar_file_name and meta_file_name will be used (or created automatically) 
+    # config for preprocessing training data and creating a tarred datset automatically
+    tar_file_prefix: parallel # prefix for tar file names
+    tar_files: null # if data has already been preprocessed (rest of config ignored)
+    metadata_file: null # metadata for tarred dataset
+    lines_per_dataset_fragment: 1000000 # Number of lines to consider for bucketing and padding
+    num_batches_per_tarfile: 100 # Number of batches (pickle files) within each tarfile
+    tar_shuffle_n: 100 # How many samples to look ahead and load to be shuffled
+    shard_strategy: scatter # tarred dataset shard distribution strategy
+    n_preproc_jobs: -2 # number of processes to use for data preprocessing (-2 means all but 2)
+    tokens_in_batch: 512
+    clean: true
+    max_seq_length: 512
+    shuffle: true
+    num_samples: -1
+    drop_last: false
+    pin_memory: false
+    num_workers: 8
+    concat_sampling_technique: temperature # only used with ConcatTranslationDataset 
+    concat_sampling_temperature: 5 # only used with ConcatTranslationDataset 
+    concat_sampling_probabilities: null # only used with ConcatTranslationDataset 
+
+  validation_ds:
+    src_file_name: ???
+    tgt_file_name: ???
+    tokens_in_batch: 512
+    clean: false
+    max_seq_length: 512
+    shuffle: false
+    num_samples: -1
+    drop_last: false
+    pin_memory: false
+    num_workers: 8
+
+  test_ds:
+    src_file_name: ???
+    tgt_file_name: ???
+    tokens_in_batch: 512
+    clean: false
+    max_seq_length: 512
+    shuffle: false
+    num_samples: -1
+    drop_last: false
+    pin_memory: false
+    num_workers: 8
+
+  optim:
+    name: adam
+    lr: 0.001
+    betas:
+      - 0.9
+      - 0.98
+    weight_decay: 0.0
+    sched:
+      name: InverseSquareRootAnnealing
+      min_lr: 0.0
+      last_epoch: -1
+      warmup_ratio: 0.1
+
+  encoder_tokenizer:
+    library: yttm
+    tokenizer_model: null
+    vocab_size: null # vocab size for training bpe
+    bpe_dropout: null
+    vocab_file: null
+    special_tokens: null
+    training_sample_size: null # valid for sentencepiece tokenizer
+
+  decoder_tokenizer:
+    library: yttm
+    tokenizer_model: null
+    vocab_size: null # vocab size for training bpe
+    bpe_dropout: null
+    vocab_file: null
+    special_tokens: null
+    training_sample_size: null # valid for sentencepiece tokenizer
+
+  encoder:
+    library: nemo
+    model_name: null
+    pretrained: false
+    max_sequence_length: 512
+    num_token_types: 0
+    embedding_dropout: 0.1
+    learn_positional_encodings: false
+    hidden_size: 512
+    num_layers: 6
+    inner_size: 2048
+    num_attention_heads: 8
+    ffn_dropout: 0.1
+    attn_score_dropout: 0.1
+    attn_layer_dropout: 0.1
+    hidden_act: relu
+    mask_future: false
+    pre_ln: false
+    pre_ln_final_layer_norm: true
+
+  decoder:
+    library: nemo
+    model_name: null
+    pretrained: false
+    max_sequence_length: 512
+    num_token_types: 0
+    embedding_dropout: 0.1
+    learn_positional_encodings: false
+    hidden_size: 512
+    inner_size: 2048
+    num_layers: 6
+    num_attention_heads: 8
+    ffn_dropout: 0.1
+    attn_score_dropout: 0.1
+    attn_layer_dropout: 0.1
+    hidden_act: relu
+    pre_ln: false
+    pre_ln_final_layer_norm: true
+
+  head:
+    num_layers: 1
+    activation: relu
+    log_softmax: true
+    dropout: 0.0
+    use_transformer_init: true
+
+trainer:
+  gpus: 4
+  num_nodes: 1
+  max_epochs: 200
+  amp_level: O2 # O1/O2 for mixed precision
+  precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
+  accelerator: ddp
+  checkpoint_callback: False
+  logger: False
+  log_every_n_steps: 50  # Interval of logging.
+  check_val_every_n_epoch: 1
+
+exp_manager:
+  name: AAYNBase
+  files_to_copy: []

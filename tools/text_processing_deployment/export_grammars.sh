@@ -18,21 +18,22 @@
 # This script compiles and exports WFST-grammars from nemo_text_processing, builds C++ production backend Sparrowhawk (https://github.com/google/sparrowhawk) in docker, 
 # plugs grammars into Sparrowhawk and returns prompt inside docker.
 # For inverse text normalization run:
-#       bash export_grammars.sh --GRAMMARS=itn_grammars
+#       bash export_grammars.sh --GRAMMARS=itn_grammars --LANGUAGE=en
 #       echo "two dollars fifty" | ../../src/bin/normalizer_main --config=sparrowhawk_configuration.ascii_proto
 # For text normalization run:
-#       bash export_grammars.sh --GRAMMARS=tn_grammars
+#       bash export_grammars.sh --GRAMMARS=tn_grammars --LANGUAGE=en
 #       echo "\$2.5" | ../../src/bin/normalizer_main --config=sparrowhawk_configuration.ascii_proto
 #
 # To test TN grammars, run:
-#       bash export_grammars.sh --GRAMMARS=tn_grammars --MODE=test
+#       bash export_grammars.sh --GRAMMARS=tn_grammars --LANGUAGE=en --MODE=test
 #
 # To test ITN grammars, run:
-#       bash export_grammars.sh --GRAMMARS=itn_grammars --MODE=test
+#       bash export_grammars.sh --GRAMMARS=itn_grammars --LANGUAGE=en --MODE=test
 
 GRAMMARS="itn_grammars" # tn_grammars
 INPUT_CASE="cased" # lower_cased, only for tn_grammars
-MODE=""
+LANGUAGE="en" # language, 'en' supports both TN and ITN, 'de' supports only ITN
+MODE="export"
 
 for ARG in "$@"
 do
@@ -47,8 +48,10 @@ done
 
 echo "GRAMMARS = $GRAMMARS"
 echo "MODE = $MODE"
+echo "LANGUAGE = $LANGUAGE"
+echo "INPUT_CASE = $INPUT_CASE"
 
-python pynini_export.py --output_dir=. --grammars=${GRAMMARS} --input_case=${INPUT_CASE} || exit 1
+python pynini_export.py --output_dir=. --grammars=${GRAMMARS} --input_case=${INPUT_CASE} --language=${LANGUAGE}|| exit 1
 find . -name "Makefile" -type f -delete
 bash docker/build.sh
 
@@ -56,4 +59,4 @@ if [[ $MODE == "test" ]]; then
   MODE=${MODE}_${GRAMMARS}
 fi
 
-bash docker/launch.sh $MODE
+bash docker/launch.sh $MODE $LANGUAGE
