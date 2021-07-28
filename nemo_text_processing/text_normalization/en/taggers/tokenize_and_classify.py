@@ -13,8 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, delete_extra_space, delete_space
-from nemo_text_processing.text_normalization.en.taggers.abbreviation import AbbreviationFst
 from nemo_text_processing.text_normalization.en.taggers.cardinal import CardinalFst
 from nemo_text_processing.text_normalization.en.taggers.date import DateFst
 from nemo_text_processing.text_normalization.en.taggers.decimal import DecimalFst
@@ -33,6 +34,7 @@ from nemo_text_processing.text_normalization.en.taggers.word import WordFst
 try:
     import pynini
     from pynini.lib import pynutil
+    from tools.text_processing_deployment.pynini_export import _generator_main
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -51,61 +53,83 @@ class ClassifyFst(GraphFst):
             for False multiple options (used for audio-based normalization)
     """
 
-    def __init__(self, input_case: str, deterministic: bool = True):
+    def __init__(self, input_case: str, deterministic: bool = True, use_cache: bool = False):
         super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
 
-        cardinal = CardinalFst(deterministic=deterministic)
-        cardinal_graph = cardinal.fst
+        far_file = "_tokenize_and_classify.far"
+        use_cache = False
+        if use_cache and os.path.exists(far_file):
+            self.fst = pynini.Far(far_file, mode='r')['tokenize_and_classify']
+        else:
+            cardinal = CardinalFst(deterministic=deterministic)
+            cardinal_graph = cardinal.fst
 
-        ordinal = OrdinalFst(cardinal=cardinal, deterministic=deterministic)
-        ordinal_graph = ordinal.fst
+            ordinal = OrdinalFst(cardinal=cardinal, deterministic=deterministic)
+            ordinal_graph = ordinal.fst
 
-        decimal = DecimalFst(cardinal=cardinal, deterministic=deterministic)
-        decimal_graph = decimal.fst
-        fraction = FractionFst(deterministic=deterministic, cardinal=cardinal)
-        fraction_graph = fraction.fst
+            decimal = DecimalFst(cardinal=cardinal, deterministic=deterministic)
+            decimal_graph = decimal.fst
+            fraction = FractionFst(deterministic=deterministic, cardinal=cardinal)
+            fraction_graph = fraction.fst
 
-        measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=deterministic)
-        measure_graph = measure.fst
-        date_graph = DateFst(cardinal=cardinal, deterministic=deterministic).fst
-        word_graph = WordFst(deterministic=deterministic).fst
-        time_graph = TimeFst(cardinal=cardinal, deterministic=deterministic).fst
-        telephone_graph = TelephoneFst(deterministic=deterministic).fst
-        electonic_graph = ElectronicFst(deterministic=deterministic).fst
-        money_graph = MoneyFst(cardinal=cardinal, decimal=decimal, deterministic=deterministic).fst
-        whitelist_graph = WhiteListFst(input_case=input_case, deterministic=deterministic).fst
-        punct_graph = PunctuationFst(deterministic=deterministic).fst
+            measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=deterministic)
+            measure_graph = measure.fst
+            date_graph = DateFst(cardinal=cardinal, deterministic=deterministic).fst
+            word_graph = WordFst(deterministic=deterministic).fst
+            time_graph = TimeFst(cardinal=cardinal, deterministic=deterministic).fst
+            telephone_graph = TelephoneFst(deterministic=deterministic).fst
+            electonic_graph = ElectronicFst(deterministic=deterministic).fst
+            money_graph = MoneyFst(cardinal=cardinal, decimal=decimal, deterministic=deterministic).fst
+            whitelist_graph = WhiteListFst(input_case=input_case, deterministic=deterministic).fst
+            punct_graph = PunctuationFst(deterministic=deterministic).fst
 
-        classify = (
-            pynutil.add_weight(whitelist_graph, 1.01)
-            | pynutil.add_weight(time_graph, 1.1)
-            | pynutil.add_weight(date_graph, 1.09)
-            | pynutil.add_weight(decimal_graph, 1.1)
-            | pynutil.add_weight(measure_graph, 1.1)
-            | pynutil.add_weight(cardinal_graph, 1.1)
-            | pynutil.add_weight(ordinal_graph, 1.1)
-            | pynutil.add_weight(money_graph, 1.1)
-            | pynutil.add_weight(telephone_graph, 1.1)
-            | pynutil.add_weight(electonic_graph, 1.1)
-            | pynutil.add_weight(fraction_graph, 1.1)
-            | pynutil.add_weight(word_graph, 100)
-        )
+            classify = (
+                pynutil.add_weight(whitelist_graph, 1.01)
+                | pynutil.add_weight(time_graph, 1.1)
+                | pynutil.add_weight(date_graph, 1.09)
+                | pynutil.add_weight(decimal_graph, 1.1)
+                | pynutil.add_weight(measure_graph, 1.1)
+                | pynutil.add_weight(cardinal_graph, 1.1)
+                | pynutil.add_weight(ordinal_graph, 1.1)
+                | pynutil.add_weight(money_graph, 1.1)
+                | pynutil.add_weight(telephone_graph, 1.1)
+                | pynutil.add_weight(electonic_graph, 1.1)
+                | pynutil.add_weight(fraction_graph, 1.1)
+                | pynutil.add_weight(word_graph, 100)
+            )
 
-        if not deterministic:
-            roman_graph = RomanFst(deterministic=deterministic).fst
-            # the weight matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
-            classify |= pynutil.add_weight(roman_graph, 100)
+            if not deterministic:
+                roman_graph = RomanFst(deterministic=deterministic).fst
+                # the weight matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
+                classify |= pynutil.add_weight(roman_graph, 100)
 
-            abbreviation_graph = AbbreviationFst(deterministic=deterministic).fst
-            classify |= pynutil.add_weight(abbreviation_graph, 1.1)
+            punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=1.1) + pynutil.insert(" }")
+            token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")
+            token_plus_punct = (
+                pynini.closure(punct + pynutil.insert(" ")) + token + pynini.closure(pynutil.insert(" ") + punct)
+            )
 
-        punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=1.1) + pynutil.insert(" }")
-        token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")
-        token_plus_punct = (
-            pynini.closure(punct + pynutil.insert(" ")) + token + pynini.closure(pynutil.insert(" ") + punct)
-        )
+            graph = token_plus_punct + pynini.closure(delete_extra_space + token_plus_punct)
+            graph = delete_space + graph + delete_space
 
-        graph = token_plus_punct + pynini.closure(delete_extra_space + token_plus_punct)
-        graph = delete_space + graph + delete_space
+            self.fst = graph.optimize()
+            _generator_main(far_file, {"tokenize_and_classify": self.fst})
 
-        self.fst = graph.optimize()
+            # # get integer value:
+            # from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE
+            # text = 'currency: "dollars" integer_part: "two"'
+            # integer = pynutil.delete("currency: \"") + pynini.cross(pynini.closure(NEMO_NOT_QUOTE, 1),"") + pynutil.delete("\" integer_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+            # cur = pynini.closure(NEMO_NOT_QUOTE, 1)
+            # currency = pynutil.delete("currency: \"") + cur + pynutil.delete("\" integer_part: \"") + pynini.cross(pynini.closure(NEMO_NOT_QUOTE, 1), "") + pynutil.delete("\"")
+            #
+            # integer = pynutil.delete('money { ') + integer + pynutil.delete(' }')
+            # currency = pynutil.delete('money { ') + currency + pynutil.delete(' }')
+            # lattice = pynini.compose(money_graph + money_graph, integer + pynutil.insert(" ") + currency)
+            #
+            # from pynini.lib.rewrite import top_rewrites
+            # top_rewrites("$2$2", lattice, 5)
+            #
+            #
+            # import pdb; pdb.set_trace()
+            # print()
+            # pynini.shortestpath(lattice, nshortest=1, unique=True).string()

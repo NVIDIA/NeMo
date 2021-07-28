@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_CHAR,
     NEMO_NOT_QUOTE,
     GraphFst,
     delete_space,
@@ -115,3 +116,13 @@ class MoneyFst(GraphFst):
 
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
+
+        # # get integer value:
+        #
+        # text = 'currency: "dollars" integer_part: "two"'
+        # integer = pynutil.delete("currency: \"") + pynini.cross(pynini.closure(NEMO_NOT_QUOTE, 1), "") + pynutil.delete("\" integer_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        # cur = pynini.closure(NEMO_NOT_QUOTE, 1)
+        # currency = pynutil.delete("currency: \"") + cur + pynutil.delete("\" integer_part: \"") + pynini.cross(pynini.closure(NEMO_NOT_QUOTE, 1), "") + pynutil.delete("\"") + pynutil.insert("->" + pynini.project(cur, "output"))
+        # from pynini.lib.rewrite import top_rewrites
+        # import pdb; pdb.set_trace()
+        # print()

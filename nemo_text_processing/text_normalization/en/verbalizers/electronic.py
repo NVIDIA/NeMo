@@ -59,11 +59,9 @@ class ElectronicFst(GraphFst):
             + pynutil.delete("\"")
         )
 
-        domain_default = (
-            pynini.closure(NEMO_NOT_QUOTE + insert_space)
-            + pynini.cross(".", "dot ")
-            + NEMO_NOT_QUOTE
-            + pynini.closure(insert_space + NEMO_NOT_QUOTE)
+        domain_default = pynini.closure(NEMO_NOT_QUOTE + insert_space) + pynini.closure(insert_space + NEMO_NOT_QUOTE)
+        domain_default_composed = pynini.compose(
+            domain_default, pynini.closure(graph_symbols | NEMO_ALPHA | pynini.accep(" "), 1)
         )
 
         server_default = (
@@ -71,25 +69,43 @@ class ElectronicFst(GraphFst):
             + pynini.closure(graph_symbols + insert_space)
             + pynini.closure((graph_digit | NEMO_ALPHA) + insert_space, 1)
         )
-        server_common = pynini.string_file(get_abs_path("data/electronic/server_name.tsv")) + insert_space
+        # server_common = pynini.string_file(get_abs_path("data/electronic/server_name.tsv")) + insert_space
+        # domain_common = pynini.cross(".", "dot ") + pynini.string_file(get_abs_path("data/electronic/domain.tsv"))
 
-        domain_common = pynini.cross(".", "dot ") + pynini.string_file(get_abs_path("data/electronic/domain.tsv"))
+        server_common = pynini.string_file(get_abs_path("data/electronic/server_name.tsv"))
+        domain_common = pynini.string_file(get_abs_path("data/electronic/domain.tsv"))
+
+        convert_defaults = (
+            NEMO_NOT_QUOTE | pynutil.add_weight(domain_common, -0.1) | pynutil.add_weight(server_common, -0.1)
+        )
+        domain = convert_defaults + pynini.closure(pynutil.insert(" ") + convert_defaults)
+        domain = pynini.compose(
+            domain,
+            pynini.closure(
+                pynutil.add_weight(graph_symbols, -0.1) | pynutil.add_weight(graph_digit, -0.1) | NEMO_NOT_QUOTE
+            ),
+        )
 
         domain = (
             pynutil.delete("domain:")
             + delete_space
             + pynutil.delete("\"")
-            + (pynutil.add_weight(server_common, 1.09) | pynutil.add_weight(server_default, 1.1))
-            + (pynutil.add_weight(domain_common, 1.09) | pynutil.add_weight(domain_default, 1.1))
+            + domain
             + delete_space
             + pynutil.delete("\"")
         )
 
+        protocol = pynutil.delete("protocol: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
         graph = (
-            pynini.closure(user_name + delete_space + pynutil.insert("at ") + delete_space, 0, 1)
+            pynini.closure(protocol + delete_space, 0, 1)
+            + pynini.closure(user_name + delete_space + pynutil.insert("at ") + delete_space, 0, 1)
             + domain
             + delete_space
         )
 
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
+
+        # from pynini.lib.rewrite import top_rewrites
+        # import pdb; pdb.set_trace()
+        # print()

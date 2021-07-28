@@ -73,8 +73,16 @@ class NormalizerWithAudio(Normalizer):
         lang: language
     """
 
-    def __init__(self, input_case: str, lang: str = 'en'):
+    def __init__(self, input_case: str, lang: str = 'en', use_cache: bool = True):
         super().__init__(input_case=input_case, lang=lang, deterministric=False)
+
+        if lang == 'en':
+            from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_with_audio import ClassifyFst
+            from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final_with_audio import (
+                VerbalizeFinalFst,
+            )
+        self.tagger = ClassifyFst(input_case=input_case, deterministic=False, use_cache=use_cache)
+        self.verbalizer = VerbalizeFinalFst(deterministic=False)
 
     def normalize(
         self,
@@ -112,6 +120,7 @@ class NormalizerWithAudio(Normalizer):
         else:
             tagged_texts = rewrite.top_rewrites(text, self.tagger.fst, nshortest=n_tagged)
 
+        print(len(tagged_texts))
         normalized_texts = []
         for tagged_text in tagged_texts:
             self._verbalize(tagged_text, normalized_texts)
@@ -136,8 +145,9 @@ class NormalizerWithAudio(Normalizer):
             return rewrite.rewrites(tagged_text, self.verbalizer.fst)
 
         try:
+            # print(tagged_text)
+            # import pdb; pdb.set_trace()
             normalized_texts.extend(get_verbalized_text(tagged_text))
-            import pdb; pdb.set_trace()
             self.parser(tagged_text)
             tokens = self.parser.parse()
             tags_reordered = self.generate_permutations(tokens)
@@ -146,6 +156,8 @@ class NormalizerWithAudio(Normalizer):
                     normalized_texts.extend(get_verbalized_text(tagged_text_reordered))
                 except pynini.lib.rewrite.Error:
                     continue
+            # import pdb; pdb.set_trace()
+            # print()
         except pynini.lib.rewrite.Error:
             self.parser(tagged_text)
             tokens = self.parser.parse()
