@@ -65,12 +65,9 @@ pipeline {
     }
 
     stage('L0: Unit Tests CPU') {
-      when {
-        allOf {          
-          changeRequest target: 'main'
-          changeset pattern: "nemo_text_processing/*"
-        }
-      }
+      when {        
+          changeset glob: "nemo_text_processing/*"
+        }      
       steps {
         sh 'CUDA_VISIBLE_DEVICES="" pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
       }
