@@ -66,7 +66,7 @@ class MockModel(ModelPT):
 
 
 def _mock_model_config():
-    conf = {'temp_file': None, 'target': 'tests.core.test_save_restore.MockModel'}
+    conf = {'temp_file': None}
     conf = OmegaConf.create({'model': conf})
     OmegaConf.set_struct(conf, True)
     return conf
@@ -306,6 +306,9 @@ class TestSaveRestore:
         # Restore test
         diff = model.w.weight - model_copy.w.weight
         assert diff.mean() <= 1e-9
+        import pdb
+
+        pdb.set_trace()
         assert isinstance(model_copy, MockModel)
         assert model_copy.temp_data == ["*****\n"]
 
