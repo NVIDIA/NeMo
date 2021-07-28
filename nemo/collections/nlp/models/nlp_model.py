@@ -15,6 +15,7 @@
 import glob
 import hashlib
 import json
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 import os
 import shutil
 import tarfile
@@ -38,6 +39,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import AppState, logging
 from nemo.utils.exp_manager import configure_checkpointing
 from nemo.utils.get_rank import is_global_rank_zero
@@ -335,6 +337,7 @@ class NLPModel(ModelPT, Exportable):
         strict: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
+        save_restore_connector: SaveRestoreConnector = SaveRestoreConnector(),
     ):
         """
         Restores model instance (weights and configuration) from .nemo file.
@@ -420,13 +423,21 @@ class NLPModel(ModelPT, Exportable):
             model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
             app_state.model_parallel_rank = model_parallel_rank
 
-            restored_model = cls._default_restore_from(
+            cls.update_save_restore_connector(save_restore_connector)
+            restored_model = cls._save_restore_connector._default_restore_from(
                 restore_path, override_config_path, map_location, strict, return_config
             )
             restored_model.set_trainer(trainer)
             return restored_model
         else:
-            return super().restore_from(restore_path, override_config_path, map_location, strict, return_config)
+            return super().restore_from(
+                restore_path,
+                override_config_path,
+                map_location,
+                strict,
+                return_config,
+                save_restore_connector=save_restore_connector,
+            )
 
     @rank_zero_only
     def register_megatron_checkpoint_version(self):
