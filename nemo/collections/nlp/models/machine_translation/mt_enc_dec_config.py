@@ -25,6 +25,10 @@ from nemo.collections.nlp.modules.common.transformer.transformer import (
     NeMoTransformerConfig,
     NeMoTransformerEncoderConfig,
 )
+from nemo.collections.nlp.modules.common.transformer.transformer_bottleneck import (
+    NeMoTransformerBottleneckEncoderConfig,
+    NeMoTransformerBottleneckDecoderConfig,
+)
 from nemo.core.config.modelPT import OptimConfig, SchedConfig
 
 
@@ -144,3 +148,32 @@ class MTBottleneckModelConfig(AAYNBaseConfig):
     att_bridge_inner_size: int = 1024
     non_recon_warmup_batches: int = 200000
     recon_per_token: bool = True
+
+    encoder: NeMoTransformerEncoderConfig = NeMoTransformerBottleneckEncoderConfig(
+        library='nemo',
+        model_name=None,
+        pretrained=False,
+        hidden_size=512,
+        inner_size=2048,
+        num_layers=6,
+        num_attention_heads=8,
+        ffn_dropout=0.1,
+        attn_score_dropout=0.1,
+        attn_layer_dropout=0.1,
+        arch='',
+        hidden_steps=-1,
+    )
+
+    decoder: NeMoTransformerConfig = NeMoTransformerBottleneckDecoderConfig(
+        library='nemo',
+        model_name=None,
+        pretrained=False,
+        inner_size=2048,
+        num_layers=6,
+        num_attention_heads=8,
+        ffn_dropout=0.1,
+        attn_score_dropout=0.1,
+        attn_layer_dropout=0.1,
+        arch='',
+        hidden_steps=-1,
+    )

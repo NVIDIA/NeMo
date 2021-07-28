@@ -18,61 +18,37 @@ from typing import Optional
 import torch
 from omegaconf.omegaconf import MISSING
 
+from nemo.collections.nlp.modules.common.transformer.transformer import (
+    TransformerEncoderNM,
+    TransformerDecoderNM,
+)
 from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
 from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
 from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoder
 from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
-from nemo.collections.nlp.modules.common.transformer.transformer_modules import TransformerEmbedding
+from nemo.collections.nlp.modules.common.transformer.transformer import NeMoTransformerConfig
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 
-# @dataclass
-# class TransformerConfig:
-#     # named model arguments
-#     library: str = 'nemo'
-#     model_name: Optional[str] = None
-#     pretrained: bool = False
+
+@dataclass
+class NeMoTransformerBottleneckConfig(NeMoTransformerConfig):
+    # architecture details (default is no bottleneck)
+    arch: str = ''
+    hidden_steps: int = -1
 
 
 @dataclass
-class NeMoTransformerConfig:
-    # must be configured by the user
-    hidden_size: int = MISSING
-    num_layers: int = MISSING
-    inner_size: int = MISSING
-    num_attention_heads: int = MISSING
-
-    # embedding
-    max_sequence_length: int = 512
-    num_token_types: int = 2
-    embedding_dropout: float = 0.0
-    learn_positional_encodings: bool = False
-
-    # transformer
-    ffn_dropout: float = 0.0
-    attn_score_dropout: float = 0.0
-    attn_layer_dropout: float = 0.0
-    hidden_act: str = 'relu'
-    pre_ln: bool = False
-    pre_ln_final_layer_norm: bool = True
-
-    # named model arguments
-    library: str = 'nemo'
-    model_name: Optional[str] = None
-    pretrained: bool = False
-
-
-@dataclass
-class NeMoTransformerEncoderConfig(NeMoTransformerConfig):
+class NeMoTransformerBottleneckEncoderConfig(NeMoTransformerBottleneckConfig):
     mask_future: bool = False
 
 
 @dataclass
-class NeMoTransformerDecoderConfig(NeMoTransformerConfig):
+class NeMoTransformerBottleneckDecoderConfig(NeMoTransformerBottleneckConfig):
     r2l: bool = False
 
 
-class TransformerEncoderNM(EncoderModule, Exportable):
+class TransformerBottleneckEncoderNM(TransformerEncoderNM):
     def __init__(
         self,
         vocab_size: int,
@@ -91,6 +67,8 @@ class TransformerEncoderNM(EncoderModule, Exportable):
         mask_future: bool = False,
         pre_ln: bool = False,
         pre_ln_final_layer_norm: bool = True,
+        arch='',
+        hidden_steps=-1,
     ):
         super().__init__()
 
@@ -159,7 +137,7 @@ class TransformerEncoderNM(EncoderModule, Exportable):
         return tuple([input_ids, encoder_mask])
 
 
-class TransformerDecoderNM(DecoderModule, Exportable):
+class TransformerBottleneckDecoderNM(TransformerDecoderNM):
     def __init__(
         self,
         vocab_size: int,
@@ -177,23 +155,34 @@ class TransformerDecoderNM(DecoderModule, Exportable):
         hidden_act: str = 'relu',
         pre_ln: bool = False,
         pre_ln_final_layer_norm: bool = True,
+        arch='',
+        hidden_steps=-1,
     ):
-        super().__init__()
-
-        self._vocab_size = vocab_size
-        self._hidden_size = hidden_size
-        self._max_sequence_length = max_sequence_length
-
-        self._embedding = TransformerEmbedding(
-            vocab_size=self.vocab_size,
-            hidden_size=self.hidden_size,
+        super().__init__(
+            vocab_size=vocab_size,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            inner_size=inner_size,
+            num_attention_heads=num_attention_heads,
             max_sequence_length=max_sequence_length,
             num_token_types=num_token_types,
             embedding_dropout=embedding_dropout,
             learn_positional_encodings=learn_positional_encodings,
+            ffn_dropout=ffn_dropout,
+            attn_score_dropout=attn_score_dropout,
+            attn_layer_dropout=attn_layer_dropout,
+            hidden_act=hidden_act,
+            pre_ln=pre_ln,
+            pre_ln_final_layer_norm=pre_ln_final_layer_norm,
         )
 
-        self._decoder = TransformerDecoder(
+        self._arch = arch
+        self._hidden_steps = hidden_steps
+
+        # replace decoder
+        self._decoder = self._build_decoder(
+            arch=arch,
+            hidden_steps=hidden_steps,
             hidden_size=self.hidden_size,
             num_layers=num_layers,
             inner_size=inner_size,
@@ -204,50 +193,32 @@ class TransformerDecoderNM(DecoderModule, Exportable):
             hidden_act=hidden_act,
             pre_ln=pre_ln,
             pre_ln_final_layer_norm=pre_ln_final_layer_norm,
-        )
+            )
 
-    @typecheck()
-    def forward(self, input_ids, decoder_mask, encoder_embeddings, encoder_mask):
-        decoder_embeddings = self._embedding(input_ids=input_ids)
-        decoder_hidden_states = self._decoder(
-            decoder_states=decoder_embeddings,
-            decoder_mask=decoder_mask,
-            encoder_states=encoder_embeddings,
-            encoder_mask=encoder_mask,
-        )
-        return decoder_hidden_states
-
-    @property
-    def hidden_size(self):
-        return self._hidden_size
-
-    @property
-    def vocab_size(self):
-        return self._vocab_size
-
-    @property
-    def max_sequence_length(self):
-        return self._max_sequence_length
-
-    @property
-    def embedding(self):
-        return self._embedding
-
-    @property
-    def decoder(self):
-        return self._decoder
-
-    def input_example(self):
+    def _build_decoder(self, arch, **kwargs):
         """
-        Generates input examples for tracing etc.
-        Returns:
-            A tuple of input examples.
+        Returns a decoder based on architecture arch and kwargs
         """
-        sample = next(self.parameters())
-        input_ids = torch.randint(low=0, high=2048, size=(2, 16), device=sample.device)
-        encoder_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
-        return tuple([input_ids, encoder_mask, self._embedding(input_ids), encoder_mask])
+        if arch not in self.supported_arch:
+            raise ValueError("Unknown arch = {arch}, supported arch = {supported arch}".format(
+                arch=arch,
+                supported_arch=self.supported_arch,
+            ))
 
-    def _prepare_for_export(self, **kwargs):
-        self._decoder.diagonal = None
-        super()._prepare_for_export(**kwargs)
+        # usual non-bottleneck transformer decoder
+        if (not arch) or (arch == "seq2seq"):
+            decoder = TransformerDecoder(**kwargs)
+
+        return decoder
+
+    @property
+    def supported_arch(self):
+        return [None, "", "seq2seq"]
+
+    @property
+    def arch(self):
+        return self._arch
+
+    @property
+    def hidden_steps(self):
+        return self._hidden_steps
