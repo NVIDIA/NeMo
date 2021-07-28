@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pickle
 from nemo.utils import app_state
 from nemo.utils.model_utils import import_class_by_path
 import os
@@ -56,9 +57,7 @@ class SaveRestoreConnector:
                 model._handle_artifacts(nemo_file_folder=tmpdir)
                 # We should not update self._cfg here - the model can still be in use
                 model._update_artifact_paths(path2yaml_file=config_yaml)
-            # TODO: add connector method for saving weights
-            # self._save_weights(model.save_dict(), model_weights)
-            torch.save(model.state_dict(), model_weights)
+            self._save_state_dict_to_disk(model.save_dict(), model_weights)
             self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
     def _default_restore_from(
@@ -141,7 +140,9 @@ class SaveRestoreConnector:
                 instance = class_.from_config_dict(config=conf)
                 instance = instance.to(map_location)
                 # add load_state_dict override
-                instance.load_state_dict(torch.load(model_weights, map_location=map_location), strict=strict)
+                instance.load_state_dict(
+                    self._load_state_dict_from_disk(model_weights, map_location=map_location), strict=strict
+                )
 
                 logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
             finally:
@@ -165,11 +166,11 @@ class SaveRestoreConnector:
                 self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
                 os.chdir(tmpdir)
                 model_weights = path.join(tmpdir, app_state.model_weights_ckpt)
-                state_dict = torch.load(model_weights)
+                state_dict = self._load_state_dict_from_disk(model_weights)
 
                 if not split_by_module:
                     filepath = os.path.join(save_dir, app_state.model_weights_ckpt)
-                    torch.save(state_dict, filepath)
+                    self._save_state_dict_to_disk(state_dict, filepath)
 
                 else:
                     key_set = set([key.split(".")[0] for key in state_dict.keys()])
@@ -179,7 +180,7 @@ class SaveRestoreConnector:
                             ".".join(inner_key.split(".")[1:]): state_dict[inner_key] for inner_key in inner_keys
                         }
                         filepath = os.path.join(save_dir, f"{primary_key}.ckpt")
-                        torch.save(state_dict_subset, filepath)
+                        self._save_state_dict_to_disk(state_dict_subset, filepath)
 
                 logging.info(f'Checkpoints from {restore_path} were successfully extracted into {save_dir}.')
             finally:
@@ -200,3 +201,11 @@ class SaveRestoreConnector:
         tar.extractall(path=out_folder)
         tar.close()
         return out_folder
+
+    @staticmethod
+    def _save_state_dict_to_disk(state_dict, filepath):
+        torch.save(state_dict, filepath)
+
+    @staticmethod
+    def _load_state_dict_from_disk(model_weights, map_location=None):
+        torch.load(model_weights, map_location=map_location)
