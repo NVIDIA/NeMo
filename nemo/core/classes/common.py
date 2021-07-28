@@ -623,7 +623,7 @@ class Model(Typing, Serialization, FileIO):
         map_location: Optional['torch.device'] = None,
         strict: bool = True,
         return_config: bool = False,
-        save_restore_connector: SaveRestoreConnector = SaveRestoreConnector,
+        save_restore_connector: SaveRestoreConnector = SaveRestoreConnector(),
     ):
         """
         Instantiates an instance of NeMo from NVIDIA NGC cloud

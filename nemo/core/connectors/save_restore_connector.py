@@ -145,8 +145,8 @@ class SaveRestoreConnector:
                 )
 
                 logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
+                instance._set_model_restore_state(is_being_restored=False)
             finally:
-                class_._set_model_restore_state(is_being_restored=False)
                 os.chdir(cwd)
 
         return instance
