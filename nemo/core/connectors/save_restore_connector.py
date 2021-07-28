@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.utils import app_state
 from nemo.utils.model_utils import import_class_by_path
 import os
 import tarfile
@@ -148,6 +149,43 @@ class SaveRestoreConnector:
                 os.chdir(cwd)
 
         return instance
+
+    def _extract_state_dict_from(self, restore_path: str, save_dir: str, split_by_module: bool = False):
+
+        app_state = AppState()
+
+        cwd = os.getcwd()
+
+        save_dir = os.path.abspath(save_dir)
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir, exist_ok=True)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            try:
+                self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+                os.chdir(tmpdir)
+                model_weights = path.join(tmpdir, app_state.model_weights_ckpt)
+                state_dict = torch.load(model_weights)
+
+                if not split_by_module:
+                    filepath = os.path.join(save_dir, app_state.model_weights_ckpt)
+                    torch.save(state_dict, filepath)
+
+                else:
+                    key_set = set([key.split(".")[0] for key in state_dict.keys()])
+                    for primary_key in key_set:
+                        inner_keys = [key for key in state_dict.keys() if key.split(".")[0] == primary_key]
+                        state_dict_subset = {
+                            ".".join(inner_key.split(".")[1:]): state_dict[inner_key] for inner_key in inner_keys
+                        }
+                        filepath = os.path.join(save_dir, f"{primary_key}.ckpt")
+                        torch.save(state_dict_subset, filepath)
+
+                logging.info(f'Checkpoints from {restore_path} were successfully extracted into {save_dir}.')
+            finally:
+                os.chdir(cwd)
+
+        return state_dict
 
     @staticmethod
     def _make_nemo_file_from_folder(filename, source_dir):

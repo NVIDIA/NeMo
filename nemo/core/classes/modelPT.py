@@ -1041,7 +1041,13 @@ class ModelPT(LightningModule, Model):
         super().teardown(stage)
 
     @classmethod
-    def extract_state_dict_from(cls, restore_path: str, save_dir: str, split_by_module: bool = False):
+    def extract_state_dict_from(
+        cls,
+        restore_path: str,
+        save_dir: str,
+        split_by_module: bool = False,
+        save_restore_connector=SaveRestoreConnector(),
+    ):
         """
         Extract the state dict(s) from a provided .nemo tarfile and save it to a directory.
 
@@ -1084,37 +1090,8 @@ class ModelPT(LightningModule, Model):
         if not path.exists(restore_path):
             raise FileExistsError(f"Can't find {restore_path}")
 
-        cwd = os.getcwd()
-
-        save_dir = os.path.abspath(save_dir)
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir, exist_ok=True)
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            try:
-                cls._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
-                os.chdir(tmpdir)
-                model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
-                state_dict = torch.load(model_weights)
-
-                if not split_by_module:
-                    filepath = os.path.join(save_dir, _MODEL_WEIGHTS)
-                    torch.save(state_dict, filepath)
-
-                else:
-                    key_set = set([key.split(".")[0] for key in state_dict.keys()])
-                    for primary_key in key_set:
-                        inner_keys = [key for key in state_dict.keys() if key.split(".")[0] == primary_key]
-                        state_dict_subset = {
-                            ".".join(inner_key.split(".")[1:]): state_dict[inner_key] for inner_key in inner_keys
-                        }
-                        filepath = os.path.join(save_dir, f"{primary_key}.ckpt")
-                        torch.save(state_dict_subset, filepath)
-
-                logging.info(f'Checkpoints from {restore_path} were successfully extracted into {save_dir}.')
-            finally:
-                os.chdir(cwd)
-
+        cls.update_save_restore_connector(save_restore_connector)
+        state_dict = cls._save_restore_connector._extract_state_dict_from(restore_path, save_dir, split_by_module)
         return state_dict
 
     def prepare_test(self, trainer: 'Trainer') -> bool:
