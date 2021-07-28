@@ -114,22 +114,3 @@ class ClassifyFst(GraphFst):
 
             self.fst = graph.optimize()
             _generator_main(far_file, {"tokenize_and_classify": self.fst})
-
-            # # get integer value:
-            # from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE
-            # text = 'currency: "dollars" integer_part: "two"'
-            # integer = pynutil.delete("currency: \"") + pynini.cross(pynini.closure(NEMO_NOT_QUOTE, 1),"") + pynutil.delete("\" integer_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
-            # cur = pynini.closure(NEMO_NOT_QUOTE, 1)
-            # currency = pynutil.delete("currency: \"") + cur + pynutil.delete("\" integer_part: \"") + pynini.cross(pynini.closure(NEMO_NOT_QUOTE, 1), "") + pynutil.delete("\"")
-            #
-            # integer = pynutil.delete('money { ') + integer + pynutil.delete(' }')
-            # currency = pynutil.delete('money { ') + currency + pynutil.delete(' }')
-            # lattice = pynini.compose(money_graph + money_graph, integer + pynutil.insert(" ") + currency)
-            #
-            # from pynini.lib.rewrite import top_rewrites
-            # top_rewrites("$2$2", lattice, 5)
-            #
-            #
-            # import pdb; pdb.set_trace()
-            # print()
-            # pynini.shortestpath(lattice, nshortest=1, unique=True).string()

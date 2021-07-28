@@ -44,18 +44,11 @@ class ElectronicFst(GraphFst):
                 symbol, _ = line.split('\t')
                 accepted_symbols.append(pynini.accep(symbol))
 
-        accepted_symbols = NEMO_ALPHA | NEMO_DIGIT | pynini.union(*accepted_symbols)
-        accepted_symbols = pynini.closure(accepted_symbols).optimize()
+        accepted_symbols = NEMO_ALPHA + pynini.closure(NEMO_ALPHA | NEMO_DIGIT | pynini.union(*accepted_symbols))
         graph_symbols = pynini.string_file(get_abs_path("data/electronic/symbols.tsv")).optimize()
 
-        username = (
-            pynutil.insert("username: \"")
-            + NEMO_ALPHA
-            + accepted_symbols
-            + pynutil.insert("\"")
-            + pynini.cross('@', ' ')
-        )
-        domain_graph = pynini.closure(NEMO_ALPHA | accepted_symbols, 1) + pynini.accep('.') + pynini.closure(NEMO_ALPHA | accepted_symbols, 1)
+        username = pynutil.insert("username: \"") + accepted_symbols + pynutil.insert("\"") + pynini.cross('@', ' ')
+        domain_graph = accepted_symbols + pynini.accep('.') + accepted_symbols
         domain_graph = pynutil.insert("domain: \"") + domain_graph + pynutil.insert("\"")
 
         protocol_start = pynini.accep("https://") | pynini.accep("http://")

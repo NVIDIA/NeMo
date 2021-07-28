@@ -27,8 +27,8 @@ except (ModuleNotFoundError, ImportError):
 
 class AbbreviationFst(GraphFst):
     """
-    Finite state transducer for verbalizing roman numerals
-        e.g. tokens { roman { integer: "one" } } -> one
+    Finite state transducer for verbalizing abbreviations
+        e.g. tokens { abbreviation { value: "A B C" } } -> "ABC"
 
     Args:
         deterministic: if True will provide a single transduction option,
