@@ -56,6 +56,7 @@ class SaveRestoreConnector:
                 # We should not update self._cfg here - the model can still be in use
                 model._update_artifact_paths(path2yaml_file=config_yaml)
             # TODO: add connector method for saving weights
+            # self._save_weights(model.save_dict(), model_weights)
             torch.save(model.state_dict(), model_weights)
             self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
@@ -138,6 +139,7 @@ class SaveRestoreConnector:
                 class_._set_model_restore_state(is_being_restored=True, folder=tmpdir)
                 instance = class_.from_config_dict(config=conf)
                 instance = instance.to(map_location)
+                # add load_state_dict override
                 instance.load_state_dict(torch.load(model_weights, map_location=map_location), strict=strict)
 
                 logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
