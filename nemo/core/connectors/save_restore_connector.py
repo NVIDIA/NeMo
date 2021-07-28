@@ -57,7 +57,7 @@ class SaveRestoreConnector:
                 model._handle_artifacts(nemo_file_folder=tmpdir)
                 # We should not update self._cfg here - the model can still be in use
                 model._update_artifact_paths(path2yaml_file=config_yaml)
-            self._save_state_dict_to_disk(model.save_dict(), model_weights)
+            self._save_state_dict_to_disk(model.state_dict(), model_weights)
             self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
     def _default_restore_from(
