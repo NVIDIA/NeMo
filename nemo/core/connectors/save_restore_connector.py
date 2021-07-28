@@ -126,12 +126,12 @@ class SaveRestoreConnector:
                     instance = conf
                 else:
                     app_state = AppState()
-                if app_state.model_parallel_rank is not None:
-                    model_weights = path.join(
-                        tmpdir, f'mp_rank_{app_state.model_parallel_rank:02}', app_state.model_weights_ckpt
-                    )
-                else:
-                    model_weights = path.join(tmpdir, app_state.model_weights_ckpt)
+                    if app_state.model_parallel_rank is not None:
+                        model_weights = path.join(
+                            tmpdir, f'mp_rank_{app_state.model_parallel_rank:02}', app_state.model_weights_ckpt
+                        )
+                    else:
+                        model_weights = path.join(tmpdir, app_state.model_weights_ckpt)
                 OmegaConf.set_struct(conf, True)
                 os.chdir(cwd)
                 # get the class

@@ -66,7 +66,7 @@ class MockModel(ModelPT):
 
 
 def _mock_model_config():
-    conf = {'temp_file': None}
+    conf = {'temp_file': None, 'target': 'tests.core.test_save_restore.MockModel'}
     conf = OmegaConf.create({'model': conf})
     OmegaConf.set_struct(conf, True)
     return conf
