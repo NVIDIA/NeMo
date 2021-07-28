@@ -130,7 +130,7 @@ def getCosAffinityMatrix(emb):
 
 def getLaplacian(X):
     """
-    Calculates a Laplacian matrix from an affinity matrix X.
+    Calculates a laplacian matrix from an affinity matrix X.
     """
     X[np.diag_indices(X.shape[0])] = 0
     A = X
@@ -140,19 +140,19 @@ def getLaplacian(X):
     return L
 
 
-def eigDecompose(Laplacian, cuda, device=None):
+def eigDecompose(laplacian, cuda, device=None):
     if TORCH_EIGN:
         if cuda:
-            if device == None:
+            if device is None:
                 device = torch.cuda.current_device()
-            Laplacian = torch.from_numpy(Laplacian).float().to(device)
+            laplacian = torch.from_numpy(laplacian).float().to(device)
         else:
-            Laplacian = torch.from_numpy(Laplacian).float()
-        lambdas, diffusion_map = eigh(Laplacian)
+            laplacian = torch.from_numpy(laplacian).float()
+        lambdas, diffusion_map = eigh(laplacian)
         lambdas = lambdas.cpu().numpy()
         diffusion_map = diffusion_map.cpu().numpy()
     else:
-        lambdas, diffusion_map = eigh(Laplacian)
+        lambdas, diffusion_map = eigh(laplacian)
 
     return lambdas, diffusion_map
 
@@ -164,7 +164,7 @@ def getLamdaGaplist(lambdas):
 
 def estimateNumofSpeakers(affinity_mat, max_num_speaker, is_cuda=False):
     """
-    Estimates the number of speakers using eigen decompose on Laplacian Matrix.
+    Estimates the number of speakers using eigen decompose on laplacian Matrix.
     affinity_mat: (array)
         NxN affitnity matrix
     max_num_speaker: (int)
@@ -172,8 +172,8 @@ def estimateNumofSpeakers(affinity_mat, max_num_speaker, is_cuda=False):
     is_cuda: (bool)
         if cuda availble eigh decomposition would be computed on GPUs
     """
-    Laplacian = getLaplacian(affinity_mat)
-    lambdas, _ = eigDecompose(Laplacian, is_cuda)
+    laplacian = getLaplacian(affinity_mat)
+    lambdas, _ = eigDecompose(laplacian, is_cuda)
     lambdas = np.sort(lambdas)
     lambda_gap_list = getLamdaGaplist(lambdas)
     num_of_spk = np.argmax(lambda_gap_list[: min(max_num_speaker, len(lambda_gap_list))]) + 1
@@ -207,8 +207,8 @@ class _SpectralClustering:
         if not isGraphFullyConnected(affinity_mat):
             logging.warning("Graph is not fully connected and the clustering result might not be accurate.")
 
-        Laplacian = getLaplacian(affinity_mat)
-        lambdas_, diffusion_map_ = eigDecompose(Laplacian, cuda)
+        laplacian = getLaplacian(affinity_mat)
+        lambdas_, diffusion_map_ = eigDecompose(laplacian, cuda)
         lambdas = lambdas_[:n_spks]
         diffusion_map = diffusion_map_[:, :n_spks]
         embedding = diffusion_map.T[n_spks::-1]
