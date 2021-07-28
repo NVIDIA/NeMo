@@ -208,4 +208,4 @@ class SaveRestoreConnector:
 
     @staticmethod
     def _load_state_dict_from_disk(model_weights, map_location=None):
-        torch.load(model_weights, map_location=map_location)
+        return torch.load(model_weights, map_location=map_location)
