@@ -23,6 +23,7 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
 from nemo.collections.nlp.models import PunctuationCapitalizationModel, TransformerLMModel
+from nemo.collections.common.models import MockModel
 from nemo.core.classes import ModelPT
 from nemo.utils.app_state import AppState
 
@@ -35,38 +36,8 @@ def getattr2(object, attr):
         return getattr2(getattr(object, arr[0]), '.'.join(arr[1:]))
 
 
-class MockModel(ModelPT):
-    def __init__(self, cfg, trainer=None):
-        super(MockModel, self).__init__(cfg=cfg, trainer=trainer)
-        self.w = torch.nn.Linear(10, 1)
-        # mock temp file
-        if 'temp_file' in self.cfg and self.cfg.temp_file is not None:
-            self.temp_file = self.register_artifact('temp_file', self.cfg.temp_file)
-            with open(self.temp_file, 'r') as f:
-                self.temp_data = f.readlines()
-        else:
-            self.temp_file = None
-            self.temp_data = None
-
-    def forward(self, x):
-        y = self.w(x)
-        return y, self.cfg.temp_file
-
-    def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
-        self._train_dl = None
-
-    def setup_validation_data(self, val_data_config: Union[DictConfig, Dict]):
-        self._validation_dl = None
-
-    def setup_test_data(self, test_data_config: Union[DictConfig, Dict]):
-        self._test_dl = None
-
-    def list_available_models(cls):
-        return []
-
-
 def _mock_model_config():
-    conf = {'temp_file': None}
+    conf = {'temp_file': None, 'target': 'nemo.collections.common.models.mock.MockModel'}
     conf = OmegaConf.create({'model': conf})
     OmegaConf.set_struct(conf, True)
     return conf
@@ -306,9 +277,6 @@ class TestSaveRestore:
         # Restore test
         diff = model.w.weight - model_copy.w.weight
         assert diff.mean() <= 1e-9
-        import pdb
-
-        pdb.set_trace()
         assert isinstance(model_copy, MockModel)
         assert model_copy.temp_data == ["*****\n"]
 
