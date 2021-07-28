@@ -16,6 +16,7 @@
 import os
 
 from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, delete_extra_space, delete_space
+from nemo_text_processing.text_normalization.en.taggers.abbreviation import AbbreviationFst
 from nemo_text_processing.text_normalization.en.taggers.cardinal import CardinalFst
 from nemo_text_processing.text_normalization.en.taggers.date import DateFst
 from nemo_text_processing.text_normalization.en.taggers.decimal import DecimalFst
@@ -102,6 +103,9 @@ class ClassifyFst(GraphFst):
                 roman_graph = RomanFst(deterministic=deterministic).fst
                 # the weight matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
                 classify |= pynutil.add_weight(roman_graph, 100)
+
+                abbreviation_graph = AbbreviationFst(deterministic=deterministic).fst
+                classify |= pynutil.add_weight(abbreviation_graph, 100)
 
             punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=1.1) + pynutil.insert(" }")
             token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")
