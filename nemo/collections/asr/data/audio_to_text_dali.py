@@ -81,24 +81,23 @@ class _AudioTextDALIDataset(Iterator):
     ...
     {"audio_filepath": "/path/to/audio.wav", "text": "the transcription", "offset": 301.75, "duration": 0.82, "utt":
     "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+
     Args:
         manifest_filepath: Path to manifest file with the format described above. Can be comma-separated paths.
-        labels: String containing all the possible characters to map to.
-        sample_rate (int): Sample rate to resample loaded audio to.
+        device (str): Determines the device type to be used for preprocessing. Allowed values are: 'cpu', 'gpu'.
         batch_size (int): Number of samples in a batch.
+        parser (str, callable): A str for an inbuilt parser, or a callable with signature f(str) -> List[int].
+        sample_rate (int): Sample rate to resample loaded audio to.
         num_threads (int): Number of CPU processing threads to be created by the DALI pipeline.
         max_duration (float): Determines the maximum allowed duration, in seconds, of the loaded audio files.
         min_duration (float): Determines the minimum allowed duration, in seconds, of the loaded audio files.
-        blank_index (int): blank character index, default = -1
-        unk_index (int): unk_character index, default = -1
-        normalize (bool): whether to normalize transcript text (default): True
         bos_id (int): Id of beginning of sequence symbol to append if not None
         eos_id (int): Id of end of sequence symbol to append if not None
+        pad_id (int): Id used to pad the input. Defaults to 0 if not provided.
         trim (bool): If True, it will extract the nonsilent region of the loaded audio signal.
         shuffle (bool): If set to True, the dataset will shuffled after loading.
         drop_last (bool): If set to True, the last batch will be dropped if incomplete. This will be the case when the shard size is not divisible by the batch size.
                           If set to False and the size of dataset is not divisible by the batch size, then the last batch will be smaller.
-        device (str): Determines the device type to be used for preprocessing. Allowed values are: 'cpu', 'gpu'.
         device_id (int): Index of the GPU to be used (local_rank). Only applicable when device == 'gpu'. Defaults to 0.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 1.
@@ -301,7 +300,6 @@ class _AudioTextDALIDataset(Iterator):
                 # No preprocessing, the output is the audio signal
                 audio_len = dali.fn.shapes(dali.fn.reshape(audio, shape=[-1]))
                 audio = dali.fn.pad(audio)
-                # self.pipe.set_outputs(audio, audio_len, transcript, transcript_len)
                 self.pipe.set_outputs(audio, audio_len, indices)
             else:
                 # Additive gaussian noise (dither)
@@ -348,7 +346,6 @@ class _AudioTextDALIDataset(Iterator):
 
                 # Pads feature dimension to be a multiple of `pad_to` and the temporal dimension to be as big as the largest sample (shape -1)
                 spec = dali.fn.pad(spec, fill_value=self.pad_value, axes=(0, 1), align=(self.pad_to, 1), shape=(1, -1))
-                # self.pipe.set_outputs(spec, spec_len, transcript, transcript_len)
                 self.pipe.set_outputs(spec, spec_len, indices)
         # Building DALI pipeline
         self.pipe.build()
@@ -449,11 +446,13 @@ class AudioToCharDALIDataset(_AudioTextDALIDataset):
     ...
     {"audio_filepath": "/path/to/audio.wav", "text": "the transcription", "offset": 301.75, "duration": 0.82, "utt":
     "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+
     Args:
         manifest_filepath: Path to manifest file with the format described above. Can be comma-separated paths.
-        labels: String containing all the possible characters to map to.
-        sample_rate (int): Sample rate to resample loaded audio to.
+        device (str): Determines the device type to be used for preprocessing. Allowed values are: 'cpu', 'gpu'.
         batch_size (int): Number of samples in a batch.
+        labels (List[str]): String containing all the possible characters to map to.
+        sample_rate (int): Sample rate to resample loaded audio to.
         num_threads (int): Number of CPU processing threads to be created by the DALI pipeline.
         max_duration (float): Determines the maximum allowed duration, in seconds, of the loaded audio files.
         min_duration (float): Determines the minimum allowed duration, in seconds, of the loaded audio files.
@@ -462,12 +461,12 @@ class AudioToCharDALIDataset(_AudioTextDALIDataset):
         normalize (bool): whether to normalize transcript text (default): True
         bos_id (int): Id of beginning of sequence symbol to append if not None
         eos_id (int): Id of end of sequence symbol to append if not None
+        pad_id (int): Id used to pad the input. Defaults to 0 if not provided.
         trim (bool): If True, it will extract the nonsilent region of the loaded audio signal.
         shuffle (bool): If set to True, the dataset will shuffled after loading.
         drop_last (bool): If set to True, the last batch will be dropped if incomplete. This will be the case when the shard size is not divisible by the batch size.
                           If set to False and the size of dataset is not divisible by the batch size, then the last batch will be smaller.
-        device (str): Determines the device type to be used for preprocessing. Allowed values are: 'cpu', 'gpu'.
-        device_id (int): Index of the GPU to be used (local_rank). Only applicable when device == 'gpu'. Defaults to 0.
+        parser (str, callable): A str for an inbuilt parser, or a callable with signature f(str) -> List[int].
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 1.
         preprocessor_cfg (DictConfig): Preprocessor configuration. Supports AudioToMelSpectrogramPreprocessor and AudioToMFCCPreprocessor.
@@ -535,28 +534,30 @@ class AudioToBPEDALIDataset(_AudioTextDALIDataset):
     ...
     {"audio_filepath": "/path/to/audio.wav", "text": "the transcription", "offset": 301.75, "duration": 0.82, "utt":
     "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+
     Args:
         manifest_filepath: Path to manifest file with the format described above. Can be comma-separated paths.
-        labels: String containing all the possible characters to map to.
-        sample_rate (int): Sample rate to resample loaded audio to.
+        tokenizer (TokenizerSpec): A TokenizerSpec implementation that wraps a tokenization implementation.
+        device (str): Determines the device type to be used for preprocessing. Allowed values are: 'cpu', 'gpu'.
         batch_size (int): Number of samples in a batch.
+        sample_rate (int): Sample rate to resample loaded audio to.
         num_threads (int): Number of CPU processing threads to be created by the DALI pipeline.
         max_duration (float): Determines the maximum allowed duration, in seconds, of the loaded audio files.
         min_duration (float): Determines the minimum allowed duration, in seconds, of the loaded audio files.
-        blank_index (int): blank character index, default = -1
-        unk_index (int): unk_character index, default = -1
-        normalize (bool): whether to normalize transcript text (default): True
         bos_id (int): Id of beginning of sequence symbol to append if not None
         eos_id (int): Id of end of sequence symbol to append if not None
+        pad_id (int): Id used to pad the input. Defaults to 0 if not provided.
         trim (bool): If True, it will extract the nonsilent region of the loaded audio signal.
         shuffle (bool): If set to True, the dataset will shuffled after loading.
         drop_last (bool): If set to True, the last batch will be dropped if incomplete. This will be the case when the shard size is not divisible by the batch size.
                           If set to False and the size of dataset is not divisible by the batch size, then the last batch will be smaller.
-        device (str): Determines the device type to be used for preprocessing. Allowed values are: 'cpu', 'gpu'.
+
         device_id (int): Index of the GPU to be used (local_rank). Only applicable when device == 'gpu'. Defaults to 0.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 1.
         preprocessor_cfg (DictConfig): Preprocessor configuration. Supports AudioToMelSpectrogramPreprocessor and AudioToMFCCPreprocessor.
+        use_start_end_token (bool): Boolean which dictates whether to add [BOS] and [EOS] tokens to beginning and
+            ending of speech respectively.
     """
 
     def __init__(
