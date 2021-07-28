@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import math
+import operator
 from collections.abc import Iterator
 from typing import Callable, List, Optional, Union
 
@@ -21,11 +22,11 @@ from omegaconf import DictConfig
 
 from nemo.collections.asr.data.audio_to_text import ASRManifestProcessor
 from nemo.collections.common.parts.preprocessing import parsers
+from nemo.utils import logging, model_utils
 from nemo.utils.decorators import experimental
 
 try:
     import nvidia.dali as dali
-    from nvidia.dali.fn.readers import nemo_asr
     from nvidia.dali.pipeline import Pipeline
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as DALIPytorchIterator
     from nvidia.dali.plugin.pytorch import LastBatchPolicy as LastBatchPolicy
@@ -36,7 +37,41 @@ except (ImportError, ModuleNotFoundError):
 
 __all__ = [
     'AudioToCharDALIDataset',
+    'AudioToBPEDALIDataset',
 ]
+
+__DALI_MINIMUM_VERSION__ = "1.4"
+
+DALI_INSTALLATION_MESSAGE = (
+    "Could not import `nvidia.dali`.\n"
+    "Please install DALI by following the steps provided here - \n"
+    "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html"
+)
+
+
+def is_dali_supported(min_version: str, verbose: bool = False) -> bool:
+    """
+    Checks if DALI in installed, and version is >= min_verion.
+
+    Args:
+        min_version: A semver str that is the minimum requirement.
+        verbose: Whether to log the installation instructions if DALI is not found.
+
+    Returns:
+        bool - whether DALI could be imported or not.
+    """
+    module_available, _ = model_utils.check_lib_version(
+        'nvidia.dali', checked_version=min_version, operator=operator.ge
+    )
+
+    # If DALI is not installed
+    if module_available is None:
+        if verbose:
+            logging.info(DALI_INSTALLATION_MESSAGE)
+
+        return False
+
+    return module_available
 
 
 class DALIOutputs(object):
@@ -268,7 +303,7 @@ class _AudioTextDALIDataset(Iterator):
             self.pad_value = params['pad_value'] if 'pad_value' in params else 0.0
 
         with self.pipe:
-            audio, indices = nemo_asr(
+            audio, indices = dali.fn.readers.nemo_asr(
                 name="Reader",
                 manifest_filepaths=manifest_filepath.split(','),
                 dtype=dali.types.FLOAT,
@@ -439,8 +474,8 @@ class _AudioTextDALIDataset(Iterator):
 
 class AudioToCharDALIDataset(_AudioTextDALIDataset):
     """
-    NVIDIA DALI pipeline that loads tensors via one or more manifest files where each line containing a sample descriptor in JSON,
-    including audio files, transcripts, and durations (in seconds).
+    Character based NVIDIA DALI pipeline that loads tensors via one or more manifest files where each line containing a
+    sample descriptor in JSON, including audio files, transcripts, and durations (in seconds).
     Here's an example:
     {"audio_filepath": "/path/to/audio.wav", "text_filepath": "/path/to/audio.txt", "duration": 23.147}
     ...
@@ -527,8 +562,8 @@ class AudioToCharDALIDataset(_AudioTextDALIDataset):
 
 class AudioToBPEDALIDataset(_AudioTextDALIDataset):
     """
-    NVIDIA DALI pipeline that loads tensors via one or more manifest files where each line containing a sample descriptor in JSON,
-    including audio files, transcripts, and durations (in seconds).
+    Subword based NVIDIA DALI pipeline that loads tensors via one or more manifest files where each line containing a
+    sample descriptor in JSON, including audio files, transcripts, and durations (in seconds).
     Here's an example:
     {"audio_filepath": "/path/to/audio.wav", "text_filepath": "/path/to/audio.txt", "duration": 23.147}
     ...

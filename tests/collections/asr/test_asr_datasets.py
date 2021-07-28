@@ -22,15 +22,18 @@ import torch.cuda
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.data.audio_to_text import TarredAudioToBPEDataset, TarredAudioToCharDataset
-from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset, AudioToCharDALIDataset
+from nemo.collections.asr.data.audio_to_text_dali import (
+    __DALI_MINIMUM_VERSION__,
+    AudioToBPEDALIDataset,
+    AudioToCharDALIDataset,
+    is_dali_supported,
+)
 from nemo.collections.asr.data.audio_to_text_dataset import inject_dataloader_value_from_model_config
 from nemo.collections.common import tokenizers
 from nemo.utils import logging
 
 try:
-    import nvidia.dali as dali
-
-    HAVE_DALI = True
+    HAVE_DALI = is_dali_supported(__DALI_MINIMUM_VERSION__)
 except (ImportError, ModuleNotFoundError):
     HAVE_DALI = False
 
@@ -156,7 +159,7 @@ class TestASRDatasets:
             count += 1
         assert count == 32
 
-    @pytest.mark.skipif(not HAVE_DALI, reason="NVIDIA DALI is not installed")
+    @pytest.mark.skipif(not HAVE_DALI, reason="NVIDIA DALI is not installed or incompatible version")
     @pytest.mark.unit
     def test_dali_char_dataset(self, test_data_dir):
         manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/an4_val.json'))
@@ -236,9 +239,9 @@ class TestASRDatasets:
             for orig, shuffled in zip(original_transcripts, shuffled_transcripts):
                 if orig == shuffled:
                     sample_matches += 1
-            assert sample_matches < 6  # assume after shuffling <half samples have displaced targets
+            assert sample_matches < 8  # assume after shuffling <half samples have displaced targets
 
-    @pytest.mark.skipif(not HAVE_DALI, reason="NVIDIA DALI is not installed")
+    @pytest.mark.skipif(not HAVE_DALI, reason="NVIDIA DALI is not installed or incompatible version")
     @pytest.mark.unit
     def test_dali_bpe_dataset(self, test_data_dir):
         manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/an4_val.json'))
@@ -315,4 +318,4 @@ class TestASRDatasets:
             for orig, shuffled in zip(original_transcripts, shuffled_transcripts):
                 if orig == shuffled:
                     sample_matches += 1
-            assert sample_matches < 6  # assume after shuffling <half samples have displaced targets
+            assert sample_matches < 8  # assume after shuffling <half samples have displaced targets
