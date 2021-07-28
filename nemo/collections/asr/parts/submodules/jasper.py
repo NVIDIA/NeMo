@@ -935,6 +935,7 @@ class JasperBlock(nn.Module, DistillationMixin):
         out = self.mout(out)
 
         if self.is_being_distilled() and self.distill_cfg.get('distill_encoder', False):
+            # do out.cpu() if needed
             self.register_distillation_tensor(tensor=out, loss_name='cosine')
 
         if self.res is not None and self.dense_residual:

@@ -48,6 +48,8 @@ from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGe
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging, model_utils
 
+import copy
+
 __all__ = ['MTEncDecModel']
 
 
@@ -264,6 +266,41 @@ class MTEncDecModel(EncDecNLPModel, DistillationMixin):
             del temp_log_probs
 
         return log_probs
+
+    def distilbert_initialization(self, other_model: 'MTEncDecModel'):
+
+        n_factor = 2
+        teacher_encoder_layers = other_model.encoder._encoder.layers
+        num_encoder_layers = len(teacher_encoder_layers)
+
+        teacher_decoder_layers = other_model.decoder._decoder.layers
+        num_decoder_layers = len(teacher_decoder_layers)
+
+        # Reduce layers by factor of n_factor and instantiate new student encoder/decoder layers from teacher
+        self.encoder._encoder.layers = torch.nn.ModuleList([copy.deepcopy(teacher_encoder_layers[i]) for i in range(0, num_encoder_layers, n_factor)])
+        self.decoder._decoder.layers = torch.nn.ModuleList([copy.deepcopy(teacher_decoder_layers[i]) for i in range(0, num_decoder_layers, n_factor)])
+
+        # Check that layers are the same
+        # for i in range(len(self.encoder._encoder.layers)):
+        #     k = i * n_factor
+        #     delta_weight = self.encoder._encoder.layers[i].first_sub_layer.query_net.weight - teacher_encoder_layers[k].first_sub_layer.query_net.weight
+        #     print('Diff in encoder weights at layer ', i)
+        #     print(torch.sum(torch.sum(delta_weight, dim=1), dim=0))
+
+        #     delta_bias = self.encoder._encoder.layers[i].first_sub_layer.query_net.bias - teacher_encoder_layers[k].first_sub_layer.query_net.bias
+        #     print('Diff in encoder biases at layer ', i)
+        #     print(torch.sum(delta_bias, dim=0))
+
+        # for i in range(len(self.decoder._decoder.layers)):
+        #     k = i * n_factor
+        #     delta_weight = self.decoder._decoder.layers[i].first_sub_layer.query_net.weight - teacher_decoder_layers[k].first_sub_layer.query_net.weight
+        #     print('Diff in decoder weights at layer ', i)
+        #     print(torch.sum(torch.sum(delta_weight, dim=1), dim=0))
+
+        #     delta_bias = self.decoder._decoder.layers[i].first_sub_layer.query_net.bias - teacher_decoder_layers[k].first_sub_layer.query_net.bias
+        #     print('Diff in decoder biases at layer ', i)
+        #     print(torch.sum(delta_bias, dim=0))
+
 
     def training_step(self, batch, batch_nb):
         """

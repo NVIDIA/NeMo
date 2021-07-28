@@ -218,6 +218,22 @@ class DistillationMixin(ABC):
         """
         pass
 
+    def distilbert_initialization(self, other_model: 'ModelPT'):
+        """
+        Optionally initializes the student model from the teacher model by taking 1 out of every n
+        layers, similar to the DistilBERT-style initialization (see https://arxiv.org/pdf/1910.01108.pdf).
+
+        Args:
+            other_model: An instance of a ModelPT subclass that also inherits the DistillationMixin.
+                When self is the `student` model, other_model is the `teacher` model and vice-versa.
+
+        Returns:
+            Nothing needs to be returned.
+        """
+        pass
+
+    # Hook to initialize weights
+
     def prehook_primary_distillation_loss(self, loss_dict: dict, teacher_model: 'ModelPT'):
         """
         Pre-hook when computing the primary distillation loss. Modifications to the `loss_dict` here is utilized
