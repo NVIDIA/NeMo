@@ -378,55 +378,56 @@ def binarization(sequence, per_args):
     • a threshold for short speech segment deletion;
     • and a threshold for small silence deletion.
     """
+    shift_len = per_args.get('shift_len', 0.01)
 
     onset = per_args.get('onset', 0.5)
     offset = per_args.get('offset', 0.5)
-
     pad_onset = per_args.get('pad_onset', 0.0)
     pad_offset = per_args.get('pad_offset', 0.0)
-    min_duration_on = per_args.get('min_duration_on', 0)
-    min_duration_off = per_args.get('min_duration_off', 0)
-    shift_len = per_args.get('shift_len', 0.01)
+    min_duration_on = per_args.get('min_duration_on', 0.0) #0.2
+    min_duration_off = per_args.get('min_duration_off', 0.0) #0.3
 
     onset, offset = cal_vad_onset_offset(per_args.get('scale', 'absolute'), onset, offset)
-
-    print(onset, offset)
-    start_list = []
-    dur_list = []
+    # start_list = []
+    # dur_list = []
 
     active = False
     active_segments = set()
     
     for i in range(1, len(sequence)):
-        # currently active
+        # Current frame is active
         if active:
-            # switching from active to inactive
+            # Switch from active to inactive
             if sequence[i] < offset:
-                active_segments.add((start * shift_len - pad_onset, i * shift_len + pad_offset))
-                start = i
+                active_segments.add((start - pad_onset, i * shift_len + pad_offset))
+                start = i * shift_len
                 active = False
 
-        # currently inactive
+        # Current frame is inactive
         else:
-            # switching from inactive to active
+            # Switch from inactive to active
             if sequence[i] > onset:
                 start = i * shift_len
                 active = True
 
     # if active at the end, add final segment            
     if active:
-        active_segments.add((start * shift_len - pad_onset, i * shift_len + pad_offset))
+        active_segments.add((start - pad_onset, i * shift_len + pad_offset))
 
-    # Merge overlap active due to padding
-    active_segments = merge_overlap_segment(active_segments)
-    # Filter short active segments
+    # Merge the overlapped active segments due to padding
+    active_segments = merge_overlap_segment(active_segments) 
+    # Filter out the shorter active segments
     if min_duration_on > 0.0:
         active_segments = filter_short_segments(active_segments, min_duration_on)
-    
+    # Filter out the shorter inactive segments and return to be as active segments
     if min_duration_off > 0.0:
-        inactive_segments = get_gap_segments(segments)
+        # Find inactive segments
+        inactive_segments = get_gap_segments(active_segments)
+        # Find shorter inactive segments
         short_inactive_segments= set(inactive_segments) - set(filter_short_segments(inactive_segments, min_duration_off))
+        # Return shorter inactive segments to be as active segments
         active_segments.extend(list(short_inactive_segments))
+        # Merge the overlapped active segments
         active_segments = merge_overlap_segment(active_segments)
 
 
@@ -449,6 +450,7 @@ def filter_short_segments(segments, threshold):
     return [seg for seg in segments if seg[1]-seg[0] >= threshold]
 
 
+
 def get_gap_segments(segments):
     gap_segments = []
     segments.sort(key=lambda x: x[0])
@@ -466,7 +468,12 @@ def merge_overlap_segment(segments):
             merged.append(segment)
         else:
             merged[-1][1] = max(merged[-1][1], segment[1])
+
     return merged
+    # merged_set = set()
+    # for i in merged:
+    #     merged_set.add(tuple(i))
+    # return merged_set
 
 
 def cal_vad_onset_offset(scale, onset, offset):
@@ -542,7 +549,6 @@ def vad_tune_threshold_on_dev(params, vad_pred, groundtruth_RTTM, vad_pred_metho
         paired_filenames, groundtruth_RTTM_dict, vad_pred_dict = pred_rttm_map(
             vad_pred, groundtruth_RTTM, vad_pred_method
         )
-        print(paired_filenames)
         for filename in paired_filenames:
             vad_pred_filepath = vad_pred_dict[filename]
             groundtruth_RTTM_file = groundtruth_RTTM_dict[filename]
@@ -557,7 +563,6 @@ def vad_tune_threshold_on_dev(params, vad_pred, groundtruth_RTTM, vad_pred_metho
 
             per_args = {"shift_len": 0.01, "out_dir": table_out_dir}
             per_args = {**per_args, **param}
-            print(per_args)
             
             vad_table_filepath = generate_vad_segment_table_per_file(vad_pred_filepath, per_args)
 
@@ -585,7 +590,8 @@ def vad_tune_threshold_on_dev(params, vad_pred, groundtruth_RTTM, vad_pred_metho
         if score < min_score:
             min_score = score
             best_threhsold = param
-    return best_threhsold
+
+    return best_threhsold, min_score
 
 
 def pred_rttm_map(vad_pred, groundtruth_RTTM, vad_pred_method="frame"):
