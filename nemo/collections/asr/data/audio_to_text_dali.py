@@ -110,6 +110,7 @@ class _AudioTextDALIDataset(Iterator):
         manifest_filepath: str,
         device: str,
         batch_size: int,
+        parser: Union[str, Callable],
         sample_rate: int = 16000,
         num_threads: int = 4,
         max_duration: float = 0.0,
@@ -118,9 +119,8 @@ class _AudioTextDALIDataset(Iterator):
         eos_id: Optional[int] = None,
         pad_id: int = 0,
         trim: bool = False,
-        shuffle: bool = None,
+        shuffle: bool = False,
         drop_last: bool = False,
-        parser: Union[str, Callable] = 'en',
         device_id: int = 0,
         global_rank: int = 0,
         world_size: int = 1,
@@ -137,9 +137,6 @@ class _AudioTextDALIDataset(Iterator):
             raise ValueError(
                 f"{self} received an unexpected device argument {device}. Supported values are: 'cpu', 'gpu'"
             )
-
-        if shuffle is not None:
-            raise ValueError('`shuffle` must be None when using Dali Dataloader')
 
         self.batch_size = batch_size  # Used by NeMo
 
@@ -283,14 +280,11 @@ class _AudioTextDALIDataset(Iterator):
                 read_sample_rate=False,
                 read_text=False,
                 read_idxs=True,
-                random_shuffle=False,
+                random_shuffle=shuffle,
                 shard_id=self.shard_id,
                 num_shards=self.num_shards,
                 pad_last_batch=False,
             )
-
-            # transcript_len = dali.fn.shapes(dali.fn.reshape(transcript, shape=[-1]))
-            # transcript = dali.fn.pad(transcript)
 
             # Extract nonsilent region, if necessary
             if trim:
@@ -359,11 +353,6 @@ class _AudioTextDALIDataset(Iterator):
         # Building DALI pipeline
         self.pipe.build()
 
-        # if has_preprocessor:
-        #     output_names = ['processed_signal', 'processed_signal_len', 'transcript_raw', 'transcript_raw_len']
-        # else:
-        #     output_names = ['audio', 'audio_len', 'transcript_raw', 'transcript_raw_len']
-
         if has_preprocessor:
             output_names = ['processed_signal', 'processed_signal_len', 'manifest_indices']
         else:
@@ -420,9 +409,6 @@ class _AudioTextDALIDataset(Iterator):
         outputs = self._iter.next()
         assert len(outputs) == 1
         dali_out = outputs[0]
-        # text_raw_len = dali_out['transcript_raw_len'].numpy()
-        # text_raw = dali_out['transcript_raw'].numpy()
-
         manifest_indices = dali_out['manifest_indices'].numpy()
 
         out = {}
@@ -436,6 +422,7 @@ class _AudioTextDALIDataset(Iterator):
         max_len = 0
         batch_size = manifest_indices.shape[0]
         for i, manifest_index in enumerate(manifest_indices):
+            manifest_index = manifest_index[0]
             text, text_length = self.manifest_processor.process_text(manifest_index)
 
             text_tokens_len.append(text_length)
@@ -503,7 +490,7 @@ class AudioToCharDALIDataset(_AudioTextDALIDataset):
         eos_id: Optional[int] = None,
         pad_id: int = 0,
         trim: bool = False,
-        shuffle: Optional[bool] = None,
+        shuffle: bool = False,
         drop_last: bool = False,
         parser: Union[str, Callable] = 'en',
         device_id: int = 0,
@@ -583,7 +570,7 @@ class AudioToBPEDALIDataset(_AudioTextDALIDataset):
         max_duration: float = 0.0,
         min_duration: float = 0.0,
         trim: bool = False,
-        shuffle: Optional[bool] = None,
+        shuffle: bool = False,
         drop_last: bool = False,
         device_id: int = 0,
         global_rank: int = 0,

@@ -315,6 +315,22 @@ pipeline {
             sh 'rm -rf examples/asr/speech_to_text_results'
           }
         }
+       stage('Speech to Text BPE - DALI AudioToMelSpectrogramPreprocessor') {
+          steps {
+            sh 'python examples/asr/speech_to_text_bpe.py \
+            --config-path="conf/citrinet/" --config-name="config_bpe" \
+            model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
+            model.tokenizer.type="wpe" \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            +model.train_ds.use_dali=True \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            +model.validation_ds.use_dali=True \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_wpe_results'
+            sh 'rm -rf examples/asr/speech_to_text_wpe_results'
+          }
+        }
         // TODO: This would fail due to an unnecessary torchaudio import.
         //       To be enabled once torchaudio is available in the container used for CI
         // stage('Speech to Text - DALI AudioToMFCCPreprocessor') {
@@ -341,7 +357,6 @@ pipeline {
       }
     }
 
-//  TODO: UNCOMMENT TESTS AFTER 21.04 release (numba 0.53 min requirement)
     stage('L2: ASR RNNT dev run') {
       when {
         anyOf {

@@ -127,7 +127,7 @@ class ASRManifestProcessor:
         self.bos_id = bos_id
         self.pad_id = pad_id
 
-    def process_text(self, index) -> ():
+    def process_text(self, index) -> (List[int], int):
         sample = self.collection[index]
 
         t, tl = sample.text_tokens, len(sample.text_tokens)
