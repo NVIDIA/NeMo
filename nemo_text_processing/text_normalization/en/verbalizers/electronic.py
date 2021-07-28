@@ -14,11 +14,10 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_ALPHA,
     NEMO_NOT_QUOTE,
     GraphFst,
     delete_space,
-    insert_space,
+    insert_space
 )
 from nemo_text_processing.text_normalization.en.utils import get_abs_path
 
@@ -43,7 +42,13 @@ class ElectronicFst(GraphFst):
 
     def __init__(self, deterministic: bool = True):
         super().__init__(name="electronic", kind="verbalize", deterministic=deterministic)
-        graph_digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv"))).optimize()
+        graph_digit_no_zero = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv"))).optimize()
+        graph_zero = pynini.cross("0", "zero")
+
+        if not deterministic:
+            graph_zero |= pynini.cross("0", "o") | pynini.cross("0", "oh")
+
+        graph_digit = graph_digit_no_zero | graph_zero
         graph_symbols = pynini.string_file(get_abs_path("data/electronic/symbols.tsv")).optimize()
         user_name = (
             pynutil.delete("username:")
@@ -58,19 +63,6 @@ class ElectronicFst(GraphFst):
             )
             + pynutil.delete("\"")
         )
-
-        domain_default = pynini.closure(NEMO_NOT_QUOTE + insert_space) + pynini.closure(insert_space + NEMO_NOT_QUOTE)
-        domain_default_composed = pynini.compose(
-            domain_default, pynini.closure(graph_symbols | NEMO_ALPHA | pynini.accep(" "), 1)
-        )
-
-        server_default = (
-            pynini.closure((graph_digit | NEMO_ALPHA) + insert_space, 1)
-            + pynini.closure(graph_symbols + insert_space)
-            + pynini.closure((graph_digit | NEMO_ALPHA) + insert_space, 1)
-        )
-        # server_common = pynini.string_file(get_abs_path("data/electronic/server_name.tsv")) + insert_space
-        # domain_common = pynini.cross(".", "dot ") + pynini.string_file(get_abs_path("data/electronic/domain.tsv"))
 
         server_common = pynini.string_file(get_abs_path("data/electronic/server_name.tsv"))
         domain_common = pynini.string_file(get_abs_path("data/electronic/domain.tsv"))
@@ -105,7 +97,3 @@ class ElectronicFst(GraphFst):
 
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
-
-        # from pynini.lib.rewrite import top_rewrites
-        # import pdb; pdb.set_trace()
-        # print()

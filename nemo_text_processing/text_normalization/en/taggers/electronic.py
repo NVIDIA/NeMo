@@ -44,8 +44,10 @@ class ElectronicFst(GraphFst):
                 symbol, _ = line.split('\t')
                 accepted_symbols.append(pynini.accep(symbol))
 
+        accepted_symbols = NEMO_ALPHA | NEMO_DIGIT | pynini.union(*accepted_symbols)
+        accepted_symbols = pynini.closure(accepted_symbols).optimize()
         graph_symbols = pynini.string_file(get_abs_path("data/electronic/symbols.tsv")).optimize()
-        accepted_symbols = pynini.closure(NEMO_ALPHA | NEMO_DIGIT | pynini.union(*accepted_symbols))
+
         username = (
             pynutil.insert("username: \"")
             + NEMO_ALPHA
@@ -53,7 +55,7 @@ class ElectronicFst(GraphFst):
             + pynutil.insert("\"")
             + pynini.cross('@', ' ')
         )
-        domain_graph = NEMO_ALPHA + accepted_symbols + pynini.accep('.') + pynini.closure(NEMO_ALPHA, 1)
+        domain_graph = pynini.closure(NEMO_ALPHA | accepted_symbols, 1) + pynini.accep('.') + pynini.closure(NEMO_ALPHA | accepted_symbols, 1)
         domain_graph = pynutil.insert("domain: \"") + domain_graph + pynutil.insert("\"")
 
         protocol_start = pynini.accep("https://") | pynini.accep("http://")
@@ -69,18 +71,3 @@ class ElectronicFst(GraphFst):
 
         final_graph = self.add_tokens(graph)
         self.fst = final_graph.optimize()
-
-
-"""
-Input : http://www.hkdailynews.com.hk/NewsDetail/index/77006Chang,S
-Target: h  t  t  p  c o l o n  s l a s h  s l a s h  w  w  w dot h  k  d a i l y n e w s dot c o m dot h  k  s l a s h  n e w s d e t a i l  s l a s h  i n d e x  s l a s h  s e v e n  s e v e n  o  o  s i x  c h a n g  c o m m a  s
-Output: {'http://www.hkdailynews.com.hk/NewsDetail/index/77006Chang,S'}
-
-# change to lower case
-Input : Games.com
-Target: g a m e s dot c o m
-Output: {'G a m e s dot c o m', 'Games.com', 'G a m e s dot com'}
-
-
-
-"""
