@@ -66,9 +66,9 @@ pipeline {
 
     stage('L0: Unit Tests CPU') {
       when {
-        anyOf {
-          branch 'main'
+        allOf {          
           changeRequest target: 'main'
+          changeset pattern: "nemo_text_processing/*"
         }
       }
       steps {
