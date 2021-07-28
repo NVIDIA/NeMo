@@ -165,6 +165,12 @@ def getLamdaGaplist(lambdas):
 def estimateNumofSpeakers(affinity_mat, max_num_speaker, is_cuda=False):
     """
     Estimates the number of speakers using eigen decompose on Laplacian Matrix.
+    affinity_mat: (array)
+        NxN affitnity matrix
+    max_num_speaker: (int)
+        Maximum number of clusters to consider for each session
+    is_cuda: (bool)
+        if cuda availble eigh decomposition would be computed on GPUs
     """
     Laplacian = getLaplacian(affinity_mat)
     lambdas, _ = eigDecompose(Laplacian, is_cuda)
@@ -439,8 +445,9 @@ def COSclustering(key, emb, oracle_num_speakers=None, max_num_speaker=8, min_sam
 
         min_samples: (int)
             Minimum number of samples required for NME clustering, this avoids
-            zero p_neighbour_lists. Default of 6 is selected since  (1/rp_threshold) >= 4.
-
+            zero p_neighbour_lists. Default of 6 is selected since (1/rp_threshold) >= 4
+            when max_rp_threshold = 0.25. Thus, NME analysis is skipped for matrices
+            smaller than (min_samples)x(min_samples).
     Returns:
         Y: (List[int])
             Speaker label for each segment.
