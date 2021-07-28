@@ -107,20 +107,20 @@ Francis one -- test
 Francis first -- test
 ~13000
 one three zero zero zero
-one three oh oh oh
+one three oh o oh
 thirteen thousand
-11/17/05
+~11/17/05
 november seventeenth zero five
 november seventeenth o five
 the seventeenth of november o five
-05
+~05
 five
 o five
-0063
+~0063
 o zero six three
 sixty three
-ABC
+~ABC
 A B C
 a b c
-Test
+~Test
 T e s t
