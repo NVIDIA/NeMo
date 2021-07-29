@@ -53,7 +53,14 @@ class NeuralModule(Module, Typing, Serialization, FileIO):
         for param in self.parameters():
             param.requires_grad = False
 
-        self.eval()
+        # self.eval()
+        self.train()
+
+        # check that param grads are false
+        for param in self.parameters():
+            if param.requires_grad:
+                print('Invalid, teacher grads are flowing')
+
 
     def unfreeze(self) -> None:
         """
