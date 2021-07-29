@@ -268,17 +268,33 @@ class MTEncDecModel(EncDecNLPModel, DistillationMixin):
         return log_probs
 
     def distilbert_initialization(self, other_model: 'MTEncDecModel'):
-
-        n_factor = 2
         teacher_encoder_layers = other_model.encoder._encoder.layers
-        num_encoder_layers = len(teacher_encoder_layers)
+        num_teacher_encoder_layers = len(teacher_encoder_layers)
 
         teacher_decoder_layers = other_model.decoder._decoder.layers
-        num_decoder_layers = len(teacher_decoder_layers)
+        num_teacher_decoder_layers = len(teacher_decoder_layers)
+
+        num_student_encoder_layers = 3
+        num_student_decoder_layers = 3
+
+        encoder_step_size = num_teacher_encoder_layers // num_student_encoder_layers
+        decoder_step_size = num_teacher_decoder_layers // num_student_decoder_layers
+
+        print('test')
+        print(encoder_step_size)
+        print(decoder_step_size)
 
         # Reduce layers by factor of n_factor and instantiate new student encoder/decoder layers from teacher
-        self.encoder._encoder.layers = torch.nn.ModuleList([copy.deepcopy(teacher_encoder_layers[i]) for i in range(0, num_encoder_layers, n_factor)])
-        self.decoder._decoder.layers = torch.nn.ModuleList([copy.deepcopy(teacher_decoder_layers[i]) for i in range(0, num_decoder_layers, n_factor)])
+        self.encoder._encoder.layers = torch.nn.ModuleList([copy.deepcopy(teacher_encoder_layers[i]) for i in range(0, num_student_encoder_layers, encoder_step_size)])
+        self.decoder._decoder.layers = torch.nn.ModuleList([copy.deepcopy(teacher_decoder_layers[i]) for i in range(0, num_student_decoder_layers, decoder_step_size)])
+
+        print('before')
+        print(num_teacher_encoder_layers)
+        print(num_teacher_decoder_layers)
+
+        print('after')
+        print(len(self.encoder._encoder.layers))
+        print(len(self.decoder._decoder.layers))
 
         # Check that layers are the same
         # for i in range(len(self.encoder._encoder.layers)):
