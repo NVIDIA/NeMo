@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from argparse import ArgumentParser
-from os import listdir, mkdir
+from os import mkdir
 from os.path import isdir, join
 
 import nemo.collections.nlp.data.text_normalization.constants as constants
