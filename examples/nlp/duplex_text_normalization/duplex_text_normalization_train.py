@@ -128,5 +128,6 @@ def main(cfg: DictConfig) -> None:
         results = tn_model.evaluate(test_dataset, cfg.data.test_ds.batch_size, cfg.inference.errors_log_fp)
         print(f'\nTest results: {results}')
 
+
 if __name__ == '__main__':
     main()

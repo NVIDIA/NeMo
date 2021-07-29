@@ -119,6 +119,7 @@ data:
     # Refer to the text_normalization doc for more information about data augmentation
     tagger_data_augmentation: true
     decoder_data_augmentation: true
+    use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up (especially when using multi GPUs)
 
   validation_ds:
     lang: ${lang}

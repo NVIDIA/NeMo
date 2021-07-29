@@ -48,6 +48,7 @@ class DuplexTaggerModel(NLPModel):
         super().__init__(cfg=cfg, trainer=trainer)
         self.num_labels = len(constants.ALL_TAG_LABELS)
         self.model = AutoModelForTokenClassification.from_pretrained(cfg.transformer, num_labels=self.num_labels)
+        self.transformer_name = cfg.transformer
 
         # Loss Functions
         self.loss_fct = nn.CrossEntropyLoss(ignore_index=constants.LABEL_PAD_TOKEN_ID)
@@ -282,7 +283,14 @@ class DuplexTaggerModel(NLPModel):
         input_file = cfg.data_path
         tagger_data_augmentation = cfg.get('tagger_data_augmentation', False)
         dataset = TextNormalizationTaggerDataset(
-            input_file, self._tokenizer, cfg.mode, cfg.do_basic_tokenize, tagger_data_augmentation, cfg.lang,
+            input_file,
+            self._tokenizer,
+            self.transformer_name,
+            cfg.mode,
+            cfg.do_basic_tokenize,
+            tagger_data_augmentation,
+            cfg.lang,
+            cfg.get('use_cache', False)
         )
         data_collator = DataCollatorForTokenClassification(self._tokenizer)
         dl = torch.utils.data.DataLoader(
