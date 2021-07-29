@@ -46,6 +46,7 @@ class DuplexDecoderModel(NLPModel):
         self._tokenizer = AutoTokenizer.from_pretrained(cfg.tokenizer)
         super().__init__(cfg=cfg, trainer=trainer)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(cfg.transformer)
+        self.transformer_name = cfg.transformer
 
         # Language
         self.lang = cfg.get('lang', None)
@@ -244,6 +245,7 @@ class DuplexDecoderModel(NLPModel):
         dataset = TextNormalizationDecoderDataset(
             input_file,
             tokenizer,
+            self.transformer_name,
             cfg.mode,
             cfg.get('max_decoder_len', tokenizer.model_max_length),
             cfg.get('decoder_data_augmentation', False),

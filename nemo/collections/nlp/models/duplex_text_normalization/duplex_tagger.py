@@ -290,7 +290,7 @@ class DuplexTaggerModel(NLPModel):
             cfg.do_basic_tokenize,
             tagger_data_augmentation,
             cfg.lang,
-            cfg.get('use_cache', False)
+            cfg.get('use_cache', False),
         )
         data_collator = DataCollatorForTokenClassification(self._tokenizer)
         dl = torch.utils.data.DataLoader(

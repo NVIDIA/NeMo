@@ -14,14 +14,15 @@
 
 import os
 import pickle
+
 from tqdm import tqdm
 from transformers import PreTrainedTokenizerBase
 
 import nemo.collections.nlp.data.text_normalization.constants as constants
 from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize, read_data_file
 from nemo.core.classes import Dataset
-from nemo.utils.decorators.experimental import experimental
 from nemo.utils import logging
+from nemo.utils.decorators.experimental import experimental
 
 __all__ = ['TextNormalizationTaggerDataset']
 
@@ -65,7 +66,7 @@ class TextNormalizationTaggerDataset(Dataset):
 
         # Get cache path
         data_dir, filename = os.path.split(input_file)
-        cached_data_file = os.path.join(data_dir, f'cached_{filename}_{tokenizer_name}_{lang}.pkl')
+        cached_data_file = os.path.join(data_dir, f'cached_tagger_{filename}_{tokenizer_name}_{lang}.pkl')
 
         if use_cache and os.path.exists(cached_data_file):
             logging.warning(
@@ -111,6 +112,8 @@ class TextNormalizationTaggerDataset(Dataset):
             # Finalize
             self.encodings = tokenizer(texts, is_split_into_words=True, padding=False, truncation=True)
             self.labels = self.encode_tags(tags, self.encodings)
+
+            # Write to cache (if use_cache)
             if use_cache:
                 with open(cached_data_file, 'wb') as out_file:
                     data = self.insts, self.tag2id, self.encodings, self.labels
