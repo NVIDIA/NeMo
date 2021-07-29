@@ -123,7 +123,6 @@ def main(cfg: DictConfig) -> None:
     # Evaluation after training
     if hasattr(cfg.data, 'test_ds') and cfg.data.test_ds.data_path is not None:
         gpu = 1 if cfg.tagger_trainer.gpus != 0 else 0
-        trainer = pl.Trainer(gpus=gpu)
         tn_model = DuplexTextNormalizationModel(tagger_model, decoder_model, cfg.lang)
         test_dataset = TextNormalizationTestDataset(cfg.data.test_ds.data_path, cfg.data.test_ds.mode, cfg.lang)
         results = tn_model.evaluate(test_dataset, cfg.data.test_ds.batch_size, cfg.inference.errors_log_fp)
