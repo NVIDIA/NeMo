@@ -86,6 +86,7 @@ class TimeFst(GraphFst):
         self.graph_preserve_order = (hm | h).optimize()
 
         # 17:15 -> "пятнадцать минут шестого"
+        # Requires permutations for the correct verbalization
         self.increment_hour_ordinal = pynini.compose(hour_options, increment_hour_ordinal).optimize()
         m_next_h = (
             pynutil.insert("hours: \"")
@@ -98,6 +99,7 @@ class TimeFst(GraphFst):
         )
 
         # 17:45 -> "без пятнадцати минут шесть"
+        # Requires permutations for the correct verbalization
         self.mins_to_h = pynini.string_file(get_abs_path("data/time/minutes_to_hour.tsv")).optimize()
         self.increment_hour_cardinal = pynini.compose(hour_options, increment_hour_cardinal).optimize()
         m_to_h = (

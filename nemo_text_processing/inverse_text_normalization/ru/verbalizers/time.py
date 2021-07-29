@@ -42,6 +42,8 @@ class TimeFst(GraphFst):
         )
 
         graph_preserve_order = pynutil.delete("hours: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+
+        # for cases that require permutations for the correct verbalization
         graph_reverse_order = hour + delete_space + pynutil.insert(":") + minutes + delete_space
 
         graph = graph_preserve_order | graph_reverse_order

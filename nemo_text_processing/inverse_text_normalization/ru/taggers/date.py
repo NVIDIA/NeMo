@@ -41,8 +41,3 @@ class DateFst(GraphFst):
         graph = pynini.invert(tn_date.final_graph).optimize()
         graph = self.add_tokens(pynutil.insert("day: \"") + graph + pynutil.insert("\""))
         self.fst = graph.optimize()
-
-        # from pynini.lib.rewrite import top_rewrites
-        # import pdb; pdb.set_trace()
-        # print(top_rewrites("первое февраля две тысячи первого", graph, 5))
-        # print()

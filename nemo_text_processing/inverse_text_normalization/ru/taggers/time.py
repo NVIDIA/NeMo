@@ -46,6 +46,7 @@ class TimeFst(GraphFst):
         graph_preserve_order = pynutil.insert("hours: \"") + graph_preserve_order + pynutil.insert("\"")
 
         # "пятнадцать минут шестого" -> 17:15
+        # Requires permutations for the correct verbalization
         m_next_h = (
             pynutil.insert("minutes: \"")
             + pynini.invert(tn_time.minutes).optimize()
@@ -57,6 +58,7 @@ class TimeFst(GraphFst):
         ).optimize()
 
         # "без пятнадцати минут шесть" -> 17:45
+        # Requires permutation for the correct verbalization
         m_to_h = (
             pynini.cross("без ", "minutes: \"")
             + pynini.invert(tn_time.mins_to_h)

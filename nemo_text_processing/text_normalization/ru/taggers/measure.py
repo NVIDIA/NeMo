@@ -51,6 +51,7 @@ class MeasureFst(GraphFst):
         delete_space = pynini.closure(
             pynutil.add_weight(pynutil.delete(pynini.union(NEMO_SPACE, NEMO_NON_BREAKING_SPACE)), -1), 0, 1
         )
+
         cardinal_graph = cardinal.cardinal_numbers
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
         optional_graph_negative = cardinal.optional_graph_negative
@@ -70,7 +71,7 @@ class MeasureFst(GraphFst):
             pynutil.insert("cardinal { ")
             + optional_graph_negative
             + pynutil.insert("integer: \"")
-            + (NEMO_SIGMA @ cardinal_graph)
+            + cardinal_graph
             + (
                 (delete_space + pynutil.insert("\"") + pynutil.insert(" } ") + default_units)
                 | (pynutil.insert("\"") + pynutil.insert(" } ") + slash_units)
