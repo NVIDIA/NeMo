@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import pickle
 import random
 
 from tqdm import tqdm
@@ -20,6 +22,7 @@ from transformers import PreTrainedTokenizerBase
 import nemo.collections.nlp.data.text_normalization.constants as constants
 from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize, read_data_file
 from nemo.core.classes import Dataset
+from nemo.utils import logging
 from nemo.utils.decorators.experimental import experimental
 
 __all__ = ['TextNormalizationDecoderDataset']
@@ -63,11 +66,10 @@ class TextNormalizationDecoderDataset(Dataset):
         self.mode = mode
         self.lang = lang
         self.use_cache = use_cache
-        raw_insts = read_data_file(input_file)
 
         # Get cache path
         data_dir, filename = os.path.split(input_file)
-        cached_data_file = os.path.join(data_dir, f'cached_tagger_{filename}_{tokenizer_name}_{lang}.pkl')
+        cached_data_file = os.path.join(data_dir, f'cached_decoder_{filename}_{tokenizer_name}_{lang}.pkl')
 
         if use_cache and os.path.exists(cached_data_file):
             logging.warning(
@@ -78,6 +80,8 @@ class TextNormalizationDecoderDataset(Dataset):
                 data = pickle.load(f)
                 self.insts, self.inputs, self.examples, self.tn_count, self.itn_count = data
         else:
+            raw_insts = read_data_file(input_file)
+
             # Convert raw instances to TaggerDataInstance
             insts, inputs, targets = [], [], []
             for (classes, w_words, s_words) in tqdm(raw_insts):

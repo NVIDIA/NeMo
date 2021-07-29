@@ -83,6 +83,8 @@ will be saved to.
 from helpers import DECODER_MODEL, TAGGER_MODEL, instantiate_model_and_trainer
 from omegaconf import DictConfig, OmegaConf
 
+from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset
+from nemo.collections.nlp.models import DuplexTextNormalizationModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -121,8 +123,12 @@ def main(cfg: DictConfig) -> None:
         logging.info('Training finished!')
 
     # Evaluation after training
-    if hasattr(cfg.data, 'test_ds') and cfg.data.test_ds.data_path is not None:
-        gpu = 1 if cfg.tagger_trainer.gpus != 0 else 0
+    if (
+        hasattr(cfg.data, 'test_ds')
+        and cfg.data.test_ds.data_path is not None
+        and cfg.tagger_model.do_training
+        and cfg.decoder_model.do_training
+    ):
         tn_model = DuplexTextNormalizationModel(tagger_model, decoder_model, cfg.lang)
         test_dataset = TextNormalizationTestDataset(cfg.data.test_ds.data_path, cfg.data.test_ds.mode, cfg.lang)
         results = tn_model.evaluate(test_dataset, cfg.data.test_ds.batch_size, cfg.inference.errors_log_fp)

@@ -212,7 +212,7 @@ class DuplexTaggerModel(NLPModel):
                     continue
             # Convert B-TASK tag to B-SAME tag
             if p == constants.B_PREFIX + constants.TASK_TAG:
-                final_preds.append(constants.B_PREFIX + constants.TRANSFORM_TAG)
+                final_preds.append(constants.B_PREFIX + constants.SAME_TAG)
                 continue
             # Default
             final_preds.append(p)
