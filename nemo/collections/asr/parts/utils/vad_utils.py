@@ -286,7 +286,7 @@ def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
     except Exception as e:
         raise (e)
 
-def generate_vad_segment_table(vad_pred_dir, threshold, shift_len, num_workers):
+def generate_vad_segment_table(vad_pred_dir, postprocessing_params, shift_len, num_workers):
     """
     Convert frame level prediction to speech segment in start and end times format.
     And save to csv file  in rttm-like format
@@ -306,15 +306,16 @@ def generate_vad_segment_table(vad_pred_dir, threshold, shift_len, num_workers):
     suffixes = ("frame", "mean", "median")
     vad_pred_filepath_list = [os.path.join(vad_pred_dir, x) for x in os.listdir(vad_pred_dir) if x.endswith(suffixes)]
 
-    table_out_dir = os.path.join(vad_pred_dir, "table_output_" + str(threshold))
+    table_out_dir = os.path.join(vad_pred_dir, "table_output")
     if not os.path.exists(table_out_dir):
         os.mkdir(table_out_dir)
 
     per_args = {
-        "threshold": threshold,
         "shift_len": shift_len,
         "out_dir": table_out_dir,
     }
+
+    per_args = {**per_args, **postprocessing_params}
 
     p.starmap(generate_vad_segment_table_per_file, zip(vad_pred_filepath_list, repeat(per_args)))
     p.close()
@@ -333,28 +334,10 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
 
     name = pred_filepath.split("/")[-1].rsplit(".", 1)[0]
     sequence = np.loadtxt(pred_filepath)
-    # start = 0
-    # start_list = [0]
-    # dur_list = []
-    # state_list = []
-    # current_state = "non-speech"
-
-    # for i in range(len(sequence) - 1):
-    #     current_state = "non-speech" if sequence[i] <= threshold else "speech"
-    #     next_state = "non-speech" if sequence[i + 1] <= threshold else "speech"
-    #     if next_state != current_state:
-    #         dur = i * shift_len + shift_len - start  # shift_len for handling joint
-    #         state_list.append(current_state)
-    #         dur_list.append(dur)
-
-    #         start = (i + 1) * shift_len
-    #         start_list.append(start)
-
-    # dur_list.append((i + 1) * shift_len + shift_len - start)
-    # state_list.append(current_state)
 
     active_segments = binarization(sequence, per_args)
     seg_speech_table = pd.DataFrame(active_segments, columns =['start', 'end'])
+    seg_speech_table = seg_speech_table.sort_values('start', ascending=True)
     seg_speech_table['dur'] = seg_speech_table['end'] - seg_speech_table['start'] + shift_len
     seg_speech_table['vad'] = 'speech'
 
@@ -365,6 +348,7 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
     save_path = os.path.join(out_dir, save_name)
     seg_speech_table.to_csv(save_path, columns=['start', 'dur', 'vad'], sep='\t', index=False, header=False)
     return save_path
+
 
 def binarization(sequence, per_args):
     """
@@ -384,16 +368,13 @@ def binarization(sequence, per_args):
     offset = per_args.get('offset', 0.5)
     pad_onset = per_args.get('pad_onset', 0.0)
     pad_offset = per_args.get('pad_offset', 0.0)
-    min_duration_on = per_args.get('min_duration_on', 0.0) #0.2
-    min_duration_off = per_args.get('min_duration_off', 0.0) #0.3
+    min_duration_on = per_args.get('min_duration_on', 0.2) 
+    min_duration_off = per_args.get('min_duration_off', 0.3) 
 
     onset, offset = cal_vad_onset_offset(per_args.get('scale', 'absolute'), onset, offset)
-    # start_list = []
-    # dur_list = []
 
     active = False
-    active_segments = set()
-    
+    active_segments = set() 
     for i in range(1, len(sequence)):
         # Current frame is active
         if active:
@@ -424,39 +405,26 @@ def binarization(sequence, per_args):
         # Find inactive segments
         inactive_segments = get_gap_segments(active_segments)
         # Find shorter inactive segments
-        short_inactive_segments= set(inactive_segments) - set(filter_short_segments(inactive_segments, min_duration_off))
+        short_inactive_segments= inactive_segments - filter_short_segments(inactive_segments, min_duration_off)
         # Return shorter inactive segments to be as active segments
-        active_segments.extend(list(short_inactive_segments))
+        active_segments.update(short_inactive_segments)
         # Merge the overlapped active segments
         active_segments = merge_overlap_segment(active_segments)
-
-
     return active_segments
 
-    #     current_state = "non-speech" if sequence[i] <= threshold else "speech"
-    #     next_state = "non-speech" if sequence[i + 1] <= threshold else "speech"
-    #     if next_state != current_state:
-    #         dur = i * shift_len + shift_len - start  # shift_len for handling joint
-    #         state_list.append(current_state)
-    #         dur_list.append(dur)
-
-    #         start = (i + 1) * shift_len
-    #         start_list.append(start)
-
-    # dur_list.append((i + 1) * shift_len + shift_len - start)
-    # state_list.append(current_state)
-
 def filter_short_segments(segments, threshold):
-    return [seg for seg in segments if seg[1]-seg[0] >= threshold]
-
-
+    res = set()
+    for seg in segments:
+        if seg[1]-seg[0] >= threshold:
+            res.add(seg)
+    return res
 
 def get_gap_segments(segments):
-    gap_segments = []
+    segments=[list(i) for i in segments]
     segments.sort(key=lambda x: x[0])
+    gap_segments = set()
     for i in range(len(segments)-1):
-        gap_segments.append([segments[i][1], segments[i+1][0]])
-    
+        gap_segments.add((segments[i][1], segments[i+1][0]))
     return gap_segments
 
 def merge_overlap_segment(segments):
@@ -469,11 +437,8 @@ def merge_overlap_segment(segments):
         else:
             merged[-1][1] = max(merged[-1][1], segment[1])
 
-    return merged
-    # merged_set = set()
-    # for i in merged:
-    #     merged_set.add(tuple(i))
-    # return merged_set
+    merged_set = set([tuple(t) for t in merged])
+    return merged_set
 
 
 def cal_vad_onset_offset(scale, onset, offset):
