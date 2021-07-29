@@ -209,6 +209,10 @@ class DuplexTaggerModel(NLPModel):
                 if has_numbers(words[ix]) and (not constants.TRANSFORM_TAG in p):
                     final_preds.append(constants.B_PREFIX + constants.TRANSFORM_TAG)
                     continue
+            # Convert B-TASK tag to B-SAME tag
+            if p == constants.B_PREFIX + constants.TASK_TAG:
+                final_preds.append(constants.B_PREFIX + constants.TRANSFORM_TAG)
+                continue
             # Default
             final_preds.append(p)
         return final_preds
