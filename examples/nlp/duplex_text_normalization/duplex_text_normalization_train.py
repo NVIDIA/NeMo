@@ -120,6 +120,14 @@ def main(cfg: DictConfig) -> None:
             decoder_model.save_to(cfg.decoder_model.nemo_path)
         logging.info('Training finished!')
 
+    # Evaluation after training
+    if hasattr(cfg.data, 'test_ds') and cfg.data.test_ds.data_path is not None:
+        gpu = 1 if cfg.tagger_trainer.gpus != 0 else 0
+        trainer = pl.Trainer(gpus=gpu)
+        tn_model = DuplexTextNormalizationModel(tagger_model, decoder_model, cfg.lang)
+        test_dataset = TextNormalizationTestDataset(cfg.data.test_ds.data_path, cfg.data.test_ds.mode, cfg.lang)
+        results = tn_model.evaluate(test_dataset, cfg.data.test_ds.batch_size, cfg.inference.errors_log_fp)
+        print(f'\nTest results: {results}')
 
 if __name__ == '__main__':
     main()
