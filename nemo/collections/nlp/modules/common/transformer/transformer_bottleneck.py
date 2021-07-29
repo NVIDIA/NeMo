@@ -26,9 +26,19 @@ from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
 from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
 from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoder
 from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
+from nemo.collections.nlp.modules.common.transformer.perceiver_encoders import PerceiverEncoder
 from nemo.collections.nlp.modules.common.transformer.transformer import NeMoTransformerConfig
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
+
+# FIXME: REMOVE ME
+# arch="preceiver"
+# block=3
+# init_hidden_method="params"/"bridge"
+
+
+# arch="preceiver(3, params)"
+# arch="bridge(4096)"
 
 
 @dataclass
@@ -36,11 +46,15 @@ class NeMoTransformerBottleneckConfig(NeMoTransformerConfig):
     # architecture details (default is no bottleneck)
     arch: str = ''
     hidden_steps: int = -1
+    hidden_blocks: int = 1
+    hidden_init_method: str = "params"
 
 
 @dataclass
 class NeMoTransformerBottleneckEncoderConfig(NeMoTransformerBottleneckConfig):
     mask_future: bool = False
+    # change return_mask to False to return hidden states only (default for non-bottleneck encoder)
+    return_mask: bool = True
 
 
 @dataclass
@@ -69,6 +83,10 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
         pre_ln_final_layer_norm: bool = True,
         arch='',
         hidden_steps=-1,
+        hidden_blocks=1,
+        hidden_init_method="params",
+        # default whether forward() method returns hidden or (hidden, mask)
+        return_mask=True,
     ):
         super().__init__(
             vocab_size=vocab_size,
@@ -90,12 +108,14 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
         )
 
         self._arch = arch
-        self._hidden_steps = hidden_steps
+        self._return_mask = return_mask
 
         # replace encoder
         self._encoder = self._build_encoder(
             arch=arch,
             hidden_steps=hidden_steps,
+            hidden_blocks=hidden_blocks,
+            hidden_init_method=hidden_init_method,
             hidden_size=hidden_size,
             num_layers=num_layers,
             inner_size=inner_size,
@@ -122,6 +142,23 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
         # default non-bottleneck transformer encoder
         if (not arch) or (arch == "seq2seq"):
             encoder = self.encoder
+        elif (arch == "perceiver"):
+            PerceiverEncoder(
+                num_layers=kwargs["num_layers"],
+                hidden_size=kwargs["hidden_size"],
+                inner_size=kwargs["inner_size"],
+                num_attention_heads=kwargs["num_attention_heads"],
+                attn_score_dropout=kwargs["attn_score_dropout"],
+                attn_layer_dropout=kwargs["attn_layer_dropout"],
+                ffn_dropout=kwargs["ffn_dropout"],
+                hidden_act=kwargs["hidden_act"],
+                mask_future=kwargs["mask_future"],
+                pre_ln=kwargs["pre_ln"],
+                pre_ln_final_layer_norm=kwargs["pre_ln_final_layer_norm"],
+                hidden_steps=kwargs["hidden_steps"],
+                hidden_init_method=kwargs["hidden_init_method"],
+                hidden_blocks=kwargs["hidden_blocks"],
+            )
 
         return encoder
 
@@ -133,15 +170,26 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
     def arch(self):
         return self._arch
 
-    @property
-    def hidden_steps(self):
-        return self._hidden_steps
-
     @typecheck()
-    def forward(self, input_ids, encoder_mask):
+    def forward(self, input_ids, encoder_mask, return_mask=None):
+        if return_mask is None:
+            return_mask = self._return_mask
+
         embeddings = self._embedding(input_ids=input_ids)
-        encoder_hidden_states = self._encoder(encoder_states=embeddings, encoder_mask=encoder_mask)
-        return encoder_hidden_states
+
+        if (not arch) or (arch == "seq2seq"):
+            encoder_hidden_states = self._encoder(encoder_states=embeddings, encoder_mask=encoder_mask)
+            encoder_hidden_mask = encoder_mask
+        else:
+            encoder_hidden_states, encoder_hidden_mask = self._encoder(
+                encoder_states=embeddings,
+                encoder_mask=encoder_mask,
+            )
+
+        if return_mask:
+            return encoder_hidden_states, encoder_mask
+        else:
+            return encoder_hidden_states
 
 
 class TransformerBottleneckDecoderNM(TransformerDecoderNM):
@@ -184,7 +232,6 @@ class TransformerBottleneckDecoderNM(TransformerDecoderNM):
         )
 
         self._arch = arch
-        self._hidden_steps = hidden_steps
 
         # replace decoder
         self._decoder = self._build_decoder(
@@ -225,7 +272,3 @@ class TransformerBottleneckDecoderNM(TransformerDecoderNM):
     @property
     def arch(self):
         return self._arch
-
-    @property
-    def hidden_steps(self):
-        return self._hidden_steps
