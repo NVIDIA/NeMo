@@ -134,7 +134,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
         if (not arch) or (arch == "full"):
             encoder = self.encoder
         elif (arch == "perceiver"):
-            PerceiverEncoder(
+            encoder = PerceiverEncoder(
                 num_layers=kwargs["num_layers"],
                 hidden_size=kwargs["hidden_size"],
                 inner_size=kwargs["inner_size"],
