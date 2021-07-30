@@ -30,7 +30,7 @@ import itertools
 import os
 import re
 from pickle import UnpicklingError
-from typing import List, Tuple
+from typing import List, Optional, Tuple, Union
 
 import k2
 import torch
@@ -163,14 +163,9 @@ def graph_to_den(graph: k2.Fsa, replicate_den: bool = False, times: int = 1) -> 
 def intersect_with_self_loops(base_graph: k2.Fsa, aux_graph: k2.Fsa) -> k2.Fsa:
     assert hasattr(base_graph, 'aux_labels')
     assert not hasattr(aux_graph, 'aux_labels')
-    # base_graph = base_graph.clone()
-    # base_graph.rename_tensor_attribute_('aux_labels', 'left_labels')
-    # base_graph = k2.arc_sort(base_graph).to(base_graph.device)
     aux_graph_with_self_loops = k2.arc_sort(k2.add_epsilon_self_loops(aux_graph)).to(base_graph.device)
     result = k2.intersect(k2.arc_sort(base_graph), aux_graph_with_self_loops, treat_epsilons_specially=False)
     setattr(result, "phones", result.labels)
-    # result, a_arc_map, _ = k2.intersect(k2.arc_sort(base_graph), aux_graph_with_self_loops, treat_epsilons_specially=False, ret_arc_maps=True)
-    # result.aux_labels = k2.index(base_graph.left_labels, a_arc_map)
     return result
 
 def compose_with_self_loops(base_graph: k2.Fsa, aux_graph: k2.Fsa) -> k2.Fsa:
@@ -194,6 +189,57 @@ def intersect_dense_failsafe(**kwargs):
             fsa_vec = k2.create_fsa_vec([fsa.clone() for i in range(bs)])
             fsa_vec.scores = torch.nn.Parameter(torch.full_like(fsa_vec.scores, -float("inf")), requires_grad=b_fsas.scores.requires_grad)
             return fsa_vec.to(b_fsas.device)
+
+def create_sparse_wrapped(indices: List[torch.Tensor],
+                          values: torch.Tensor,
+                          size: Optional[Union[Tuple[int, int], Tuple[int, int, int]]] = None,
+                          min_col_index: Optional[int] = None):
+    assert size is None or len(indices) == len(size)
+
+    if len(indices) == 2:
+        return k2.create_sparse(rows=indices[0],
+                                cols=indices[1],
+                                values=values,
+                                size=size,
+                                min_col_index=min_col_index)
+    elif len(indices) == 3:
+        assert indices[0].ndim == indices[1].ndim == indices[2].ndim == 1
+        assert indices[0].numel() == indices[1].numel() == indices[2].numel() == values.numel()
+
+        if min_col_index is not None:
+            assert isinstance(min_col_index, int)
+            kept_indices = indices[-1] >= min_col_index
+            indices = [i[kept_indices] for i in indices]
+            values = values[kept_indices]
+        if size is not None:
+            return torch.sparse_coo_tensor(torch.stack(indices),
+                                          values,
+                                          size=size,
+                                          device=values.device,
+                                          requires_grad=values.requires_grad)
+        else:
+            return torch.sparse_coo_tensor(torch.stack(indices),
+                                          values,
+                                          device=values.device,
+                                          requires_grad=values.requires_grad)
+    else:
+        raise ValueError(f"len(indices) = {len(indices)}")
+
+def prep_padded_densefsavec(log_softmax: torch.Tensor, supervisions: torch.Tensor,):
+    log_softmax_shifted = torch.cat([torch.full((log_softmax.shape[0], log_softmax.shape[1], 1), -float("inf"), device=log_softmax.device), log_softmax], axis=-1)
+    log_softmax_padded = torch.zeros((log_softmax_shifted.shape[0], log_softmax_shifted.shape[1] * 2, log_softmax_shifted.shape[2]))
+    log_softmax_padded[:,::2] = log_softmax_shifted
+    supervisions_padded = supervisions.clone()
+    supervisions_padded[:,2] *= 2
+    dense_log_softmax_padded = k2.DenseFsaVec(log_softmax_padded, supervisions_padded)
+    return dense_log_softmax_padded
+
+def shift_labels_inpl(lattices: List[k2.Fsa], shift: int):
+    for lattice in lattices:
+        mask = lattice.labels > 0
+        lattice.labels[mask] += shift
+        mask = lattice.aux_labels > 0
+        lattice.aux_labels[mask] += shift
 
 def get_tot_objf_and_num_frames(
         tot_scores: torch.Tensor,

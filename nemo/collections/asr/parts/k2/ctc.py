@@ -34,6 +34,8 @@ import k2
 from nemo.collections.asr.parts.k2.utils import create_supervision
 from nemo.collections.asr.parts.k2.utils import get_tot_objf_and_num_frames
 from nemo.collections.asr.parts.k2.utils import load_graph
+from nemo.collections.asr.parts.k2.utils import prep_padded_densefsavec
+from nemo.collections.asr.parts.k2.utils import shift_labels_inpl
 from nemo.collections.asr.parts.k2.utils import make_blank_first
 from nemo.collections.asr.parts.k2.utils import GradExpNormalize
 
@@ -49,6 +51,7 @@ class CTCLoss(torch.nn.Module):
             blank: int,
             reduction: str = 'mean',
             topo_type: str = 'ctc_default',
+            topo_with_selfloops: bool = True,
             graph_type: str = 'topo',
             aux_graph: Optional[Union[k2.Fsa, str]] = None,
             **kwargs
@@ -57,15 +60,16 @@ class CTCLoss(torch.nn.Module):
         self.blank = blank
         self.num_classes = num_classes
         self.reduction = reduction
+        self.pad_fsavec = topo_type == "ctc_compact"
         if graph_type == 'topo':
             from nemo.collections.asr.parts.k2.graph_compilers import CtcTrainingTopologyCompiler as compiler
-            self.graph_compiler = compiler(self.num_classes, topo_type)
+            self.graph_compiler = compiler(self.num_classes, topo_type, topo_with_selfloops)
         elif graph_type == 'graph':
             from nemo.collections.asr.parts.k2.graph_compilers import CtcTrainingNumGraphCompiler as compiler
             raise NotImplementedError("Not tested yet")
             if isinstance(aux_graph, str):
                 aux_graph = load_graph(aux_graph)
-            self.graph_compiler = compiler(self.num_classes, topo_type, aux_graph=aux_graph)
+            self.graph_compiler = compiler(self.num_classes, topo_type, topo_with_selfloops, aux_graph=aux_graph)
         else:
             raise ValueError(f"Invalid value of `graph_type`: {graph_type}.")
 
@@ -91,9 +95,11 @@ class CTCLoss(torch.nn.Module):
             self.graph_compiler.to(log_probs.device)
         num_graphs = self.graph_compiler.compile(targets, target_lengths)
 
-        dense_fsa_vec = k2.DenseFsaVec(log_probs, supervisions)
+        dense_fsa_vec = prep_padded_densefsavec(log_probs, supervisions) if self.pad_fsavec else k2.DenseFsaVec(log_probs, supervisions)
 
         num_lats = k2.intersect_dense(num_graphs, dense_fsa_vec, torch.finfo(torch.float32).max)
+        if self.pad_fsavec:
+            shift_labels_inpl([num_lats], -1)
 
         # use_double_scores=True does matter
         # since otherwise it sometimes makes rounding errors

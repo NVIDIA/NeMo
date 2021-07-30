@@ -31,11 +31,16 @@ from typing import Optional, Union
 import torch
 import k2
 import k2.sparse
+import _k2
 
+from nemo.collections.asr.parts.k2.autograd import sparse_abs
 from nemo.collections.asr.parts.k2.utils import create_supervision
+from nemo.collections.asr.parts.k2.utils import create_sparse_wrapped
 from nemo.collections.asr.parts.k2.utils import get_tot_objf_and_num_frames
 from nemo.collections.asr.parts.k2.utils import make_blank_first
 from nemo.collections.asr.parts.k2.utils import load_graph
+from nemo.collections.asr.parts.k2.utils import prep_padded_densefsavec
+from nemo.collections.asr.parts.k2.utils import shift_labels_inpl
 from nemo.collections.asr.parts.k2.utils import GradExpNormalize
 from nemo.collections.asr.parts.k2.utils import GradScale
 from nemo.utils import logging
@@ -45,7 +50,7 @@ class SDLoss(torch.nn.Module):
     """
     Sequence-discriminative loss.
     Ported from https://github.com/k2-fsa/snowfall/blob/master/snowfall/objectives/mmi.py
-    Implements Lattice-Free Maximum Mutual Information (LFMMI) 
+    Implements Lattice-Free Maximum Mutual Information (LF-MMI) 
     and Conditional Random Field based single-stage acoustic modeling (CRF) losses.
     """
     def __init__(
@@ -54,11 +59,12 @@ class SDLoss(torch.nn.Module):
             blank: int,
             reduction: str = 'mean',
             topo_type: str = 'ctc_default',
+            topo_with_selfloops: bool = True,
             sd_type: str = 'mmi',
             token_lm: Optional[Union[k2.Fsa, str]] = None,
             token_lm_order: int = 2,
             den_scale: float = 1.0,
-            calc_scores_pruned: bool = False,
+            intersect_pruned: bool = False,
             use_mbr: bool = False,
             mbr_graph: Optional[Union[k2.Fsa, str]] = None,
             **kwargs
@@ -70,7 +76,8 @@ class SDLoss(torch.nn.Module):
         self.sd_type = sd_type
         self.den_scale = den_scale
         self.use_mbr = use_mbr
-        self.calc_scores = self._calc_scores_pruned if calc_scores_pruned else self._calc_scores_exact
+        self.intersect_mmi = self._intersect_mmi_pruned if intersect_pruned else self._intersect_mmi_exact
+        self.pad_fsavec = topo_type == "ctc_compact"
         if token_lm is None:
             logging.warning(f"""token_lm is empty. 
                             Using loss without token_lm will result in error.""")
@@ -85,7 +92,7 @@ class SDLoss(torch.nn.Module):
             from nemo.collections.asr.parts.k2.graph_compilers import CtcCrfTrainingGraphCompiler as compiler
         else:
             raise ValueError(f"Invalid value of `sd_type`: {sd_type}.")
-        self.graph_compiler = compiler(self.num_classes, topo_type, aux_graph=self.lm_graph)
+        self.graph_compiler = compiler(self.num_classes, topo_type, topo_with_selfloops, aux_graph=self.lm_graph)
         if use_mbr and mbr_graph is not None:
             self.mbr_graph = load_graph(mbr_graph) if isinstance(mbr_graph, str) else mbr_graph
             if len(self.mbr_graph.shape) == 2:
@@ -93,7 +100,7 @@ class SDLoss(torch.nn.Module):
         else:
             self.mbr_graph = None
 
-    def _calc_scores_exact(self, dense_fsa_vec: k2.DenseFsaVec, num_graphs: k2.Fsa, den_graph: k2.Fsa, return_lats: bool = False):
+    def _intersect_mmi_exact(self, dense_fsa_vec: k2.DenseFsaVec, num_graphs: k2.Fsa, den_graph: k2.Fsa):
         device = num_graphs.device
 
         num_fsas = num_graphs.shape[0]
@@ -117,8 +124,7 @@ class SDLoss(torch.nn.Module):
         num_graphs_indexes = torch.arange(num_fsas, dtype=torch.int32)
 
         # [num_fsas, num_fsas, num_fsas, ... ]
-        den_graph_indexes = torch.tensor([num_fsas] * num_fsas,
-                                          dtype=torch.int32)
+        den_graph_indexes = torch.tensor([num_fsas] * num_fsas, dtype=torch.int32)
 
         # [0, num_fsas, 1, num_fsas, 2, num_fsas, ... ]
         num_den_graphs_indexes = torch.stack(
@@ -137,21 +143,10 @@ class SDLoss(torch.nn.Module):
                                           output_beam=10.0,
                                           a_to_b_map=a_to_b_map,
                                           seqframe_idx_name='seqframe_idx')
+        lat_slice = torch.arange(num_fsas, dtype=torch.int32).to(device) * 2
+        return k2.index(num_den_lats, lat_slice), k2.index(num_den_lats, lat_slice + 1)
 
-        # use_double_scores=True does matter
-        # since otherwise it sometimes makes rounding errors
-        num_den_tot_scores = num_den_lats.get_tot_scores(
-            log_semiring=True, use_double_scores=True)
-
-        num_tot_scores = num_den_tot_scores[::2]
-        den_tot_scores = num_den_tot_scores[1::2]
-        if return_lats:
-            lat_slice = torch.arange(num_fsas, dtype=torch.int32).to(device) * 2
-            return num_tot_scores, den_tot_scores, k2.index(num_den_lats, lat_slice), k2.index(num_den_lats, lat_slice + 1)
-        else:
-            return num_tot_scores, den_tot_scores
-
-    def _calc_scores_pruned(self, dense_fsa_vec: k2.DenseFsaVec, num_graphs: k2.Fsa, den_graph: k2.Fsa, return_lats: bool = False):
+    def _intersect_mmi_pruned(self, dense_fsa_vec: k2.DenseFsaVec, num_graphs: k2.Fsa, den_graph: k2.Fsa):
         num_fsas = num_graphs.shape[0]
         assert dense_fsa_vec.dim0() == num_fsas
 
@@ -166,21 +161,7 @@ class SDLoss(torch.nn.Module):
                                              min_active_states=30,
                                              max_active_states=10000,
                                              seqframe_idx_name='seqframe_idx')
-
-        # use_double_scores=True does matter
-        # since otherwise it sometimes makes rounding errors
-        num_tot_scores = num_lats.get_tot_scores(
-            log_semiring=True,
-            use_double_scores=True
-        )
-        den_tot_scores = den_lats.get_tot_scores(
-            log_semiring=True,
-            use_double_scores=True
-        )
-        if return_lats:
-            return num_tot_scores, den_tot_scores, num_lats, den_lats
-        else:
-            return num_tot_scores, den_tot_scores
+        return num_lats, den_lats
 
     def forward(
             self,
@@ -208,12 +189,26 @@ class SDLoss(torch.nn.Module):
 
         num_graphs, den_graph = self.graph_compiler.compile(targets, target_lengths)
 
-        dense_fsa_vec = k2.DenseFsaVec(log_probs, supervisions)
-
         if self.use_mbr and self.mbr_graph is not None:
             den_graph = self.mbr_graph
-        calc_scores_result = self.calc_scores(dense_fsa_vec, num_graphs, den_graph, self.use_mbr)
-        num_tot_scores, den_tot_scores = calc_scores_result[:2]
+
+        dense_fsa_vec = prep_padded_densefsavec(log_probs, supervisions) if self.pad_fsavec else k2.DenseFsaVec(log_probs, supervisions)
+
+        num_lats, den_lats = self.intersect_mmi(dense_fsa_vec, num_graphs, den_graph)
+        if self.pad_fsavec:
+            shift_labels_inpl([num_lats, den_lats], -1)
+
+        # use_double_scores=True does matter
+        # since otherwise it sometimes makes rounding errors
+        num_tot_scores = num_lats.get_tot_scores(
+            log_semiring=True,
+            use_double_scores=True
+        )
+        den_tot_scores = den_lats.get_tot_scores(
+            log_semiring=True,
+            use_double_scores=True
+        )
+
         if self.sd_type == 'crf':
             token_ids_list = [t[:l].tolist() for t, l in zip(targets, target_lengths)]
             label_graph = k2.linear_fsa(token_ids_list).to(num_tot_scores.device)
@@ -234,37 +229,23 @@ class SDLoss(torch.nn.Module):
         # assert tot_scores.nelement() == 0 or torch.all(tot_scores <= 0.0), "denominator took over"
 
         if self.use_mbr:
-            num_lats, den_lats = calc_scores_result[2:]
-            num_rows = dense_fsa_vec.scores.shape[0]
-            num_cols = dense_fsa_vec.scores.shape[1] - 1
-            mbr_num_sparse = k2.create_sparse(rows=num_lats.seqframe_idx,
-                                              cols=num_lats.phones,
-                                              values=num_lats.get_arc_post(True,
-                                                                           True).exp(),
-                                              size=(num_rows, num_cols),
-                                              min_col_index=0)
-
-            mbr_den_sparse = k2.create_sparse(rows=den_lats.seqframe_idx,
-                                              cols=den_lats.phones,
-                                              values=den_lats.get_arc_post(True,
-                                                                           True).exp(),
-                                              size=(num_rows, num_cols),
-                                              min_col_index=0)
+            size = (dense_fsa_vec.dim0(), dense_fsa_vec.scores.shape[0], dense_fsa_vec.scores.shape[1] - 1)
+            mbr_num_sparse = create_sparse_wrapped(indices=[_k2.index_select(dense_fsa_vec.dense_fsa_vec.shape().row_ids(1), num_lats.seqframe_idx),
+                                                            num_lats.seqframe_idx,
+                                                            num_lats.phones],
+                                                   values=num_lats.get_arc_post(True,True).exp(),
+                                                   size=size,
+                                                   min_col_index=0)
+            mbr_den_sparse = create_sparse_wrapped(indices=[_k2.index_select(dense_fsa_vec.dense_fsa_vec.shape().row_ids(1), den_lats.seqframe_idx),
+                                                            den_lats.seqframe_idx,
+                                                            den_lats.phones],
+                                                   values=den_lats.get_arc_post(True,True).exp(),
+                                                   size=size,
+                                                   min_col_index=0)
             # NOTE: Due to limited support of PyTorch's autograd for sparse tensors,
             # we cannot use (mbr_num_sparse - mbr_den_sparse) here
             # The following works only for torch >= 1.7.0
-            # In torch 1.9.0, sparse vectors do not support slicing,
-            # So we have to make them dense.
-            mbr_values = k2.sparse.abs((mbr_num_sparse + (-mbr_den_sparse)).coalesce()).to_dense()
-            mbr_loss_list = []
-            begin = 0
-            for l in input_lengths:
-                # We have to add one here because of the '-1' traisition
-                # at the lattices' ends.
-                end = begin + l + 1
-                mbr_loss_list.append(mbr_values[begin:end].sum().unsqueeze(0))
-                begin = end
-            mbr_loss = torch.cat(mbr_loss_list)
+            mbr_loss = torch.sparse.sum(sparse_abs((mbr_num_sparse + (-mbr_den_sparse)).coalesce()), (1,2)).to_dense()
             mbr_tot_scores, mbr_valid_mask = get_tot_objf_and_num_frames(
                 mbr_loss,
                 self.reduction

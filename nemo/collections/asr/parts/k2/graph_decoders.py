@@ -25,6 +25,8 @@ from nemo.collections.asr.parts.k2.utils import intersect_with_self_loops
 from nemo.collections.asr.parts.k2.utils import invert_permutation
 from nemo.collections.asr.parts.k2.utils import make_blank_first
 from nemo.collections.asr.parts.k2.utils import load_graph
+from nemo.collections.asr.parts.k2.utils import prep_padded_densefsavec
+from nemo.collections.asr.parts.k2.utils import shift_labels_inpl
 from nemo.utils import logging
 
 
@@ -48,6 +50,7 @@ class BaseDecoder(object):
                  blank: int,
                  pruned: bool = False,
                  topo_type: str = "ctc_default",
+                 topo_with_selfloops: bool = True,
                  device: torch.device = torch.device("cpu"),
                  **kwargs
     ):
@@ -56,8 +59,9 @@ class BaseDecoder(object):
         self.pruned = pruned
         self.device = device
         self.topo_type = topo_type
-        self.ctc_topo_inv = k2.arc_sort(build_topo(topo_type, list(range(num_classes))).invert_())
+        self.ctc_topo_inv = k2.arc_sort(build_topo(topo_type, list(range(num_classes)), topo_with_selfloops).invert_())
         self.decode_graph = None
+        self.pad_fsavec = topo_type == "ctc_compact"
         self.conf = DecoderConf(**kwargs)
 
     def to(self, device: torch.device):
@@ -81,7 +85,7 @@ class BaseDecoder(object):
 
         if log_probs.device != self.device:
             self.to(log_probs.device)
-        dense_fsa_vec = k2.DenseFsaVec(log_probs, supervisions)
+        dense_fsa_vec = prep_padded_densefsavec(log_probs, supervisions) if self.pad_fsavec else k2.DenseFsaVec(log_probs, supervisions)
 
         if self.pruned:
             lats = k2.intersect_dense_pruned(a_fsas=self.decode_graph,
@@ -94,6 +98,8 @@ class BaseDecoder(object):
             indices = torch.zeros(dense_fsa_vec.dim0(), dtype=torch.int32, device=self.device)
             dec_graphs = k2.index_fsa(self.decode_graph, indices)
             lats = k2.intersect_dense(dec_graphs, dense_fsa_vec, self.conf.output_beam)
+        if self.pad_fsavec:
+            shift_labels_inpl([lats], -1)
 
         if return_lattices:
             lats = k2.index_fsa(lats, invert_permutation(order).to(dtype=torch.int32, device=input_lengths.device))
@@ -137,10 +143,11 @@ class TokenLMDecoder(BaseDecoder):
                  token_lm: Optional[Union[k2.Fsa, str]] = None,
                  pruned: bool = False,
                  topo_type: str = "ctc_default",
+                 topo_with_selfloops: bool = True,
                  device: torch.device = torch.device("cpu"),
                  **kwargs
     ):
-        super().__init__(num_classes, blank, pruned, topo_type, device, **kwargs)
+        super().__init__(num_classes, blank, pruned, topo_type, topo_with_selfloops, device, **kwargs)
         if token_lm is not None:
             self.token_lm = load_graph(token_lm) if isinstance(token_lm, str) else token_lm
             if self.token_lm is not None:
@@ -166,10 +173,11 @@ class TLGDecoder(BaseDecoder):
                  LG: Union[Tuple[Union[k2.Fsa, str]], k2.Fsa, str],
                  token_lm: Optional[Union[k2.Fsa, str]],
                  topo_type: str = "ctc_default",
+                 topo_with_selfloops: bool = True,
                  device: torch.device = torch.device("cpu"),
                  **kwargs
     ):
-        super().__init__(num_classes, blank, True, topo_type, device, **kwargs)
+        super().__init__(num_classes, blank, True, topo_type, topo_with_selfloops, device, **kwargs)
         # change them if you know what you are doing
         if token_lm is None:
             logging.warning(f"""token_lm was set to None. 
@@ -211,10 +219,11 @@ class TLGDecoder(BaseDecoder):
                  decode_graph: Optional[Union[k2.Fsa, str]],
                  pruned: bool = False,
                  topo_type: str = "ctc_default",
+                 topo_with_selfloops: bool = True,
                  device: torch.device = torch.device("cpu"),
                  **kwargs
     ):
-        super().__init__(num_classes, blank, True, topo_type, device, **kwargs)
+        super().__init__(num_classes, blank, True, topo_type, topo_with_selfloops, device, **kwargs)
         TLG = load_graph(decode_graph) if isinstance(decode_graph, str) else decode_graph
         # print(TLG.labels.unique())
         # raise

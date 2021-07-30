@@ -18,21 +18,19 @@ import k2
 import torch
 
 
-def build_topo(name: str, tokens: List[int]) -> k2.Fsa:
+def build_topo(name: str, tokens: List[int], with_selfloops: bool=True) -> k2.Fsa:
     if name == "ctc_default":
-        return build_ctc_topo(tokens)
-    elif name == "ctc_no_selfloops":
-        return build_ctc_topo_no_selfloops(tokens)
+        return build_ctc_topo(tokens, with_selfloops)
+    elif name == "ctc_compact":
+        return build_ctc_topo_compact(tokens, with_selfloops)
     elif name == "ctc_shared_blank":
-        return build_ctc_topo_shared_blank(tokens)
-    elif name == "ctc_shared_blank_no_selfloops":
-        return build_ctc_topo_shared_blank_no_selfloops(tokens)
+        return build_ctc_topo_shared_blank(tokens, with_selfloops)
     elif name == "identity":
         return build_identity_topo(tokens)
     else:
         raise ValueError(f"Unknown topo name: {name}")
 
-def build_ctc_topo(tokens: List[int]) -> k2.Fsa:
+def build_ctc_topo(tokens: List[int], with_selfloops: bool=True) -> k2.Fsa:
     """Build CTC topology.
     A token which appears once on the right side (i.e. olabels) may
     appear multiple times on the left side (ilabels), possibly with
@@ -50,10 +48,10 @@ def build_ctc_topo(tokens: List[int]) -> k2.Fsa:
 
     num_states = len(tokens)
     final_state = num_states
-    arcs = ""
+    arcs = "" if with_selfloops else "0 0 0 0 0.0\n"
     for i in range(num_states):
         for j in range(num_states):
-            if i == j:
+            if with_selfloops and i == j:
                 arcs += f"{i} {i} {tokens[i]} 0 0.0\n"
             else:
                 arcs += f"{i} {j} {tokens[j]} {tokens[j]} 0.0\n"
@@ -63,37 +61,26 @@ def build_ctc_topo(tokens: List[int]) -> k2.Fsa:
     ans = k2.arc_sort(ans)
     return ans
 
-def build_ctc_topo_no_selfloops(tokens: List[int]) -> k2.Fsa:
+def build_ctc_topo_compact(tokens: List[int], with_selfloops: bool=True) -> k2.Fsa:
     assert 0 in tokens, "We assume 0 is ID of the blank symbol"
 
-    num_states = len(tokens)
+    blank_num = 1
+    num_states = len(tokens) + blank_num
     final_state = num_states
-    arcs = "0 0 0 0 0.0\n"
-    for i in range(num_states):
-        for j in range(num_states):
-            if i != j:
-                arcs += f"{i} {j} {tokens[j]} {tokens[j]} 0.0\n"
-        arcs += f"{i} {final_state} -1 -1 0.0\n"
-    arcs += f"{final_state}"
-    ans = k2.Fsa.from_str(arcs, num_aux_labels=1)
-    ans = k2.arc_sort(ans)
-    return ans
-
-def build_identity_topo(tokens: List[int]) -> k2.Fsa:
-    assert 0 in tokens, "We assume 0 is ID of the blank symbol"
-
-    num_tokens = len(tokens)
-    final_state = 1
-    arcs = ""
-    for i in range(num_tokens):
-        arcs += f"0 0 {tokens[i]} {tokens[i]} 0.0\n"
+    arcs = f"0 1 {blank_num} 0 0.0\n"
+    for i in range(blank_num + 1, num_states):
+        arcs += f"0 {i} {tokens[i - 1] + 1} {tokens[i - 1] + 1} 0.0\n"
     arcs += f"0 {final_state} -1 -1 0.0\n"
+    for i in range(blank_num, num_states):
+        arcs += f"{i} 0 0 0 0.0\n"
+        if with_selfloops or i == blank_num:
+            arcs += f"{i} {i} {tokens[i - 1] + 1} 0 0.0\n"
     arcs += f"{final_state}"
     ans = k2.Fsa.from_str(arcs, num_aux_labels=1)
     ans = k2.arc_sort(ans)
     return ans
 
-def build_ctc_topo_shared_blank(tokens: List[int]):
+def build_ctc_topo_shared_blank(tokens: List[int], with_selfloops: bool=True) -> k2.Fsa:
     # See https://github.com/k2-fsa/k2/issues/746#issuecomment-856421616
     assert 0 in tokens, 'We assume 0 is the ID of the blank symbol'
 
@@ -110,8 +97,9 @@ def build_ctc_topo_shared_blank(tokens: List[int]):
         i += 1
         arcs.append([start, start, p, p, 0])
         arcs.append([start, i, p, p, 0])
-        arcs.append([i, i, p, 0, 0])
         arcs.append([i, start, p, 0, 0])
+        if with_selfloops:
+            arcs.append([i, i, p, 0, 0])
     arcs = sorted(arcs, key=lambda arc: arc[0])
     arcs = [[str(i) for i in arc] for arc in arcs]
     arcs = [' '.join(arc) for arc in arcs]
@@ -120,27 +108,16 @@ def build_ctc_topo_shared_blank(tokens: List[int]):
     ans = k2.arc_sort(ans)
     return ans
 
-def build_ctc_topo_shared_blank_no_selfloops(tokens: List[int]):
-    assert 0 in tokens, 'We assume 0 is the ID of the blank symbol'
+def build_identity_topo(tokens: List[int]) -> k2.Fsa:
+    assert 0 in tokens, "We assume 0 is ID of the blank symbol"
 
-    tokens = tokens.copy()
-    tokens.remove(0)
     num_tokens = len(tokens)
-    start = 0
-    final = num_tokens + 1
-    arcs = []
-    arcs.append([start, start, 0, 0, 0])
-    arcs.append([start, final, -1, -1, 0])
-    arcs.append([final])
-    for i, p in enumerate(tokens):
-        i += 1
-        arcs.append([start, start, p, p, 0])
-        arcs.append([start, i, p, p, 0])
-        arcs.append([i, start, 0, 0, 0])
-    arcs = sorted(arcs, key=lambda arc: arc[0])
-    arcs = [[str(i) for i in arc] for arc in arcs]
-    arcs = [' '.join(arc) for arc in arcs]
-    arcs = '\n'.join(arcs)
+    final_state = 1
+    arcs = ""
+    for i in range(num_tokens):
+        arcs += f"0 0 {tokens[i]} {tokens[i]} 0.0\n"
+    arcs += f"0 {final_state} -1 -1 0.0\n"
+    arcs += f"{final_state}"
     ans = k2.Fsa.from_str(arcs, num_aux_labels=1)
     ans = k2.arc_sort(ans)
     return ans
