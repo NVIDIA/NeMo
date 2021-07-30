@@ -14,6 +14,7 @@
 
 import copy
 from dataclasses import dataclass
+from nemo.core.classes.mixins.distill_mixins import DistillationMixin
 
 import torch
 import torch.nn as nn
@@ -25,7 +26,7 @@ from nemo.collections.nlp.modules.common.transformer.transformer_modules import 
 __all__ = ["TransformerDecoder"]
 
 
-class TransformerDecoderBlock(nn.Module):
+class TransformerDecoderBlock(nn.Module, DistillationMixin):
     """
     Building block of Transformer decoder.
 
@@ -86,6 +87,10 @@ class TransformerDecoderBlock(nn.Module):
         output_states = self.third_sub_layer(enc_dec_attn_output)
         output_states += residual
 
+        # if self.is_being_distilled():
+        #     # do out.cpu() if needed
+        #     self.register_distillation_tensor(tensor=output_states, loss_name='cosine')
+
         return output_states
 
     def forward_postln(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask):
@@ -103,6 +108,11 @@ class TransformerDecoderBlock(nn.Module):
 
         output_states = self.third_sub_layer(enc_dec_attn_output)
         output_states += enc_dec_attn_output
+
+        # if self.is_being_distilled():
+        #     # do out.cpu() if needed
+        #     self.register_distillation_tensor(tensor=output_states, loss_name='cosine')
+
         return self.layer_norm_3(output_states)
 
     def forward(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask):

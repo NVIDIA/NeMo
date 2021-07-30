@@ -131,9 +131,9 @@ class DistillationModelPT(ModelPT):
         with distill_mixins.as_distill_type(DistillationType.STUDENT):
             self.student.validate_distillation_model(other_model=self.teacher)
 
-        # Initialize student from 1 every 2 layers of the teacher, according to DistilBERT
-        # with distill_mixins.as_distill_type(DistillationType.STUDENT):
-        #     self.student.distilbert_initialization(other_model=self.teacher)
+        # Initialize student from 1 every n layers of the teacher, according to DistilBERT
+        with distill_mixins.as_distill_type(DistillationType.STUDENT):
+            self.student.distilbert_initialization(other_model=self.teacher)
 
 
     def _setup_distillation_loss(self):
