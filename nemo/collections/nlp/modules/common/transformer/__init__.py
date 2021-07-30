@@ -16,5 +16,7 @@ from nemo.collections.nlp.modules.common.transformer.transformer_decoders import
 from nemo.collections.nlp.modules.common.transformer.transformer_encoders import *
 from nemo.collections.nlp.modules.common.transformer.transformer_generators import *
 from nemo.collections.nlp.modules.common.transformer.transformer_modules import *
-from nemo.collections.nlp.modules.common.transformer.perceiver_decoders import *
+from nemo.collections.nlp.modules.common.transformer.perceiver_encoders import *
 from nemo.collections.nlp.modules.common.transformer.perceiver import *
+from nemo.collections.nlp.modules.common.transformer.bridge_encoders import *
+from nemo.collections.nlp.modules.common.transformer.bridge import *
