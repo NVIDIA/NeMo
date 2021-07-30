@@ -10,7 +10,7 @@ ruamel.yaml
 scikit-learn
 omegaconf>=2.1.0
 hydra-core>=1.1.0
-transformers>=4.0.1
+transformers>=4.0.1,<=4.8.1
 sentencepiece<1.0.0
 webdataset>=0.1.48,<=0.1.62
 tqdm>=4.41.0
