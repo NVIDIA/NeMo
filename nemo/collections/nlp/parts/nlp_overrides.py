@@ -42,7 +42,7 @@ class NLPDDPPlugin(DDPPlugin):
     def __init__(
         self,
         parallel_devices: Optional[List[torch.device]] = None,
-        num_nodes: int = 1,
+        num_nodes: int = None,
         cluster_environment: ClusterEnvironment = None,
         sync_batchnorm: bool = False,
         **kwargs: Union[Any, Dict[str, Any]],
