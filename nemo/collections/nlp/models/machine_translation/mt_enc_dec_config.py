@@ -146,7 +146,7 @@ class MTBottleneckModelConfig(AAYNBaseConfig):
     non_recon_warmup_batches: int = 200000
     recon_per_token: bool = True
 
-    encoder: NeMoTransformerEncoderConfig = NeMoTransformerBottleneckEncoderConfig(
+    encoder: NeMoTransformerBottleneckEncoderConfig = NeMoTransformerBottleneckEncoderConfig(
         library='nemo',
         model_name=None,
         pretrained=False,
@@ -163,7 +163,7 @@ class MTBottleneckModelConfig(AAYNBaseConfig):
         hidden_init_method='params',
     )
 
-    decoder: NeMoTransformerConfig = NeMoTransformerBottleneckDecoderConfig(
+    decoder: NeMoTransformerBottleneckDecoderConfig = NeMoTransformerBottleneckDecoderConfig(
         library='nemo',
         model_name=None,
         pretrained=False,
