@@ -194,7 +194,7 @@ class TestASRDatasets:
                 shuffle=False,
             )
 
-            assert len(dataset) == 5  # num batches
+            assert len(dataset) == num_samples / batch_size # num batches
             count = 0
             original_transcripts = []
             for batch in dataset:
@@ -206,7 +206,7 @@ class TestASRDatasets:
                 ]
                 original_transcripts.extend(transcripts)
                 count += len(transcripts)
-            assert count == 10
+            assert count == num_samples
 
             # Repeat, now with shuffle enabled
             f.seek(0)
@@ -221,7 +221,7 @@ class TestASRDatasets:
                 shuffle=True,
             )
 
-            assert len(dataset) == 5  # num batches
+            assert len(dataset) == num_samples / batch_size  # num batches
             count = 0
             shuffled_transcripts = []
             for batch in dataset:
@@ -233,7 +233,7 @@ class TestASRDatasets:
                 ]
                 shuffled_transcripts.extend(transcripts)
                 count += len(transcripts)
-            assert count == 10
+            assert count == num_samples
 
             sample_matches = 0
             for orig, shuffled in zip(original_transcripts, shuffled_transcripts):
@@ -274,7 +274,7 @@ class TestASRDatasets:
                 shuffle=False,
             )
 
-            assert len(dataset) == 5  # num batches
+            assert len(dataset) == num_samples / batch_size # num batches
             count = 0
             original_transcripts = []
             for batch in dataset:
@@ -286,7 +286,7 @@ class TestASRDatasets:
                 ]
                 original_transcripts.extend(transcripts)
                 count += len(transcripts)
-            assert count == 10
+            assert count == num_samples
 
             # Repeat, now with shuffle enabled
             f.seek(0)
@@ -300,7 +300,7 @@ class TestASRDatasets:
                 shuffle=True,
             )
 
-            assert len(dataset) == 5  # num batches
+            assert len(dataset) == num_samples / batch_size # num batches
             count = 0
             shuffled_transcripts = []
             for batch in dataset:
@@ -312,7 +312,7 @@ class TestASRDatasets:
                 ]
                 shuffled_transcripts.extend(transcripts)
                 count += len(transcripts)
-            assert count == 10
+            assert count == num_samples 
 
             sample_matches = 0
             for orig, shuffled in zip(original_transcripts, shuffled_transcripts):
