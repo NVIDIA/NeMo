@@ -52,8 +52,8 @@ def decode_chars(tokens, token_length, mapping):
 
 def decode_subwords(tokens, token_length, tokenizer: tokenizers.TokenizerSpec):
     tokens = tokens.cpu().numpy()
+    tokens = tokens[:token_length]
     text = tokenizer.ids_to_text(tokens)
-    text = text[:token_length]
     return text
 
 
@@ -180,7 +180,6 @@ class TestASRDatasets:
 
                     data = json.loads(line)
                     texts.append(data['text'])
-                    num_samples += 1
 
             f.seek(0)
 
@@ -194,7 +193,7 @@ class TestASRDatasets:
                 shuffle=False,
             )
 
-            assert len(dataset) == num_samples / batch_size # num batches
+            assert len(dataset) == (num_samples // batch_size)  # num batches
             count = 0
             original_transcripts = []
             for batch in dataset:
@@ -207,6 +206,10 @@ class TestASRDatasets:
                 original_transcripts.extend(transcripts)
                 count += len(transcripts)
             assert count == num_samples
+
+            # Assert transcripts are correct
+            for text, og_transcript in zip(texts, original_transcripts):
+                assert text == og_transcript
 
             # Repeat, now with shuffle enabled
             f.seek(0)
@@ -221,7 +224,7 @@ class TestASRDatasets:
                 shuffle=True,
             )
 
-            assert len(dataset) == num_samples / batch_size  # num batches
+            assert len(dataset) == (num_samples // batch_size)  # num batches
             count = 0
             shuffled_transcripts = []
             for batch in dataset:
@@ -235,11 +238,11 @@ class TestASRDatasets:
                 count += len(transcripts)
             assert count == num_samples
 
-            sample_matches = 0
+            samples_changed = 0
             for orig, shuffled in zip(original_transcripts, shuffled_transcripts):
-                if orig == shuffled:
-                    sample_matches += 1
-            assert sample_matches < 8  # assume after shuffling <half samples have displaced targets
+                if orig != shuffled:
+                    samples_changed += 1
+            assert samples_changed > 1  # assume after shuffling at least 1 sample was displaced
 
     @pytest.mark.skipif(not HAVE_DALI, reason="NVIDIA DALI is not installed or incompatible version")
     @pytest.mark.unit
@@ -249,6 +252,7 @@ class TestASRDatasets:
         num_samples = 10
         batch_size = 2
         device = 'gpu' if torch.cuda.is_available() else 'cpu'
+        texts = []
 
         tokenizer_path = os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128", 'vocab.txt')
         tokenizer = tokenizers.AutoTokenizer(pretrained_model_name='bert-base-cased', vocab_file=tokenizer_path)
@@ -261,7 +265,9 @@ class TestASRDatasets:
 
                     line = line.replace("tests/data/", "tests/.data/").replace("\n", "")
                     f.write(f"{line}\n")
-                    num_samples += 1
+
+                    data = json.loads(line)
+                    texts.append(data['text'])
 
             f.seek(0)
 
@@ -274,7 +280,7 @@ class TestASRDatasets:
                 shuffle=False,
             )
 
-            assert len(dataset) == num_samples / batch_size # num batches
+            assert len(dataset) == (num_samples // batch_size)  # num batches
             count = 0
             original_transcripts = []
             for batch in dataset:
@@ -288,6 +294,10 @@ class TestASRDatasets:
                 count += len(transcripts)
             assert count == num_samples
 
+            # Assert transcripts are correct
+            for text, og_transcript in zip(texts, original_transcripts):
+                assert text == og_transcript
+
             # Repeat, now with shuffle enabled
             f.seek(0)
 
@@ -300,7 +310,7 @@ class TestASRDatasets:
                 shuffle=True,
             )
 
-            assert len(dataset) == num_samples / batch_size # num batches
+            assert len(dataset) == (num_samples // batch_size)  # num batches
             count = 0
             shuffled_transcripts = []
             for batch in dataset:
@@ -312,10 +322,10 @@ class TestASRDatasets:
                 ]
                 shuffled_transcripts.extend(transcripts)
                 count += len(transcripts)
-            assert count == num_samples 
+            assert count == num_samples
 
-            sample_matches = 0
+            samples_changed = 0
             for orig, shuffled in zip(original_transcripts, shuffled_transcripts):
-                if orig == shuffled:
-                    sample_matches += 1
-            assert sample_matches < 8  # assume after shuffling <half samples have displaced targets
+                if orig != shuffled:
+                    samples_changed += 1
+            assert samples_changed > 1  # assume after shuffling at least 1 sample was displaced

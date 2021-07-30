@@ -40,6 +40,10 @@ __all__ = [
     'AudioToBPEDALIDataset',
 ]
 
+"""
+Below minimum version is required to access the "read_idxs" argument in 
+dali.fn.readers.nemo_asr
+"""
 __DALI_MINIMUM_VERSION__ = "1.4"
 
 DALI_INSTALLATION_MESSAGE = (
@@ -317,7 +321,7 @@ class _AudioTextDALIDataset(Iterator):
                 random_shuffle=shuffle,
                 shard_id=self.shard_id,
                 num_shards=self.num_shards,
-                pad_last_batch=False,
+                pad_last_batch=True,
             )
 
             # Extract nonsilent region, if necessary
@@ -502,6 +506,7 @@ class AudioToCharDALIDataset(_AudioTextDALIDataset):
         drop_last (bool): If set to True, the last batch will be dropped if incomplete. This will be the case when the shard size is not divisible by the batch size.
                           If set to False and the size of dataset is not divisible by the batch size, then the last batch will be smaller.
         parser (str, callable): A str for an inbuilt parser, or a callable with signature f(str) -> List[int].
+        device_id (int): Index of the GPU to be used (local_rank). Only applicable when device == 'gpu'. Defaults to 0.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 1.
         preprocessor_cfg (DictConfig): Preprocessor configuration. Supports AudioToMelSpectrogramPreprocessor and AudioToMFCCPreprocessor.
@@ -579,9 +584,9 @@ class AudioToBPEDALIDataset(_AudioTextDALIDataset):
         num_threads (int): Number of CPU processing threads to be created by the DALI pipeline.
         max_duration (float): Determines the maximum allowed duration, in seconds, of the loaded audio files.
         min_duration (float): Determines the minimum allowed duration, in seconds, of the loaded audio files.
-        bos_id (int): Id of beginning of sequence symbol to append if not None
-        eos_id (int): Id of end of sequence symbol to append if not None
-        pad_id (int): Id used to pad the input. Defaults to 0 if not provided.
+        bos_id (int): Id of beginning of sequence symbol to append if not None. Injected from the tokenizer.
+        eos_id (int): Id of end of sequence symbol to append if not None. Injected from the tokenizer.
+        pad_id (int): Id used to pad the input. Defaults to 0 if not provided. Injected from the tokenizer.
         trim (bool): If True, it will extract the nonsilent region of the loaded audio signal.
         shuffle (bool): If set to True, the dataset will shuffled after loading.
         drop_last (bool): If set to True, the last batch will be dropped if incomplete. This will be the case when the shard size is not divisible by the batch size.
