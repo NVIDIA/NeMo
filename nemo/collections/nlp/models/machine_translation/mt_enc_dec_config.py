@@ -140,12 +140,9 @@ class AAYNBaseConfig(MTEncDecModelConfig):
 
 @dataclass
 class MTBottleneckModelConfig(AAYNBaseConfig):
-    model_type: str = 'seq2seq-br'
+    model_type: str = 'recon'
     min_logv: float = -6
-    ortho_loss_coef: float = 0.0
-    att_bridge_size: int = 512
-    att_bridge_k: int = 16
-    att_bridge_inner_size: int = 1024
+    latent_size: int = -1 # -1 will take value of encoder hidden
     non_recon_warmup_batches: int = 200000
     recon_per_token: bool = True
 
@@ -160,8 +157,10 @@ class MTBottleneckModelConfig(AAYNBaseConfig):
         ffn_dropout=0.1,
         attn_score_dropout=0.1,
         attn_layer_dropout=0.1,
-        arch='',
-        hidden_steps=-1,
+        arch='full',
+        hidden_steps=16,
+        hidden_blocks=1,
+        hidden_init_method='params',
     )
 
     decoder: NeMoTransformerConfig = NeMoTransformerBottleneckDecoderConfig(
@@ -174,6 +173,5 @@ class MTBottleneckModelConfig(AAYNBaseConfig):
         ffn_dropout=0.1,
         attn_score_dropout=0.1,
         attn_layer_dropout=0.1,
-        arch='',
-        hidden_steps=-1,
+        arch='full',
     )

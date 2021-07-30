@@ -31,15 +31,6 @@ from nemo.collections.nlp.modules.common.transformer.transformer import NeMoTran
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 
-# FIXME: REMOVE ME
-# arch="preceiver"
-# block=3
-# init_hidden_method="params"/"bridge"
-
-
-# arch="preceiver(3, params)"
-# arch="bridge(4096)"
-
 
 @dataclass
 class NeMoTransformerBottleneckConfig(NeMoTransformerConfig):
@@ -81,10 +72,10 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
         mask_future: bool = False,
         pre_ln: bool = False,
         pre_ln_final_layer_norm: bool = True,
-        arch='',
-        hidden_steps=-1,
-        hidden_blocks=1,
-        hidden_init_method="params",
+        arch: str = '',
+        hidden_steps: int = -1,
+        hidden_blocks: int = 1,
+        hidden_init_method: str = "params",
         # default whether forward() method returns hidden or (hidden, mask)
         return_mask=True,
     ):
@@ -140,7 +131,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
             ))
 
         # default non-bottleneck transformer encoder
-        if (not arch) or (arch == "seq2seq"):
+        if (not arch) or (arch == "full"):
             encoder = self.encoder
         elif (arch == "perceiver"):
             PerceiverEncoder(
@@ -164,7 +155,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
 
     @property
     def supported_arch(self):
-        return [None, "", "seq2seq", "bridge", "perceiver"]
+        return [None, "", "full", "bridge", "perceiver"]
 
     @property
     def arch(self):
@@ -177,7 +168,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
 
         embeddings = self._embedding(input_ids=input_ids)
 
-        if (not arch) or (arch == "seq2seq"):
+        if (not arch) or (arch == "full"):
             encoder_hidden_states = self._encoder(encoder_states=embeddings, encoder_mask=encoder_mask)
             encoder_hidden_mask = encoder_mask
         else:
@@ -211,7 +202,6 @@ class TransformerBottleneckDecoderNM(TransformerDecoderNM):
         pre_ln: bool = False,
         pre_ln_final_layer_norm: bool = True,
         arch='',
-        hidden_steps=-1,
     ):
         super().__init__(
             vocab_size=vocab_size,
@@ -260,14 +250,14 @@ class TransformerBottleneckDecoderNM(TransformerDecoderNM):
             ))
 
         # usual non-bottleneck transformer decoder
-        if (not arch) or (arch == "seq2seq"):
+        if (not arch) or (arch == "full"):
             decoder = self.decoder
 
         return decoder
 
     @property
     def supported_arch(self):
-        return [None, "", "seq2seq"]
+        return [None, "", "full"]
 
     @property
     def arch(self):

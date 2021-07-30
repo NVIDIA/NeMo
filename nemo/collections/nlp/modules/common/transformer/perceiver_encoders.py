@@ -91,7 +91,7 @@ class PerceiverEncoder(TransformerDecoder):
                 bridge_size=inner_size,
             )
         else:
-            raise ValueError("Unknown hidden_init_method = {hidden_init_method}. Supported methods: params, att_bridge")
+            raise ValueError("Unknown hidden_init_method = {hidden_init_method}. Supported methods: params, bridge")
 
         # encoder does not have to be not auto-regressive
         self.diagonal = 0 if mask_future else None
@@ -127,7 +127,7 @@ class PerceiverEncoder(TransformerDecoder):
         if self._hidden_init_method == "params":
             # initialize latent with learned parameters
             hidden_states = self.init_hiddden
-        elif self._hidden_init_method == "att_bridge":
+        elif self._hidden_init_method == "bridge":
             # initialize latent with attention bridge
             hidden_states = self.att_bridge(
                 hidden=encoder_states,
@@ -136,7 +136,7 @@ class PerceiverEncoder(TransformerDecoder):
 
         # apply block (cross-attention, self-attention) multiple times
         for block in range(self._hidden_blocks):
-            # cross attention of hidden over input
+            # cross attention of hidden over encoder states
             hidden_states = super().forward(
                 decoder_states=hidden_states,
                 decoder_mask=hidden_mask,
