@@ -76,6 +76,11 @@ class NormalizerWithAudio(Normalizer):
     def __init__(self, input_case: str, lang: str = 'en', use_cache: bool = True):
         super().__init__(input_case=input_case, lang=lang, deterministric=False)
 
+        from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_with_audio import ClassifyFst
+        from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final_with_audio import VerbalizeFinalFst
+        self.tagger = ClassifyFst(input_case=input_case, deterministic=False)
+        self.verbalizer = VerbalizeFinalFst(deterministic=False)
+
     def normalize(
         self,
         text: str,
@@ -114,9 +119,10 @@ class NormalizerWithAudio(Normalizer):
         else:
             tagged_texts = rewrite.top_rewrites(text, self.tagger.fst, nshortest=n_tagged)
         [print(x) for x in tagged_texts]
-        normalized_texts = []
-        for tagged_text in tagged_texts:
-            self._verbalize(tagged_text, normalized_texts)
+        # normalized_texts = []
+        # for tagged_text in tagged_texts:
+        #     self._verbalize(tagged_text, normalized_texts)
+        normalized_texts = tagged_texts
         if len(normalized_texts) == 0:
             raise ValueError()
         if punct_post_process:

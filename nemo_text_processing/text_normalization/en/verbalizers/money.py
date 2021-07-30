@@ -72,13 +72,13 @@ class MoneyFst(GraphFst):
         #     minor_currencies_plural = _get_minor_currencies("data/currency/currency_minor.tsv")
         #     minor_currencies_plural = insert_space + pynini.union(*minor_currencies_plural)
         #
-        #     fractional_default = (
-        #         pynutil.delete("fractional_part:")
-        #         + delete_space
-        #         + pynutil.delete("\"")
-        #         + ((pynini.closure(NEMO_NOT_QUOTE, 1) + minor_currencies_plural) | minor_currencies_singular)
-        #         + pynutil.delete("\"")
-        #     )
+            # fractional_default = (
+            #     pynutil.delete("fractional_part:")
+            #     + delete_space
+            #     + pynutil.delete("\"")
+            #     + ((pynini.closure(NEMO_NOT_QUOTE, 1) + minor_currencies_plural) | minor_currencies_singular)
+            #     + pynutil.delete("\"")
+            # )
         #
         #     # $2.00 {two zero zero dollars} -> two dollars
         #     fractional_with_zeros = (
@@ -105,5 +105,14 @@ class MoneyFst(GraphFst):
         #         + fractional
         #     )
 
+        fractional = pynutil.delete("fractional_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        preserve_order = pynutil.delete("preserve_order: True")
+        if not deterministic:
+            graph = decimal.integer + delete_space + insert_space + unit + delete_space + insert_space + pynini.closure(pynutil.insert("and "), 0, 1) + fractional + delete_space + preserve_order
+
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
+
+        # from pynini.lib.rewrite import top_rewrites
+        # import pdb; pdb.set_trace()
+        # print()

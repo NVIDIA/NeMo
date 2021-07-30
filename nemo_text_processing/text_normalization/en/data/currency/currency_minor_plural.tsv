@@ -1,3 +1,9 @@
-dollars	cents
-euro	cents
+dollars	centsDOLLAR
+dollar	centsDOLLAR
+us dollar	centsDOLLAR
+united states dollar	centsDOLLAR
+euro	centsEURO
 pounds	pence
+$	centsDOLLAR
+€	centsEURO
+£	pence

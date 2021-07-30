@@ -151,11 +151,11 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(pynini.compose(telephone_graph, v_telephone_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(electonic_graph, v_electronic_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(fraction_graph, v_fraction_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(money_graph, v_money_graph), 1.1)
             )
 
             classify = (
                 pynutil.add_weight(date_graph, 1.09)
-                | pynutil.add_weight(money_graph, 1.1)
                 | pynutil.add_weight(word_graph, 100)
             )
 
