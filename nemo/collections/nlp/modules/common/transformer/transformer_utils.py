@@ -92,7 +92,6 @@ def get_nemo_transformer(
             model = TransformerBottleneckEncoderNM(
                 vocab_size=cfg.get('vocab_size'),
                 hidden_size=cfg.get('hidden_size'),
-                hidden_steps=cfg.get('hidden_steps'),
                 num_layers=cfg.get('num_layers'),
                 inner_size=cfg.get('inner_size'),
                 max_sequence_length=cfg.get('max_sequence_length', 512),
