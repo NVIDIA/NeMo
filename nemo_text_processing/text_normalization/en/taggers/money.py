@@ -168,7 +168,7 @@ class MoneyFst(GraphFst):
 
         graph = None
         for cur_maj in ["dollars", "euro", "pound"]:
-            graph_with_min = NEMO_SIGMA + pynini.cross("fractional_part", "currency: \"" + cur_maj + "\" fractional_part") + NEMO_SIGMA
+            graph_with_min = NEMO_SIGMA + pynini.cross("fractional_part", "currency: \"" + cur_maj + "\" fractional_part") + NEMO_SIGMA + pynutil.insert("currency: \"" + cur_maj + "\"")
             if graph is None:
                 graph = graph_with_min
             else:
@@ -192,9 +192,9 @@ class MoneyFst(GraphFst):
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
 
-        # from pynini.lib.rewrite import top_rewrites
-        # import pdb
-        #
-        # pdb.set_trace()
-        # print(top_rewrites("$5.3", final_graph, 5))
-        # # print()
+        from pynini.lib.rewrite import top_rewrites
+        import pdb
+
+        pdb.set_trace()
+        print(top_rewrites("$5.3", final_graph, 5))
+        print()
