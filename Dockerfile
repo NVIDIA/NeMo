@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:21.05-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:21.06-py3
 
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
@@ -87,9 +87,9 @@ RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[all]" 
     python -c "import nemo.collections.tts as nemo_tts" && \
     python -c "import nemo_text_processing.text_normalization as text_normalization"
 
-# TODO: Remove once 21.04 container is base container
-# install latest numba version
-RUN conda update -c numba numba -y
+# TODO: Try to remove once 21.07 container is the base container
+# install pinned numba version
+RUN conda install -c numba numba=0.53.1
 
 # copy scripts/examples/tests into container for end user
 WORKDIR /workspace/nemo

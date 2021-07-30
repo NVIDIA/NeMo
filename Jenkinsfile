@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-      image 'nvcr.io/nvidia/pytorch:21.05-py3'
+      image 'nvcr.io/nvidia/pytorch:21.06-py3'
       args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
   }
@@ -17,12 +17,6 @@ pipeline {
       }
     }
 
-    // stage('Uninstall torchtext') {
-    //   steps {
-    //     sh 'pip uninstall -y torchtext'
-    //   }
-    // }
-
     stage('Install test requirements') {
       steps {
         sh 'apt-get update && apt-get install -y bc && pip install -r requirements/requirements_test.txt'
@@ -31,7 +25,7 @@ pipeline {
 
     stage('Copyright Headers check') {
       steps {
-        sh 'python /home/TestData/check_copyright_header.py --dir .'
+        sh 'python tests/check_copyright_header.py --dir .'
       }
     }
 
@@ -73,8 +67,8 @@ pipeline {
     stage('L0: Unit Tests CPU') {
       when {
         anyOf {
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       steps {
@@ -85,8 +79,8 @@ pipeline {
     stage('L0: Computer Vision Integration') {
       when {
         anyOf {
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
@@ -113,8 +107,8 @@ pipeline {
     // stage('L0: Integration Tests CPU') {
     //   when {
     //     anyOf{
-    //       branch 'r1.1.0'
-    //       changeRequest target: 'r1.1.0'
+    //       branch 'r1.2.0'
+    //       changeRequest target: 'r1.2.0'
     //     }
     //   }
     //   steps {
@@ -133,7 +127,7 @@ pipeline {
     //   when {
     //     anyOf{
     //       branch 'dev
-    //       changeRequest target: 'r1.1.0'
+    //       changeRequest target: 'r1.2.0'
     //     }
     //   }
     //   steps {
@@ -144,16 +138,16 @@ pipeline {
     stage('L2: NeMo text processing') {
       when {
         anyOf {
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
       parallel {
         stage('L2: TN') {
           steps {
-            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_norm/output/ --grammars=tn_grammars && ls -R /home/TestData/nlp/text_norm/output/ && echo ".far files created "|| exit 1'
-            sh 'cd nemo_text_processing/text_normalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_norm/ci/test.txt --input_case="lower_cased" --output=/home/TestData/nlp/text_norm/output/test.pynini.txt --verbose'
+            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_norm/output/ --grammars=tn_grammars --language=en && ls -R /home/TestData/nlp/text_norm/output/ && echo ".far files created "|| exit 1'
+            sh 'cd nemo_text_processing/text_normalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_norm/ci/test.txt --input_case="lower_cased" --language=en --output=/home/TestData/nlp/text_norm/output/test.pynini.txt --verbose'
             sh 'cmp --silent /home/TestData/nlp/text_norm/output/test.pynini.txt /home/TestData/nlp/text_norm/ci/test_goal_py.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_norm/output/*'
           }
@@ -161,8 +155,8 @@ pipeline {
 
         stage('L2: ITN export') {
           steps {
-            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_denorm/output/ --grammars=itn_grammars && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
-            sh 'cd nemo_text_processing/inverse_text_normalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_denorm/ci/test.txt --output=/home/TestData/nlp/text_denorm/output/test.pynini.txt --verbose'
+            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_denorm/output/ --grammars=itn_grammars --language=en && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
+            sh 'cd nemo_text_processing/inverse_text_normalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_denorm/ci/test.txt --language=en --output=/home/TestData/nlp/text_denorm/output/test.pynini.txt --verbose'
             sh 'cmp --silent /home/TestData/nlp/text_denorm/output/test.pynini.txt /home/TestData/nlp/text_denorm/ci/test_goal_py.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_denorm/output/*'
           }
@@ -170,7 +164,7 @@ pipeline {
         stage('L2: TN with Audio (audio and raw text)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --text "The total amounts to \\$4.76." \
+            python normalize_with_audio.py --language=en --text "The total amounts to \\$4.76." \
             --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt 2>&1 && \
             cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt'
@@ -179,7 +173,7 @@ pipeline {
         stage('L2: TN with Audio (audio and text file)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --text /home/TestData/nlp/text_norm/audio_based/text.txt \
+            python normalize_with_audio.py --language=en --text /home/TestData/nlp/text_norm/audio_based/text.txt \
             --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_file.txt 2>&1 && \
             cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_file.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_file.txt'
@@ -188,7 +182,7 @@ pipeline {
         stage('L2: TN with Audio (manifest)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 && \
+            python normalize_with_audio.py --language=en --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 && \
             cmp --silent /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json /home/TestData/nlp/text_norm/audio_based/manifest_result.json || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json'
           }
@@ -199,8 +193,8 @@ pipeline {
     stage('L2: ASR dev run') {
       when {
         anyOf {
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
@@ -302,8 +296,8 @@ pipeline {
     stage('L2: ASR DALI dev run') {
       when {
         anyOf {
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
@@ -351,8 +345,8 @@ pipeline {
     stage('L2: ASR RNNT dev run') {
       when {
         anyOf {
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
@@ -393,8 +387,8 @@ pipeline {
     stage('L2: ASR Multi-dataloader dev run') {
       when {
         anyOf {
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
@@ -439,8 +433,8 @@ pipeline {
     stage('L2: Speech Transcription') {
       when {
         anyOf {
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
@@ -462,8 +456,8 @@ pipeline {
     stage('L2: Segmentation Tool') {
       when {
             anyOf {
-              branch 'r1.1.0'
-              changeRequest target: 'r1.1.0'
+              branch 'r1.2.0'
+              changeRequest target: 'r1.2.0'
             }
       }
       stages {
@@ -525,8 +519,8 @@ pipeline {
     stage('L2: Multi-GPU Megatron finetuning') {
       when {
         anyOf {
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
@@ -550,8 +544,8 @@ pipeline {
     stage('L2: SGD-QA') {
       when {
         anyOf {
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
@@ -596,8 +590,8 @@ pipeline {
     stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {
       when {
         anyOf {
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
@@ -655,8 +649,8 @@ pipeline {
     stage('L2: MegaBERT Token Classification') {
       when {
         anyOf {
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
@@ -679,8 +673,8 @@ pipeline {
     stage('L2: Parallel SQUAD v1.1 & v2.0') {
       when {
         anyOf {
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
@@ -767,8 +761,8 @@ pipeline {
     stage('L2: Model Parallel Size 2 Megatron Text Classification') {
       when {
         anyOf{
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
@@ -796,8 +790,8 @@ pipeline {
     stage('L2: Model Parallel Size 2 Megatron Autoresume') {
       when {
         anyOf{
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
@@ -827,8 +821,8 @@ pipeline {
     stage('L2: Model Parallel Size 2 Megatron Evaluation from .nemo') {
       when {
         anyOf{
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
@@ -847,8 +841,8 @@ pipeline {
     stage('L2: Model Parallel Size 2 Megatron Train from .nemo') {
       when {
         anyOf{
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
@@ -869,8 +863,8 @@ pipeline {
     stage('L2: Parallel NLP Examples 2') {
       when {
         anyOf {
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
@@ -951,8 +945,8 @@ pipeline {
     stage('L2: Parallel Pretraining BERT pretraining from Text/Preprocessed') {
       when {
         anyOf {
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
@@ -1007,64 +1001,14 @@ pipeline {
               sh 'ls -lha examples/nlp/language_modeling'
             }
         }
-        stage('L2: Pretraining BERT pretraining from Text with char tokenizer') {
-            steps {
-              sh 'cd examples/nlp/language_modeling && \
-              python bert_pretraining.py \
-              --config-name=bert_pretraining_from_text_config.yaml \
-              trainer.gpus=[0] \
-              trainer.precision=16 \
-              trainer.amp_level=O1 \
-              +trainer.fast_dev_run=true \
-              model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
-              model.train_ds.batch_size=32 \
-              model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
-              model.validation_ds.batch_size=32 \
-              model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
-              model.optim.lr=0.01 \
-              model.optim.sched.warmup_ratio=0.1 \
-              model.tokenizer.tokenizer_name=char \
-              model.tokenizer.vocab_file=/home/TestData/nlp/vocabs/mini_vocab.txt \
-              model.mask_prob=0.15 \
-              model.short_seq_prob=0.1 \
-              exp_manager.exp_dir=PretrainingBERTFromTextchartok \
-              '
-              sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTFromTextchartok'
-            }
-        }
-        stage('L2: Pretraining BERT pretraining from Text with word tokenizer') {
-            steps {
-              sh 'cd examples/nlp/language_modeling && \
-              python bert_pretraining.py \
-              --config-name=bert_pretraining_from_text_config.yaml \
-              trainer.gpus=[1] \
-              trainer.precision=16 \
-              trainer.amp_level=O1 \
-              +trainer.fast_dev_run=true \
-              model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
-              model.train_ds.batch_size=32 \
-              model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
-              model.validation_ds.batch_size=32 \
-              model.language_model.config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
-              model.optim.lr=0.01 \
-              model.optim.sched.warmup_ratio=0.1 \
-              model.tokenizer.tokenizer_name=word \
-              model.tokenizer.vocab_file=/home/TestData/nlp/vocabs/mini_vocab.txt \
-              model.mask_prob=0.15 \
-              model.short_seq_prob=0.1 \
-              exp_manager.exp_dir=PretrainingBERTFromTextwordtok \
-              '
-              sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTFromTextwordtok'
-            }
-        }
       }
     }
 
     stage('L2: Entity Linking') {
       when {
         anyOf {
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
@@ -1089,8 +1033,8 @@ pipeline {
     stage('L2: NMT Attention is All You Need Training') {
       when {
         anyOf {
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
@@ -1204,8 +1148,8 @@ pipeline {
     stage('L2: NMT with HuggingFace') {
       when {
         anyOf {
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
@@ -1268,8 +1212,8 @@ pipeline {
     stage('L2: NMT Megatron Model Parallel Size 2 Encoder') {
       when {
         anyOf{
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
@@ -1301,8 +1245,8 @@ pipeline {
     stage('L2: NMT Tarred Dataset Creation') {
       when {
         anyOf {
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
@@ -1355,8 +1299,8 @@ pipeline {
     stage('L2: TTS Fast dev runs 1') {
       when {
         anyOf {
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       parallel {
@@ -1410,8 +1354,8 @@ pipeline {
     stage('L2: TTS Fast dev runs 2') {
       when {
         anyOf {
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
 
@@ -1464,8 +1408,8 @@ pipeline {
     stage('L??: Speech Checkpoints tests') {
       when {
         anyOf {
-          branch 'r1.1.0'
-          changeRequest target: 'r1.1.0'
+          branch 'r1.2.0'
+          changeRequest target: 'r1.2.0'
         }
       }
       failFast true
