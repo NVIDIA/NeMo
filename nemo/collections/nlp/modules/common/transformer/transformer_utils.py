@@ -22,7 +22,7 @@ from nemo.collections.nlp.modules.common.huggingface.huggingface_decoder import 
 from nemo.collections.nlp.modules.common.huggingface.huggingface_encoder import HuggingFaceEncoderModule
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder import MegatronEncoderModule
 from nemo.collections.nlp.modules.common.transformer.transformer import TransformerDecoderNM, TransformerEncoderNM
-from nemo.collections.nlp.modules.common.transformer.perceiver import PerceiverEncoderNM
+from nemo.collections.nlp.modules.common.transformer.transformer_bottleneck import TransformerBottleneckEncoderNM
 
 
 def get_nemo_transformer(
