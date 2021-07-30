@@ -79,13 +79,13 @@ if __name__ == "__main__":
 
         if args.min_duration_off_range:
             start, stop, step = [float(i) for i in args.min_duration_off_range.split(",")]
-            min_duration_off_range = np.arange(start, stop, step)
-            params['min_duration_off_range'] = min_duration_off_range
+            min_duration_off = np.arange(start, stop, step)
+            params['min_duration_off'] = min_duration_off
 
     except:
         raise ValueError("Theshold input is invalid! Please enter it as a 'START,STOP,STEP' ")
 
-    best_threhsold, min_score = vad_tune_threshold_on_dev(
+    best_threhsold, optimal_scores = vad_tune_threshold_on_dev(
         params, args.vad_pred, args.groundtruth_RTTM, args.vad_pred_method, args.focus_metric
     )
-    logging.info(f"Best combination of thresholds for binarization selected from input ranges is {best_threhsold}, and the optimal score is {min_score}")
+    logging.info(f"Best combination of thresholds for binarization selected from input ranges is {best_threhsold}, and the optimal score is {optimal_scores}")

@@ -16,7 +16,7 @@ import json
 import os
 from itertools import repeat
 from multiprocessing import Pool
-
+import shutil
 import librosa
 import matplotlib.pyplot as plt
 import numpy as np
@@ -328,7 +328,6 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
     """
     See discription in generate_overlap_vad_seq.
     """
-    # threshold = per_args['threshold']
     shift_len = per_args['shift_len']
     out_dir = per_args['out_dir']
 
@@ -336,13 +335,12 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
     sequence = np.loadtxt(pred_filepath)
 
     active_segments = binarization(sequence, per_args)
+    active_segments = filtering(active_segments, per_args)
+
     seg_speech_table = pd.DataFrame(active_segments, columns =['start', 'end'])
     seg_speech_table = seg_speech_table.sort_values('start', ascending=True)
     seg_speech_table['dur'] = seg_speech_table['end'] - seg_speech_table['start'] + shift_len
     seg_speech_table['vad'] = 'speech'
-
-    # seg_table = pd.DataFrame({'start': start_list, 'dur': dur_list, 'vad': state_list})
-    # seg_speech_table = seg_table[seg_table['vad'] == 'speech']
 
     save_name = name + ".txt"
     save_path = os.path.join(out_dir, save_name)
@@ -359,17 +357,14 @@ def binarization(sequence, per_args):
 
     • an onset and offset thresholds for the detection of the beginning and end of a speech segment;
     • padding durations before and after each speech segment;
-    • a threshold for short speech segment deletion;
-    • and a threshold for small silence deletion.
+    
     """
     shift_len = per_args.get('shift_len', 0.01)
 
-    onset = per_args.get('onset', 0.5)
+    onset = per_args.get('onset', 0.5) # 
     offset = per_args.get('offset', 0.5)
     pad_onset = per_args.get('pad_onset', 0.0)
     pad_offset = per_args.get('pad_offset', 0.0)
-    min_duration_on = per_args.get('min_duration_on', 0.2) 
-    min_duration_off = per_args.get('min_duration_off', 0.3) 
 
     onset, offset = cal_vad_onset_offset(per_args.get('scale', 'absolute'), onset, offset)
 
@@ -397,6 +392,17 @@ def binarization(sequence, per_args):
 
     # Merge the overlapped active segments due to padding
     active_segments = merge_overlap_segment(active_segments) 
+    
+    return active_segments
+
+def filtering(active_segments, per_args):
+    """
+    • a threshold for short speech segment deletion;
+    • and a threshold for small silence deletion.
+    """
+    min_duration_on = per_args.get('min_duration_on', 0.2) 
+    min_duration_off = per_args.get('min_duration_off', 0.3) 
+
     # Filter out the shorter active segments
     if min_duration_on > 0.0:
         active_segments = filter_short_segments(active_segments, min_duration_on)
@@ -514,49 +520,51 @@ def vad_tune_threshold_on_dev(params, vad_pred, groundtruth_RTTM, vad_pred_metho
         paired_filenames, groundtruth_RTTM_dict, vad_pred_dict = pred_rttm_map(
             vad_pred, groundtruth_RTTM, vad_pred_method
         )
+        table_out_dir = "ami_table_output_tmp"
+        if not os.path.exists(table_out_dir):
+            os.makedirs(table_out_dir)
+                
         for filename in paired_filenames:
             vad_pred_filepath = vad_pred_dict[filename]
             groundtruth_RTTM_file = groundtruth_RTTM_dict[filename]
 
-            if os.path.isdir(vad_pred):
-                table_out_dir = os.path.join(vad_pred, "table_output_" + str(param))
-            else:
-                table_out_dir = os.path.join("tmp_table_outputs", "table_output_" + str(param))
+            # todo
+            # if os.path.isdir(vad_pred):
+            #     table_out_dir = os.path.join(vad_pred, "table_output_" + str(param))
+            # else:
+            #     table_out_dir = os.path.join("tmp_table_outputs", "table_output_" + str(param))
 
-            if not os.path.exists(table_out_dir):
-                os.makedirs(table_out_dir)
-
+        
             per_args = {"shift_len": 0.01, "out_dir": table_out_dir}
             per_args = {**per_args, **param}
             
             vad_table_filepath = generate_vad_segment_table_per_file(vad_pred_filepath, per_args)
-
+            
+        
             reference, hypothesis = vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_file)
             metric(reference, hypothesis)  # accumulation
+        
+        shutil.rmtree(table_out_dir, ignore_errors=True)
 
         report = metric.report(display=False)
         DetER = report.iloc[[-1]][('detection error rate', '%')].item()
         FA = report.iloc[[-1]][('false alarm', '%')].item()
         MISS = report.iloc[[-1]][('miss', '%')].item()
 
-        if focus_metric == "DetER":
-            score = DetER
-        elif focus_metric == "FA":
-            score = FA
-        elif focus_metric == "MISS":
-            score = MISS
-        else:
-            raise ValueError("Metric we care most should be only in 'DetER', 'FA'or 'MISS'!")
-
+        assert (focus_metric == "DetER" or focus_metric == "FA" or focus_metric == "MISS"  ), "Metric we care most should be only in 'DetER', 'FA'or 'MISS'!"
         all_perf[str(param)] = {'DetER (%)': DetER, 'FA (%)': FA, 'MISS (%)': MISS}
         logging.info(f"parameter {param}, {all_perf[str(param)] }")
+
+        score = all_perf[str(param)][focus_metric + ' (%)']
+
         del report
         metric.reset()  # reset internal accumulator
         if score < min_score:
-            min_score = score
             best_threhsold = param
+            optimal_scores= all_perf[str(param)]
+            min_score = score
 
-    return best_threhsold, min_score
+    return best_threhsold, optimal_scores
 
 
 def pred_rttm_map(vad_pred, groundtruth_RTTM, vad_pred_method="frame"):

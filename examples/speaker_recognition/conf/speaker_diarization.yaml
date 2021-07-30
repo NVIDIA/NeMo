@@ -19,7 +19,7 @@ diarizer:
     smoothing_params:
       method: "median" 
       overlap: 0.875
-    postprocressing_params:
+    postprocessing_params:
       onset: 0.5 # tune threshold on dev set. Check <NeMo_git_root>/scripts/voice_activity_detection/vad_tune_threshold.py
       offset: 0.8
     
