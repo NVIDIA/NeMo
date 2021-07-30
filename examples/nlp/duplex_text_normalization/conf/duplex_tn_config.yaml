@@ -107,6 +107,7 @@ decoder_exp_manager:
 # Data
 data:
   base_dir: ??? # /path/to/data
+  use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up (especially when using multi GPUs)
 
   train_ds:
     lang: ${lang}
@@ -119,6 +120,7 @@ data:
     # Refer to the text_normalization doc for more information about data augmentation
     tagger_data_augmentation: true
     decoder_data_augmentation: true
+    use_cache: ${data.use_cache}
 
   validation_ds:
     lang: ${lang}
@@ -128,13 +130,16 @@ data:
     do_basic_tokenize: false
     max_decoder_len: 80
     mode: ${mode}
+    use_cache: ${data.use_cache}
 
   test_ds:
     lang: ${lang}
     data_path: ${data.base_dir}/test.tsv
     batch_size: 64
     shuffle: false
+    do_basic_tokenize: false
     mode: ${mode}
+    use_cache: ${data.use_cache}
 
 # Inference
 inference:
