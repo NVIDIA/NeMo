@@ -134,7 +134,7 @@ model:
     mask_future: false
     pre_ln: false
     pre_ln_final_layer_norm: true
-    arch: null # null/full, bridge, perceiver (see description above)
+    arch: full # ''/full, bridge, perceiver (see description above)
     hidden_steps: 16
     hidden_blocks: 1
     hidden_init_method: params # perceiver: params, bridge
@@ -157,7 +157,7 @@ model:
     hidden_act: relu
     pre_ln: false
     pre_ln_final_layer_norm: true
-    arch: null
+    arch: ''
 
   head:
     num_layers: 1
