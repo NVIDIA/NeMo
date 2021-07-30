@@ -78,9 +78,9 @@ class TransformerEncoderBlock(nn.Module, DistillationMixin):
         output_states = self.second_sub_layer(self_attn_output)
         output_states += residual
 
-        # if self.is_being_distilled() and self.distill_cfg.get('distill_encoder', False):
-        #     # do out.cpu() if needed
-        #     self.register_distillation_tensor(tensor=output_states, loss_name='cosine')
+        if self.is_being_distilled() and self.distill_cfg.get('distill_encoder', False):
+            # do out.cpu() if needed
+            self.register_distillation_tensor(tensor=output_states, loss_name='cosine')
 
         return output_states
 
@@ -97,9 +97,9 @@ class TransformerEncoderBlock(nn.Module, DistillationMixin):
         output_states += self_attn_output
         output_states = self.layer_norm_2(output_states)
 
-        # if self.is_being_distilled() and self.distill_cfg.get('distill_encoder', False):
-        #     # do out.cpu() if needed
-        #     self.register_distillation_tensor(tensor=output_states, loss_name='cosine')
+        if self.is_being_distilled() and self.distill_cfg.get('distill_encoder', False):
+            # do out.cpu() if needed
+            self.register_distillation_tensor(tensor=output_states, loss_name='cosine')
 
         return output_states
 

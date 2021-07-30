@@ -87,9 +87,9 @@ class TransformerDecoderBlock(nn.Module, DistillationMixin):
         output_states = self.third_sub_layer(enc_dec_attn_output)
         output_states += residual
 
-        # if self.is_being_distilled():
-        #     # do out.cpu() if needed
-        #     self.register_distillation_tensor(tensor=output_states, loss_name='cosine')
+        if self.is_being_distilled():
+            # do out.cpu() if needed
+            self.register_distillation_tensor(tensor=output_states, loss_name='cosine')
 
         return output_states
 
@@ -109,9 +109,9 @@ class TransformerDecoderBlock(nn.Module, DistillationMixin):
         output_states = self.third_sub_layer(enc_dec_attn_output)
         output_states += enc_dec_attn_output
 
-        # if self.is_being_distilled():
-        #     # do out.cpu() if needed
-        #     self.register_distillation_tensor(tensor=output_states, loss_name='cosine')
+        if self.is_being_distilled():
+            # do out.cpu() if needed
+            self.register_distillation_tensor(tensor=output_states, loss_name='cosine')
 
         return self.layer_norm_3(output_states)
 
