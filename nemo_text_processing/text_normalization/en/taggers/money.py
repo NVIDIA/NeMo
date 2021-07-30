@@ -15,6 +15,7 @@
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_SIGMA,
+    PLURAL_TO_SINGULAR,
     SINGULAR_TO_PLURAL,
     GraphFst,
     convert_space,
@@ -82,5 +83,34 @@ class MoneyFst(GraphFst):
         graph_integer |= singular_graph
 
         final_graph = graph_integer | graph_decimal
+
+        if not deterministic:
+            # currency = pynini.project(graph_unit_plural, "input")
+            minor_singular = pynini.string_file(get_abs_path("data/currency/currency_minor_singular.tsv"))
+            minor_plural = pynini.string_file(get_abs_path("data/currency/currency_minor_plural.tsv"))
+
+            currency = pynutil.delete("currency: \"") + NEMO_SIGMA + pynutil.delete("\"") + pynutil.delete(NEMO_SIGMA)
+            currency = pynini.compose(graph_decimal, currency)
+            currency_maj = pynini.compose(currency, PLURAL_TO_SINGULAR)
+            currency_min_sing = pynini.compose(currency_maj, minor_singular)
+            currency_min_plural = pynini.compose(currency_maj, minor_plural)
+
+            frac_one = NEMO_SIGMA + pynini.accep("fractional_part: \"one\"") + NEMO_SIGMA
+            frac_non_one = pynini.difference(NEMO_SIGMA, frac_one)
+            graph_decimal_with_minor_currency_plural = pynini.compose(graph_decimal, frac_non_one) + pynutil.insert(
+                " currency_minor: \"" + currency_min_plural + pynutil.insert("\"")
+            )
+            graph_decimal_with_minor_currency_singular = pynini.compose(graph_decimal, frac_one) + pynutil.insert(
+                " currency_minor: \"" + currency_min_sing + pynutil.insert("\"")
+            )
+            final_graph |= graph_decimal_with_minor_currency_singular
+            final_graph |= graph_decimal_with_minor_currency_plural
+
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
+
+        from pynini.lib.rewrite import top_rewrites
+        import pdb
+
+        pdb.set_trace()
+        print()

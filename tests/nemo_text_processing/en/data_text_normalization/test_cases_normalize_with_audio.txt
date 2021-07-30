@@ -1,15 +1,12 @@
 ~123
-one twenty three
 one two three
 one hundred twenty three
 one hundred and twenty three
 ~$123
-one twenty three dollars
 one two three dollars
 one hundred twenty three dollars
 one hundred and twenty three dollars
 ~$123.2
-one twenty three dollars and two cents
 one two three dollars two cents
 one hundred twenty three dollars and two cents
 one hundred and twenty three point two dollars
@@ -52,11 +49,9 @@ It seemed to her that the jacket Oswald wore was darker than Commission Exhibit 
 "Father, let this cup pass." He prayed was heard. What cup was it that passed away from him? Sure not the death-cup, now filled to the brim! There was no quailing in the awful word; He still was king of kings, of lords the lord: He feared lest, in the suffering waste and grim, His faith might grow too faint and sickly dim."
 ~1970-2010
 nineteen seventy to twenty ten
-one thousand nine seventy to two thousand ten
 one thousand nine hundred and seventy to two thousand ten
 one thousand nine hundred and seventy to twenty ten
 nineteen seventy twenty ten
-one thousand nine seventy two thousand ten
 one thousand nine hundred and seventy two thousand ten
 one thousand nine hundred and seventy twenty ten
 from nineteen seventy to twenty ten
@@ -64,7 +59,6 @@ from one thousand nine seventy to two thousand ten
 from one thousand nine hundred and seventy to two thousand ten
 from one thousand nine hundred and seventy to twenty ten
 from nineteen seventy twenty ten
-from one thousand nine seventy two thousand ten
 from one thousand nine hundred and seventy two thousand ten
 from one thousand nine hundred and seventy twenty ten
 ~W26s
