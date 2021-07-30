@@ -138,8 +138,11 @@ class ClassifyFst(GraphFst):
                 graph = delete_space + pynini.closure(graph + delete_extra_space) + graph + delete_space
                 return graph.optimize()
 
-            # from pynini.lib.rewrite import top_rewrites
+            from pynini.lib.rewrite import top_rewrites
             # import pdb; pdb.set_trace()
+
+            print(top_rewrites("$5", money_graph, 5))
+            print(top_rewrites("$2.3", money_graph, 5))
 
             classify_and_verbalize = (
                 pynutil.add_weight(pynini.compose(whitelist_graph, v_whitelist_graph), 1.01)

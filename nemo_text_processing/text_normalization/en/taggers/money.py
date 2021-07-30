@@ -22,10 +22,10 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     SINGULAR_TO_PLURAL,
     GraphFst,
     convert_space,
-    insert_space,
+    insert_space
 )
 from nemo_text_processing.text_normalization.en.taggers.date import get_hundreds_graph
-from nemo_text_processing.text_normalization.en.utils import get_abs_path
+from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
 
 try:
     import pynini
@@ -165,26 +165,53 @@ class MoneyFst(GraphFst):
 
         # "$5.2" -> "$5 cur_min: "cur_maj" .2"
 
+        if not deterministic:
+            currency_symbols = [x[0] for x in load_labels(get_abs_path("data/currency/currency.tsv"))]
+            integer_graph = None
+            decimal_graph = None
+            for curr_symbol in currency_symbols:
+                graph_end = pynutil.insert(" currency: \"" + curr_symbol + "\"")
+                preserve_order = pynutil.insert(" preserve_order: True")
+                integer_graph_curr = pynutil.delete(curr_symbol) + decimal.graph_integer + graph_end + preserve_order
+                decimal_graph_curr = integer_graph_curr + pynini.cross("."," ") + decimal.graph_fractional + graph_end
+                if integer_graph is None:
+                    integer_graph = integer_graph_curr
+                else:
+                    integer_graph |= integer_graph_curr
+                if decimal_graph is None:
+                    decimal_graph = decimal_graph_curr
+                else:
+                    decimal_graph |= decimal_graph_curr
 
-        graph = None
-        for cur_maj in ["dollars", "euro", "pound"]:
-            graph_with_min = NEMO_SIGMA + pynini.cross("fractional_part", "currency: \"" + cur_maj + "\" fractional_part") + NEMO_SIGMA + pynutil.insert("currency: \"" + cur_maj + "\"")
-            if graph is None:
-                graph = graph_with_min
-            else:
-                graph |= graph_with_min
+            final_graph = decimal_graph | integer_graph
 
-        graph = pynini.compose(graph_decimal, graph)
-
-
-        final_graph = None
-        for cur_maj in ["dollars", "euro", "pound"]:
-            # remove = pynini.compose(graph, pynini.cdrewrite(pynutil.delete(cur_maj) + NEMO_SIGMA + pynini.accep(cur_maj), NEMO_DIGIT, ".", NEMO_SIGMA))
-            remove = pynini.compose(graph, pynutil.delete("currency: \"" + cur_maj + pynutil.delete("\"")) + NEMO_SIGMA + pynini.accep(cur_maj) + NEMO_SIGMA + pynutil.insert(" preserve_order: True"))
-            if final_graph is None:
-                final_graph = remove
-            else:
-                final_graph |= remove
+            from pynini.lib.rewrite import top_rewrites
+        #         import pdb
+        #
+        #         pdb.set_trace()
+            print(top_rewrites("$5", integer_graph, 5))
+            print(top_rewrites("$5.3", decimal_graph, 5))
+        #         print()
+        #
+        # graph = None
+        # for cur_maj in ["dollars", "euro", "pound"]:
+        #     graph_with_min = NEMO_SIGMA + pynini.cross("fractional_part", "currency: \"" + cur_maj + "\" fractional_part") + NEMO_SIGMA + pynutil.insert(" currency: \"" + cur_maj + "\"")
+        #     if graph is None:
+        #         graph = graph_with_min
+        #     else:
+        #         graph |= graph_with_min
+        #
+        # graph = pynini.compose(graph_decimal, graph)
+        #
+        #
+        # final_graph = None
+        # for cur_maj in ["dollars", "euro", "pound"]:
+        #     # remove = pynini.compose(graph, pynini.cdrewrite(pynutil.delete(cur_maj) + NEMO_SIGMA + pynini.accep(cur_maj), NEMO_DIGIT, ".", NEMO_SIGMA))
+        #     remove = pynini.compose(graph, pynutil.delete("currency: \"" + cur_maj + pynutil.delete("\"")) + NEMO_SIGMA + pynini.accep(cur_maj) + NEMO_SIGMA + pynutil.insert(" preserve_order: True"))
+        #     if final_graph is None:
+        #         final_graph = remove
+        #     else:
+        #         final_graph |= remove
 
         # remove = pynini.compose(graph, pynutil.delete("currency: \"" + cur_maj + pynutil.delete("\"")) + NEMO_SIGMA + pynini.accep(cur_maj) + NEMO_SIGMA)
 
@@ -192,9 +219,4 @@ class MoneyFst(GraphFst):
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
 
-        from pynini.lib.rewrite import top_rewrites
-        import pdb
 
-        pdb.set_trace()
-        print(top_rewrites("$5.3", final_graph, 5))
-        print()

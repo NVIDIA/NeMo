@@ -19,6 +19,8 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     delete_space,
     get_abs_path,
     insert_space,
+    NEMO_SIGMA,
+    SINGULAR_TO_PLURAL
 )
 
 try:
@@ -107,12 +109,29 @@ class MoneyFst(GraphFst):
 
         fractional = pynutil.delete("fractional_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
         preserve_order = pynutil.delete("preserve_order: True")
+        unit_major_sing = pynini.string_file(get_abs_path("data/currency/currency.tsv"))
+        unit_major_plural = pynutil.delete("currency: \"") + pynini.compose(unit_major_sing, SINGULAR_TO_PLURAL) + pynutil.delete("\"")
+        unit_major_sing = pynutil.delete("currency: \"") + unit_major_sing + pynutil.delete("\"")
+        unit_minor_sing = pynini.string_file(get_abs_path("data/currency/currency_minor_singular.tsv"))
+        unit_minor_sing = pynutil.delete("currency: \"") + unit_minor_sing + pynutil.delete("\"")
+        unit_minor_plural = pynini.string_file(get_abs_path("data/currency/currency_minor_plural.tsv"))
+        unit_minor_plural = pynutil.delete("currency: \"") + unit_minor_plural + pynutil.delete("\"")
         if not deterministic:
-            graph = decimal.integer + delete_space + insert_space + unit + delete_space + insert_space + pynini.closure(pynutil.insert("and "), 0, 1) + fractional + delete_space + preserve_order
+            integer_one = pynini.compose(decimal.integer, pynini.accep("one"))
+            integer_not_one = pynini.compose(decimal.integer, pynini.difference(NEMO_SIGMA, pynini.accep("one")))
+            graph_integer = integer_one + delete_space + insert_space + unit_major_sing + delete_space + preserve_order
+            graph_integer |= integer_not_one + delete_space + insert_space + unit_major_plural + delete_space + preserve_order
+            graph_decimal = graph_integer + delete_space + insert_space + fractional + delete_space + insert_space + unit_minor_plural
+            graph = graph_integer | graph_decimal
 
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
 
-        # from pynini.lib.rewrite import top_rewrites
-        # import pdb; pdb.set_trace()
-        # print()
+        from pynini.lib.rewrite import top_rewrites
+        import pdb; pdb.set_trace()
+        print()
+
+        """
+        ['money { integer_part: "five" currency: "$" preserve_order: True }']
+        ['money { integer_part: "two" currency: "$" preserve_order: True point fractional_part: "three" currency: "$" preserve_order: True }']
+        """
