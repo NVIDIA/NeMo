@@ -18,8 +18,8 @@ one two four
 one point twenty four
 one twenty four
 ~$1.21
-one dollar and twenty one cents
-one dollar twenty one cents
+one dollar and twenty one cent
+one dollar twenty one cent
 one point two one dollars
 one twenty one dollars
 ~£1.00

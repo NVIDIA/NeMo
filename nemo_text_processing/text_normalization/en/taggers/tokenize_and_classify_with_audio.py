@@ -154,10 +154,10 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(pynini.compose(decimal_graph, v_decimal_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(measure_graph, v_measure_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(cardinal_graph, v_cardinal_graph), 1.1)
-                # | pynutil.add_weight(pynini.compose(ordinal_graph, v_ordinal_graph), 1.1)
-                # | pynutil.add_weight(pynini.compose(telephone_graph, v_telephone_graph), 1.1)
-                # | pynutil.add_weight(pynini.compose(electronic_graph, v_electronic_graph), 1.1)
-                # | pynutil.add_weight(pynini.compose(fraction_graph, v_fraction_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(ordinal_graph, v_ordinal_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(telephone_graph, v_telephone_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(electronic_graph, v_electronic_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(fraction_graph, v_fraction_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(money_graph, v_money_graph), 1.1)
                 | pynutil.add_weight(word_graph, 100)
             ).optimize()
@@ -170,11 +170,11 @@ class ClassifyFst(GraphFst):
             if not deterministic:
                 roman_graph = RomanFst(deterministic=deterministic).fst
                 # the weight matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
-                classify_and_verbalize |= pynutil.add_weight(roman_graph, 100)
+                classify_and_verbalize |= pynutil.add_weight(pynini.compose(roman_graph, v_roman_graph), 100)
 
                 abbreviation_graph = AbbreviationFst(deterministic=deterministic).fst
                 classify_and_verbalize |= pynutil.add_weight(
-                    pynini.compose(abbreviation_graph, _get_verbalizer(v_abbreviation)), 1.1
+                    pynini.compose(abbreviation_graph, v_abbreviation), 1.1
                 )
 
             # token_classify_and_verbalize = (
@@ -196,15 +196,15 @@ class ClassifyFst(GraphFst):
             graph = token_plus_punct + pynini.closure(delete_extra_space + token_plus_punct)
             graph = delete_space + graph + delete_space
 
-            # final verbalizer
-            from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final_with_audio import VerbalizeFinalFst
-            verbalizer = VerbalizeFinalFst().fst
+            # # final verbalizer
+            # from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final_with_audio import VerbalizeFinalFst
+            # verbalizer = VerbalizeFinalFst().fst
 
             self.fst = graph.optimize()
             _generator_main(far_file, {"tokenize_and_classify": self.fst})
 
 
-        from pynini.lib.rewrite import top_rewrites
-        import pdb; pdb.set_trace()
-        print(top_rewrites("$2", self.fst, 5))
-        print()
+        # from pynini.lib.rewrite import top_rewrites
+        # import pdb; pdb.set_trace()
+        # print(top_rewrites("ABC", self.fst, 5))
+        # print()
