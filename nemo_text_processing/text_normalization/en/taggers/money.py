@@ -170,6 +170,7 @@ class MoneyFst(GraphFst):
             integer_graph = None
             decimal_graph_with_minor = None
             decimal_graph_default = None
+
             for curr_symbol, curr_name in currencies:
                 graph_end = pynutil.insert(" currency: \"" + curr_symbol + "\"")
                 preserve_order = pynutil.insert(" preserve_order: True")
