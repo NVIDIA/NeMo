@@ -10,6 +10,8 @@ one hundred and twenty three dollars
 one two three dollars two cents
 one hundred twenty three dollars and two cents
 one hundred and twenty three point two dollars
+~$1.01
+one dollar and one cent
 ~1.24
 one point two four
 one two four

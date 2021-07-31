@@ -121,15 +121,15 @@ class MoneyFst(GraphFst):
             integer_not_one = pynini.compose(decimal.integer, pynini.difference(NEMO_SIGMA, pynini.accep("one")))
             graph_integer = integer_one + delete_space + insert_space + unit_major_sing + delete_space + preserve_order
             graph_integer |= integer_not_one + delete_space + insert_space + unit_major_plural + delete_space + preserve_order
-            graph_decimal = graph_integer + delete_space + insert_space + fractional + delete_space + insert_space + unit_minor_plural
+            graph_decimal = graph_integer + delete_space + insert_space + pynini.closure(pynutil.insert("and "), 0, 1) + fractional + delete_space + insert_space + unit_minor_plural
             graph = graph_integer | graph_decimal
 
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
 
-        from pynini.lib.rewrite import top_rewrites
-        import pdb; pdb.set_trace()
-        print()
+        # from pynini.lib.rewrite import top_rewrites
+        # import pdb; pdb.set_trace()
+        # print()
 
         """
         ['money { integer_part: "five" currency: "$" preserve_order: True }']

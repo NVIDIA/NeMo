@@ -15,6 +15,7 @@
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_NOT_QUOTE,
+    NEMO_SIGMA,
     GraphFst,
     delete_extra_space,
     delete_space,
@@ -45,16 +46,16 @@ class VerbalizeFinalFst(GraphFst):
         super().__init__(name="verbalize_final", kind="verbalize", deterministic=deterministic)
         verbalize = VerbalizeFst(deterministic=deterministic).fst
         word = WordFst(deterministic=deterministic).fst
-        default = pynutil.delete("value: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        default = NEMO_SIGMA
         types = verbalize | word | default
         graph = (
-            pynutil.delete("tokens")
-            + delete_space
-            + pynutil.delete("{")
-            + delete_space
+            # pynutil.delete("tokens")
+            # + delete_space
+            # + pynutil.delete("{")
+            delete_space
             + types
             + delete_space
-            + pynutil.delete("}")
+            # + pynutil.delete("}")
         )
         graph = delete_space + pynini.closure(graph + delete_extra_space) + graph + delete_space
         self.fst = graph

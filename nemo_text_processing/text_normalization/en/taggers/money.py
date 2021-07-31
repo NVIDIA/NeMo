@@ -185,12 +185,12 @@ class MoneyFst(GraphFst):
 
             final_graph = decimal_graph | integer_graph
 
-            from pynini.lib.rewrite import top_rewrites
-        #         import pdb
-        #
-        #         pdb.set_trace()
-            print(top_rewrites("$5", integer_graph, 5))
-            print(top_rewrites("$5.3", decimal_graph, 5))
+            # from pynini.lib.rewrite import top_rewrites
+        # #         import pdb
+        # #
+        # #         pdb.set_trace()
+        #     print(top_rewrites("$5", integer_graph, 5))
+        #     print(top_rewrites("$5.3", decimal_graph, 5))
         #         print()
         #
         # graph = None
