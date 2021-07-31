@@ -78,6 +78,7 @@ class NormalizerWithAudio(Normalizer):
 
         from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_with_audio import ClassifyFst
         from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final_with_audio import VerbalizeFinalFst
+
         self.tagger = ClassifyFst(input_case=input_case, deterministic=False)
         self.verbalizer = VerbalizeFinalFst(deterministic=False)
 
@@ -118,6 +119,8 @@ class NormalizerWithAudio(Normalizer):
             tagged_texts = rewrite.rewrites(text, self.tagger.fst)
         else:
             tagged_texts = rewrite.top_rewrites(text, self.tagger.fst, nshortest=n_tagged)
+        # import pdb; pdb.set_trace()
+        # print('tagged_texts:')
         [print(x) for x in tagged_texts]
         # normalized_texts = []
         # for tagged_text in tagged_texts:

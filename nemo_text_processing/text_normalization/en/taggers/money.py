@@ -14,15 +14,15 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_DIGIT,
     NEMO_CHAR,
+    NEMO_DIGIT,
     NEMO_NOT_QUOTE,
     NEMO_SIGMA,
     PLURAL_TO_SINGULAR,
     SINGULAR_TO_PLURAL,
     GraphFst,
     convert_space,
-    insert_space
+    insert_space,
 )
 from nemo_text_processing.text_normalization.en.taggers.date import get_hundreds_graph
 from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
@@ -166,31 +166,45 @@ class MoneyFst(GraphFst):
         # "$5.2" -> "$5 cur_min: "cur_maj" .2"
 
         if not deterministic:
-            currency_symbols = [x[0] for x in load_labels(get_abs_path("data/currency/currency.tsv"))]
+            currencies = load_labels(get_abs_path("data/currency/currency.tsv"))
             integer_graph = None
-            decimal_graph = None
-            for curr_symbol in currency_symbols:
+            decimal_graph_with_minor = None
+            decimal_graph_default = None
+            for curr_symbol, curr_name in currencies:
                 graph_end = pynutil.insert(" currency: \"" + curr_symbol + "\"")
                 preserve_order = pynutil.insert(" preserve_order: True")
                 integer_graph_curr = pynutil.delete(curr_symbol) + decimal.graph_integer + graph_end + preserve_order
-                decimal_graph_curr = integer_graph_curr + pynini.cross("."," ") + decimal.graph_fractional + graph_end
-                if integer_graph is None:
-                    integer_graph = integer_graph_curr
-                else:
-                    integer_graph |= integer_graph_curr
-                if decimal_graph is None:
-                    decimal_graph = decimal_graph_curr
-                else:
-                    decimal_graph |= decimal_graph_curr
+                decimal_graph_with_minor_curr = (
+                    integer_graph_curr + pynini.cross(".", " ") + decimal.graph_fractional + graph_end
+                )
+                decimal_graph_default_curr = (
+                    pynutil.delete("currency: \"" + curr_name + NEMO_SIGMA)
+                    + pynini.accep("integer_part")
+                    + NEMO_SIGMA
+                    + pynutil.insert(" currency: \"" + pynini.compose(curr_symbol, unit_plural) + "\"")
+                )
+                decimal_graph_default_curr = pynini.compose(graph_decimal, decimal_graph_default_curr)
 
-            final_graph = decimal_graph | integer_graph
+                integer_graph = (
+                    integer_graph_curr if integer_graph is None else pynini.union(integer_graph, integer_graph_curr)
+                )
+                decimal_graph_with_minor = (
+                    decimal_graph_with_minor_curr
+                    if decimal_graph_with_minor is None
+                    else pynini.union(decimal_graph_with_minor, decimal_graph_default_curr)
+                )
+                decimal_graph_default = (
+                    decimal_graph_default_curr
+                    if decimal_graph_default is None
+                    else pynini.union(decimal_graph_default, decimal_graph_default_curr)
+                )
 
-            # from pynini.lib.rewrite import top_rewrites
-        # #         import pdb
-        # #
-        # #         pdb.set_trace()
-        #     print(top_rewrites("$5", integer_graph, 5))
-        #     print(top_rewrites("$5.3", decimal_graph, 5))
+            final_graph = decimal_graph_with_minor | decimal_graph_default | integer_graph
+
+        # from pynini.lib.rewrite import top_rewrites
+        # import pdb; pdb.set_trace()
+        #     # print(top_rewrites("$5", integer_graph, 5))
+        # print(top_rewrites("$5.3", final_graph, 5))
         #         print()
         #
         # graph = None
@@ -215,8 +229,5 @@ class MoneyFst(GraphFst):
 
         # remove = pynini.compose(graph, pynutil.delete("currency: \"" + cur_maj + pynutil.delete("\"")) + NEMO_SIGMA + pynini.accep(cur_maj) + NEMO_SIGMA)
 
-
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
-
-

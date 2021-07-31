@@ -85,8 +85,8 @@ class ClassifyFst(GraphFst):
             telephone_graph = TelephoneFst(deterministic=deterministic).fst
             electronic_graph = ElectronicFst(deterministic=deterministic).fst
             money_graph = MoneyFst(cardinal=cardinal, decimal=decimal, deterministic=deterministic).fst
-            whitelist_graph = WhiteListFst(input_case=input_case, deterministic=deterministic).fst
-            punct_graph = PunctuationFst(deterministic=deterministic).fst
+            whitelist_graph = WhiteListFst(input_case=input_case, deterministic=deterministic).graph
+            punct_graph = PunctuationFst(deterministic=deterministic).graph
 
             # VERBALIZER
             from nemo_text_processing.text_normalization.en.verbalizers.cardinal import CardinalFst as vCardinal
@@ -138,12 +138,6 @@ class ClassifyFst(GraphFst):
                 graph = delete_space + pynini.closure(graph + delete_extra_space) + graph + delete_space
                 return graph.optimize()
 
-            # from pynini.lib.rewrite import top_rewrites
-            # # import pdb; pdb.set_trace()
-            #
-            # print(top_rewrites("$5", money_graph, 5))
-            # print(top_rewrites("$2.3", money_graph, 5))
-
             # from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, delete_space, NEMO_CHAR
             # chars = pynini.closure(NEMO_CHAR - " ", 1)
             # char = pynutil.delete("name:") + delete_space + pynutil.delete("\"") + chars + pynutil.delete("\"")
@@ -167,15 +161,20 @@ class ClassifyFst(GraphFst):
             #     | pynutil.add_weight(word_graph, 100)
             # )
 
+            from pynini.lib.rewrite import top_rewrites
+
+            # # import pdb; pdb.set_trace()
+            #
+            # print(top_rewrites("$5", money_graph, 5))
+            print(top_rewrites("$2.3", classify_and_verbalize, 5))
+
             if not deterministic:
                 roman_graph = RomanFst(deterministic=deterministic).fst
                 # the weight matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
                 classify_and_verbalize |= pynutil.add_weight(pynini.compose(roman_graph, v_roman_graph), 100)
 
                 abbreviation_graph = AbbreviationFst(deterministic=deterministic).fst
-                classify_and_verbalize |= pynutil.add_weight(
-                    pynini.compose(abbreviation_graph, v_abbreviation), 1.1
-                )
+                classify_and_verbalize |= pynutil.add_weight(pynini.compose(abbreviation_graph, v_abbreviation), 1.1)
 
             # token_classify_and_verbalize = (
             #     pynutil.insert("tokens { value: \"") + classify_and_verbalize + pynutil.insert("\" }")
@@ -190,7 +189,9 @@ class ClassifyFst(GraphFst):
 
             punct = pynutil.add_weight(punct_graph, weight=1.1)
             token_plus_punct = (
-                pynini.closure(punct + pynutil.insert(" ")) + classify_and_verbalize + pynini.closure(pynutil.insert(" ") + punct)
+                pynini.closure(punct + pynutil.insert(" "))
+                + classify_and_verbalize
+                + pynini.closure(pynutil.insert(" ") + punct)
             )
 
             graph = token_plus_punct + pynini.closure(delete_extra_space + token_plus_punct)
@@ -203,8 +204,7 @@ class ClassifyFst(GraphFst):
             self.fst = graph.optimize()
             _generator_main(far_file, {"tokenize_and_classify": self.fst})
 
-
         # from pynini.lib.rewrite import top_rewrites
         # import pdb; pdb.set_trace()
-        # print(top_rewrites("ABC", self.fst, 5))
+        # print(top_rewrites("$2.3", self.fst, 5))
         # print()

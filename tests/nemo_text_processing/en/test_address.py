@@ -24,6 +24,7 @@ class TestAddress:
     normalizer_en = Normalizer(input_case='cased', lang='en') if PYNINI_AVAILABLE else None
     normalizer_with_audio_en = NormalizerWithAudio(input_case='cased', lang='en') if PYNINI_AVAILABLE else None
 
+    # address is tagged by the measure class
     @parameterized.expand(parse_test_case_file('en/data_text_normalization/test_cases_address.txt'))
     @pytest.mark.skipif(
         not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
