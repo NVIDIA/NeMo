@@ -184,6 +184,12 @@ class MoneyFst(GraphFst):
                     + NEMO_SIGMA
                     + pynutil.insert(" currency: \"" + pynini.compose(curr_symbol, unit_plural) + "\"")
                 )
+                # decimal_graph_default_curr = (
+                #         pynutil.delete("currency: \"" + curr_name + pynini.difference(NEMO_SIGMA, "quantity: "))
+                #         + pynini.accep("integer_part")
+                #         + NEMO_SIGMA
+                #         + pynutil.insert(" currency: \"" + pynini.compose(curr_symbol, unit_plural) + "\"")
+                # )
                 decimal_graph_default_curr = pynini.compose(graph_decimal, decimal_graph_default_curr)
 
                 integer_graph = (
@@ -202,10 +208,7 @@ class MoneyFst(GraphFst):
 
             final_graph = decimal_graph_with_minor | decimal_graph_default | integer_graph
 
-        # from pynini.lib.rewrite import top_rewrites
-        # import pdb; pdb.set_trace()
-        #     # print(top_rewrites("$5", integer_graph, 5))
-        # print(top_rewrites("$5.3", final_graph, 5))
+
         #         print()
         #
         # graph = None
@@ -232,3 +235,9 @@ class MoneyFst(GraphFst):
 
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
+
+        from pynini.lib.rewrite import top_rewrites
+        # import pdb;
+        # pdb.set_trace()
+        # print(top_rewrites("$5", integer_graph, 5))
+        print(top_rewrites("₩4 billion", final_graph, 5))
