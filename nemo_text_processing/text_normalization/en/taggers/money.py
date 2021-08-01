@@ -208,7 +208,6 @@ class MoneyFst(GraphFst):
 
             final_graph = decimal_graph_with_minor | decimal_graph_default | integer_graph
 
-
         #         print()
         #
         # graph = None
@@ -237,6 +236,7 @@ class MoneyFst(GraphFst):
         self.fst = final_graph.optimize()
 
         from pynini.lib.rewrite import top_rewrites
+
         # import pdb;
         # pdb.set_trace()
         # print(top_rewrites("$5", integer_graph, 5))

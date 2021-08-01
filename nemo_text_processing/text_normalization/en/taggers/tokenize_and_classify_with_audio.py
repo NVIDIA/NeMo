@@ -80,7 +80,7 @@ class ClassifyFst(GraphFst):
             measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=deterministic)
             measure_graph = measure.fst
             date_graph = DateFst(cardinal=cardinal, deterministic=deterministic).fst
-            word_graph = WordFst(deterministic=deterministic).fst
+            word_graph = WordFst(deterministic=deterministic).graph
             time_graph = TimeFst(cardinal=cardinal, deterministic=deterministic).fst
             telephone_graph = TelephoneFst(deterministic=deterministic).fst
             electronic_graph = ElectronicFst(deterministic=deterministic).fst
@@ -161,12 +161,13 @@ class ClassifyFst(GraphFst):
             #     | pynutil.add_weight(word_graph, 100)
             # )
 
-            from pynini.lib.rewrite import top_rewrites
-
-            # # import pdb; pdb.set_trace()
+            # from pynini.lib.rewrite import top_rewrites
             #
-            # print(top_rewrites("$5", money_graph, 5))
-            print(top_rewrites("$2.3", classify_and_verbalize, 5))
+            # import pdb; pdb.set_trace()
+            # #
+            # # print(top_rewrites("$5", money_graph, 5))
+            # print(top_rewrites("123-123-5678-1111", telephone_graph, 5))
+            # print(top_rewrites("123-123-5678-1111", pynini.compose(telephone_graph, v_telephone_graph), 5))
 
             if not deterministic:
                 roman_graph = RomanFst(deterministic=deterministic).fst

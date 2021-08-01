@@ -57,9 +57,9 @@ class CardinalFst(GraphFst):
 
         if not deterministic:
             single_digits_graph = (
-                pynutil.add_weight(pynini.invert(graph_digit | graph_zero), 1.2)
-                | pynutil.add_weight(pynini.cross("0", "oh"), 1.1)
-                | pynutil.add_weight(pynini.cross("0", "o"), 1.1)
+                pynutil.add_weight(pynini.invert(graph_digit | graph_zero), 1.01)
+                | pynutil.add_weight(pynini.cross("0", "oh"), 1.03)
+                | pynutil.add_weight(pynini.cross("0", "o"), 1.02)
             )
             self.single_digits_graph = single_digits_graph + pynini.closure(pynutil.insert(" ") + single_digits_graph)
 
@@ -126,7 +126,6 @@ class CardinalFst(GraphFst):
         num_delimiter_num = pynini.closure(num_graph + delimiter, 1) + num_graph
         next_alpha_or_num = pynini.closure(delimiter + (alpha | num_graph))
         serial_graph = (letter_num | num_letter | num_delimiter_num) + next_alpha_or_num
-
         if not self.deterministic:
             serial_graph += pynini.closure(pynini.accep("s") | pynini.cross("s", "es"), 0, 1)
 

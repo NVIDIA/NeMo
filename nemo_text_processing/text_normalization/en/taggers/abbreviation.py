@@ -45,13 +45,15 @@ class AbbreviationFst(GraphFst):
         super().__init__(name="abbreviation", kind="classify", deterministic=deterministic)
 
         main_graph = NEMO_UPPER + pynini.closure(insert_space + NEMO_UPPER, 1)
-        misc_graph = TO_LOWER + pynini.closure(insert_space + TO_LOWER)
-        misc_graph |= NEMO_UPPER + pynini.closure(insert_space + NEMO_LOWER, 1)
-        misc_graph |= TO_LOWER + pynini.closure(insert_space + NEMO_LOWER)
+        misc_graph = pynutil.add_weight(TO_LOWER + pynini.closure(insert_space + TO_LOWER), 110)
+        misc_graph |= pynutil.add_weight(NEMO_UPPER + pynini.closure(insert_space + NEMO_LOWER, 1), 110)
+        misc_graph |= pynutil.add_weight(TO_LOWER + pynini.closure(insert_space + NEMO_LOWER), 110)
         misc_graph |= (
             NEMO_UPPER + pynutil.delete(".") + pynini.closure(insert_space + NEMO_UPPER + pynutil.delete("."))
         )
-        misc_graph |= TO_LOWER + pynutil.delete(".") + pynini.closure(insert_space + TO_LOWER + pynutil.delete("."))
+        misc_graph |= pynutil.add_weight(
+            TO_LOWER + pynutil.delete(".") + pynini.closure(insert_space + TO_LOWER + pynutil.delete(".")), 110
+        )
 
         # set weight of the misc graph to the value higher then word
         graph = pynutil.add_weight(main_graph, 10) | pynutil.add_weight(misc_graph, 101)
