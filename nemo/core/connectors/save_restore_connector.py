@@ -14,7 +14,12 @@
 # limitations under the License.
 
 import pickle
+import shutil
+import uuid
+
+from omegaconf.omegaconf import open_dict
 from nemo.utils import app_state
+from nemo.utils import model_utils
 from nemo.utils.model_utils import import_class_by_path
 import os
 import tarfile
@@ -27,10 +32,6 @@ from omegaconf import DictConfig, OmegaConf
 
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
-
-# TODO: Rip as much save/restore from modelpt and put in the connector
-# TODO: Prioritize adding artifacts
-# TODO: Try to create connector methods for as much as possible, espcially anything I/O
 
 
 class SaveRestoreConnector:
@@ -54,9 +55,9 @@ class SaveRestoreConnector:
             model_weights = path.join(tmpdir, app_state.model_weights_ckpt)
             model.to_config_file(path2yaml_file=config_yaml)
             if hasattr(model, 'artifacts') and model.artifacts is not None:
-                model._handle_artifacts(nemo_file_folder=tmpdir)
+                self._handle_artifacts(model, nemo_file_folder=tmpdir)
                 # We should not update self._cfg here - the model can still be in use
-                model._update_artifact_paths(path2yaml_file=config_yaml)
+                self._update_artifact_paths(model, path2yaml_file=config_yaml)
             self._save_state_dict_to_disk(model.state_dict(), model_weights)
             self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
@@ -187,6 +188,122 @@ class SaveRestoreConnector:
                 os.chdir(cwd)
 
         return state_dict
+
+    def _register_artifact(self, model, config_path: str, src: str, verify_src_exists: bool = True):
+
+        app_state = AppState()
+
+        artifact_item = model_utils.ArtifactItem()
+
+        # This is for backward compatibility, if the src objects exists simply inside of the tarfile
+        # without its key having been overriden, this pathway will be used.
+        src_obj_name = os.path.basename(src)
+        if app_state.nemo_file_folder is not None:
+            src_obj_path = os.path.abspath(os.path.join(app_state.nemo_file_folder, src_obj_name))
+        else:
+            src_obj_path = src_obj_name
+
+        # src is a local existing path - register artifact and return exact same path for usage by the model
+        if os.path.exists(os.path.abspath(src)):
+            return_path = os.path.abspath(src)
+            artifact_item.path_type = model_utils.ArtifactPathType.LOCAL_PATH
+
+        # this is the case when artifact must be retried from the nemo file
+        # we are assuming that the location of the right nemo file is available from _MODEL_RESTORE_PATH
+        elif src.startswith("nemo:"):
+            return_path = os.path.abspath(os.path.join(app_state.nemo_file_folder, src[5:]))
+            artifact_item.path_type = model_utils.ArtifactPathType.TAR_PATH
+
+        # backward compatibility implementation
+        elif os.path.exists(src_obj_path):
+            return_path = src_obj_path
+            artifact_item.path_type = model_utils.ArtifactPathType.TAR_PATH
+        else:
+            if verify_src_exists:
+                raise FileNotFoundError(
+                    f"src path does not exist or it is not a path in nemo file. src value I got was: {src}. Absolute: {os.path.abspath(src)}"
+                )
+            else:
+                # artifact is optional and we simply return None
+                return None
+
+        assert os.path.exists(return_path)
+
+        artifact_item.path = os.path.abspath(src)
+        model.artifacts[config_path] = artifact_item
+        # we were called by ModelPT
+        if hasattr(model, "cfg"):
+            with open_dict(model._cfg):
+                OmegaConf.update(model.cfg, config_path, return_path)
+        return return_path
+
+    def _handle_artifacts(self, model, nemo_file_folder):
+        tarfile_artifacts = []
+        app_state = AppState()
+        for conf_path, artiitem in model.artifacts.items():
+            if artiitem.path_type == model_utils.ArtifactPathType.LOCAL_PATH:
+                if not os.path.exists(artiitem.path):
+                    raise FileNotFoundError(f"Artifact {conf_path} not found at location: {artiitem.path}")
+
+                # Generate new uniq artifact name and copy it to nemo_file_folder
+                # Note uuid.uuid4().hex is guaranteed to be 32 character long
+                artifact_base_name = os.path.basename(artiitem.path)
+                artifact_uniq_name = f"{uuid.uuid4().hex}_{artifact_base_name}"
+                shutil.copy2(artiitem.path, os.path.join(nemo_file_folder, artifact_uniq_name))
+
+                # Update artifacts registry
+                artiitem.hashed_path = "nemo:" + artifact_uniq_name
+                model.artifacts[conf_path] = artiitem
+
+            elif artiitem.path_type == model_utils.ArtifactPathType.TAR_PATH:
+                # process all tarfile artifacts in one go, so preserve key-value pair
+                tarfile_artifacts.append((conf_path, artiitem))
+
+            else:
+                raise ValueError(f"Directly referencing artifacts from other nemo files isn't supported yet")
+
+        # Process current tarfile artifacts by unpacking the previous tarfile and extract the artifacts
+        # that are currently required.
+        model_metadata = app_state.get_model_metadata_from_guid(model.model_guid)
+        if len(tarfile_artifacts) > 0 and model_metadata.restoration_path is not None:
+            # Need to step into nemo archive to extract file
+            # Get path where the command is executed - the artifacts will be "retrieved" there
+            # (original .nemo behavior)
+            cwd = os.getcwd()
+            try:
+                # Step into the nemo archive to try and find the file
+                with tempfile.TemporaryDirectory() as archive_dir:
+                    self._unpack_nemo_file(path2file=model_metadata.restoration_path, out_folder=archive_dir)
+                    os.chdir(archive_dir)
+                    for conf_path, artiitem in tarfile_artifacts:
+                        # Get basename and copy it to nemo_file_folder
+                        if 'nemo:' in artiitem.path:
+                            artifact_base_name = artiitem.path.split('nemo:')[1]
+                        else:
+                            artifact_base_name = os.path.basename(artiitem.path)
+                        # no need to hash here as we are in tarfile_artifacts which are already hashed
+                        artifact_uniq_name = artifact_base_name
+                        shutil.copy2(artifact_base_name, os.path.join(nemo_file_folder, artifact_uniq_name))
+
+                        # Update artifacts registry
+                        new_artiitem = model_utils.ArtifactItem()
+                        new_artiitem.path = "nemo:" + artifact_uniq_name
+                        new_artiitem.path_type = model_utils.ArtifactPathType.TAR_PATH
+                        model.artifacts[conf_path] = new_artiitem
+            finally:
+                # change back working directory
+                os.chdir(cwd)
+
+    def _update_artifact_paths(self, model, path2yaml_file):
+        if model.artifacts is not None and len(model.artifacts) > 0:
+            conf = OmegaConf.load(path2yaml_file)
+            for conf_path, item in model.artifacts.items():
+                if item.hashed_path is None:
+                    OmegaConf.update(conf, conf_path, item.path)
+                else:
+                    OmegaConf.update(conf, conf_path, item.hashed_path)
+            with open(path2yaml_file, 'w') as fout:
+                OmegaConf.save(config=conf, f=fout, resolve=True)
 
     @staticmethod
     def _make_nemo_file_from_folder(filename, source_dir):
