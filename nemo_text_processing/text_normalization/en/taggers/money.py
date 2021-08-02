@@ -22,6 +22,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     SINGULAR_TO_PLURAL,
     GraphFst,
     convert_space,
+    delete_space,
     insert_space,
 )
 from nemo_text_processing.text_normalization.en.taggers.date import get_hundreds_graph
@@ -89,6 +90,16 @@ class MoneyFst(GraphFst):
 
         if not deterministic:
             currencies = load_labels(get_abs_path("data/currency/currency.tsv"))
+            zero_graph = pynini.cross("0", "") | pynini.accep("0")
+            two_digits_fractional_part = (
+                NEMO_SIGMA
+                + pynini.closure(NEMO_DIGIT)
+                + (
+                    (pynini.accep(".") + (NEMO_DIGIT ** (2) | zero_graph + (NEMO_DIGIT - "0")))
+                    | pynutil.delete(".") + pynini.cross(pynini.closure("0"), "")
+                )
+            )
+
             integer_graph = None
             decimal_graph_with_minor = None
             decimal_graph_default = None
@@ -99,6 +110,7 @@ class MoneyFst(GraphFst):
                 preserve_order = pynutil.insert(" preserve_order: True")
                 integer_part = decimal.graph_integer + graph_end + preserve_order
                 integer_graph_curr = curr_symbol_graph + integer_part
+                integer_graph_curr |= pynini.compose(two_digits_fractional_part, integer_graph_curr)
                 decimal_graph_with_minor_curr = (
                     curr_symbol_graph
                     + pynini.closure(integer_part, 0, 1)
@@ -107,11 +119,24 @@ class MoneyFst(GraphFst):
                     + graph_end
                 )
                 decimal_graph_default_curr = (
-                    pynutil.delete("currency: \"" + curr_name + NEMO_SIGMA)
-                    + pynini.closure(pynini.accep("integer_part") + NEMO_SIGMA, 0, 1)
+                    pynutil.delete("currency: \"" + curr_name + pynini.closure(NEMO_NOT_QUOTE) + "\"")
+                    + delete_space
                     + pynini.accep("fractional_part")
                     + NEMO_SIGMA
                     + pynutil.insert(" currency: \"" + pynini.compose(curr_symbol, unit_plural) + "\"")
+                )
+                decimal_graph_default_curr |= (
+                    pynutil.delete("currency: \"" + curr_name + pynini.closure(NEMO_NOT_QUOTE) + "\"")
+                    + delete_space
+                    + pynini.accep("integer_part")
+                    + NEMO_SIGMA
+                    + pynini.accep("fractional_part")
+                    + NEMO_SIGMA
+                    + pynutil.insert(" currency: \"" + pynini.compose(curr_symbol, unit_plural) + "\"")
+                )
+
+                decimal_graph_with_minor_curr = pynini.compose(
+                    two_digits_fractional_part, decimal_graph_with_minor_curr
                 )
                 decimal_graph_default_curr = pynini.compose(graph_decimal, decimal_graph_default_curr)
 
@@ -121,22 +146,23 @@ class MoneyFst(GraphFst):
                 decimal_graph_with_minor = (
                     decimal_graph_with_minor_curr
                     if decimal_graph_with_minor is None
-                    else pynini.union(decimal_graph_with_minor, decimal_graph_default_curr)
+                    else pynini.union(
+                        decimal_graph_with_minor, decimal_graph_with_minor_curr, decimal_graph_default_curr
+                    )
                 )
                 decimal_graph_default = (
                     decimal_graph_default_curr
                     if decimal_graph_default is None
-                    else pynini.union(decimal_graph_default, decimal_graph_default_curr)
+                    else pynini.union(decimal_graph_default, decimal_graph_default_curr, decimal_graph_default_curr)
                 )
 
             final_graph = decimal_graph_with_minor | decimal_graph_default | integer_graph
 
-        final_graph = self.add_tokens(final_graph)
-        self.fst = final_graph.optimize()
-
         # from pynini.lib.rewrite import top_rewrites
-        #
         # import pdb;
         # pdb.set_trace()
-        # print(top_rewrites("$.5", decimal_graph_default, 5))
+        # [print(x) for x in top_rewrites("£1.00", two_digits_fractional_part, 20)]
         # print(top_rewrites("₩4 billion", final_graph, 5))
+
+        final_graph = self.add_tokens(final_graph)
+        self.fst = final_graph.optimize()

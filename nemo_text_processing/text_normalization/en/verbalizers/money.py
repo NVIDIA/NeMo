@@ -107,7 +107,11 @@ class MoneyFst(GraphFst):
         #         + fractional
         #     )
 
-        fractional = pynutil.delete("fractional_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        fractional_non_one = (
+            pynutil.delete("fractional_part: \"")
+            + pynini.difference(pynini.closure(NEMO_NOT_QUOTE), pynini.union("oh one", "o one", "zero one", "one"))
+            + pynutil.delete("\"")
+        )
         preserve_order = pynutil.delete("preserve_order: True")
         unit_major_sing = pynini.string_file(get_abs_path("data/currency/currency.tsv"))
         unit_major_plural = (
@@ -130,32 +134,32 @@ class MoneyFst(GraphFst):
                 + delete_space
                 + insert_space
                 + pynini.closure(pynutil.insert("and "), 0, 1)
-                + fractional
+                + pynutil.delete("fractional_part: \"" + pynini.union("o ", "oh ", "zero "))
+                + pynini.accep("one")
+                + pynutil.delete("\"")
+                + delete_space
+                + insert_space
+                + unit_minor_sing
+            )
+            graph_decimal_with_minor |= (
+                graph_integer
+                + delete_space
+                + insert_space
+                + pynini.closure(pynutil.insert("and "), 0, 1)
+                + fractional_non_one
                 + delete_space
                 + insert_space
                 + unit_minor_plural
             )
-            # graph_decimal_default = (
-            #         graph_integer
-            #         + delete_space
-            #         + insert_space
-            #         + pynini.closure(pynutil.insert("and "), 0, 1)
-            #         + fractional
-            #         + delete_space
-            #         + insert_space
-            #         + unit_minor_plural
-            # )
             graph |= graph_integer | graph_decimal_with_minor
+
+        # # delete_zeros = NEMO_SIGMA + pynutil.delete("fractional_part: \"" + pynini.closure("o" + pynini.closure(" o")) + "\"") + delete_space + NEMO_SIGMA
+        # from pynini.lib.rewrite import top_rewrites
+        # # #
+        # import pdb;
+        # pdb.set_trace()
+        # print(top_rewrites('integer_part: "one"  fractional_part: "zero one" currency: "dollars"', graph, 5))
+        # print()
 
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
-
-        from pynini.lib.rewrite import top_rewrites
-
-        # import pdb; pdb.set_trace()
-        # print()
-
-        """
-        ['money { integer_part: "five" currency: "$" preserve_order: True }']
-        ['money { integer_part: "two" currency: "$" preserve_order: True point fractional_part: "three" currency: "$" preserve_order: True }']
-        """

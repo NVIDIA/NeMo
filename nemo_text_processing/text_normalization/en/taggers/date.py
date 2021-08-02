@@ -222,7 +222,7 @@ class DateFst(GraphFst):
         if not deterministic:
             data_graph = None
             for month in ["august", "november", "july"]:
-                for day in ["five", "three"]:
+                for day in ["five", "three", "seventeen"]:
                     date_graph_curr = (
                         pynutil.insert("month: \"" + month + "\" day: \"" + day + "\" ")
                         + pynini.accep('year:')
