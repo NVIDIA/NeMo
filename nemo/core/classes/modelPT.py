@@ -207,7 +207,7 @@ class ModelPT(LightningModule, Model):
 
         self.update_save_restore_connector(save_restore_connector)
 
-        return self._save_restore_connector._register_artifact(self, config_path, src, verify_src_exists)
+        return self._save_restore_connector.register_artifact(self, config_path, src, verify_src_exists)
 
     @rank_zero_only
     def save_to(self, save_path: str):
@@ -228,7 +228,7 @@ class ModelPT(LightningModule, Model):
             return
         else:
             save_path = os.path.abspath(os.path.expanduser(save_path))
-            self._save_restore_connector._default_save_to(self, save_path)
+            self._save_restore_connector.save_to(self, save_path)
 
     @classmethod
     def restore_from(
@@ -274,7 +274,7 @@ class ModelPT(LightningModule, Model):
         app_state.model_restore_path = restore_path
 
         cls.update_save_restore_connector(save_restore_connector)
-        instance = cls._save_restore_connector._default_restore_from(
+        instance = cls._save_restore_connector.restore_from(
             restore_path, override_config_path, map_location, strict, return_config
         )
         instance._save_restore_connector = save_restore_connector
@@ -996,7 +996,7 @@ class ModelPT(LightningModule, Model):
             raise FileExistsError(f"Can't find {restore_path}")
 
         cls.update_save_restore_connector(save_restore_connector)
-        state_dict = cls._save_restore_connector._extract_state_dict_from(restore_path, save_dir, split_by_module)
+        state_dict = cls._save_restore_connector.extract_state_dict_from(restore_path, save_dir, split_by_module)
         return state_dict
 
     def prepare_test(self, trainer: 'Trainer') -> bool:

@@ -32,18 +32,17 @@ from nemo.utils.model_utils import import_class_by_path
 
 
 class SaveRestoreConnector:
-    def _default_save_to(self, model, save_path: str):
+    def save_to(self, model, save_path: str):
         """
-			Saves model instance (weights and configuration) into .nemo file.
-			You can use "restore_from" method to fully restore instance from .nemo file.
+        Saves model instance (weights and configuration) into .nemo file.
+        You can use "restore_from" method to fully restore instance from .nemo file.
 
-			.nemo file is an archive (tar.gz) with the following:
-				model_config.yaml - model configuration in .yaml format. You can deserialize this into cfg argument for model's constructor
-				model_wights.chpt - model checkpoint
+        .nemo file is an archive (tar.gz) with the following:
+            model_config.yaml - model configuration in .yaml format. You can deserialize this into cfg argument for model's constructor
+            model_wights.chpt - model checkpoint
 
-			Args:
-				save_path: Path to .nemo file where model instance should be saved
-
+        Args:
+            save_path: Path to .nemo file where model instance should be saved
 		"""
         app_state = AppState()
 
@@ -58,7 +57,7 @@ class SaveRestoreConnector:
             self._save_state_dict_to_disk(model.state_dict(), model_weights)
             self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
-    def _default_restore_from(
+    def restore_from(
         self,
         restore_path: str,
         override_config_path: Optional[Union[OmegaConf, str]] = None,
@@ -68,6 +67,7 @@ class SaveRestoreConnector:
     ):
         """
 		Restores model instance (weights and configuration) into .nemo file
+
 		Args:
 		restore_path: path to .nemo file from which model should be instantiated
 		override_config_path: path to a yaml config that will override the internal
@@ -149,8 +149,46 @@ class SaveRestoreConnector:
 
         return instance
 
-    def _extract_state_dict_from(self, restore_path: str, save_dir: str, split_by_module: bool = False):
+    def extract_state_dict_from(self, restore_path: str, save_dir: str, split_by_module: bool = False):
+        """
+        Extract the state dict(s) from a provided .nemo tarfile and save it to a directory.
 
+        Args:
+            restore_path: path to .nemo file from which state dict(s) should be extracted
+            save_dir: directory in which the saved state dict(s) should be stored
+            split_by_module: bool flag, which determins whether the output checkpoint should
+                be for the entire Model, or the individual module's that comprise the Model
+
+        Example:
+            To convert the .nemo tarfile into a single Model level PyTorch checkpoint
+            ::
+            state_dict = nemo.collections.asr.models.EncDecCTCModel.extract_state_dict_from('asr.nemo', './asr_ckpts')
+
+
+            To restore a model from a Model level checkpoint
+            ::
+            model = nemo.collections.asr.models.EncDecCTCModel(cfg)  # or any other method of restoration
+            model.load_state_dict(torch.load("./asr_ckpts/model_weights.ckpt"))
+
+
+            To convert the .nemo tarfile into multiple Module level PyTorch checkpoints
+            ::
+            state_dict = nemo.collections.asr.models.EncDecCTCModel.extract_state_dict_from('asr.nemo', './asr_ckpts', split_by_module=True)
+
+
+            To restore a module from a Module level checkpoint
+            ::
+            model = nemo.collections.asr.models.EncDecCTCModel(cfg)  # or any other method of restoration
+
+            # load the individual components
+            model.preprocessor.load_state_dict(torch.load("./asr_ckpts/preprocessor.ckpt"))
+            model.encoder.load_state_dict(torch.load("./asr_ckpts/encoder.ckpt"))
+            model.decoder.load_state_dict(torch.load("./asr_ckpts/decoder.ckpt"))
+
+
+        Returns:
+            The state dict that was loaded from the original .nemo checkpoint
+        """
         app_state = AppState()
 
         cwd = os.getcwd()
@@ -186,8 +224,32 @@ class SaveRestoreConnector:
 
         return state_dict
 
-    def _register_artifact(self, model, config_path: str, src: str, verify_src_exists: bool = True):
+    def register_artifact(self, model, config_path: str, src: str, verify_src_exists: bool = True):
+        """ Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
+            when model.save_to("mymodel.nemo") is called.        
 
+            How it works:
+            1. It always returns existing absolute path which can be used during Model constructor call
+                EXCEPTION: src is None or "" in which case nothing will be done and src will be returned
+            2. It will add (config_path, model_utils.ArtifactItem()) pair to self.artifacts
+
+            If "src" is local existing path, then it will be returned in absolute path form.
+            elif "src" starts with "nemo_file:unique_artifact_name":
+                .nemo will be untarred to a temporary folder location and an actual existing path will be returned
+            else an error will be raised.
+
+            WARNING: use .register_artifact calls in your models' constructors.
+            The returned path is not guaranteed to exist after you have exited your model's constuctor.
+
+            Args:
+                config_path (str): Artifact key. Usually corresponds to the model config.
+                src (str): Path to artifact.
+                verify_src_exists (bool): If set to False, then the artifact is optional and register_artifact will return None even if 
+                                          src is not found. Defaults to True.
+
+            Returns:
+                str: If src is not None or empty it always returns absolute path which is guaranteed to exists during model instnce life
+        """
         app_state = AppState()
 
         artifact_item = model_utils.ArtifactItem()

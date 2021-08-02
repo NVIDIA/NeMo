@@ -434,7 +434,7 @@ class NLPModel(ModelPT, Exportable):
             app_state.model_parallel_rank = model_parallel_rank
 
             cls.update_save_restore_connector(save_restore_connector)
-            restored_model = cls._save_restore_connector._default_restore_from(
+            restored_model = cls._save_restore_connector.restore_from(
                 restore_path, override_config_path, map_location, strict, return_config
             )
             restored_model.set_trainer(trainer)
