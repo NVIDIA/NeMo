@@ -42,6 +42,7 @@ class SaveRestoreConnector:
             model_wights.chpt - model checkpoint
 
         Args:
+            model: ModelPT object to be saved.
             save_path: Path to .nemo file where model instance should be saved
 		"""
         app_state = AppState()
@@ -242,6 +243,7 @@ class SaveRestoreConnector:
             The returned path is not guaranteed to exist after you have exited your model's constuctor.
 
             Args:
+                model: ModelPT object to register artifact for.
                 config_path (str): Artifact key. Usually corresponds to the model config.
                 src (str): Path to artifact.
                 verify_src_exists (bool): If set to False, then the artifact is optional and register_artifact will return None even if 
