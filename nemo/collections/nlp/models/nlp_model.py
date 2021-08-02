@@ -344,7 +344,7 @@ class NLPModel(ModelPT, Exportable):
         strict: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
-        save_restore_connector: SaveRestoreConnector = SaveRestoreConnector(),
+        save_restore_connector: SaveRestoreConnector = None,
     ):
         """
         Restores model instance (weights and configuration) from .nemo file.
@@ -369,6 +369,9 @@ class NLPModel(ModelPT, Exportable):
         Returns:
             An instance of type cls or its underlying config (if return_config is set).
         """
+        if save_restore_connector is None:
+            save_restore_connector = SaveRestoreConnector()
+
         if not os.path.exists(restore_path):
             raise FileNotFoundError(f"Can't find {restore_path}")
 
