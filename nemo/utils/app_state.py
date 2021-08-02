@@ -62,7 +62,7 @@ class AppState(metaclass=Singleton):
         self._tmpdir_name = None
         self._model_config_yaml = "model_config.yaml"
         self._model_weights_ckpt = "model_weights.ckpt"
-        self._model_is_restored = False
+        self._is_model_being_restored = False
         self._nemo_file_folder = None
         self._model_restore_path = None
         self._all_model_restore_paths = []
@@ -396,12 +396,12 @@ class AppState(metaclass=Singleton):
         return metadata
 
     @property
-    def model_is_restored(self) -> bool:
-        return self._model_is_restored
+    def is_model_being_restored(self) -> bool:
+        return self._is_model_being_restored
 
-    @model_is_restored.setter
-    def model_is_restored(self, is_restored: bool):
-        self._model_is_restored = is_restored
+    @is_model_being_restored.setter
+    def is_model_being_restored(self, is_restored: bool):
+        self._is_model_being_restored = is_restored
 
     @property
     def nemo_file_folder(self) -> str:
