@@ -129,9 +129,7 @@ class SaveRestoreConnector:
                 else:
                     app_state = AppState()
                     if app_state.model_parallel_rank is not None:
-                        model_weights = path.join(
-                            tmpdir, f'mp_rank_{app_state.model_parallel_rank:02}', self.model_weights_ckpt
-                        )
+                        model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
                     else:
                         model_weights = path.join(tmpdir, self.model_weights_ckpt)
                 OmegaConf.set_struct(conf, True)
@@ -367,6 +365,11 @@ class SaveRestoreConnector:
                     OmegaConf.update(conf, conf_path, item.hashed_path)
             with open(path2yaml_file, 'w') as fout:
                 OmegaConf.save(config=conf, f=fout, resolve=True)
+
+    def _inject_model_parallel_rank_for_ckpt(self, dirname, basename):
+        app_state = AppState()
+        model_weights = path.join(dirname, f'mp_rank_{app_state.model_parallel_rank:02}', basename)
+        return model_weights
 
     @staticmethod
     def _make_nemo_file_from_folder(filename, source_dir):
