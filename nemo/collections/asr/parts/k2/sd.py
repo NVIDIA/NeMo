@@ -86,6 +86,8 @@ class SDLoss(torch.nn.Module):
             self.lm_graph = load_graph(token_lm) if isinstance(token_lm, str) else token_lm
             if hasattr(self.lm_graph, 'aux_labels'):
                 delattr(self.lm_graph, 'aux_labels')
+            if self.pad_fsavec:
+                shift_labels_inpl([self.lm_graph], 1)
         if sd_type == 'mmi':
             from nemo.collections.asr.parts.k2.graph_compilers import MmiTrainingGraphCompiler as compiler
         elif sd_type == 'crf':
@@ -187,7 +189,7 @@ class SDLoss(torch.nn.Module):
         if self.use_mbr and self.mbr_graph is not None and log_probs.device != self.mbr_graph.device:
             self.mbr_graph = self.mbr_graph.to(log_probs.device)
 
-        num_graphs, den_graph = self.graph_compiler.compile(targets, target_lengths)
+        num_graphs, den_graph = self.graph_compiler.compile(targets + 1 if self.pad_fsavec else targets, target_lengths)
 
         if self.use_mbr and self.mbr_graph is not None:
             den_graph = self.mbr_graph
@@ -195,8 +197,8 @@ class SDLoss(torch.nn.Module):
         dense_fsa_vec = prep_padded_densefsavec(log_probs, supervisions) if self.pad_fsavec else k2.DenseFsaVec(log_probs, supervisions)
 
         num_lats, den_lats = self.intersect_mmi(dense_fsa_vec, num_graphs, den_graph)
-        if self.pad_fsavec:
-            shift_labels_inpl([num_lats, den_lats], -1)
+        # if self.pad_fsavec:
+            # shift_labels_inpl([num_lats, den_lats], -1)
 
         # use_double_scores=True does matter
         # since otherwise it sometimes makes rounding errors
@@ -230,13 +232,14 @@ class SDLoss(torch.nn.Module):
 
         if self.use_mbr:
             size = (dense_fsa_vec.dim0(), dense_fsa_vec.scores.shape[0], dense_fsa_vec.scores.shape[1] - 1)
-            mbr_num_sparse = create_sparse_wrapped(indices=[_k2.index_select(dense_fsa_vec.dense_fsa_vec.shape().row_ids(1), num_lats.seqframe_idx),
+            row_ids = dense_fsa_vec.dense_fsa_vec.shape().row_ids(1)
+            mbr_num_sparse = create_sparse_wrapped(indices=[_k2.index_select(row_ids, num_lats.seqframe_idx),
                                                             num_lats.seqframe_idx,
                                                             num_lats.phones],
                                                    values=num_lats.get_arc_post(True,True).exp(),
                                                    size=size,
                                                    min_col_index=0)
-            mbr_den_sparse = create_sparse_wrapped(indices=[_k2.index_select(dense_fsa_vec.dense_fsa_vec.shape().row_ids(1), den_lats.seqframe_idx),
+            mbr_den_sparse = create_sparse_wrapped(indices=[_k2.index_select(row_ids, den_lats.seqframe_idx),
                                                             den_lats.seqframe_idx,
                                                             den_lats.phones],
                                                    values=den_lats.get_arc_post(True,True).exp(),

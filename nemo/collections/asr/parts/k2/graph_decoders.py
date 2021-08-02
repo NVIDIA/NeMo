@@ -153,6 +153,8 @@ class TokenLMDecoder(BaseDecoder):
             if self.token_lm is not None:
                 if hasattr(self.token_lm, 'aux_labels'):
                     delattr(self.token_lm, 'aux_labels')
+                if self.pad_fsavec:
+                    shift_labels_inpl([self.token_lm], 1)
                 labels = self.token_lm.labels if isinstance(self.token_lm.labels, torch.Tensor) else self.token_lm.labels.values()
                 if labels.max() != self.ctc_topo_inv.labels.max():
                     raise ValueError(f"token_lm is not compatible with the topo: {labels.unique()}, {self.ctc_topo_inv.labels.unique()}")
