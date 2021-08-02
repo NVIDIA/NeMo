@@ -157,7 +157,7 @@ class ModelPT(LightningModule, Model):
         config_path: str,
         src: str,
         verify_src_exists: bool = True,
-        save_restore_connector: SaveRestoreConnector = SaveRestoreConnector(),
+        save_restore_connector: SaveRestoreConnector = None,
     ):
         """ Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
             when model.save_to("mymodel.nemo") is called.        
@@ -184,6 +184,10 @@ class ModelPT(LightningModule, Model):
             Returns:
                 str: If src is not None or empty it always returns absolute path which is guaranteed to exists during model instnce life
         """
+
+        if save_restore_connector is None:
+            save_restore_connector = SaveRestoreConnector()
+
         app_state = AppState()
 
         if src is None or src == "":
@@ -234,7 +238,7 @@ class ModelPT(LightningModule, Model):
         map_location: Optional[torch.device] = None,
         strict: bool = True,
         return_config: bool = False,
-        save_restore_connector: SaveRestoreConnector = SaveRestoreConnector(),
+        save_restore_connector: SaveRestoreConnector = None,
     ):
         """
         Restores model instance (weights and configuration) from .nemo file.
@@ -258,6 +262,9 @@ class ModelPT(LightningModule, Model):
         Returns:
             An instance of type cls or its underlying config (if return_config is set).
         """
+
+        if save_restore_connector is None:
+            save_restore_connector = SaveRestoreConnector()
 
         restore_path = os.path.abspath(os.path.expanduser(restore_path))
         if not path.exists(restore_path):
@@ -941,7 +948,7 @@ class ModelPT(LightningModule, Model):
         restore_path: str,
         save_dir: str,
         split_by_module: bool = False,
-        save_restore_connector=SaveRestoreConnector(),
+        save_restore_connector: SaveRestoreConnector = None,
     ):
         """
         Extract the state dict(s) from a provided .nemo tarfile and save it to a directory.
