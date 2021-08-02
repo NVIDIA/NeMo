@@ -230,6 +230,3 @@ class NLPCheckpointConnector(CheckpointConnector):
                     )
                     atomic_save(checkpoint, filepath)
         return None
-
-
-# class NLPSaveRestoreConnector(SaveRestoreConnector):
