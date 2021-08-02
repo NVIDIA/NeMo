@@ -220,18 +220,35 @@ class DateFst(GraphFst):
         final_graph |= graph_ymd | year_graph_standalone
 
         if not deterministic:
-            data_graph = None
+            ymd_to_mdy_graph = None
+            mdy_to_dmy_graph = None
             for month in ["august", "november", "july"]:
                 for day in ["five", "three", "seventeen"]:
-                    date_graph_curr = (
+                    mdy_curr = (
                         pynutil.insert("month: \"" + month + "\" day: \"" + day + "\" ")
                         + pynini.accep('year:')
                         + NEMO_SIGMA
                         + pynutil.delete(" month: \"" + month + "\" day: \"" + day + "\"")
                     )
-                    date_graph_curr = pynini.compose(final_graph, date_graph_curr)
-                    data_graph = date_graph_curr if data_graph is None else pynini.union(date_graph_curr, data_graph)
-            final_graph |= data_graph
+
+                    mdy_curr = pynini.compose(final_graph, mdy_curr)
+                    ymd_to_mdy_graph = (
+                        mdy_curr if ymd_to_mdy_graph is None else pynini.union(mdy_curr, ymd_to_mdy_graph)
+                    )
+
+                    dmy_curr = (
+                        pynutil.insert("day: \"" + day + "\" month: \"" + month + "\" ")
+                        + pynutil.delete("month: \"" + month + "\" day: \"" + day + "\" ")
+                        + pynini.accep('year:')
+                        + NEMO_SIGMA
+                    )
+
+                    dmy_curr = pynini.compose(mdy_curr, dmy_curr) | pynini.compose(final_graph, dmy_curr)
+                    mdy_to_dmy_graph = (
+                        dmy_curr if mdy_to_dmy_graph is None else pynini.union(dmy_curr, mdy_to_dmy_graph)
+                    )
+
+            final_graph |= ymd_to_mdy_graph | mdy_to_dmy_graph | pynini.compose(ymd_to_mdy_graph, mdy_to_dmy_graph)
 
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

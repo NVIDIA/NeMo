@@ -64,7 +64,8 @@ class ClassifyFst(GraphFst):
     def __init__(self, input_case: str, deterministic: bool = True, use_cache: bool = False):
         super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
 
-        far_file = get_abs_path("_tokenize_and_classify_non_deteministic_new.far")
+        use_cache = False
+        far_file = get_abs_path("_tokenize_and_classify_non_deteministic2.far")
         if use_cache and os.path.exists(far_file):
             self.fst = pynini.Far(far_file, mode='r')['tokenize_and_classify']
             logging.info(f'ClassifyFst.fst was restored from {os.path.abspath(far_file)}')
@@ -152,7 +153,7 @@ class ClassifyFst(GraphFst):
                 classify_and_verbalize |= pynutil.add_weight(pynini.compose(abbreviation_graph, v_abbreviation), 100)
 
             # from pynini.lib.rewrite import top_rewrites
-            # print([print(x) for x in top_rewrites("$1.01", money_graph, 20)])
+            # print([print(x) for x in top_rewrites("11/17/05", date_graph, 20)])
             # import pdb;
             # pdb.set_trace()
             # print(top_rewrites("No. 5", classify_and_verbalize, 5))
