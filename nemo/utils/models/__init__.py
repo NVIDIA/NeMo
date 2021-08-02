@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.common.models.mock import MockModel
+from nemo.utils.models.mock import MockModel

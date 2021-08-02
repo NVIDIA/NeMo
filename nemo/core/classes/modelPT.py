@@ -989,6 +989,9 @@ class ModelPT(LightningModule, Model):
         Returns:
             The state dict that was loaded from the original .nemo checkpoint
         """
+        if save_restore_connector is None:
+            save_restore_connector = SaveRestoreConnector()
+
         if not path.exists(restore_path):
             raise FileExistsError(f"Can't find {restore_path}")
 
