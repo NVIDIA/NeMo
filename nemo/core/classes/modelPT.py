@@ -152,7 +152,13 @@ class ModelPT(LightningModule, Model):
         # ModelPT wrappers over subclass implementations
         self.training_step = model_utils.wrap_training_step(self.training_step)
 
-    def register_artifact(self, config_path: str, src: str, verify_src_exists: bool = True):
+    def register_artifact(
+        self,
+        config_path: str,
+        src: str,
+        verify_src_exists: bool = True,
+        save_restore_connector: SaveRestoreConnector = SaveRestoreConnector(),
+    ):
         """ Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
             when model.save_to("mymodel.nemo") is called.        
 
@@ -194,6 +200,8 @@ class ModelPT(LightningModule, Model):
                 f"You tried to register an artifact under config key={config_path} but an artifact for "
                 f"it has already been registered."
             )
+
+        self.update_save_restore_connector(save_restore_connector)
 
         return self._save_restore_connector._register_artifact(self, config_path, src, verify_src_exists)
 
