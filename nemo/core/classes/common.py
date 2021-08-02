@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 import hydra
+from numpy import save
 import wrapt
 from omegaconf import DictConfig, OmegaConf
 
@@ -623,7 +624,7 @@ class Model(Typing, Serialization, FileIO):
         map_location: Optional['torch.device'] = None,
         strict: bool = True,
         return_config: bool = False,
-        save_restore_connector: SaveRestoreConnector = SaveRestoreConnector(),
+        save_restore_connector: SaveRestoreConnector = None,
     ):
         """
         Instantiates an instance of NeMo from NVIDIA NGC cloud
@@ -643,6 +644,9 @@ class Model(Typing, Serialization, FileIO):
         Returns:
             A model instance of a particular model class or its underlying config (if return_config is set).
         """
+        if save_restore_connector is None:
+            save_restore_connector = SaveRestoreConnector()
+
         location_in_the_cloud = None
         description = None
         models = cls.list_available_models()
