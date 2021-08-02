@@ -25,8 +25,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 import hydra
-from numpy import save
 import wrapt
+from numpy import save
 from omegaconf import DictConfig, OmegaConf
 
 import nemo
