@@ -37,7 +37,7 @@ def getattr2(object, attr):
 
 
 def _mock_model_config():
-    conf = {'temp_file': None, 'target': 'nemo.collections.common.models.mock.MockModel'}
+    conf = {'temp_file': None, 'target': 'nemo.utils.models.mock.MockModel'}
     conf = OmegaConf.create({'model': conf})
     OmegaConf.set_struct(conf, True)
     return conf
