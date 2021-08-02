@@ -15,7 +15,6 @@
 import glob
 import hashlib
 import json
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 import os
 import shutil
 import tarfile

@@ -13,25 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import pickle
 import shutil
-import uuid
-
-from omegaconf.omegaconf import open_dict
-from nemo.utils import app_state
-from nemo.utils import model_utils
-from nemo.utils.model_utils import import_class_by_path
-import os
 import tarfile
 import tempfile
+import uuid
 from os import path
 from typing import Optional, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf
+from omegaconf.omegaconf import open_dict
 
-from nemo.utils import logging
+from nemo.utils import app_state, logging, model_utils
 from nemo.utils.app_state import AppState
+from nemo.utils.model_utils import import_class_by_path
 
 
 class SaveRestoreConnector:

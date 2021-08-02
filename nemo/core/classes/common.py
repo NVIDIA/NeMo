@@ -15,7 +15,6 @@
 
 """Interfaces common to all Neural Modules and Models."""
 import hashlib
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 import traceback
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
@@ -30,6 +29,7 @@ import wrapt
 from omegaconf import DictConfig, OmegaConf
 
 import nemo
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
 from nemo.utils import logging
 from nemo.utils.cloud import maybe_download_from_cloud

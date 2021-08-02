@@ -13,10 +13,11 @@
 # limitations under the License.
 
 from typing import Dict, Union
-from nemo.core.classes import ModelPT
-from omegaconf import DictConfig
 
 import torch
+from omegaconf import DictConfig
+
+from nemo.core.classes import ModelPT
 
 
 class MockModel(ModelPT):

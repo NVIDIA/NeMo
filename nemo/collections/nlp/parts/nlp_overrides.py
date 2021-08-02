@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 import os
 from typing import Any, Dict, List, Optional, Union
 
@@ -31,6 +30,7 @@ from torch.nn.parallel import DistributedDataParallel
 
 from nemo.collections.nlp.modules.common.megatron.megatron_bert import MegatronBertEncoder
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder import MegatronEncoderModule
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import AppState, logging
 
 
@@ -233,4 +233,3 @@ class NLPCheckpointConnector(CheckpointConnector):
 
 
 # class NLPSaveRestoreConnector(SaveRestoreConnector):
-

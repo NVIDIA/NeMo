@@ -22,8 +22,8 @@ import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
-from nemo.collections.nlp.models import PunctuationCapitalizationModel, TransformerLMModel
 from nemo.collections.common.models import MockModel
+from nemo.collections.nlp.models import PunctuationCapitalizationModel, TransformerLMModel
 from nemo.core.classes import ModelPT
 from nemo.utils.app_state import AppState
 
