@@ -238,8 +238,9 @@ def shift_labels_inpl(lattices: List[k2.Fsa], shift: int):
     for lattice in lattices:
         mask = lattice.labels > 0
         lattice.labels[mask] += shift
-        mask = lattice.aux_labels > 0
-        lattice.aux_labels[mask] += shift
+        if hasattr(lattice, 'aux_labels'):
+            mask = lattice.aux_labels > 0
+            lattice.aux_labels[mask] += shift
 
 def get_tot_objf_and_num_frames(
         tot_scores: torch.Tensor,
