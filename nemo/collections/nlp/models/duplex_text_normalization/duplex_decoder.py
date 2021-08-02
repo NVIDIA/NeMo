@@ -46,6 +46,7 @@ class DuplexDecoderModel(NLPModel):
         self._tokenizer = AutoTokenizer.from_pretrained(cfg.tokenizer)
         super().__init__(cfg=cfg, trainer=trainer)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(cfg.transformer)
+        self.transformer_name = cfg.transformer
 
         # Language
         self.lang = cfg.get('lang', None)
@@ -244,16 +245,19 @@ class DuplexDecoderModel(NLPModel):
         dataset = TextNormalizationDecoderDataset(
             input_file,
             tokenizer,
+            self.transformer_name,
             cfg.mode,
             cfg.get('max_decoder_len', tokenizer.model_max_length),
             cfg.get('decoder_data_augmentation', False),
             cfg.lang,
+            cfg.do_basic_tokenize,
+            cfg.get('use_cache', False),
         )
         data_collator = DataCollatorForSeq2Seq(
             tokenizer, model=model, label_pad_token_id=constants.LABEL_PAD_TOKEN_ID,
         )
         dl = torch.utils.data.DataLoader(
-            dataset=dataset, batch_size=cfg.batch_size, shuffle=cfg.shuffle, collate_fn=data_collator,
+            dataset=dataset, batch_size=cfg.batch_size, shuffle=cfg.shuffle, collate_fn=data_collator
         )
         running_time = perf_counter() - start_time
         logging.info(f'Took {running_time} seconds')
