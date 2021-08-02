@@ -603,7 +603,7 @@ def pred_rttm_map(vad_pred, groundtruth_RTTM, vad_pred_method="frame"):
     return paired_filenames, groundtruth_RTTM_dict, vad_pred_dict
 
 
-def plot(path2audio_file, path2_vad_pred, path2ground_truth_label=None, threshold=0.85):
+def plot(path2audio_file, path2_vad_pred, path2ground_truth_label=None, threshold=0.85, offset=0, duration=None):
     """
     Plot VAD outputs for demonstration in tutorial
     Args:
@@ -614,10 +614,14 @@ def plot(path2audio_file, path2_vad_pred, path2ground_truth_label=None, threshol
     """
     plt.figure(figsize=[20, 2])
     FRAME_LEN = 0.01
-    audio, sample_rate = librosa.load(path=path2audio_file, sr=16000, mono=True)
+
+    audio, sample_rate = librosa.load(path=path2audio_file, sr=16000, mono=True, offset=offset, duration=duration)
     dur = librosa.get_duration(audio, sr=sample_rate)
-    time = np.arange(0, dur, FRAME_LEN)
+    
+    time = np.arange(offset, offset + dur, FRAME_LEN)
     frame = np.loadtxt(path2_vad_pred)
+    frame = frame[int(offset/FRAME_LEN): int((offset+dur)/FRAME_LEN)]
+
     len_pred = len(frame)
     ax1 = plt.subplot()
     ax1.plot(np.arange(audio.size) / sample_rate, audio, 'gray')
@@ -626,11 +630,14 @@ def plot(path2audio_file, path2_vad_pred, path2ground_truth_label=None, threshol
     ax1.set_ylabel('Signal')
     ax1.set_ylim([-1, 1])
     ax2 = ax1.twinx()
+
     prob = frame
     pred = np.where(prob >= threshold, 1, 0)
+    
     if path2ground_truth_label:
         label = extract_labels(path2ground_truth_label, time)
         ax2.plot(np.arange(len_pred) * FRAME_LEN, label, 'r', label='label')
+
     ax2.plot(np.arange(len_pred) * FRAME_LEN, pred, 'b', label='pred')
     ax2.plot(np.arange(len_pred) * FRAME_LEN, prob, 'g--', label='speech prob')
     ax2.tick_params(axis='y', labelcolor='r')
