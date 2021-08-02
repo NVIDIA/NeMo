@@ -32,6 +32,10 @@ from nemo.utils.model_utils import import_class_by_path
 
 
 class SaveRestoreConnector:
+    def __init__(self) -> None:
+        self._model_config_yaml = "model_config.yaml"
+        self._model_weights_ckpt = "model_weights.ckpt"
+
     def save_to(self, model, save_path: str):
         """
         Saves model instance (weights and configuration) into .nemo file.
@@ -45,11 +49,10 @@ class SaveRestoreConnector:
             model: ModelPT object to be saved.
             save_path: Path to .nemo file where model instance should be saved
 		"""
-        app_state = AppState()
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            config_yaml = path.join(tmpdir, app_state.model_config_yaml)
-            model_weights = path.join(tmpdir, app_state.model_weights_ckpt)
+            config_yaml = path.join(tmpdir, self.model_config_yaml)
+            model_weights = path.join(tmpdir, self.model_weights_ckpt)
             model.to_config_file(path2yaml_file=config_yaml)
             if hasattr(model, 'artifacts') and model.artifacts is not None:
                 self._handle_artifacts(model, nemo_file_folder=tmpdir)
@@ -105,7 +108,7 @@ class SaveRestoreConnector:
                 self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
                 os.chdir(tmpdir)
                 if override_config_path is None:
-                    config_yaml = path.join(tmpdir, app_state.model_config_yaml)
+                    config_yaml = path.join(tmpdir, self.model_config_yaml)
                 else:
                     # can be str path or OmegaConf / DictConfig object
                     config_yaml = override_config_path
@@ -127,10 +130,10 @@ class SaveRestoreConnector:
                     app_state = AppState()
                     if app_state.model_parallel_rank is not None:
                         model_weights = path.join(
-                            tmpdir, f'mp_rank_{app_state.model_parallel_rank:02}', app_state.model_weights_ckpt
+                            tmpdir, f'mp_rank_{app_state.model_parallel_rank:02}', self.model_weights_ckpt
                         )
                     else:
-                        model_weights = path.join(tmpdir, app_state.model_weights_ckpt)
+                        model_weights = path.join(tmpdir, self.model_weights_ckpt)
                 OmegaConf.set_struct(conf, True)
                 os.chdir(cwd)
                 # get the class
@@ -190,7 +193,6 @@ class SaveRestoreConnector:
         Returns:
             The state dict that was loaded from the original .nemo checkpoint
         """
-        app_state = AppState()
 
         cwd = os.getcwd()
 
@@ -202,11 +204,11 @@ class SaveRestoreConnector:
             try:
                 self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
                 os.chdir(tmpdir)
-                model_weights = path.join(tmpdir, app_state.model_weights_ckpt)
+                model_weights = path.join(tmpdir, self.model_weights_ckpt)
                 state_dict = self._load_state_dict_from_disk(model_weights)
 
                 if not split_by_module:
-                    filepath = os.path.join(save_dir, app_state.model_weights_ckpt)
+                    filepath = os.path.join(save_dir, self.model_weights_ckpt)
                     self._save_state_dict_to_disk(state_dict, filepath)
 
                 else:
@@ -387,3 +389,19 @@ class SaveRestoreConnector:
     @staticmethod
     def _load_state_dict_from_disk(model_weights, map_location=None):
         return torch.load(model_weights, map_location=map_location)
+
+    @property
+    def model_config_yaml(self) -> str:
+        return self._model_config_yaml
+
+    @model_config_yaml.setter
+    def model_config_yaml(self, path: str):
+        self._model_config_yaml = path
+
+    @property
+    def model_weights_ckpt(self) -> str:
+        return self._model_weights_ckpt
+
+    @model_weights_ckpt.setter
+    def model_weights_ckpt(self, path: str):
+        self._model_weights_ckpt = path

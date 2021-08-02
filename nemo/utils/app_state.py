@@ -60,8 +60,6 @@ class AppState(metaclass=Singleton):
 
         # Save and Restore (.nemo)
         self._tmpdir_name = None
-        self._model_config_yaml = "model_config.yaml"
-        self._model_weights_ckpt = "model_weights.ckpt"
         self._is_model_being_restored = False
         self._nemo_file_folder = None
         self._model_restore_path = None
@@ -348,22 +346,6 @@ class AppState(metaclass=Singleton):
             params (dict): checkpoint_callback_params set by exp_manager.
         """
         self._checkpoint_callback_params = params
-
-    @property
-    def model_config_yaml(self) -> str:
-        return self._model_config_yaml
-
-    @model_config_yaml.setter
-    def model_config_yaml(self, path: str):
-        self._model_config_yaml = path
-
-    @property
-    def model_weights_ckpt(self) -> str:
-        return self._model_weights_ckpt
-
-    @model_weights_ckpt.setter
-    def model_weights_ckpt(self, path: str):
-        self._model_weights_ckpt = path
 
     @property
     def model_restore_path(self):
