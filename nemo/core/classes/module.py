@@ -53,8 +53,8 @@ class NeuralModule(Module, Typing, Serialization, FileIO):
         for param in self.parameters():
             param.requires_grad = False
 
-        # self.eval()
-        self.train()
+        self.eval()
+        # self.train()
 
         # check that param grads are false
         for param in self.parameters():
