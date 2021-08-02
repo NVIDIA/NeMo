@@ -180,6 +180,7 @@ class ModelPT(LightningModule, Model):
                 src (str): Path to artifact.
                 verify_src_exists (bool): If set to False, then the artifact is optional and register_artifact will return None even if 
                                           src is not found. Defaults to True.
+                save_restore_connector (SaveRestoreConnector): Can be overrided to add custom save and restore logic.
 
             Returns:
                 str: If src is not None or empty it always returns absolute path which is guaranteed to exists during model instnce life
@@ -252,6 +253,7 @@ class ModelPT(LightningModule, Model):
             strict: Passed to load_state_dict. By default True.
             return_config: If set to true, will return just the underlying config of the restored
                 model as an OmegaConf DictConfig object without instantiating the model.
+            save_restore_connector (SaveRestoreConnector): Can be overrided to add custom save and restore logic.
 
             Example:
                 ```
@@ -958,6 +960,7 @@ class ModelPT(LightningModule, Model):
             save_dir: directory in which the saved state dict(s) should be stored
             split_by_module: bool flag, which determins whether the output checkpoint should
                 be for the entire Model, or the individual module's that comprise the Model
+            save_restore_connector (SaveRestoreConnector): Can be overrided to add custom save and restore logic.
 
         Example:
             To convert the .nemo tarfile into a single Model level PyTorch checkpoint
