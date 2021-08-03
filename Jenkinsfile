@@ -370,7 +370,7 @@ pipeline {
         stage('Speech to Text - RNNT') {
           steps {
             sh 'STRICT_NUMBA_COMPAT_CHECK=false python examples/asr/speech_to_text_rnnt.py \
-            --config-path="experimental/contextnet_rnnt/" --config-name="config_rnnt.yaml" \
+            --config-path="conf/contextnet_rnnt/" --config-name="config_rnnt.yaml" \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             model.train_ds.batch_size=2 \
@@ -384,7 +384,7 @@ pipeline {
         stage('L2: Speech to Text RNNT WPE') {
           steps {
             sh 'STRICT_NUMBA_COMPAT_CHECK=false python examples/asr/speech_to_text_rnnt_bpe.py \
-            --config-path="experimental/contextnet_rnnt/" --config-name="config_rnnt_bpe.yaml" \
+            --config-path="conf/contextnet_rnnt/" --config-name="config_rnnt_bpe.yaml" \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             model.train_ds.batch_size=2 \
