@@ -391,8 +391,7 @@ def binarization(sequence, per_args):
         active_segments.add((start - pad_onset, i * shift_len + pad_offset))
 
     # Merge the overlapped active segments due to padding
-    active_segments = merge_overlap_segment(active_segments) 
-    
+    active_segments = merge_overlap_segment(active_segments)  #not sorted
     return active_segments
 
 def filtering(active_segments, per_args):
@@ -402,20 +401,35 @@ def filtering(active_segments, per_args):
     """
     min_duration_on = per_args.get('min_duration_on', 0.2) 
     min_duration_off = per_args.get('min_duration_off', 0.3) 
-
-    # Filter out the shorter active segments
-    if min_duration_on > 0.0:
-        active_segments = filter_short_segments(active_segments, min_duration_on)
-    # Filter out the shorter inactive segments and return to be as active segments
-    if min_duration_off > 0.0:
-        # Find inactive segments
-        inactive_segments = get_gap_segments(active_segments)
-        # Find shorter inactive segments
-        short_inactive_segments= inactive_segments - filter_short_segments(inactive_segments, min_duration_off)
-        # Return shorter inactive segments to be as active segments
-        active_segments.update(short_inactive_segments)
-        # Merge the overlapped active segments
-        active_segments = merge_overlap_segment(active_segments)
+    filter_active_first = per_args.get('filter_active_first', True)
+    
+    if filter_active_first:
+        # Filter out the shorter active segments
+        if min_duration_on > 0.0:
+            active_segments = filter_short_segments(active_segments, min_duration_on)
+        # Filter out the shorter inactive segments and return to be as active segments
+        if min_duration_off > 0.0:
+            # Find inactive segments
+            inactive_segments = get_gap_segments(active_segments)
+            # Find shorter inactive segments
+            short_inactive_segments= inactive_segments - filter_short_segments(inactive_segments, min_duration_off)
+            # Return shorter inactive segments to be as active segments
+            active_segments.update(short_inactive_segments)
+            # Merge the overlapped active segments
+            active_segments = merge_overlap_segment(active_segments) 
+    else:
+        if min_duration_off > 0.0:
+            # Find inactive segments
+            inactive_segments = get_gap_segments(active_segments)
+            # Find shorter inactive segments
+            short_inactive_segments= inactive_segments - filter_short_segments(inactive_segments, min_duration_off)
+            # Return shorter inactive segments to be as active segments
+            active_segments.update(short_inactive_segments)
+            # Merge the overlapped active segments
+            active_segments = merge_overlap_segment(active_segments) 
+        if min_duration_on > 0.0:
+            active_segments = filter_short_segments(active_segments, min_duration_on)
+    print(active_segments)
     return active_segments
 
 def filter_short_segments(segments, threshold):
@@ -444,6 +458,7 @@ def merge_overlap_segment(segments):
             merged[-1][1] = max(merged[-1][1], segment[1])
 
     merged_set = set([tuple(t) for t in merged])
+
     return merged_set
 
 
@@ -603,7 +618,10 @@ def pred_rttm_map(vad_pred, groundtruth_RTTM, vad_pred_method="frame"):
     return paired_filenames, groundtruth_RTTM_dict, vad_pred_dict
 
 
-def plot(path2audio_file, path2_vad_pred, path2ground_truth_label=None, threshold=0.85, offset=0, duration=None):
+def plot(
+    path2audio_file, path2_vad_pred, path2ground_truth_label=None, 
+    offset=0, duration=None, 
+    threshold=None, per_args=None):
     """
     Plot VAD outputs for demonstration in tutorial
     Args:
@@ -632,8 +650,18 @@ def plot(path2audio_file, path2_vad_pred, path2ground_truth_label=None, threshol
     ax2 = ax1.twinx()
 
     prob = frame
-    pred = np.where(prob >= threshold, 1, 0)
-    
+    if threshold and per_args:
+        raise ValueError("threshold and per_args cannot been used at same time!")
+    if not threshold and not per_args:
+        raise ValueError("One and only one of threshold and per_args must have been used!")
+
+    if threshold:
+        pred = np.where(prob >= threshold, 1, 0)
+    if per_args:
+        active_segments = binarization(prob, per_args) 
+        active_segments = filtering(active_segments, per_args) 
+        pred = gen_pred_from_active_segments(active_segments, prob)
+
     if path2ground_truth_label:
         label = extract_labels(path2ground_truth_label, time)
         ax2.plot(np.arange(len_pred) * FRAME_LEN, label, 'r', label='label')
@@ -646,6 +674,18 @@ def plot(path2audio_file, path2_vad_pred, path2ground_truth_label=None, threshol
     ax2.set_ylim([-0.1, 1.1])
     return None
 
+def gen_pred_from_active_segments(active_segments, prob):
+
+    pred = np.zeros(prob.shape)
+    active_segments=[list(i) for i in active_segments]
+    active_segments.sort(key=lambda x: x[0])
+
+    for seg in active_segments:
+        start = int(seg[0]/0.01)
+        end = int(seg[1]/0.01)
+        pred[start: end] = 1
+
+    return pred
 
 def extract_labels(path2ground_truth_label, time):
     """
