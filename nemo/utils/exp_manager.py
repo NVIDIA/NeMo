@@ -32,6 +32,7 @@ from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.utilities import rank_zero_only
 from pytorch_lightning.utilities.types import _METRIC
+from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
 
 from nemo.constants import NEMO_ENV_VARNAME_VERSION
 from nemo.utils import app_state, logging
@@ -292,7 +293,7 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
             "You are running multi-node training without SLURM handling the processes."
             " Please note that this is not tested in NeMo and could result in errors."
         )
-    if trainer.num_gpus > 1 and not trainer.use_ddp:
+    if trainer.num_gpus > 1 and not isinstance(trainer.accelerator.training_type_plugin, DDPPlugin):
         logging.error(
             "You are running multi-gpu without ddp.Please note that this is not tested in NeMo and could result in "
             "errors."
