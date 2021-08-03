@@ -20,7 +20,6 @@ from nemo_text_processing.inverse_text_normalization.es.graph_utils import (
     convert_space,
     delete_extra_space,
     delete_space,
-    get_singulars,
     insert_space,
 )
 from nemo_text_processing.inverse_text_normalization.es.utils import get_abs_path

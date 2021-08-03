@@ -55,7 +55,7 @@ class TelephoneFst(GraphFst):
             graph_twenties,
             graph_teen,
             (graph_ties + pynutil.insert("0")),
-            (graph_ties + pynutil.delete(" y ") + graph_digit),
+            (graph_ties + delete_space + pynutil.delete("y") + delete_space + graph_digit),
         ).invert()
 
         # define `ten_digit_graph`, `nine_digit_graph`, `eight_digit_graph`

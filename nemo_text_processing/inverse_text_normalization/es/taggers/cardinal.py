@@ -21,7 +21,7 @@ from nemo_text_processing.inverse_text_normalization.es.graph_utils import (
     GraphFst,
     delete_space,
 )
-from nemo_text_processing.inverse_text_normalization.es.utils import get_abs_path, num_to_word
+from nemo_text_processing.inverse_text_normalization.es.utils import get_abs_path
 
 try:
     import pynini
