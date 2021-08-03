@@ -18,6 +18,7 @@ from typing import List, Optional
 import nltk
 import torch
 import wordninja
+from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
@@ -50,6 +51,21 @@ class DuplexDecoderModel(NLPModel):
 
         # Language
         self.lang = cfg.get('lang', None)
+
+        # Covering Grammars
+        self.cg_normalizer = None # Default
+        # We only support integrating with English TN covering grammars at the moment
+        self.use_cg = cfg.get('use_cg', False) and self.lang == constants.ENGLISH
+        if self.use_cg:
+            self.setup_cg()
+
+    # Setup covering grammars
+    def setup_cgs(self):
+        self.use_cg = True
+        input_case = 'cased'  # input_case is cased by default
+        if hasattr(self._tokenizer, 'do_lower_case') and self._tokenizer.do_lower_case:
+            input_case = 'lower_cased'
+        self.cg_normalizer = NormalizerWithAudio(input_case=input_case, lang=self.lang)
 
     # Training
     def training_step(self, batch, batch_idx):
@@ -176,8 +192,29 @@ class DuplexDecoderModel(NLPModel):
         # Apply the decoding model
         batch = tokenizer(all_inputs, padding=True, return_tensors='pt')
         input_ids = batch['input_ids'].to(self.device)
-        generated_ids = model.generate(input_ids, max_length=model_max_len)
+        outputs = model.generate(
+            input_ids,
+            output_scores=True, return_dict_in_generate=True,
+            max_length=model_max_len
+        )
+        generated_ids, sequence_toks_scores = outputs['sequences'], outputs['scores']
         generated_texts = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
+
+        # Use covering grammars (if enabled)
+        if self.use_cg:
+            sequence_probs = torch.ones(len(all_inputs)).to(self.device)
+            for ix, cur_toks_scores in enumerate(sequence_toks_scores):
+                cur_generated_ids = generated_ids[:,ix+1].tolist()
+                cur_toks_probs = torch.nn.functional.softmax(cur_toks_scores, dim=-1)
+                # Compute selected_toks_probs
+                selected_toks_probs = []
+                for jx, _id in enumerate(cur_generated_ids):
+                    if _id != self._tokenizer.pad_token_id:
+                        selected_toks_probs.append(cur_toks_probs[jx, _id])
+                    else:
+                        selected_toks_probs.append(1)
+                selected_toks_probs = torch.tensor(selected_toks_probs).to(self.device)
+                sequence_probs *= selected_toks_probs
 
         # Post processing
         generated_texts = self.postprocess_output_spans(input_centers, generated_texts, input_dirs)

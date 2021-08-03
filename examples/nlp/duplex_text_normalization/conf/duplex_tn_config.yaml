@@ -75,6 +75,9 @@ decoder_model:
   nemo_path: ${decoder_exp_manager.exp_dir}/decoder_model.nemo # exported .nemo path
   lang: ${lang}
 
+  # Options related to covering grammars for TN
+  use_cg: false # Use covering grammars to avoid catastrophic errors
+
   optim:
     name: adamw
     lr: 2e-4
