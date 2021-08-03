@@ -158,10 +158,11 @@ class MoneyFst(GraphFst):
 
             final_graph = decimal_graph_with_minor | decimal_graph_default | integer_graph
 
-        # from pynini.lib.rewrite import top_rewrites
+        from pynini.lib.rewrite import top_rewrites
+
         # import pdb;
         # pdb.set_trace()
-        # [print(x) for x in top_rewrites("£1.00", two_digits_fractional_part, 20)]
+        [print(x) for x in top_rewrites("£4.5 billion", final_graph, 20)]
         # print(top_rewrites("₩4 billion", final_graph, 5))
 
         final_graph = self.add_tokens(final_graph)

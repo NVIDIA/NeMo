@@ -153,12 +153,12 @@ class MoneyFst(GraphFst):
             )
             graph |= graph_integer | graph_decimal_with_minor
 
-        # # delete_zeros = NEMO_SIGMA + pynutil.delete("fractional_part: \"" + pynini.closure("o" + pynini.closure(" o")) + "\"") + delete_space + NEMO_SIGMA
+        # delete_zeros = NEMO_SIGMA + pynutil.delete("fractional_part: \"" + pynini.closure("o" + pynini.closure(" o")) + "\"") + delete_space + NEMO_SIGMA
         # from pynini.lib.rewrite import top_rewrites
         # # #
         # import pdb;
         # pdb.set_trace()
-        # print(top_rewrites('integer_part: "one"  fractional_part: "zero one" currency: "dollars"', graph, 5))
+        # print(top_rewrites('integer_part: "four"  fractional_part: "three" quantity: "billion" currency: "pounds"', graph, 5))
         # print()
 
         delete_tokens = self.delete_tokens(graph)
