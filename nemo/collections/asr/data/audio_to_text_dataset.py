@@ -245,3 +245,47 @@ def get_dali_char_dataset(
         preprocessor_cfg=preprocessor_cfg,
     )
     return dataset
+
+
+def get_dali_bpe_dataset(
+    config: dict,
+    tokenizer,
+    shuffle: bool,
+    device_id: int,
+    global_rank: int,
+    world_size: int,
+    preprocessor_cfg: Optional[DictConfig] = None,
+) -> audio_to_text_dali.AudioToCharDALIDataset:
+    """
+    Instantiates a Subword Encoding based AudioToBPEDALIDataset.
+
+    Args:
+        config: Config of the AudioToBPEDALIDataset.
+        tokenizer: An implementation of NeMo TokenizerSpec.
+        shuffle: Bool flag whether to shuffle the dataset.
+        device_id: Index of the GPU to be used (local_rank). Only applicable when device == 'gpu'. Defaults to 0.
+        global_rank: Global rank of this device.
+        world_size: Global world size in the training method.
+        augmentor: Optional AudioAugmentor object for augmentations on audio data.
+
+    Returns:
+        An instance of AudioToCharDALIDataset.
+    """
+    device = 'gpu' if torch.cuda.is_available() else 'cpu'
+    dataset = audio_to_text_dali.AudioToBPEDALIDataset(
+        manifest_filepath=config['manifest_filepath'],
+        tokenizer=tokenizer,
+        device=device,
+        batch_size=config['batch_size'],
+        sample_rate=config['sample_rate'],
+        max_duration=config.get('max_duration', None),
+        min_duration=config.get('min_duration', None),
+        trim=config.get('trim_silence', False),
+        use_start_end_token=config.get('use_start_end_token', True),
+        shuffle=shuffle,
+        device_id=device_id,
+        global_rank=global_rank,
+        world_size=world_size,
+        preprocessor_cfg=preprocessor_cfg,
+    )
+    return dataset
