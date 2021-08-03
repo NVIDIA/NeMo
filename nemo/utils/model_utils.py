@@ -500,7 +500,10 @@ def check_lib_version(lib_name: str, checked_version: str, operator) -> (Optiona
         -   A string analysis of the check.
     """
     try:
-        mod = __import__(lib_name)
+        if '.' in lib_name:
+            mod = import_class_by_path(lib_name)
+        else:
+            mod = __import__(lib_name)
 
         if hasattr(mod, '__version__'):
             lib_ver = version.Version(mod.__version__)
