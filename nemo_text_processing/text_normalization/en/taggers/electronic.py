@@ -53,11 +53,12 @@ class ElectronicFst(GraphFst):
         )
         domain_graph = (
             NEMO_ALPHA
-            + (pynini.closure(NEMO_ALPHA | NEMO_DIGIT | pynini.accep('-') | pynini.accep('.')))
-            + (NEMO_ALPHA | NEMO_DIGIT)
+            + pynini.closure(NEMO_ALPHA | NEMO_DIGIT | pynini.accep('-'))
+            + pynini.accep('.')
+            + pynini.closure(NEMO_ALPHA, 1)
         )
         domain_graph = pynutil.insert("domain: \"") + domain_graph + pynutil.insert("\"")
-        graph = username + domain_graph
+        graph = pynini.closure(username, 0, 1) + domain_graph
 
         final_graph = self.add_tokens(graph)
         self.fst = final_graph.optimize()

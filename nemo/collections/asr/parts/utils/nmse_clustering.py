@@ -40,6 +40,16 @@ from nemo.utils import logging
 
 scaler = MinMaxScaler(feature_range=(0, 1))
 
+try:
+    from torch.linalg import eigh as eigh
+
+    TORCH_EIGN = True
+except ImportError:
+    TORCH_EIGN = False
+    from scipy.linalg import eigh as eigh
+
+    logging.warning("Using eigen decomposition from scipy, upgrade torch to 1.9 or higher for faster clustering")
+
 
 def isGraphFullyConnected(affinity_mat):
     return getTheLargestComponent(affinity_mat, 0).sum() == affinity_mat.shape[0]
@@ -120,7 +130,7 @@ def getCosAffinityMatrix(emb):
 
 def getLaplacian(X):
     """
-    Calculates a Laplacian matrix from an affinity matrix X.
+    Calculates a laplacian matrix from an affinity matrix X.
     """
     X[np.diag_indices(X.shape[0])] = 0
     A = X
@@ -130,17 +140,44 @@ def getLaplacian(X):
     return L
 
 
-def eigDecompose(Laplacian, cuda, device=None):
-    if cuda:
-        if device == None:
-            device = torch.cuda.current_device()
-        laplacian_torch = torch.from_numpy(Laplacian).float().to(device)
+def eigDecompose(laplacian, cuda, device=None):
+    if TORCH_EIGN:
+        if cuda:
+            if device is None:
+                device = torch.cuda.current_device()
+            laplacian = torch.from_numpy(laplacian).float().to(device)
+        else:
+            laplacian = torch.from_numpy(laplacian).float()
+        lambdas, diffusion_map = eigh(laplacian)
+        lambdas = lambdas.cpu().numpy()
+        diffusion_map = diffusion_map.cpu().numpy()
     else:
-        laplacian_torch = torch.from_numpy(Laplacian).float()
-    lambdas_torch, diffusion_map_torch = torch.linalg.eigh(laplacian_torch)
-    lambdas = lambdas_torch.cpu().numpy()
-    diffusion_map = diffusion_map_torch.cpu().numpy()
+        lambdas, diffusion_map = eigh(laplacian)
+
     return lambdas, diffusion_map
+
+
+def getLamdaGaplist(lambdas):
+    lambdas = np.real(lambdas)
+    return list(lambdas[1:] - lambdas[:-1])
+
+
+def estimateNumofSpeakers(affinity_mat, max_num_speaker, is_cuda=False):
+    """
+    Estimates the number of speakers using eigen decompose on laplacian Matrix.
+    affinity_mat: (array)
+        NxN affitnity matrix
+    max_num_speaker: (int)
+        Maximum number of clusters to consider for each session
+    is_cuda: (bool)
+        if cuda availble eigh decomposition would be computed on GPUs
+    """
+    laplacian = getLaplacian(affinity_mat)
+    lambdas, _ = eigDecompose(laplacian, is_cuda)
+    lambdas = np.sort(lambdas)
+    lambda_gap_list = getLamdaGaplist(lambdas)
+    num_of_spk = np.argmax(lambda_gap_list[: min(max_num_speaker, len(lambda_gap_list))]) + 1
+    return num_of_spk, lambdas, lambda_gap_list
 
 
 class _SpectralClustering:
@@ -170,8 +207,8 @@ class _SpectralClustering:
         if not isGraphFullyConnected(affinity_mat):
             logging.warning("Graph is not fully connected and the clustering result might not be accurate.")
 
-        Laplacian = getLaplacian(affinity_mat)
-        lambdas_, diffusion_map_ = eigDecompose(Laplacian, cuda)
+        laplacian = getLaplacian(affinity_mat)
+        lambdas_, diffusion_map_ = eigDecompose(laplacian, cuda)
         lambdas = lambdas_[:n_spks]
         diffusion_map = diffusion_map_[:, :n_spks]
         embedding = diffusion_map.T[n_spks::-1]
@@ -363,7 +400,7 @@ class NMESC:
         """
 
         affinity_mat = getAffinityGraphMat(self.mat, p_neighbors)
-        est_num_of_spk, lambdas, lambda_gap_list = self.estimateNumofSpeakers(affinity_mat)
+        est_num_of_spk, lambdas, lambda_gap_list = estimateNumofSpeakers(affinity_mat, self.max_num_speaker, self.cuda)
         arg_sorted_idx = np.argsort(lambda_gap_list[: self.max_num_speaker])[::-1]
         max_key = arg_sorted_idx[0]
         max_eig_gap = lambda_gap_list[max_key] / (max(lambdas) + self.eps)
@@ -388,21 +425,6 @@ class NMESC:
 
         return p_value_list
 
-    def getLamdaGaplist(self, lambdas):
-        lambdas = np.real(lambdas)
-        return list(lambdas[1:] - lambdas[:-1])
-
-    def estimateNumofSpeakers(self, affinity_mat):
-        """
-        Estimates the number of speakers using eigen decompose on Laplacian Matrix.
-        """
-        Laplacian = getLaplacian(affinity_mat)
-        lambdas, _ = eigDecompose(Laplacian, self.cuda)
-        lambdas = np.sort(lambdas)
-        lambda_gap_list = self.getLamdaGaplist(lambdas)
-        num_of_spk = np.argmax(lambda_gap_list[: min(self.max_num_speaker, len(lambda_gap_list))]) + 1
-        return num_of_spk, lambdas, lambda_gap_list
-
 
 def COSclustering(key, emb, oracle_num_speakers=None, max_num_speaker=8, min_samples=6, fixed_thres=None, cuda=False):
     """
@@ -423,8 +445,9 @@ def COSclustering(key, emb, oracle_num_speakers=None, max_num_speaker=8, min_sam
 
         min_samples: (int)
             Minimum number of samples required for NME clustering, this avoids
-            zero p_neighbour_lists. Default of 6 is selected since  (1/rp_threshold) >= 4.
-
+            zero p_neighbour_lists. Default of 6 is selected since (1/rp_threshold) >= 4
+            when max_rp_threshold = 0.25. Thus, NME analysis is skipped for matrices
+            smaller than (min_samples)x(min_samples).
     Returns:
         Y: (List[int])
             Speaker label for each segment.
@@ -443,12 +466,13 @@ def COSclustering(key, emb, oracle_num_speakers=None, max_num_speaker=8, min_sam
         NME_mat_size=300,
         cuda=cuda,
     )
-    est_num_of_spk, p_hat_value = nmesc.NMEanalysis()
 
     if emb.shape[0] > min_samples:
+        est_num_of_spk, p_hat_value = nmesc.NMEanalysis()
         affinity_mat = getAffinityGraphMat(mat, p_hat_value)
     else:
         affinity_mat = mat
+        est_num_of_spk, _, _ = estimateNumofSpeakers(affinity_mat, max_num_speaker, cuda)
 
     if oracle_num_speakers:
         est_num_of_spk = oracle_num_speakers

@@ -46,6 +46,10 @@ class DuplexDecoderModel(NLPModel):
         self._tokenizer = AutoTokenizer.from_pretrained(cfg.tokenizer)
         super().__init__(cfg=cfg, trainer=trainer)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(cfg.transformer)
+        self.transformer_name = cfg.transformer
+
+        # Language
+        self.lang = cfg.get('lang', None)
 
     # Training
     def training_step(self, batch, batch_idx):
@@ -123,7 +127,7 @@ class DuplexDecoderModel(NLPModel):
     ):
         """ Main function for Inference
         Args:
-            sents: A list of inputs tokenized by a basic tokenizer (e.g., using nltk.word_tokenize()).
+            sents: A list of inputs tokenized by a basic tokenizer.
             nb_spans: A list of ints where each int indicates the number of semiotic spans in each input.
             span_starts: A list of lists where each list contains the starting locations of semiotic spans in an input.
             span_ends: A list of lists where each list contains the ending locations of semiotic spans in an input.
@@ -136,7 +140,10 @@ class DuplexDecoderModel(NLPModel):
         if sum(nb_spans) == 0:
             return [[]] * len(sents)
         model, tokenizer = self.model, self._tokenizer
-        model_max_len = model.config.n_positions
+        try:
+            model_max_len = model.config.n_positions
+        except AttributeError:
+            model_max_len = 512
         ctx_size = constants.DECODE_CTX_SIZE
         extra_id_0 = constants.EXTRA_ID_0
         extra_id_1 = constants.EXTRA_ID_1
@@ -187,18 +194,19 @@ class DuplexDecoderModel(NLPModel):
         return final_texts
 
     def postprocess_output_spans(self, input_centers, output_spans, input_dirs):
-        greek_spokens = list(constants.GREEK_TO_SPOKEN.values())
+        en_greek_spokens = list(constants.EN_GREEK_TO_SPOKEN.values())
         for ix, (_input, _output) in enumerate(zip(input_centers, output_spans)):
-            # Handle URL
-            if is_url(_input):
-                output_spans[ix] = ' '.join(wordninja.split(_output))
-                continue
-            # Greek letters
-            if _input in greek_spokens:
-                if input_dirs[ix] == constants.INST_FORWARD:
-                    output_spans[ix] = _input
-                if input_dirs[ix] == constants.INST_BACKWARD:
-                    output_spans[ix] = constants.SPOKEN_TO_GREEK[_input]
+            if self.lang == constants.ENGLISH:
+                # Handle URL
+                if is_url(_input):
+                    output_spans[ix] = ' '.join(wordninja.split(_output))
+                    continue
+                # Greek letters
+                if _input in en_greek_spokens:
+                    if input_dirs[ix] == constants.INST_FORWARD:
+                        output_spans[ix] = _input
+                    if input_dirs[ix] == constants.INST_BACKWARD:
+                        output_spans[ix] = constants.EN_SPOKEN_TO_GREEK[_input]
         return output_spans
 
     # Functions for processing data
@@ -237,15 +245,19 @@ class DuplexDecoderModel(NLPModel):
         dataset = TextNormalizationDecoderDataset(
             input_file,
             tokenizer,
+            self.transformer_name,
             cfg.mode,
             cfg.get('max_decoder_len', tokenizer.model_max_length),
             cfg.get('decoder_data_augmentation', False),
+            cfg.lang,
+            cfg.do_basic_tokenize,
+            cfg.get('use_cache', False),
         )
         data_collator = DataCollatorForSeq2Seq(
             tokenizer, model=model, label_pad_token_id=constants.LABEL_PAD_TOKEN_ID,
         )
         dl = torch.utils.data.DataLoader(
-            dataset=dataset, batch_size=cfg.batch_size, shuffle=cfg.shuffle, collate_fn=data_collator,
+            dataset=dataset, batch_size=cfg.batch_size, shuffle=cfg.shuffle, collate_fn=data_collator
         )
         running_time = perf_counter() - start_time
         logging.info(f'Took {running_time} seconds')

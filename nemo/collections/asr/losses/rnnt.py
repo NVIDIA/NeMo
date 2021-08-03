@@ -178,7 +178,7 @@ class RNNTLoss(Loss):
         """Input types definitions for CTCLoss.
         """
         return {
-            "log_probs": NeuralType(('B', 'T', 'D', 'D'), LogprobsType()),
+            "log_probs": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
             "targets": NeuralType(('B', 'T'), LabelsType()),
             "input_lengths": NeuralType(tuple('B'), LengthsType()),
             "target_lengths": NeuralType(tuple('B'), LengthsType()),

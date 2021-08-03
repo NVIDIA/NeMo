@@ -48,12 +48,16 @@ class DuplexTaggerModel(NLPModel):
         super().__init__(cfg=cfg, trainer=trainer)
         self.num_labels = len(constants.ALL_TAG_LABELS)
         self.model = AutoModelForTokenClassification.from_pretrained(cfg.transformer, num_labels=self.num_labels)
+        self.transformer_name = cfg.transformer
 
         # Loss Functions
         self.loss_fct = nn.CrossEntropyLoss(ignore_index=constants.LABEL_PAD_TOKEN_ID)
 
         # setup to track metrics
         self.classification_report = ClassificationReport(self.num_labels, mode='micro', dist_sync_on_step=True)
+
+        # Language
+        self.lang = cfg.get('lang', None)
 
     # Training
     def training_step(self, batch, batch_idx):
@@ -126,7 +130,7 @@ class DuplexTaggerModel(NLPModel):
     def _infer(self, sents: List[List[str]], inst_directions: List[str]):
         """ Main function for Inference
         Args:
-            sents: A list of inputs tokenized by a basic tokenizer (e.g., using nltk.word_tokenize()).
+            sents: A list of inputs tokenized by a basic tokenizer.
             inst_directions: A list of str where each str indicates the direction of the corresponding instance (i.e., INST_BACKWARD for ITN or INST_FORWARD for TN).
 
         Returns:
@@ -206,6 +210,10 @@ class DuplexTaggerModel(NLPModel):
                 if has_numbers(words[ix]) and (not constants.TRANSFORM_TAG in p):
                     final_preds.append(constants.B_PREFIX + constants.TRANSFORM_TAG)
                     continue
+            # Convert B-TASK tag to B-SAME tag
+            if p == constants.B_PREFIX + constants.TASK_TAG:
+                final_preds.append(constants.B_PREFIX + constants.SAME_TAG)
+                continue
             # Default
             final_preds.append(p)
         return final_preds
@@ -273,16 +281,20 @@ class DuplexTaggerModel(NLPModel):
         start_time = perf_counter()
         logging.info(f'Creating {mode} dataset')
         input_file = cfg.data_path
+        tagger_data_augmentation = cfg.get('tagger_data_augmentation', False)
         dataset = TextNormalizationTaggerDataset(
             input_file,
             self._tokenizer,
+            self.transformer_name,
             cfg.mode,
-            cfg.get('do_basic_tokenize', False),
-            cfg.get('tagger_data_augmentation', False),
+            cfg.do_basic_tokenize,
+            tagger_data_augmentation,
+            cfg.lang,
+            cfg.get('use_cache', False),
         )
         data_collator = DataCollatorForTokenClassification(self._tokenizer)
         dl = torch.utils.data.DataLoader(
-            dataset=dataset, batch_size=cfg.batch_size, shuffle=cfg.shuffle, collate_fn=data_collator,
+            dataset=dataset, batch_size=cfg.batch_size, shuffle=cfg.shuffle, collate_fn=data_collator
         )
         running_time = perf_counter() - start_time
         logging.info(f'Took {running_time} seconds')
