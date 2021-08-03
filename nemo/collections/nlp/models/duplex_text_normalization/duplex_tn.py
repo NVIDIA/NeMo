@@ -19,7 +19,6 @@ from typing import List
 import numpy as np
 import torch.nn as nn
 from tqdm import tqdm
-from transformers import *
 
 from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset, constants
 from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize
