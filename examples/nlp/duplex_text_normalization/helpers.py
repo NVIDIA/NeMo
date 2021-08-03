@@ -68,7 +68,7 @@ def instantiate_model_and_trainer(cfg: DictConfig, model_name: str, do_training:
     # We only support integrating with English TN covering grammars at the moment
     if model_name == DECODER_MODEL and model_cfg.use_cg and cfg.lang == constants.ENGLISH:
         if model.cg_normalizer is None:
-            model.setup_cgs()
+            model.setup_cgs(model_cfg.neural_confidence_threshold)
 
     # Setup train and validation data
     if do_training:

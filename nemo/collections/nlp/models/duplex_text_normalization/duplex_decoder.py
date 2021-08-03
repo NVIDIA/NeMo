@@ -52,15 +52,16 @@ class DuplexDecoderModel(NLPModel):
         self.lang = cfg.get('lang', None)
 
         # Covering Grammars
-        self.cg_normalizer = None # Default
+        self.cg_normalizer = None  # Default
         # We only support integrating with English TN covering grammars at the moment
         self.use_cg = cfg.get('use_cg', False) and self.lang == constants.ENGLISH
         if self.use_cg:
-            self.setup_cg()
+            self.setup_cg(cfg.get('neural_confidence_threshold', 0.99))
 
     # Setup covering grammars
-    def setup_cgs(self):
+    def setup_cgs(self, neural_confidence_threshold):
         self.use_cg = True
+        self.neural_confidence_threshold = neural_confidence_threshold
         input_case = 'cased'  # input_case is cased by default
         if hasattr(self._tokenizer, 'do_lower_case') and self._tokenizer.do_lower_case:
             input_case = 'lower_cased'
@@ -191,19 +192,16 @@ class DuplexDecoderModel(NLPModel):
         # Apply the decoding model
         batch = tokenizer(all_inputs, padding=True, return_tensors='pt')
         input_ids = batch['input_ids'].to(self.device)
-        outputs = model.generate(
-            input_ids,
-            output_scores=True, return_dict_in_generate=True,
-            max_length=model_max_len
-        )
+        outputs = model.generate(input_ids, output_scores=True, return_dict_in_generate=True, max_length=model_max_len)
         generated_ids, sequence_toks_scores = outputs['sequences'], outputs['scores']
         generated_texts = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
 
         # Use covering grammars (if enabled)
         if self.use_cg:
+            # Compute sequence probabilities
             sequence_probs = torch.ones(len(all_inputs)).to(self.device)
             for ix, cur_toks_scores in enumerate(sequence_toks_scores):
-                cur_generated_ids = generated_ids[:,ix+1].tolist()
+                cur_generated_ids = generated_ids[:, ix + 1].tolist()
                 cur_toks_probs = torch.nn.functional.softmax(cur_toks_scores, dim=-1)
                 # Compute selected_toks_probs
                 selected_toks_probs = []
@@ -214,6 +212,13 @@ class DuplexDecoderModel(NLPModel):
                         selected_toks_probs.append(1)
                 selected_toks_probs = torch.tensor(selected_toks_probs).to(self.device)
                 sequence_probs *= selected_toks_probs
+
+            # For TN cases where the neural model is not confident, use CGs
+            neural_confidence_threshold = self.neural_confidence_threshold
+            for ix, (_dir, _input, _prob) in enumerate(zip(input_dirs, input_centers, sequence_probs)):
+                if _dir == constants.INST_FORWARD and _prob < neural_confidence_threshold:
+                    cg_outputs = self.cg_normalizer.normalize(text=_input, verbose=False, n_tagged=1)
+                    generated_texts[ix] = list(cg_outputs)[0]
 
         # Post processing
         generated_texts = self.postprocess_output_spans(input_centers, generated_texts, input_dirs)
