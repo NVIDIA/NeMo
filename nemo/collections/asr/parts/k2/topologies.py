@@ -25,6 +25,8 @@ def build_topo(name: str, tokens: List[int], with_selfloops: bool=True) -> k2.Fs
         return build_ctc_topo_compact(tokens, with_selfloops)
     elif name == "ctc_shared_blank":
         return build_ctc_topo_shared_blank(tokens, with_selfloops)
+    elif name == "ctc_forced_blank":
+        return build_ctc_topo_forced_blank(tokens)
     elif name == "identity":
         return build_identity_topo(tokens)
     else:
@@ -64,17 +66,18 @@ def build_ctc_topo(tokens: List[int], with_selfloops: bool=True) -> k2.Fsa:
 def build_ctc_topo_compact(tokens: List[int], with_selfloops: bool=True) -> k2.Fsa:
     assert 0 in tokens, "We assume 0 is ID of the blank symbol"
 
+    selfloops_shift = int(with_selfloops)
     blank_num = 1
-    num_states = len(tokens) + blank_num
+    num_states = len(tokens) + selfloops_shift
     final_state = num_states
-    arcs = f"0 1 {blank_num} 0 0.0\n"
-    for i in range(blank_num + 1, num_states):
-        arcs += f"0 {i} {tokens[i - 1] + 1} {tokens[i - 1] + 1} 0.0\n"
+    arcs = f"0 {selfloops_shift} {blank_num} 0 0.0\n"
+    for i in range(blank_num + selfloops_shift, num_states):
+        arcs += f"0 {i} {tokens[i - selfloops_shift] + 1} {tokens[i - selfloops_shift] + 1} 0.0\n"
     arcs += f"0 {final_state} -1 -1 0.0\n"
     for i in range(blank_num, num_states):
         arcs += f"{i} 0 0 0 0.0\n"
-        if with_selfloops or i == blank_num:
-            arcs += f"{i} {i} {tokens[i - 1] + 1} 0 0.0\n"
+        if with_selfloops:
+            arcs += f"{i} {i} {tokens[i - selfloops_shift] + 1} 0 0.0\n"
     arcs += f"{final_state}"
     ans = k2.Fsa.from_str(arcs, num_aux_labels=1)
     ans = k2.arc_sort(ans)
@@ -104,6 +107,23 @@ def build_ctc_topo_shared_blank(tokens: List[int], with_selfloops: bool=True) ->
     arcs = [[str(i) for i in arc] for arc in arcs]
     arcs = [' '.join(arc) for arc in arcs]
     arcs = '\n'.join(arcs)
+    ans = k2.Fsa.from_str(arcs, num_aux_labels=1)
+    ans = k2.arc_sort(ans)
+    return ans
+
+def build_ctc_topo_forced_blank(tokens):
+    assert 0 in tokens, "We assume 0 is ID of the blank symbol"
+
+    num_tokens = len(tokens)
+    final_state = num_tokens
+    arcs = "0 0 0 0 0.0\n"
+    for i in range(1, num_tokens):
+        arcs += f"0 {i} {tokens[i]} {tokens[i]} 0.0\n"
+    arcs += f"0 {final_state} -1 -1 0.0\n"
+    for i in range(1, num_tokens):
+        arcs += f"{i} 0 0 0 0.0\n"
+        arcs += f"{i} {final_state} -1 -1 0.0\n"
+    arcs += f"{final_state}"
     ans = k2.Fsa.from_str(arcs, num_aux_labels=1)
     ans = k2.arc_sort(ans)
     return ans
