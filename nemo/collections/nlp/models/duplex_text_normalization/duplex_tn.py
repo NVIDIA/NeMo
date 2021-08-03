@@ -21,8 +21,7 @@ import torch.nn as nn
 from tqdm import tqdm
 from transformers import *
 
-import nemo.collections.nlp.data.text_normalization.constants as constants
-from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset
+from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset, constants
 from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize
 from nemo.collections.nlp.models.duplex_text_normalization.utils import get_formatted_string
 from nemo.utils import logging
