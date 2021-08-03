@@ -15,7 +15,7 @@
 import pytorch_lightning as pl
 from omegaconf import DictConfig, OmegaConf
 
-import nemo.collections.nlp.data.text_normalization.constants as constants
+from nemo.collections.nlp.data.text_normalization import constants
 from nemo.collections.nlp.models import DuplexDecoderModel, DuplexTaggerModel
 from nemo.utils import logging
 

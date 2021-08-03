@@ -23,8 +23,7 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
 
-import nemo.collections.nlp.data.text_normalization.constants as constants
-from nemo.collections.nlp.data.text_normalization import TextNormalizationDecoderDataset
+from nemo.collections.nlp.data.text_normalization import TextNormalizationDecoderDataset, constants
 from nemo.collections.nlp.models.duplex_text_normalization.utils import is_url
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo

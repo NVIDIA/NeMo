@@ -12,12 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from copy import deepcopy
 from typing import List
 
-from tqdm import tqdm
-
-import nemo.collections.nlp.data.text_normalization.constants as constants
+from nemo.collections.nlp.data.text_normalization import constants
 from nemo.collections.nlp.data.text_normalization.utils import (
     basic_tokenize,
     normalize_str,

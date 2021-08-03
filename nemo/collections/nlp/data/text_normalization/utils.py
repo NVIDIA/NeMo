@@ -17,7 +17,7 @@ from copy import deepcopy
 from nltk import word_tokenize
 from tqdm import tqdm
 
-import nemo.collections.nlp.data.text_normalization.constants as constants
+from nemo.collections.nlp.data.text_normalization import constants
 
 __all__ = ['read_data_file', 'normalize_str']
 
