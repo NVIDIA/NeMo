@@ -30,9 +30,9 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
+from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
 from pytorch_lightning.utilities import rank_zero_only
 from pytorch_lightning.utilities.types import _METRIC
-from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
 
 from nemo.constants import NEMO_ENV_VARNAME_VERSION
 from nemo.utils import app_state, logging
