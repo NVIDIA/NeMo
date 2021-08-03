@@ -43,7 +43,7 @@ import wordninja
 from helpers import flatten
 from tqdm import tqdm
 
-import nemo.collections.nlp.data.text_normalization.constants as constants
+from nemo.collections.nlp.data.text_normalization import constants
 from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize
 
 # Local Constants

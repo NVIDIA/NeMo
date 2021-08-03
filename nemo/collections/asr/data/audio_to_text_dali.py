@@ -13,13 +13,16 @@
 # limitations under the License.
 
 import math
+import operator
 from collections.abc import Iterator
 from typing import Callable, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig
 
+from nemo.collections.asr.data.audio_to_text import ASRManifestProcessor
 from nemo.collections.common.parts.preprocessing import parsers
+from nemo.utils import logging, model_utils
 from nemo.utils.decorators import experimental
 
 try:
@@ -34,7 +37,45 @@ except (ImportError, ModuleNotFoundError):
 
 __all__ = [
     'AudioToCharDALIDataset',
+    'AudioToBPEDALIDataset',
 ]
+
+"""
+Below minimum version is required to access the "read_idxs" argument in 
+dali.fn.readers.nemo_asr
+"""
+__DALI_MINIMUM_VERSION__ = "1.4"
+
+DALI_INSTALLATION_MESSAGE = (
+    "Could not import `nvidia.dali`.\n"
+    "Please install DALI by following the steps provided here - \n"
+    "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html"
+)
+
+
+def is_dali_supported(min_version: str, verbose: bool = False) -> bool:
+    """
+    Checks if DALI in installed, and version is >= min_verion.
+
+    Args:
+        min_version: A semver str that is the minimum requirement.
+        verbose: Whether to log the installation instructions if DALI is not found.
+
+    Returns:
+        bool - whether DALI could be imported or not.
+    """
+    module_available, _ = model_utils.check_lib_version(
+        'nvidia.dali', checked_version=min_version, operator=operator.ge
+    )
+
+    # If DALI is not installed
+    if module_available is None:
+        if verbose:
+            logging.info(DALI_INSTALLATION_MESSAGE)
+
+        return False
+
+    return module_available
 
 
 class DALIOutputs(object):
@@ -70,7 +111,7 @@ class DALIOutputs(object):
 
 
 @experimental
-class AudioToCharDALIDataset(Iterator):
+class _AudioTextDALIDataset(Iterator):
     """
     NVIDIA DALI pipeline that loads tensors via one or more manifest files where each line containing a sample descriptor in JSON,
     including audio files, transcripts, and durations (in seconds).
@@ -79,24 +120,23 @@ class AudioToCharDALIDataset(Iterator):
     ...
     {"audio_filepath": "/path/to/audio.wav", "text": "the transcription", "offset": 301.75, "duration": 0.82, "utt":
     "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+
     Args:
         manifest_filepath: Path to manifest file with the format described above. Can be comma-separated paths.
-        labels: String containing all the possible characters to map to.
-        sample_rate (int): Sample rate to resample loaded audio to.
+        device (str): Determines the device type to be used for preprocessing. Allowed values are: 'cpu', 'gpu'.
         batch_size (int): Number of samples in a batch.
+        parser (str, callable): A str for an inbuilt parser, or a callable with signature f(str) -> List[int].
+        sample_rate (int): Sample rate to resample loaded audio to.
         num_threads (int): Number of CPU processing threads to be created by the DALI pipeline.
         max_duration (float): Determines the maximum allowed duration, in seconds, of the loaded audio files.
         min_duration (float): Determines the minimum allowed duration, in seconds, of the loaded audio files.
-        blank_index (int): blank character index, default = -1
-        unk_index (int): unk_character index, default = -1
-        normalize (bool): whether to normalize transcript text (default): True
         bos_id (int): Id of beginning of sequence symbol to append if not None
         eos_id (int): Id of end of sequence symbol to append if not None
+        pad_id (int): Id used to pad the input. Defaults to 0 if not provided.
         trim (bool): If True, it will extract the nonsilent region of the loaded audio signal.
         shuffle (bool): If set to True, the dataset will shuffled after loading.
         drop_last (bool): If set to True, the last batch will be dropped if incomplete. This will be the case when the shard size is not divisible by the batch size.
                           If set to False and the size of dataset is not divisible by the batch size, then the last batch will be smaller.
-        device (str): Determines the device type to be used for preprocessing. Allowed values are: 'cpu', 'gpu'.
         device_id (int): Index of the GPU to be used (local_rank). Only applicable when device == 'gpu'. Defaults to 0.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 1.
@@ -108,20 +148,17 @@ class AudioToCharDALIDataset(Iterator):
         manifest_filepath: str,
         device: str,
         batch_size: int,
-        labels: Union[str, List[str]],
+        parser: Union[str, Callable],
         sample_rate: int = 16000,
         num_threads: int = 4,
         max_duration: float = 0.0,
         min_duration: float = 0.0,
-        blank_index: int = -1,
-        unk_index: int = -1,
-        normalize: bool = True,
         bos_id: Optional[int] = None,
         eos_id: Optional[int] = None,
+        pad_id: int = 0,
         trim: bool = False,
-        shuffle: bool = True,
+        shuffle: bool = False,
         drop_last: bool = False,
-        parser: Union[str, Callable] = 'en',
         device_id: int = 0,
         global_rank: int = 0,
         world_size: int = 1,
@@ -150,14 +187,6 @@ class AudioToCharDALIDataset(Iterator):
         else:
             self.shard_id = None
             self.num_shards = None
-
-        self.labels = labels
-        if self.labels is None or len(self.labels) == 0:
-            raise ValueError(f"{self} expects non empty labels list")
-
-        self.parser = parsers.make_parser(
-            labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize,
-        )
 
         self.eos_id = eos_id
         self.bos_id = bos_id
@@ -278,7 +307,7 @@ class AudioToCharDALIDataset(Iterator):
             self.pad_value = params['pad_value'] if 'pad_value' in params else 0.0
 
         with self.pipe:
-            audio, transcript = dali.fn.nemo_asr_reader(
+            audio, indices = dali.fn.readers.nemo_asr(
                 name="Reader",
                 manifest_filepaths=manifest_filepath.split(','),
                 dtype=dali.types.FLOAT,
@@ -287,15 +316,13 @@ class AudioToCharDALIDataset(Iterator):
                 min_duration=min_duration,
                 max_duration=max_duration,
                 read_sample_rate=False,
-                read_text=True,
+                read_text=False,
+                read_idxs=True,
                 random_shuffle=shuffle,
                 shard_id=self.shard_id,
                 num_shards=self.num_shards,
-                pad_last_batch=False,
+                pad_last_batch=True,
             )
-
-            transcript_len = dali.fn.shapes(dali.fn.reshape(transcript, shape=[-1]))
-            transcript = dali.fn.pad(transcript)
 
             # Extract nonsilent region, if necessary
             if trim:
@@ -312,7 +339,7 @@ class AudioToCharDALIDataset(Iterator):
                 # No preprocessing, the output is the audio signal
                 audio_len = dali.fn.shapes(dali.fn.reshape(audio, shape=[-1]))
                 audio = dali.fn.pad(audio)
-                self.pipe.set_outputs(audio, audio_len, transcript, transcript_len)
+                self.pipe.set_outputs(audio, audio_len, indices)
             else:
                 # Additive gaussian noise (dither)
                 if self.dither > 0.0:
@@ -358,14 +385,14 @@ class AudioToCharDALIDataset(Iterator):
 
                 # Pads feature dimension to be a multiple of `pad_to` and the temporal dimension to be as big as the largest sample (shape -1)
                 spec = dali.fn.pad(spec, fill_value=self.pad_value, axes=(0, 1), align=(self.pad_to, 1), shape=(1, -1))
-                self.pipe.set_outputs(spec, spec_len, transcript, transcript_len)
+                self.pipe.set_outputs(spec, spec_len, indices)
         # Building DALI pipeline
         self.pipe.build()
 
         if has_preprocessor:
-            output_names = ['processed_signal', 'processed_signal_len', 'transcript_raw', 'transcript_raw_len']
+            output_names = ['processed_signal', 'processed_signal_len', 'manifest_indices']
         else:
-            output_names = ['audio', 'audio_len', 'transcript_raw', 'transcript_raw_len']
+            output_names = ['audio', 'audio_len', 'manifest_indices']
 
         last_batch_policy = LastBatchPolicy.DROP if drop_last else LastBatchPolicy.PARTIAL
         self._iter = DALIPytorchIterator(
@@ -387,6 +414,17 @@ class AudioToCharDALIDataset(Iterator):
 
         self.dataset = DummyDataset(self)  # Used by NeMo
 
+        self.manifest_processor = ASRManifestProcessor(
+            manifest_filepath=manifest_filepath,
+            parser=parser,
+            max_duration=max_duration,
+            min_duration=min_duration,
+            max_utts=0,
+            bos_id=bos_id,
+            eos_id=eos_id,
+            pad_id=pad_id,
+        )
+
     def reset(self):
         self._iter.reset()
 
@@ -407,8 +445,7 @@ class AudioToCharDALIDataset(Iterator):
         outputs = self._iter.next()
         assert len(outputs) == 1
         dali_out = outputs[0]
-        text_raw_len = dali_out['transcript_raw_len'].numpy()
-        text_raw = dali_out['transcript_raw'].numpy()
+        manifest_indices = dali_out['manifest_indices'].numpy()
 
         out = {}
         out_names = ['processed_signal', 'processed_signal_len', 'audio', 'audio_len']
@@ -419,22 +456,17 @@ class AudioToCharDALIDataset(Iterator):
         text_tokens = []
         text_tokens_len = []
         max_len = 0
-        batch_size = text_raw.shape[0]
-        for i, text in enumerate(text_raw):
-            n = text_raw_len[i][0]
-            tbytes = str(text[:n].tobytes(), encoding='utf8')
-            ttokens = self.parser(tbytes)
-            if self.bos_id is not None:
-                ttokens = [self.bos_id] + ttokens
-            if self.eos_id is not None:
-                ttokens = ttokens + [self.eos_id]
-            ttokens_len = len(ttokens)
-            text_tokens_len.append(ttokens_len)
-            text_tokens.append(ttokens)
-            if ttokens_len > max_len:
-                max_len = ttokens_len
+        batch_size = manifest_indices.shape[0]
+        for i, manifest_index in enumerate(manifest_indices):
+            manifest_index = manifest_index[0]
+            text, text_length = self.manifest_processor.process_text(manifest_index)
 
-        transcript_out = torch.zeros(batch_size, max_len, dtype=torch.long)
+            text_tokens_len.append(text_length)
+            text_tokens.append(text)
+            if text_length > max_len:
+                max_len = text_length
+
+        transcript_out = torch.full([batch_size, max_len], fill_value=self.manifest_processor.pad_id, dtype=torch.long)
         for i, n in enumerate(text_tokens_len):
             transcript_out[i, :n] = torch.tensor(text_tokens[i], dtype=torch.long)
         transcript_len_out = torch.tensor(text_tokens_len, dtype=torch.long)
@@ -442,3 +474,191 @@ class AudioToCharDALIDataset(Iterator):
         out['transcript'] = transcript_out
         out['transcript_len'] = transcript_len_out
         return DALIOutputs(out)
+
+
+class AudioToCharDALIDataset(_AudioTextDALIDataset):
+    """
+    Character based NVIDIA DALI pipeline that loads tensors via one or more manifest files where each line containing a
+    sample descriptor in JSON, including audio files, transcripts, and durations (in seconds).
+    Here's an example:
+    {"audio_filepath": "/path/to/audio.wav", "text_filepath": "/path/to/audio.txt", "duration": 23.147}
+    ...
+    {"audio_filepath": "/path/to/audio.wav", "text": "the transcription", "offset": 301.75, "duration": 0.82, "utt":
+    "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+
+    Args:
+        manifest_filepath: Path to manifest file with the format described above. Can be comma-separated paths.
+        device (str): Determines the device type to be used for preprocessing. Allowed values are: 'cpu', 'gpu'.
+        batch_size (int): Number of samples in a batch.
+        labels (List[str]): String containing all the possible characters to map to.
+        sample_rate (int): Sample rate to resample loaded audio to.
+        num_threads (int): Number of CPU processing threads to be created by the DALI pipeline.
+        max_duration (float): Determines the maximum allowed duration, in seconds, of the loaded audio files.
+        min_duration (float): Determines the minimum allowed duration, in seconds, of the loaded audio files.
+        blank_index (int): blank character index, default = -1
+        unk_index (int): unk_character index, default = -1
+        normalize (bool): whether to normalize transcript text (default): True
+        bos_id (int): Id of beginning of sequence symbol to append if not None
+        eos_id (int): Id of end of sequence symbol to append if not None
+        pad_id (int): Id used to pad the input. Defaults to 0 if not provided.
+        trim (bool): If True, it will extract the nonsilent region of the loaded audio signal.
+        shuffle (bool): If set to True, the dataset will shuffled after loading.
+        drop_last (bool): If set to True, the last batch will be dropped if incomplete. This will be the case when the shard size is not divisible by the batch size.
+                          If set to False and the size of dataset is not divisible by the batch size, then the last batch will be smaller.
+        parser (str, callable): A str for an inbuilt parser, or a callable with signature f(str) -> List[int].
+        device_id (int): Index of the GPU to be used (local_rank). Only applicable when device == 'gpu'. Defaults to 0.
+        global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
+        world_size (int): Total number of processes, used for partitioning shards. Defaults to 1.
+        preprocessor_cfg (DictConfig): Preprocessor configuration. Supports AudioToMelSpectrogramPreprocessor and AudioToMFCCPreprocessor.
+    """
+
+    def __init__(
+        self,
+        manifest_filepath: str,
+        device: str,
+        batch_size: int,
+        labels: Union[str, List[str]],
+        sample_rate: int = 16000,
+        num_threads: int = 4,
+        max_duration: float = 0.0,
+        min_duration: float = 0.0,
+        blank_index: int = -1,
+        unk_index: int = -1,
+        normalize: bool = True,
+        bos_id: Optional[int] = None,
+        eos_id: Optional[int] = None,
+        pad_id: int = 0,
+        trim: bool = False,
+        shuffle: bool = False,
+        drop_last: bool = False,
+        parser: Union[str, Callable] = 'en',
+        device_id: int = 0,
+        global_rank: int = 0,
+        world_size: int = 1,
+        preprocessor_cfg: DictConfig = None,
+    ):
+        self.labels = labels
+
+        parser = parsers.make_parser(
+            labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize
+        )
+
+        super().__init__(
+            manifest_filepath=manifest_filepath,
+            device=device,
+            batch_size=batch_size,
+            sample_rate=sample_rate,
+            num_threads=num_threads,
+            max_duration=max_duration,
+            min_duration=min_duration,
+            bos_id=bos_id,
+            eos_id=eos_id,
+            pad_id=pad_id,
+            trim=trim,
+            shuffle=shuffle,
+            drop_last=drop_last,
+            parser=parser,
+            device_id=device_id,
+            global_rank=global_rank,
+            world_size=world_size,
+            preprocessor_cfg=preprocessor_cfg,
+        )
+
+
+class AudioToBPEDALIDataset(_AudioTextDALIDataset):
+    """
+    Subword based NVIDIA DALI pipeline that loads tensors via one or more manifest files where each line containing a
+    sample descriptor in JSON, including audio files, transcripts, and durations (in seconds).
+    Here's an example:
+    {"audio_filepath": "/path/to/audio.wav", "text_filepath": "/path/to/audio.txt", "duration": 23.147}
+    ...
+    {"audio_filepath": "/path/to/audio.wav", "text": "the transcription", "offset": 301.75, "duration": 0.82, "utt":
+    "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+
+    Args:
+        manifest_filepath: Path to manifest file with the format described above. Can be comma-separated paths.
+        tokenizer (TokenizerSpec): A TokenizerSpec implementation that wraps a tokenization implementation.
+        device (str): Determines the device type to be used for preprocessing. Allowed values are: 'cpu', 'gpu'.
+        batch_size (int): Number of samples in a batch.
+        sample_rate (int): Sample rate to resample loaded audio to.
+        num_threads (int): Number of CPU processing threads to be created by the DALI pipeline.
+        max_duration (float): Determines the maximum allowed duration, in seconds, of the loaded audio files.
+        min_duration (float): Determines the minimum allowed duration, in seconds, of the loaded audio files.
+        bos_id (int): Id of beginning of sequence symbol to append if not None. Injected from the tokenizer.
+        eos_id (int): Id of end of sequence symbol to append if not None. Injected from the tokenizer.
+        pad_id (int): Id used to pad the input. Defaults to 0 if not provided. Injected from the tokenizer.
+        trim (bool): If True, it will extract the nonsilent region of the loaded audio signal.
+        shuffle (bool): If set to True, the dataset will shuffled after loading.
+        drop_last (bool): If set to True, the last batch will be dropped if incomplete. This will be the case when the shard size is not divisible by the batch size.
+                          If set to False and the size of dataset is not divisible by the batch size, then the last batch will be smaller.
+
+        device_id (int): Index of the GPU to be used (local_rank). Only applicable when device == 'gpu'. Defaults to 0.
+        global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
+        world_size (int): Total number of processes, used for partitioning shards. Defaults to 1.
+        preprocessor_cfg (DictConfig): Preprocessor configuration. Supports AudioToMelSpectrogramPreprocessor and AudioToMFCCPreprocessor.
+        use_start_end_token (bool): Boolean which dictates whether to add [BOS] and [EOS] tokens to beginning and
+            ending of speech respectively.
+    """
+
+    def __init__(
+        self,
+        manifest_filepath: str,
+        tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
+        device: str,
+        batch_size: int,
+        sample_rate: int = 16000,
+        num_threads: int = 4,
+        max_duration: float = 0.0,
+        min_duration: float = 0.0,
+        trim: bool = False,
+        shuffle: bool = False,
+        drop_last: bool = False,
+        device_id: int = 0,
+        global_rank: int = 0,
+        world_size: int = 1,
+        preprocessor_cfg: DictConfig = None,
+        use_start_end_token: bool = True,
+    ):
+        if use_start_end_token and hasattr(tokenizer, 'bos_token'):
+            bos_id = tokenizer.bos_id
+        else:
+            bos_id = None
+
+        if use_start_end_token and hasattr(tokenizer, 'eos_token'):
+            eos_id = tokenizer.eos_id
+        else:
+            eos_id = None
+
+        if hasattr(tokenizer, 'pad_token'):
+            pad_id = tokenizer.pad_id
+        else:
+            pad_id = 0
+
+        class TokenizerWrapper:
+            def __init__(self, tokenizer):
+                self._tokenizer = tokenizer
+
+            def __call__(self, text):
+                t = self._tokenizer.text_to_ids(text)
+                return t
+
+        super().__init__(
+            manifest_filepath=manifest_filepath,
+            device=device,
+            batch_size=batch_size,
+            sample_rate=sample_rate,
+            num_threads=num_threads,
+            max_duration=max_duration,
+            min_duration=min_duration,
+            bos_id=bos_id,
+            eos_id=eos_id,
+            pad_id=pad_id,
+            trim=trim,
+            shuffle=shuffle,
+            drop_last=drop_last,
+            parser=TokenizerWrapper(tokenizer),
+            device_id=device_id,
+            global_rank=global_rank,
+            world_size=world_size,
+            preprocessor_cfg=preprocessor_cfg,
+        )

@@ -17,7 +17,7 @@
 This script contains an example on how to evaluate a DuplexTextNormalizationModel.
 Note that DuplexTextNormalizationModel is essentially a wrapper class around
 DuplexTaggerModel and DuplexDecoderModel. Therefore, two trained NeMo models
-should be specificied before evaluation (one is a trained DuplexTaggerModel
+should be specified before evaluation (one is a trained DuplexTaggerModel
 and the other is a trained DuplexDecoderModel).
 
 USAGE Example:
@@ -54,8 +54,7 @@ by the model. The location of this file is determined by the argument
 from helpers import DECODER_MODEL, TAGGER_MODEL, instantiate_model_and_trainer
 from omegaconf import DictConfig, OmegaConf
 
-import nemo.collections.nlp.data.text_normalization.constants as constants
-from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset
+from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset, constants
 from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize
 from nemo.collections.nlp.models import DuplexTextNormalizationModel
 from nemo.core.config import hydra_runner
