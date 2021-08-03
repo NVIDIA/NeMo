@@ -18,7 +18,7 @@ import pickle
 from tqdm import tqdm
 from transformers import PreTrainedTokenizerBase
 
-import nemo.collections.nlp.data.text_normalization.constants as constants
+from nemo.collections.nlp.data.text_normalization import constants
 from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize, read_data_file
 from nemo.core.classes import Dataset
 from nemo.utils import logging
