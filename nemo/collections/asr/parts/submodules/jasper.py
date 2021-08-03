@@ -44,7 +44,7 @@ def tds_uniform_(tensor, mode='fan_in'):
     Normalized to -
 
     .. math::
-        \text{bound} = \text{2} \times \sqrt{\frac{1}{\text{fan\_mode}}}
+        \\text{bound} = \\text{2} \\times \\sqrt{\\frac{1}{\\text{fan\\_mode}}}
 
     Args:
         tensor: an n-dimensional `torch.Tensor`
@@ -67,7 +67,7 @@ def tds_normal_(tensor, mode='fan_in'):
     Normalized to -
 
     .. math::
-        \text{bound} = \text{2} \times \sqrt{\frac{1}{\text{fan\_mode}}}
+        \\text{bound} = \\text{2} \\times \\sqrt{\\frac{1}{\\text{fan\\_mode}}}
 
     Args:
         tensor: an n-dimensional `torch.Tensor`
