@@ -57,9 +57,7 @@ class CardinalFst(GraphFst):
 
         if not deterministic:
             single_digits_graph = (
-                pynutil.add_weight(pynini.invert(graph_digit | graph_zero), 1.01)
-                | pynutil.add_weight(pynini.cross("0", "oh"), 1.03)
-                | pynutil.add_weight(pynini.cross("0", "o"), 1.02)
+                pynini.invert(graph_digit | graph_zero) | pynini.cross("0", "oh") | pynini.cross("0", "o")
             )
             self.single_digits_graph = single_digits_graph + pynini.closure(pynutil.insert(" ") + single_digits_graph)
 
@@ -74,7 +72,7 @@ class CardinalFst(GraphFst):
                 + single_digits_graph,
                 1,
             )
-            self.graph |= self.single_digits_graph | get_hundreds_graph() | single_digits_graph_with_commas
+            self.graph = self.single_digits_graph | self.graph | get_hundreds_graph() | single_digits_graph_with_commas
             self.range_graph = (
                 pynini.closure(pynutil.insert("from "), 0, 1)
                 + self.graph
@@ -88,11 +86,7 @@ class CardinalFst(GraphFst):
         optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
 
         long_numbers = pynini.compose(NEMO_DIGIT ** (5, ...), self.single_digits_graph).optimize()
-        final_graph = (
-            pynutil.add_weight(self.graph, 1.2)
-            | pynutil.add_weight(self.get_serial_graph(), 1.2)
-            | pynutil.add_weight(long_numbers, 1.1)
-        )
+        final_graph = self.graph | self.get_serial_graph() | pynutil.add_weight(long_numbers, -0.001)
 
         if not deterministic:
             final_graph |= self.range_graph

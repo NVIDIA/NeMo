@@ -222,8 +222,9 @@ class DateFst(GraphFst):
         if not deterministic:
             ymd_to_mdy_graph = None
             mdy_to_dmy_graph = None
-            for month in ["august", "november", "july"]:
-                for day in ["five", "three", "seventeen"]:
+
+            for month in [x[0] for x in load_labels(get_abs_path("data/months/names.tsv"))]:
+                for day in [x[0] for x in load_labels(get_abs_path("data/months/days.tsv"))]:
                     mdy_curr = (
                         pynutil.insert("month: \"" + month + "\" day: \"" + day + "\" ")
                         + pynini.accep('year:')
