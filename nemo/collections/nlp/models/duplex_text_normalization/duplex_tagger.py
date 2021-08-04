@@ -159,20 +159,22 @@ class DuplexTaggerModel(NLPModel):
         logits = self.model(**encodings.to(self.device)).logits
         pred_indexes = torch.argmax(logits, dim=-1).tolist()
 
-        # Extract all_tag_preds
+        # Extract all_tag_preds for words
         all_tag_preds = []
         batch_size, max_len = encodings['input_ids'].size()
         for ix in range(batch_size):
-            raw_tag_preds = [constants.ALL_TAG_LABELS[p] for p in pred_indexes[ix][1:]]
+            raw_tag_preds = [constants.ALL_TAG_LABELS[p] for p in pred_indexes[ix][2:]] # remove first special token and task prefix token
             tag_preds, previous_word_idx = [], None
             word_ids = encodings.word_ids(batch_index=ix)
             for jx, word_idx in enumerate(word_ids):
+                if jx < 2:
+                    continue
+                jx -= 2
                 if word_idx is None:
                     continue
-                elif word_idx != previous_word_idx:
-                    tag_preds.append(raw_tag_preds[jx - 1])
+                if word_idx != previous_word_idx:
+                    tag_preds.append(raw_tag_preds[jx]) # without special token at index 0
                 previous_word_idx = word_idx
-            tag_preds = tag_preds[1:]
             all_tag_preds.append(tag_preds)
 
         # Postprocessing
@@ -192,7 +194,7 @@ class DuplexTaggerModel(NLPModel):
         starts with I_TRANSFORM_TAG (instead of B_TRANSFORM_TAG).
 
         Args:
-            words: The words in the input text
+            words: The words in the input sentence
             inst_dir: The direction of the instance (i.e., INST_BACKWARD or INST_FORWARD).
             preds: The raw tag predictions
 
@@ -200,7 +202,7 @@ class DuplexTaggerModel(NLPModel):
         """
         final_preds = []
         for ix, p in enumerate(preds):
-            # a TRANSFORM span starts with I_TRANSFORM_TAG
+            # a TRANSFORM span starts with I_TRANSFORM_TAG, change to B_TRANSFORM_TAG
             if p == constants.I_PREFIX + constants.TRANSFORM_TAG:
                 if ix == 0 or (not constants.TRANSFORM_TAG in final_preds[ix - 1]):
                     final_preds.append(constants.B_PREFIX + constants.TRANSFORM_TAG)

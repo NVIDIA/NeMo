@@ -94,19 +94,19 @@ from nemo.utils.exp_manager import exp_manager
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config Params: {OmegaConf.to_yaml(cfg)}')
 
-    # Train the tagger
-    if cfg.tagger_model.do_training:
-        logging.info(
-            "================================================================================================"
-        )
-        logging.info('Starting training tagger...')
-        tagger_trainer, tagger_model = instantiate_model_and_trainer(cfg, TAGGER_MODEL, True)
-        exp_manager(tagger_trainer, cfg.get('tagger_exp_manager', None))
-        tagger_trainer.fit(tagger_model)
-        if cfg.tagger_model.nemo_path:
-            tagger_model.to(tagger_trainer.accelerator.root_device)
-            tagger_model.save_to(cfg.tagger_model.nemo_path)
-        logging.info('Training finished!')
+    # # Train the tagger
+    # if cfg.tagger_model.do_training:
+    #     logging.info(
+    #         "================================================================================================"
+    #     )
+    #     logging.info('Starting training tagger...')
+    #     tagger_trainer, tagger_model = instantiate_model_and_trainer(cfg, TAGGER_MODEL, True)
+    #     exp_manager(tagger_trainer, cfg.get('tagger_exp_manager', None))
+    #     tagger_trainer.fit(tagger_model)
+    #     if cfg.tagger_model.nemo_path:
+    #         tagger_model.to(tagger_trainer.accelerator.root_device)
+    #         tagger_model.save_to(cfg.tagger_model.nemo_path)
+    #     logging.info('Training finished!')
 
     # Train the decoder
     if cfg.decoder_model.do_training:
