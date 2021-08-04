@@ -65,6 +65,7 @@ class ClassifyFst(GraphFst):
         super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
 
         use_cache = False
+
         far_file = get_abs_path("_tokenize_and_classify_non_deteministic2.far")
         if use_cache and os.path.exists(far_file):
             self.fst = pynini.Far(far_file, mode='r')['tokenize_and_classify']
@@ -124,9 +125,7 @@ class ClassifyFst(GraphFst):
             v_time_graph = vTime(deterministic=deterministic).fst
             v_date_graph = vDate(ordinal=ordinal, deterministic=deterministic).fst
             v_money_graph = vMoney(decimal=decimal, deterministic=deterministic).fst
-            v_whitelist_graph = vWhiteList(deterministic=deterministic).fst
             v_roman_graph = vRoman(deterministic=deterministic).fst
-            v_word = WordFst(deterministic=deterministic).fst
             v_abbreviation = vAbbreviation(deterministic=deterministic).fst
 
             classify_and_verbalize = (
@@ -151,12 +150,6 @@ class ClassifyFst(GraphFst):
 
                 abbreviation_graph = AbbreviationFst(deterministic=deterministic).fst
                 classify_and_verbalize |= pynutil.add_weight(pynini.compose(abbreviation_graph, v_abbreviation), 100)
-
-            # from pynini.lib.rewrite import top_rewrites
-            # print([print(x) for x in top_rewrites("11/17/05", date_graph, 20)])
-            # import pdb;
-            # pdb.set_trace()
-            # print(top_rewrites("No. 5", classify_and_verbalize, 5))
 
             punct = pynutil.add_weight(punct_graph, weight=1.1)
             token_plus_punct = (

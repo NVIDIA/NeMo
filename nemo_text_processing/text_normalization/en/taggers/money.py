@@ -30,7 +30,7 @@ from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_
 
 try:
     import pynini
-    from pynini.lib import pynutil
+    from pynini.lib import pynutil, rewrite
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -91,6 +91,8 @@ class MoneyFst(GraphFst):
         if not deterministic:
             currencies = load_labels(get_abs_path("data/currency/currency.tsv"))
             zero_graph = pynini.cross("0", "") | pynini.accep("0")
+            # add minor currency part only when there are two digits after the point
+            # .01 -> {zero one cent, one cent}, .05 -> {oh five, five cents}
             two_digits_fractional_part = (
                 NEMO_SIGMA
                 + pynini.closure(NEMO_DIGIT)
@@ -109,7 +111,11 @@ class MoneyFst(GraphFst):
                 graph_end = pynutil.insert(" currency: \"" + curr_symbol + "\"")
                 preserve_order = pynutil.insert(" preserve_order: True")
                 integer_part = decimal.graph_integer + graph_end + preserve_order
+
+                # "$4" -> 'integer_part: "four" currency: "$" preserve_order: True' -> four dollars
                 integer_graph_curr = curr_symbol_graph + integer_part
+                # remove fractional part if it contains only zeros
+                # "$4.00" -> 'integer_part: "four" currency: "$" preserve_order: True' -> four dollars
                 integer_graph_curr |= pynini.compose(two_digits_fractional_part, integer_graph_curr)
                 decimal_graph_with_minor_curr = (
                     curr_symbol_graph
@@ -118,13 +124,17 @@ class MoneyFst(GraphFst):
                     + decimal.graph_fractional
                     + graph_end
                 )
+
+                # "$.5" -> 'fractional_part: "five" currency: "dollars"' -> point five dollars
                 decimal_graph_default_curr = (
-                    pynutil.delete("currency: \"" + curr_name + pynini.closure(NEMO_NOT_QUOTE) + "\"")
+                    pynutil.delete("currency: \"" + pynini.compose(curr_symbol, unit_plural) + "\"")
                     + delete_space
                     + pynini.accep("fractional_part")
                     + NEMO_SIGMA
                     + pynutil.insert(" currency: \"" + pynini.compose(curr_symbol, unit_plural) + "\"")
                 )
+
+                # "$4.5" -> 'integer_part: "four" fractional_part: "five" currency: "dollars"' -> "four point five dollars"
                 decimal_graph_default_curr |= (
                     pynutil.delete("currency: \"" + curr_name + pynini.closure(NEMO_NOT_QUOTE) + "\"")
                     + delete_space
@@ -132,6 +142,16 @@ class MoneyFst(GraphFst):
                     + NEMO_SIGMA
                     + pynini.accep("fractional_part")
                     + NEMO_SIGMA
+                    + pynutil.insert(" currency: \"" + pynini.compose(curr_symbol, unit_plural) + "\"")
+                )
+
+                # "£4 billion" -> 'integer_part: "four" quantity: "billion" currency: "pounds"' -> "four billion dollars"
+                decimal_graph_default_curr |= (
+                    pynutil.delete("currency: \"")
+                    + pynutil.delete(
+                        rewrite.rewrite_lattice(curr_symbol, pynini.compose(curr_symbol, unit_plural)) + "\" "
+                    )
+                    + pynini.difference(NEMO_SIGMA, "fractional_part")
                     + pynutil.insert(" currency: \"" + pynini.compose(curr_symbol, unit_plural) + "\"")
                 )
 
@@ -157,13 +177,6 @@ class MoneyFst(GraphFst):
                 )
 
             final_graph = decimal_graph_with_minor | decimal_graph_default | integer_graph
-
-        from pynini.lib.rewrite import top_rewrites
-
-        # import pdb;
-        # pdb.set_trace()
-        [print(x) for x in top_rewrites("£4.5 billion", final_graph, 20)]
-        # print(top_rewrites("₩4 billion", final_graph, 5))
 
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

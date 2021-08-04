@@ -119,12 +119,6 @@ class NormalizerWithAudio(Normalizer):
             tagged_texts = rewrite.rewrites(text, self.tagger.fst)
         else:
             tagged_texts = rewrite.top_rewrites(text, self.tagger.fst, nshortest=n_tagged)
-        # import pdb; pdb.set_trace()
-        # print('tagged_texts:')
-        [print(x) for x in tagged_texts]
-        # normalized_texts = []
-        # for tagged_text in tagged_texts:
-        #     self._verbalize(tagged_text, normalized_texts)
         normalized_texts = tagged_texts
         if len(normalized_texts) == 0:
             raise ValueError()

@@ -15,7 +15,12 @@
 
 import os
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, delete_extra_space, delete_space
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    GraphFst,
+    delete_extra_space,
+    delete_space,
+    get_abs_path,
+)
 from nemo_text_processing.text_normalization.en.taggers.abbreviation import AbbreviationFst
 from nemo_text_processing.text_normalization.en.taggers.cardinal import CardinalFst
 from nemo_text_processing.text_normalization.en.taggers.date import DateFst
@@ -57,7 +62,7 @@ class ClassifyFst(GraphFst):
     def __init__(self, input_case: str, deterministic: bool = True, use_cache: bool = False):
         super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
 
-        far_file = "_tokenize_and_classify.far"
+        far_file = get_abs_path("_tokenize_and_classify.far")
         use_cache = False
         if use_cache and os.path.exists(far_file):
             self.fst = pynini.Far(far_file, mode='r')['tokenize_and_classify']

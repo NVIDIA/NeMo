@@ -91,6 +91,9 @@ This example number fifteen thousand can be a very long one, and can fail to pro
 one dollar one cent
 one dollar and one cent
 one point oh one united states dollars
+~$.02
+two cents
+point zero two dollars
 ~$17.31
 seventeen dollars and thirty one cents
 seventeen point three one dollars

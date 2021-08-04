@@ -101,6 +101,7 @@ class Normalizer:
         tags_reordered = self.generate_permutations(tokens)
         for tagged_text in tags_reordered:
             tagged_text = pynini.escape(tagged_text)
+
             verbalizer_lattice = self.find_verbalizer(tagged_text)
             if verbalizer_lattice.num_states() == 0:
                 continue

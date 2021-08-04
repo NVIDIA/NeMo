@@ -30,7 +30,7 @@ class TestNormalizeWithAudio:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_norm(self, test_input, expected):
-        pred = self.normalizer_en.normalize(test_input, n_tagged=1000)
+        pred = self.normalizer_en.normalize(test_input, n_tagged=10000)
         assert len(set(pred).intersection(set(expected))) == len(
             expected
         ), f'missing: {set(expected).difference(set(pred))}'
