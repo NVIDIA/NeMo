@@ -82,6 +82,25 @@ def with_numba_compat_strictness(strict: bool):
     set_numba_compat_strictness(strict=initial_strictness)
 
 
+def numba_cpu_is_supported(min_version: str) -> bool:
+    """
+    Tests if an appropriate version of numba is installed.
+
+    Args:
+        min_version: The minimum version of numba that is required.
+
+    Returns:
+        bool, whether numba CPU supported with this current installation or not.
+    """
+    module_available, msg = model_utils.check_lib_version('numba', checked_version=min_version, operator=operator.ge)
+
+    # If numba is not installed
+    if module_available is None:
+        return False
+    else:
+        return True
+
+
 def numba_cuda_is_supported(min_version: str) -> bool:
     """
     Tests if an appropriate version of numba is installed, and if it is,
@@ -93,7 +112,7 @@ def numba_cuda_is_supported(min_version: str) -> bool:
     Returns:
         bool, whether cuda is supported with this current installation or not.
     """
-    module_available, msg = model_utils.check_lib_version('numba', checked_version=min_version, operator=operator.ge)
+    module_available = numba_cpu_is_supported(min_version)
 
     # If numba is not installed
     if module_available is None:
