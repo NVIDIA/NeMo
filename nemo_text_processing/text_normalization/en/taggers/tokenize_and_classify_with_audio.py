@@ -74,7 +74,7 @@ class ClassifyFst(GraphFst):
         use_cache: set to True to use saved .far grammar file
     """
 
-    def __init__(self, input_case: str, deterministic: bool = True, use_cache: bool = False):
+    def __init__(self, input_case: str, deterministic: bool = True, use_cache: bool = True):
         super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
 
         far_file = get_abs_path("_en_tokenize_and_classify_non_deterministic.far")
