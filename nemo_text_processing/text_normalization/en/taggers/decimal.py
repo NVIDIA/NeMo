@@ -100,9 +100,5 @@ class DecimalFst(GraphFst):
 
         final_graph = optional_graph_negative + self.final_graph_wo_negative
 
-        from pynini.lib.rewrite import top_rewrites
-
-        print(top_rewrites("1.22", final_graph, 5))
-
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

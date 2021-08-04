@@ -36,6 +36,18 @@ from nemo_text_processing.text_normalization.en.taggers.telephone import Telepho
 from nemo_text_processing.text_normalization.en.taggers.time import TimeFst
 from nemo_text_processing.text_normalization.en.taggers.whitelist import WhiteListFst
 from nemo_text_processing.text_normalization.en.taggers.word import WordFst
+from nemo_text_processing.text_normalization.en.verbalizers.abbreviation import AbbreviationFst as vAbbreviation
+from nemo_text_processing.text_normalization.en.verbalizers.cardinal import CardinalFst as vCardinal
+from nemo_text_processing.text_normalization.en.verbalizers.date import DateFst as vDate
+from nemo_text_processing.text_normalization.en.verbalizers.decimal import DecimalFst as vDecimal
+from nemo_text_processing.text_normalization.en.verbalizers.electronic import ElectronicFst as vElectronic
+from nemo_text_processing.text_normalization.en.verbalizers.fraction import FractionFst as vFraction
+from nemo_text_processing.text_normalization.en.verbalizers.measure import MeasureFst as vMeasure
+from nemo_text_processing.text_normalization.en.verbalizers.money import MoneyFst as vMoney
+from nemo_text_processing.text_normalization.en.verbalizers.ordinal import OrdinalFst as vOrdinal
+from nemo_text_processing.text_normalization.en.verbalizers.roman import RomanFst as vRoman
+from nemo_text_processing.text_normalization.en.verbalizers.telephone import TelephoneFst as vTelephone
+from nemo_text_processing.text_normalization.en.verbalizers.time import TimeFst as vTime
 
 from nemo.utils import logging
 
@@ -64,13 +76,12 @@ class ClassifyFst(GraphFst):
     def __init__(self, input_case: str, deterministic: bool = True, use_cache: bool = False):
         super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
 
-        use_cache = False
-
-        far_file = get_abs_path("_tokenize_and_classify_non_deteministic2.far")
+        far_file = get_abs_path("_tokenize_and_classify_non_deteministic.far")
         if use_cache and os.path.exists(far_file):
             self.fst = pynini.Far(far_file, mode='r')['tokenize_and_classify']
             logging.info(f'ClassifyFst.fst was restored from {os.path.abspath(far_file)}')
         else:
+            # TAGGERS
             cardinal = CardinalFst(deterministic=deterministic)
             cardinal_graph = cardinal.fst
 
@@ -93,23 +104,7 @@ class ClassifyFst(GraphFst):
             whitelist_graph = WhiteListFst(input_case=input_case, deterministic=deterministic).graph
             punct_graph = PunctuationFst(deterministic=deterministic).graph
 
-            # VERBALIZER
-            from nemo_text_processing.text_normalization.en.verbalizers.cardinal import CardinalFst as vCardinal
-            from nemo_text_processing.text_normalization.en.verbalizers.date import DateFst as vDate
-            from nemo_text_processing.text_normalization.en.verbalizers.decimal import DecimalFst as vDecimal
-            from nemo_text_processing.text_normalization.en.verbalizers.electronic import ElectronicFst as vElectronic
-            from nemo_text_processing.text_normalization.en.verbalizers.fraction import FractionFst as vFraction
-            from nemo_text_processing.text_normalization.en.verbalizers.measure import MeasureFst as vMeasure
-            from nemo_text_processing.text_normalization.en.verbalizers.money import MoneyFst as vMoney
-            from nemo_text_processing.text_normalization.en.verbalizers.ordinal import OrdinalFst as vOrdinal
-            from nemo_text_processing.text_normalization.en.verbalizers.roman import RomanFst as vRoman
-            from nemo_text_processing.text_normalization.en.verbalizers.telephone import TelephoneFst as vTelephone
-            from nemo_text_processing.text_normalization.en.verbalizers.time import TimeFst as vTime
-            from nemo_text_processing.text_normalization.en.verbalizers.whitelist import WhiteListFst as vWhiteList
-            from nemo_text_processing.text_normalization.en.verbalizers.abbreviation import (
-                AbbreviationFst as vAbbreviation,
-            )
-
+            # VERBALIZERS
             cardinal = vCardinal(deterministic=deterministic)
             v_cardinal_graph = cardinal.fst
             decimal = vDecimal(cardinal=cardinal, deterministic=deterministic)

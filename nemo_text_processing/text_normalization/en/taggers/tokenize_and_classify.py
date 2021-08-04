@@ -63,7 +63,7 @@ class ClassifyFst(GraphFst):
         super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
 
         far_file = get_abs_path("_tokenize_and_classify.far")
-        use_cache = False
+
         if use_cache and os.path.exists(far_file):
             self.fst = pynini.Far(far_file, mode='r')['tokenize_and_classify']
         else:
@@ -103,8 +103,6 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(fraction_graph, 1.1)
                 | pynutil.add_weight(word_graph, 100)
             )
-            # from pynini.lib.rewrite import top_rewrites
-            # import pdb; pdb.set_trace()
 
             if not deterministic:
                 roman_graph = RomanFst(deterministic=deterministic).fst
