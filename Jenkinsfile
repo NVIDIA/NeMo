@@ -76,6 +76,18 @@ pipeline {
       }
     }
 
+    stage('L0: ITN Tests CPU') {
+      when {
+        anyOf {
+          changeset glob: "nemo_text_processing/*"
+        }
+      }
+      steps {
+        sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/ -m "not pleasefixme" --cpu'
+      }
+    }
+
+
     stage('L0: Computer Vision Integration') {
       when {
         anyOf {
