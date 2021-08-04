@@ -27,7 +27,9 @@ from nemo.collections.common import tokenizers
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 
-NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cuda_is_supported(__NUMBA_MINIMUM_VERSION__)
+NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cpu_is_supported(
+    __NUMBA_MINIMUM_VERSION__
+) or numba_utils.numba_cuda_is_supported(__NUMBA_MINIMUM_VERSION__)
 
 
 @pytest.fixture()
