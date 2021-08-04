@@ -30,11 +30,13 @@ from nemo.utils import logging
 from nemo.collections.common.parts.preprocessing.parsers import make_parser
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.tts.torch.helpers import beta_binomial_prior_distribution
+from nemo.collections.asr.data.vocabs import Base, Phonemes
+
 
 CONSTANT = 1e-5
 
 
-class TextMelAudioDataset(Dataset):
+class CharMelAudioDataset(Dataset):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
@@ -65,10 +67,11 @@ class TextMelAudioDataset(Dataset):
         n_mels=64,
         lowfreq=0,
         highfreq=None,
-        pitch_fmin=None,
-        pitch_fmax=None,
+        pitch_fmin=80,
+        pitch_fmax=640,
         pitch_avg=0,
         pitch_std=1,
+        tokenize_text=True,
     ):
         """Dataset that loads audio, log mel specs, text tokens, duration / attention priors, pitches, and energies.
         Log mels, priords, pitches, and energies will be computed on the fly and saved in the supplementary_folder if
@@ -108,6 +111,7 @@ class TextMelAudioDataset(Dataset):
             pitch_fmax (Optional[int]): The fmax input to librosa.pyin. Defaults to None.
             pitch_avg (Optional[float]): The mean that we use to normalize the pitch. Defaults to 0.
             pitch_std (Optional[float]): The std that we use to normalize the pitch. Defaults to 1.
+            tokenize_text (Optional[bool]): Whether to tokenize (turn chars into ints). Defaults to True.
         """
         super().__init__()
 
@@ -119,12 +123,13 @@ class TextMelAudioDataset(Dataset):
         self.sample_rate = sample_rate
         self.hop_len = hop_length or n_fft // 4
 
-        audio_files = []
-        total_duration = 0
-        self.parser = make_parser(name="en")
+        self.parser = make_parser(name="en", do_tokenize=tokenize_text)
+        self.pad_id = self.parser._blank_id
         Path(supplementary_folder).mkdir(parents=True, exist_ok=True)
         self.supplementary_folder = supplementary_folder
 
+        audio_files = []
+        total_duration = 0
         # Load data from manifests
         # Note: audio is always required, even for text -> mel_spectrogram models, due to the fact that most models
         # extract pitch from the audio
@@ -216,7 +221,7 @@ class TextMelAudioDataset(Dataset):
             'none': None,
         }
         window_fn = torch_windows.get(window, None)
-        window_tensor = window_fn(win_length, periodic=False) if window_fn else None
+        window_tensor = window_fn(self.win_length, periodic=False) if window_fn else None
 
         self.stft = lambda x: torch.stft(
             input=x,
@@ -232,7 +237,13 @@ class TextMelAudioDataset(Dataset):
 
         features = self.featurizer.process(sample["audio_filepath"], trim=self.trim)
         audio, audio_length = features, torch.tensor(features.shape[0]).long()
-        text, text_length = torch.tensor(sample["text_tokens"]).long(), torch.tensor(len(sample["text_tokens"])).long()
+        if isinstance(sample["text_tokens"], str):
+            # If tokenize_text is False for Phone dataset
+            text = sample["text_tokens"]
+            text_length = None
+        else:
+            text = torch.tensor(sample["text_tokens"]).long()
+            text_length = torch.tensor(len(sample["text_tokens"])).long()
         audio_stem = Path(sample["audio_filepath"]).stem
 
         # Load mel if it exists
@@ -262,15 +273,16 @@ class TextMelAudioDataset(Dataset):
         log_mel = log_mel.squeeze(0)
         log_mel_length = torch.tensor(log_mel.shape[1]).long()
 
-        ### Make duration attention prior if not exist in the supplementary folder
-        text_tokens = text
-        prior_path = Path(self.supplementary_folder) / f"pr_tl{len(text_tokens)}_al_{log_mel_length}.pt"
-        if prior_path.exists():
-            duration_prior = torch.load(prior_path)
-        else:
-            duration_prior = beta_binomial_prior_distribution(len(text), log_mel_length)
-            duration_prior = torch.from_numpy(duration_prior)
-            torch.save(duration_prior, prior_path)
+        duration_prior = None
+        if text_length is not None:
+            ### Make duration attention prior if not exist in the supplementary folder
+            prior_path = Path(self.supplementary_folder) / f"pr_tl{text_length}_al_{log_mel_length}.pt"
+            if prior_path.exists():
+                duration_prior = torch.load(prior_path)
+            else:
+                duration_prior = beta_binomial_prior_distribution(text_length, log_mel_length)
+                duration_prior = torch.from_numpy(duration_prior)
+                torch.save(duration_prior, prior_path)
 
         # Load pitch file (F0s)
         pitch_path = (
@@ -303,7 +315,6 @@ class TextMelAudioDataset(Dataset):
             if spec is None:
                 spec = self.stft(audio)
             energy = torch.linalg.norm(spec.squeeze(0), axis=0)
-            logging.warning(f"energy: {energy.shape}")
             # Save to new file
             torch.save(energy, energy_path)
 
@@ -313,7 +324,6 @@ class TextMelAudioDataset(Dataset):
         return len(self.data)
 
     def _collate_fn(self, batch):
-        pad_id = self.parser._blank_id
         log_mel_pad = torch.finfo(batch[0][2].dtype).tiny
 
         _, tokens_lengths, _, log_mel_lengths, _, audio_lengths, duration_priors_list, pitches, energies = zip(*batch)
@@ -342,7 +352,7 @@ class TextMelAudioDataset(Dataset):
             token_len = token_len.item()
             if token_len < max_tokens_len:
                 pad = (0, max_tokens_len - token_len)
-                token = torch.nn.functional.pad(token, pad, value=pad_id)
+                token = torch.nn.functional.pad(token, pad, value=self.pad_id)
             tokens.append(token)
             # Pad mel
             log_mel_len = log_mel_len
@@ -389,3 +399,112 @@ class TextMelAudioDataset(Dataset):
         logging.debug(f"energies: {energies.shape}")
 
         return (tokens, tokens_lengths, log_mels, log_mel_lengths, duration_priors, pitches, energies)
+
+    def decode(self, tokens):
+        assert len(tokens.squeeze().shape) in [0, 1]
+        return self.parser.decode(tokens)
+
+
+class PhoneMelAudioDataset(CharMelAudioDataset):
+    # @property
+    # def output_types(self) -> Optional[Dict[str, NeuralType]]:
+    #     return {
+    #         'transcripts': NeuralType(('B', 'T'), TokenIndex()),
+    #         'transcript_length': NeuralType(('B'), LengthsType()),
+    #         'mels': NeuralType(('B', 'D', 'T'), TokenIndex()),
+    #         'mel_length': NeuralType(('B'), LengthsType()),
+    #         'audio': NeuralType(('B', 'T'), AudioSignal()),
+    #         'audio_length': NeuralType(('B'), LengthsType()),
+    #         'duration_prior': NeuralType(('B', 'T'), TokenDurationType()),
+    #         'pitches': NeuralType(('B', 'T'), RegressionValuesType()),
+    #         'energies': NeuralType(('B', 'T'), RegressionValuesType()),
+    #     }
+
+    def __init__(
+        self,
+        punct=True,
+        stresses=False,
+        spaces=True,
+        chars=False,
+        space=' ',
+        silence=None,
+        apostrophe=True,
+        oov=Base.OOV,
+        sep='|',
+        add_blank_at="last_but_one",
+        pad_with_space=False,
+        improved_version_g2p=False,
+        phoneme_dict_path=None,
+        **kwargs,
+    ):
+        """Dataset that loads audio, log mel specs, text tokens, duration / attention priors, pitches, and energies.
+        Log mels, priords, pitches, and energies will be computed on the fly and saved in the supplementary_folder if
+        they did not exist before.
+        This dataset subclasses CharMelAudioDataset and differs in that it returns tokenized phone representations as
+        opposed to character representations.
+
+        Args:
+
+        """
+        if "tokenize_text" in kwargs:
+            tokenize_text = kwargs.pop("tokenize_text")
+            if not tokenize_text:
+                logging.warning(
+                    f"{self} requires tokenize_text to be False. Setting it to False and ignoring provided value of "
+                    f"{tokenize_text}"
+                )
+        super().__init__(tokenize_text=False, **kwargs)
+
+        self.vocab = Phonemes(
+            punct=punct,
+            stresses=stresses,
+            spaces=spaces,
+            chars=chars,
+            add_blank_at=add_blank_at,
+            pad_with_space=pad_with_space,
+            improved_version_g2p=improved_version_g2p,
+            phoneme_dict_path=phoneme_dict_path,
+            space=space,
+            silence=silence,
+            apostrophe=apostrophe,
+            oov=oov,
+            sep=sep,
+        )
+        self.pad_id = self.vocab.pad
+
+    def __getitem__(self, index):
+        (text, _, log_mel, log_mel_length, audio, audio_length, _, pitch, energy) = super().__getitem__(index)
+
+        phones_tokenized = torch.tensor(self.vocab.encode(text)).long()
+        phones_length = torch.tensor(len(phones_tokenized)).long()
+
+        ### Make duration attention prior if not exist in the supplementary folder
+        prior_path = Path(self.supplementary_folder) / f"pr_tl{phones_length}_al_{log_mel_length}.pt"
+        if prior_path.exists():
+            duration_prior = torch.load(prior_path)
+        else:
+            duration_prior = beta_binomial_prior_distribution(phones_length, log_mel_length)
+            duration_prior = torch.from_numpy(duration_prior)
+            torch.save(duration_prior, prior_path)
+
+        return (
+            phones_tokenized,
+            phones_length,
+            log_mel,
+            log_mel_length,
+            audio,
+            audio_length,
+            duration_prior,
+            pitch,
+            energy,
+        )
+
+    def __len__(self):
+        return len(self.data)
+
+    def decode(self, tokens):
+        """
+        Accepts a singule list of tokens, not a batch
+        """
+        assert len(tokens.squeeze().shape) in [0, 1]
+        return self.vocab.decode(tokens)

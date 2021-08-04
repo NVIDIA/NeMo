@@ -33,12 +33,12 @@ which in this case is `./debug0`.
 ```python
 import torch
 
-from nemo.collections.tts.torch.data import TextMelAudioDataset
+from nemo.collections.tts.torch.data import CharMelAudioDataset
 
-dataset = TextMelAudioDataset(
-  manifest_filepath="PATH_TO/nvidia_ljspeech_val.json",  # Path to file that describes the location of audio and text
+dataset = CharMelAudioDataset(
+  manifest_filepath="/data/speech/LJSpeech/nvidia_ljspeech_val.json",  # Path to file that describes the location of audio and text
   sample_rate=22050,
-  supplementary_folder="./debug0",  # An additional folder that will store log_mels, priors, pitches, and energies
+  supplementary_folder="/data/speech/LJSpeech/debug0",  # An additional folder that will store log_mels, priors, pitches, and energies
   max_duration=20.,  # Max duration of samples in seconds
   min_duration=0.1,  # Min duration of samples in seconds
   ignore_file=None,
@@ -61,6 +61,27 @@ for batch in dataloader:
   ## Train models, etc.
   # Tokens represent already tokenized characters which probably will not work with previous tokenziers
   # You can get the label map from dataset.parser._labels_map. You can tokenize text via dataset.parser("text!")
+  # You can detokenize using dataset.decode()
+```
+
+```python
+import torch
+
+from nemo.collections.tts.torch.data import PhoneMelAudioDataset
+
+dataset = PhoneMelAudioDataset(
+  manifest_filepath="/data/speech/LJSpeech/nvidia_ljspeech_val.json",  # Path to file that describes the location of audio and text
+  sample_rate=22050,
+  supplementary_folder="/data/speech/LJSpeech/debug0",  # An additional folder that will store log_mels, priors, pitches, and energies
+)
+
+dataloader = torch.utils.data.DataLoader(dataset, 10, collate_fn=dataset._collate_fn)
+
+for batch in dataloader:
+  tokens, tokens_lengths, log_mels, log_mel_lengths, duration_priors, pitches, energies = batch
+  ## Train models, etc.
+  # Tokens represent already tokenized characters which probably will not work with previous tokenziers
+  # You can tokenize via dataset.vocab.encode(), and go backwards with dataset.vocab.decode().
 ```
 
 ### Torch Modules
