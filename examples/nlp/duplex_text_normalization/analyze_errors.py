@@ -12,6 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+This script can be used to visualize the errors made by a (duplex) TN system.
+More specifically, after running the evaluation script `duplex_text_normalization_test.py`,
+a log file containing info about the errors will be generated. The location of this file
+is determined by the argument `inference.errors_log_fp`. After that, we can use this
+evaluation script to generate a HTML visualization.
+
+USAGE Example:
+# python analyze_errors.py                                    \
+        --errors_log_fp=PATH_TO_ERRORS_LOG_FILE_PATH          \
+        --visualization_fp=PATH_TO_VISUALIZATION_FILE_PATH
+"""
+
 from argparse import ArgumentParser
 
 from nemo.collections.nlp.data.text_normalization import constants
