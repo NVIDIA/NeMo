@@ -1,0 +1,9 @@
+Model Name,Model Base Class,Model Card
+vad_marblenet,EncDecClassificationModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:vad_marblenet"
+vad_telephony_marblenet,EncDecClassificationModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:vad_telephony_marblenet"
+commandrecognition_en_matchboxnet3x1x64_v1,EncDecClassificationModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x1x64_v1"
+commandrecognition_en_matchboxnet3x2x64_v1,EncDecClassificationModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x2x64_v1"
+commandrecognition_en_matchboxnet3x1x64_v2,EncDecClassificationModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x1x64_v2"
+commandrecognition_en_matchboxnet3x2x64_v2,EncDecClassificationModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x2x64_v2"
+commandrecognition_en_matchboxnet3x1x64_v2_subset_task,EncDecClassificationModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x1x64_v2_subset_task"
+commandrecognition_en_matchboxnet3x2x64_v2_subset_task,EncDecClassificationModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:commandrecognition_en_matchboxnet3x2x64_v2_subset_task"

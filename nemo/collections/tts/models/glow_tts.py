@@ -23,7 +23,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
 from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
-from nemo.collections.asr.parts.perturb import process_augmentations
+from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.tts.helpers.helpers import log_audio_to_tb, plot_alignment_to_numpy, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.glow_tts_loss import GlowTTSLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
@@ -229,8 +229,6 @@ class GlowTTSModel(SpectrogramGenerator):
             min_duration=cfg.get('min_duration', None),
             max_utts=cfg.get('max_utts', 0),
             trim=cfg.get('trim_silence', True),
-            load_audio=cfg.get('load_audio', True),
-            add_misc=cfg.get('add_misc', False),
         )
 
         return torch.utils.data.DataLoader(
@@ -275,6 +273,7 @@ class GlowTTSModel(SpectrogramGenerator):
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_glowtts/versions/1.0.0rc1/files/tts_en_glowtts.nemo",
             description="This model is trained on LJSpeech sampled at 22050Hz, and can be used to generate female English voices with an American accent.",
             class_=cls,
+            aliases=["GlowTTS-22050Hz"],
         )
         list_of_models.append(model)
         return list_of_models

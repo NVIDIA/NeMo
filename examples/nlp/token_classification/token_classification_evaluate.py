@@ -111,16 +111,16 @@ def main(cfg: DictConfig) -> None:
         elif model.prepare_test(trainer):
             model.setup_test_data(cfg.model.test_ds)
             trainer.test(model)
+
+            model.evaluate_from_file(
+                text_file=os.path.join(data_dir, cfg.model.test_ds.text_file),
+                labels_file=os.path.join(data_dir, cfg.model.test_ds.labels_file),
+                output_dir=exp_dir,
+                add_confusion_matrix=True,
+                normalize_confusion_matrix=True,
+            )
         else:
             logging.error('Skipping the evaluation. The trainer is not setup properly.')
-
-    model.evaluate_from_file(
-        text_file=os.path.join(data_dir, cfg.model.test_ds.text_file),
-        labels_file=os.path.join(data_dir, cfg.model.test_ds.labels_file),
-        output_dir=exp_dir,
-        add_confusion_matrix=True,
-        normalize_confusion_matrix=True,
-    )
 
     # run an inference on a few examples
     queries = ['we bought four shirts from the nvidia gear store in santa clara.', 'Nvidia is a company.']

@@ -135,7 +135,7 @@ class TestFileIO:
 
             # Save model (with random artifact).
             with tempfile.NamedTemporaryFile() as artifact:
-                asr_model.register_artifact(config_path=None, src=artifact.name)
+                asr_model.register_artifact(config_path="abc", src=artifact.name)
                 asr_model.save_to(save_path=filename)
 
             # Restore the model.
@@ -162,7 +162,7 @@ class TestFileIO:
 
             # Save model (with random artifact).
             with tempfile.NamedTemporaryFile() as artifact:
-                asr_model.register_artifact(config_path=None, src=artifact.name)
+                asr_model.register_artifact(config_path="abc", src=artifact.name)
                 asr_model.save_to(save_path=filename)
 
             # Try to restore the encrypted archive (weights) without the encryption key.
@@ -202,7 +202,7 @@ class TestFileIO:
             # Remember the filename of the artifact.
             _, artifact_filename = os.path.split(artifact.name)
             # Add artifact to model.
-            asr_model.register_artifact(config_path=None, src=artifact.name)
+            asr_model.register_artifact(config_path="abc", src=artifact.name)
             # Save model (with "random artifact").
             asr_model.save_to(save_path=filename)
 

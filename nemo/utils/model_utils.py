@@ -23,6 +23,7 @@ import pytorch_lightning as pl
 import wrapt
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from omegaconf import errors as omegaconf_errors
+from packaging import version
 
 from nemo.utils import logging
 
@@ -45,6 +46,7 @@ class ArtifactPathType(Enum):
 class ArtifactItem:
     path: str
     path_type: ArtifactPathType
+    hashed_path: Optional[str] = None
 
 
 def resolve_dataset_name_from_cfg(cfg: DictConfig) -> str:
@@ -371,8 +373,8 @@ def _convert_config(cfg: OmegaConf):
     """ Recursive function convertint the configuration from old hydra format to the new one. """
 
     # Get rid of cls -> _target_.
-    if 'cls' in cfg and "_target_" not in cfg:
-        cfg._target_ = cfg.pop("cls")
+    if 'cls' in cfg and '_target_' not in cfg:
+        cfg._target_ = cfg.pop('cls')
 
     # Get rid of params.
     if 'params' in cfg:
@@ -386,7 +388,7 @@ def _convert_config(cfg: OmegaConf):
             if isinstance(sub_cfg, DictConfig):
                 _convert_config(sub_cfg)
     except omegaconf_errors.OmegaConfBaseException as e:
-        logging.warning(f"Skipping config conversion for cfg:\n{cfg}\n due to OmegaConf error encountered :\n{e}.")
+        logging.warning(f"Skipped conversion for config/subconfig:\n{cfg}\n Reason: {e}.")
 
 
 def maybe_update_config_version(cfg: DictConfig):
@@ -396,6 +398,7 @@ def maybe_update_config_version(cfg: DictConfig):
     Changes include:
     -   `cls` -> `_target_`.
     -   `params` -> drop params and shift all arguments to parent.
+    -   `target` -> `_target_` cannot be performed due to ModelPT injecting `target` inside class.
 
     Args:
         cfg: Any Hydra compatible DictConfig
@@ -403,6 +406,14 @@ def maybe_update_config_version(cfg: DictConfig):
     Returns:
         An updated DictConfig that conforms to Hydra 1.x format.
     """
+    if cfg is not None and not isinstance(cfg, DictConfig):
+        try:
+            temp_cfg = OmegaConf.create(cfg)
+            cfg = temp_cfg
+        except omegaconf_errors.OmegaConfBaseException:
+            # Cannot be cast to DictConfig, skip updating.
+            return cfg
+
     # Make a copy of model config.
     cfg = copy.deepcopy(cfg)
     OmegaConf.set_struct(cfg, False)
@@ -465,3 +476,56 @@ def resolve_subclass_pretrained_model_info(base_class) -> List['PretrainedModelI
 
     list_of_models = list(sorted(list_of_models))
     return list_of_models
+
+
+def check_lib_version(lib_name: str, checked_version: str, operator) -> (Optional[bool], str):
+    """
+    Checks if a library is installed, and if it is, checks the operator(lib.__version__, checked_version) as a result.
+    This bool result along with a string analysis of result is returned.
+
+    If the library is not installed at all, then returns None instead, along with a string explaining
+    that the library is not installed
+
+    Args:
+        lib_name: lower case str name of the library that must be imported.
+        checked_version: semver string that is compared against lib.__version__.
+        operator: binary callable function func(a, b) -> bool; that compares lib.__version__ against version in
+            some manner. Must return a boolean.
+
+    Returns:
+        A tuple of results:
+        -   Bool or None. Bool if the library could be imported, and the result of
+            operator(lib.__version__, checked_version) or False if __version__ is not implemented in lib.
+            None is passed if the library is not installed at all.
+        -   A string analysis of the check.
+    """
+    try:
+        if '.' in lib_name:
+            mod = import_class_by_path(lib_name)
+        else:
+            mod = __import__(lib_name)
+
+        if hasattr(mod, '__version__'):
+            lib_ver = version.Version(mod.__version__)
+            match_ver = version.Version(checked_version)
+
+            if operator(lib_ver, match_ver):
+                msg = f"Lib {lib_name} version is satisfied !"
+                return True, msg
+            else:
+                msg = (
+                    f"Lib {lib_name} version ({lib_ver}) is not {operator.__name__} than required version {checked_version}.\n"
+                    f"Please upgrade the lib using either pip or conda to the latest version."
+                )
+                return False, msg
+        else:
+            msg = (
+                f"Lib {lib_name} does not implement __version__ in its init file. "
+                f"Could not check version compatibility."
+            )
+            return False, msg
+    except (ImportError, ModuleNotFoundError):
+        pass
+
+    msg = f"Lib {lib_name} has not been installed. Please use pip or conda to install this package."
+    return None, msg

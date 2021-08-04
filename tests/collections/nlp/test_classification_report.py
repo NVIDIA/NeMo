@@ -13,8 +13,6 @@
 # limitations under the License.
 
 
-from unittest import TestCase
-
 import pytest
 import torch
 from sklearn.metrics import precision_recall_fscore_support
@@ -22,7 +20,7 @@ from sklearn.metrics import precision_recall_fscore_support
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 
 
-class ClassificationReportTests(TestCase):
+class ClassificationReportTests:
     num_classes = 3
     label_ids = {'a': 0, 'b': 1, 'c': 2}
 

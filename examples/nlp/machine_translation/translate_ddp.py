@@ -18,12 +18,10 @@ from argparse import ArgumentParser
 
 import torch
 import torch.multiprocessing as mp
-from sacremoses import MosesDetokenizer
 from torch.utils.data import DataLoader
 
-from nemo.collections.common.tokenizers.pangu_jieba_detokenizer import PanguJiebaDetokenizer
-from nemo.collections.common.tokenizers.sentencepiece_detokenizer import SentencePieceDetokenizer
-from nemo.collections.nlp.data.machine_translation import TarredOneSideTranslationDataset, TarredTranslationDataset
+from nemo.collections.nlp.data.language_modeling import TarredSentenceDataset
+from nemo.collections.nlp.data.machine_translation import TarredTranslationDataset
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.utils import logging
 
@@ -57,13 +55,12 @@ def get_args():
 def translate(rank, world_size, args):
     if args.model.endswith(".nemo"):
         logging.info("Attempting to initialize from .nemo file")
-        model = MTEncDecModel.restore_from(restore_path=args.model)
+        model = MTEncDecModel.restore_from(restore_path=args.model, map_location=f"cuda:{rank}")
     elif args.model.endswith(".ckpt"):
         logging.info("Attempting to initialize from .ckpt file")
-        model = MTEncDecModel.load_from_checkpoint(checkpoint_path=args.model)
+        model = MTEncDecModel.load_from_checkpoint(checkpoint_path=args.model, map_location=f"cuda:{rank}")
     model.replace_beam_with_sampling(topk=args.topk)
     model.eval()
-    model.to(rank)
     if args.twoside:
         dataset = TarredTranslationDataset(
             text_tar_filepaths=args.text2translate,
@@ -77,7 +74,7 @@ def translate(rank, world_size, args):
             reverse_lang_direction=args.reverse_lang_direction,
         )
     else:
-        dataset = TarredOneSideTranslationDataset(
+        dataset = TarredSentenceDataset(
             text_tar_filepaths=args.text2translate,
             metadata_path=args.metadata_path,
             tokenizer=model.encoder_tokenizer,
@@ -109,9 +106,7 @@ def translate(rank, world_size, args):
                     f"rank {rank}"
                 )
             num_translated_sentences += len(src_ids)
-            inputs, translations = model.batch_translate(
-                src=src_ids, src_mask=src_mask, source_lang=args.src_language, target_lang=args.tgt_language
-            )
+            inputs, translations = model.batch_translate(src=src_ids, src_mask=src_mask)
             for src, translation in zip(inputs, translations):
                 of.write(src + '\n')
                 tf.write(translation + '\n')

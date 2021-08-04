@@ -7,7 +7,7 @@ labels: [' ', '!', '"', "'", '(', ')', ',', '-', '.', ':', ';', '?', 'A', 'B', '
         'u', 'v', 'w', 'x', 'y', 'z']
 n_fft: 1024
 n_mels: 80
-fmax: null
+fmax: 8000
 n_stride: 256
 pad_value: -11.52
 train_dataset: ???
@@ -23,8 +23,7 @@ model:
       min_duration: 0.1
       trim: false
       int_values: false
-      load_audio: true
-      normalize: false
+      normalize: true
       sample_rate: ${sample_rate}
       # bos_id: 66
       # eos_id: 67
@@ -43,8 +42,7 @@ model:
       max_duration: null
       min_duration: 0.1
       int_values: false
-      load_audio: true
-      normalize: false
+      normalize: true
       sample_rate: ${sample_rate}
       trim: false
       # bos_id: 66
@@ -57,7 +55,7 @@ model:
       num_workers: 8
 
   preprocessor:
-    _target_: nemo.collections.asr.parts.features.FilterbankFeatures
+    _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
     dither: 0.0
     nfilt: ${n_mels}
     frame_splicing: 1
@@ -75,7 +73,6 @@ model:
     pad_value: ${pad_value}
     preemph: null
     sample_rate: ${sample_rate}
-    stft_conv: true
     window: hann
 
   encoder:

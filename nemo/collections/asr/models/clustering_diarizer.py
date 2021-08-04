@@ -29,9 +29,14 @@ from tqdm import tqdm
 
 from nemo.collections.asr.models.classification_models import EncDecClassificationModel
 from nemo.collections.asr.models.label_models import ExtractSpeakerEmbeddingsModel
-from nemo.collections.asr.parts.mixins import DiarizationMixin
-from nemo.collections.asr.parts.speaker_utils import audio_rttm_map, perform_diarization, write_rttm2manifest
-from nemo.collections.asr.parts.vad_utils import (
+from nemo.collections.asr.parts.mixins.mixins import DiarizationMixin
+from nemo.collections.asr.parts.utils.speaker_utils import (
+    audio_rttm_map,
+    perform_diarization,
+    segments_manifest_to_subsegments_manifest,
+    write_rttm2manifest,
+)
+from nemo.collections.asr.parts.utils.vad_utils import (
     generate_overlap_vad_seq,
     generate_vad_segment_table,
     get_vad_stream_status,
@@ -39,7 +44,6 @@ from nemo.collections.asr.parts.vad_utils import (
 )
 from nemo.core.classes import Model
 from nemo.utils import logging, model_utils
-from nemo.utils.decorators.experimental import experimental
 from nemo.utils.exp_manager import NotFoundError
 
 try:
@@ -64,7 +68,6 @@ def get_available_model_names(class_name):
     return list(map(lambda x: x.pretrained_model_name, available_models))
 
 
-@experimental
 class ClusteringDiarizer(Model, DiarizationMixin):
     def __init__(self, cfg: DictConfig):
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
@@ -92,7 +95,17 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         # init speaker model
         self._init_speaker_model()
-        self._num_speakers = self._cfg.diarizer.num_speakers
+
+        if self._cfg.diarizer.get('num_speakers', None):
+            self._num_speakers = self._cfg.diarizer.num_speakers
+            logging.warning("in next release num_speakers will be changed to oracle_num_speakers")
+        else:
+            self._num_speakers = self._cfg.diarizer.oracle_num_speakers
+
+        if self._cfg.diarizer.get('max_num_speakers', None):
+            self.max_num_speakers = self._cfg.diarizer.max_num_speakers
+        else:
+            self.max_num_speakers = 8
 
         self._device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -110,7 +123,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 logging.warning(
                     "requested {} model name not available in pretrained models, instead".format(model_path)
                 )
-                model_path = "speakerverification_speakernet"
+                model_path = "speakerdiarization_speakernet"
             logging.info("Loading pretrained {} model from NGC".format(model_path))
             self._speaker_model = ExtractSpeakerEmbeddingsModel.from_pretrained(model_name=model_path)
 
@@ -131,7 +144,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 logging.warning(
                     "requested {} model name not available in pretrained models, instead".format(model_path)
                 )
-                model_path = "MatchboxNet-VAD-3x2"
+                model_path = "vad_telephony_marblenet"
             logging.info("Loading pretrained {} model from NGC".format(model_path))
             self._vad_model = EncDecClassificationModel.from_pretrained(model_name=model_path)
 
@@ -157,7 +170,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         spk_dl_config = {
             'manifest_filepath': manifest_file,
             'sample_rate': self._cfg.sample_rate,
-            'batch_size': 1,
+            'batch_size': self._cfg.get('batch_size', 32),
             'time_length': self._cfg.diarizer.speaker_embeddings.window_length_in_sec,
             'shift_length': self._cfg.diarizer.speaker_embeddings.shift_length_in_sec,
             'trim_silence': False,
@@ -238,26 +251,27 @@ class ClusteringDiarizer(Model, DiarizationMixin):
     def _extract_embeddings(self, manifest_file):
         logging.info("Extracting embeddings for Diarization")
         self._setup_spkr_test_data(manifest_file)
-        uniq_names = []
         out_embeddings = defaultdict(list)
         self._speaker_model = self._speaker_model.to(self._device)
         self._speaker_model.eval()
-        with open(manifest_file, 'r') as manifest:
-            for line in manifest.readlines():
-                line = line.strip()
-                dic = json.loads(line)
-                uniq_names.append(dic['audio_filepath'].split('/')[-1].rsplit('.', 1)[0])
 
-        for i, test_batch in enumerate(tqdm(self._speaker_model.test_dataloader())):
+        all_embs = []
+        for test_batch in tqdm(self._speaker_model.test_dataloader()):
             test_batch = [x.to(self._device) for x in test_batch]
             audio_signal, audio_signal_len, labels, slices = test_batch
             with autocast():
                 _, embs = self._speaker_model.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
                 emb_shape = embs.shape[-1]
-                embs = embs.type(torch.float32)
-                embs = embs.view(-1, emb_shape).cpu().detach().numpy()
-                out_embeddings[uniq_names[i]].extend(embs)
+                embs = embs.view(-1, emb_shape)
+                all_embs.extend(embs.cpu().detach().numpy())
             del test_batch
+
+        with open(manifest_file, 'r') as manifest:
+            for i, line in enumerate(manifest.readlines()):
+                line = line.strip()
+                dic = json.loads(line)
+                uniq_name = os.path.basename(dic['audio_filepath']).rsplit('.', 1)[0]
+                out_embeddings[uniq_name].extend([all_embs[i]])
 
         embedding_dir = os.path.join(self._speaker_dir, 'embeddings')
         if not os.path.exists(embedding_dir):
@@ -335,25 +349,29 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             if not os.path.exists(self._speaker_manifest_path):
                 raise NotFoundError("Oracle VAD based manifest file not found")
 
-        self._extract_embeddings(self._speaker_manifest_path)
+        self.subsegments_manifest_path = os.path.join(self._out_dir, 'subsegments.json')
+        self.subsegments_manifest_path = segments_manifest_to_subsegments_manifest(
+            segments_manifest_file=self._speaker_manifest_path,
+            subsegments_manifest_file=self.subsegments_manifest_path,
+            window=self._cfg.diarizer.speaker_embeddings.window_length_in_sec,
+            shift=self._cfg.diarizer.speaker_embeddings.shift_length_in_sec,
+        )
+        self._extract_embeddings(self.subsegments_manifest_path)
         out_rttm_dir = os.path.join(self._out_dir, 'pred_rttms')
         os.makedirs(out_rttm_dir, exist_ok=True)
 
         perform_diarization(
             embeddings_file=self._embeddings_file,
             reco2num=self._num_speakers,
-            manifest_path=self._speaker_manifest_path,
-            sample_rate=self._cfg.sample_rate,
-            window=self._cfg.diarizer.speaker_embeddings.window_length_in_sec,
-            shift=self._cfg.diarizer.speaker_embeddings.shift_length_in_sec,
+            manifest_path=self.subsegments_manifest_path,
             audio_rttm_map=self.AUDIO_RTTM_MAP,
             out_rttm_dir=out_rttm_dir,
+            max_num_speakers=self.max_num_speakers,
         )
 
     @staticmethod
     def __make_nemo_file_from_folder(filename, source_dir):
         with tarfile.open(filename, "w:gz") as tar:
-            # tar.add(source_dir, arcname=path.basename(source_dir))
             tar.add(source_dir, arcname="./")
 
     @rank_zero_only
@@ -369,11 +387,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         Args:
             save_path: Path to .nemo file where model instance should be saved
         """
-
-        # if not self.has_vad_model:
-        #     NotImplementedError(
-        #         "Saving a clustering based speaker diarization model without a VAD model is not" "supported"
-        #     )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_yaml = os.path.join(tmpdir, _MODEL_CONFIG_YAML)
@@ -427,7 +440,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 conf.diarizer.speaker_embeddings.model_path = os.path.join(tmpdir, _SPEAKER_MODEL)
                 conf.restore_map_location = map_location
                 OmegaConf.set_struct(conf, True)
-                # instance = cls.from_config_dict(config=conf)
                 instance = cls(cfg=conf)
 
                 logging.info(f'Model {cls.__name__} was successfully restored from {restore_path}.')

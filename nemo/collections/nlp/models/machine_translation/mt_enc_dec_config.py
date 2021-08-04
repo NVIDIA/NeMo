@@ -25,7 +25,7 @@ from nemo.collections.nlp.modules.common.transformer.transformer import (
     NeMoTransformerConfig,
     NeMoTransformerEncoderConfig,
 )
-from nemo.core.config.modelPT import ModelConfig, OptimConfig, SchedConfig
+from nemo.core.config.modelPT import OptimConfig, SchedConfig
 
 
 @dataclass
@@ -54,10 +54,11 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
     label_smoothing: Optional[float] = 0.0
     beam_size: int = 4
     len_pen: float = 0.0
-    src_language: str = 'en'
-    tgt_language: str = 'en'
+    src_language: Any = 'en'  # Any = str or List[str]
+    tgt_language: Any = 'en'  # Any = str or List[str]
     find_unused_parameters: Optional[bool] = True
     shared_tokenizer: Optional[bool] = True
+    multilingual: Optional[bool] = False
     preproc_out_dir: Optional[str] = None
 
     # network architecture configuration
@@ -131,3 +132,15 @@ class AAYNBaseConfig(MTEncDecModelConfig):
         attn_score_dropout=0.1,
         attn_layer_dropout=0.1,
     )
+
+
+@dataclass
+class MTBottleneckModelConfig(AAYNBaseConfig):
+    model_type: str = 'seq2seq-br'
+    min_logv: float = -6
+    ortho_loss_coef: float = 0.0
+    att_bridge_size: int = 512
+    att_bridge_k: int = 16
+    att_bridge_inner_size: int = 1024
+    non_recon_warmup_batches: int = 200000
+    recon_per_token: bool = True

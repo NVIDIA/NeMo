@@ -29,7 +29,7 @@ python convert_to_tarred_audio_dataset.py \
     --num_shards=<number of tarfiles that will contain the audio>
     --max_duration=<float representing maximum duration of audio samples> \
     --min_duration=<float representing minimum duration of audio samples> \
-    --shuffle --shuffle_seed=0
+    --shuffle --shuffle_seed=1
 
 
 2) Concatenating more tarfiles to a pre-existing tarred dataset
@@ -40,7 +40,7 @@ python convert_to_tarred_audio_dataset.py \
     --target_dir=<path to output directory where the original tarfiles are contained> \
     --max_duration=<float representing maximum duration of audio samples> \
     --min_duration=<float representing minimum duration of audio samples> \
-    --shuffle --shuffle_seed=0 \
+    --shuffle --shuffle_seed=1 \
     --concat_manifest_paths \
     <space seperated paths to 1 or more manifest files to concatenate into the original tarred dataset>
 
@@ -53,6 +53,7 @@ python convert_to_tarred_audio_dataset.py \
     --max_duration=16.7 \
     --min_duration=0.01 \
     --shuffle \
+    --shuffle_seed=1 \
     --write_metadata
 
 """
@@ -66,6 +67,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, List, Optional
 
+from joblib import Parallel, delayed
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 parser = argparse.ArgumentParser(
@@ -105,8 +107,9 @@ parser.add_argument(
 parser.add_argument(
     '--max_duration',
     default=None,
+    required=True,
     type=float,
-    help='Maximum duration of audio clip in the dataset. By default, it is None and will not filter files.',
+    help='Maximum duration of audio clip in the dataset. By default, it is None and is required to be set.',
 )
 parser.add_argument(
     '--min_duration',
@@ -129,6 +132,7 @@ parser.add_argument(
         "and it must be filled out by the user."
     ),
 )
+parser.add_argument('--workers', type=int, default=1, help='Number of worker processes')
 args = parser.parse_args()
 
 
@@ -190,13 +194,15 @@ class ASRTarredDatasetBuilder:
         if self.config.num_shards < 0:
             raise ValueError("`num_shards` must be > 0. Please fill in the metadata information correctly.")
 
-    def create_new_dataset(self, manifest_path: str, target_dir: str = "./tarred/"):
+    def create_new_dataset(self, manifest_path: str, target_dir: str = "./tarred/", num_workers: int = 0):
         """
         Creates a new tarred dataset from a given manifest file.
 
         Args:
             manifest_path: Path to the original ASR manifest.
             target_dir: Output directory.
+            num_workers: Integer denoting number of parallel worker processes which will write tarfiles.
+                Defaults to 1 - which denotes sequential worker process.
 
         Output:
             Writes tarfiles, along with the tarred dataset compatible manifest file.
@@ -225,9 +231,12 @@ class ASRTarredDatasetBuilder:
             random.shuffle(entries)
 
         # Create shards and updated manifest entries
-        new_entries = []
         print(f"Number of samples added : {len(entries)}")
         print(f"Remainder: {len(entries) % config.num_shards}")
+
+        start_indices = []
+        end_indices = []
+        # Build indices
         for i in range(config.num_shards):
             start_idx = (len(entries) // config.num_shards) * i
             end_idx = start_idx + (len(entries) // config.num_shards)
@@ -236,7 +245,19 @@ class ASRTarredDatasetBuilder:
                 # We discard in order to have the same number of entries per shard.
                 print(f"Have {len(entries) - end_idx} entries left over that will be discarded.")
 
-            self._create_shard(entries[start_idx:end_idx], target_dir, new_entries, i)
+            start_indices.append(start_idx)
+            end_indices.append(end_idx)
+
+        with Parallel(n_jobs=num_workers, verbose=config.num_shards) as parallel:
+            # Call parallel tarfile construction
+            new_entries_list = parallel(
+                delayed(self._create_shard)(entries[start_idx:end_idx], target_dir, i)
+                for i, (start_idx, end_idx) in enumerate(zip(start_indices, end_indices))
+            )
+
+        # Flatten the list of list of entries to a list of entries
+        new_entries = [sample for manifest in new_entries_list for sample in manifest]
+        del new_entries_list
 
         print("Total number of files in manifest :", len(new_entries))
 
@@ -265,6 +286,7 @@ class ASRTarredDatasetBuilder:
         manifest_paths: List[str],
         metadata: ASRTarredDatasetMetadata,
         target_dir: str = "./tarred_concatenated/",
+        num_workers: int = 1,
     ):
         """
         Creates new tarfiles in order to create a concatenated dataset, whose manifest contains the data for
@@ -342,7 +364,6 @@ class ASRTarredDatasetBuilder:
         )
 
         # Create shards and updated manifest entries
-        new_entries = []
         num_added_shards = len(entries) // num_samples_per_shard
 
         print(f"Number of samples in base dataset : {len(base_entries)}")
@@ -350,14 +371,29 @@ class ASRTarredDatasetBuilder:
         print(f"Number of added shards : {num_added_shards}")
         print(f"Remainder: {len(entries) % num_samples_per_shard}")
 
+        start_indices = []
+        end_indices = []
+        shard_indices = []
         for i in range(num_added_shards):
             start_idx = (len(entries) // num_added_shards) * i
             end_idx = start_idx + (len(entries) // num_added_shards)
-
             shard_idx = i + config.num_shards
             print(f"Shard {shard_idx} has entries {start_idx + len(base_entries)} ~ {end_idx + len(base_entries)}")
 
-            self._create_shard(entries[start_idx:end_idx], target_dir, new_entries, shard_idx)
+            start_indices.append(start_idx)
+            end_indices.append(end_idx)
+            shard_indices.append(shard_idx)
+
+        with Parallel(n_jobs=num_workers, verbose=num_added_shards) as parallel:
+            # Call parallel tarfile construction
+            new_entries_list = parallel(
+                delayed(self._create_shard)(entries[start_idx:end_idx], target_dir, shard_idx)
+                for i, (start_idx, end_idx, shard_idx) in enumerate(zip(start_indices, end_indices, shard_indices))
+            )
+
+        # Flatten the list of list of entries to a list of entries
+        new_entries = [sample for manifest in new_entries_list for sample in manifest]
+        del new_entries_list
 
         # Write manifest
         if metadata is None:
@@ -423,10 +459,11 @@ class ASRTarredDatasetBuilder:
 
         return entries, filtered_entries, filtered_duration
 
-    def _create_shard(self, entries, target_dir, new_entries, shard_id):
+    def _create_shard(self, entries, target_dir, shard_id):
         """Creates a tarball containing the audio files from `entries`.
         """
-        tar = tarfile.open(os.path.join(target_dir, f'audio_{shard_id}.tar'), mode='w')
+        new_entries = []
+        tar = tarfile.open(os.path.join(target_dir, f'audio_{shard_id}.tar'), mode='w', dereference=True)
 
         count = dict()
         for entry in entries:
@@ -469,6 +506,7 @@ class ASRTarredDatasetBuilder:
             new_entries.append(new_entry)
 
         tar.close()
+        return new_entries
 
     @classmethod
     def setup_history(cls, base_metadata: ASRTarredDatasetMetadata, history: List[Any]):
@@ -494,6 +532,7 @@ def main():
     shuffle = args.shuffle
     seed = args.shuffle_seed if args.shuffle_seed else None
     write_metadata = args.write_metadata
+    num_workers = args.workers
 
     builder = ASRTarredDatasetBuilder()
 
@@ -525,7 +564,7 @@ def main():
             shuffle_seed=seed,
         )
         builder.configure(config)
-        builder.create_new_dataset(manifest_path=manifest_path, target_dir=target_dir)
+        builder.create_new_dataset(manifest_path=manifest_path, target_dir=target_dir, num_workers=num_workers)
 
     else:
         print("Concatenating multiple tarred datasets ...")
@@ -555,6 +594,7 @@ def main():
             manifest_paths=concat_manifest_paths,
             metadata=metadata,
             target_dir=target_dir,
+            num_workers=num_workers,
         )
 
 

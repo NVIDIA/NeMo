@@ -26,11 +26,13 @@ from num2words import num2words
 
 from nemo.collections import asr as nemo_asr
 
-NEMO_NORMALIZATION = True
 try:
-    from tools.text_normalization.normalize import normalize_numbers
-except ImportError:
-    NEMO_NORMALIZATION = False
+    from nemo_text_processing.text_normalization.normalize import Normalizer
+
+    NEMO_NORMALIZATION_AVAILABLE = True
+except (ModuleNotFoundError, ImportError):
+    NEMO_NORMALIZATION_AVAILABLE = False
+
 
 parser = argparse.ArgumentParser(description="Prepares text and audio files for segmentation")
 parser.add_argument("--in_text", type=str, default=None, help='Path to a text file or a directory with .txt files')
@@ -85,7 +87,9 @@ def convert_audio(in_file: str, wav_file: str = None, sample_rate: int = 16000) 
     if wav_file is None:
         wav_file = in_file.replace(os.path.splitext(in_file)[-1], f"_{sample_rate}.wav")
 
-    os.system(f'ffmpeg -i {in_file} -ac 1 -af aresample=resampler=soxr -ar {sample_rate} {wav_file} -y')
+    os.system(
+        f'ffmpeg -i {in_file} -acodec pcm_s16le -ac 1 -af aresample=resampler=soxr -ar {sample_rate} {wav_file} -y'
+    )
     return wav_file
 
 
@@ -204,20 +208,21 @@ def split_text(
 
         split_on_symbols = split_on_symbols.split('|')
 
-        def _split(sentences, symbol, max_length):
+        def _split(sentences, delimiter, max_length):
             result = []
             for s in sentences:
                 if len(s) <= max_length:
                     result.append(s)
                 else:
-                    result.extend(s.split(symbol))
+                    split_sent = s.split(delimiter)
+                    result.extend([s + delimiter for s in split_sent[:-1]] + [split_sent[-1]])
             return result
 
         another_sent_split = []
         for sent in sentences:
             split_sent = [sent]
-            for sym in split_on_symbols:
-                split_sent = _split(split_sent, sym, max_length)
+            for delimiter in split_on_symbols:
+                split_sent = _split(split_sent, delimiter + ' ', max_length)
             another_sent_split.extend(split_sent)
 
         sentences = [s.strip() for s in another_sent_split if s.strip()]
@@ -226,9 +231,9 @@ def split_text(
     sentences = additional_split(sentences, additional_split_symbols, max_length)
 
     # check to make sure there will be no utterances for segmentation with only OOV symbols
-    no_space_voc = set(vocabulary)
-    no_space_voc.remove(' ')
-    sentences = [s for s in sentences if len(no_space_voc.intersection(set(s))) > 0]
+    vocab_no_space_with_digits = set(vocabulary + [i for i in range(10)])
+    vocab_no_space_with_digits.remove(' ')
+    sentences = [s for s in sentences if len(vocab_no_space_with_digits.intersection(set(s))) > 0]
 
     if min_length > 0:
         sentences_comb = []
@@ -239,31 +244,36 @@ def split_text(
                 sentences_comb[-1] += ' ' + sentences[i].strip()
             else:
                 sentences_comb.append(sentences[i].strip())
-        sentences = "\n".join([s.strip() for s in sentences_comb if s.strip()])
-    else:
-        sentences = "\n".join([s.strip() for s in sentences if s.strip()])
+        sentences = sentences_comb
+
+    sentences = [s.strip() for s in sentences if s.strip()]
 
     # save split text with original punctuation and case
     out_dir, out_file_name = os.path.split(out_file)
     with open(os.path.join(out_dir, out_file_name[:-4] + '_with_punct.txt'), "w") as f:
-        f.write(sentences)
+        f.write("\n".join(sentences))
 
     # substitute common abbreviations before applying lower case
     if language == 'ru':
         for k, v in RU_ABBREVIATIONS.items():
-            sentences = sentences.replace(k, v)
-
-    if do_lower_case:
-        sentences = sentences.lower()
+            sentences = [s.replace(k, v) for s in sentences]
 
     if language == 'ru':
         # replace Latin characters with Russian
         for k, v in LATIN_TO_RU.items():
-            sentences = sentences.replace(k, v)
+            sentences = [s.replace(k, v) for s in sentences]
 
-    if language == 'eng' and NEMO_NORMALIZATION and use_nemo_normalization:
+    if language == 'eng' and use_nemo_normalization:
+        if not NEMO_NORMALIZATION_AVAILABLE:
+            raise ValueError(f'NeMo normalization tool is not installed.')
+
         print('Using NeMo normalization tool...')
-        sentences = normalize_numbers(sentences, verbose=False)
+        normalizer = Normalizer(input_case='cased')
+        sentences_norm = normalizer.normalize_list(sentences, verbose=False)
+        if len(sentences_norm) != len(sentences):
+            raise ValueError(f'Normalization failed, number of sentences does not match.')
+
+    sentences = '\n'.join(sentences)
 
     # replace numbers with num2words
     try:
@@ -288,9 +298,51 @@ def split_text(
         )
         raise
 
+    sentences = (
+        sentences.replace("’", "'")
+        .replace("»", '"')
+        .replace("«", '"')
+        .replace("\\", "")
+        .replace("”", '"')
+        .replace("„", '"')
+        .replace("´", "'")
+        .replace("-- --", "--")
+        .replace("--", " -- ")
+        .replace("’", "'")
+        .replace('“', '"')
+        .replace('“', '"')
+        .replace("‘", "'")
+        .replace('—', '-')
+        .replace("- -", "--")
+        .replace('`', "'")
+        .replace(' !', '!')
+        .replace(' ?', '?')
+        .replace(' ,', ',')
+        .replace(' .', '.')
+        .replace(' ;', ';')
+        .replace(' :', ':')
+        .replace('!!', '!')
+        .replace('--', '-')
+        .replace('“', '"')
+        .replace(', , ', ', ')
+        .replace('=', '')
+    )
+
+    allowed_punct = [',', '.', '?', '!', ':', ';', '-', '"', '(', ')']
+    # clean up normalized text and keep only allowed_punct and ASR vocabulary (lower and upper case)
+    symbols_to_remove = ''.join(
+        set(sentences).difference(set(vocabulary + [s.upper() for s in vocabulary] + ['\n'] + allowed_punct))
+    )
+    sentences_norm = sentences.translate(''.maketrans(symbols_to_remove, len(symbols_to_remove) * ' '))
+
+    with open(os.path.join(out_dir, out_file_name[:-4] + '_with_punct_normalized.txt'), "w") as f:
+        f.write(sentences_norm)
+
+    if do_lower_case:
+        sentences = sentences.lower()
+
     # remove all OOV symbols
-    all_symbols = set(sentences)
-    symbols_to_remove = ''.join(all_symbols.difference(set(vocabulary + ['\n'])))
+    symbols_to_remove = ''.join(set(sentences).difference(set(vocabulary + ['\n'])))
     sentences = sentences.translate(''.maketrans(symbols_to_remove, len(symbols_to_remove) * ' '))
 
     # remove extra space

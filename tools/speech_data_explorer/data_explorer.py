@@ -81,6 +81,7 @@ def parse_args():
     parser.add_argument(
         'manifest', help='path to JSON manifest file',
     )
+    parser.add_argument('--vocab', help='optional vocabulary to highlight OOV words')
     parser.add_argument('--port', default='8050', help='serving port for establishing connection')
     parser.add_argument(
         '--disable-caching-metrics', action='store_true', help='disable caching metrics for errors analysis'
@@ -92,7 +93,7 @@ def parse_args():
 
 
 # load data from JSON manifest file
-def load_data(data_filename, disable_caching):
+def load_data(data_filename, disable_caching, vocab=None):
     if not disable_caching:
         pickle_filename = data_filename.split('.json')[0]
         json_mtime = datetime.datetime.fromtimestamp(os.path.getmtime(data_filename))
@@ -102,6 +103,20 @@ def load_data(data_filename, disable_caching):
             with open(pickle_filename, 'rb') as f:
                 data, wer, cer, wmr, mwa, num_hours, vocabulary_data, alphabet, metrics_available = pickle.load(f)
             return data, wer, cer, wmr, mwa, num_hours, vocabulary_data, alphabet, metrics_available
+
+    if vocab is not None:
+        # load external vocab
+        vocabulary_ext = {}
+        with open(vocab, 'r') as f:
+            for line in f:
+                if '\t' in line:
+                    # parse word from TSV file
+                    word = line.split('\t')[0]
+                else:
+                    # assume each line contains just a single word
+                    word = line.strip()
+                vocabulary_ext[word] = 1
+
     data = []
     wer_dist = 0.0
     wer_count = 0
@@ -170,6 +185,9 @@ def load_data(data_filename, disable_caching):
                     data[-1][k] = item[k]
 
     vocabulary_data = [{'word': word, 'count': vocabulary[word]} for word in vocabulary]
+    if vocab is not None:
+        for item in vocabulary_data:
+            item['OOV'] = item['word'] not in vocabulary_ext
 
     if metrics_available:
         wer = wer_dist / wer_count * 100.0
@@ -245,10 +263,15 @@ def plot_word_accuracy(vocabulary_data):
 args = parse_args()
 print('Loading data...')
 data, wer, cer, wmr, mwa, num_hours, vocabulary, alphabet, metrics_available = load_data(
-    args.manifest, args.disable_caching_metrics
+    args.manifest, args.disable_caching_metrics, args.vocab
 )
 print('Starting server...')
-app = dash.Dash(__name__, suppress_callback_exceptions=True, external_stylesheets=[dbc.themes.BOOTSTRAP])
+app = dash.Dash(
+    __name__,
+    suppress_callback_exceptions=True,
+    external_stylesheets=[dbc.themes.BOOTSTRAP],
+    title=os.path.basename(args.manifest),
+)
 
 
 figure_duration = plot_histogram(data, 'duration', 'Duration (sec)')
@@ -258,9 +281,9 @@ figure_word_rate = plot_histogram(data, 'word_rate', '#words/sec')
 figure_char_rate = plot_histogram(data, 'char_rate', '#chars/sec')
 
 if metrics_available:
-    figure_wer = plot_histogram(data, 'WER', '#utterances')
-    figure_cer = plot_histogram(data, 'CER', '#utterances')
-    figure_wmr = plot_histogram(data, 'WMR', '#utterances')
+    figure_wer = plot_histogram(data, 'WER', 'WER, %')
+    figure_cer = plot_histogram(data, 'CER', 'CER, %')
+    figure_wmr = plot_histogram(data, 'WMR', 'WMR, %')
     figure_word_acc = plot_word_accuracy(vocabulary)
 
 stats_layout = [
@@ -324,7 +347,7 @@ if metrics_available:
                     className='border-right',
                 ),
                 dbc.Col(
-                    html.Div('Word Matching Rate (WMR), %', className='text-secondary'),
+                    html.Div('Word Match Rate (WMR), %', className='text-secondary'),
                     width=3,
                     className='border-right',
                 ),
@@ -393,19 +416,20 @@ if metrics_available:
         dbc.Row(dbc.Col(html.H5('Word accuracy distribution'), className='text-secondary'), className='mt-3'),
         dbc.Row(dbc.Col(dcc.Graph(id='word-acc-graph', figure=figure_word_acc),),),
     ]
+
+wordstable_columns = [{'name': 'Word', 'id': 'word'}, {'name': 'Count', 'id': 'count'}]
+if args.vocab is not None:
+    wordstable_columns.append({'name': 'OOV', 'id': 'OOV'})
+if metrics_available:
+    wordstable_columns.append({'name': 'Accuracy, %', 'id': 'accuracy'})
+
 stats_layout += [
     dbc.Row(dbc.Col(html.H5('Vocabulary'), className='text-secondary'), className='mt-3'),
     dbc.Row(
         dbc.Col(
             dash_table.DataTable(
                 id='wordstable',
-                columns=[
-                    {'name': 'Word', 'id': 'word'},
-                    {'name': 'Count', 'id': 'count'},
-                    {'name': 'Accuracy, %', 'id': 'accuracy'},
-                ]
-                if metrics_available
-                else [{'name': 'Word', 'id': 'word'}, {'name': 'Count', 'id': 'count'}],
+                columns=wordstable_columns,
                 filter_action='custom',
                 filter_query='',
                 sort_action='custom',
@@ -596,14 +620,10 @@ def show_diff(idx, data):
         raise PreventUpdate
 
     orig_words = data[idx[0]]['text']
-    while '  ' in orig_words:
-        orig_words = orig_words.replace('  ', ' ')
-    orig_words = orig_words.replace(' ', '\n') + '\n'
+    orig_words = '\n'.join(orig_words.split()) + '\n'
 
     pred_words = data[idx[0]]['pred_text']
-    while '  ' in pred_words:
-        pred_words = pred_words.replace('  ', ' ')
-    pred_words = pred_words.replace(' ', '\n') + '\n'
+    pred_words = '\n'.join(pred_words.split()) + '\n'
 
     diff = diff_match_patch.diff_match_patch()
     diff.Diff_Timeout = 0
@@ -627,6 +647,10 @@ def plot_signal(idx, data):
     try:
         filename = data[idx[0]]['audio_filepath']
         audio, fs = librosa.load(filename, sr=None)
+        if 'offset' in data[idx[0]]:
+            audio = audio[
+                int(data[idx[0]]['offset'] * fs) : int((data[idx[0]]['offset'] + data[idx[0]]['duration']) * fs)
+            ]
         time_stride = 0.01
         hop_length = int(fs * time_stride)
         n_fft = 512
@@ -675,6 +699,10 @@ def update_player(idx, data):
     try:
         filename = data[idx[0]]['audio_filepath']
         signal, sr = librosa.load(filename, sr=None)
+        if 'offset' in data[idx[0]]:
+            signal = signal[
+                int(data[idx[0]]['offset'] * sr) : int((data[idx[0]]['offset'] + data[idx[0]]['duration']) * sr)
+            ]
         with io.BytesIO() as buf:
             # convert to PCM .wav
             sf.write(buf, signal, sr, format='WAV')

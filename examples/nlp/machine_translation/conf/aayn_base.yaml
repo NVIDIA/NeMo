@@ -1,9 +1,11 @@
 name: AttentionIsAllYouNeed
 do_training: True # set to False if only preprocessing data
+do_testing: False # set to True to run evaluation on test data after training
 
 model:
   beam_size: 4
   len_pen: 0.6
+  multilingual: False
   max_generation_delta: 5
   label_smoothing: 0.1
   shared_tokenizer: True # train tokenizer model across src and tgt train data
@@ -16,12 +18,14 @@ model:
     tgt_file_name: null
     use_tarred_dataset: False # if true tar_file_name and meta_file_name will be used (or created automatically) 
     # config for preprocessing training data and creating a tarred datset automatically
+    tar_file_prefix: parallel # prefix for tar file names
     tar_files: null # if data has already been preprocessed (rest of config ignored)
     metadata_file: null # metadata for tarred dataset
     lines_per_dataset_fragment: 1000000 # Number of lines to consider for bucketing and padding
     num_batches_per_tarfile: 100 # Number of batches (pickle files) within each tarfile
     tar_shuffle_n: 100 # How many samples to look ahead and load to be shuffled
     shard_strategy: scatter # tarred dataset shard distribution strategy
+    n_preproc_jobs: -2 # number of processes to use for data preprocessing (-2 means all but 2)
     tokens_in_batch: 512
     clean: true
     max_seq_length: 512
@@ -30,6 +34,9 @@ model:
     drop_last: false
     pin_memory: false
     num_workers: 8
+    concat_sampling_technique: temperature # only used with ConcatTranslationDataset 
+    concat_sampling_temperature: 5 # only used with ConcatTranslationDataset 
+    concat_sampling_probabilities: null # only used with ConcatTranslationDataset 
 
   validation_ds:
     src_file_name: ???
@@ -75,6 +82,8 @@ model:
     bpe_dropout: null
     vocab_file: null
     special_tokens: null
+    training_sample_size: null # valid for sentencepiece tokenizer
+    r2l: false
 
   decoder_tokenizer:
     library: yttm
@@ -83,13 +92,15 @@ model:
     bpe_dropout: null
     vocab_file: null
     special_tokens: null
+    training_sample_size: null # valid for sentencepiece tokenizer
+    r2l: false
 
   encoder:
     library: nemo
     model_name: null
     pretrained: false
     max_sequence_length: 512
-    num_token_types: 2
+    num_token_types: 0
     embedding_dropout: 0.1
     learn_positional_encodings: false
     hidden_size: 512
@@ -102,13 +113,14 @@ model:
     hidden_act: relu
     mask_future: false
     pre_ln: false
+    pre_ln_final_layer_norm: true
 
   decoder:
     library: nemo
     model_name: null
     pretrained: false
     max_sequence_length: 512
-    num_token_types: 2
+    num_token_types: 0
     embedding_dropout: 0.1
     learn_positional_encodings: false
     hidden_size: 512
@@ -120,6 +132,7 @@ model:
     attn_layer_dropout: 0.1
     hidden_act: relu
     pre_ln: false
+    pre_ln_final_layer_norm: true
 
   head:
     num_layers: 1

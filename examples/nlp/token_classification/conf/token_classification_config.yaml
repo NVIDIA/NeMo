@@ -39,7 +39,6 @@ exp_manager:
   create_checkpoint_callback: true  # Whether you want exp_manager to create a model checkpoint callback
 
 model:
-  nemo_path: null # filename to save the model and associated artifacts to .nemo file
   label_ids: null # will be filled during training
   class_labels:
     class_labels_file: label_ids.csv # will be generated during training and saved in .nemo file

@@ -43,7 +43,7 @@ def main():
     parser.add_argument(
         "--pretrained_model",
         type=str,
-        default="speakerrecognition_speakernet",
+        default="speakerverification_speakernet",
         required=False,
         help="Pass your trained .nemo model",
     )

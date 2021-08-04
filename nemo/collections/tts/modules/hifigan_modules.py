@@ -63,8 +63,11 @@ def get_padding(kernel_size, dilation=1):
 
 
 class ResBlock1(torch.nn.Module):
+    __constants__ = ['lrelu_slope']
+
     def __init__(self, channels, kernel_size, dilation):
-        super(ResBlock1, self).__init__()
+        super().__init__()
+        self.lrelu_slope = LRELU_SLOPE
         self.convs1 = nn.ModuleList(
             [
                 weight_norm(
@@ -118,9 +121,9 @@ class ResBlock1(torch.nn.Module):
 
     def forward(self, x):
         for c1, c2 in zip(self.convs1, self.convs2):
-            xt = F.leaky_relu(x, LRELU_SLOPE)
+            xt = F.leaky_relu(x, self.lrelu_slope)
             xt = c1(xt)
-            xt = F.leaky_relu(xt, LRELU_SLOPE)
+            xt = F.leaky_relu(xt, self.lrelu_slope)
             xt = c2(xt)
             x = xt + x
         return x
@@ -133,8 +136,10 @@ class ResBlock1(torch.nn.Module):
 
 
 class ResBlock2(torch.nn.Module):
+    __constants__ = ['lrelu_slope']
+
     def __init__(self, channels, kernel_size, dilation):
-        super(ResBlock2, self).__init__()
+        super().__init__()
         self.convs = nn.ModuleList(
             [
                 weight_norm(
@@ -160,10 +165,11 @@ class ResBlock2(torch.nn.Module):
             ]
         )
         self.convs.apply(init_weights)
+        self.lrelu_slope = LRELU_SLOPE
 
     def forward(self, x):
         for c in self.convs:
-            xt = F.leaky_relu(x, LRELU_SLOPE)
+            xt = F.leaky_relu(x, self.lrelu_slope)
             xt = c(xt)
             x = xt + x
         return x
@@ -174,6 +180,8 @@ class ResBlock2(torch.nn.Module):
 
 
 class Generator(NeuralModule):
+    __constants__ = ['lrelu_slope', 'num_kernels', 'num_upsamples']
+
     def __init__(
         self,
         resblock,
@@ -182,11 +190,14 @@ class Generator(NeuralModule):
         upsample_initial_channel,
         resblock_kernel_sizes,
         resblock_dilation_sizes,
+        initial_input_size=80,
+        apply_weight_init_conv_pre=False,
     ):
-        super(Generator, self).__init__()
+        super().__init__()
         self.num_kernels = len(resblock_kernel_sizes)
         self.num_upsamples = len(upsample_rates)
-        self.conv_pre = weight_norm(Conv1d(80, upsample_initial_channel, 7, 1, padding=3))
+        self.conv_pre = weight_norm(Conv1d(initial_input_size, upsample_initial_channel, 7, 1, padding=3))
+        self.lrelu_slope = LRELU_SLOPE
         resblock = ResBlock1 if resblock == 1 else ResBlock2
 
         self.ups = nn.ModuleList()
@@ -205,13 +216,17 @@ class Generator(NeuralModule):
 
         self.resblocks = nn.ModuleList()
         for i in range(len(self.ups)):
+            resblock_list = nn.ModuleList()
             ch = upsample_initial_channel // (2 ** (i + 1))
             for j, (k, d) in enumerate(zip(resblock_kernel_sizes, resblock_dilation_sizes)):
-                self.resblocks.append(resblock(ch, k, d))
+                resblock_list.append(resblock(ch, k, d))
+            self.resblocks.append(resblock_list)
 
         self.conv_post = weight_norm(Conv1d(ch, 1, 7, 1, padding=3))
         self.ups.apply(init_weights)
         self.conv_post.apply(init_weights)
+        if apply_weight_init_conv_pre:
+            self.conv_pre.apply(init_weights)
 
     @property
     def input_types(self):
@@ -228,15 +243,12 @@ class Generator(NeuralModule):
     @typecheck()
     def forward(self, x):
         x = self.conv_pre(x)
-        for i in range(self.num_upsamples):
-            x = F.leaky_relu(x, LRELU_SLOPE)
-            x = self.ups[i](x)
-            xs = None
-            for j in range(self.num_kernels):
-                if xs is None:
-                    xs = self.resblocks[i * self.num_kernels + j](x)
-                else:
-                    xs += self.resblocks[i * self.num_kernels + j](x)
+        for upsample_layer, resblock_group in zip(self.ups, self.resblocks):
+            x = F.leaky_relu(x, self.lrelu_slope)
+            x = upsample_layer(x)
+            xs = torch.zeros(x.shape, dtype=x.dtype, device=x.device)
+            for resblock in resblock_group:
+                xs += resblock(x)
             x = xs / self.num_kernels
         x = F.leaky_relu(x)
         x = self.conv_post(x)
@@ -248,15 +260,16 @@ class Generator(NeuralModule):
         print('Removing weight norm...')
         for l in self.ups:
             remove_weight_norm(l)
-        for l in self.resblocks:
-            l.remove_weight_norm()
+        for group in self.resblocks:
+            for block in group:
+                block.remove_weight_norm()
         remove_weight_norm(self.conv_pre)
         remove_weight_norm(self.conv_post)
 
 
 class DiscriminatorP(NeuralModule):
     def __init__(self, period, kernel_size=5, stride=3, use_spectral_norm=False):
-        super(DiscriminatorP, self).__init__()
+        super().__init__()
         self.period = period
         norm_f = weight_norm if use_spectral_norm == False else spectral_norm
         self.convs = nn.ModuleList(
@@ -308,7 +321,7 @@ class DiscriminatorP(NeuralModule):
 
 class MultiPeriodDiscriminator(NeuralModule):
     def __init__(self):
-        super(MultiPeriodDiscriminator, self).__init__()
+        super().__init__()
         self.discriminators = nn.ModuleList(
             [DiscriminatorP(2), DiscriminatorP(3), DiscriminatorP(5), DiscriminatorP(7), DiscriminatorP(11),]
         )
@@ -348,7 +361,7 @@ class MultiPeriodDiscriminator(NeuralModule):
 
 class DiscriminatorS(NeuralModule):
     def __init__(self, use_spectral_norm=False):
-        super(DiscriminatorS, self).__init__()
+        super().__init__()
         norm_f = weight_norm if use_spectral_norm == False else spectral_norm
         self.convs = nn.ModuleList(
             [
@@ -392,7 +405,7 @@ class DiscriminatorS(NeuralModule):
 
 class MultiScaleDiscriminator(NeuralModule):
     def __init__(self):
-        super(MultiScaleDiscriminator, self).__init__()
+        super().__init__()
         self.discriminators = nn.ModuleList(
             [DiscriminatorS(use_spectral_norm=True), DiscriminatorS(), DiscriminatorS(),]
         )

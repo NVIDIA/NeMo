@@ -26,23 +26,17 @@ from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
-from nemo.collections.asr.losses.rnnt import RNNTLoss
+from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss_name
 from nemo.collections.asr.metrics.rnnt_wer import RNNTWER, RNNTDecoding
-from nemo.collections.asr.models.asr_model import ASRModel
-from nemo.collections.asr.parts.perturb import process_augmentations
+from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecJointModel
+from nemo.collections.asr.parts.mixins import ASRModuleMixin
+from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
 
-try:
-    import warprnnt_pytorch as warprnnt
 
-    WARP_RNNT_AVAILABLE = True
-except (ImportError, ModuleNotFoundError):
-    WARP_RNNT_AVAILABLE = False
-
-
-class EncDecRNNTModel(ASRModel):
+class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecJointModel):
     """Base class for encoder decoder RNNT-based models."""
 
     @classmethod
@@ -57,16 +51,6 @@ class EncDecRNNTModel(ASRModel):
         return result
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        # Required loss function
-        if not WARP_RNNT_AVAILABLE:
-            raise ImportError(
-                "Could not import `warprnnt_pytorch`.\n"
-                "Please visit https://github.com/HawkAaron/warp-transducer "
-                "and follow the steps in the readme to build and install the "
-                "pytorch bindings for RNNT Loss, or use the provided docker "
-                "container that supports RNN-T loss."
-            )
-
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
         # Global_rank and local_rank is set by LightningModule in Lightning 1.2.0
         self.world_size = 1
@@ -91,7 +75,13 @@ class EncDecRNNTModel(ASRModel):
 
         self.decoder = EncDecRNNTModel.from_config_dict(self.cfg.decoder)
         self.joint = EncDecRNNTModel.from_config_dict(self.cfg.joint)
-        self.loss = RNNTLoss(num_classes=self.joint.num_classes_with_blank - 1)
+
+        # Setup RNNT Loss
+        loss_name, loss_kwargs = self.extract_rnnt_loss_cfg(self.cfg.get("loss", None))
+
+        self.loss = RNNTLoss(
+            num_classes=self.joint.num_classes_with_blank - 1, loss_name=loss_name, loss_kwargs=loss_kwargs
+        )
 
         if hasattr(self.cfg, 'spec_augment') and self._cfg.spec_augment is not None:
             self.spec_augmentation = EncDecRNNTModel.from_config_dict(self.cfg.spec_augment)
@@ -122,6 +112,38 @@ class EncDecRNNTModel(ASRModel):
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
 
+        self.setup_optim_normalization()
+
+    def setup_optim_normalization(self):
+        """
+        Helper method to setup normalization of certain parts of the model prior to the optimization step.
+
+        Supported pre-optimization normalizations are as follows:
+
+        .. code-block:: yaml
+
+            # Variation Noise injection
+            model:
+                variational_noise:
+                    std: 0.0
+                    start_step: 0
+
+            # Joint - Length normalization
+            model:
+                normalize_joint_txu: false
+
+            # Encoder Network - gradient normalization
+            model:
+                normalize_encoder_norm: false
+
+            # Decoder / Prediction Network - gradient normalization
+            model:
+                normalize_decoder_norm: false
+
+            # Joint - gradient normalization
+            model:
+                normalize_joint_norm: false
+        """
         # setting up the variational noise for the decoder
         if hasattr(self.cfg, 'variational_noise'):
             self._optim_variational_noise_std = self.cfg['variational_noise'].get('std', 0)
@@ -130,10 +152,61 @@ class EncDecRNNTModel(ASRModel):
             self._optim_variational_noise_std = 0
             self._optim_variational_noise_start = 0
 
+        # Setup normalized gradients for model joint by T x U scaling factor (joint length normalization)
+        self._optim_normalize_joint_txu = self.cfg.get('normalize_joint_txu', False)
+        self._optim_normalize_txu = None
+
+        # Setup normalized encoder norm for model
+        self._optim_normalize_encoder_norm = self.cfg.get('normalize_encoder_norm', False)
+
+        # Setup normalized decoder norm for model
+        self._optim_normalize_decoder_norm = self.cfg.get('normalize_decoder_norm', False)
+
+        # Setup normalized joint norm for model
+        self._optim_normalize_joint_norm = self.cfg.get('normalize_joint_norm', False)
+
+    def extract_rnnt_loss_cfg(self, cfg: Optional[DictConfig]):
+        """
+        Helper method to extract the rnnt loss name, and potentially its kwargs
+        to be passed.
+
+        Args:
+            cfg: Should contain `loss_name` as a string which is resolved to a RNNT loss name.
+                If the default should be used, then `default` can be used.
+                Optionally, one can pass additional kwargs to the loss function. The subdict
+                should have a keyname as follows : `{loss_name}_kwargs`.
+
+                Note that whichever loss_name is selected, that corresponding kwargs will be
+                selected. For the "default" case, the "{resolved_default}_kwargs" will be used.
+
+        Examples:
+            .. code-block:: yaml
+
+                loss_name: "default"
+                warprnnt_numba_kwargs:
+                    kwargs2: some_other_val
+
+        Returns:
+            A tuple, the resolved loss name as well as its kwargs (if found).
+        """
+        if cfg is None:
+            cfg = DictConfig({})
+
+        loss_name = cfg.get("loss_name", "default")
+
+        if loss_name == "default":
+            loss_name = resolve_rnnt_default_loss_name()
+
+        loss_kwargs = cfg.get(f"{loss_name}_kwargs", None)
+
+        logging.info(f"Using RNNT Loss : {loss_name}\n" f"Loss {loss_name}_kwargs: {loss_kwargs}")
+
+        return loss_name, loss_kwargs
+
     @torch.no_grad()
     def transcribe(
         self, paths2audio_files: List[str], batch_size: int = 4, return_hypotheses: bool = False
-    ) -> List[str]:
+    ) -> (List[str], Optional[List['Hypothesis']]):
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
 
@@ -146,18 +219,25 @@ class EncDecRNNTModel(ASRModel):
         Bigger will result in better throughput performance but would use more memory.
             return_hypotheses: (bool) Either return hypotheses or text
         With hypotheses can do some postprocessing like getting timestamp or rescoring
-        Returns:
 
-            A list of transcriptions in the same order as paths2audio_files
+        Returns:
+            A list of transcriptions in the same order as paths2audio_files. Will also return
         """
         if paths2audio_files is None or len(paths2audio_files) == 0:
             return {}
         # We will store transcriptions here
         hypotheses = []
+        all_hypotheses = []
         # Model's mode and device
         mode = self.training
         device = next(self.parameters()).device
+        dither_value = self.preprocessor.featurizer.dither
+        pad_to_value = self.preprocessor.featurizer.pad_to
+
         try:
+            self.preprocessor.featurizer.dither = 0.0
+            self.preprocessor.featurizer.pad_to = 0
+
             # Switch model to evaluation mode
             self.eval()
             # Freeze the encoder and decoder modules
@@ -180,20 +260,30 @@ class EncDecRNNTModel(ASRModel):
                     encoded, encoded_len = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
-                    hypotheses += self.decoding.rnnt_decoder_predictions_tensor(
+                    best_hyp, all_hyp = self.decoding.rnnt_decoder_predictions_tensor(
                         encoded, encoded_len, return_hypotheses=return_hypotheses
                     )
+
+                    hypotheses += best_hyp
+                    if all_hyp is not None:
+                        all_hypotheses += all_hyp
+                    else:
+                        all_hypotheses += best_hyp
+
                     del encoded
                     del test_batch
         finally:
             # set mode back to its original value
             self.train(mode=mode)
+            self.preprocessor.featurizer.dither = dither_value
+            self.preprocessor.featurizer.pad_to = pad_to_value
+
             logging.set_verbosity(logging_level)
             if mode is True:
                 self.encoder.unfreeze()
                 self.decoder.unfreeze()
                 self.joint.unfreeze()
-        return hypotheses
+        return hypotheses, all_hypotheses
 
     def change_vocabulary(self, new_vocabulary: List[str], decoding_cfg: Optional[DictConfig] = None):
         """
@@ -231,7 +321,10 @@ class EncDecRNNTModel(ASRModel):
             self.decoder = EncDecRNNTModel.from_config_dict(new_decoder_config)
 
             del self.loss
-            self.loss = RNNTLoss(num_classes=self.joint.num_classes_with_blank - 1)
+            loss_name, loss_kwargs = self.extract_rnnt_loss_cfg(self.cfg.get('loss', None))
+            self.loss = RNNTLoss(
+                num_classes=self.joint.num_classes_with_blank - 1, loss_name=loss_name, loss_kwargs=loss_kwargs
+            )
 
             if decoding_cfg is None:
                 # Assume same decoding config as before
@@ -263,6 +356,12 @@ class EncDecRNNTModel(ASRModel):
 
             with open_dict(self.cfg.decoding):
                 self.cfg.decoding = decoding_cfg
+
+            ds_keys = ['train_ds', 'validation_ds', 'test_ds']
+            for key in ds_keys:
+                if key in self.cfg:
+                    with open_dict(self.cfg[key]):
+                        self.cfg[key]['labels'] = OmegaConf.create(new_vocabulary)
 
             logging.info(f"Changed decoder to output to {self.joint.vocabulary} vocabulary.")
 
@@ -307,6 +406,10 @@ class EncDecRNNTModel(ASRModel):
             augmentor = process_augmentations(config['augmentor'])
         else:
             augmentor = None
+
+        # Automatically inject args from model config to dataloader config
+        audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
+        audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='labels')
 
         shuffle = config['shuffle']
         device = 'gpu' if torch.cuda.is_available() else 'cpu'
@@ -509,7 +612,7 @@ class EncDecRNNTModel(ASRModel):
 
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
-            processed_signal = self.spec_augmentation(input_spec=processed_signal)
+            processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
 
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
         return encoded, encoded_len
@@ -526,7 +629,7 @@ class EncDecRNNTModel(ASRModel):
         del signal
 
         # During training, loss must be computed, so decoder forward is necessary
-        decoder, target_length = self.decoder(targets=transcript, target_length=transcript_len)
+        decoder, target_length, states = self.decoder(targets=transcript, target_length=transcript_len)
 
         if hasattr(self, '_trainer') and self._trainer is not None:
             log_every_n_steps = self._trainer.log_every_n_steps
@@ -549,6 +652,7 @@ class EncDecRNNTModel(ASRModel):
             if (sample_id + 1) % log_every_n_steps == 0:
                 self.wer.update(encoded, encoded_len, transcript, transcript_len)
                 _, scores, words = self.wer.compute()
+                self.wer.reset()
                 tensorboard_logs.update({'training_batch_wer': scores.float() / words})
 
         else:
@@ -576,6 +680,10 @@ class EncDecRNNTModel(ASRModel):
         # Log items
         self.log_dict(tensorboard_logs)
 
+        # Preserve batch acoustic model T and language model U parameters if normalizing
+        if self._optim_normalize_joint_txu:
+            self._optim_normalize_txu = [encoded_len.max(), transcript_len.max()]
+
         return {'loss': loss_value}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
@@ -593,7 +701,7 @@ class EncDecRNNTModel(ASRModel):
         # If experimental fused Joint-Loss-WER is not used
         if not self.joint.fuse_loss_wer:
             if self.compute_eval_loss:
-                decoder, target_length = self.decoder(targets=transcript, target_length=transcript_len)
+                decoder, target_length, states = self.decoder(targets=transcript, target_length=transcript_len)
                 joint = self.joint(encoder_outputs=encoded, decoder_outputs=decoder)
 
                 loss_value = self.loss(
@@ -604,6 +712,7 @@ class EncDecRNNTModel(ASRModel):
 
             self.wer.update(encoded, encoded_len, transcript, transcript_len)
             wer, wer_num, wer_denom = self.wer.compute()
+            self.wer.reset()
 
             tensorboard_logs['val_wer_num'] = wer_num
             tensorboard_logs['val_wer_denom'] = wer_denom
@@ -614,7 +723,7 @@ class EncDecRNNTModel(ASRModel):
             compute_wer = True
 
             if self.compute_eval_loss:
-                decoded, target_len = self.decoder(targets=transcript, target_length=transcript_len)
+                decoded, target_len, states = self.decoder(targets=transcript, target_length=transcript_len)
             else:
                 decoded = None
                 target_len = transcript_len
@@ -712,3 +821,32 @@ class EncDecRNNTModel(ASRModel):
                         dtype=param.dtype,
                     )
                     param.grad.data.add_(noise)
+
+        if self._optim_normalize_joint_txu:
+            T, U = self._optim_normalize_txu
+            if T is not None and U is not None:
+                for param_name, param in self.encoder.named_parameters():
+                    if param.grad is not None:
+                        param.grad.data.div_(U)
+
+                for param_name, param in self.decoder.named_parameters():
+                    if param.grad is not None:
+                        param.grad.data.div_(T)
+
+        if self._optim_normalize_encoder_norm:
+            for param_name, param in self.encoder.named_parameters():
+                if param.grad is not None:
+                    norm = param.grad.norm()
+                    param.grad.data.div_(norm)
+
+        if self._optim_normalize_decoder_norm:
+            for param_name, param in self.decoder.named_parameters():
+                if param.grad is not None:
+                    norm = param.grad.norm()
+                    param.grad.data.div_(norm)
+
+        if self._optim_normalize_joint_norm:
+            for param_name, param in self.joint.named_parameters():
+                if param.grad is not None:
+                    norm = param.grad.norm()
+                    param.grad.data.div_(norm)

@@ -76,3 +76,57 @@ def stft_patch(
             onesided=onesided,
             return_complex=return_complex,
         )
+
+
+def istft_patch(
+    input: torch.Tensor,
+    n_fft: int,
+    hop_length: Optional[int] = None,
+    win_length: Optional[int] = None,
+    window: Optional[torch.Tensor] = None,
+    center: bool = True,
+    normalized: bool = False,
+    onesided: Optional[bool] = None,
+    length: int = None,
+    return_complex: Optional[bool] = False,
+):
+    """
+    Patch over torch.stft for PyTorch <= 1.6.
+    Arguments are same as torch.stft().
+
+    # TODO: Remove once PyTorch 1.7+ is a requirement.
+    """
+    global TORCH_VERSION
+    if TORCH_VERSION is None:
+        TORCH_VERSION = version.parse(torch.__version__)
+
+        logging.warning(
+            "torch.stft() signature has been updated for PyTorch 1.7+\n"
+            "Please update PyTorch to remain compatible with later versions of NeMo."
+        )
+
+    if TORCH_VERSION < TORCH_VERSION_MIN:
+        return torch.istft(
+            input=input,
+            n_fft=n_fft,
+            hop_length=hop_length,
+            win_length=win_length,
+            window=window,
+            center=center,
+            length=length,
+            normalized=normalized,
+            onesided=True,
+        )
+    else:
+        return torch.istft(
+            input=input,
+            n_fft=n_fft,
+            hop_length=hop_length,
+            win_length=win_length,
+            window=window,
+            center=center,
+            length=length,
+            normalized=normalized,
+            onesided=onesided,
+            return_complex=return_complex,
+        )

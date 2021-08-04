@@ -14,7 +14,6 @@
 
 import os
 import tempfile
-from unittest import TestCase
 
 import pytest
 import torch
@@ -34,36 +33,41 @@ def do_export(model, name: str):
         model.export(tmp_file_name)
 
 
-class TestHuggingFace(TestCase):
+class TestHuggingFace:
     @pytest.mark.unit
     def test_list_pretrained_models(self):
         pretrained_lm_models = nemo_nlp.modules.get_pretrained_lm_models_list()
-        self.assertTrue(len(pretrained_lm_models) > 0)
+        assert len(pretrained_lm_models) > 0
 
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_get_pretrained_bert_model(self):
         model = nemo_nlp.modules.get_lm_model(pretrained_model_name='bert-base-uncased')
         assert isinstance(model, nemo_nlp.modules.BertEncoder)
         do_export(model, "bert-base-uncased")
 
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_get_pretrained_distilbert_model(self):
         model = nemo_nlp.modules.get_lm_model(pretrained_model_name='distilbert-base-uncased')
         assert isinstance(model, nemo_nlp.modules.DistilBertEncoder)
         do_export(model, "distilbert-base-uncased")
 
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_get_pretrained_roberta_model(self):
         model = nemo_nlp.modules.get_lm_model(pretrained_model_name='roberta-base')
         assert isinstance(model, nemo_nlp.modules.RobertaEncoder)
         do_export(model, "roberta-base-uncased")
 
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_get_pretrained_albert_model(self):
         model = nemo_nlp.modules.get_lm_model(pretrained_model_name='albert-base-v1')
         assert isinstance(model, nemo_nlp.modules.AlbertEncoder)
         do_export(model, "albert-base-v1")
 
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_get_pretrained_chinese_bert_wwm_model(self):
         model_name = 'hfl/chinese-bert-wwm'
@@ -72,6 +76,7 @@ class TestHuggingFace(TestCase):
         tokenizer = get_tokenizer(tokenizer_name=model_name)
         assert isinstance(tokenizer, AutoTokenizer)
 
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_get_pretrained_arabic_model(self):
         model_name = 'asafaya/bert-base-arabic'

@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 
-from nemo.collections.asr.parts.rnnt_utils import Hypothesis
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.core import NeuralModule
 
 

@@ -14,7 +14,7 @@
 
 import argparse
 
-from nemo.collections.asr.parts.speaker_utils import write_rttm2manifest
+from nemo.collections.asr.parts.utils.speaker_utils import write_rttm2manifest
 from nemo.utils import logging
 
 """

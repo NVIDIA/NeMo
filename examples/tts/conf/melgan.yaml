@@ -1,7 +1,7 @@
 name: "MelGan"
 sample_rate: 22050
 n_fft: 1024
-fmax: null
+fmax: 8000
 pad_value: -11.52
 train_dataset: ???
 validation_datasets: ???
@@ -38,7 +38,7 @@ model:
       num_workers: 4
 
   preprocessor:
-    _target_: nemo.collections.asr.parts.features.FilterbankFeatures
+    _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
     dither: 0.0
     frame_splicing: 1
     nfilt: ${n_mels}
@@ -58,9 +58,8 @@ model:
     pad_value: ${pad_value}
     preemph: null
     sample_rate: ${sample_rate}
-    stft_exact_pad: true
-    stft_conv: false
     window: hann
+    exact_pad: true
 
   generator:
     _target_: nemo.collections.tts.modules.melgan_modules.MelGANGenerator

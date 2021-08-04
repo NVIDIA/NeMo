@@ -1,6 +1,15 @@
 # This config contains the default values for training a Citrinet model with CTC loss and BPE-based vocabulary.
 # Default learning parameters in this config are set for effective batch size of 1k on 32 GPUs.
 # To train it with smaller batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
+# If training for a short time, you can also reduce weight decay to 0.
+
+# Training Recipe
+# This model can be trained using the default settings in this config with FP32 precision.
+# When training under AMP, increase `warmup_steps` to 5000 for stable training.
+# In order to create Citrinet-C, find-replace `filters: 384` with `filters: C`.
+# When reducing the receptive field of these models, it is advised to reduce the amount of augmentation
+# for larger models from 10x time masking to 5x or 2x time masking.
+# For further details regarding Citrinet, visit - https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.html#citrinet
 
 name: &name "Citrinet-512-8x-Stride"
 
@@ -11,23 +20,26 @@ model:
     manifest_filepath: ???
     sample_rate: 16000
     batch_size: 32
-    trim_silence: true
+    trim_silence: false
     max_duration: 16.7
     shuffle: true
     is_tarred: false
     tarred_audio_filepaths: null
+    use_start_end_token: false
 
   validation_ds:
     manifest_filepath: ???
     sample_rate: 16000
     batch_size: 32
     shuffle: false
+    use_start_end_token: false
 
   test_ds:
     manifest_filepath: null
     sample_rate: 16000
     batch_size: 32
     shuffle: false
+    use_start_end_token: false
 
   model_defaults:
     repeat: 5
@@ -35,6 +47,7 @@ model:
     separable: true
     se: true
     se_context_size: -1
+    kernel_size_factor: 1.0
 
   tokenizer:
     dir: ???  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (for wpe)
@@ -91,6 +104,7 @@ model:
         se_context_size: ${model.model_defaults.se_context_size}
         stride_last: true
         residual_mode: "stride_add"
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 512
         repeat: ${model.model_defaults.repeat}
@@ -102,6 +116,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 512
         repeat: ${model.model_defaults.repeat}
@@ -113,6 +128,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 512
         repeat: ${model.model_defaults.repeat}
@@ -124,6 +140,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 512
         repeat: ${model.model_defaults.repeat}
@@ -135,6 +152,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 512
         repeat: ${model.model_defaults.repeat}
@@ -146,6 +164,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 512
         repeat: ${model.model_defaults.repeat}
@@ -159,6 +178,7 @@ model:
         se_context_size: ${model.model_defaults.se_context_size}
         stride_last: true
         residual_mode: "stride_add"
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 512
         repeat: ${model.model_defaults.repeat}
@@ -170,6 +190,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 512
         repeat: ${model.model_defaults.repeat}
@@ -181,6 +202,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 512
         repeat: ${model.model_defaults.repeat}
@@ -192,6 +214,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 512
         repeat: ${model.model_defaults.repeat}
@@ -203,6 +226,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 512
         repeat: ${model.model_defaults.repeat}
@@ -214,6 +238,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 512
         repeat: ${model.model_defaults.repeat}
@@ -225,6 +250,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 512
         repeat: ${model.model_defaults.repeat}
@@ -238,6 +264,7 @@ model:
         se_context_size: ${model.model_defaults.se_context_size}
         stride_last: true
         residual_mode: "stride_add"
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 512
         repeat: ${model.model_defaults.repeat}
@@ -249,6 +276,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 512
         repeat: ${model.model_defaults.repeat}
@@ -260,6 +288,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 512
         repeat: ${model.model_defaults.repeat}
@@ -271,6 +300,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 512
         repeat: ${model.model_defaults.repeat}
@@ -282,6 +312,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 512
         repeat: ${model.model_defaults.repeat}
@@ -293,6 +324,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 512
         repeat: ${model.model_defaults.repeat}
@@ -304,6 +336,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: 512
         repeat: ${model.model_defaults.repeat}
@@ -315,6 +348,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
       - filters: &enc_final 640
         repeat: 1
@@ -326,6 +360,7 @@ model:
         separable: ${model.model_defaults.separable}
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
 
   decoder:
@@ -361,8 +396,12 @@ trainer:
   accumulate_grad_batches: 1
   checkpoint_callback: false  # Provided by exp_manager
   logger: false  # Provided by exp_manager
-  log_every_n_steps: 1  # Interval of logging.
+  log_every_n_steps: 100  # Interval of logging.
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+  check_val_every_n_epoch: 1
+  precision: 32
+  sync_batchnorm: false
+  benchmark: false
 
 exp_manager:
   exp_dir: null

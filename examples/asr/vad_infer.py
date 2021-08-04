@@ -20,9 +20,12 @@ During inference, we perform frame-level prediction by two approaches:
        [get frame level prediction by this script and use vad_overlap_posterior.py in NeMo/scripts/voice_activity_detection
        One can also find posterior about converting frame level prediction 
        to speech/no-speech segment in start and end times format in that script.]
+       
+       Image https://raw.githubusercontent.com/NVIDIA/NeMo/main/tutorials/asr/images/vad_post_overlap_diagram.png 
+       will help you understand this method.
    
 Usage:
-python vad_infer.py  --vad_model="MatchboxNet-VAD-3x2" --dataset=<FULL PATH OF MANIFEST TO BE PERFORMED INFERENCE ON> --out_dir='frame/demo' --time_length=0.63
+python vad_infer.py  --vad_model="vad_marblenet" --dataset=<FULL PATH OF MANIFEST TO BE PERFORMED INFERENCE ON> --out_dir='frame/demo' --time_length=0.63
 
 """
 
@@ -35,7 +38,7 @@ from argparse import ArgumentParser
 import torch
 
 from nemo.collections.asr.models import EncDecClassificationModel
-from nemo.collections.asr.parts.vad_utils import get_vad_stream_status, prepare_manifest
+from nemo.collections.asr.parts.utils.vad_utils import get_vad_stream_status, prepare_manifest
 from nemo.utils import logging
 
 try:
@@ -131,7 +134,7 @@ def main():
     all_len = 0
 
     data = []
-    for line in open(args.dataset, 'r'):
+    for line in open(manifest_vad_input, 'r'):
         file = json.loads(line)['audio_filepath'].split("/")[-1]
         data.append(file.split(".wav")[0])
     logging.info(f"Inference on {len(data)} audio files/json lines!")

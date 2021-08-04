@@ -37,10 +37,9 @@ exp_manager:
   exp_dir: null  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
   name: Punctuation_and_Capitalization  # The name of your model
   create_tensorboard_logger: true  # Whether you want exp_manger to create a tb logger
-  create_checkpoint_callback: true  # Whether you want exp_manager to create a modelcheckpoint callback
+  create_checkpoint_callback: true  # Whether you want exp_manager to create a model checkpoint callback
 
 model:
-  nemo_path: null # filename to save the model and associated artifacts to .nemo file
   punct_label_ids: null # will be filled during training
   capit_label_ids: null # will be filled during training
   class_labels:

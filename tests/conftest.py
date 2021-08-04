@@ -23,7 +23,7 @@ import pytest
 
 # Those variables probably should go to main NeMo configuration file (config.yaml).
 __TEST_DATA_FILENAME = "test_data.tar.gz"
-__TEST_DATA_URL = "https://github.com/NVIDIA/NeMo/releases/download/v0.11.0/"
+__TEST_DATA_URL = "https://github.com/NVIDIA/NeMo/releases/download/v1.0.0rc1/"
 __TEST_DATA_SUBDIR = ".data"
 
 
@@ -41,6 +41,17 @@ def pytest_addoption(parser):
         '--use_local_test_data',
         action='store_true',
         help="pass that argument to use local test data/skip downloading from URL/GitHub (DEFAULT: False)",
+    )
+    parser.addoption(
+        '--with_downloads',
+        action='store_true',
+        help="pass this argument to active tests which download models from the cloud.",
+    )
+    parser.addoption(
+        '--relax_numba_compat',
+        action='store_false',
+        help="numba compatibility checks will be relaxed to just availability of cuda, "
+        "without cuda compatibility matrix check",
     )
 
 
@@ -60,7 +71,16 @@ def run_only_on_device_fixture(request, device):
             pytest.skip('skipped on this device: {}'.format(device))
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
+def downloads_weights(request, device):
+    if request.node.get_closest_marker('with_downloads'):
+        if not request.config.getoption("--with_downloads"):
+            pytest.skip(
+                'To run this test, pass --with_downloads option. It will download (and cache) models from cloud.'
+            )
+
+
+@pytest.fixture(autouse=True)
 def cleanup_local_folder():
     # Asserts in fixture are not recommended, but I'd rather stop users from deleting expensive training runs
     assert not Path("./lightning_logs").exists()
@@ -160,3 +180,9 @@ def pytest_configure(config):
                 __TEST_DATA_FILENAME, test_data_local_size, test_dir
             )
         )
+
+    if config.option.relax_numba_compat is not None:
+        from nemo.core.utils import numba_utils
+
+        print("Setting numba compat :", config.option.relax_numba_compat)
+        numba_utils.set_numba_compat_strictness(strict=config.option.relax_numba_compat)

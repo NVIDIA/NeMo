@@ -28,6 +28,7 @@ import sphinx_rtd_theme
 
 sys.path.insert(0, os.path.abspath("../.."))
 sys.path.insert(0, os.path.abspath("../../nemo"))
+sys.path.insert(0, os.path.abspath("../../nemo_text_processing"))
 
 from package_info import __version__
 
@@ -48,9 +49,13 @@ autodoc_mock_imports = [
     'transformers.tokenization_bert',  # has ., troublesome for this regex
     'megatron',  # megatron-lm in requirements, megatron in import
     'sklearn',
+    'nemo_text_processing.inverse_text_normalization',  # Not installed automatically
+    'nemo_text_processing.text_normalization',  # Not installed automatically
+    'attr',  # attrdict in requirements, attr in import
+    'torchmetrics',  # inherited from PTL
 ]
 
-_skipped_autodoc_mock_imports = ['wrapt']
+_skipped_autodoc_mock_imports = ['wrapt', 'numpy']
 
 for req_path in sorted(list(glob.glob("../../requirements/*.txt"))):
     if "docs.txt" in req_path:
@@ -98,11 +103,18 @@ extensions = [
     "sphinxcontrib.bibtex",
     "sphinx.ext.inheritance_diagram",
     "sphinx.ext.intersphinx",
+    "sphinx.ext.autosectionlabel",
     "sphinxcontrib.bibtex",
     "sphinx_rtd_theme",
 ]
 
-bibtex_bibfiles = ['asr/asr_all.bib', 'nlp/nlp_all.bib', 'tools/tools_all.bib', 'tts_all.bib']
+bibtex_bibfiles = [
+    'asr/asr_all.bib',
+    'nlp/nlp_all.bib',
+    'tools/tools_all.bib',
+    'nemo_text_processing/textprocessing_all.bib',
+    'tts_all.bib',
+]
 
 intersphinx_mapping = {
     'pytorch': ('https://pytorch.org/docs/stable', None),
@@ -126,7 +138,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "NVIDIA NeMo"
-copyright = "2018-, NVIDIA CORPORATION"
+copyright = "2021-, NVIDIA CORPORATION"
 author = "NVIDIA CORPORATION"
 
 # The version info for the project you're documenting, acts as replacement for

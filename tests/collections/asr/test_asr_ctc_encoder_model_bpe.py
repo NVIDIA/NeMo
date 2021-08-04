@@ -24,6 +24,7 @@ from omegaconf import DictConfig
 from nemo.collections.asr.data import audio_to_text
 from nemo.collections.asr.models import configs
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
+from nemo.collections.common import tokenizers
 from nemo.utils.config_utils import assert_dataclass_signature_match
 
 
@@ -122,7 +123,26 @@ class TestEncDecCTCModel:
 
             new_model = EncDecCTCModelBPE.restore_from(save_path)
             assert isinstance(new_model, type(asr_model))
-            assert new_model.vocab_path == 'vocab.txt'
+            assert new_model.vocab_path.endswith('_vocab.txt')
+
+            assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
+
+    @pytest.mark.unit
+    def test_save_restore_artifact_spe(self, asr_model, test_data_dir):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tokenizer_dir = os.path.join(test_data_dir, "asr", "tokenizers", "an4_spe_128")
+            asr_model.change_vocabulary(new_tokenizer_dir=tokenizer_dir, new_tokenizer_type='bpe')
+
+            save_path = os.path.join(tmpdir, 'ctc_bpe.nemo')
+            asr_model.train()
+            asr_model.save_to(save_path)
+
+            new_model = EncDecCTCModelBPE.restore_from(save_path)
+            assert isinstance(new_model, type(asr_model))
+            assert isinstance(new_model.tokenizer, tokenizers.SentencePieceTokenizer)
+            assert new_model.model_path.endswith('_tokenizer.model')
+            assert new_model.vocab_path.endswith('_vocab.txt')
+            assert new_model.spe_vocab_path.endswith('_tokenizer.vocab')
 
             assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
 
@@ -207,7 +227,7 @@ class TestEncDecCTCModel:
 
                 # Check if vocabulary size is same
                 assert asr_model2.tokenizer.tokenizer.vocab_size == asr_model3.tokenizer.tokenizer.vocab_size
-                assert asr_model2.tokenizer_dir != asr_model3.tokenizer_dir
+                assert asr_model2.vocab_path != asr_model3.vocab_path
 
                 # Model PT level checks
                 assert len(asr_model2.artifacts) == 1
@@ -270,7 +290,6 @@ class TestEncDecCTCModel:
             'blank_index',
             'global_rank',
             'world_size',
-            'load_audio',
         ]
 
         REMAP_ARGS = {

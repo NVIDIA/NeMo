@@ -146,6 +146,32 @@ class TestEncDecCTCModel:
         assert asr_model.num_weights == nw1 + 3 * (asr_model.decoder._feat_in + 1)
 
     @pytest.mark.unit
+    def test_change_conv_asr_se_context_window(self, asr_model):
+        old_cfg = copy.deepcopy(asr_model.cfg)
+        asr_model.change_conv_asr_se_context_window(context_window=32)  # 32 * 0.01s context
+        new_config = asr_model.cfg
+
+        assert old_cfg.encoder.jasper[0].se_context_size == -1
+        assert new_config.encoder.jasper[0].se_context_size == 32
+
+        for name, m in asr_model.encoder.named_modules():
+            if type(m).__class__.__name__ == 'SqueezeExcite':
+                assert m.context_window == 32
+
+    @pytest.mark.unit
+    def test_change_conv_asr_se_context_window_no_config_update(self, asr_model):
+        old_cfg = copy.deepcopy(asr_model.cfg)
+        asr_model.change_conv_asr_se_context_window(context_window=32, update_config=False)  # 32 * 0.01s context
+        new_config = asr_model.cfg
+
+        assert old_cfg.encoder.jasper[0].se_context_size == -1
+        assert new_config.encoder.jasper[0].se_context_size == -1  # no change
+
+        for name, m in asr_model.encoder.named_modules():
+            if type(m).__class__.__name__ == 'SqueezeExcite':
+                assert m.context_window == 32
+
+    @pytest.mark.unit
     def test_dataclass_instantiation(self, asr_model):
         model_cfg = configs.EncDecCTCModelConfig()
 
@@ -227,7 +253,6 @@ class TestEncDecCTCModel:
             'tarred_shard_strategy',
             'shuffle_n',
             'use_start_end_token',
-            'load_audio',
             'use_start_end_token',
         ]
 
@@ -258,7 +283,6 @@ class TestEncDecCTCModel:
             'global_rank',
             'world_size',
             'use_start_end_token',
-            'load_audio',
         ]
 
         REMAP_ARGS = {

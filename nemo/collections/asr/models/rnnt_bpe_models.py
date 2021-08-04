@@ -25,16 +25,9 @@ from nemo.collections.asr.losses.rnnt import RNNTLoss
 from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER, RNNTBPEDecoding
 from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
-from nemo.collections.asr.parts.perturb import process_augmentations
+from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
-
-try:
-    import warprnnt_pytorch as warprnnt
-
-    WARP_RNNT_AVAILABLE = True
-except (ImportError, ModuleNotFoundError):
-    WARP_RNNT_AVAILABLE = False
 
 
 class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
@@ -52,16 +45,6 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         return result
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        # Required loss function
-        if not WARP_RNNT_AVAILABLE:
-            raise ImportError(
-                "Could not import `warprnnt_pytorch`.\n"
-                "Please visit https://github.com/HawkAaron/warp-transducer "
-                "and follow the steps in the readme to build and install the "
-                "pytorch bindings for RNNT Loss, or use the provided docker "
-                "container that supports RNN-T loss."
-            )
-
         # Convert to Hydra 1.0 compatible DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)

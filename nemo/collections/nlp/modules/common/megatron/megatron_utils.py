@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import glob
 import json
 import os
 from typing import Dict, List, Optional, Tuple
@@ -144,11 +145,15 @@ def get_megatron_lm_model(
     if not vocab_file:
         vocab_file = get_megatron_vocab_file(pretrained_model_name)
 
-    # if checkpoint path is a directory, then we automatically compute model parallel size,
-    # and model parallel rank
-    if os.path.isdir(checkpoint_file):
-        app_state = AppState()
-        model_parallel_size = len(os.listdir(checkpoint_file))
+    app_state = AppState()
+    if app_state.model_parallel_size is not None and app_state.model_parallel_rank is not None:
+        # model parallel already known from .nemo restore
+        model_parallel_size = app_state.model_parallel_size
+        model_parallel_rank = app_state.model_parallel_rank
+    elif os.path.isdir(checkpoint_file):
+        # starting training from megatron-lm checkpoint
+        mp_ranks = glob.glob(os.path.join(checkpoint_file, 'mp_rank*'))
+        model_parallel_size = len(mp_ranks)
         app_state.model_parallel_size = model_parallel_size
         logging.info(
             (

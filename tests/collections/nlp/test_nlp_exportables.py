@@ -71,36 +71,37 @@ class TestExportableClassifiers:
         for num_layers in [1, 2, 4]:
             classifier_export(SequenceRegression(hidden_size=256, num_layers=num_layers))
 
-    @pytest.mark.run_only_on('GPU')
-    @pytest.mark.unit
-    def test_IntentSlotClassificationModel_export_to_onnx(self, dummy_data):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            wget.download(
-                'https://raw.githubusercontent.com/NVIDIA/NeMo/main/examples/'
-                'nlp/intent_slot_classification/conf/intent_slot_classification_config.yaml',
-                tmpdir,
-            )
-            config_file = os.path.join(tmpdir, 'intent_slot_classification_config.yaml')
-            config = OmegaConf.load(config_file)
-            config = OmegaConf.create(OmegaConf.to_container(config, resolve=True))
-            config.model.data_dir = dummy_data
-            config.trainer.gpus = 1
-            config.trainer.precision = 32
-            config.trainer.accelerator = None
-            trainer = pl.Trainer(**config.trainer)
-            model = IntentSlotClassificationModel(config.model, trainer=trainer)
-            filename = os.path.join(tmpdir, 'isc.onnx')
-            model.export(output=filename)
-            onnx_model = onnx.load(filename)
-            onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
-            assert onnx_model.graph.input[0].name == 'input_ids'
-            assert onnx_model.graph.input[1].name == 'attention_mask'
-            assert onnx_model.graph.input[2].name == 'token_type_ids'
-            assert onnx_model.graph.output[0].name == 'intent_logits'
-            assert onnx_model.graph.output[1].name == 'slot_logits'
+    # @pytest.mark.run_only_on('GPU')
+    # @pytest.mark.unit
+    # def test_IntentSlotClassificationModel_export_to_onnx(self, dummy_data):
+    #     with tempfile.TemporaryDirectory() as tmpdir:
+    #         wget.download(
+    #             'https://raw.githubusercontent.com/NVIDIA/NeMo/main/examples/'
+    #             'nlp/intent_slot_classification/conf/intent_slot_classification_config.yaml',
+    #             tmpdir,
+    #         )
+    #         config_file = os.path.join(tmpdir, 'intent_slot_classification_config.yaml')
+    #         config = OmegaConf.load(config_file)
+    #         config = OmegaConf.create(OmegaConf.to_container(config, resolve=True))
+    #         config.model.data_dir = dummy_data
+    #         config.trainer.gpus = 1
+    #         config.trainer.precision = 32
+    #         config.trainer.accelerator = None
+    #         trainer = pl.Trainer(**config.trainer)
+    #         model = IntentSlotClassificationModel(config.model, trainer=trainer)
+    #         filename = os.path.join(tmpdir, 'isc.onnx')
+    #         model.export(output=filename)
+    #         onnx_model = onnx.load(filename)
+    #         onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+    #         assert onnx_model.graph.input[0].name == 'input_ids'
+    #         assert onnx_model.graph.input[1].name == 'attention_mask'
+    #         assert onnx_model.graph.input[2].name == 'token_type_ids'
+    #         assert onnx_model.graph.output[0].name == 'intent_logits'
+    #         assert onnx_model.graph.output[1].name == 'slot_logits'
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
+    @pytest.mark.skip('Are we exporting to torchscript?')
     def test_IntentSlotClassificationModel_export_to_torchscript(self, dummy_data):
         with tempfile.TemporaryDirectory() as tmpdir:
             wget.download(
@@ -130,8 +131,10 @@ class TestExportableClassifiers:
             assert modules[217].original_name == 'SequenceTokenClassifier'
             assert modules[219].original_name == 'MultiLayerPerceptron'
 
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
     def test_TokenClassificationModel_export_to_onnx(self):
-        model = nemo_nlp.models.TokenClassificationModel.from_pretrained(model_name="NERModel")
+        model = nemo_nlp.models.TokenClassificationModel.from_pretrained(model_name="ner_en_bert")
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = os.path.join(tmpdir, 'ner.onnx')
             model.export(output=filename)
@@ -140,22 +143,24 @@ class TestExportableClassifiers:
             assert onnx_model.graph.input[0].name == 'input_ids'
             assert onnx_model.graph.output[0].name == 'logits'
 
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
     def test_PunctuationCapitalizationModel_export_to_onnx(self):
-        model = nemo_nlp.models.PunctuationCapitalizationModel.from_pretrained(
-            model_name="Punctuation_Capitalization_with_BERT"
-        )
+        model = nemo_nlp.models.PunctuationCapitalizationModel.from_pretrained(model_name="punctuation_en_distilbert")
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = os.path.join(tmpdir, 'puncap.onnx')
             model.export(output=filename)
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
             assert onnx_model.graph.input[0].name == 'input_ids'
-            assert onnx_model.graph.input[2].name == 'token_type_ids'
+            # assert onnx_model.graph.input[2].name == 'token_type_ids'
             assert onnx_model.graph.output[0].name == 'punct_logits'
             assert onnx_model.graph.output[1].name == 'capit_logits'
 
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
     def test_QAModel_export_to_onnx(self):
-        model = nemo_nlp.models.QAModel.from_pretrained(model_name="BERTBaseUncasedSQuADv1.1")
+        model = nemo_nlp.models.QAModel.from_pretrained(model_name="qa_squadv2.0_bertbase")
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = os.path.join(tmpdir, 'qa.onnx')
             model.export(output=filename)

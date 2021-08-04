@@ -1,0 +1,4 @@
+Model Name,Model Base Class,Model Card
+speakerverification_speakernet,EncDecSpeakerLabelModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerverification_speakernet"
+speakerrecognition_speakernet,EncDecSpeakerLabelModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerrecognition_speakernet"
+speakerdiarization_speakernet,EncDecSpeakerLabelModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerdiarization_speakernet"

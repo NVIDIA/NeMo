@@ -1,0 +1,6 @@
+0th~zeroth
+11th~eleventh
+23rd~twenty third
+1000th~one thousandth
+1,000th~one thousandth
+1000000th~one millionth

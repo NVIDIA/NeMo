@@ -3,16 +3,16 @@
 Tutorials
 =========
 
-The best way to get started with NeMo is to checkout one of our tutorials.
+The best way to get started with NeMo is to start wtih one of our tutorials.
 
 Most NeMo tutorials can be run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.
 
-To run tutorials:
+To run a tutorial:
 
-* Click on Colab link (see table below)
-* Connect to an instance with a GPU (Runtime -> Change runtime type -> select "GPU" for hardware accelerator)
+#. Click the **Colab** link (see table below).
+#. Connect to an instance with a GPU. For example, click **Runtime** > **Change runtime type** and select **GPU** for the hardware accelerator.
 
-.. list-table:: *Tutorials*
+.. list-table:: **Tutorials**
    :widths: 15 25 25
    :header-rows: 1
 
@@ -20,71 +20,110 @@ To run tutorials:
      - Title
      - GitHub URL
    * - General
-     - NeMo Getting Started. Prototyping Conversational AI Application
-     - `Voice swap app <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/NeMo_Getting_Started.ipynb>`_
+     - Getting Started: Exploring Nemo Fundamentals
+     - `NeMo Fundamentals <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/00_NeMo_Primer.ipynb>`_
    * - General
-     - Exploring NeMo Fundamentals
-     - `NeMo primer <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/00_NeMo_Primer.ipynb>`_
+     - Getting Started: Sample Conversational AI application
+     - `Audio translator example <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/AudioTranslationSample.ipynb>`_
+   * - General
+     - Getting Started: Voice swap application
+     - `Voice swap example <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/VoiceSwapSample.ipynb>`_
    * - General
      - Exploring NeMo Model Construction
-     - `NeMo models <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/01_NeMo_Models.ipynb>`_
-   * - ASR
-     - ASR with Subword Tokenization
-     - `ASR with Subword Tokenization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/08_ASR_with_Subword_Tokenization.ipynb>`_
+     - `NeMo Models <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/01_NeMo_Models.ipynb>`_
    * - ASR
      - ASR with NeMo
-     - `ASR with NeMo <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/01_ASR_with_NeMo.ipynb>`_
+     - `ASR with NeMo <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/01_ASR_with_NeMo.ipynb>`_
+   * - ASR
+     - ASR with Subword Tokenization
+     - `ASR with Subword Tokenization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/08_ASR_with_Subword_Tokenization.ipynb>`_
+   * - ASR
+     - Offline ASR Inference with Beam Search and External Language Model Rescoring
+     - `Offline ASR <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Offline_ASR.ipynb>`_
+   * - ASR
+     - Online ASR inference with Microphone
+     - `Online ASR Microphone <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/02_Online_ASR_Microphone_Demo.ipynb>`_
+   * - ASR
+     - Fine-tuning CTC Models on New Languages
+     - `ASR CTC Language Fine-Tuning <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/10_ASR_CTC_Language_Finetuning.ipynb>`_
    * - ASR
      - Speech Commands
-     - `Speech commands <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/03_Speech_Commands.ipynb>`_
+     - `Speech Commands <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/03_Speech_Commands.ipynb>`_
+   * - ASR
+     - Online and Offline Speech Commands Inference
+     - `Online Offline Microphone Speech Commands <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/04_Online_Offline_Speech_Commands_Demo.ipynb>`_
+   * - ASR
+     - Voice Activity Detection (VAD)
+     - `Voice Activity Detection <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/06_Voice_Activity_Detection.ipynb>`_
+   * - ASR
+     - Online and Offline VAD Inference
+     - `Online Offline Microphone VAD <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/07_Online_Offline_Microphone_VAD_Demo.ipynb>`_
    * - ASR
      - Speaker Recognition and Verification
-     - `Speaker Recognition and Verification <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/speaker_recognition/Speaker_Recognition_Verification.ipynb>`_
+     - `Speaker Recognition and Verification <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/speaker_recognition/Speaker_Recognition_Verification.ipynb>`_
+   * - ASR
+     - Speaker Diarization Inference
+     - `Speaker Diarization Inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/speaker_recognition/Speaker_Diarization_Inference.ipynb>`_
+   * - ASR
+     - ASR with Speaker Diarization
+     - `ASR with Speaker Diarization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/speaker_recognition/ASR_with_SpeakerDiarization.ipynb>`_
    * - ASR
      - Online Noise Augmentation
-     - `Online noise augmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
+     - `Online Noise Augmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
    * - ASR
-     - Beam Search and External Language Model Rescoring
-     - `Beam search and external language model rescoring <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/asr/Offline_ASR.ipynb>`_
+     - ASR for Telephony Speech
+     - `ASR for Telephony Speech <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_for_telephony_speech.ipynb>`_
+   * - ASR
+     - Streaming inference for ASR
+     - `Streaming inference <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Streaming_ASR.ipynb>`_
    * - NLP
      - Using Pretrained Language Models for Downstream Tasks
-     - `Pretrained language models for downstream tasks <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/nlp/01_Pretrained_Language_Models_for_Downstream_Tasks.ipynb>`_
+     - `Pretrained Language Models for Downstream Tasks <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/01_Pretrained_Language_Models_for_Downstream_Tasks.ipynb>`_
    * - NLP
      - Exploring NeMo NLP Tokenizers
-     - `NLP tokenizers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/nlp/02_NLP_Tokenizers.ipynb>`_
+     - `NLP Tokenizers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/02_NLP_Tokenizers.ipynb>`_
    * - NLP
      - Text Classification (Sentiment Analysis) with BERT
-     - `Text Classification (Sentiment Analysis) <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/nlp/Text_Classification_Sentiment_Analysis.ipynb>`_
+     - `Text Classification (Sentiment Analysis) <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Text_Classification_Sentiment_Analysis.ipynb>`_
    * - NLP
-     - Question answering with SQuAD
-     - `Question answering Squad <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/nlp/Question_Answering_Squad.ipynb>`_
+     - Question Answering with SQuAD
+     - `Question Answering Squad <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Question_Answering_Squad.ipynb>`_
    * - NLP
      - Token Classification (Named Entity Recognition)
-     - `Token classification: named entity recognition <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb>`_
+     - `Token Classification: Named Entity Recognition <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Token_Classification_Named_Entity_Recognition.ipynb>`_
    * - NLP
      - Joint Intent Classification and Slot Filling
-     - `Joint Intent and Slot Classification <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/nlp/Joint_Intent_and_Slot_Classification.ipynb>`_
+     - `Joint Intent and Slot Classification <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Joint_Intent_and_Slot_Classification.ipynb>`_
    * - NLP
      - GLUE Benchmark
-     - `GLUE benchmark <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/nlp/GLUE_Benchmark.ipynb>`_
+     - `GLUE Benchmark <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/GLUE_Benchmark.ipynb>`_
    * - NLP
-     - Punctuation and Capitialization
-     - `Punctuation and capitalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
+     - Punctuation and Capitalization
+     - `Punctuation and Capitalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
+   * - NLP
+     - Entity Linking
+     - `Entity Linking <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.2/tutorials/nlp/Entity_Linking_Medical.ipynb>`_
    * - NLP
      - Named Entity Recognition - BioMegatron
-     - `Named Entity Recognition - BioMegatron <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/nlp/Token_Classification-BioMegatron.ipynb>`_
+     - `Named Entity Recognition - BioMegatron <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Token_Classification-BioMegatron.ipynb>`_
    * - NLP
      - Relation Extraction - BioMegatron
-     - `Relation Extraction - BioMegatron <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/nlp/Relation_Extraction-BioMegatron.ipynb>`_
+     - `Relation Extraction - BioMegatron <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Relation_Extraction-BioMegatron.ipynb>`_
    * - TTS
      - Speech Synthesis
-     - `TTS inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/tts/1_TTS_inference.ipynb>`_
+     - `TTS Inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/1_TTS_inference.ipynb>`_
    * - TTS
      - Speech Synthesis
-     - `Tacotron2 training <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/tts/2_TTS_Tacotron2_Training.ipynb>`_
+     - `Tacotron2 Training <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/2_TTS_Tacotron2_Training.ipynb>`_
+   * - TTS
+     - Speech Synthesis
+     - `TalkNet Training <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/3_TTS_TalkNet_Training.ipynb>`_
    * - Tools
      - CTC Segmentation
-     - `CTC Segmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/tools/CTC_Segmentation_Tutorial.ipynb>`_
-   * - Tools
-     - Text Normalization for Text To Speech
-     - `Text Normalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/r1.0.0rc1/tutorials/tools/Text_Normalization_Tutorial.ipynb>`_
+     - `CTC Segmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tools/CTC_Segmentation_Tutorial.ipynb>`_
+   * - Text Processing
+     - Text Normalization for TTS
+     - `Text Normalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Text_Normalization.ipynb>`_
+   * - Text Processing
+     - Inverse Text Normalization for ASR
+     - `Inverse Text Normalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Inverse_Text_Normalization.ipynb>`_

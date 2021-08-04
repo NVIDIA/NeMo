@@ -54,11 +54,15 @@ Modules
     :show-inheritance:
     :members:
 
+.. autoclass:: nemo.collections.asr.modules.ConformerEncoder
+    :show-inheritance:
+    :members:
+
 
 Parts
 -----
 
-.. autoclass:: nemo.collections.asr.parts.jasper.JasperBlock
+.. autoclass:: nemo.collections.asr.parts.submodules.jasper.JasperBlock
     :show-inheritance:
     :members:
 
@@ -66,7 +70,11 @@ Parts
 Mixins
 ------
 
-.. autoclass:: nemo.collections.asr.parts.mixins.ASRBPEMixin
+.. autoclass:: nemo.collections.asr.parts.mixins.mixins.ASRBPEMixin
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.mixins.mixins.ASRModuleMixin
     :show-inheritance:
     :members:
 
@@ -84,7 +92,7 @@ Character Encoding Datasets
     :show-inheritance:
     :members:
 
-.. autoclass:: nemo.collections.asr.data.audio_to_text.AudioToCharWithDursDataset
+.. autoclass:: nemo.collections.asr.data.audio_to_text.AudioToCharWithDursF0Dataset
     :show-inheritance:
     :members:
 
@@ -121,6 +129,42 @@ Audio Augmentors
     :show-inheritance:
     :members:
 
+.. autoclass:: nemo.collections.asr.parts.preprocessing.perturb.SpeedPerturbation
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.preprocessing.perturb.TimeStretchPerturbation
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.preprocessing.perturb.GainPerturbation
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.preprocessing.perturb.ImpulsePerturbation
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.preprocessing.perturb.ShiftPerturbation
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.preprocessing.perturb.NoisePerturbation
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.preprocessing.perturb.WhiteNoisePerturbation
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.preprocessing.perturb.RirAndNoisePerturbation
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.preprocessing.perturb.TranscodePerturbation
+    :show-inheritance:
+    :members:
+
 Miscellaneous Classes
 ---------------------
 
@@ -135,25 +179,25 @@ RNNT Decoding
     :show-inheritance:
     :members:
 
-.. autoclass:: nemo.collections.asr.parts.rnnt_greedy_decoding.GreedyRNNTInfer
+.. autoclass:: nemo.collections.asr.parts.submodules.rnnt_greedy_decoding.GreedyRNNTInfer
     :show-inheritance:
     :members:
 
-.. autoclass:: nemo.collections.asr.parts.rnnt_greedy_decoding.GreedyBatchedRNNTInfer
+.. autoclass:: nemo.collections.asr.parts.submodules.rnnt_greedy_decoding.GreedyBatchedRNNTInfer
     :show-inheritance:
     :members:
 
-.. autoclass:: nemo.collections.asr.parts.rnnt_beam_decoding.BeamRNNTInfer
+.. autoclass:: nemo.collections.asr.parts.submodules.rnnt_beam_decoding.BeamRNNTInfer
     :show-inheritance:
     :members:
 
 Hypotheses
 ~~~~~~~~~~
 
-.. autoclass:: nemo.collections.asr.parts.rnnt_utils.Hypothesis
+.. autoclass:: nemo.collections.asr.parts.utils.rnnt_utils.Hypothesis
     :show-inheritance:
     :no-members:
 
-.. autoclass:: nemo.collections.asr.parts.rnnt_utils.NBestHypotheses
+.. autoclass:: nemo.collections.asr.parts.utils.rnnt_utils.NBestHypotheses
     :show-inheritance:
     :no-members:

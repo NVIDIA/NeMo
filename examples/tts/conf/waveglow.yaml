@@ -1,9 +1,9 @@
-name: &name "WaveGlow"
-sample_rate: &sr 22050
-n_fft: &n_fft 1024
-n_mels: &n_mels 80
-fmax: &fmax null
-pad_value: &pad_value -11.52
+name: "WaveGlow"
+sample_rate: 22050
+n_fft: 1024
+n_mels: 80
+fmax: 8000
+pad_value: -11.52
 train_dataset: ???
 validation_datasets: ???
 
@@ -38,17 +38,17 @@ model:
       num_workers: 4
 
   preprocessor:
-    _target_: nemo.collections.asr.parts.features.FilterbankFeatures
+    _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
     dither: 0.0
-    nfilt: *n_mels
+    nfilt: ${n_mels}
     frame_splicing: 1
-    highfreq: *fmax
+    highfreq: ${fmax}
     log: true
     log_zero_guard_type: clamp
     log_zero_guard_value: 1e-05
     lowfreq: 0
     mag_power: 1.0
-    n_fft: *n_fft
+    n_fft: ${n_fft}
 
     # Waveglow is currently hardcoded to these values for window size and stride
     # Changing these parameters are not recommended
@@ -57,10 +57,9 @@ model:
 
     normalize: null
     pad_to: 16
-    pad_value: *pad_value
+    pad_value: ${pad_value}
     preemph: null
-    sample_rate: *sr
-    stft_conv: true
+    sample_rate: ${sample_rate}
     window: hann
 
   waveglow:
@@ -69,7 +68,7 @@ model:
     n_early_size: 2
     n_flows: 12
     n_group: 8
-    n_mel_channels: *n_mels
+    n_mel_channels: ${n_mels}
     n_wn_channels: 256
     n_wn_layers: 8
     wn_kernel_size: 3
@@ -93,6 +92,6 @@ trainer:
 
 exp_manager:
   exp_dir: null
-  name: *name
+  name: ${name}
   create_tensorboard_logger: True
   create_checkpoint_callback: True

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import pytorch_lightning as pl
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.models.wav2vec.wav2vec_model import Wav2VecEncoderModel
 from nemo.core.config import hydra_runner
@@ -84,7 +84,7 @@ Override optimizer entirely
 
 @hydra_runner(config_path="configs", config_name="wav2vec_pretrain")
 def main(cfg: DictConfig):
-    logging.info("Application config\n" + cfg.pretty())
+    logging.info("Application config\n" + OmegaConf.to_yaml(cfg))
 
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))

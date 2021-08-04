@@ -23,6 +23,7 @@ import numpy as np
 from torch.utils.data import DataLoader, DistributedSampler
 from tqdm import tqdm
 
+from nemo.collections.nlp.data.data_utils.data_preprocessing import find_newlines, load_data_indices
 from nemo.core.classes import Dataset
 
 __all__ = ['BertPretrainingDataset', 'BertPretrainingPreprocessedDataloader']
@@ -65,42 +66,14 @@ class BertPretrainingDataset(Dataset):
         # in each file so we can seek to and retrieve sentences immediately
         # from main memory when needed during training.
 
-        if sentence_idx_file is None:
-            data_dir = data_file[: data_file.rfind('/')]
-            mode = data_file[data_file.rfind('/') + 1 : data_file.rfind('.')]
-            sentence_idx_file = f"{data_dir}/{mode}_sentence_indices.pkl"
+        # Try and load sentence indices file if already exists
+        sentence_indices, sentence_idx_file, data_dir = load_data_indices(
+            sentence_idx_file, data_file, "sentence_indices"
+        )
 
-        if os.path.isfile(sentence_idx_file):
-            # If the sentence indices file already exists, load from it
-            with open(sentence_idx_file, "rb") as f:
-                sentence_indices = pickle.load(f)
-        else:
-            # Otherwise, generate and store sentence indices
+        # If sentence indices file doesn't exists, generate and store sentence indices
+        if sentence_indices is None:
             sentence_indices = {}
-
-            # Finds all of the newline indices in a string
-            def find_newlines(contents):
-                start = 0
-
-                while True:
-                    try:
-                        # index and split are much faster than Python for loops
-                        new_start = contents.index(b"\n", start)
-                        line = (
-                            contents[start:new_start]
-                            .replace(b"\xc2\x99", b" ")
-                            .replace(b"\xc2\xa0", b" ")
-                            .decode("utf-8", errors="ignore")
-                        )
-
-                        if len(line.split()) > 0:
-                            yield start
-
-                        start = new_start + 1
-
-                    except ValueError:
-                        break
-
             filenames = [data_file]
 
             for filename in tqdm(filenames):

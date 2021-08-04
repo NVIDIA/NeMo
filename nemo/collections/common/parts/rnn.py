@@ -19,6 +19,8 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 import torch
 
+from nemo.utils import logging
+
 
 def rnn(
     input_size: int,
@@ -29,6 +31,8 @@ def rnn(
     dropout: Optional[float] = 0.0,
     norm_first_rnn: Optional[bool] = None,
     t_max: Optional[int] = None,
+    weights_init_scale: float = 1.0,
+    hidden_hidden_bias_scale: float = 0.0,
 ) -> torch.nn.Module:
     """
     Utility function to provide unified interface to common LSTM RNN modules.
@@ -58,6 +62,12 @@ def rnn(
             Reference:
             [Can recurrent neural networks warp time?](https://openreview.net/forum?id=SJcKhk-Ab)
 
+        weights_init_scale: Float scale of the weights after initialization. Setting to lower than one
+            sometimes helps reduce variance between runs.
+
+        hidden_hidden_bias_scale: Float scale for the hidden-to-hidden bias scale. Set to 0.0 for
+            the default behaviour.
+
     Returns:
         A RNN module
     """
@@ -72,6 +82,8 @@ def rnn(
             dropout=dropout,
             forget_gate_bias=forget_gate_bias,
             t_max=t_max,
+            weights_init_scale=weights_init_scale,
+            hidden_hidden_bias_scale=hidden_hidden_bias_scale,
         )
 
     if norm == "batch":
@@ -84,6 +96,8 @@ def rnn(
             forget_gate_bias=forget_gate_bias,
             t_max=t_max,
             norm_first_rnn=norm_first_rnn,
+            weights_init_scale=weights_init_scale,
+            hidden_hidden_bias_scale=hidden_hidden_bias_scale,
         )
 
     if norm == "layer":
@@ -95,6 +109,8 @@ def rnn(
                 dropout=dropout,
                 forget_gate_bias=forget_gate_bias,
                 t_max=t_max,
+                weights_init_scale=weights_init_scale,
+                hidden_hidden_bias_scale=hidden_hidden_bias_scale,
             )
         )
 
@@ -138,6 +154,8 @@ class LSTMDropout(torch.nn.Module):
         dropout: Optional[float],
         forget_gate_bias: Optional[float],
         t_max: Optional[int] = None,
+        weights_init_scale: float = 1.0,
+        hidden_hidden_bias_scale: float = 0.0,
     ):
         """Returns an LSTM with forget gate bias init to `forget_gate_bias`.
         Args:
@@ -156,6 +174,12 @@ class LSTMDropout(torch.nn.Module):
                 of training.
                 Reference:
                 [Can recurrent neural networks warp time?](https://openreview.net/forum?id=SJcKhk-Ab)
+
+            weights_init_scale: Float scale of the weights after initialization. Setting to lower than one
+                sometimes helps reduce variance between runs.
+
+            hidden_hidden_bias_scale: Float scale for the hidden-to-hidden bias scale. Set to 0.0 for
+                the default behaviour.
 
         Returns:
             A `torch.nn.LSTM`.
@@ -188,9 +212,13 @@ class LSTMDropout(torch.nn.Module):
                     bias.data[hidden_size : 2 * hidden_size].fill_(forget_gate_bias)
                 if "bias_hh" in name:
                     bias = getattr(self.lstm, name)
-                    bias.data[hidden_size : 2 * hidden_size].fill_(0)
+                    bias.data[hidden_size : 2 * hidden_size] *= float(hidden_hidden_bias_scale)
 
         self.dropout = torch.nn.Dropout(dropout) if dropout else None
+
+        for name, v in self.named_parameters():
+            if 'weight' in name or 'bias' in name:
+                v.data *= float(weights_init_scale)
 
     def forward(
         self, x: torch.Tensor, h: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
@@ -214,6 +242,8 @@ class RNNLayer(torch.nn.Module):
         batch_norm: bool = True,
         forget_gate_bias: Optional[float] = 1.0,
         t_max: Optional[int] = None,
+        weights_init_scale: float = 1.0,
+        hidden_hidden_bias_scale: float = 0.0,
     ):
         super().__init__()
 
@@ -229,6 +259,8 @@ class RNNLayer(torch.nn.Module):
                 dropout=0.0,
                 forget_gate_bias=forget_gate_bias,
                 t_max=t_max,
+                weights_init_scale=weights_init_scale,
+                hidden_hidden_bias_scale=hidden_hidden_bias_scale,
             )
         else:
             self.rnn = rnn_type(input_size=input_size, hidden_size=hidden_size, bias=not batch_norm)
@@ -265,6 +297,8 @@ class BNRNNSum(torch.nn.Module):
         forget_gate_bias: Optional[float] = 1.0,
         norm_first_rnn: bool = False,
         t_max: Optional[int] = None,
+        weights_init_scale: float = 1.0,
+        hidden_hidden_bias_scale: float = 0.0,
     ):
         super().__init__()
         self.rnn_layers = rnn_layers
@@ -281,6 +315,8 @@ class BNRNNSum(torch.nn.Module):
                     batch_norm=batch_norm and (norm_first_rnn or i > 0),
                     forget_gate_bias=forget_gate_bias,
                     t_max=t_max,
+                    weights_init_scale=weights_init_scale,
+                    hidden_hidden_bias_scale=hidden_hidden_bias_scale,
                 )
             )
 
@@ -367,6 +403,8 @@ def ln_lstm(
     dropout: Optional[float],
     forget_gate_bias: Optional[float],
     t_max: Optional[int],
+    weights_init_scale: Optional[float] = None,  # ignored
+    hidden_hidden_bias_scale: Optional[float] = None,  # ignored
 ) -> torch.nn.Module:
     """Returns a ScriptModule that mimics a PyTorch native LSTM."""
     # The following are not implemented.
@@ -374,7 +412,13 @@ def ln_lstm(
         raise ValueError('`dropout` not supported with LayerNormLSTM')
 
     if t_max is not None:
-        raise ValueError("LayerNormLSTM does not support chrono init")
+        logging.warning("LayerNormLSTM does not support chrono init via `t_max`")
+
+    if weights_init_scale is not None:
+        logging.warning("`weights_init_scale` is ignored for LayerNormLSTM")
+
+    if hidden_hidden_bias_scale is not None:
+        logging.warning("`hidden_hidden_bias_scale` is ignored for LayerNormLSTM")
 
     return StackedLSTM(
         num_layers,

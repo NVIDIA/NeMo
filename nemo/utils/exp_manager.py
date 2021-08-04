@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import re
 import subprocess
 import sys
 import time
@@ -30,6 +31,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.utilities import rank_zero_only
+from pytorch_lightning.utilities.types import _METRIC
 
 from nemo.constants import NEMO_ENV_VARNAME_VERSION
 from nemo.utils import app_state, logging
@@ -68,8 +70,9 @@ class CallbackParams:
     save_last: Optional[bool] = True
     save_top_k: Optional[int] = 3
     save_weights_only: Optional[bool] = False
-    mode: Optional[str] = "auto"
-    period: Optional[int] = 1
+    mode: Optional[str] = "min"
+    period: Optional[int] = None
+    every_n_val_epochs: Optional[int] = 1
     prefix: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     postfix: str = ".nemo"
     save_best_model: bool = False
@@ -105,12 +108,16 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     of exp_dir/model_or_experiment_name/version. If the lightning trainer has a logger, exp_manager will get exp_dir,
     name, and version from the logger. Otherwise it will use the exp_dir and name arguments to create the logging
     directory. exp_manager also allows for explicit folder creation via explicit_log_dir.
-    The version will be a datetime string or an integer. Note, exp_manager does not handle versioning on slurm
-    multi-node runs. Datestime version can be disabled if use_datetime_version is set to False.
-    It optionally creates TensorBoardLogger, WandBLogger, ModelCheckpoint objects from pytorch lightning. It copies
-    sys.argv, and git information if available to the logging directory. It creates a log file for each process to log
-    their output into.
-    exp_manager additionally has a resume feature which can be used to continuing training from the constructed log_dir.
+
+    The version can be a datetime string or an integer. Datestime version can be disabled if use_datetime_version is set
+     to False. It optionally creates TensorBoardLogger, WandBLogger, ModelCheckpoint objects from pytorch lightning.
+    It copies sys.argv, and git information if available to the logging directory. It creates a log file for each
+    process to log their output into.
+
+    exp_manager additionally has a resume feature (resume_if_exists) which can be used to continuing training from
+    the constructed log_dir. When you need to continue the training repeatedly (like on a cluster which you need
+    multiple consecutive jobs), you need to avoid creating the version folders. Therefore from v1.0.0, when
+    resume_if_exists is set to True, creating the version folders is ignored.
 
     Args:
         trainer (pytorch_lightning.Trainer): The lightning trainer.
@@ -126,7 +133,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             - use_datetime_version (bool): Whether to use a datetime string for version. Defaults to True.
             - resume_if_exists (bool): Whether this experiment is resuming from a previous run. If True, it sets
                 trainer.resume_from_checkpoint so that the trainer should auto-resume. exp_manager will move files
-                under log_dir to log_dir/run_{int}. Defaults to False.
+                under log_dir to log_dir/run_{int}. Defaults to False. From v1.0.0, when resume_if_exists is True,
+                we would not create version folders to make it easier to find the log folder for next runs.
             - resume_past_end (bool): exp_manager errors out if resume_if_exists is True and a checkpoint matching
                 *end.ckpt indicating a previous training run fully completed. This behaviour can be disabled, in which
                 case the *end.ckpt will be loaded by setting resume_past_end to True. Defaults to False.
@@ -183,6 +191,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         version=cfg.version,
         explicit_log_dir=cfg.explicit_log_dir,
         use_datetime_version=cfg.use_datetime_version,
+        resume_if_exists=cfg.resume_if_exists,
     )
 
     if cfg.resume_if_exists:
@@ -229,7 +238,9 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         )
 
     if cfg.create_checkpoint_callback:
-        configure_checkpointing(trainer, log_dir, checkpoint_name, cfg.checkpoint_callback_params)
+        configure_checkpointing(
+            trainer, log_dir, checkpoint_name, cfg.resume_if_exists, cfg.checkpoint_callback_params
+        )
 
     if is_global_rank_zero():
         # Move files_to_copy to folder and add git information if present
@@ -262,7 +273,7 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
     Checks that the passed trainer is compliant with NeMo and exp_manager's passed configuration. Checks that:
         - Throws error when hydra has changed the working directory. This causes issues with lightning's DDP
         - Throws error when trainer has loggers defined but create_tensorboard_logger or create_WandB_logger is True
-        - Prints error messages when 1) run on multi-node and not slurm, and 2) run on multi-gpu without DDP
+        - Prints error messages when 1) run on multi-node and not Slurm, and 2) run on multi-gpu without DDP
     """
     if HydraConfig.initialized() and get_original_cwd() != os.getcwd():
         raise ValueError(
@@ -278,8 +289,8 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
         )
     if trainer.num_nodes > 1 and not check_slurm(trainer):
         logging.error(
-            "You are running multi-node without slurm. Please note that this is not tested in NeMo and could result in "
-            "errors."
+            "You are running multi-node training without SLURM handling the processes."
+            " Please note that this is not tested in NeMo and could result in errors."
         )
     if trainer.num_gpus > 1 and not trainer.use_ddp:
         logging.error(
@@ -410,6 +421,7 @@ def get_log_dir(
     version: str = None,
     explicit_log_dir: str = None,
     use_datetime_version: bool = True,
+    resume_if_exists: bool = False,
 ) -> (Path, str, str, str):
     """
     Obtains the log_dir used for exp_manager.
@@ -419,6 +431,10 @@ def get_log_dir(
         exp_dir (str): the base exp_dir without name nor version
         name (str): The name of the experiment
         version (str): The version of the experiment
+        explicit_log_dir (str): The explicit path to the log folder. Defaults to False.
+        use_datetime_version (bool): Uses date and time as the version of the log folder. Defaults to True.
+        resume_if_exists (bool): if resume_if_exists of the exp_manager's config is enabled or not. When enabled, the
+            version folders would not get created.
 
     Raise:
         LoggerMisconfigurationError: If trainer is incompatible with arguments
@@ -457,19 +473,21 @@ def get_log_dir(
         name = name or "default"
         version = version or os.environ.get(NEMO_ENV_VARNAME_VERSION, None)
 
-        if version is None:
-            if check_slurm(trainer):
-                logging.warning("Running on a slurm cluster. exp_manager will not add a version number.")
-                version = ""
+        if not version:
+            if resume_if_exists:
+                logging.warning(
+                    "No version folders would be created under the log folder as 'resume_if_exists' is enabled."
+                )
+                version = None
             elif is_global_rank_zero():
                 if use_datetime_version:
                     version = time.strftime('%Y-%m-%d_%H-%M-%S')
                 else:
                     tensorboard_logger = TensorBoardLogger(save_dir=Path(_exp_dir), name=name, version=version)
                     version = f"version_{tensorboard_logger.version}"
-                os.environ[NEMO_ENV_VARNAME_VERSION] = version
+                os.environ[NEMO_ENV_VARNAME_VERSION] = "" if version is None else version
 
-    log_dir = Path(_exp_dir) / Path(str(name)) / Path(str(version))
+    log_dir = Path(_exp_dir) / Path(str(name)) / Path("" if version is None else str(version))
     return log_dir, str(_exp_dir), name, version
 
 
@@ -569,15 +587,70 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     """ Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end
     """
 
-    def __init__(self, always_save_nemo=False, save_best_model=False, postfix=".nemo", **kwargs):
+    def __init__(self, always_save_nemo=False, save_best_model=False, postfix=".nemo", n_resume=False, **kwargs):
         # Parse and store "extended" parameters: save_best model and postfix.
         self.always_save_nemo = always_save_nemo
         self.save_best_model = save_best_model
         self.postfix = postfix
         self.previous_best_path = ""
 
+        # `prefix` is deprecated
+        if 'prefix' in kwargs:
+            self.prefix = kwargs.pop('prefix')
+        else:
+            self.prefix = ""
+
         # Call the parent class constructor with the remaining kwargs.
         super().__init__(**kwargs)
+
+        if self.save_top_k != -1 and n_resume:
+            self.nemo_topk_check_previous_run()
+
+    def nemo_topk_check_previous_run(self):
+        try:
+            self.best_k_models
+            self.kth_best_model_path
+            self.best_model_score
+            self.best_model_path
+            self._del_model
+        except AttributeError:
+            raise AttributeError("Lightning's ModelCheckpoint was updated. NeMoModelCheckpoint will need an update.")
+        self.best_k_models = {}
+        self.kth_best_model_path = ""
+        self.best_model_score = None
+        self.best_model_path = ""
+
+        checkpoints = list(Path(self.dirpath).rglob("*.ckpt"))
+        for checkpoint in checkpoints:
+            checkpoint = str(checkpoint)
+            if checkpoint[-10:] == '-last.ckpt':
+                continue
+            index = checkpoint.find(self.monitor) + len(self.monitor) + 1  # Find monitor in str + 1 for '='
+            if index != -1:
+                match = re.search('[A-z]', checkpoint[index:])
+                if match:
+                    value = checkpoint[index : index + match.start() - 1]  # -1 due to separator hypen
+                    self.best_k_models[checkpoint] = float(value)
+        if len(self.best_k_models) < 1:
+            return  # No saved checkpoints yet
+
+        _reverse = False if self.mode == "min" else True
+
+        best_k_models = sorted(self.best_k_models, key=self.best_k_models.get, reverse=_reverse)
+
+        ### This section should be ok as rank zero will delete all excess checkpoints, since all other ranks are
+        ### instantiated after rank zero. models_to_delete should be 0 for all other ranks.
+        models_to_delete = len(best_k_models) - self.save_top_k
+        logging.debug(f'Number of models to delete: {models_to_delete}')
+        for _ in range(models_to_delete):
+            model = best_k_models.pop(-1)
+            self.best_k_models.pop(model)
+            self._del_model(model)
+            logging.debug(f"Removed checkpoint: {model}")
+
+        self.kth_best_model_path = best_k_models[-1]
+        self.best_model_path = best_k_models[0]
+        self.best_model_score = self.best_k_models[self.best_model_path]
 
     @rank_zero_only
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
@@ -587,6 +660,11 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             return output
 
         # Load the best model and then re-save it
+        app_state = AppState()
+        # since we are creating tarfile artifacts we need to update .nemo path
+        app_state.model_restore_path = os.path.abspath(
+            os.path.expanduser(os.path.join(self.dirpath, self.prefix + self.postfix))
+        )
         if self.save_best_model:
             if not os.path.exists(self.best_model_path):
                 return output
@@ -601,25 +679,96 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 checkpoint = checkpoint['state_dict']
             # get a new instanace of the model
             pl_module.load_state_dict(checkpoint, strict=True)
-            pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
+            pl_module.save_to(save_path=app_state.model_restore_path)
             pl_module.load_state_dict(old_state_dict, strict=True)
         else:
-            pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
-
+            pl_module.save_to(save_path=app_state.model_restore_path)
         return output
 
     @rank_zero_only
     def on_train_end(self, trainer, pl_module):
         if trainer.fast_dev_run:
             return None
+        app_state = AppState()
+        if app_state.model_parallel_size is not None:
+            return None
+
+        # TODO: make this work for model parallel, need to call on data parallel rank 0 and update best_model_path
         # Load the best model and then re-save it
         if self.save_best_model:
             trainer.checkpoint_connector.restore(self.best_model_path, on_gpu=trainer.on_gpu)
         pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
 
+    def _del_model(self, filepath: str) -> None:
+        """ Overrides PTL method to account for model parallel checkpoints.
+            Updates checkpoint path based on model parallel rank.
+        """
+        app_state = AppState()
+        if app_state.model_parallel_size is not None:
+            # filepath needs to be updated to include mp_rank
+            dirname = os.path.dirname(filepath)
+            basename = os.path.basename(filepath)
+            filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
+
+            # each model parallel rank needs to remove its model
+            if app_state.data_parallel_rank == 0:
+                if self._fs.exists(filepath):
+                    self._fs.rm(filepath)
+                    logging.info(f"Removed model parallel checkpoint: {filepath}")
+
+        else:
+            return super()._del_model(filepath)
+
+    def _save_last_checkpoint(self, trainer: 'pl.Trainer', monitor_candidates: Dict[str, _METRIC]) -> None:
+        """ Overrides PTL method to account for model parallel checkpoints.
+            Checks for data parallel rank 0 rather than global rank 0.
+        """
+        app_state = AppState()
+        if app_state.model_parallel_size is not None:
+            if not self.save_last:
+                return
+
+            filepath = self._format_checkpoint_name(self.CHECKPOINT_NAME_LAST, monitor_candidates)
+            filepath = os.path.join(self.dirpath, f"{filepath}{self.FILE_EXTENSION}")
+
+            self._save_model(trainer, filepath)
+
+            # for model parallel we need to delete models for each model parallel rank
+            if self.last_model_path and self.last_model_path != filepath and app_state.data_parallel_rank == 0:
+                self._del_model(self.last_model_path)
+
+            self.last_model_path = filepath
+
+        else:
+            return super()._save_last_checkpoint(trainer, monitor_candidates)
+
+    def _save_none_monitor_checkpoint(self, trainer: 'pl.Trainer', monitor_candidates: Dict[str, _METRIC]) -> None:
+        """ Overrides PTL method to account for model parallel checkpoints.
+            Checks for data parallel rank 0 rather than global rank 0.
+        """
+        app_state = AppState()
+        if app_state.model_parallel_size is not None:
+            if self.monitor is not None or self.save_top_k == 0:
+                return
+
+            filepath = self._get_metric_interpolated_filepath_name(monitor_candidates, trainer)
+            self._save_model(trainer, filepath)
+
+            if (
+                self.save_top_k is None
+                and self.best_model_path
+                and self.best_model_path != filepath
+                and app_state.data_parallel_rank == 0
+            ):
+                self._del_model(self.best_model_path)
+
+            self.best_model_path = filepath
+        else:
+            return super()._save_none_monitor_checkpoint(trainer, monitor_candidates)
+
 
 def configure_checkpointing(
-    trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, params: 'DictConfig',
+    trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str, resume: bool, params: 'DictConfig'
 ):
     """ Adds ModelCheckpoint to trainer. Raises CheckpointMisconfigurationError if trainer already has a ModelCheckpoint
     callback or if trainer.weights_save_path was passed to Trainer.
@@ -649,28 +798,48 @@ def configure_checkpointing(
     if params.dirpath is None:
         params.dirpath = Path(log_dir / 'checkpoints')
     if params.filename is None:
-        params.filename = f'--{{{params.monitor}:.2f}}-{{epoch}}'
+        params.filename = f'{name}--{{{params.monitor}:.2f}}-{{epoch}}'
     if params.prefix is None:
         params.prefix = name
+    NeMoModelCheckpoint.CHECKPOINT_NAME_LAST = params.filename + '-last'
 
     logging.debug(params.dirpath)
     logging.debug(params.filename)
     logging.debug(params.prefix)
 
-    if "val" in params.monitor and trainer.max_epochs != -1 and trainer.max_epochs < trainer.check_val_every_n_epoch:
-        logging.error(
-            "The checkpoint callback was told to monitor a validation value but trainer.max_epochs("
-            f"{trainer.max_epochs}) was less than trainer.check_val_every_n_epoch({trainer.check_val_every_n_epoch})."
-            f"It is very likely this run will fail with ModelCheckpoint(monitor='{params.monitor}') not found in the "
-            "returned metrics. Please ensure that validation is run within trainer.max_epochs."
-        )
+    if "val" in params.monitor:
+        if (
+            trainer.max_epochs is not None
+            and trainer.max_epochs != -1
+            and trainer.max_epochs < trainer.check_val_every_n_epoch
+        ):
+            logging.error(
+                "The checkpoint callback was told to monitor a validation value but trainer.max_epochs("
+                f"{trainer.max_epochs}) was less than trainer.check_val_every_n_epoch({trainer.check_val_every_n_epoch}"
+                f"). It is very likely this run will fail with ModelCheckpoint(monitor='{params.monitor}') not found "
+                "in the returned metrics. Please ensure that validation is run within trainer.max_epochs."
+            )
+        elif trainer.max_steps is not None:
+            logging.warning(
+                "The checkpoint callback was told to monitor a validation value and trainer's max_steps was set to "
+                f"{trainer.max_steps}. Please ensure that max_steps will run for at least "
+                f"{trainer.check_val_every_n_epoch} epochs to ensure that checkpointing will not error out."
+            )
 
-    checkpoint_callback = NeMoModelCheckpoint(**params)
+    if params.period is not None:
+        logging.warning(
+            "The use of `period` in the checkpoint callback is deprecrated, please use `every_n_val_epochs` instead. "
+            "Overwriting `every_n_val_epochs` with `period`."
+        )
+        params.every_n_val_epochs = params.period
+
+    checkpoint_callback = NeMoModelCheckpoint(n_resume=resume, **params)
+    checkpoint_callback.last_model_path = trainer.resume_from_checkpoint or ""
     trainer.callbacks.append(checkpoint_callback)
 
 
 def check_slurm(trainer):
     try:
-        return trainer.is_slurm_managing_tasks
+        return trainer.accelerator_connector.is_slurm_managing_tasks
     except AttributeError:
         return False

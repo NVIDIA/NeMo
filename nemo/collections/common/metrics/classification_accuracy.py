@@ -15,7 +15,7 @@
 from typing import List
 
 import torch
-from pytorch_lightning.metrics import Metric
+from torchmetrics import Metric
 
 __all__ = ['TopKClassificationAccuracy']
 
@@ -86,7 +86,7 @@ class TopKClassificationAccuracy(Metric):
             total_counts_k = []
 
             for k in self.top_k:
-                correct_k = correct[:k].reshape(-1).float().sum().to(torch.int64)
+                correct_k = correct[:k].reshape(-1).long().sum()
                 total_k = labels.shape[0]
 
                 correct_counts_k.append(correct_k)

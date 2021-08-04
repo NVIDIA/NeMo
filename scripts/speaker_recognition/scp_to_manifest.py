@@ -61,7 +61,7 @@ def main(scp, id, out, split=False):
             speaker = list(speaker)
             speaker = ''.join(speaker)
             speakers.append(speaker)
-            meta = {"audio_filepath": line, "duration": float(dur), "label": speaker}
+            meta = {"audio_filepath": line, "offset": 0, "duration": float(dur), "label": speaker}
             lines.append(meta)
             json.dump(meta, outfile)
             outfile.write("\n")

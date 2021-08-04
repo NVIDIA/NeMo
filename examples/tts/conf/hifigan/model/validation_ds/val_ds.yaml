@@ -9,5 +9,5 @@ dataset:
 dataloader_params:
   drop_last: false
   shuffle: false
-  batch_size: 3
-  num_workers: 4
+  batch_size: 16
+  num_workers: 1

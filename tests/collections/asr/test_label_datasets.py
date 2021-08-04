@@ -11,19 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import os
 
 import pytest
 import torch
 
 from nemo.collections.asr.data.audio_to_label import TarredAudioToClassificationLabelDataset
-from nemo.collections.asr.parts.features import WaveformFeaturizer
-from nemo.collections.common import tokenizers
+from nemo.collections.asr.data.feature_to_label import FeatureToSeqSpeakerLabelDataset
+from nemo.collections.asr.parts.preprocessing.feature_loader import ExternalFeatureLoader
+from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 
 
 class TestASRDatasets:
     labels = ["fash", "fbbh", "fclc"]
+    unique_labels_in_seq = ['0', '1', '2', '3', "zero", "one", "two", "three"]
 
     @pytest.mark.unit
     def test_tarred_dataset(self, test_data_dir):
@@ -80,3 +81,26 @@ class TestASRDatasets:
         for _ in ds_list_load:
             count += 1
         assert count == 6
+
+    @pytest.mark.unit
+    def test_feat_seqlabel_dataset(self, test_data_dir):
+        manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/feat/emb.json'))
+        feature_loader = ExternalFeatureLoader(file_path=manifest_path, sample_rate=16000, augmentor=None)
+        ds_braceexpand = FeatureToSeqSpeakerLabelDataset(
+            manifest_filepath=manifest_path, labels=self.unique_labels_in_seq, feature_loader=feature_loader
+        )
+        # fmt: off
+        correct_label = torch.tensor(
+            [0.0, 1.0, 2.0, 2.0, 1.0, 2.0, 1.0, 2.0, 2.0, 1.0, 2.0, 2.0, 3.0, 1.0, 2.0, 2.0, 2.0, 0.0, 2.0, 1.0, 1.0, 2.0, 2.0, 1.0, 1.0, 2.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 2.0, 0.0, 2.0, 2.0, 2.0, 1.0, 2.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 2.0, 1.0, 2.0, 1.0,]
+        )
+        # fmt: on
+        correct_label_length = torch.tensor(50)
+
+        assert ds_braceexpand[0][0].shape == (50, 32)
+        assert torch.equal(ds_braceexpand[0][2], correct_label)
+        assert torch.equal(ds_braceexpand[0][3], correct_label_length)
+
+        count = 0
+        for _ in ds_braceexpand:
+            count += 1
+        assert count == 2

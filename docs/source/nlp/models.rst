@@ -1,4 +1,4 @@
-..nlp_models:
+.. _nlp_models:
 
 Models
 ======
@@ -12,12 +12,13 @@ NeMo's NLP collection supports the following models:
    token_classification
    joint_intent_slot
    text_classification
+   bert_pretraining
    language_modeling
    question_answering
    sgd_qa
    glue_benchmark
    information_retrieval
-   nmt
+   entity_linking
    nlp_model
-   
-
+   machine_translation
+   text_normalization
