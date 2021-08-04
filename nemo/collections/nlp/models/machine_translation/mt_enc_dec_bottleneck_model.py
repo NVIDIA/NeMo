@@ -38,6 +38,17 @@ from nemo.utils import logging, model_utils
 
 __all__ = ['MTBottleneckModel']
 
+def build_linear_or_identity(input_dim, output_dim):
+    """
+    Auxiliary method to return FC layer when input_dim != output_dim
+    else return identity
+    """
+    if input_dim != output_dim:
+        model = torch.nn.Linear(input_dim, output_dim)
+    else:
+        model = torch.nn.Identity()
+
+    return model
 
 class MTBottleneckModel(MTEncDecModel):
     """
@@ -50,7 +61,7 @@ class MTBottleneckModel(MTEncDecModel):
     def __init__(self, cfg: MTBottleneckModelConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.model_type: str = cfg.get("model_type", "recon")
+        self.model_type: str = cfg.get("model_type", "recon_only")
         self.min_logv: float = cfg.get("min_logv", -6)
         self.latent_size: int = cfg.get("latent_size", -1)
         self.non_recon_warmup_batches: int = cfg.get("non_recon_warmup_batches", 200000)
@@ -64,33 +75,24 @@ class MTBottleneckModel(MTEncDecModel):
         self.att_bridge_k: int = cfg.get("att_bridge_k", 16)
         self.att_bridge_inner_size: int = cfg.get("att_bridge_inner_size", 1024)
 
-        # TODO: add support in label smoothing for per-sample reconstruction loss
+        # TODO: add label smoothing support for per-sample reconstruction loss
         if not self.recon_per_token:
             loss_fn = NLLLoss(ignore_index=self.decoder_tokenizer.pad_id, reduction='none',)
             self.loss_fn = self.eval_loss_fn = loss_fn
 
-        if self.model_type not in ["recon", "mim", "vae"]:
+        if self.model_type not in ["recon_only", "mim", "vae"]:
             raise ValueError("Unknown model_type = {model_type}".format(model_type=self.model_type,))
 
         # project bridge dimension back to decoder hidden dimensions
-        if self.latent_size != self.encoder.hidden_size:
-            self.latent2hidden = torch.nn.Linear(self.latent_size, self.encoder.hidden_size)
-        else:
-            self.latent2hidden = torch.nn.Identity()
+        self.latent2hidden = build_linear_or_identity(self.latent_size, self.encoder.hidden_size)
 
         # project dimension of encoder hidden to latent dimension
-        if self.encoder.hidden_size != self.latent_size:
-            self.hidden2latent_mean = torch.nn.Linear(self.encoder.hidden_size, self.latent_size)
-        else:
-            self.hidden2latent_mean = torch.nn.Identity()
+        self.hidden2latent_mean = build_linear_or_identity(self.encoder.hidden_size, self.latent_size)
 
         # MIM or VAE
-        if self.model_type != "recon":
+        if self.model_type != "recon_only":
             # for probabilistic latent variable models we also need variance
-            if self.encoder.hidden_size != self.latent_size:
-                self.hidden2latent_logv = torch.nn.Linear(self.encoder.hidden_size, self.latent_size)
-            else:
-                self.hidden2latent_logv = torch.nn.Identity()
+            self.hidden2latent_logv = build_linear_or_identity(self.encoder.hidden_size, self.latent_size)
 
     def eval_epoch_end(self, outputs, mode):
         # call parent for logging
@@ -126,16 +128,16 @@ class MTBottleneckModel(MTEncDecModel):
 
         return result
 
-    def sample_z(self, hidden, hidden_mask):
+    def encode_latent(self, hidden, hidden_mask):
         """
         Sample latent code z with reparameterization from bridge for
         probabilistic latent variable models (e.g., mim, vae),
-        or return value for non-probabilistic models (recon)
+        or return value for non-probabilistic models (recon_only)
         """
         # all models have mean
         z_mean = self.hidden2latent_mean(bridge_hidden)
 
-        if self.model_type == "recon":
+        if self.model_type == "recon_only":
             # reconstruction only
             z = z_mean
             z_logv = torch.zeros_like(z)
@@ -167,7 +169,7 @@ class MTBottleneckModel(MTEncDecModel):
         )
 
         # build posterior distribution q(x|z)
-        z, z_mean, z_logv = self.sample_z(
+        z, z_mean, z_logv = self.encode_latent(
             hidden=enc_hiddens,
             hidden_mask=enc_mask,
         )
@@ -239,9 +241,8 @@ class MTBottleneckModel(MTEncDecModel):
 
             # build prior distribution
             p_z = torch.distributions.Normal(loc=torch.zeros_like(z), scale=torch.ones_like(z),)
-            # average latent distribution to match averaging of observations
             if self.recon_per_token:
-                # TODO: replace mean with division by number of tokens
+                # average latent distribution similar to averaging of observations
                 log_p_z = p_z.log_prob(z).mean(-1).mean(-1).mean()
             else:
                 log_p_z = p_z.log_prob(z).sum(-1).sum(-1).mean()
@@ -259,7 +260,7 @@ class MTBottleneckModel(MTEncDecModel):
             info_dict["log_p_z"] = log_p_z.detach().cpu()
             info_dict["kl_div_q_p"] = (log_q_z_given_x - log_p_z).detach().cpu()
 
-        elif self.model_type == "recon":
+        elif self.model_type == "recon_only":
             loss = -log_p_x_given_z
 
         if return_info:
@@ -291,23 +292,13 @@ class MTBottleneckModel(MTEncDecModel):
             )
 
             # build posterior distribution q(x|z)
-            z, _, _ = self.sample_z(
+            z, _, _ = self.encode_latent(
                 hidden=enc_hiddens,
                 hidden_mask=enc_mask,
             )
 
             # decoding cross attention context
             context_hiddens = self.latent2hidden(z)
-
-            # src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
-
-            # z, _, _, bridge_mask = self.sample_z(
-            #     hidden=src_hiddens,
-            #     hidden_mask=src_mask,
-            #     # we return return_ortho_loss only during training
-            #     return_ortho_loss=False,
-            # )
-            # bridge_hiddens_dec = self.latent2hidden(z)
 
             beam_results = self.beam_search(encoder_hidden_states=context_hiddens, encoder_input_mask=enc_mask)
 

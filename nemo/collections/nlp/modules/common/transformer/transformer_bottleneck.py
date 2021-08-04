@@ -188,6 +188,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
         Returns:
             A tuple of input examples.
         """
+        # FIXME: REMOVE ME
         super().input_example() + (True,)
 
 

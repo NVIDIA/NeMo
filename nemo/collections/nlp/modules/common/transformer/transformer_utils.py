@@ -68,8 +68,8 @@ def get_nemo_transformer(
 
     if encoder:
         # if arch exists in cfg we return TransformerBottleneckEncoderNM
-        has_arch = 'arch' in cfg
-        if not has_arch:
+        arch = chg.get('arch', '')
+        if not arch:
             model = TransformerEncoderNM(
                 vocab_size=cfg.get('vocab_size'),
                 hidden_size=cfg.get('hidden_size'),
@@ -88,7 +88,7 @@ def get_nemo_transformer(
                 pre_ln_final_layer_norm=pre_ln_final_layer_norm,
                 num_token_types=cfg.get('num_token_types', 2),
             )
-        else:
+        elif (arch in ["seq2seq", "bridge", "perceiver"]):
             model = TransformerBottleneckEncoderNM(
                 vocab_size=cfg.get('vocab_size'),
                 hidden_size=cfg.get('hidden_size'),
@@ -112,6 +112,8 @@ def get_nemo_transformer(
                 hidden_init_method=cfg.get('hidden_init_method', 'params'),
                 return_mask=cfg.get('return_mask', True),
             )
+        else:
+            raise ValueError(f"Unknown arch = {arch}")
     else:
         model = TransformerDecoderNM(
             vocab_size=cfg.get('vocab_size'),

@@ -140,7 +140,7 @@ class AAYNBaseConfig(MTEncDecModelConfig):
 
 @dataclass
 class MTBottleneckModelConfig(AAYNBaseConfig):
-    model_type: str = 'recon'
+    model_type: str = 'recon_only'
     min_logv: float = -6
     latent_size: int = -1 # -1 will take value of encoder hidden
     non_recon_warmup_batches: int = 200000

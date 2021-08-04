@@ -1,6 +1,6 @@
 # The bottleneck architecture supports three learning framework (i.e., losses)
 # via model.model_type:
-#   1) recon - reconstruction only loss (e.g., auto-encoder)
+#   1) recon_only - reconstruction only loss (e.g., auto-encoder)
 #   2) mim - MIM learning framework. A latent variable model with good
 #                   reconstruction and compressed latent representation.
 #                   https://arxiv.org/pdf/2003.02645.pdf
@@ -10,10 +10,10 @@
 #                   https://arxiv.org/pdf/1312.6114.pdf
 # The bottleneck architecture supports three encoder architectures via
 # model.encoder.arch:
-#   1) null/full -  the usual NMT model with out any bottleneck
+#   1) seq2seq -  the usual NMT model without bottleneck
 #   2) bridge - a bottleneck which projects the encoder output to a fixed
 #               number of steps using attention bridge (https://arxiv.org/pdf/1703.03130.pdf)
-#   3) perceiver - a bottleneck which projects the encoder output to a fixed
+#   3) perceiver - a bottleneck by projecting inputs to a fixed
 #               number of steps using perceiver architecture (https://arxiv.org/pdf/2103.03206.pdf)
 name: AttentionIsAllYouNeedBottleneck
 do_training: True # set to False if only preprocessing data
@@ -29,7 +29,7 @@ model:
   preproc_out_dir: null # path to store data preprocessing outputs
   src_language: 'en'
   tgt_language: 'de'
-  model_type: 'recon' # learning (i.e., loss) type: recon (i.e., reconstruction/auto-encoder), mim, vae (see description above)
+  model_type: 'recon_only' # learning (i.e., loss) type: recon (i.e., reconstruction/auto-encoder), mim, vae (see description above)
   min_logv: -6 # minimal allowed log variance for mim
   latent_size: -1 # dimension of latent (projected from hidden) -1 will take value of hidden size
   non_recon_warmup_batches: 200000 # warm-up steps for mim, and vae losses
@@ -134,7 +134,7 @@ model:
     mask_future: false
     pre_ln: false
     pre_ln_final_layer_norm: true
-    arch: full # ''/full, bridge, perceiver (see description above)
+    arch: seq2seq # seq2seq, bridge, perceiver (see description above)
     hidden_steps: 16
     hidden_blocks: 1
     hidden_init_method: params # perceiver: params, bridge
