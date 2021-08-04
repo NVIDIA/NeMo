@@ -71,16 +71,18 @@ class ClassifyFst(GraphFst):
         input_case: accepting either "lower_cased" or "cased" input.
         deterministic: if True will provide a single transduction option,
             for False multiple options (used for audio-based normalization)
+        use_cache: set to True to use saved .far grammar file
     """
 
     def __init__(self, input_case: str, deterministic: bool = True, use_cache: bool = False):
         super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
 
-        far_file = get_abs_path("_tokenize_and_classify_non_deteministic.far")
+        far_file = get_abs_path("_en_tokenize_and_classify_non_deterministic.far")
         if use_cache and os.path.exists(far_file):
             self.fst = pynini.Far(far_file, mode='r')['tokenize_and_classify']
-            logging.info(f'ClassifyFst.fst was restored from {os.path.abspath(far_file)}')
+            logging.info(f'ClassifyFst.fst was restored from {far_file}.')
         else:
+            logging.info(f'Re-creating ClassifyFst grammars and saving to {far_file}.')
             # TAGGERS
             cardinal = CardinalFst(deterministic=deterministic)
             cardinal_graph = cardinal.fst

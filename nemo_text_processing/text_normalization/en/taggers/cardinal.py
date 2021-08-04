@@ -72,7 +72,13 @@ class CardinalFst(GraphFst):
                 + single_digits_graph,
                 1,
             )
-            self.graph = self.single_digits_graph | self.graph | get_hundreds_graph() | single_digits_graph_with_commas
+            self.graph = (
+                self.graph
+                | self.single_digits_graph
+                | get_hundreds_graph()
+                | pynutil.add_weight(single_digits_graph_with_commas, 0.001)
+            )
+
             self.range_graph = (
                 pynini.closure(pynutil.insert("from "), 0, 1)
                 + self.graph

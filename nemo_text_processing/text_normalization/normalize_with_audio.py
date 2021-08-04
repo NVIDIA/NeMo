@@ -74,7 +74,7 @@ class NormalizerWithAudio(Normalizer):
         use_cache: whether to use saved .far grammar files
     """
 
-    def __init__(self, input_case: str, lang: str = 'en', use_cache: bool = False):
+    def __init__(self, input_case: str, lang: str = 'en', use_cache: bool = True):
         if lang == 'en':
             from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_with_audio import ClassifyFst
             from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final_with_audio import (
@@ -251,7 +251,7 @@ def parse_args():
     parser.add_argument(
         "--n_tagged",
         type=int,
-        default=1000,
+        default=10000,
         help="number of tagged options to consider, -1 - return all possible tagged options",
     )
     parser.add_argument("--verbose", help="print info for debugging", action="store_true")
@@ -262,7 +262,7 @@ def parse_args():
     parser.add_argument(
         "--no_punct_post_process", help="set to True to disable punctuation post processing", action="store_true"
     )
-    parser.add_argument("--use_cache", help="set to True to use saved .far grammar files", action="store_true")
+    parser.add_argument("--no_cache", help="set to True to re-create .far grammar files", action="store_true")
     return parser.parse_args()
 
 
@@ -280,7 +280,6 @@ def _normalize_line(normalizer: NormalizerWithAudio, line: str, asr_model: ASRMo
         n_tagged=args.n_tagged,
         punct_pre_process=not args.no_punct_pre_process,
         punct_post_process=not args.no_punct_post_process,
-        use_cache=args.use_cache,
     )
     normalized_text, cer = normalizer.select_best_match(normalized_texts, transcript, args.verbose, args.remove_punct)
     line['nemo_normalized'] = normalized_text
@@ -293,7 +292,7 @@ def normalize_manifest(args):
     Args:
         args.audio_data: path to .json manifest file.
     """
-    normalizer = NormalizerWithAudio(input_case=args.input_case, lang=args.language, use_cache=args.use_cache)
+    normalizer = NormalizerWithAudio(input_case=args.input_case, lang=args.language, use_cache=not args.no_cache)
     manifest_out = args.audio_data.replace('.json', '_normalized.json')
     asr_model = None
     with open(args.audio_data, 'r') as f:
@@ -316,7 +315,7 @@ if __name__ == "__main__":
 
     start = time.time()
     if args.text:
-        normalizer = NormalizerWithAudio(input_case=args.input_case, lang=args.language, use_cache=args.use_cache)
+        normalizer = NormalizerWithAudio(input_case=args.input_case, lang=args.language, use_cache=not args.no_cache)
         if os.path.exists(args.text):
             with open(args.text, 'r') as f:
                 args.text = f.read().strip()
