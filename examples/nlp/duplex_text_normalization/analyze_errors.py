@@ -29,6 +29,7 @@ from argparse import ArgumentParser
 
 from nemo.collections.nlp.data.text_normalization import constants
 
+
 # Longest Common Subsequence
 def lcs(X, Y):
     m, n = len(X), len(Y)

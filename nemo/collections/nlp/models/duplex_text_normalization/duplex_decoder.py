@@ -217,6 +217,8 @@ class DuplexDecoderModel(NLPModel):
             neural_confidence_threshold = self.neural_confidence_threshold
             for ix, (_dir, _input, _prob) in enumerate(zip(input_dirs, input_centers, sequence_probs)):
                 if _dir == constants.INST_FORWARD and _prob < neural_confidence_threshold:
+                    if is_url(_input):
+                        _input = _input.replace(' ', '')  # Remove spaces in URLs
                     cg_outputs = self.cg_normalizer.normalize(text=_input, verbose=False, n_tagged=1)
                     generated_texts[ix] = list(cg_outputs)[0]
 
