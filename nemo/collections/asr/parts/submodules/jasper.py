@@ -174,12 +174,6 @@ def _se_pool_step_script(x, context_window: int):
 
 
 @torch.jit.script
-def _se_context_upsample(y: torch.Tensor, timesteps: int, interpolation_mode: str):
-    y = torch.nn.functional.interpolate(y, size=timesteps, mode=interpolation_mode)
-    return y
-
-
-@torch.jit.script
 def _masked_conv_init_lens(lens: torch.Tensor, current_maxlen: int, original_maxlen: torch.Tensor):
     if current_maxlen > original_maxlen:
         new_lens = torch.arange(current_maxlen)
@@ -402,7 +396,7 @@ class SqueezeExcite(nn.Module):
             y = self.fc(y)  # [B, T - context_window + 1, C]
             y = y.transpose(1, -1)  # [B, C, T - context_window + 1]
         if self.context_window >= 0:
-            y = _se_context_upsample(y, x.shape[-1], self.interpolation_mode)
+            y = F.interpolate(y, size=x.shape[-1], mode=self.interpolation_mode)
 
         y = torch.sigmoid(y)
         return x * y
