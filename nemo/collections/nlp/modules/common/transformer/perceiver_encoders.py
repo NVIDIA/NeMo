@@ -42,9 +42,9 @@ class PerceiverEncoder(TransformerEncoder):
         hidden_act: str = "relu",
         pre_ln: bool = False,
         pre_ln_final_layer_norm: bool = True,
-        hidden_steps: int = 1,
+        hidden_steps: int = 32,
         hidden_init_method: str = "params",
-        hidden_blocks=2,
+        hidden_blocks: int = 2,
     ):
         super().__init__(
             num_layers=num_layers,
