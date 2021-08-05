@@ -163,17 +163,16 @@ class DuplexTaggerModel(NLPModel):
         all_tag_preds = []
         batch_size, max_len = encodings['input_ids'].size()
         for ix in range(batch_size):
-            raw_tag_preds = [constants.ALL_TAG_LABELS[p] for p in pred_indexes[ix][2:]] # remove first special token and task prefix token
+            raw_tag_preds = [
+                constants.ALL_TAG_LABELS[p] for p in pred_indexes[ix][2:]
+            ]  # remove first special token and task prefix token
             tag_preds, previous_word_idx = [], None
-            word_ids = encodings.word_ids(batch_index=ix)
+            word_ids = encodings.word_ids(batch_index=ix)[2:]
             for jx, word_idx in enumerate(word_ids):
-                if jx < 2:
-                    continue
-                jx -= 2
                 if word_idx is None:
                     continue
                 if word_idx != previous_word_idx:
-                    tag_preds.append(raw_tag_preds[jx]) # without special token at index 0
+                    tag_preds.append(raw_tag_preds[jx])  # without special token at index 0
                 previous_word_idx = word_idx
             all_tag_preds.append(tag_preds)
 

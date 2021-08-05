@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+from collections import defaultdict
+from typing import DefaultDict, List
 
 from nemo.collections.nlp.data.text_normalization import constants
 from nemo.collections.nlp.data.text_normalization.utils import (
@@ -42,11 +43,30 @@ class TextNormalizationTestDataset:
         insts = read_data_file(input_file)
 
         # Build inputs and targets
-        self.directions, self.inputs, self.targets = [], [], []
-        for (_, w_words, s_words) in insts:
+        self.directions, self.inputs, self.targets, self.classes, self.nb_spans, self.span_starts, self.span_ends = (
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+        )
+        for (classes, w_words, s_words) in insts:
             # Extract words that are not punctuations
-            processed_w_words, processed_s_words = [], []
-            for w_word, s_word in zip(w_words, s_words):
+            (
+                processed_w_words,
+                processed_s_words,
+                processed_classes,
+                processed_nb_spans,
+                processed_w_span_starts,
+                processed_w_span_ends,
+                processed_s_span_starts,
+                processed_s_span_ends,
+            ) = ([], [], [], 0, [], [], [], [])
+            w_word_idx = 0
+            s_word_idx = 0
+            for cls, w_word, s_word in zip(classes, w_words, s_words):
                 if s_word == constants.SIL_WORD:
                     continue
                 if s_word == constants.SELF_WORD:
@@ -54,6 +74,14 @@ class TextNormalizationTestDataset:
                 if not s_word in constants.SPECIAL_WORDS:
                     processed_s_words.append(s_word)
                 processed_w_words.append(w_word)
+                processed_classes.append(cls)
+                processed_w_span_starts.append(w_word_idx)
+                processed_s_span_starts.append(s_word_idx)
+                processed_nb_spans += 1
+                w_word_idx += len(basic_tokenize(w_word, lang=self.lang))
+                s_word_idx += len(basic_tokenize(s_word, lang=self.lang))
+                processed_w_span_ends.append(w_word_idx)
+                processed_s_span_ends.append(s_word_idx)
             # Create examples
             for direction in constants.INST_DIRECTIONS:
                 if direction == constants.INST_BACKWARD:
@@ -61,19 +89,34 @@ class TextNormalizationTestDataset:
                         continue
                     input_words = processed_s_words
                     output_words = processed_w_words
+                    self.span_starts.append(processed_s_span_starts)
+                    self.span_ends.append(processed_s_span_ends)
                 if direction == constants.INST_FORWARD:
                     if mode == constants.ITN_MODE:
                         continue
-                    input_words = w_words
+                    input_words = processed_w_words
                     output_words = processed_s_words
+                    self.span_starts.append(processed_w_span_starts)
+                    self.span_ends.append(processed_w_span_ends)
                 # Basic tokenization
                 input_words = basic_tokenize(' '.join(input_words), lang)
-                output_words = basic_tokenize(' '.join(output_words), lang)
                 # Update self.directions, self.inputs, self.targets
+                self.nb_spans.append(processed_nb_spans)
                 self.directions.append(direction)
+                self.classes.append(processed_classes)
                 self.inputs.append(' '.join(input_words))
-                self.targets.append(' '.join(output_words))
-        self.examples = list(zip(self.directions, self.inputs, self.targets))
+                self.targets.append(output_words)
+        self.examples = list(
+            zip(
+                self.directions,
+                self.inputs,
+                self.targets,
+                self.classes,
+                self.nb_spans,
+                self.span_starts,
+                self.span_ends,
+            )
+        )
 
     def __getitem__(self, idx):
         return self.examples[idx]
@@ -123,3 +166,72 @@ class TextNormalizationTestDataset:
         sent_accuracy = correct_count / len(targets)
 
         return sent_accuracy
+
+    @staticmethod
+    def compute_class_accuracy(
+        inputs: List[str],
+        targets: List[str],
+        tag_preds: List[List[str]],
+        inst_directions: List[str],
+        output_spans: List[List[str]],
+        classes: List[List[str]],
+        nb_spans: List[int],
+        span_starts: List[List[int]],
+        span_ends: List[List[int]],
+        lang: str,
+    ):
+        """
+        Compute the class based accuracy metric. This uses model's predicted tags.
+
+        Args:
+            preds: List of predicted strings.
+            targets: List of target strings grouped by class boundary
+            inst_directions: A list of str where each str indicates the direction of the corresponding instance (i.e., INST_BACKWARD or INST_FORWARD).
+            lang: Language
+        Return: the sentence accuracy score
+        """
+
+        if len(targets) == 0:
+            return 'NA'
+
+        class2stats, class2correct = defaultdict(int), defaultdict(int)
+        for ix, (sent, tags) in enumerate(zip(inputs, tag_preds)):
+            cur_words = [[] for _ in range(nb_spans[ix])]
+            jx, span_idx = 0, 0
+            cur_spans = output_spans[ix]
+            class_idx = 0
+            if classes[ix]:
+                class2stats[classes[ix][class_idx]] += 1
+            while jx < len(sent):
+                tag, word = tags[jx], sent[jx]
+                while jx >= span_ends[ix][class_idx]:
+                    class_idx += 1
+                    class2stats[classes[ix][class_idx]] += 1
+                if constants.SAME_TAG in tag:
+                    cur_words[class_idx].append(word)
+                    jx += 1
+                elif constants.PUNCT_TAG in tag:
+                    cur_words[class_idx].append(word)
+                    jx += 1
+                else:
+                    jx += 1
+                    tmp = cur_spans[span_idx]
+                    cur_words[class_idx].append(tmp)
+                    span_idx += 1
+                    while jx < len(sent) and tags[jx] == constants.I_PREFIX + constants.TRANSFORM_TAG:
+                        while jx >= span_ends[ix][class_idx]:
+                            class_idx += 1
+                            class2stats[classes[ix][class_idx]] += 1
+                            cur_words[class_idx].append(tmp)
+                        jx += 1
+
+            for class_idx in range(nb_spans[ix]):
+                correct = TextNormalizationTestDataset.is_same(
+                    " ".join(cur_words[class_idx]), targets[ix][class_idx], inst_directions[ix], lang
+                )
+                class2correct[classes[ix][class_idx]] += correct
+
+        for key in class2stats:
+            class2stats[key] = class2correct[key] / class2stats[key]
+
+        return class2stats
