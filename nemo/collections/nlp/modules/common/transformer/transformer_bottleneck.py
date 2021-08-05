@@ -18,6 +18,7 @@ from typing import Optional
 import torch
 from omegaconf.omegaconf import MISSING
 
+from nemo.core.neural_types import NeuralType, BoolType, MaskType
 from nemo.collections.nlp.modules.common.transformer.transformer import (
     TransformerEncoderNM,
     TransformerDecoderNM,
@@ -153,6 +154,23 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
         return encoder
 
     @property
+    def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        input_types = super().input_types()
+        input_types.update({
+                "return_mask": NeuralType((), BoolType(), True),
+            })
+
+        return input_types
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        output_types = super().output_types()
+        output_types.update({
+                "hidden_mask": NeuralType(('B', 'T'), MaskType(), True),
+            })
+        return output_types
+
+    @property
     def supported_arch(self):
         return ["seq2seq", "bridge", "perceiver"]
 
@@ -180,15 +198,6 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
             return encoder_hidden_states, encoder_mask
         else:
             return encoder_hidden_states
-
-    # def input_example(self):
-    #     """
-    #     Generates input examples for tracing etc.
-    #     Returns:
-    #         A tuple of input examples.
-    #     """
-    #     # FIXME: REMOVE ME
-    #     super().input_example() + (True,)
 
 
 class TransformerBottleneckDecoderNM(TransformerDecoderNM):
