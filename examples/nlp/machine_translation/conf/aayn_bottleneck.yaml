@@ -137,7 +137,7 @@ model:
     arch: seq2seq # seq2seq, bridge, perceiver (see description above)
     hidden_steps: 16
     hidden_blocks: 1
-    hidden_init_method: params # perceiver: params, bridge
+    hidden_init_method: default # see classes for available values
 
   decoder:
     library: nemo
@@ -157,7 +157,7 @@ model:
     hidden_act: relu
     pre_ln: false
     pre_ln_final_layer_norm: true
-    arch: ''
+    arch: seq2seq
 
   head:
     num_layers: 1

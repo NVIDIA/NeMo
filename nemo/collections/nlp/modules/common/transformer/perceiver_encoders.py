@@ -64,6 +64,15 @@ class PerceiverEncoder(TransformerEncoder):
         self._hidden_init_method = hidden_init_method
         self._hidden_blocks = hidden_blocks
 
+        if self._hidden_init_method == "default":
+            self._hidden_init_method = "params"
+
+        if self.hidden_init_method not in self.supported_init_methods:
+            raise ValueError("Unknown hidden_init_method = {hidden_init_method}, supported methods are {supported_init_methods}".format(
+                hidden_init_method=self.hidden_init_method,
+                supported_init_methods=self.supported_init_methods,
+            ))
+
         # self-attention encoder
         self.cross_att = TransformerDecoder(
             num_layers=1,
@@ -78,21 +87,23 @@ class PerceiverEncoder(TransformerEncoder):
             pre_ln_final_layer_norm=pre_ln_final_layer_norm,
         )
 
-        if self._hidden_init_method == "params":
+        if self.hidden_init_method == "params":
             # learnable initial hidden values
             self.init_hidden = torch.nn.Parameter(
                 torch.nn.init.xavier_normal_(torch.empty(hidden_steps, hidden_size))
             )
-        elif self._hidden_init_method == "bridge":
+        elif self.hidden_init_method == "bridge":
             # initialize latent with attention bridge
             self.att_bridge = AttentionBridge(
                 hidden_size=hidden_size,
                 k=hidden_steps,
                 bridge_size=inner_size,
             )
-        else:
-            raise ValueError("Unknown hidden_init_method = {hidden_init_method}. Supported methods: params, bridge")
 
+
+    @property
+    def supported_init_methods(self):
+        return ["params", "bridge"]
 
     @property
     def hidden_steps(self):
