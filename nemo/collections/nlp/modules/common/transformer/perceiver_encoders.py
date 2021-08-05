@@ -127,6 +127,7 @@ class PerceiverEncoder(TransformerEncoder):
         hidden_mask = torch.ones(encoder_states.shape[0], self._hidden_steps,
                                  dtype=encoder_mask.dtype, device=encoder_mask.device)
 
+        import pudb; pudb.set_trace()
         # initialize hidden state
         if self._hidden_init_method == "params":
             # initialize latent with learned parameters
