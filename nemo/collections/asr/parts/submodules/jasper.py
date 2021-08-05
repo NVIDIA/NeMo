@@ -164,11 +164,9 @@ def get_asymtric_padding(kernel_size, stride, dilation, future_context):
 
 
 @torch.jit.script
-def _se_pool_step_export(x, context_window_tensor):
+def _se_pool_step_script(x, context_window_tensor):
     timesteps = x.shape[-1]
     if timesteps < context_window_tensor:
-        y = F.adaptive_avg_pool1d(x, 1)
-    elif context_window_tensor < 0:
         y = F.adaptive_avg_pool1d(x, 1)
     else:
         y = F.avg_pool1d(x, int(context_window_tensor), 1)  # [B, C, T - context_window + 1]
@@ -176,9 +174,8 @@ def _se_pool_step_export(x, context_window_tensor):
 
 
 @torch.jit.script
-def _se_context_upsample(y: torch.Tensor, timesteps: int, interpolation_mode: str, context_window: torch.Tensor):
-    if context_window > 0:
-        y = torch.nn.functional.interpolate(y, size=timesteps, mode=interpolation_mode)
+def _se_context_upsample(y: torch.Tensor, timesteps: int, interpolation_mode: str):
+    y = torch.nn.functional.interpolate(y, size=timesteps, mode=interpolation_mode)
     return y
 
 
@@ -397,29 +394,24 @@ class SqueezeExcite(nn.Module):
 
     def forward(self, x):
         # The use of negative indices on the transpose allow for expanded SqueezeExcite
-        batch, channels, timesteps = x.size()[:3]
         # Computes in float32 to avoid instabilities during training with AMP.
         with torch.cuda.amp.autocast(enabled=False):
             x = x.float()
-            y = self._se_pool_step(x, timesteps)
+            y = self._se_pool_step(x)
             y = y.transpose(1, -1)  # [B, T - context_window + 1, C]
             y = self.fc(y)  # [B, T - context_window + 1, C]
             y = y.transpose(1, -1)  # [B, C, T - context_window + 1]
-
-        y = _se_context_upsample(y, timesteps, self.interpolation_mode, self.context_window_tensor)
+        if self.context_window_tensor > 0:
+            y = _se_context_upsample(y, x.shape[-1], self.interpolation_mode)
 
         y = torch.sigmoid(y)
         return x * y
 
-    def _se_pool_step(self, x, timesteps):
-        if timesteps < self.context_window_tensor:
-            y = self.gap(x)
+    def _se_pool_step(self, x):
+        if self.context_window_tensor < 0:
+            y = self.pool(x)
         else:
-            y = self.pool(x)  # [B, C, T - context_window + 1]
-        return y
-
-    def _se_pool_step_export(self, x, timesteps):
-        y = _se_pool_step_export(x, self.context_window_tensor)
+            y = _se_pool_step_script(x, self.context_window_tensor)
         return y
 
     def change_context_window(self, context_window: int):
