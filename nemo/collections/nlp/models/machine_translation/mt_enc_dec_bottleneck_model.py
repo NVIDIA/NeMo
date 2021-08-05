@@ -35,7 +35,6 @@ from nemo.collections.nlp.modules.common.transformer import AttentionBridge, Top
 from nemo.core.classes.common import typecheck
 from nemo.utils import logging, model_utils
 
-
 __all__ = ['MTBottleneckModel']
 
 def build_linear_or_identity(input_dim, output_dim):

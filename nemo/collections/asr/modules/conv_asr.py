@@ -20,7 +20,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 from omegaconf import MISSING, ListConfig, OmegaConf
 
-from nemo.collections.asr.parts.submodules.jasper import JasperBlock, MaskedConv1d, init_weights, jasper_activations
+from nemo.collections.asr.parts.submodules.jasper import (
+    JasperBlock,
+    MaskedConv1d,
+    ParallelBlock,
+    SqueezeExcite,
+    init_weights,
+    jasper_activations,
+)
 from nemo.collections.asr.parts.submodules.tdnn_attention import (
     AttentivePoolLayer,
     StatsPoolLayer,
@@ -56,8 +63,14 @@ class ConvASREncoder(NeuralModule, Exportable):
         m_count = 0
         for m in self.modules():
             if isinstance(m, MaskedConv1d):
-                m.use_mask = False
-                m_count += 1
+                if self._rnnt_export:
+                    pass
+                else:
+                    m.use_mask = False
+                    m_count += 1
+            if isinstance(m, SqueezeExcite):
+                m._se_pool_step = m._se_pool_step_export
+
         Exportable._prepare_for_export(self, **kwargs)
         logging.warning(f"Turned off {m_count} masked convolutions")
 
@@ -67,18 +80,29 @@ class ConvASREncoder(NeuralModule, Exportable):
         Returns:
             A tuple of input examples.
         """
-        input_example = torch.randn(16, self._feat_in, 256).to(next(self.parameters()).device)
-        return tuple([input_example])
+        input_example = torch.randn(1, self._feat_in, 8192).to(next(self.parameters()).device)
+        lens = torch.randint(0, input_example.shape[-1], size=(input_example.shape[0],))
+
+        if self._rnnt_export:
+            return tuple([input_example, lens])
+        else:
+            return tuple([input_example])
 
     @property
     def disabled_deployment_input_names(self):
         """Implement this method to return a set of input names disabled for export"""
-        return set(["length"])
+        if self._rnnt_export:
+            return set([])
+        else:
+            return set(["length"])
 
     @property
     def disabled_deployment_output_names(self):
         """Implement this method to return a set of output names disabled for export"""
-        return set(["encoded_lengths"])
+        if self._rnnt_export:
+            return set([])
+        else:
+            return set(["encoded_lengths"])
 
     def save_to(self, save_path: str):
         pass
@@ -185,6 +209,175 @@ class ConvASREncoder(NeuralModule, Exportable):
                     quantize=quantize,
                 )
             )
+            feat_in = lcfg['filters']
+
+        self._feat_out = feat_in
+
+        self.encoder = torch.nn.Sequential(*encoder_layers)
+        self.apply(lambda x: init_weights(x, mode=init_mode))
+
+        # Flag needed for RNNT export support
+        self._rnnt_export = False
+
+    @typecheck()
+    def forward(self, audio_signal, length=None):
+        s_input, length = self.encoder(([audio_signal], length))
+        if length is None:
+            return s_input[-1]
+
+        return s_input[-1], length
+
+
+class ParallelConvASREncoder(NeuralModule, Exportable):
+    """
+    Convolutional encoder for ASR models with parallel blocks. CarneliNet can be implemented with this class.
+    """
+
+    def _prepare_for_export(self):
+        m_count = 0
+        for m in self.modules():
+            if isinstance(m, MaskedConv1d):
+                m.use_mask = False
+                m_count += 1
+        logging.warning(f"Turned off {m_count} masked convolutions")
+
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        input_example = torch.randn(16, self._feat_in, 256).to(next(self.parameters()).device)
+        return tuple([input_example])
+
+    @property
+    def disabled_deployment_input_names(self):
+        """Implement this method to return a set of input names disabled for export"""
+        return set(["length"])
+
+    @property
+    def disabled_deployment_output_names(self):
+        """Implement this method to return a set of output names disabled for export"""
+        return set(["encoded_lengths"])
+
+    def save_to(self, save_path: str):
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        pass
+
+    @property
+    def input_types(self):
+        """Returns definitions of module input ports.
+        """
+        return OrderedDict(
+            {
+                "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+                "length": NeuralType(tuple('B'), LengthsType()),
+            }
+        )
+
+    @property
+    def output_types(self):
+        """Returns definitions of module output ports.
+        """
+        return OrderedDict(
+            {
+                "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
+                "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+            }
+        )
+
+    def __init__(
+        self,
+        jasper,
+        activation: str,
+        feat_in: int,
+        normalization_mode: str = "batch",
+        residual_mode: str = "add",
+        norm_groups: int = -1,
+        conv_mask: bool = True,
+        frame_splicing: int = 1,
+        init_mode: Optional[str] = 'xavier_uniform',
+        aggregation_mode: Optional[str] = None,
+        quantize: bool = False,
+    ):
+        super().__init__()
+        if isinstance(jasper, ListConfig):
+            jasper = OmegaConf.to_container(jasper)
+
+        activation = jasper_activations[activation]()
+        feat_in = feat_in * frame_splicing
+
+        self._feat_in = feat_in
+
+        residual_panes = []
+        encoder_layers = []
+        self.dense_residual = False
+        for lcfg in jasper:
+            dense_res = []
+            if lcfg.get('residual_dense', False):
+                residual_panes.append(feat_in)
+                dense_res = residual_panes
+                self.dense_residual = True
+            groups = lcfg.get('groups', 1)
+            separable = lcfg.get('separable', False)
+            heads = lcfg.get('heads', -1)
+            residual_mode = lcfg.get('residual_mode', residual_mode)
+            se = lcfg.get('se', False)
+            se_reduction_ratio = lcfg.get('se_reduction_ratio', 8)
+            se_context_window = lcfg.get('se_context_size', -1)
+            se_interpolation_mode = lcfg.get('se_interpolation_mode', 'nearest')
+            kernel_size_factor = lcfg.get('kernel_size_factor', 1.0)
+            stride_last = lcfg.get('stride_last', False)
+            aggregation_mode = lcfg.get('aggregation_mode', 'sum')
+            block_dropout = lcfg.get('block_dropout', 0.0)
+            parallel_residual_mode = lcfg.get('parallel_residual_mode', 'sum')
+
+            parallel_blocks = []
+            for kernel_size in lcfg['kernel']:
+                parallel_blocks.append(
+                    JasperBlock(
+                        feat_in,
+                        lcfg['filters'],
+                        repeat=lcfg['repeat'],
+                        kernel_size=[kernel_size],
+                        stride=lcfg['stride'],
+                        dilation=lcfg['dilation'],
+                        dropout=lcfg['dropout'],
+                        residual=lcfg['residual'],
+                        groups=groups,
+                        separable=separable,
+                        heads=heads,
+                        residual_mode=residual_mode,
+                        normalization=normalization_mode,
+                        norm_groups=norm_groups,
+                        activation=activation,
+                        residual_panes=dense_res,
+                        conv_mask=conv_mask,
+                        se=se,
+                        se_reduction_ratio=se_reduction_ratio,
+                        se_context_window=se_context_window,
+                        se_interpolation_mode=se_interpolation_mode,
+                        kernel_size_factor=kernel_size_factor,
+                        stride_last=stride_last,
+                        quantize=quantize,
+                    )
+                )
+            if len(parallel_blocks) == 1:
+                encoder_layers.append(parallel_blocks[0])
+            else:
+                encoder_layers.append(
+                    ParallelBlock(
+                        parallel_blocks,
+                        aggregation_mode=aggregation_mode,
+                        block_dropout_prob=block_dropout,
+                        residual_mode=parallel_residual_mode,
+                        in_filters=feat_in,
+                        out_filters=lcfg['filters'],
+                    )
+                )
             feat_in = lcfg['filters']
 
         self._feat_out = feat_in
@@ -350,13 +543,13 @@ class ECAPAEncoder(NeuralModule, Exportable):
 
     input:
         feat_in: input feature shape (mel spec feature shape)
-        filters: list of filter shapes for SE_TDNN modules 
+        filters: list of filter shapes for SE_TDNN modules
         kernel_sizes: list of kernel shapes for SE_TDNN modules
         dilations: list of dilations for group conv se layer
         scale: scale value to group wider conv channels (deafult:8)
-    
+
     output:
-        outputs : encoded output 
+        outputs : encoded output
         output_length: masked output lengths
     """
 

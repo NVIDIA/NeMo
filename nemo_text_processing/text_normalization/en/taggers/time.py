@@ -42,6 +42,7 @@ class TimeFst(GraphFst):
         2 a.m. -> time { hours: "two" suffix: "a m" }
         02:00 -> time { hours: "two" }
         2:00 -> time { hours: "two" }
+        10:00:05 a.m. -> time { hours: "ten" minutes: "zero" seconds: "five" suffix: "a m" }
     
     Args:
         cardinal: CardinalFst
@@ -76,6 +77,11 @@ class TimeFst(GraphFst):
             + (pynini.cross("0", "o") + insert_space + graph_minute_single | graph_minute_double)
             + pynutil.insert("\"")
         )
+        final_graph_second = (
+            pynutil.insert("seconds: \"")
+            + (pynini.cross("0", "o") + insert_space + graph_minute_single | graph_minute_double)
+            + pynutil.insert("\"")
+        )
         final_suffix = pynutil.insert("suffix: \"") + convert_space(suffix_graph) + pynutil.insert("\"")
         final_suffix_optional = pynini.closure(delete_space + insert_space + final_suffix, 0, 1)
         final_time_zone_optional = pynini.closure(
@@ -97,6 +103,17 @@ class TimeFst(GraphFst):
             + final_time_zone_optional
         )
 
+        # 10:30:05 pm,
+        graph_hms = (
+            final_graph_hour
+            + pynutil.delete(":")
+            + (pynini.cross("00", " minutes: \"zero\"") | insert_space + final_graph_minute)
+            + pynutil.delete(":")
+            + (pynini.cross("00", " seconds: \"zero\"") | insert_space + final_graph_second)
+            + final_suffix_optional
+            + final_time_zone_optional
+        )
+
         # 2.xx pm/am
         graph_hm2 = (
             final_graph_hour
@@ -109,7 +126,7 @@ class TimeFst(GraphFst):
         )
         # 2 pm est
         graph_h = final_graph_hour + delete_space + insert_space + final_suffix + final_time_zone_optional
-        final_graph = (graph_hm | graph_h | graph_hm2).optimize()
+        final_graph = (graph_hm | graph_h | graph_hm2 | graph_hms).optimize()
 
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

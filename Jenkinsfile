@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-      image 'nvcr.io/nvidia/pytorch:21.05-py3'
+      image 'nvcr.io/nvidia/pytorch:21.06-py3'
       args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
   }
@@ -25,7 +25,7 @@ pipeline {
 
     stage('Copyright Headers check') {
       steps {
-        sh 'python /home/TestData/check_copyright_header.py --dir .'
+        sh 'python tests/check_copyright_header.py --dir .'
       }
     }
 
@@ -75,6 +75,18 @@ pipeline {
         sh 'CUDA_VISIBLE_DEVICES="" pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
       }
     }
+
+    stage('L0: ITN Tests CPU') {
+      when {
+        anyOf {
+          changeset glob: "nemo_text_processing/*"
+        }
+      }
+      steps {
+        sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/ -m "not pleasefixme" --cpu'
+      }
+    }
+
 
     stage('L0: Computer Vision Integration') {
       when {
@@ -293,55 +305,71 @@ pipeline {
       }
     }
 
-    stage('L2: ASR DALI dev run') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      parallel {
-        stage('Speech to Text - DALI AudioToMelSpectrogramPreprocessor') {
-          steps {
-            sh 'python examples/asr/speech_to_text.py \
-            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-            +model.train_ds.use_dali=True \
-            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-            +model.validation_ds.use_dali=True \
-            trainer.gpus=[0] \
-            +trainer.fast_dev_run=True \
-            exp_manager.exp_dir=examples/asr/speech_to_text_results'
-            sh 'rm -rf examples/asr/speech_to_text_results'
-          }
-        }
-        // TODO: This would fail due to an unnecessary torchaudio import.
-        //       To be enabled once torchaudio is available in the container used for CI
-        // stage('Speech to Text - DALI AudioToMFCCPreprocessor') {
-        //   steps {
-        //     sh 'python examples/asr/speech_to_text.py \
-        //     model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-        //     +model.train_ds.use_dali=True \
-        //     model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-        //     +model.validation_ds.use_dali=True \
-        //     model.preprocessor._target_=nemo.collections.asr.modules.AudioToMFCCPreprocessor \
-        //     ~model.preprocessor.normalize \
-        //     ~model.preprocessor.features \
-        //     ~model.preprocessor.frame_splicing \
-        //     ~model.preprocessor.dither \
-        //     ~model.preprocessor.stft_conv \
-        //     +model.n_mels=64 \
-        //     +model.n_mfcc=64 \
-        //     trainer.gpus=[0] \
-        //     +trainer.fast_dev_run=True \
-        //     exp_manager.exp_dir=examples/asr/speech_to_text_results'
-        //     sh 'rm -rf examples/asr/speech_to_text_results'
-        //   }
-        // }
-      }
-    }
+    // TODO: Enable test after 21.08 container is used.
+    // stage('L2: ASR DALI dev run') {
+    //   when {
+    //     anyOf {
+    //       branch 'main'
+    //       changeRequest target: 'main'
+    //     }
+    //   }
+    //   failFast true
+    //   parallel {
+    //     stage('Speech to Text - DALI AudioToMelSpectrogramPreprocessor') {
+    //       steps {
+    //         sh 'python examples/asr/speech_to_text.py \
+    //         model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+    //         +model.train_ds.use_dali=True \
+    //         model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+    //         +model.validation_ds.use_dali=True \
+    //         trainer.gpus=[0] \
+    //         +trainer.fast_dev_run=True \
+    //         exp_manager.exp_dir=examples/asr/speech_to_text_results'
+    //         sh 'rm -rf examples/asr/speech_to_text_results'
+    //       }
+    //     }
+    //    stage('Speech to Text BPE - DALI AudioToMelSpectrogramPreprocessor') {
+    //       steps {
+    //         sh 'python examples/asr/speech_to_text_bpe.py \
+    //         --config-path="conf/citrinet/" --config-name="config_bpe" \
+    //         model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
+    //         model.tokenizer.type="wpe" \
+    //         model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+    //         +model.train_ds.use_dali=True \
+    //         model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+    //         +model.validation_ds.use_dali=True \
+    //         trainer.gpus=[0] \
+    //         +trainer.fast_dev_run=True \
+    //         exp_manager.exp_dir=examples/asr/speech_to_text_wpe_results'
+    //         sh 'rm -rf examples/asr/speech_to_text_wpe_results'
+    //       }
+    //     }
+    //     // TODO: This would fail due to an unnecessary torchaudio import.
+    //     //       To be enabled once torchaudio is available in the container used for CI
+    //     // stage('Speech to Text - DALI AudioToMFCCPreprocessor') {
+    //     //   steps {
+    //     //     sh 'python examples/asr/speech_to_text.py \
+    //     //     model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+    //     //     +model.train_ds.use_dali=True \
+    //     //     model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+    //     //     +model.validation_ds.use_dali=True \
+    //     //     model.preprocessor._target_=nemo.collections.asr.modules.AudioToMFCCPreprocessor \
+    //     //     ~model.preprocessor.normalize \
+    //     //     ~model.preprocessor.features \
+    //     //     ~model.preprocessor.frame_splicing \
+    //     //     ~model.preprocessor.dither \
+    //     //     ~model.preprocessor.stft_conv \
+    //     //     +model.n_mels=64 \
+    //     //     +model.n_mfcc=64 \
+    //     //     trainer.gpus=[0] \
+    //     //     +trainer.fast_dev_run=True \
+    //     //     exp_manager.exp_dir=examples/asr/speech_to_text_results'
+    //     //     sh 'rm -rf examples/asr/speech_to_text_results'
+    //     //   }
+    //     // }
+    //   }
+    // }
 
-//  TODO: UNCOMMENT TESTS AFTER 21.04 release (numba 0.53 min requirement)
     stage('L2: ASR RNNT dev run') {
       when {
         anyOf {
@@ -354,7 +382,7 @@ pipeline {
         stage('Speech to Text - RNNT') {
           steps {
             sh 'STRICT_NUMBA_COMPAT_CHECK=false python examples/asr/speech_to_text_rnnt.py \
-            --config-path="experimental/contextnet_rnnt/" --config-name="config_rnnt.yaml" \
+            --config-path="conf/contextnet_rnnt/" --config-name="config_rnnt.yaml" \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             model.train_ds.batch_size=2 \
@@ -368,7 +396,7 @@ pipeline {
         stage('L2: Speech to Text RNNT WPE') {
           steps {
             sh 'STRICT_NUMBA_COMPAT_CHECK=false python examples/asr/speech_to_text_rnnt_bpe.py \
-            --config-path="experimental/contextnet_rnnt/" --config-name="config_rnnt_bpe.yaml" \
+            --config-path="conf/contextnet_rnnt/" --config-name="config_rnnt_bpe.yaml" \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             model.train_ds.batch_size=2 \

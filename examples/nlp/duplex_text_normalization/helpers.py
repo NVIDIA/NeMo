@@ -15,6 +15,7 @@
 import pytorch_lightning as pl
 from omegaconf import DictConfig, OmegaConf
 
+from nemo.collections.nlp.data.text_normalization import constants
 from nemo.collections.nlp.models import DuplexDecoderModel, DuplexTaggerModel
 from nemo.utils import logging
 
@@ -58,6 +59,11 @@ def instantiate_model_and_trainer(cfg: DictConfig, model_name: str, do_training:
             model = DuplexTaggerModel.restore_from(pretrained_cfg)
         if model_name == DECODER_MODEL:
             model = DuplexDecoderModel.restore_from(pretrained_cfg)
+
+    # Set model.lang (if it is still None)
+    if model.lang is None:
+        model.lang = cfg.lang
+    assert model.lang in constants.SUPPORTED_LANGS
 
     # Setup train and validation data
     if do_training:

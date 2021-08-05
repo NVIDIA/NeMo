@@ -85,7 +85,11 @@ class ElectronicFst(GraphFst):
             + pynutil.delete("\"")
         )
 
-        graph = user_name + delete_space + pynutil.insert("at ") + delete_space + domain + delete_space
+        graph = (
+            pynini.closure(user_name + delete_space + pynutil.insert("at ") + delete_space, 0, 1)
+            + domain
+            + delete_space
+        )
 
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

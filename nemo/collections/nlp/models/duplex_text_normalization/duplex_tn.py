@@ -18,12 +18,10 @@ from typing import List
 
 import numpy as np
 import torch.nn as nn
-from nltk import word_tokenize
 from tqdm import tqdm
-from transformers import *
 
-import nemo.collections.nlp.data.text_normalization.constants as constants
-from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset
+from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset, constants
+from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize
 from nemo.collections.nlp.models.duplex_text_normalization.utils import get_formatted_string
 from nemo.utils import logging
 from nemo.utils.decorators.experimental import experimental
@@ -39,11 +37,12 @@ class DuplexTextNormalizationModel(nn.Module):
     to be used for inference only (e.g., for evaluation).
     """
 
-    def __init__(self, tagger, decoder):
+    def __init__(self, tagger, decoder, lang):
         super(DuplexTextNormalizationModel, self).__init__()
 
         self.tagger = tagger
         self.decoder = decoder
+        self.lang = lang
 
     def evaluate(
         self, dataset: TextNormalizationTestDataset, batch_size: int, errors_log_fp: str, verbose: bool = True
@@ -99,7 +98,9 @@ class DuplexTextNormalizationModel(nn.Module):
                     cur_final_preds.append(final_pred)
                     cur_targets.append(target)
             nb_instances = len(cur_final_preds)
-            sent_accuracy = TextNormalizationTestDataset.compute_sent_accuracy(cur_final_preds, cur_targets, cur_dirs)
+            sent_accuracy = TextNormalizationTestDataset.compute_sent_accuracy(
+                cur_final_preds, cur_targets, cur_dirs, self.lang
+            )
             if verbose:
                 logging.info(f'\n============ Direction {direction} ============')
                 logging.info(f'Sentence Accuracy: {sent_accuracy}')
@@ -108,7 +109,7 @@ class DuplexTextNormalizationModel(nn.Module):
             results[direction] = {'sent_accuracy': sent_accuracy, 'nb_instances': nb_instances}
             # Write errors to log file
             for _input, tag_pred, final_pred, target in zip(cur_inputs, cur_tag_preds, cur_final_preds, cur_targets):
-                if not TextNormalizationTestDataset.is_same(final_pred, target, direction):
+                if not TextNormalizationTestDataset.is_same(final_pred, target, direction, self.lang):
                     if direction == constants.INST_BACKWARD:
                         error_f.write('Backward Problem (ITN)\n')
                         itn_error_ctx += 1
@@ -175,14 +176,14 @@ class DuplexTextNormalizationModel(nn.Module):
                     while jx < len(sent) and tags[jx] == constants.I_PREFIX + constants.TRANSFORM_TAG:
                         jx += 1
             cur_output_str = ' '.join(cur_words)
-            cur_output_str = ' '.join(word_tokenize(cur_output_str))
+            cur_output_str = ' '.join(basic_tokenize(cur_output_str, self.lang))
             final_outputs.append(cur_output_str)
         return tag_preds, output_spans, final_outputs
 
     def input_preprocessing(self, sents):
         """ Function for preprocessing the input texts. The function first does
-        some basic tokenization using nltk.word_tokenize() and then it processes
-        Greek letters such as Δ or λ (if any).
+        some basic tokenization. For English, it then also processes Greek letters
+        such as Δ or λ (if any).
 
         Args:
             sents: A list of input texts.
@@ -190,17 +191,19 @@ class DuplexTextNormalizationModel(nn.Module):
         Returns: A list of preprocessed input texts.
         """
         # Basic Preprocessing and Tokenization
-        for ix, sent in enumerate(sents):
-            sents[ix] = sents[ix].replace('+', ' plus ')
-            sents[ix] = sents[ix].replace('=', ' equals ')
-            sents[ix] = sents[ix].replace('@', ' at ')
-            sents[ix] = sents[ix].replace('*', ' times ')
-        sents = [word_tokenize(sent) for sent in sents]
+        if self.lang == constants.ENGLISH:
+            for ix, sent in enumerate(sents):
+                sents[ix] = sents[ix].replace('+', ' plus ')
+                sents[ix] = sents[ix].replace('=', ' equals ')
+                sents[ix] = sents[ix].replace('@', ' at ')
+                sents[ix] = sents[ix].replace('*', ' times ')
+        sents = [basic_tokenize(sent, self.lang) for sent in sents]
 
         # Greek letters processing
-        for ix, sent in enumerate(sents):
-            for jx, tok in enumerate(sent):
-                if tok in constants.GREEK_TO_SPOKEN:
-                    sents[ix][jx] = constants.GREEK_TO_SPOKEN[tok]
+        if self.lang == constants.ENGLISH:
+            for ix, sent in enumerate(sents):
+                for jx, tok in enumerate(sent):
+                    if tok in constants.EN_GREEK_TO_SPOKEN:
+                        sents[ix][jx] = constants.EN_GREEK_TO_SPOKEN[tok]
 
         return sents
