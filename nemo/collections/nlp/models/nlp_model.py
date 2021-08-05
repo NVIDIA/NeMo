@@ -429,13 +429,13 @@ class NLPModel(ModelPT, Exportable):
 
             cls.update_save_restore_connector(save_restore_connector)
             restored_model = cls._save_restore_connector.restore_from(
-                restore_path, override_config_path, map_location, strict, return_config
+                cls, app_state.model_restore_path, override_config_path, map_location, strict, return_config
             )
             restored_model.set_trainer(trainer)
             return restored_model
         else:
             return super().restore_from(
-                restore_path,
+                app_state.model_restore_path,
                 override_config_path,
                 map_location,
                 strict,
