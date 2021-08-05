@@ -80,7 +80,7 @@ class DistillationMixin(ABC):
         from nemo.collections.common.losses import CosineEmbeddingLossWrapper, ScaledKLDivLoss
 
         temperature = self.distill_cfg.get('temperature', 1.0)
-        primary = ScaledKLDivLoss(temperature, log_target=True, reduction='batchmean')
+        primary = ScaledKLDivLoss(temperature, log_target=True, reduction='mean')
         cosine = CosineEmbeddingLossWrapper()
         loss_dict = {'primary': primary, 'cosine': cosine}
         return loss_dict

@@ -24,7 +24,7 @@ do
                 git clone https://github.com/NVIDIA/NeMo.git && cd NeMo && \
                 git checkout main && ./reinstall.sh && \
                 cp -R /data/* /raid/ && \
-                yttm bpe --data /raid/train.clean.en-de.shuffled.common --model /results/tokenizer.BPE.${VOCAB_SIZE}.model --vocab_size $VOCAB_SIZE && \
+                yttm bpe --data /raid/wmt21/train.clean.en-de.shuffled.common --model /results/tokenizer.BPE.${VOCAB_SIZE}.model --vocab_size $VOCAB_SIZE && \
                 python examples/nlp/machine_translation/enc_dec_nmt.py \
                 --config-path=conf \
                 --config-name=aayn_base \

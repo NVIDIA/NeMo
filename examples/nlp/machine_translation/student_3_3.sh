@@ -2,10 +2,12 @@
 PROJECT=nmt-de-en
 STEPS=100000
 WANDBLOGIN=1589819cfa34108320cd27634a3f764a29b211d8
-DISTILLATION_LOSS_WEIGHT=0.5
-STUDENT_TRAIN_LOSS_WEIGHT=$(bc <<< "1.0 - $DISTILLATION_LOSS_WEIGHT")
+DISTILLATION_LOSS_WEIGHT=5.0
+STUDENT_TRAIN_LOSS_WEIGHT=2.0
+COSINE_LOSS_WEIGHT=1.0
+
 TEMPERATURE=2.0
-EXPNAME=STUDENT_3_3_NMT_DE_EN_DL_${DISTILLATION_LOSS_WEIGHT}_SL_${STUDENT_TRAIN_LOSS_WEIGHT}_TEMP_${TEMPERATURE}
+EXPNAME=STUDENT_3_3_NMT_DE_EN_DL_${DISTILLATION_LOSS_WEIGHT}_SL_${STUDENT_TRAIN_LOSS_WEIGHT}_CL_${COSINE_LOSS_WEIGHT}_TEMP_${TEMPERATURE}
 
 # model.encoder_tokenizer.tokenizer_model=/raid/wmt_16/tokenizer.BPE.8192.model \
 # model.decoder_tokenizer.tokenizer_model=/raid/wmt_16/tokenizer.BPE.8192.model \
@@ -22,6 +24,7 @@ trainer.gpus=2 \
 model.beam_size=4 \
 model.max_generation_delta=5 \
 model.label_smoothing=0.1 \
+model.preproc_out_dir=/raid/wmt_16/preproc_new \
 model.encoder.num_layers=3 \
 model.encoder.hidden_size=512 \
 model.encoder.inner_size=2048 \
@@ -48,6 +51,7 @@ model.optim.lr=1e-3 \
 +model.optim.sched.warmup_steps=7500 \
 model.distillation.distillation_loss_weight=${DISTILLATION_LOSS_WEIGHT} \
 model.distillation.student_train_loss_weight=${STUDENT_TRAIN_LOSS_WEIGHT} \
+model.distillation.cosine_loss_weight=${COSINE_LOSS_WEIGHT} \
 model.distillation.temperature=${TEMPERATURE} \
 +exp_manager.create_wandb_logger=True \
 +exp_manager.wandb_logger_kwargs.name=${EXPNAME} \

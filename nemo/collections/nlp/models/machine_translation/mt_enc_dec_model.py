@@ -332,7 +332,7 @@ class MTEncDecModel(EncDecNLPModel, MTEncDecDistillationMixin):
                 batch[i] = batch[i].squeeze(dim=0)
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
         log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
-        train_loss = self.loss_fn(log_probs=log_probs, labels=labels)
+        train_loss = self.loss_fn(log_probs=log_probs, labels=labels)            
 
         # print(f'optimizer {self.param_groups}')
         # print(f'learning rate {self.param_groups[0]["lr"]}')

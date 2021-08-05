@@ -290,7 +290,7 @@ class DistillationModelPT(ModelPT):
             primary_loss_value, additional_losses = self._compute_loss()
 
         # Log the primary distillation training loss
-        self.log('distillation_primary_loss', primary_loss_value)
+        self.log('distillation_primary_loss', primary_loss_value, prog_bar=True)
 
         # Add secondary losses to primary loss with weighted term
         if additional_losses is not None and len(additional_losses) > 0:
@@ -315,7 +315,7 @@ class DistillationModelPT(ModelPT):
                         secondary_loss_val = secondary_loss_weight * secondary_loss_val
                         primary_loss_value += secondary_loss_val
 
-                        self.log(f'{additional_loss_name}_subid_{secondary_loss_log_idx}', secondary_loss_val)
+                        self.log(f'{additional_loss_name}_subid_{secondary_loss_log_idx}', secondary_loss_val, prog_bar=True)
                         secondary_loss_log_idx += 1
 
                 else:
@@ -323,7 +323,7 @@ class DistillationModelPT(ModelPT):
                     secondary_loss_val = secondary_loss_weight * additional_loss_val[0]
                     primary_loss_value += secondary_loss_val
 
-                    self.log(f'{additional_loss_name}', additional_loss_val)
+                    self.log(f'{additional_loss_name}', additional_loss_val, prog_bar=True)
 
         # Clearup resources
         if additional_losses is not None:
@@ -352,7 +352,7 @@ class DistillationModelPT(ModelPT):
             )
 
         # Log the primary distillation training loss
-        self.log('distillation_total_loss', primary_loss_value)
+        self.log('distillation_total_loss', primary_loss_value, prog_bar=True)
 
         return {'loss': primary_loss_value}
 

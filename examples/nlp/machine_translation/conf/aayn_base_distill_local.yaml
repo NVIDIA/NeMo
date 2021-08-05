@@ -161,7 +161,7 @@ model:
       primary:
         _target_: 'nemo.collections.common.losses.distillation_losses.scaled_kld.ScaledKLDivLoss'
         log_target: true
-        reduction: 'batchmean'
+        reduction: 'mean'
         temperature: ${model.distillation.temperature}
 
       cosine:
