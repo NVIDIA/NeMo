@@ -1,0 +1,4 @@
+[submodule "megatron-lm"]
+	path = megatron-lm
+	url = https://gitlab-master.nvidia.com/ADLR/megatron-lm
+    branch = main
