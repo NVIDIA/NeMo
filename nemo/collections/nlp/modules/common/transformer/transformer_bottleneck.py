@@ -82,7 +82,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
         arch: str = '',
         hidden_steps: int = -1,
         hidden_blocks: int = 1,
-        hidden_init_method: str = "XXX",
+        hidden_init_method: str = "default",
         # default whether forward() method returns hidden or (hidden, mask)
         return_mask=True,
     ):

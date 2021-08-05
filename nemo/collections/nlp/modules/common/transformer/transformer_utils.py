@@ -109,7 +109,7 @@ def get_nemo_transformer(
                 arch=cfg.get('arch', 'full'),
                 hidden_steps=cfg.get('hidden_steps', -1),
                 hidden_blocks=cfg.get('hidden_blocks', 1),
-                hidden_init_method=cfg.get('hidden_init_method', 'XXX'),
+                hidden_init_method=cfg.get('hidden_init_method', 'default'),
                 return_mask=cfg.get('return_mask', True),
             )
         else:
