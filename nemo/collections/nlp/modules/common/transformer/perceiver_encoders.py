@@ -131,7 +131,7 @@ class PerceiverEncoder(TransformerEncoder):
         # initialize hidden state
         if self._hidden_init_method == "params":
             # initialize latent with learned parameters
-            hidden_states = self.init_hidden
+            hidden_states = self.init_hidden.unsqueeze(0).expand(encoder_states.shape[0], -1, -1)
         elif self._hidden_init_method == "bridge":
             # initialize latent with attention bridge
             hidden_states = self.att_bridge(
@@ -150,7 +150,7 @@ class PerceiverEncoder(TransformerEncoder):
             )
 
             # self-attention over hidden
-            hidden_states = self(
+            hidden_states = super().forward(
                 encoder_states=hidden_states,
                 encoder_mask=hidden_mask,
             )
