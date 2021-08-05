@@ -19,6 +19,7 @@ import torch
 from omegaconf.omegaconf import MISSING
 
 from nemo.core.neural_types import NeuralType, BoolType, MaskType
+from nemo.core.neural_types.elements import BoolType
 from nemo.collections.nlp.modules.common.transformer.transformer import (
     TransformerEncoderNM,
     TransformerDecoderNM,
