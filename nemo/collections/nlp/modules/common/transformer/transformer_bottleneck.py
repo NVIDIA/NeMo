@@ -181,14 +181,14 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
         else:
             return encoder_hidden_states
 
-    def input_example(self):
-        """
-        Generates input examples for tracing etc.
-        Returns:
-            A tuple of input examples.
-        """
-        # FIXME: REMOVE ME
-        super().input_example() + (True,)
+    # def input_example(self):
+    #     """
+    #     Generates input examples for tracing etc.
+    #     Returns:
+    #         A tuple of input examples.
+    #     """
+    #     # FIXME: REMOVE ME
+    #     super().input_example() + (True,)
 
 
 class TransformerBottleneckDecoderNM(TransformerDecoderNM):
