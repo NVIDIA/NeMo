@@ -14,19 +14,17 @@
 # limitations under the License.
 
 import os
-import pickle
 import shutil
 import tarfile
 import tempfile
 import uuid
-from os import path
 from typing import Optional, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.omegaconf import open_dict
 
-from nemo.utils import app_state, logging, model_utils
+from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import import_class_by_path
 
@@ -51,8 +49,8 @@ class SaveRestoreConnector:
 		"""
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            config_yaml = path.join(tmpdir, self.model_config_yaml)
-            model_weights = path.join(tmpdir, self.model_weights_ckpt)
+            config_yaml = os.path.join(tmpdir, self.model_config_yaml)
+            model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
             model.to_config_file(path2yaml_file=config_yaml)
             if hasattr(model, 'artifacts') and model.artifacts is not None:
                 self._handle_artifacts(model, nemo_file_folder=tmpdir)
@@ -108,7 +106,7 @@ class SaveRestoreConnector:
                 self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
                 os.chdir(tmpdir)
                 if override_config_path is None:
-                    config_yaml = path.join(tmpdir, self.model_config_yaml)
+                    config_yaml = os.path.join(tmpdir, self.model_config_yaml)
                 else:
                     # can be str path or OmegaConf / DictConfig object
                     config_yaml = override_config_path
@@ -131,7 +129,7 @@ class SaveRestoreConnector:
                     if app_state.model_parallel_rank is not None:
                         model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
                     else:
-                        model_weights = path.join(tmpdir, self.model_weights_ckpt)
+                        model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
                 OmegaConf.set_struct(conf, True)
                 os.chdir(cwd)
                 # get the class
@@ -202,7 +200,7 @@ class SaveRestoreConnector:
             try:
                 self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
                 os.chdir(tmpdir)
-                model_weights = path.join(tmpdir, self.model_weights_ckpt)
+                model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
                 state_dict = self._load_state_dict_from_disk(model_weights)
 
                 if not split_by_module:
