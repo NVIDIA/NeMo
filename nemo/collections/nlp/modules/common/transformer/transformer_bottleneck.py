@@ -125,9 +125,6 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
             mask_future=mask_future,
             pre_ln=pre_ln,
             pre_ln_final_layer_norm=pre_ln_final_layer_norm,
-            hidden_steps=hidden_steps,
-            hidden_blocks=hidden_blocks,
-            hidden_init_method=hidden_init_method,
         )
 
     def _build_encoder(self, arch, **kwargs):
