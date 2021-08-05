@@ -164,12 +164,12 @@ def get_asymtric_padding(kernel_size, stride, dilation, future_context):
 
 
 @torch.jit.script
-def _se_pool_step_script(x, context_window_tensor):
+def _se_pool_step_script(x, context_window: int):
     timesteps = x.shape[-1]
-    if timesteps < context_window_tensor:
+    if timesteps < context_window:
         y = F.adaptive_avg_pool1d(x, 1)
     else:
-        y = F.avg_pool1d(x, int(context_window_tensor), 1)  # [B, C, T - context_window + 1]
+        y = F.avg_pool1d(x, context_window, 1)  # [B, C, T - context_window + 1]
     return y
 
 
@@ -401,17 +401,17 @@ class SqueezeExcite(nn.Module):
             y = y.transpose(1, -1)  # [B, T - context_window + 1, C]
             y = self.fc(y)  # [B, T - context_window + 1, C]
             y = y.transpose(1, -1)  # [B, C, T - context_window + 1]
-        if self.context_window_tensor > 0:
+        if self.context_window >= 0:
             y = _se_context_upsample(y, x.shape[-1], self.interpolation_mode)
 
         y = torch.sigmoid(y)
         return x * y
 
     def _se_pool_step(self, x):
-        if self.context_window_tensor < 0:
+        if self.context_window < 0:
             y = self.pool(x)
         else:
-            y = _se_pool_step_script(x, self.context_window_tensor)
+            y = _se_pool_step_script(x, self.context_window)
         return y
 
     def change_context_window(self, context_window: int):
@@ -435,10 +435,9 @@ class SqueezeExcite(nn.Module):
         if hasattr(self, 'context_window'):
             logging.info(f"Changing Squeeze-Excitation context window from {self.context_window} to {context_window}")
 
-        self.context_window = int(context_window)
-        self.context_window_tensor = torch.tensor(context_window, dtype=torch.int32)
+        self.context_window = context_window
 
-        if self.context_window <= 0:
+        if self.context_window < 0:
             if PYTORCH_QUANTIZATION_AVAILABLE and self._quantize:
                 if not isinstance(self.pool, quant_nn.QuantAdaptiveAvgPool1d(1)):
                     self.pool = quant_nn.QuantAdaptiveAvgPool1d(1)  # context window = T
