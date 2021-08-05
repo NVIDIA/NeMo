@@ -124,14 +124,8 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
         """
         Returns a decoder based on architecture arch and kwargs
         """
-        if arch not in self.supported_arch:
-            raise ValueError("Unknown arch = {arch}, supported arch = {supported_arch}".format(
-                arch=arch,
-                supported_arch=self.supported_arch,
-            ))
-
         # default non-bottleneck transformer encoder
-        if (not arch) or (arch == "full"):
+        if (not arch) or (arch == "seq2seq"):
             encoder = self.encoder
         elif (arch == "perceiver"):
             encoder = PerceiverEncoder(
@@ -150,6 +144,11 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
                 hidden_init_method=kwargs["hidden_init_method"],
                 hidden_blocks=kwargs["hidden_blocks"],
             )
+        else:
+            raise ValueError("Unknown arch = {arch}, supported arch = {supported_arch}".format(
+                arch=arch,
+                supported_arch=self.supported_arch,
+            ))
 
         return encoder
 
