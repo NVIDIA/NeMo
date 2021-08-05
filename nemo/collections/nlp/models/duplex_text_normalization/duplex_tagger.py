@@ -22,8 +22,7 @@ from pytorch_lightning import Trainer
 from torch import nn
 from transformers import AutoModelForTokenClassification, AutoTokenizer, DataCollatorForTokenClassification
 
-import nemo.collections.nlp.data.text_normalization.constants as constants
-from nemo.collections.nlp.data.text_normalization import TextNormalizationTaggerDataset
+from nemo.collections.nlp.data.text_normalization import TextNormalizationTaggerDataset, constants
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.duplex_text_normalization.utils import has_numbers
 from nemo.collections.nlp.models.nlp_model import NLPModel
