@@ -125,7 +125,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
         Returns a decoder based on architecture arch and kwargs
         """
         if arch not in self.supported_arch:
-            raise ValueError("Unknown arch = {arch}, supported arch = {supported arch}".format(
+            raise ValueError("Unknown arch = {arch}, supported arch = {supported_arch}".format(
                 arch=arch,
                 supported_arch=self.supported_arch,
             ))
