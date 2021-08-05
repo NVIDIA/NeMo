@@ -94,7 +94,7 @@ class TextNormalizationTestDataset:
                 if direction == constants.INST_FORWARD:
                     if mode == constants.ITN_MODE:
                         continue
-                    input_words = processed_w_words
+                    input_words = w_words
                     output_words = processed_s_words
                     self.span_starts.append(processed_w_span_starts)
                     self.span_ends.append(processed_w_span_ends)
