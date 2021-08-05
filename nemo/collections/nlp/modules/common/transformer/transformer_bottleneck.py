@@ -186,7 +186,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
 
         embeddings = self._embedding(input_ids=input_ids)
 
-        if (not arch) or (arch == "full"):
+        if (not self.arch) or (self.arch == "seq2seq"):
             encoder_hidden_states = self._encoder(encoder_states=embeddings, encoder_mask=encoder_mask)
             encoder_hidden_mask = encoder_mask
         else:
@@ -268,14 +268,14 @@ class TransformerBottleneckDecoderNM(TransformerDecoderNM):
             ))
 
         # usual non-bottleneck transformer decoder
-        if (not arch) or (arch == "full"):
+        if (not arch) or (arch == "seq2seq"):
             decoder = self.decoder
 
         return decoder
 
     @property
     def supported_arch(self):
-        return [None, "", "full"]
+        return ["seq2seq"]
 
     @property
     def arch(self):

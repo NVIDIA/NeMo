@@ -157,7 +157,7 @@ class MTBottleneckModelConfig(AAYNBaseConfig):
         ffn_dropout=0.1,
         attn_score_dropout=0.1,
         attn_layer_dropout=0.1,
-        arch='full',
+        arch='seq2seq',
         hidden_steps=16,
         hidden_blocks=1,
         hidden_init_method='params',
@@ -173,5 +173,5 @@ class MTBottleneckModelConfig(AAYNBaseConfig):
         ffn_dropout=0.1,
         attn_score_dropout=0.1,
         attn_layer_dropout=0.1,
-        arch='full',
+        arch='seq2seq',
     )
