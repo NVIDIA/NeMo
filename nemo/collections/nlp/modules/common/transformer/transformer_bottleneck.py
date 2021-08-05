@@ -218,7 +218,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
             )
 
         if return_mask:
-            return encoder_hidden_states, encoder_mask
+            return encoder_hidden_states, encoder_hidden_mask
         else:
             return encoder_hidden_states
 
