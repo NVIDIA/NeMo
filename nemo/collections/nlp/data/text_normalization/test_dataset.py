@@ -105,7 +105,9 @@ class TextNormalizationTestDataset:
                 self.directions.append(direction)
                 self.classes.append(processed_classes)
                 self.inputs.append(' '.join(input_words))
-                self.targets.append(output_words)
+                self.targets.append(
+                    output_words
+                )  # is list of lists where inner list contains target tokens (not words)
         self.examples = list(
             zip(
                 self.directions,
@@ -169,8 +171,8 @@ class TextNormalizationTestDataset:
 
     @staticmethod
     def compute_class_accuracy(
-        inputs: List[str],
-        targets: List[str],
+        inputs: List[List[str]],
+        targets: List[List[str]],
         tag_preds: List[List[str]],
         inst_directions: List[str],
         output_spans: List[List[str]],
@@ -184,9 +186,15 @@ class TextNormalizationTestDataset:
         Compute the class based accuracy metric. This uses model's predicted tags.
 
         Args:
-            preds: List of predicted strings.
-            targets: List of target strings grouped by class boundary
+            inputs: List of lists where inner list contains words of input text
+            targets: List of lists where inner list contains target strings grouped by class boundary
+            tag_preds: List of lists where inner list contains predicted tags for each of the input words
             inst_directions: A list of str where each str indicates the direction of the corresponding instance (i.e., INST_BACKWARD or INST_FORWARD).
+            output_spans: A list of lists where each inner list contains the decoded spans for the corresponding input sentence
+            classes: A list of lists where inner list contains the class for each semiotic token in input sentence
+            nb_spans: A list that contains the number of tokens in the input
+            span_starts: A list of lists where inner list contains the start word index of the current token
+            span_ends: A list of lists where inner list contains the end word index of the current token
             lang: Language
         Return: the sentence accuracy score
         """

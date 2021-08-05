@@ -220,7 +220,7 @@ class DuplexTextNormalizationModel(nn.Module):
             inst_directions: A list of str where each str indicates the direction of the corresponding instance (i.e., INST_BACKWARD for ITN or INST_FORWARD for TN).
 
         Returns:
-            tag_preds: A list of lists where each list contains the tag predictions from the tagger for an input text.
+            tag_preds: A list of lists where the inner list contains the tag predictions from the tagger for each word in the input text.
             output_spans: A list of lists where each list contains the decoded semiotic spans from the decoder for an input text.
             final_outputs: A list of str where each str is the final output text for an input text.
         """
