@@ -149,6 +149,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
                 pre_ln_final_layer_norm=kwargs["pre_ln_final_layer_norm"],
                 hidden_steps=kwargs["hidden_steps"],
                 hidden_blocks=kwargs["hidden_blocks"],
+                hidden_init_method=kwargs["hidden_init_method"],
             )
         elif (arch == "perceiver"):
             encoder = PerceiverEncoder(
@@ -164,8 +165,8 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
                 pre_ln=kwargs["pre_ln"],
                 pre_ln_final_layer_norm=kwargs["pre_ln_final_layer_norm"],
                 hidden_steps=kwargs["hidden_steps"],
-                hidden_init_method=kwargs["hidden_init_method"],
                 hidden_blocks=kwargs["hidden_blocks"],
+                hidden_init_method=kwargs["hidden_init_method"],
             )
         else:
             raise ValueError("Unknown arch = {arch}, supported arch = {supported_arch}".format(
