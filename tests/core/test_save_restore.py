@@ -492,31 +492,3 @@ class TestSaveRestore:
             )
             assert type(restored_model) == MockModelV2
             assert type(restored_model._save_restore_connector) == MySaveRestoreConnector
-
-    @pytest.mark.unit
-    def test_restore_from_save_restore_connector(self):
-        class MySaveRestoreConnector(save_restore_connector.SaveRestoreConnector):
-            def save_to(self, model, save_path: str):
-                save_path = save_path.replace(".nemo", "_XYZ.nemo")
-                super(MySaveRestoreConnector, self).save_to(model, save_path)
-
-        class MockModelV2(MockModel):
-            pass
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Update config
-            cfg = _mock_model_config()
-
-            # Create model
-            save_path = os.path.join(tmpdir, 'save_custom.nemo')
-            model_with_custom_connector = MockModel(cfg=cfg.model, trainer=None)
-            model_with_custom_connector._save_restore_connector = MySaveRestoreConnector()
-            model_with_custom_connector.save_to(save_path)
-
-            assert os.path.exists(os.path.join(tmpdir, 'save_custom_XYZ.nemo'))
-
-            restored_model = MockModelV2.restore_from(
-                save_path.replace(".nemo", "_XYZ.nemo"), save_restore_connector=MySaveRestoreConnector()
-            )
-            assert type(restored_model) == MockModelV2
-            assert type(restored_model._save_restore_connector) == MySaveRestoreConnector
