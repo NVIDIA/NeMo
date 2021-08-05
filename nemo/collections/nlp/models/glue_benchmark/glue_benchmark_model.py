@@ -21,6 +21,7 @@ import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
+from torch import tensor
 
 from nemo.collections.common.losses import CrossEntropyLoss, MSELoss
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import GLUE_TASKS_NUM_LABELS, GLUEDataset
@@ -225,10 +226,9 @@ class GLUEModel(NLPModel):
                     f.write('preds\t' + list2str(preds) + '\n')
 
         tensorboard_logs['val_loss'] = avg_loss
+        logging.info(f'tensorboard_logs: {tensorboard_logs}')
         for key in tensorboard_logs:
             self.log(f'{key}', tensorboard_logs[key], prog_bar=True)
-
-        return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
         if train_data_config is None:
