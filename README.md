@@ -74,14 +74,3 @@ sbatch run_gpt3_126m.sh
 ```
 
 
-## Evaluation of GPT-3 on LAMBADA
-Main directory: eval_scripts
-
-#### Evaluate 126M Parameter Model:
-To evaluate the 126M model on LAMBADA do:
-```
-cd bignlp_scripts/eval_scripts
-bash eval_gpt3_126m.sh
-```
-
-
