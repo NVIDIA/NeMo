@@ -135,7 +135,7 @@ class MTBottleneckModel(MTEncDecModel):
         or return value for non-probabilistic models (recon_only)
         """
         # all models have mean
-        z_mean = self.hidden2latent_mean(bridge_hidden)
+        z_mean = self.hidden2latent_mean(hidden)
 
         if self.model_type == "recon_only":
             # reconstruction only
@@ -145,7 +145,7 @@ class MTBottleneckModel(MTEncDecModel):
             # mim or vae
 
             # sample posterior q(z|x) for MIM and VAE
-            z_logv = self.hidden2latent_logv(bridge_hidden)
+            z_logv = self.hidden2latent_logv(hidden)
             # avoid numerical instability for MIM
             z_logv = z_logv.clamp_min(self.min_logv)
             # sample z with reparameterization
