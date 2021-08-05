@@ -63,6 +63,7 @@ class SaveRestoreConnector:
 
     def restore_from(
         self,
+        calling_cls,
         restore_path: str,
         override_config_path: Optional[Union[OmegaConf, str]] = None,
         map_location: Optional[torch.device] = None,
@@ -135,9 +136,8 @@ class SaveRestoreConnector:
                 OmegaConf.set_struct(conf, True)
                 os.chdir(cwd)
                 # get the class
-                class_ = import_class_by_path(conf.target)
-                class_._set_model_restore_state(is_being_restored=True, folder=tmpdir)
-                instance = class_.from_config_dict(config=conf)
+                calling_cls._set_model_restore_state(is_being_restored=True, folder=tmpdir)
+                instance = calling_cls.from_config_dict(config=conf)
                 instance = instance.to(map_location)
                 # add load_state_dict override
                 instance.load_state_dict(

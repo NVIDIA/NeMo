@@ -268,7 +268,7 @@ class ModelPT(LightningModule, Model):
 
         cls.update_save_restore_connector(save_restore_connector)
         instance = cls._save_restore_connector.restore_from(
-            restore_path, override_config_path, map_location, strict, return_config
+            cls, restore_path, override_config_path, map_location, strict, return_config
         )
         instance._save_restore_connector = save_restore_connector
         return instance
