@@ -68,7 +68,7 @@ def get_nemo_transformer(
 
     if encoder:
         # if arch exists in cfg we return TransformerBottleneckEncoderNM
-        arch = chg.get('arch', '')
+        arch = cfg.get('arch', '')
         if not arch:
             model = TransformerEncoderNM(
                 vocab_size=cfg.get('vocab_size'),
