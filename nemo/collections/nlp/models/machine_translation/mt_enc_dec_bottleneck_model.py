@@ -177,6 +177,7 @@ class MTBottleneckModel(MTEncDecModel):
         # decoding cross attention context
         context_hiddens = self.latent2hidden(z)
 
+        import pudb; pudb.set_trace()
         tgt_hiddens = self.decoder(
             input_ids=tgt,
             decoder_mask=tgt_mask,
