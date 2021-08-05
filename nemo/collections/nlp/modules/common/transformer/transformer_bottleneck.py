@@ -135,7 +135,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
         if (not arch) or (arch == "seq2seq"):
             encoder = self.encoder
         elif (arch == "bridge"):
-            encoder = PerceiverEncoder(
+            encoder = BridgeEncoder(
                 num_layers=kwargs["num_layers"],
                 hidden_size=kwargs["hidden_size"],
                 inner_size=kwargs["inner_size"],
@@ -148,7 +148,6 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
                 pre_ln=kwargs["pre_ln"],
                 pre_ln_final_layer_norm=kwargs["pre_ln_final_layer_norm"],
                 hidden_steps=kwargs["hidden_steps"],
-                hidden_init_method=kwargs["hidden_init_method"],
                 hidden_blocks=kwargs["hidden_blocks"],
             )
         elif (arch == "perceiver"):
