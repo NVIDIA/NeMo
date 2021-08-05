@@ -26,7 +26,6 @@ from typing import Dict, List, Optional, Union
 
 import hydra
 import wrapt
-from numpy import save
 from omegaconf import DictConfig, OmegaConf
 
 import nemo

@@ -30,7 +30,6 @@ from torch.nn.parallel import DistributedDataParallel
 
 from nemo.collections.nlp.modules.common.megatron.megatron_bert import MegatronBertEncoder
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder import MegatronEncoderModule
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import AppState, logging
 
 

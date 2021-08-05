@@ -26,7 +26,6 @@ from omegaconf.omegaconf import open_dict
 
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
-from nemo.utils.model_utils import import_class_by_path
 
 
 class SaveRestoreConnector:
@@ -90,8 +89,6 @@ class SaveRestoreConnector:
 		Returns:
 		An instance of type cls or its underlying config (if return_config is set).
 		"""
-        app_state = AppState()
-
         # Get path where the command is executed - the artifacts will be "retrieved" there
         # (original .nemo behavior)
         cwd = os.getcwd()
@@ -366,7 +363,7 @@ class SaveRestoreConnector:
 
     def _inject_model_parallel_rank_for_ckpt(self, dirname, basename):
         app_state = AppState()
-        model_weights = path.join(dirname, f'mp_rank_{app_state.model_parallel_rank:02}', basename)
+        model_weights = os.path.join(dirname, f'mp_rank_{app_state.model_parallel_rank:02}', basename)
         return model_weights
 
     @staticmethod
@@ -376,7 +373,7 @@ class SaveRestoreConnector:
 
     @staticmethod
     def _unpack_nemo_file(path2file: str, out_folder: str) -> str:
-        if not path.exists(path2file):
+        if not os.path.exists(path2file):
             raise FileNotFoundError(f"{path2file} does not exist")
         tar = tarfile.open(path2file, "r:gz")
         tar.extractall(path=out_folder)
