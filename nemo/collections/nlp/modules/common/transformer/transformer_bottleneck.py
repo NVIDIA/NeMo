@@ -155,7 +155,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
 
     @property
     def supported_arch(self):
-        return [None, "", "full", "bridge", "perceiver"]
+        return ["seq2seq", "bridge", "perceiver"]
 
     @property
     def arch(self):
