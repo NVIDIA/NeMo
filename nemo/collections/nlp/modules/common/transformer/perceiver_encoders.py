@@ -43,7 +43,7 @@ class PerceiverEncoder(TransformerEncoder):
         pre_ln: bool = False,
         pre_ln_final_layer_norm: bool = True,
         hidden_steps: int = 32,
-        hidden_init_method: str = "params",
+        hidden_init_method: str = "XXX",
         hidden_blocks: int = 2,
     ):
         super().__init__(
