@@ -213,7 +213,7 @@ class DuplexTextNormalizationModel(nn.Module):
         return results
 
     # Functions for inference
-    def _infer(self, sents: List[List[str]], inst_directions: List[str]):
+    def _infer(self, sents: List[str], inst_directions: List[str]):
         """ Main function for Inference
         Args:
             sents: A list of input texts.
