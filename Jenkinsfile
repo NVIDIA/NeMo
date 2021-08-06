@@ -79,10 +79,10 @@ pipeline {
     stage('L0: ITN Tests CPU') {
       when {
         anyOf {
-          changeset "nemo_text_processing/**/*.py"
-          changeset "nemo_text_processing/**/*.md"
-          changeset "nemo_text_processing/**/*.sh"
-          changeset "nemo_text_processing/**/*.tsv"
+          changeset "**/${projectDirectory}/nemo_text_processing/**/*.py"
+          changeset "**/${projectDirectory}/nemo_text_processing/**/*.md"
+          changeset "**/${projectDirectory}/nemo_text_processing/**/*.sh"
+          changeset "**/${projectDirectory}/nemo_text_processing/**/*.tsv"
         }
       }
       steps {
