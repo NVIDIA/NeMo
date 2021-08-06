@@ -241,7 +241,6 @@ class DuplexTextNormalizationModel(nn.Module):
                     cur_words.append(word)
                     jx += 1
                 elif constants.PUNCT_TAG in tag:
-                    cur_words.append(word)
                     jx += 1
                 else:
                     jx += 1
