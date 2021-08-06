@@ -257,6 +257,7 @@ class DuplexDecoderModel(NLPModel):
             cfg.lang,
             cfg.do_basic_tokenize,
             cfg.get('use_cache', False),
+            cfg.get('max_insts', -1),
         )
         data_collator = DataCollatorForSeq2Seq(
             tokenizer, model=model, label_pad_token_id=constants.LABEL_PAD_TOKEN_ID,
