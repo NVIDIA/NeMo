@@ -44,7 +44,8 @@ class TextNormalizationTaggerDataset(Dataset):
         do_basic_tokenize: a flag indicates whether to do some basic tokenization before using the tokenizer of the model
         tagger_data_augmentation (bool): a flag indicates whether to augment the dataset with additional data instances
         lang: language of the dataset
-        use_cache: Enables caching to use pickle format to store and read data from
+        use_cache: Enables caching to use pickle format to store and read data from,
+        max_insts: Maximum number of instances (-1 means no limit)
     """
 
     def __init__(
@@ -57,16 +58,18 @@ class TextNormalizationTaggerDataset(Dataset):
         tagger_data_augmentation: bool,
         lang: str,
         use_cache: bool = False,
+        max_insts: int = -1,
     ):
         assert mode in constants.MODES
         assert lang in constants.SUPPORTED_LANGS
         self.mode = mode
         self.lang = lang
         self.use_cache = use_cache
+        self.max_insts = max_insts
 
         # Get cache path
         data_dir, filename = os.path.split(input_file)
-        cached_data_file = os.path.join(data_dir, f'cached_tagger_{filename}_{tokenizer_name}_{lang}.pkl')
+        cached_data_file = os.path.join(data_dir, f'cached_tagger_{filename}_{tokenizer_name}_{lang}_{max_insts}.pkl')
 
         if use_cache and os.path.exists(cached_data_file):
             logging.warning(
@@ -79,6 +82,8 @@ class TextNormalizationTaggerDataset(Dataset):
         else:
             # Read the input raw data file
             raw_insts = read_data_file(input_file)
+            if max_insts >= 0:
+                raw_insts = raw_insts[:max_insts]
 
             # Convert raw instances to TaggerDataInstance
             insts = []
