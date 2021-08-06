@@ -12,14 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
-from dataclasses import dataclass
-
 import torch
-import torch.nn as nn
-from omegaconf.omegaconf import MISSING
 
-from nemo.collections.common.parts import form_attention_mask
 from nemo.collections.nlp.modules.common.transformer.transformer_modules import AttentionBridge
 from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoder
 from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder

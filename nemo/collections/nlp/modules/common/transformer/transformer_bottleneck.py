@@ -15,24 +15,16 @@
 from dataclasses import dataclass
 from typing import Dict, Optional
 
-import torch
-from omegaconf.omegaconf import MISSING
-
 from nemo.core.neural_types import NeuralType, MaskType
 from nemo.core.neural_types.elements import BoolType
 from nemo.collections.nlp.modules.common.transformer.transformer import (
     TransformerEncoderNM,
     TransformerDecoderNM,
 )
-from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
-from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
-from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoder
-from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
 from nemo.collections.nlp.modules.common.transformer.perceiver_encoders import PerceiverEncoder
 from nemo.collections.nlp.modules.common.transformer.bridge_encoders import BridgeEncoder
 from nemo.collections.nlp.modules.common.transformer.transformer import NeMoTransformerConfig
 from nemo.core.classes.common import typecheck
-from nemo.core.classes.exportable import Exportable
 
 __all__ = ["NeMoTransformerBottleneckConfig", "NeMoTransformerBottleneckEncoderConfig",
            "NeMoTransformerBottleneckDecoderConfig", "TransformerBottleneckEncoderNM",
