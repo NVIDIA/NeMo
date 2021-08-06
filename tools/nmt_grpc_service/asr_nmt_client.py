@@ -13,18 +13,19 @@
 # limitations under the License.
 
 import argparse
+import os
 import sys
 import wave
-import os
-sys.path.append(os.path.join(os.getcwd(), 'api'))
 
 import api.nmt_pb2 as nmt
 import api.nmt_pb2_grpc as nmtsrv
 import grpc
+import pyaudio
 import riva_api.audio_pb2 as riva
 import riva_api.riva_asr_pb2 as rivaasr
 import riva_api.riva_asr_pb2_grpc as rivaasr_srv
-import pyaudio
+
+sys.path.append(os.path.join(os.getcwd(), 'api'))
 
 
 def get_args():

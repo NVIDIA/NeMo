@@ -13,14 +13,15 @@
 # limitations under the License.
 
 import argparse
-from time import time
-import sys
 import os
-sys.path.append(os.path.join(os.getcwd(), 'api'))
+import sys
+from time import time
 
 import api.nmt_pb2 as nmt
 import api.nmt_pb2_grpc as nmtsrv
 import grpc
+
+sys.path.append(os.path.join(os.getcwd(), 'api'))
 
 
 def get_args():
@@ -42,7 +43,9 @@ if __name__ == '__main__':
         iterations = 1
         start_time = time()
         for _ in range(iterations):
-            req = nmt.TranslateTextRequest(texts=[args.text], source_language=args.source_language, target_language=args.target_language)
+            req = nmt.TranslateTextRequest(
+                texts=[args.text], source_language=args.source_language, target_language=args.target_language
+            )
             result = stub.TranslateText(req)
         end_time = time()
         print(f"Time to complete {iterations} synchronous requests: {end_time-start_time}")

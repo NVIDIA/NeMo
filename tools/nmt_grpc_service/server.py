@@ -15,7 +15,6 @@
 import argparse
 import os
 import sys
-sys.path.append(os.path.join(os.getcwd(), 'api'))
 from concurrent import futures
 
 import api.nmt_pb2 as nmt
@@ -26,13 +25,26 @@ import torch
 import nemo.collections.nlp as nemo_nlp
 from nemo.utils import logging
 
+sys.path.append(os.path.join(os.getcwd(), 'api'))
+
+
 torch.set_grad_enabled(False)
 
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", required=True, action='append', help="List of .nemo files specified by using --model xyz.nemo multiple times.")
-    parser.add_argument("--punctuation_model", default="", type=str, help="Optionally provide a path a .nemo file for punctation and capitalization (recommend if working with Riva speech recognition outputs)")
+    parser.add_argument(
+        "--model",
+        required=True,
+        action='append',
+        help="List of .nemo files specified by using --model xyz.nemo multiple times.",
+    )
+    parser.add_argument(
+        "--punctuation_model",
+        default="",
+        type=str,
+        help="Optionally provide a path a .nemo file for punctation and capitalization (recommend if working with Riva speech recognition outputs)",
+    )
     parser.add_argument("--port", default=50052, type=int, required=False)
     parser.add_argument("--batch_size", type=int, default=256, help="Maximum number of batches to process")
     parser.add_argument("--beam_size", type=int, default=1, help="Beam Size")
@@ -89,9 +101,7 @@ class RivaTranslateServicer(nmtsrv.RivaTranslateServicer):
     def _load_model(self, model_path):
         if model_path.endswith(".nemo"):
             logging.info("Attempting to initialize from .nemo file")
-            model = nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(
-                restore_path=model_path
-            )
+            model = nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(restore_path=model_path)
             model.beam_search.beam_size = self._beam_size
             model.beam_search.len_pen = self._len_pen
             model.beam_search.max_delta_length = self._max_delta_length
@@ -106,14 +116,13 @@ class RivaTranslateServicer(nmtsrv.RivaTranslateServicer):
 
         if src_language not in self._models:
             self._models[src_language] = {}
-        
+
         if tgt_language not in self._models[src_language]:
             self._models[src_language][tgt_language] = model
             if torch.cuda.is_available():
-                self._models[src_language][tgt_language] = self._models[src_language][tgt_language].cuda()    
+                self._models[src_language][tgt_language] = self._models[src_language][tgt_language].cuda()
         else:
             raise ValueError(f"Already found model for language pair {src_language}-{tgt_language}")
-
 
     def TranslateText(self, request, context):
         logging.info(f"Request received w/ {len(request.texts)} utterances")
@@ -121,12 +130,16 @@ class RivaTranslateServicer(nmtsrv.RivaTranslateServicer):
 
         if request.source_language not in self._models:
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-            context.set_details(f"Could not find source-target language pair {request.source_language}-{request.target_language} in list of models.")
+            context.set_details(
+                f"Could not find source-target language pair {request.source_language}-{request.target_language} in list of models."
+            )
             return nmt.TranslateTextResponse()
 
         if request.target_language not in self._models[request.source_language]:
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-            context.set_details(f"Could not find source-target language pair {request.source_language}-{request.target_language} in list of models.")
+            context.set_details(
+                f"Could not find source-target language pair {request.source_language}-{request.target_language} in list of models."
+            )
             return nmt.TranslateTextResponse()
 
         request_strings = [x for x in request.texts]
