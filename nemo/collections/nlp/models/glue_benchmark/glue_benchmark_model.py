@@ -230,7 +230,7 @@ class GLUEModel(NLPModel):
         for key in tensorboard_logs:
             self.log(f'{key}', tensorboard_logs[key], prog_bar=True)
 
-        return {'val_loss': avg_loss, 'log': tensorboard_logs}
+        return {'val_loss': avg_loss}
 
     def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
         if train_data_config is None:
