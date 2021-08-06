@@ -227,7 +227,7 @@ class DuplexDecoderModel(NLPModel):
                     try:
                         cg_outputs = self.cg_normalizer.normalize(text=_input, verbose=False, n_tagged=self.n_tagged)
                         generated_texts[ix] = list(cg_outputs)[0]
-                    except: # if there is any exception, fall back to the input
+                    except:  # if there is any exception, fall back to the input
                         generated_texts[ix] = _input
 
         # Post processing
