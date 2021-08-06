@@ -8,14 +8,14 @@
 
 syntax = "proto3";
 
-package nvidia.jarvis.nmt;
+package nvidia.riva.nmt;
 
 option cc_enable_arenas = true;
-option go_package = "nvidia.com/jarvis_speech";
+option go_package = "nvidia.com/riva_speech";
 
-// Jarvis NLP Services implement task-specific APIs for popular NLP tasks including
+// Riva NLP Services implement task-specific APIs for popular NLP tasks including
 // intent recognition (as well as slot filling), and entity extraction.
-service JarvisTranslate {
+service RivaTranslate {
   rpc TranslateText(TranslateTextRequest) returns (TranslateTextResponse) {}
 
 }

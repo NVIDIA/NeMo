@@ -14,7 +14,8 @@
 
 import argparse
 import os
-import re
+import sys
+sys.path.append(os.path.join(os.getcwd(), 'api'))
 from concurrent import futures
 
 import api.nmt_pb2 as nmt
@@ -30,13 +31,13 @@ torch.set_grad_enabled(False)
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", required=True, action='append', help="")
-    parser.add_argument("--punctuation_model", required=True, type=str, help="")
+    parser.add_argument("--model", required=True, action='append', help="List of .nemo files specified by using --model xyz.nemo multiple times.")
+    parser.add_argument("--punctuation_model", default="", type=str, help="Optionally provide a path a .nemo file for punctation and capitalization (recommend if working with Riva speech recognition outputs)")
     parser.add_argument("--port", default=50052, type=int, required=False)
-    parser.add_argument("--batch_size", type=int, default=256, help="")
-    parser.add_argument("--beam_size", type=int, default=1, help="")
-    parser.add_argument("--len_pen", type=float, default=0.6, help="")
-    parser.add_argument("--max_delta_length", type=int, default=5, help="")
+    parser.add_argument("--batch_size", type=int, default=256, help="Maximum number of batches to process")
+    parser.add_argument("--beam_size", type=int, default=1, help="Beam Size")
+    parser.add_argument("--len_pen", type=float, default=0.6, help="Length Penalty")
+    parser.add_argument("--max_delta_length", type=int, default=5, help="Max Delta Generation Length.")
 
     args = parser.parse_args()
     return args
@@ -48,7 +49,7 @@ def batches(lst, n):
         yield lst[i : i + n]
 
 
-class JarvisTranslateServicer(nmtsrv.JarvisTranslateServicer):
+class RivaTranslateServicer(nmtsrv.RivaTranslateServicer):
     """Provides methods that implement functionality of route guide server."""
 
     def __init__(
@@ -59,13 +60,18 @@ class JarvisTranslateServicer(nmtsrv.JarvisTranslateServicer):
         self._len_pen = len_pen
         self._max_delta_length = max_delta_length
         self._batch_size = batch_size
+        self._punctuation_model_path = punctuation_model_path
+        self._model_paths = model_paths
 
-        for model_path in model_paths:
+        for model_path in self._model_paths:
+            assert os.path.exists(model_path)
             logging.info(f"Loading model {model_path}")
             self._load_model(model_path)
 
-        logging.info(f"Loading punctuation model {model_path}")
-        self._load_puncutation_model(punctuation_model_path)
+        if self._punctuation_model_path != "":
+            assert os.path.exists(punctuation_model_path)
+            logging.info(f"Loading punctuation model {model_path}")
+            self._load_puncutation_model(punctuation_model_path)
 
         logging.info("Models loaded. Ready for inference requests.")
 
@@ -81,40 +87,54 @@ class JarvisTranslateServicer(nmtsrv.JarvisTranslateServicer):
             self.punctuation_model = self.punctuation_model.cuda()
 
     def _load_model(self, model_path):
-        model_name, _ = os.path.splitext(os.path.basename(model_path))
-        model_name = model_name.lower()
-        if not re.match("^[\w]{2}-[\w]{2}$", model_name):
-            logging.error("Model not named in language pair format src-target")
         if model_path.endswith(".nemo"):
             logging.info("Attempting to initialize from .nemo file")
-            self._models[model_name] = nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(
+            model = nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(
                 restore_path=model_path
             )
+            model.beam_search.beam_size = self._beam_size
+            model.beam_search.len_pen = self._len_pen
+            model.beam_search.max_delta_length = self._max_delta_length
         else:
             raise NotImplemented(f"Only support .nemo files, but got: {model_path}")
 
-        self._models[model_name].beam_search.beam_size = self._beam_size
-        self._models[model_name].beam_search.len_pen = self._len_pen
-        self._models[model_name].beam_search.max_delta_length = self._max_delta_length
+        if not hasattr(model, "src_language") or not hasattr(model, "tgt_language"):
+            raise ValueError(f"Could not find src_language and tgt_language in model attributes")
 
-        if torch.cuda.is_available():
-            self._models[model_name] = self._models[model_name].cuda()
+        src_language = model.src_language
+        tgt_language = model.tgt_language
+
+        if src_language not in self._models:
+            self._models[src_language] = {}
+        
+        if tgt_language not in self._models[src_language]:
+            self._models[src_language][tgt_language] = model
+            if torch.cuda.is_available():
+                self._models[src_language][tgt_language] = self._models[src_language][tgt_language].cuda()    
+        else:
+            raise ValueError(f"Already found model for language pair {src_language}-{tgt_language}")
+
 
     def TranslateText(self, request, context):
         logging.info(f"Request received w/ {len(request.texts)} utterances")
         results = []
 
-        lang_pair = f"{request.source_language}-{request.target_language}".lower()
-        if lang_pair not in self._models:
+        if request.source_language not in self._models:
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-            context.set_details(f"Invalid lang pair {lang_pair} requeste")
+            context.set_details(f"Could not find source-target language pair {request.source_language}-{request.target_language} in list of models.")
+            return nmt.TranslateTextResponse()
+
+        if request.target_language not in self._models[request.source_language]:
+            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+            context.set_details(f"Could not find source-target language pair {request.source_language}-{request.target_language} in list of models.")
             return nmt.TranslateTextResponse()
 
         request_strings = [x for x in request.texts]
 
         for batch in batches(request_strings, self._batch_size):
-            batch = self.punctuation_model.add_punctuation_capitalization(batch)
-            batch_results = self._models[lang_pair].translate(text=batch, source_lang=None, target_lang=None)
+            if self._punctuation_model_path != "":
+                batch = self.punctuation_model.add_punctuation_capitalization(batch)
+            batch_results = self._models[request.source_language][request.target_language].translate(text=batch)
             translations = [nmt.Translation(translation=x) for x in batch_results]
             results.extend(translations)
 
@@ -124,7 +144,7 @@ class JarvisTranslateServicer(nmtsrv.JarvisTranslateServicer):
 def serve():
     args = get_args()
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    servicer = JarvisTranslateServicer(
+    servicer = RivaTranslateServicer(
         model_paths=args.model,
         punctuation_model_path=args.punctuation_model,
         beam_size=args.beam_size,
@@ -132,7 +152,7 @@ def serve():
         batch_size=args.batch_size,
         max_delta_length=args.max_delta_length,
     )
-    nmtsrv.add_JarvisTranslateServicer_to_server(servicer, server)
+    nmtsrv.add_RivaTranslateServicer_to_server(servicer, server)
     server.add_insecure_port('[::]:' + str(args.port))
     server.start()
     server.wait_for_termination()

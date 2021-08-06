@@ -27,13 +27,15 @@
 import argparse
 import sys
 import wave
+import os
+sys.path.append(os.path.join(os.getcwd(), 'api'))
 
 import api.nmt_pb2 as nmt
 import api.nmt_pb2_grpc as nmtsrv
 import grpc
-import jarvis_api.audio_pb2 as ja
-import jarvis_api.jarvis_asr_pb2 as jasr
-import jarvis_api.jarvis_asr_pb2_grpc as jasr_srv
+import riva_api.audio_pb2 as riva
+import riva_api.riva_asr_pb2 as rivaasr
+import riva_api.riva_asr_pb2_grpc as rivaasr_srv
 import pyaudio
 
 
@@ -43,20 +45,18 @@ def get_args():
     parser.add_argument("--audio-file", required=True, help="path to local file to stream")
     parser.add_argument("--output-device", type=int, default=None, help="output device to use")
     parser.add_argument("--list-devices", action="store_true", help="list output devices indices")
-    parser.add_argument("--nmt-server", default="localhost:1042", help="port on which NMT server runs")
+    parser.add_argument("--nmt-server", default="localhost:50052", help="port on which NMT server runs")
     parser.add_argument("--asr_only", action="store_true", help="Whether to skip MT and just display")
+    parser.add_argument("--target_language", default="es", help="Target language to translate into.")
     parser.add_argument(
-        "--simulate_stateful_asr", type=int, default=0, help="Whether to simulate stateful ASR with #things in state"
-    )
-    parser.add_argument(
-        "--punctuation",
+        "--asr_punctuation",
         action="store_true",
-        help="Whether to use punctuation model. NMT server contains a puncutation model within.",
+        help="Whether to use Riva's punctuation model for ASR transcript postprocessing.",
     )
     return parser.parse_args()
 
 
-def listen_print_loop(responses, nmt_stub, asr_only=False, simulate_stateful_asr=0):
+def listen_print_loop(responses, nmt_stub, target_language, asr_only=False):
     num_chars_printed = 0
     prev_utterances = []
     for response in responses:
@@ -67,10 +67,8 @@ def listen_print_loop(responses, nmt_stub, asr_only=False, simulate_stateful_asr
             continue
         transcript = result.alternatives[0].transcript
         original_transcript = transcript
-        if simulate_stateful_asr > 0 and asr_only:
-            transcript = ' ||| '.join(prev_utterances[-simulate_stateful_asr:]) + '||| ' + transcript
         if not asr_only:
-            req = nmt.TranslateTextRequest(texts=[transcript], source_language='en', target_language='es')
+            req = nmt.TranslateTextRequest(texts=[transcript], source_language='en', target_language=target_language)
             translation = nmt_stub.TranslateText(req).translations[0].translation
             transcript = translation
         overwrite_chars = ' ' * (num_chars_printed - len(transcript))
@@ -88,17 +86,17 @@ CHUNK = 1024
 args = get_args()
 wf = wave.open(args.audio_file, 'rb')
 channel = grpc.insecure_channel(args.jarvis_server)
-client = jasr_srv.JarvisASRStub(channel)
+client = rivaasr_srv.RivaSpeechRecognitionStub(channel)
 nmt_channel = grpc.insecure_channel(args.nmt_server)
-nmt_stub = nmtsrv.JarvisTranslateStub(nmt_channel)
-config = jasr.RecognitionConfig(
-    encoding=ja.AudioEncoding.LINEAR_PCM,
+nmt_stub = nmtsrv.RivaTranslateStub(nmt_channel)
+config = rivaasr.RecognitionConfig(
+    encoding=riva.AudioEncoding.LINEAR_PCM,
     sample_rate_hertz=wf.getframerate(),
     language_code="en-US",
     max_alternatives=1,
-    enable_automatic_punctuation=args.punctuation,
+    enable_automatic_punctuation=args.asr_punctuation,
 )
-streaming_config = jasr.StreamingRecognitionConfig(config=config, interim_results=True)
+streaming_config = rivaasr.StreamingRecognitionConfig(config=config, interim_results=True)
 
 # instantiate PyAudio (1)
 p = pyaudio.PyAudio()
@@ -122,16 +120,16 @@ stream = p.open(
 # read data
 def generator(w, s):
     d = w.readframes(CHUNK)
-    yield jasr.StreamingRecognizeRequest(streaming_config=s)
+    yield rivaasr.StreamingRecognizeRequest(streaming_config=s)
     while len(d) > 0:
-        yield jasr.StreamingRecognizeRequest(audio_content=d)
+        yield rivaasr.StreamingRecognizeRequest(audio_content=d)
         stream.write(d)
         d = w.readframes(CHUNK)
     return
 
 
 responses = client.StreamingRecognize(generator(wf, streaming_config))
-listen_print_loop(responses, nmt_stub, asr_only=args.asr_only, simulate_stateful_asr=args.simulate_stateful_asr)
+listen_print_loop(responses, nmt_stub, target_language=args.target_language, asr_only=args.asr_only)
 # stop stream (4)
 stream.stop_stream()
 stream.close()
