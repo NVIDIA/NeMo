@@ -42,21 +42,39 @@ def get_number_names():
     """
     Creates numbers names.
 
-    Based on
-    Gorman, K., and Sproat, R. 2016. Minimally supervised number normalization. Transactions of the Association for Computational Linguistics 4: 507-519.
-    Ng, A. H., Gorman, K., and Sproat, R. 2017. Minimally supervised written-to-spoken text normalization. In ASRU, pages 665-670.
+    Based on: 1) Gorman, K., and Sproat, R. 2016. Minimally supervised number normalization.
+    Transactions of the Association for Computational Linguistics 4: 507-519.
+    and 2) Ng, A. H., Gorman, K., and Sproat, R. 2017.
+    Minimally supervised written-to-spoken text normalization. In ASRU, pages 665-670.
     """
     a = pynini.Far(get_abs_path('data/utils/util_arithmetic.far'), mode='r')
     d = a['DELTA_STAR']
     f = a['IARITHMETIC_RESTRICTED']
     g = pynini.Fst.read(get_abs_path('data/utils/g.fst'))
     fg = (d @ (f @ (f @ (f @ g).optimize()).optimize()).optimize()).optimize()
-
     assert rewrite.top_rewrite("230", fg) == "(+ 200 30 +)"
 
     # Compiles lexicon transducers (L).
-    cardinal_name = pynini.string_file(get_abs_path("data/numbers/cardinals.tsv"))
-    cardinal_l = (pynini.closure(cardinal_name + pynini.accep(" ")) + cardinal_name).optimize()
+    cardinal_name_nominative = pynini.string_file(get_abs_path("data/numbers/1_cardinals_nominative_именительный.tsv"))
+    cardinal_name_genitive = pynini.string_file(get_abs_path("data/numbers/2_cardinals_genitive_родительный.tsv"))
+    cardinal_name_dative = pynini.string_file(get_abs_path("data/numbers/3_cardinals_dative_датильный.tsv"))
+    cardinal_name_accusative = pynini.string_file(get_abs_path("data/numbers/4_cardinals_accusative_винительный.tsv"))
+    cardinal_name_instrumental = pynini.string_file(
+        get_abs_path("data/numbers/5_cardinals_instrumental_творительный.tsv")
+    )
+    cardinal_name_prepositional = pynini.string_file(
+        get_abs_path("data/numbers/6_cardinals_prepositional_предложный.tsv")
+    )
+
+    cardinal_l = (pynini.closure(cardinal_name_nominative + pynini.accep(" ")) + cardinal_name_nominative).optimize()
+    for case in [
+        cardinal_name_genitive,
+        cardinal_name_dative,
+        cardinal_name_accusative,
+        cardinal_name_instrumental,
+        cardinal_name_prepositional,
+    ]:
+        cardinal_l |= (pynini.closure(case + pynini.accep(" ")) + case).optimize()
 
     # Numbers up to 1000 in nominative case (to use, for example, with telephone)
     nominative_up_to_thousand_name = pynini.string_file(get_abs_path("data/numbers/cardinals_nominative_case.tsv"))
@@ -64,13 +82,25 @@ def get_number_names():
         pynini.closure(nominative_up_to_thousand_name + pynini.accep(" ")) + nominative_up_to_thousand_name
     ).optimize()
 
+    # (* 5000) -> (* 5000) handles complex ordinal numbers, e.g. "пятитысячный", "двухмиллиардный"
+    complex_numbers = (
+        NEMO_SIGMA + pynini.cross("(* 2 1000 *)", "2000") + pynini.closure(pynini.union(" ", ")", "(", "+", "*"))
+    )
+    for number in range(3, 21):
+        complex_numbers |= (
+            NEMO_SIGMA
+            + pynini.cross(f"(* {number} 1000 *)", f"{number}000")
+            + pynini.closure(pynini.union(" ", ")", "(", "+", "*"))
+        )
+
+    fg_ordinal = pynutil.add_weight(pynini.compose(fg, complex_numbers), -0.0001) | fg
     ordinal_name = pynini.string_file(get_abs_path("data/numbers/ordinals.tsv"))
-    ordinal_l = (pynini.closure(cardinal_name + pynini.accep(" ")) + ordinal_name).optimize()
+    ordinal_l = (pynini.closure(cardinal_name_nominative + pynini.accep(" ")) + ordinal_name).optimize()
 
     # Composes L with the leaf transducer (P), then composes that with FG.
     p = a['LEAVES']
     number_names = {}
-    number_names['ordinal_number_names'] = (fg @ (p @ ordinal_l)).optimize()
+    number_names['ordinal_number_names'] = (fg_ordinal @ (p @ ordinal_l)).optimize()
     number_names['cardinal_number_names'] = (fg @ (p @ cardinal_l)).optimize()
     number_names['nominative_up_to_thousand_names'] = (fg @ (p @ nominative_up_to_thousand_name_l)).optimize()
     return number_names
@@ -78,7 +108,7 @@ def get_number_names():
 
 def get_alternative_formats():
     """
-    Utils to get alternative formats for nubmbers.
+    Utils to get alternative formats for numbers.
     """
     one_alternatives = load_labels(get_abs_path('data/numbers/cardinals_alternatives.tsv'))
     one_thousand_map = []

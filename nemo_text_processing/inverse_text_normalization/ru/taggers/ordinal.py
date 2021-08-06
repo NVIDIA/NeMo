@@ -13,9 +13,10 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, GraphFst
 
 try:
+    import pynini
     from pynini.lib import pynutil
 
     PYNINI_AVAILABLE = True
@@ -41,6 +42,9 @@ class OrdinalFst(GraphFst):
 
         graph = tn_ordinal.invert().optimize()
         self.graph = graph
+
+        # do not invert numbers less than 10
+        graph = pynini.compose(graph, NEMO_DIGIT ** (2, ...))
         graph = pynutil.insert("integer: \"") + graph + pynutil.insert("\"")
         graph = self.add_tokens(graph)
         self.fst = graph.optimize()

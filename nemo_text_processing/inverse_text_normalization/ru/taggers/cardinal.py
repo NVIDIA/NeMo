@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, insert_space
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, GraphFst, insert_space
 
 try:
     import pynini
@@ -44,6 +44,9 @@ class CardinalFst(GraphFst):
         optional_sign = pynini.closure(
             pynutil.insert("negative: ") + pynini.cross("минус ", "\"-\"") + insert_space, 0, 1
         )
+
+        # do not invert numbers less than 10
+        graph = pynini.compose(graph, NEMO_DIGIT ** (2, ...))
         graph = optional_sign + pynutil.insert("integer: \"") + graph + pynutil.insert("\"")
         graph = self.add_tokens(graph)
         self.fst = graph.optimize()

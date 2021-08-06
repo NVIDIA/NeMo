@@ -46,7 +46,7 @@ class DateFst(GraphFst):
         super().__init__(name="date", kind="classify", deterministic=deterministic)
 
         # Ru format: DD-MM-YYYY or DD-MM-YY
-        month_abbr_to_names = pynini.string_file(get_abs_path("data/whitelist.tsv")).optimize()
+        month_abbr_to_names = pynini.string_file(get_abs_path("data/months/abbr_to_name.tsv")).optimize()
 
         delete_sep = pynutil.add_weight(pynini.cross(".", " "), 1.09) | pynutil.add_weight(
             pynini.cross(pynini.union("/", "-"), " "), 1.1

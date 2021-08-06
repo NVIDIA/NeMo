@@ -47,12 +47,13 @@ class WhiteListFst(GraphFst):
         def _get_whitelist_graph(input_case, file="data/whitelist.tsv"):
             whitelist = load_labels(get_abs_path(file))
             if input_case == "lower_cased":
-                whitelist = [(x.lower(), y) for x, y in whitelist]
+                whitelist = [[x[0].lower()] + x[1:] for x in whitelist]
             else:
-                whitelist = [(x, y) for x, y in whitelist]
+                whitelist = [[x[0].lower()] + x[1:] for x in whitelist]
             graph = pynini.string_map(whitelist)
             return graph
 
         graph = _get_whitelist_graph(input_case)
+        graph |= _get_whitelist_graph(input_case, file="data/measurements.tsv")
         self.final_graph = convert_space(graph)
         self.fst = (pynutil.insert("name: \"") + self.final_graph + pynutil.insert("\"")).optimize()

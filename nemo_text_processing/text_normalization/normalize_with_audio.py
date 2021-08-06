@@ -217,11 +217,10 @@ def get_asr_model(asr_model: ASRModel):
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--text", help="input string or path to a .txt file", default=None, type=str)
-    parser.add_argument("--lang", help="select target language", type=str, default='en', choices=['en', 'ru'])
     parser.add_argument(
         "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )
-    parser.add_argument("--language", help="language", choices=["en", "ru"], default="en", type=str)
+    parser.add_argument("--language", help="Select target language", choices=["en", "ru"], default="en", type=str)
     parser.add_argument("--audio_data", help="path to an audio file or .json manifest")
     parser.add_argument(
         '--model', type=str, default='QuartzNet15x5Base-En', help='Pre-trained model name or path to model checkpoint'
