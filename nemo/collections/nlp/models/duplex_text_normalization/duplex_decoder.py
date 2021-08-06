@@ -224,8 +224,11 @@ class DuplexDecoderModel(NLPModel):
                 if _dir == constants.INST_FORWARD and _prob < neural_confidence_threshold:
                     if is_url(_input):
                         _input = _input.replace(' ', '')  # Remove spaces in URLs
-                    cg_outputs = self.cg_normalizer.normalize(text=_input, verbose=False, n_tagged=self.n_tagged)
-                    generated_texts[ix] = list(cg_outputs)[0]
+                    try:
+                        cg_outputs = self.cg_normalizer.normalize(text=_input, verbose=False, n_tagged=self.n_tagged)
+                        generated_texts[ix] = list(cg_outputs)[0]
+                    except: # if there is any exception, fall back to the input
+                        generated_texts[ix] = _input
 
         # Post processing
         generated_texts = self.postprocess_output_spans(input_centers, generated_texts, input_dirs)
