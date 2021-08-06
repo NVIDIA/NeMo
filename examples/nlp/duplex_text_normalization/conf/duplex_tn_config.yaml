@@ -78,6 +78,7 @@ decoder_model:
   # Options related to covering grammars for TN
   use_cg: false # Use covering grammars to avoid catastrophic errors
   neural_confidence_threshold: 0.99 # If the neural model is not confident, then use the covering grammars
+  n_tagged: 1
 
   optim:
     name: adamw

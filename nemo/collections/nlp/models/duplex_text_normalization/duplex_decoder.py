@@ -56,12 +56,13 @@ class DuplexDecoderModel(NLPModel):
         # We only support integrating with English TN covering grammars at the moment
         self.use_cg = cfg.get('use_cg', False) and self.lang == constants.ENGLISH
         if self.use_cg:
-            self.setup_cg(cfg.get('neural_confidence_threshold', 0.99))
+            self.setup_cgs(cfg)
 
     # Setup covering grammars
-    def setup_cgs(self, neural_confidence_threshold):
+    def setup_cgs(self, cfg: DictConfig):
         self.use_cg = True
-        self.neural_confidence_threshold = neural_confidence_threshold
+        self.neural_confidence_threshold = cfg.get('neural_confidence_threshold', 0.99)
+        self.n_tagged = cfg.get('n_tagged', 1)
         input_case = 'cased'  # input_case is cased by default
         if hasattr(self._tokenizer, 'do_lower_case') and self._tokenizer.do_lower_case:
             input_case = 'lower_cased'
@@ -219,7 +220,7 @@ class DuplexDecoderModel(NLPModel):
                 if _dir == constants.INST_FORWARD and _prob < neural_confidence_threshold:
                     if is_url(_input):
                         _input = _input.replace(' ', '')  # Remove spaces in URLs
-                    cg_outputs = self.cg_normalizer.normalize(text=_input, verbose=False, n_tagged=1)
+                    cg_outputs = self.cg_normalizer.normalize(text=_input, verbose=False, n_tagged=self.n_tagged)
                     generated_texts[ix] = list(cg_outputs)[0]
 
         # Post processing
