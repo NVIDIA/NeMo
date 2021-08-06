@@ -26,8 +26,8 @@ from nemo.collections.nlp.modules.common.transformer.transformer import (
     NeMoTransformerEncoderConfig,
 )
 from nemo.collections.nlp.modules.common.transformer.transformer_bottleneck import (
-    NeMoTransformerBottleneckEncoderConfig,
     NeMoTransformerBottleneckDecoderConfig,
+    NeMoTransformerBottleneckEncoderConfig,
 )
 from nemo.core.config.modelPT import OptimConfig, SchedConfig
 
@@ -142,7 +142,7 @@ class AAYNBaseConfig(MTEncDecModelConfig):
 class MTBottleneckModelConfig(AAYNBaseConfig):
     model_type: str = 'recon_only'
     min_logv: float = -6
-    latent_size: int = -1 # -1 will take value of encoder hidden
+    latent_size: int = -1  # -1 will take value of encoder hidden
     non_recon_warmup_batches: int = 200000
     recon_per_token: bool = True
 

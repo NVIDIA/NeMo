@@ -14,10 +14,9 @@
 
 import torch
 
-from nemo.collections.nlp.modules.common.transformer.transformer_modules import AttentionBridge
-from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
 from nemo.collections.nlp.modules.common.transformer import AttentionBridge
-
+from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
+from nemo.collections.nlp.modules.common.transformer.transformer_modules import AttentionBridge
 
 __all__ = ["BridgeEncoder"]
 
@@ -61,21 +60,18 @@ class BridgeEncoder(TransformerEncoder):
         if self._hidden_init_method == "default":
             self._hidden_init_method = "enc_shared"
 
-        if (hidden_blocks < 1):
+        if hidden_blocks < 1:
             raise ValueError(f"hidden_blocks = {hidden_blocks} but is expected to be >= 1")
 
         if self.hidden_init_method not in self.supported_init_methods:
-            raise ValueError("Unknown hidden_init_method = {hidden_init_method}, supported methods are {supported_init_methods}".format(
-                hidden_init_method=self.hidden_init_method,
-                supported_init_methods=self.supported_init_methods,
-            ))
+            raise ValueError(
+                "Unknown hidden_init_method = {hidden_init_method}, supported methods are {supported_init_methods}".format(
+                    hidden_init_method=self.hidden_init_method, supported_init_methods=self.supported_init_methods,
+                )
+            )
 
         # attention bridge
-        self.att_bridge = AttentionBridge(
-            hidden_size=hidden_size,
-            k=hidden_steps,
-            bridge_size=inner_size,
-        )
+        self.att_bridge = AttentionBridge(hidden_size=hidden_size, k=hidden_steps, bridge_size=inner_size,)
 
         if self.hidden_init_method == "enc":
             self.init_hidden_enc = TransformerEncoder(
@@ -126,11 +122,12 @@ class BridgeEncoder(TransformerEncoder):
         hidden_states = self.att_bridge(hidden=hidden_states, hidden_mask=encoder_mask)
 
         # all hidden values are active
-        hidden_mask = torch.ones(encoder_states.shape[0], self._hidden_steps,
-                                 dtype=encoder_mask.dtype, device=encoder_mask.device)
+        hidden_mask = torch.ones(
+            encoder_states.shape[0], self._hidden_steps, dtype=encoder_mask.dtype, device=encoder_mask.device
+        )
 
         # apply self-attention over fixed-size hidden_states
-        for block in range(self._hidden_blocks-1):
+        for block in range(self._hidden_blocks - 1):
             hidden_states = super().forward(encoder_states=hidden_states, encoder_mask=hidden_mask)
 
         return hidden_states, hidden_mask

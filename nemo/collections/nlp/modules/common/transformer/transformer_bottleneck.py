@@ -15,20 +15,23 @@
 from dataclasses import dataclass
 from typing import Dict, Optional
 
-from nemo.core.neural_types import NeuralType, MaskType
-from nemo.core.neural_types.elements import BoolType
-from nemo.collections.nlp.modules.common.transformer.transformer import (
-    TransformerEncoderNM,
-    TransformerDecoderNM,
-)
-from nemo.collections.nlp.modules.common.transformer.perceiver_encoders import PerceiverEncoder
 from nemo.collections.nlp.modules.common.transformer.bridge_encoders import BridgeEncoder
-from nemo.collections.nlp.modules.common.transformer.transformer import NeMoTransformerConfig
+from nemo.collections.nlp.modules.common.transformer.perceiver_encoders import PerceiverEncoder
+from nemo.collections.nlp.modules.common.transformer.transformer import (
+    NeMoTransformerConfig,
+    TransformerDecoderNM,
+    TransformerEncoderNM,
+)
 from nemo.core.classes.common import typecheck
+from nemo.core.neural_types import MaskType, NeuralType
+from nemo.core.neural_types.elements import BoolType
 
-__all__ = ["NeMoTransformerBottleneckConfig", "NeMoTransformerBottleneckEncoderConfig",
-           "NeMoTransformerBottleneckDecoderConfig", "TransformerBottleneckEncoderNM",
-           ]
+__all__ = [
+    "NeMoTransformerBottleneckConfig",
+    "NeMoTransformerBottleneckEncoderConfig",
+    "NeMoTransformerBottleneckDecoderConfig",
+    "TransformerBottleneckEncoderNM",
+]
 
 
 @dataclass
@@ -126,7 +129,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
         # default non-bottleneck transformer encoder
         if (not arch) or (arch == "seq2seq"):
             encoder = self.encoder
-        elif (arch == "bridge"):
+        elif arch == "bridge":
             encoder = BridgeEncoder(
                 num_layers=kwargs["num_layers"],
                 hidden_size=kwargs["hidden_size"],
@@ -143,7 +146,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
                 hidden_blocks=kwargs["hidden_blocks"],
                 hidden_init_method=kwargs["hidden_init_method"],
             )
-        elif (arch == "perceiver"):
+        elif arch == "perceiver":
             encoder = PerceiverEncoder(
                 num_layers=kwargs["num_layers"],
                 hidden_size=kwargs["hidden_size"],
@@ -161,28 +164,29 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
                 hidden_init_method=kwargs["hidden_init_method"],
             )
         else:
-            raise ValueError("Unknown arch = {arch}, supported arch = {supported_arch}".format(
-                arch=arch,
-                supported_arch=self.supported_arch,
-            ))
+            raise ValueError(
+                "Unknown arch = {arch}, supported arch = {supported_arch}".format(
+                    arch=arch, supported_arch=self.supported_arch,
+                )
+            )
 
         return encoder
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         input_types = super().input_types
-        input_types.update({
-            "return_mask": NeuralType((), BoolType(), True),
-        })
+        input_types.update(
+            {"return_mask": NeuralType((), BoolType(), True),}
+        )
 
         return input_types
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         output_types = super().output_types
-        output_types.update({
-            "hidden_mask": NeuralType(('B', 'T'), MaskType(), True),
-        })
+        output_types.update(
+            {"hidden_mask": NeuralType(('B', 'T'), MaskType(), True),}
+        )
         return output_types
 
     @property
@@ -205,8 +209,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
             encoder_hidden_mask = encoder_mask
         else:
             encoder_hidden_states, encoder_hidden_mask = self._encoder(
-                encoder_states=embeddings,
-                encoder_mask=encoder_mask,
+                encoder_states=embeddings, encoder_mask=encoder_mask,
             )
 
         if return_mask:
@@ -276,10 +279,11 @@ class TransformerBottleneckDecoderNM(TransformerDecoderNM):
         Returns a decoder based on architecture arch and kwargs
         """
         if arch not in self.supported_arch:
-            raise ValueError("Unknown arch = {arch}, supported arch = {supported arch}".format(
-                arch=arch,
-                supported_arch=self.supported_arch,
-            ))
+            raise ValueError(
+                "Unknown arch = {arch}, supported arch = {supported arch}".format(
+                    arch=arch, supported_arch=self.supported_arch,
+                )
+            )
 
         # usual non-bottleneck transformer decoder
         if (not arch) or (arch == "seq2seq"):

@@ -37,6 +37,7 @@ from nemo.utils import logging, model_utils
 
 __all__ = ['MTBottleneckModel']
 
+
 def build_linear_or_identity(input_dim, output_dim):
     """
     Auxiliary method to return FC layer when input_dim != output_dim
@@ -48,6 +49,7 @@ def build_linear_or_identity(input_dim, output_dim):
         model = torch.nn.Identity()
 
     return model
+
 
 class MTBottleneckModel(MTEncDecModel):
     """
@@ -161,26 +163,16 @@ class MTBottleneckModel(MTEncDecModel):
         """
         info_dict = {}
 
-        enc_hiddens, enc_mask = self.encoder(
-            input_ids=src,
-            encoder_mask=src_mask,
-            return_mask=True,
-        )
+        enc_hiddens, enc_mask = self.encoder(input_ids=src, encoder_mask=src_mask, return_mask=True,)
 
         # build posterior distribution q(x|z)
-        z, z_mean, z_logv = self.encode_latent(
-            hidden=enc_hiddens,
-            hidden_mask=enc_mask,
-        )
+        z, z_mean, z_logv = self.encode_latent(hidden=enc_hiddens, hidden_mask=enc_mask,)
 
         # decoding cross attention context
         context_hiddens = self.latent2hidden(z)
 
         tgt_hiddens = self.decoder(
-            input_ids=tgt,
-            decoder_mask=tgt_mask,
-            encoder_embeddings=context_hiddens,
-            encoder_mask=enc_mask,
+            input_ids=tgt, decoder_mask=tgt_mask, encoder_embeddings=context_hiddens, encoder_mask=enc_mask,
         )
 
         # build decoding distribution
@@ -284,17 +276,10 @@ class MTBottleneckModel(MTEncDecModel):
         try:
             self.eval()
 
-            enc_hiddens, enc_mask = self.encoder(
-                input_ids=src,
-                encoder_mask=src_mask,
-                return_mask=True,
-            )
+            enc_hiddens, enc_mask = self.encoder(input_ids=src, encoder_mask=src_mask, return_mask=True,)
 
             # build posterior distribution q(x|z)
-            z, _, _ = self.encode_latent(
-                hidden=enc_hiddens,
-                hidden_mask=enc_mask,
-            )
+            z, _, _ = self.encode_latent(hidden=enc_hiddens, hidden_mask=enc_mask,)
 
             # decoding cross attention context
             context_hiddens = self.latent2hidden(z)
