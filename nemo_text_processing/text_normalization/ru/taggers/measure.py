@@ -15,7 +15,6 @@
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_NON_BREAKING_SPACE,
     NEMO_NOT_QUOTE,
-    NEMO_SIGMA,
     NEMO_SPACE,
     GraphFst,
     insert_space,
