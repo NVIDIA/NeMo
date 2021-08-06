@@ -28,6 +28,10 @@ from nemo.core.connectors import save_restore_connector
 from nemo.utils.app_state import AppState
 
 
+def classpath(cls):
+    return f'{cls.__module__}.{cls.__name__}'
+
+
 def getattr2(object, attr):
     if not '.' in attr:
         return getattr(object, attr)
@@ -67,7 +71,7 @@ class MockModel(ModelPT):
 
 
 def _mock_model_config():
-    conf = {'temp_file': None, 'target': 'tests.core.test_save_restore.MockModel'}
+    conf = {'temp_file': None, 'target': classpath(MockModel)}
     conf = OmegaConf.create({'model': conf})
     OmegaConf.set_struct(conf, True)
     return conf
