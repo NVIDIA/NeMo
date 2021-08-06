@@ -13,7 +13,7 @@ since the downloaded datasets will be stored inside this repository.
 
 ## Dependencies:
 Download or clone the Megatron-LM repository and place it inside the
-bignlp_scripts directory. Both the preprocessing and training need to run code
+bignlp-scripts directory. Both the preprocessing and training need to run code
 in the Megatron-LM repository.
 
 
@@ -23,8 +23,8 @@ Main directory: prepare_dataset
 
 #### Usage:
 ```
-cd bignlp_scripts/prepare_dataset
-bash end_to_end_data_process.sh
+cd bignlp-scripts/prepare_dataset
+bash prepare_training_data.sh
 ```
 
 #### Tricks and Tips:
@@ -69,8 +69,28 @@ Main directory: train_scripts
 #### Train 126M Parameter Model:
 To train the 126M model do:
 ```
-cd bignlp_scripts/train_scripts
+cd bignlp-scripts/train_scripts
 sbatch run_gpt3_126m.sh
 ```
 
+
+## Download the Test Data
+
+#### LAMBADA Dataset:
+To download the LAMBADA test dataset do:
+```
+cd bignlp-scripts/prepare_dataset
+bash prepare_lambada_test_data.sh
+```
+
+
+## Evaluating GPT-3
+Main directory: eval_scripts
+
+#### Evaluate 126M Parameter Model on LAMBADA:
+To evaluate the 126M model do:
+```
+cd bignlp-scripts/eval_scripts
+sbatch eval
+```
 

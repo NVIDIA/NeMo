@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --nodes=8 --exclusive --mem=0 --overcommit --ntasks-per-node=8 --dependency=singleton --job-name=big_nlp-gpt3:126m --comment=metrics
+#SBATCH -p luna -A joc --nodes=1 --exclusive --mem=0 --overcommit --ntasks-per-node=8 --dependency=singleton --job-name=big_nlp-gpt3:126m --comment=metrics
 
 NAME="126m-test2"
 
@@ -38,11 +38,11 @@ options=" \
     --log-timers-to-tensorboard \
     --log-interval 100 \
     --eval-iters 50 \
-    --eval-interval 2000 \
+    --eval-interval 110 \
     --data-path ${DATA_BLEND} \
     --vocab-file ${BPE_DIR}/vocab.json \
     --merge-file ${BPE_DIR}/merges.txt \
-    --save-interval 10000 \
+    --save-interval 120 \
     --save ${CHECKPOINT_CONTAINER_DIR} \
     --load ${CHECKPOINT_CONTAINER_DIR} \
     --split 9999,1,0 \
