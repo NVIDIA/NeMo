@@ -13,11 +13,14 @@
 # limitations under the License.
 
 """
-This script can be used to evaluate the accuracy of a trained decoder model
-for each semiotic class (DATE, CARDINAL, LETTERS, ...).
+This script can be used to do more in-depth evaluation of the components of a
+duplex TN system. For a tagger, the script will evaluate its Precision/Recall/F1
+scores for different tagging labels. For a decoder, the script will evaluate its
+accuracy scores for different semiotic classes (DATE, CARDINAL, LETTERS, ...).
 
 USAGE Example:
 python class_based_decoding_evaluation.py
+        tagger_pretrained_model=PATH_TO_TRAINED_TAGGER
         decoder_pretrained_model=PATH_TO_TRAINED_DECODER
         data.test_ds.data_path=PATH_TO_TEST_FILE
         mode={tn,itn,joint}
@@ -25,7 +28,7 @@ python class_based_decoding_evaluation.py
 """
 
 import numpy as np
-from helpers import DECODER_MODEL, instantiate_model_and_trainer
+from helpers import DECODER_MODEL, TAGGER_MODEL, instantiate_model_and_trainer
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 
@@ -50,12 +53,17 @@ def print_class_based_stats(class2stats):
 @hydra_runner(config_path="conf", config_name="duplex_tn_config")
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config Params: {OmegaConf.to_yaml(cfg)}')
-    lang = cfg.lang
-    batch_size = cfg.data.test_ds.batch_size
+    lang, batch_size = cfg.lang, cfg.data.test_ds.batch_size
+    tagger_trainer, tagger_model = instantiate_model_and_trainer(cfg, TAGGER_MODEL, False)
+    decoder_trainer, decoder_model = instantiate_model_and_trainer(cfg, DECODER_MODEL, False)
 
-    # Load the decoder and its tokenizer
+    # Evaluating the tagger
+    print('Evaluating the tagger')
+    tagger_model.setup_test_data(cfg.data.test_ds)
+    tagger_trainer.test(model=tagger_model, verbose=False)
+
+    # Evaluating the decoder
     print('Evaluating the decoder')
-    decoder_model = instantiate_model_and_trainer(cfg, DECODER_MODEL, False)[1]
     transformer_model, tokenizer = decoder_model.model, decoder_model._tokenizer
     try:
         model_max_len = transformer_model.config.n_positions
