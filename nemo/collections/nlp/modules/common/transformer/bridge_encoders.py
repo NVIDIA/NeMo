@@ -37,7 +37,7 @@ class BridgeEncoder(TransformerEncoder):
         pre_ln_final_layer_norm: bool = True,
         hidden_steps: int = 32,
         hidden_init_method: str = "default",
-        hidden_blocks: int = 1,
+        hidden_blocks: int = 0,
     ):
         super().__init__(
             num_layers=num_layers,
@@ -127,7 +127,7 @@ class BridgeEncoder(TransformerEncoder):
         )
 
         # apply self-attention over fixed-size hidden_states
-        for block in range(self._hidden_blocks - 1):
+        for block in range(self._hidden_blocks):
             hidden_states = super().forward(encoder_states=hidden_states, encoder_mask=hidden_mask)
 
         return hidden_states, hidden_mask
