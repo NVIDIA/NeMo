@@ -68,8 +68,6 @@ class ConvASREncoder(NeuralModule, Exportable):
                 else:
                     m.use_mask = False
                     m_count += 1
-            if isinstance(m, SqueezeExcite):
-                m._se_pool_step = m._se_pool_step_export
 
         Exportable._prepare_for_export(self, **kwargs)
         logging.warning(f"Turned off {m_count} masked convolutions")
