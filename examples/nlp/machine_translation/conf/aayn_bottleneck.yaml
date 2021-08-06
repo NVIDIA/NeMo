@@ -157,7 +157,7 @@ model:
     hidden_act: relu
     pre_ln: false
     pre_ln_final_layer_norm: true
-    arch: seq2seq
+    arch: seq2seq # currently only seq2seq is supported
 
   head:
     num_layers: 1
