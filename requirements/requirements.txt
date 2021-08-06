@@ -15,5 +15,5 @@ sentencepiece<1.0.0
 webdataset>=0.1.48,<=0.1.62
 tqdm>=4.41.0
 numba
-grpc
+grpcio
 grpcio-tools
