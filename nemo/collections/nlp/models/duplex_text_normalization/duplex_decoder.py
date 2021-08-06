@@ -18,7 +18,7 @@ from typing import List, Optional
 import nltk
 import torch
 import wordninja
-from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
+from nemo_text_processing.text_normalization.normalize_with_audio import PYNINI_AVAILABLE, NormalizerWithAudio
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
@@ -70,6 +70,12 @@ class DuplexDecoderModel(NLPModel):
         input_case = 'cased'  # input_case is cased by default
         if hasattr(self._tokenizer, 'do_lower_case') and self._tokenizer.do_lower_case:
             input_case = 'lower_cased'
+        if not PYNINI_AVAILABLE:
+            raise Exception(
+                "`pynini` is not installed ! \n"
+                "Please run the `nemo_text_processing/setup.sh` script"
+                "prior to usage of this toolkit."
+            )
         self.cg_normalizer = NormalizerWithAudio(input_case=input_case, lang=self.lang)
 
     # Training
