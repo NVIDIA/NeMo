@@ -58,8 +58,12 @@ class DuplexDecoderModel(NLPModel):
         if self.use_cg:
             self.setup_cgs(cfg)
 
-    # Setup covering grammars
+    # Setup covering grammars (if enabled)
     def setup_cgs(self, cfg: DictConfig):
+        """
+        Setup covering grammars (if enabled).
+        :param cfg: Configs of the decoder model.
+        """
         self.use_cg = True
         self.neural_confidence_threshold = cfg.get('neural_confidence_threshold', 0.99)
         self.n_tagged = cfg.get('n_tagged', 1)
