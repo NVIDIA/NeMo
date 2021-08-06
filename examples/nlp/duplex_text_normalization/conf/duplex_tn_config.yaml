@@ -122,6 +122,7 @@ data:
     do_basic_tokenize: false
     max_decoder_len: 80
     mode: ${mode}
+    max_insts: -1 # Maximum number of instances (-1 means no limit)
     # Refer to the text_normalization doc for more information about data augmentation
     tagger_data_augmentation: true
     decoder_data_augmentation: true
