@@ -12,9 +12,12 @@ since the downloaded datasets will be stored inside this repository.
 
 
 ## Dependencies:
-Download or clone the Megatron-LM repository and place it inside the
-bignlp-scripts directory. Both the preprocessing and training need to run code
-in the Megatron-LM repository.
+Clone the Megatron-LM repository as a submodule.
+Both the preprocessing and training need to run in the Megatron-LM repository.
+```
+cd bignlp_scripts
+git submodule update --init --recursive
+```
 
 
 ## Download and Preprocess Training Dataset
