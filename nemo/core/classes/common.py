@@ -34,6 +34,7 @@ except ModuleNotFoundError:
 import wrapt
 
 import nemo
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
 from nemo.utils import logging
 from nemo.utils.cloud import maybe_download_from_cloud
@@ -629,6 +630,7 @@ class Model(Typing, Serialization, FileIO):
         map_location: Optional['torch.device'] = None,
         strict: bool = True,
         return_config: bool = False,
+        save_restore_connector: SaveRestoreConnector = None,
     ):
         """
         Instantiates an instance of NeMo from NVIDIA NGC cloud
@@ -648,6 +650,9 @@ class Model(Typing, Serialization, FileIO):
         Returns:
             A model instance of a particular model class or its underlying config (if return_config is set).
         """
+        if save_restore_connector is None:
+            save_restore_connector = SaveRestoreConnector()
+
         location_in_the_cloud = None
         description = None
         models = cls.list_available_models()
@@ -689,6 +694,7 @@ class Model(Typing, Serialization, FileIO):
             map_location=map_location,
             strict=strict,
             return_config=return_config,
+            save_restore_connector=save_restore_connector,
         )
         return instance
 
