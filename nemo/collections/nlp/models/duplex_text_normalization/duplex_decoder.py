@@ -250,6 +250,15 @@ class DuplexDecoderModel(NLPModel):
             if self.lang == constants.ENGLISH:
                 # Handle URL
                 if is_url(_input):
+                    _output = _output.replace('http', ' h t t p ')
+                    _output = _output.replace('/', ' slash ')
+                    _output = _output.replace('.', ' dot ')
+                    _output = _output.replace(':', ' colon ')
+                    _output = _output.replace('-', ' dash ')
+                    _output = _output.replace('_', ' underscore ')
+                    _output = _output.replace('%', ' percent ')
+                    _output = _output.replace('www', ' w w w ')
+                    _output = _output.replace('ftp', ' f t p ')
                     output_spans[ix] = ' '.join(wordninja.split(_output))
                     continue
                 # Greek letters
