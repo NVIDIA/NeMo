@@ -24,15 +24,12 @@ python class_based_decoding_evaluation.py
         lang={en,ru,de}
 """
 
-from math import ceil
-
 import numpy as np
 from helpers import DECODER_MODEL, instantiate_model_and_trainer
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 
 from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset, constants
-from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize, read_data_file
 from nemo.collections.nlp.models.duplex_text_normalization.utils import get_formatted_string
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
