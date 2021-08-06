@@ -12,12 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from copy import deepcopy
 from typing import List
 
-from tqdm import tqdm
-
-import nemo.collections.nlp.data.text_normalization.constants as constants
+from nemo.collections.nlp.data.text_normalization import constants
 from nemo.collections.nlp.data.text_normalization.utils import (
     basic_tokenize,
     normalize_str,
@@ -38,10 +35,9 @@ class TextNormalizationTestDataset:
         input_file: path to the raw data file (e.g., train.tsv). For more info about the data format, refer to the `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`.
         mode: should be one of the values ['tn', 'itn', 'joint'].  `tn` mode is for TN only. `itn` mode is for ITN only. `joint` is for training a system that can do both TN and ITN at the same time.
         lang: Language of the dataset
-        keep_puncts: whether to keep punctuations in the inputs/outputs
     """
 
-    def __init__(self, input_file: str, mode: str, lang: str, keep_puncts: bool = False):
+    def __init__(self, input_file: str, mode: str, lang: str):
         self.lang = lang
         insts = read_data_file(input_file)
 
@@ -52,9 +48,6 @@ class TextNormalizationTestDataset:
             processed_w_words, processed_s_words = [], []
             for w_word, s_word in zip(w_words, s_words):
                 if s_word == constants.SIL_WORD:
-                    if keep_puncts:
-                        processed_w_words.append(w_word)
-                        processed_s_words.append(w_word)
                     continue
                 if s_word == constants.SELF_WORD:
                     processed_s_words.append(w_word)
