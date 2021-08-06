@@ -17,7 +17,7 @@ This script can be used to visualize the errors made by a (duplex) TN system.
 More specifically, after running the evaluation script `duplex_text_normalization_test.py`,
 a log file containing info about the errors will be generated. The location of this file
 is determined by the argument `inference.errors_log_fp`. After that, we can use this
-evaluation script to generate a HTML visualization.
+script to generate a HTML visualization.
 
 USAGE Example:
 # python analyze_errors.py                                    \
@@ -32,6 +32,15 @@ from nemo.collections.nlp.data.text_normalization import constants
 
 # Longest Common Subsequence
 def lcs(X, Y):
+    """ Function for finding the longest common subsequence between two lists.
+    In this script, this function is particular used for aligning between the
+    ground-truth output string and the predicted string (for visualization purpose).
+    Args:
+        X: a list
+        Y: a list
+
+    Returns: a list which is the longest common subsequence between X and Y
+    """
     m, n = len(X), len(Y)
     L = [[0 for x in range(n + 1)] for x in range(m + 1)]
 
@@ -79,7 +88,17 @@ def lcs(X, Y):
 
 # Classes
 class ErrorCase:
-    def __init__(self, _input, target, pred, mode):
+    """
+    This class represents an error case
+
+    Args:
+        _input: Original input string
+        target: Ground-truth target string
+        pred: Predicted string
+        mode: A string indicates the mode (i.e., constants.ITN_MODE or constants.TN_MODE)
+    """
+
+    def __init__(self, _input: str, target: str, pred: str, mode: str):
         self._input = _input
         self.target = target
         self.pred = pred
@@ -120,7 +139,16 @@ class ErrorCase:
                 unhighlighted_pred_spans.append((ix, t))
 
     @classmethod
-    def from_lines(cls, lines, mode):
+    def from_lines(cls, lines: List[str], mode: str):
+        """
+        This method returns an instance of ErrorCase from raw string lines.
+
+        Args:
+            lines: A list of raw string lines for the error case.
+            mode: A string indicates the mode (i.e., constants.ITN_MODE or constants.TN_MODE)
+
+        Returns: an instance of ErrorCase.
+        """
         for line in lines:
             if line.startswith('Original Input'):
                 _input = line[line.find(':') + 1 :].strip()
@@ -131,6 +159,10 @@ class ErrorCase:
         return cls(_input, target, pred, mode)
 
     def get_html(self):
+        """
+        This method returns a HTML string representing this error case instance.
+        Returns: a string contains the HTML representing this error case instance.
+        """
         html_str = ''
         # Input
         input_form = 'Written' if self.mode == constants.TN_MODE else 'Spoken'
@@ -154,6 +186,15 @@ class ErrorCase:
         return html_str
 
     def get_spans(self, tokens_hightlight):
+        """
+        This method extracts the list of spans.
+
+        Args:
+            tokens_hightlight: A list of boolean values where each value indicates whether a token needs to be hightlighted.
+
+        Returns:
+            spans: A list of spans. Each span is represented by a tuple of 3 elements: (1) Start Index (2) End Index (3) A boolean value indicating whether the span needs to be hightlighted.
+        """
         spans, nb_tokens = [], len(tokens_hightlight)
         cur_start_idx, cur_bool_val = 0, tokens_hightlight[0]
         for idx in range(nb_tokens):
@@ -170,6 +211,15 @@ class ErrorCase:
         return spans
 
     def get_spans_html(self, spans, tokens):
+        """
+        This method generates a HTML string for a string sequence from its spans.
+
+        Args:
+            spans: A list of contiguous spans in a sequence. Each span is represented by a tuple of 3 elements: (1) Start Index (2) End Index (3) A boolean value indicating whether the span needs to be hightlighted.
+            tokens: All tokens in the sequence
+        Returns:
+            html_str: A HTML string for the string sequence.
+        """
         html_str = ''
         for start, end, type in spans:
             color = 'red' if type else 'black'
@@ -180,7 +230,15 @@ class ErrorCase:
 
 
 # Main function for analysis
-def analyze(errors_log_fp, visualization_fp):
+def analyze(errors_log_fp: str, visualization_fp: str):
+    """
+    This method generates a HTML visualization of the error cases logged in a log file.
+
+    Args:
+        errors_log_fp: Path to the error log file
+        visualization_fp: Path to the output visualization file
+
+    """
     # Read lines from errors log
     with open(errors_log_fp, 'r', encoding='utf-8') as f:
         lines = f.readlines()
@@ -226,8 +284,8 @@ def analyze(errors_log_fp, visualization_fp):
 if __name__ == '__main__':
     # Parse argument
     parser = ArgumentParser()
-    parser.add_argument('--errors_log_fp', required=True)
-    parser.add_argument('--visualization_fp', required=True)
+    parser.add_argument('--errors_log_fp', type='str', help='Path to the error log file', required=True)
+    parser.add_argument('--visualization_fp', type='str', help='Path to the output visualization file', required=True)
     args = parser.parse_args()
 
     analyze(args.errors_log_fp, args.visualization_fp)
