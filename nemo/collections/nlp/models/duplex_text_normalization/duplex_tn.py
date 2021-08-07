@@ -121,7 +121,7 @@ class DuplexTextNormalizationModel(nn.Module):
                     error_f.write(f'Original Input : {_input}\n')
                     error_f.write(f'Input          : {formatted_input_str}\n')
                     error_f.write(f'Predicted Tags : {formatted_tag_pred_str}\n')
-                    error_f.write(f'Predicted      : {final_pred}\n')
+                    error_f.write(f'Predicted Str  : {final_pred}\n')
                     error_f.write(f'Ground-Truth   : {target}\n')
                     error_f.write('\n')
             results['itn_error_ctx'] = itn_error_ctx
