@@ -143,6 +143,9 @@ class PerceiverEncoder(TransformerEncoder):
 
         # apply block (cross-attention, self-attention) multiple times
         for block in range(self._hidden_blocks):
+            # self-attention over hidden
+            hidden_states = super().forward(encoder_states=hidden_states, encoder_mask=hidden_mask,)
+
             # cross attention of hidden over encoder states
             hidden_states = self.cross_att(
                 decoder_states=hidden_states,
@@ -151,7 +154,8 @@ class PerceiverEncoder(TransformerEncoder):
                 encoder_mask=encoder_mask,
             )
 
-            # self-attention over hidden
-            hidden_states = super().forward(encoder_states=hidden_states, encoder_mask=hidden_mask,)
+        # final self-attention over hidden
+        hidden_states = super().forward(encoder_states=hidden_states, encoder_mask=hidden_mask,)
+
 
         return hidden_states, hidden_mask
