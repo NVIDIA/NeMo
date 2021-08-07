@@ -134,7 +134,7 @@ def main():
     all_len = 0
 
     data = []
-    for line in open(args.dataset, 'r'):
+    for line in open(manifest_vad_input, 'r'):
         file = json.loads(line)['audio_filepath'].split("/")[-1]
         data.append(file.split(".wav")[0])
     logging.info(f"Inference on {len(data)} audio files/json lines!")

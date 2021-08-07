@@ -22,8 +22,7 @@ from pytorch_lightning import Trainer
 from torch import nn
 from transformers import AutoModelForTokenClassification, AutoTokenizer, DataCollatorForTokenClassification
 
-import nemo.collections.nlp.data.text_normalization.constants as constants
-from nemo.collections.nlp.data.text_normalization import TextNormalizationTaggerDataset
+from nemo.collections.nlp.data.text_normalization import TextNormalizationTaggerDataset, constants
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.duplex_text_normalization.utils import has_numbers
 from nemo.collections.nlp.models.nlp_model import NLPModel
@@ -48,6 +47,7 @@ class DuplexTaggerModel(NLPModel):
         super().__init__(cfg=cfg, trainer=trainer)
         self.num_labels = len(constants.ALL_TAG_LABELS)
         self.model = AutoModelForTokenClassification.from_pretrained(cfg.transformer, num_labels=self.num_labels)
+        self.transformer_name = cfg.transformer
 
         # Loss Functions
         self.loss_fct = nn.CrossEntropyLoss(ignore_index=constants.LABEL_PAD_TOKEN_ID)
@@ -209,6 +209,10 @@ class DuplexTaggerModel(NLPModel):
                 if has_numbers(words[ix]) and (not constants.TRANSFORM_TAG in p):
                     final_preds.append(constants.B_PREFIX + constants.TRANSFORM_TAG)
                     continue
+            # Convert B-TASK tag to B-SAME tag
+            if p == constants.B_PREFIX + constants.TASK_TAG:
+                final_preds.append(constants.B_PREFIX + constants.SAME_TAG)
+                continue
             # Default
             final_preds.append(p)
         return final_preds
@@ -276,17 +280,21 @@ class DuplexTaggerModel(NLPModel):
         start_time = perf_counter()
         logging.info(f'Creating {mode} dataset')
         input_file = cfg.data_path
+        tagger_data_augmentation = cfg.get('tagger_data_augmentation', False)
         dataset = TextNormalizationTaggerDataset(
             input_file,
             self._tokenizer,
+            self.transformer_name,
             cfg.mode,
-            cfg.get('do_basic_tokenize', False),
-            cfg.get('tagger_data_augmentation', False),
+            cfg.do_basic_tokenize,
+            tagger_data_augmentation,
             cfg.lang,
+            cfg.get('use_cache', False),
+            cfg.get('max_insts', -1),
         )
         data_collator = DataCollatorForTokenClassification(self._tokenizer)
         dl = torch.utils.data.DataLoader(
-            dataset=dataset, batch_size=cfg.batch_size, shuffle=cfg.shuffle, collate_fn=data_collator,
+            dataset=dataset, batch_size=cfg.batch_size, shuffle=cfg.shuffle, collate_fn=data_collator
         )
         running_time = perf_counter() - start_time
         logging.info(f'Took {running_time} seconds')

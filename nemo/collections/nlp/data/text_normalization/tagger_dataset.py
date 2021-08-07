@@ -12,12 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import pickle
+
 from tqdm import tqdm
 from transformers import PreTrainedTokenizerBase
 
-import nemo.collections.nlp.data.text_normalization.constants as constants
+from nemo.collections.nlp.data.text_normalization import constants
 from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize, read_data_file
 from nemo.core.classes import Dataset
+from nemo.utils import logging
 from nemo.utils.decorators.experimental import experimental
 
 __all__ = ['TextNormalizationTaggerDataset']
@@ -35,59 +39,90 @@ class TextNormalizationTaggerDataset(Dataset):
     Args:
         input_file: path to the raw data file (e.g., train.tsv). For more info about the data format, refer to the `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`.
         tokenizer: tokenizer of the model that will be trained on the dataset
+        tokenizer_name: name of the tokenizer,
         mode: should be one of the values ['tn', 'itn', 'joint'].  `tn` mode is for TN only. `itn` mode is for ITN only. `joint` is for training a system that can do both TN and ITN at the same time.
         do_basic_tokenize: a flag indicates whether to do some basic tokenization before using the tokenizer of the model
         tagger_data_augmentation (bool): a flag indicates whether to augment the dataset with additional data instances
         lang: language of the dataset
+        use_cache: Enables caching to use pickle format to store and read data from,
+        max_insts: Maximum number of instances (-1 means no limit)
     """
 
     def __init__(
         self,
         input_file: str,
         tokenizer: PreTrainedTokenizerBase,
+        tokenizer_name: str,
         mode: str,
         do_basic_tokenize: bool,
         tagger_data_augmentation: bool,
         lang: str,
+        use_cache: bool = False,
+        max_insts: int = -1,
     ):
         assert mode in constants.MODES
         assert lang in constants.SUPPORTED_LANGS
         self.mode = mode
         self.lang = lang
-        raw_insts = read_data_file(input_file)
+        self.use_cache = use_cache
+        self.max_insts = max_insts
 
-        # Convert raw instances to TaggerDataInstance
-        insts = []
-        for (_, w_words, s_words) in tqdm(raw_insts):
-            for inst_dir in constants.INST_DIRECTIONS:
-                if inst_dir == constants.INST_BACKWARD and mode == constants.TN_MODE:
-                    continue
-                if inst_dir == constants.INST_FORWARD and mode == constants.ITN_MODE:
-                    continue
-                # Create a new TaggerDataInstance
-                inst = TaggerDataInstance(w_words, s_words, inst_dir, do_basic_tokenize)
-                insts.append(inst)
-                # Data Augmentation (if enabled)
-                if tagger_data_augmentation:
-                    filtered_w_words, filtered_s_words = [], []
-                    for ix, (w, s) in enumerate(zip(w_words, s_words)):
-                        if not s in constants.SPECIAL_WORDS:
-                            filtered_w_words.append(w)
-                            filtered_s_words.append(s)
-                    if len(filtered_s_words) > 1:
-                        inst = TaggerDataInstance(filtered_w_words, filtered_s_words, inst_dir)
-                        insts.append(inst)
+        # Get cache path
+        data_dir, filename = os.path.split(input_file)
+        cached_data_file = os.path.join(data_dir, f'cached_tagger_{filename}_{tokenizer_name}_{lang}_{max_insts}.pkl')
 
-        self.insts = insts
-        texts = [inst.input_words for inst in insts]
-        tags = [inst.labels for inst in insts]
+        if use_cache and os.path.exists(cached_data_file):
+            logging.warning(
+                f"Processing of {input_file} is skipped as caching is enabled and a cache file "
+                f"{cached_data_file} already exists."
+            )
+            with open(cached_data_file, 'rb') as f:
+                data = pickle.load(f)
+                self.insts, self.tag2id, self.encodings, self.labels = data
+        else:
+            # Read the input raw data file
+            raw_insts = read_data_file(input_file)
+            if max_insts >= 0:
+                raw_insts = raw_insts[:max_insts]
 
-        # Tags Mapping
-        self.tag2id = {tag: id for id, tag in enumerate(constants.ALL_TAG_LABELS)}
+            # Convert raw instances to TaggerDataInstance
+            insts = []
+            for (_, w_words, s_words) in tqdm(raw_insts):
+                for inst_dir in constants.INST_DIRECTIONS:
+                    if inst_dir == constants.INST_BACKWARD and mode == constants.TN_MODE:
+                        continue
+                    if inst_dir == constants.INST_FORWARD and mode == constants.ITN_MODE:
+                        continue
+                    # Create a new TaggerDataInstance
+                    inst = TaggerDataInstance(w_words, s_words, inst_dir, do_basic_tokenize)
+                    insts.append(inst)
+                    # Data Augmentation (if enabled)
+                    if tagger_data_augmentation:
+                        filtered_w_words, filtered_s_words = [], []
+                        for ix, (w, s) in enumerate(zip(w_words, s_words)):
+                            if not s in constants.SPECIAL_WORDS:
+                                filtered_w_words.append(w)
+                                filtered_s_words.append(s)
+                        if len(filtered_s_words) > 1:
+                            inst = TaggerDataInstance(filtered_w_words, filtered_s_words, inst_dir)
+                            insts.append(inst)
 
-        # Finalize
-        self.encodings = tokenizer(texts, is_split_into_words=True, padding=False, truncation=True)
-        self.labels = self.encode_tags(tags, self.encodings)
+            self.insts = insts
+            texts = [inst.input_words for inst in insts]
+            tags = [inst.labels for inst in insts]
+
+            # Tags Mapping
+            self.tag2id = {tag: id for id, tag in enumerate(constants.ALL_TAG_LABELS)}
+
+            # Finalize
+            self.encodings = tokenizer(texts, is_split_into_words=True, padding=False, truncation=True)
+            self.labels = self.encode_tags(tags, self.encodings)
+
+            # Write to cache (if use_cache)
+            if use_cache:
+                with open(cached_data_file, 'wb') as out_file:
+                    data = self.insts, self.tag2id, self.encodings, self.labels
+                    pickle.dump(data, out_file, protocol=pickle.HIGHEST_PROTOCOL)
 
     def __getitem__(self, idx):
         item = {key: val[idx] for key, val in self.encodings.items()}
