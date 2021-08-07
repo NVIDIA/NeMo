@@ -84,6 +84,18 @@ class PerceiverEncoder(TransformerEncoder):
         if self.hidden_init_method == "params":
             # learnable initial hidden values
             self.init_hidden = torch.nn.Parameter(torch.nn.init.xavier_normal_(torch.empty(hidden_steps, hidden_size)))
+            self.init_cross_att = TransformerDecoder(
+                num_layers=1,
+                hidden_size=hidden_size,
+                inner_size=inner_size,
+                num_attention_heads=num_attention_heads,
+                attn_score_dropout=attn_score_dropout,
+                attn_layer_dropout=attn_layer_dropout,
+                ffn_dropout=ffn_dropout,
+                hidden_act=hidden_act,
+                pre_ln=pre_ln,
+                pre_ln_final_layer_norm=pre_ln_final_layer_norm,
+            )
         elif self.hidden_init_method == "bridge":
             # initialize latent with attention bridge
             self.att_bridge = AttentionBridge(hidden_size=hidden_size, k=hidden_steps, bridge_size=inner_size,)
@@ -119,6 +131,12 @@ class PerceiverEncoder(TransformerEncoder):
         if self._hidden_init_method == "params":
             # initialize latent with learned parameters
             hidden_states = self.init_hidden.unsqueeze(0).expand(encoder_states.shape[0], -1, -1)
+            hidden_states = self.init_cross_att(
+                decoder_states=hidden_states,
+                decoder_mask=hidden_mask,
+                encoder_states=encoder_states,
+                encoder_mask=encoder_mask,
+            )
         elif self._hidden_init_method == "bridge":
             # initialize latent with attention bridge
             hidden_states = self.att_bridge(hidden=encoder_states, hidden_mask=encoder_mask,)
