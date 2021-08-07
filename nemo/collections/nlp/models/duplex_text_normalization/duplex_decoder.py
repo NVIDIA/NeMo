@@ -251,6 +251,7 @@ class DuplexDecoderModel(NLPModel):
         return final_texts
 
     def postprocess_output_spans(self, input_centers, output_spans, input_dirs):
+        en_greek_writtens = list(constants.EN_GREEK_TO_SPOKEN.keys())
         en_greek_spokens = list(constants.EN_GREEK_TO_SPOKEN.values())
         for ix, (_input, _output) in enumerate(zip(input_centers, output_spans)):
             if self.lang == constants.ENGLISH:
@@ -268,6 +269,9 @@ class DuplexDecoderModel(NLPModel):
                     output_spans[ix] = ' '.join(wordninja.split(_output))
                     continue
                 # Greek letters
+                if _input in en_greek_writtens:
+                    if input_dirs[ix] == constants.INST_FORWARD:
+                        output_spans[ix] = constants.EN_GREEK_TO_SPOKEN[_input]
                 if _input in en_greek_spokens:
                     if input_dirs[ix] == constants.INST_FORWARD:
                         output_spans[ix] = _input
@@ -281,27 +285,29 @@ class DuplexDecoderModel(NLPModel):
             logging.info(
                 f"Dataloader config or file_path for the train is missing, so no data loader for train is created!"
             )
-            self._train_dl = None
+            self.train_dataset, self._train_dl = None, None
             return
-        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, mode="train")
+        self.train_dataset, self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, mode="train")
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if not val_data_config or not val_data_config.data_path:
             logging.info(
                 f"Dataloader config or file_path for the validation is missing, so no data loader for validation is created!"
             )
-            self._validation_dl = None
+            self.validation_dataset, self._validation_dl = None, None
             return
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, mode="val")
+        self.validation_dataset, self._validation_dl = self._setup_dataloader_from_config(
+            cfg=val_data_config, mode="val"
+        )
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         if not test_data_config or test_data_config.data_path is None:
             logging.info(
                 f"Dataloader config or file_path for the test is missing, so no data loader for test is created!"
             )
-            self._test_dl = None
+            self.test_dataset, self._test_dl = None, None
             return
-        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, mode="test")
+        self.test_dataset, self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, mode="test")
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, mode: str):
         tokenizer, model = self._tokenizer, self.model
@@ -328,7 +334,7 @@ class DuplexDecoderModel(NLPModel):
         )
         running_time = perf_counter() - start_time
         logging.info(f'Took {running_time} seconds')
-        return dl
+        return dataset, dl
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
