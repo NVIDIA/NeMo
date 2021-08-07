@@ -18,6 +18,7 @@ from typing import List, Optional
 import nltk
 import torch
 import wordninja
+from nemo_text_processing.text_normalization.normalize_with_audio import PYNINI_AVAILABLE, NormalizerWithAudio
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
@@ -49,6 +50,33 @@ class DuplexDecoderModel(NLPModel):
 
         # Language
         self.lang = cfg.get('lang', None)
+
+        # Covering Grammars
+        self.cg_normalizer = None  # Default
+        # We only support integrating with English TN covering grammars at the moment
+        self.use_cg = cfg.get('use_cg', False) and self.lang == constants.ENGLISH
+        if self.use_cg:
+            self.setup_cgs(cfg)
+
+    # Setup covering grammars (if enabled)
+    def setup_cgs(self, cfg: DictConfig):
+        """
+        Setup covering grammars (if enabled).
+        :param cfg: Configs of the decoder model.
+        """
+        self.use_cg = True
+        self.neural_confidence_threshold = cfg.get('neural_confidence_threshold', 0.99)
+        self.n_tagged = cfg.get('n_tagged', 1)
+        input_case = 'cased'  # input_case is cased by default
+        if hasattr(self._tokenizer, 'do_lower_case') and self._tokenizer.do_lower_case:
+            input_case = 'lower_cased'
+        if not PYNINI_AVAILABLE:
+            raise Exception(
+                "`pynini` is not installed ! \n"
+                "Please run the `nemo_text_processing/setup.sh` script"
+                "prior to usage of this toolkit."
+            )
+        self.cg_normalizer = NormalizerWithAudio(input_case=input_case, lang=self.lang)
 
     # Training
     def training_step(self, batch, batch_idx):
@@ -175,8 +203,38 @@ class DuplexDecoderModel(NLPModel):
         # Apply the decoding model
         batch = tokenizer(all_inputs, padding=True, return_tensors='pt')
         input_ids = batch['input_ids'].to(self.device)
-        generated_ids = model.generate(input_ids, max_length=model_max_len)
+        outputs = model.generate(input_ids, output_scores=True, return_dict_in_generate=True, max_length=model_max_len)
+        generated_ids, sequence_toks_scores = outputs['sequences'], outputs['scores']
         generated_texts = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
+
+        # Use covering grammars (if enabled)
+        if self.use_cg:
+            # Compute sequence probabilities
+            sequence_probs = torch.ones(len(all_inputs)).to(self.device)
+            for ix, cur_toks_scores in enumerate(sequence_toks_scores):
+                cur_generated_ids = generated_ids[:, ix + 1].tolist()
+                cur_toks_probs = torch.nn.functional.softmax(cur_toks_scores, dim=-1)
+                # Compute selected_toks_probs
+                selected_toks_probs = []
+                for jx, _id in enumerate(cur_generated_ids):
+                    if _id != self._tokenizer.pad_token_id:
+                        selected_toks_probs.append(cur_toks_probs[jx, _id])
+                    else:
+                        selected_toks_probs.append(1)
+                selected_toks_probs = torch.tensor(selected_toks_probs).to(self.device)
+                sequence_probs *= selected_toks_probs
+
+            # For TN cases where the neural model is not confident, use CGs
+            neural_confidence_threshold = self.neural_confidence_threshold
+            for ix, (_dir, _input, _prob) in enumerate(zip(input_dirs, input_centers, sequence_probs)):
+                if _dir == constants.INST_FORWARD and _prob < neural_confidence_threshold:
+                    if is_url(_input):
+                        _input = _input.replace(' ', '')  # Remove spaces in URLs
+                    try:
+                        cg_outputs = self.cg_normalizer.normalize(text=_input, verbose=False, n_tagged=self.n_tagged)
+                        generated_texts[ix] = list(cg_outputs)[0]
+                    except:  # if there is any exception, fall back to the input
+                        generated_texts[ix] = _input
 
         # Post processing
         generated_texts = self.postprocess_output_spans(input_centers, generated_texts, input_dirs)
@@ -199,6 +257,15 @@ class DuplexDecoderModel(NLPModel):
             if self.lang == constants.ENGLISH:
                 # Handle URL
                 if is_url(_input):
+                    _output = _output.replace('http', ' h t t p ')
+                    _output = _output.replace('/', ' slash ')
+                    _output = _output.replace('.', ' dot ')
+                    _output = _output.replace(':', ' colon ')
+                    _output = _output.replace('-', ' dash ')
+                    _output = _output.replace('_', ' underscore ')
+                    _output = _output.replace('%', ' percent ')
+                    _output = _output.replace('www', ' w w w ')
+                    _output = _output.replace('ftp', ' f t p ')
                     output_spans[ix] = ' '.join(wordninja.split(_output))
                     continue
                 # Greek letters
