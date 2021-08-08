@@ -21,7 +21,6 @@ model:
     tar_file_prefix: parallel # prefix for tar file names
     tar_files: null # if data has already been preprocessed (rest of config ignored)
     metadata_file: null # metadata for tarred dataset
-    lines_per_dataset_fragment: 1000000 # Number of lines to consider for bucketing and padding
     num_batches_per_tarfile: 100 # Number of batches (pickle files) within each tarfile
     tar_shuffle_n: 100 # How many samples to look ahead and load to be shuffled
     shard_strategy: scatter # tarred dataset shard distribution strategy
@@ -161,8 +160,8 @@ model:
     loss:
       primary:
         _target_: 'nemo.collections.common.losses.distillation_losses.scaled_kld.ScaledKLDivLoss'
-        log_target: true
-        reduction: 'mean'
+        log_target: True
+        reduction: 'batchmean'
         temperature: ${model.distillation.temperature}
 
       cosine:

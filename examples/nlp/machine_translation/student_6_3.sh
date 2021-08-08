@@ -4,18 +4,18 @@ WANDBLOGIN=1589819cfa34108320cd27634a3f764a29b211d8
 NUM_GPUS=1
 
 # Hyperparams
-TOKENS_IN_BATCH=256
+TOKENS_IN_BATCH=8000
 LEARNING_RATE=4e-4
 STEPS=100000
 WARMUP_STEPS=30000
 
 # Distillation
-DISTILLATION_LOSS_WEIGHT=1.0
-STUDENT_TRAIN_LOSS_WEIGHT=1.0
+DISTILLATION_LOSS_WEIGHT=5.0
+STUDENT_TRAIN_LOSS_WEIGHT=2.0
 COSINE_LOSS_WEIGHT=1.0
 TEMPERATURE=2.0
 
-EXPNAME=STUDENT_3_3_NMT_DE_EN_DL_${DISTILLATION_LOSS_WEIGHT}_SL_${STUDENT_TRAIN_LOSS_WEIGHT}_CL_${COSINE_LOSS_WEIGHT}_TEMP_${TEMPERATURE}
+EXPNAME=STUDENT_6_3_NMT_DE_EN_DL_${DISTILLATION_LOSS_WEIGHT}_SL_${STUDENT_TRAIN_LOSS_WEIGHT}_CL_${COSINE_LOSS_WEIGHT}_TEMP_${TEMPERATURE}
 
 python enc_dec_nmt_distill.py \
 --config-path=conf \
@@ -35,7 +35,7 @@ model.preproc_out_dir=/raid/preproc_data_wmt21 \
 model.encoder.hidden_size=1024 \
 model.encoder.inner_size=4096 \
 model.encoder.num_attention_heads=16 \
-model.encoder.num_layers=3 \
+model.encoder.num_layers=6 \
 model.encoder.ffn_dropout=0.1 \
 model.encoder.pre_ln=true \
 model.encoder_tokenizer.vocab_size=32000 \
@@ -46,7 +46,7 @@ model.decoder.hidden_size=1024 \
 model.decoder.inner_size=4096 \
 model.decoder.num_attention_heads=16 \
 model.decoder.ffn_dropout=0.1 \
-model.train_ds.use_tarred_dataset=false \
+model.train_ds.use_tarred_dataset=true \
 model.train_ds.shard_strategy=scatter \
 model.train_ds.src_file_name=/raid/wmt21/train.dedup.de \
 model.train_ds.tgt_file_name=/raid/wmt21/train.dedup.en \
@@ -57,7 +57,7 @@ model.validation_ds.tgt_file_name=[/raid/wmt21/val/newstest2020-en-de.clean.tok.
 model.optim.lr=$LEARNING_RATE \
 +model.optim.sched.warmup_steps=$WARMUP_STEPS \
 ~model.optim.sched.warmup_ratio \
-model.distillation.model_path='/raid/nemo_models/teacher_12_6_de_en/AAYNBase.nemo' \
+model.distillation.model_path='/raid/nemo_models/teacher_24_6_de_en/AAYNBase.nemo' \
 model.distillation.distillation_loss_weight=${DISTILLATION_LOSS_WEIGHT} \
 model.distillation.student_train_loss_weight=${STUDENT_TRAIN_LOSS_WEIGHT} \
 model.distillation.cosine_loss_weight=${COSINE_LOSS_WEIGHT} \
