@@ -82,7 +82,7 @@ class ClassifyFst(GraphFst):
             self.fst = pynini.Far(far_file, mode='r')['tokenize_and_classify']
             logging.info(f'ClassifyFst.fst was restored from {far_file}.')
         else:
-            logging.info(f'Re-creating ClassifyFst grammars and saving to {far_file}.')
+            logging.info(f'Re-creating ClassifyFst grammars.')
             # TAGGERS
             cardinal = CardinalFst(deterministic=deterministic)
             cardinal_graph = cardinal.fst
@@ -160,3 +160,4 @@ class ClassifyFst(GraphFst):
 
             self.fst = graph.optimize()
             generator_main(far_file, {"tokenize_and_classify": self.fst})
+            logging.info(f'ClassifyFst grammars are saved to {far_file}.')
