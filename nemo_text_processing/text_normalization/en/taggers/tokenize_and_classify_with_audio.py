@@ -19,6 +19,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     GraphFst,
     delete_extra_space,
     delete_space,
+    generator_main,
     get_abs_path,
 )
 from nemo_text_processing.text_normalization.en.taggers.abbreviation import AbbreviationFst
@@ -54,7 +55,6 @@ from nemo.utils import logging
 try:
     import pynini
     from pynini.lib import pynutil
-    from tools.text_processing_deployment.pynini_export import _generator_main
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -159,4 +159,4 @@ class ClassifyFst(GraphFst):
             graph = delete_space + graph + delete_space
 
             self.fst = graph.optimize()
-            _generator_main(far_file, {"tokenize_and_classify": self.fst})
+            generator_main(far_file, {"tokenize_and_classify": self.fst})

@@ -14,11 +14,9 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_CHAR,
     NEMO_DIGIT,
     NEMO_NOT_QUOTE,
     NEMO_SIGMA,
-    PLURAL_TO_SINGULAR,
     SINGULAR_TO_PLURAL,
     GraphFst,
     convert_space,

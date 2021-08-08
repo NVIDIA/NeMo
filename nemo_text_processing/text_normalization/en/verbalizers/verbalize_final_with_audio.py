@@ -14,7 +14,6 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_NOT_QUOTE,
     NEMO_SIGMA,
     GraphFst,
     delete_extra_space,
@@ -25,7 +24,6 @@ from nemo_text_processing.text_normalization.en.verbalizers.word import WordFst
 
 try:
     import pynini
-    from pynini.lib import pynutil
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -48,14 +46,6 @@ class VerbalizeFinalFst(GraphFst):
         word = WordFst(deterministic=deterministic).fst
         default = NEMO_SIGMA
         types = verbalize | word | default
-        graph = (
-            # pynutil.delete("tokens")
-            # + delete_space
-            # + pynutil.delete("{")
-            delete_space
-            + types
-            + delete_space
-            # + pynutil.delete("}")
-        )
+        graph = delete_space + types + delete_space
         graph = delete_space + pynini.closure(graph + delete_extra_space) + graph + delete_space
         self.fst = graph
