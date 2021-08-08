@@ -96,7 +96,7 @@ class MoneyFst(GraphFst):
                 + pynini.closure(NEMO_DIGIT)
                 + (
                     (pynini.accep(".") + (NEMO_DIGIT ** (2) | zero_graph + (NEMO_DIGIT - "0")))
-                    | pynutil.delete(".") + pynini.cross(pynini.closure("0"), "")
+                    | pynutil.delete(".") + pynini.cross(pynini.closure("0", 1), "")
                 )
             )
 
@@ -164,14 +164,12 @@ class MoneyFst(GraphFst):
                 decimal_graph_with_minor = (
                     decimal_graph_with_minor_curr
                     if decimal_graph_with_minor is None
-                    else pynini.union(
-                        decimal_graph_with_minor, decimal_graph_with_minor_curr, decimal_graph_default_curr
-                    )
+                    else pynini.union(decimal_graph_with_minor, decimal_graph_with_minor_curr)
                 )
                 decimal_graph_default = (
                     decimal_graph_default_curr
                     if decimal_graph_default is None
-                    else pynini.union(decimal_graph_default, decimal_graph_default_curr, decimal_graph_default_curr)
+                    else pynini.union(decimal_graph_default, decimal_graph_default_curr)
                 )
 
             final_graph = decimal_graph_with_minor | decimal_graph_default | integer_graph
