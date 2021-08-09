@@ -71,10 +71,11 @@ class NormalizerWithAudio(Normalizer):
     Args:
         input_case: expected input capitalization
         lang: language
+        use_cache: whether to use saved .far grammar files
     """
 
-    def __init__(self, input_case: str, lang: str = 'en', deterministic=False):
-        super().__init__(input_case=input_case, lang=lang, deterministic=deterministic)
+    def __init__(self, input_case: str, lang: str = 'en', deterministic=False, use_cache: bool = True):
+        super().__init__(input_case=input_case, lang=lang, deterministic=deterministic, use_cache=use_cache)
 
     def normalize(
         self,
@@ -239,6 +240,7 @@ def parse_args():
     parser.add_argument(
         "--no_punct_post_process", help="set to True to disable punctuation post processing", action="store_true"
     )
+    parser.add_argument("--no_cache", help="set to True to re-create .far grammar files", action="store_true")
     return parser.parse_args()
 
 
@@ -269,7 +271,7 @@ def normalize_manifest(args):
         args.audio_data: path to .json manifest file.
     """
 
-    normalizer = NormalizerWithAudio(input_case=args.input_case, lang=args.language)
+    normalizer = NormalizerWithAudio(input_case=args.input_case, lang=args.language, use_cache=not args.no_cache)
     manifest_out = args.audio_data.replace('.json', '_normalized.json')
     asr_model = None
     with open(args.audio_data, 'r') as f:
@@ -292,7 +294,7 @@ if __name__ == "__main__":
 
     start = time.time()
     if args.text:
-        normalizer = NormalizerWithAudio(input_case=args.input_case, lang=args.language)
+        normalizer = NormalizerWithAudio(input_case=args.input_case, lang=args.language, use_cache=not args.no_cache)
         if os.path.exists(args.text):
             with open(args.text, 'r') as f:
                 args.text = f.read().strip()

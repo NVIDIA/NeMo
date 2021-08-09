@@ -55,16 +55,22 @@ def get_number_names():
     assert rewrite.top_rewrite("230", fg) == "(+ 200 30 +)"
 
     # Compiles lexicon transducers (L).
-    cardinal_name_nominative = pynini.string_file(get_abs_path("data/numbers/1_cardinals_nominative_именительный.tsv"))
-    cardinal_name_genitive = pynini.string_file(get_abs_path("data/numbers/2_cardinals_genitive_родительный.tsv"))
-    cardinal_name_dative = pynini.string_file(get_abs_path("data/numbers/3_cardinals_dative_датильный.tsv"))
-    cardinal_name_accusative = pynini.string_file(get_abs_path("data/numbers/4_cardinals_accusative_винительный.tsv"))
+    cardinal_name_nominative = pynini.string_file(
+        get_abs_path("data/numbers/1_cardinals_nominative_именительный.tsv")
+    ).optimize()
+    cardinal_name_genitive = pynini.string_file(
+        get_abs_path("data/numbers/2_cardinals_genitive_родительный.tsv")
+    ).optimize()
+    cardinal_name_dative = pynini.string_file(get_abs_path("data/numbers/3_cardinals_dative_датильный.tsv")).optimize()
+    cardinal_name_accusative = pynini.string_file(
+        get_abs_path("data/numbers/4_cardinals_accusative_винительный.tsv")
+    ).optimize()
     cardinal_name_instrumental = pynini.string_file(
         get_abs_path("data/numbers/5_cardinals_instrumental_творительный.tsv")
-    )
+    ).optimize()
     cardinal_name_prepositional = pynini.string_file(
         get_abs_path("data/numbers/6_cardinals_prepositional_предложный.tsv")
-    )
+    ).optimize()
 
     cardinal_l = (pynini.closure(cardinal_name_nominative + pynini.accep(" ")) + cardinal_name_nominative).optimize()
     for case in [
@@ -82,18 +88,15 @@ def get_number_names():
         pynini.closure(nominative_up_to_thousand_name + pynini.accep(" ")) + nominative_up_to_thousand_name
     ).optimize()
 
-    # (* 5000) -> (* 5000) handles complex ordinal numbers, e.g. "пятитысячный", "двухмиллиардный"
-    complex_numbers = (
-        NEMO_SIGMA + pynini.cross("(* 2 1000 *)", "2000") + pynini.closure(pynini.union(" ", ")", "(", "+", "*"))
-    )
+    # (* 5 1000 *) -> 5000 handles complex ordinal numbers, e.g. "пятитысячный"
+    complex_numbers = pynini.cross("(* 2 1000 *)", "2000")
     for number in range(3, 21):
-        complex_numbers |= (
-            NEMO_SIGMA
-            + pynini.cross(f"(* {number} 1000 *)", f"{number}000")
-            + pynini.closure(pynini.union(" ", ")", "(", "+", "*"))
-        )
+        complex_numbers |= pynini.cross(f"(* {number} 1000 *)", f"{number}000")
 
-    fg_ordinal = pynutil.add_weight(pynini.compose(fg, complex_numbers), -0.0001) | fg
+    complex_numbers = (
+        NEMO_SIGMA + pynutil.add_weight(complex_numbers, -1) + pynini.closure(pynini.union(" ", ")", "(", "+", "*"))
+    )
+    fg_ordinal = pynutil.add_weight(pynini.compose(fg, complex_numbers), -1) | fg
     ordinal_name = pynini.string_file(get_abs_path("data/numbers/ordinals.tsv"))
     ordinal_l = (pynini.closure(cardinal_name_nominative + pynini.accep(" ")) + ordinal_name).optimize()
 

@@ -15,6 +15,8 @@
 import csv
 import os
 
+from nemo.utils import logging
+
 
 def get_abs_path(rel_path):
     """
@@ -28,7 +30,7 @@ def get_abs_path(rel_path):
     abs_path = os.path.dirname(os.path.abspath(__file__)) + os.sep + rel_path
 
     if not os.path.exists(abs_path):
-        raise ValueError(f'{abs_path} does not exist')
+        logging.warning(f'{abs_path} does not exist')
     return abs_path
 
 

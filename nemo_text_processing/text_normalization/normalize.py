@@ -37,9 +37,10 @@ class Normalizer:
     Args:
         input_case: expected input capitalization
         lang: language specifying the TN rules, by default: English
+        use_cache: whether to use saved .far grammar files
     """
 
-    def __init__(self, input_case: str, lang: str = 'en', deterministic=True):
+    def __init__(self, input_case: str, lang: str = 'en', deterministic=True, use_cache: bool = False):
         assert input_case in ["lower_cased", "cased"]
 
         if lang == 'en':
@@ -51,7 +52,7 @@ class Normalizer:
             from nemo_text_processing.text_normalization.ru.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.text_normalization.ru.verbalizers.verbalize_final import VerbalizeFinalFst
 
-        self.tagger = ClassifyFst(input_case=input_case, deterministic=deterministic)
+        self.tagger = ClassifyFst(input_case=input_case, deterministic=deterministic, use_cache=use_cache)
         self.verbalizer = VerbalizeFinalFst(deterministic=deterministic)
         self.parser = TokenParser()
 

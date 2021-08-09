@@ -17,13 +17,13 @@
 import os
 import time
 from argparse import ArgumentParser
-from typing import Dict
+
+from nemo_text_processing.text_normalization.en.graph_utils import generator_main
 
 from nemo.utils import logging
 
 try:
     import pynini
-    from pynini.export import export
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -39,22 +39,6 @@ except (ModuleNotFoundError, ImportError):
 
 # This script exports compiled grammars inside nemo_text_processing into OpenFst finite state archive files
 # tokenize_and_classify.far and verbalize.far for production purposes
-
-
-def _generator_main(file_name: str, graphs: Dict[str, pynini.FstLike]):
-    """
-    Exports graph as OpenFst finite state archive (FAR) file with given file name and rule name. 
-
-    Args:
-        file_name: exported file name
-        graphs: Mapping of a rule name and Pynini WFST graph to be exported
-
-    """
-    exporter = export.Exporter(file_name)
-    for rule, graph in graphs.items():
-        exporter[rule] = graph.optimize()
-    exporter.close()
-    print(f'Created {file_name}')
 
 
 def itn_grammars(**kwargs):
@@ -87,7 +71,7 @@ def export_grammars(output_dir, grammars):
             time.sleep(1)
         if category == "classify":
             category = "tokenize_and_classify"
-        _generator_main(f"{out_dir}/{category}.far", graphs)
+        generator_main(f"{out_dir}/{category}.far", graphs)
 
 
 def parse_args():
