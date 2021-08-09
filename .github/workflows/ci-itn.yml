@@ -1,0 +1,46 @@
+name: CI-ITN
+
+on:
+  push:
+    branches:
+      - '**itn**'
+
+    paths:
+      - 'nemo_text_preprocessing/**'
+      - 'tests/nemo_text_preprocessing/**'
+      - 'tools/text_deployment/**'
+
+  pull_request:
+    branches:
+      - '**itn**'
+
+    paths:
+      - 'nemo_text_preprocessing/**'
+      - 'tests/nemo_text_preprocessing/**'
+      - 'tools/text_deployment/**'
+
+jobs:
+  ci-itn:
+    runs-on: ubuntu-latest
+
+    container:
+      image: conda/miniconda3
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install test dependencies
+      run:  |
+        # install test requirements
+        pip install -r requirements/requirements_test.txt
+
+    - name: Install dependencies
+      run: |
+        # Install ITN requirements
+        /bin/bash nemo_text_processing/setup.sh
+        # Install NeMo
+        pip install -e ".[text_processing]"
+
+    - name: ITN Tests
+      run: |
+        pytest tests/nemo_text_processing/ -m "not pleasefixme" --cpu
