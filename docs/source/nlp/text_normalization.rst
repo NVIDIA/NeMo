@@ -130,20 +130,7 @@ then we will simply append the prefix ``tn`` to it and so the final input to our
 be ``tn I live in tn 123 King Ave``. Similarly, for the ITN problem, we just append the prefix ``itn``
 to the input.
 
-To improve the effectiveness and robustness of our models, we also apply some simple data
-augmentation techniques during training.
-
-Data Augmentation for Training DuplexTaggerModel
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-In the Google English TN training data, about 93% of the tokens are not in any semiotic span. In other words, the ground-truth tags of most tokens are of trivial types (i.e., ``SAME`` and ``PUNCT``). To alleviate this class imbalance problem,
-for each original instance with several semiotic spans, we create a new instance by simply concatenating all the semiotic spans together. For example, considering the following ITN instance:
-
-Original instance: ``[The|SAME] [revenues|SAME] [grew|SAME] [a|SAME] [lot|SAME] [between|SAME] [two|B-TRANSFORM] [thousand|I-TRANSFORM] [two|I-TRANSFORM] [and|SAME] [two|B-TRANSFORM] [thousand|I-TRANSFORM] [five|I-TRANSFORM] [.|PUNCT]``
-
-Augmented instance: ``[two|B-TRANSFORM] [thousand|I-TRANSFORM] [two|I-TRANSFORM] [two|B-TRANSFORM] [thousand|I-TRANSFORM] [five|I-TRANSFORM]``
-
-The argument ``data.train_ds.tagger_data_augmentation`` in the config file controls whether this data augmentation will be enabled or not.
-
+To improve the robustness of the decoder, we also apply a simple data augmentation technique during training the decoder.
 
 Data Augmentation for Training DuplexDecoderModel
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
