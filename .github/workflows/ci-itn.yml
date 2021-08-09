@@ -32,7 +32,7 @@ jobs:
     - name: Install GCC
       run: |
         # install gcc
-        apt-get install libc-dev && conda install gcc
+        conda install gcc_linux-64 gxx_linux-64 && source activate
 
     - name: Install test dependencies
       run:  |
