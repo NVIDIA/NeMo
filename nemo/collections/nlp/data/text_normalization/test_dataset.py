@@ -57,32 +57,36 @@ class TextNormalizationTestDataset:
             (
                 processed_w_words,
                 processed_s_words,
-                processed_classes,
-                processed_nb_spans,
+                processed_classes_tn,
+                processed_classes_itn,
+                processed_nb_spans_tn,
+                processed_nb_spans_itn,
                 w_span_starts,
                 w_span_ends,
                 processed_s_span_starts,
                 processed_s_span_ends,
-            ) = ([], [], [], 0, [], [], [], [])
+            ) = ([], [], [], [], 0, 0, [], [], [], [])
             w_word_idx = 0
             s_word_idx = 0
             for cls, w_word, s_word in zip(classes, w_words, s_words):
-                processed_w_words.append(w_word)
                 w_span_starts.append(w_word_idx)
                 w_word_idx += len(basic_tokenize(w_word, lang=self.lang))
                 w_span_ends.append(w_word_idx)
-                processed_nb_spans += 1
+                processed_nb_spans_tn += 1
                 if s_word == constants.SIL_WORD:
-                    processed_classes.append(constants.PUNCT_TAG)
+                    processed_classes_tn.append(constants.PUNCT_TAG)
                     continue
                 if s_word == constants.SELF_WORD:
                     processed_s_words.append(w_word)
                 if not s_word in constants.SPECIAL_WORDS:
                     processed_s_words.append(s_word)
-                processed_classes.append(cls)
+                processed_nb_spans_itn += 1
+                processed_classes_tn.append(cls)
+                processed_classes_itn.append(cls)
                 processed_s_span_starts.append(s_word_idx)
-                s_word_idx += len(basic_tokenize(s_word, lang=self.lang))
+                s_word_idx += len(basic_tokenize(processed_s_words[-1], lang=self.lang))
                 processed_s_span_ends.append(s_word_idx)
+                processed_w_words.append(w_word)
             # Create examples
             for direction in constants.INST_DIRECTIONS:
                 if direction == constants.INST_BACKWARD:
@@ -92,6 +96,8 @@ class TextNormalizationTestDataset:
                     output_words = processed_w_words
                     self.span_starts.append(processed_s_span_starts)
                     self.span_ends.append(processed_s_span_ends)
+                    self.classes.append(processed_classes_itn)
+                    self.nb_spans.append(processed_nb_spans_itn)
                 if direction == constants.INST_FORWARD:
                     if mode == constants.ITN_MODE:
                         continue
@@ -99,12 +105,12 @@ class TextNormalizationTestDataset:
                     output_words = processed_s_words
                     self.span_starts.append(w_span_starts)
                     self.span_ends.append(w_span_ends)
+                    self.classes.append(processed_classes_tn)
+                    self.nb_spans.append(processed_nb_spans_tn)
                 # Basic tokenization
                 input_words = basic_tokenize(' '.join(input_words), lang)
                 # Update self.directions, self.inputs, self.targets
-                self.nb_spans.append(processed_nb_spans)
                 self.directions.append(direction)
-                self.classes.append(processed_classes)
                 self.inputs.append(' '.join(input_words))
                 self.targets.append(
                     output_words
