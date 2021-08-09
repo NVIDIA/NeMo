@@ -29,10 +29,11 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-#    - name: Install GCC
-#      run: |
-#        # install gcc
-#        conda install -y gcc_linux-64 gxx_linux-64
+    - name: Update Conda
+      run: |
+        conda update -n base -c defaults conda -y
+        conda install conda-build -y
+        apt-get update && apt-get install -y --reinstall build-essential && apt-get upgrade && apt-get install make
 
     - name: Install test dependencies
       run:  |
