@@ -401,7 +401,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             attn_hard_dur,
             pitch,
         ) = self.fastpitch(text=text)
-        return spect, num_frames, durs_predicted, log_durs_predicted, pitch_predicted
+        return spect.to(torch.float), num_frames, durs_predicted, log_durs_predicted, pitch_predicted
 
     @property
     def disabled_deployment_input_names(self):
