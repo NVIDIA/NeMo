@@ -25,9 +25,6 @@ import riva_api.audio_pb2 as riva
 import riva_api.riva_asr_pb2 as rivaasr
 import riva_api.riva_asr_pb2_grpc as rivaasr_srv
 
-sys.path.append(os.path.join(os.getcwd(), 'api'))
-
-
 def get_args():
     parser = argparse.ArgumentParser(description="Streaming transcription via Jarvis AI Services")
     parser.add_argument("--jarvis-server", default="localhost:50051", type=str, help="URI to GRPC server endpoint")

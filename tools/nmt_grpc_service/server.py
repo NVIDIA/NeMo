@@ -25,18 +25,12 @@ import torch
 import nemo.collections.nlp as nemo_nlp
 from nemo.utils import logging
 
-sys.path.append(os.path.join(os.getcwd(), 'api'))
-
-
-torch.set_grad_enabled(False)
-
-
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--model",
         required=True,
-        action='append',
+        action="append",
         help="List of .nemo files specified by using --model xyz.nemo multiple times.",
     )
     parser.add_argument(
@@ -46,6 +40,7 @@ def get_args():
         help="Optionally provide a path a .nemo file for punctation and capitalization (recommend if working with Riva speech recognition outputs)",
     )
     parser.add_argument("--port", default=50052, type=int, required=False)
+    parser.add_argument("--lang_directions", required=False, action="append", help="Use this arg if any of your models don't have the src_language or tgt_language attributes.")
     parser.add_argument("--batch_size", type=int, default=256, help="Maximum number of batches to process")
     parser.add_argument("--beam_size", type=int, default=1, help="Beam Size")
     parser.add_argument("--len_pen", type=float, default=0.6, help="Length Penalty")
@@ -65,7 +60,7 @@ class RivaTranslateServicer(nmtsrv.RivaTranslateServicer):
     """Provides methods that implement functionality of route guide server."""
 
     def __init__(
-        self, model_paths, punctuation_model_path, beam_size=1, len_pen=0.6, max_delta_length=5, batch_size=256
+        self, model_paths, punctuation_model_path, beam_size=1, len_pen=0.6, max_delta_length=5, batch_size=256, lang_directions=[]
     ):
         self._models = {}
         self._beam_size = beam_size
@@ -74,11 +69,24 @@ class RivaTranslateServicer(nmtsrv.RivaTranslateServicer):
         self._batch_size = batch_size
         self._punctuation_model_path = punctuation_model_path
         self._model_paths = model_paths
+        self._lang_directions = lang_directions
 
-        for model_path in self._model_paths:
+        # __TODO__ make this easier to use in the future.
+        # If lang direction is provided for one model, it must be provided for all of them.
+
+        if len(self._lang_directions) != 0:
+            if len(self._lang_directions) == len(self._model_paths):
+                raise ValueError(f"Found a different number of models ({len(self._model_paths)}) and language directions ({len(self._lang_directions)})")
+
+        for idx, model_path in enumerate(self._model_paths):
             assert os.path.exists(model_path)
             logging.info(f"Loading model {model_path}")
-            self._load_model(model_path)
+            if len(self._lang_directions) > 0:
+                src_language = self._lang_directions.split('-')[0]
+                tgt_language = self._lang_directions.split('-')[1]
+            else:
+                src_language, tgt_language = None, None
+            self._load_model(model_path, src_language, tgt_language)
 
         if self._punctuation_model_path != "":
             assert os.path.exists(punctuation_model_path)
@@ -92,27 +100,38 @@ class RivaTranslateServicer(nmtsrv.RivaTranslateServicer):
             self.punctuation_model = nemo_nlp.models.PunctuationCapitalizationModel.restore_from(
                 restore_path=punctuation_model_path
             )
+            self.punctuation_model.eval()
         else:
             raise NotImplemented(f"Only support .nemo files, but got: {punctuation_model_path}")
 
         if torch.cuda.is_available():
             self.punctuation_model = self.punctuation_model.cuda()
 
-    def _load_model(self, model_path):
+    def _load_model(self, model_path, src_language=None, tgt_language=None):
         if model_path.endswith(".nemo"):
             logging.info("Attempting to initialize from .nemo file")
             model = nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(restore_path=model_path)
+            model = model.eval()
             model.beam_search.beam_size = self._beam_size
             model.beam_search.len_pen = self._len_pen
             model.beam_search.max_delta_length = self._max_delta_length
+            if torch.cuda.is_available():
+                model = model.cuda()
         else:
             raise NotImplemented(f"Only support .nemo files, but got: {model_path}")
 
-        if not hasattr(model, "src_language") or not hasattr(model, "tgt_language"):
-            raise ValueError(f"Could not find src_language and tgt_language in model attributes")
+        if (
+            (not hasattr(model, "src_language") or not hasattr(model, "tgt_language")) and
+            (src_language is None or tgt_language is None)
+        ):
+            raise ValueError(f"Could not find src_language and tgt_language in model attributes nor in --lang_directions. Please specify --lang_directions for all models. Ex: --lang_directions en-es --lang_directions en-de etc.")
 
-        src_language = model.src_language
-        tgt_language = model.tgt_language
+        if src_language is not None and tgt_language is not None:
+            model.src_language = src_language
+            model.tgt_language = tgt_language
+        else:
+            src_language = model.src_language
+            tgt_language = model.tgt_language
 
         if src_language not in self._models:
             self._models[src_language] = {}
