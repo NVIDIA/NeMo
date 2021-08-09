@@ -13,8 +13,6 @@
 # limitations under the License.
 
 import argparse
-import os
-import sys
 from time import time
 
 import api.nmt_pb2 as nmt

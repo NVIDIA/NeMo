@@ -14,7 +14,6 @@
 
 import argparse
 import os
-import sys
 from concurrent import futures
 
 import api.nmt_pb2 as nmt
