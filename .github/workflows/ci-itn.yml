@@ -32,7 +32,7 @@ jobs:
     - name: Install GCC
       run: |
         # install gcc
-        conda install gcc_linux-64 gxx_linux-64 && source activate
+        conda install -y gcc_linux-64 gxx_linux-64
 
     - name: Install test dependencies
       run:  |
