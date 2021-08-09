@@ -24,17 +24,23 @@ from functools import total_ordering
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
+# TODO @blisc: Perhaps refactor instead of import guarding
 _HAS_HYDRA = True
-
 try:
     import hydra
     from omegaconf import DictConfig, OmegaConf
+    from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 except ModuleNotFoundError:
     _HAS_HYDRA = False
+    from nemo.utils.exceptions import CheckInstall
+
+    class SaveRestoreConnector(CheckInstall):
+        pass
+
+
 import wrapt
 
 import nemo
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
 from nemo.utils import logging
 from nemo.utils.cloud import maybe_download_from_cloud

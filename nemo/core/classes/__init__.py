@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+from nemo.utils import exceptions
 from nemo.core.classes.common import (
     FileIO,
     Model,
@@ -26,27 +27,17 @@ from nemo.core.classes.dataset import Dataset, IterableDataset
 from nemo.core.classes.exportable import Exportable, ExportFormat
 from nemo.core.classes.loss import Loss
 
+# TODO @blisc: Perhaps refactor instead of import guarding
 try:
     import pytorch_lightning
     import hydra
     import omegaconf
     from nemo.core.classes.modelPT import ModelPT
 except ModuleNotFoundError:
-    from nemo.utils import logging
+    from nemo.utils.exceptions import CheckInstall
 
-    class ModelPT:
-        def __init__(self, *args, **kwargs):
-            logging.error(
-                "You are trying to use nemo.core.modelPT without installing all of pytorch_lightning, hydra, and "
-                "omegaconf. Please install those packages before trying to access ModelPT."
-            )
-            exit(1)
-
-        def __call__(self, *args, **kwargs):
-            return self
-
-        def __getattr__(self, *args, **kwargs):
-            return self
+    class ModelPT(CheckInstall):
+        pass
 
 
 from nemo.core.classes.module import NeuralModule
