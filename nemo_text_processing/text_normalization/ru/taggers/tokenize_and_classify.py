@@ -62,8 +62,10 @@ class ClassifyFst(GraphFst):
 
     def __init__(self, input_case: str, deterministic: bool = False, use_cache: bool = False):
         super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
-        print('Ru TN only supports non-deterministic cases and produces multiple normalization options.')
-
+        if deterministic:
+            raise ValueError(
+                'Ru TN only supports non-deterministic cases and produces multiple normalization options.'
+            )
         far_file = get_abs_path(f"_ru_tn_{deterministic}deterministic.far")
         if use_cache and os.path.exists(far_file):
             self.fst = pynini.Far(far_file, mode='r')['tokenize_and_classify']
