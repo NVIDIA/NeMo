@@ -7,8 +7,8 @@ on:
 
     paths:
       - 'nemo_text_preprocessing/**'
+      - 'tools/text_processing_deployment/**'
       - 'tests/nemo_text_preprocessing/**'
-      - 'tools/text_deployment/**'
 
   pull_request:
     branches:
@@ -16,8 +16,8 @@ on:
 
     paths:
       - 'nemo_text_preprocessing/**'
+      - 'tools/text_processing_deployment/**'
       - 'tests/nemo_text_preprocessing/**'
-      - 'tools/text_deployment/**'
 
 jobs:
   ci-itn:
