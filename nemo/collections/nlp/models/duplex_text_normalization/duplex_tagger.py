@@ -53,7 +53,10 @@ class DuplexTaggerModel(NLPModel):
         self.loss_fct = nn.CrossEntropyLoss(ignore_index=constants.LABEL_PAD_TOKEN_ID)
 
         # setup to track metrics
-        self.classification_report = ClassificationReport(self.num_labels, mode='micro', dist_sync_on_step=True)
+        label_ids = {l: idx for idx, l in enumerate(constants.ALL_TAG_LABELS)}
+        self.classification_report = ClassificationReport(
+            self.num_labels, label_ids, mode='micro', dist_sync_on_step=True
+        )
 
         # Language
         self.lang = cfg.get('lang', None)

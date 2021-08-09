@@ -12,6 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+This script can be used to combine multiple datasets produced by the script google_data_preprocessing.py
+into one single dataset. A potential usecase is to combine multiple datasets of different languages into
+one single dataset for multilingual training.
+
+USAGE Example:
+python combine_processed_datasets.py
+        --input_dirs=PATH_TO_ENGLISH_DATASET_FOLDER
+        --input_dirs=PATH_TO_RUSSIAN_DATASET_FOLDER
+        --output_dir=PATH_TO_COMBINED_DATASET_FOLDER
+"""
+
 from argparse import ArgumentParser
 from os import mkdir
 from os.path import isdir, join

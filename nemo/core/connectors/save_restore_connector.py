@@ -122,6 +122,7 @@ class SaveRestoreConnector:
 
                 if return_config:
                     instance = conf
+                    return instance
                 else:
                     app_state = AppState()
                     if app_state.model_parallel_rank is not None:
