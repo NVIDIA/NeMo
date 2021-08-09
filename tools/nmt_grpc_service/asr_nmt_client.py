@@ -26,8 +26,8 @@ import riva_api.riva_asr_pb2_grpc as rivaasr_srv
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description="Streaming transcription via Jarvis AI Services")
-    parser.add_argument("--jarvis-server", default="localhost:50051", type=str, help="URI to GRPC server endpoint")
+    parser = argparse.ArgumentParser(description="Streaming transcription via Riva AI Speech Services")
+    parser.add_argument("--riva-server", default="localhost:50051", type=str, help="URI to GRPC server endpoint")
     parser.add_argument("--audio-file", required=True, help="path to local file to stream")
     parser.add_argument("--output-device", type=int, default=None, help="output device to use")
     parser.add_argument("--list-devices", action="store_true", help="list output devices indices")
@@ -71,7 +71,7 @@ def listen_print_loop(responses, nmt_stub, target_language, asr_only=False):
 CHUNK = 1024
 args = get_args()
 wf = wave.open(args.audio_file, 'rb')
-channel = grpc.insecure_channel(args.jarvis_server)
+channel = grpc.insecure_channel(args.riva_server)
 client = rivaasr_srv.RivaSpeechRecognitionStub(channel)
 nmt_channel = grpc.insecure_channel(args.nmt_server)
 nmt_stub = nmtsrv.RivaTranslateStub(nmt_channel)
