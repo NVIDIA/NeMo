@@ -39,4 +39,5 @@ jobs:
     - name: Build TN/ITN docker
       run: |
         cd tools/text_processing_deployment
+        echo $PWD
         /bin/bash docker/build.sh
