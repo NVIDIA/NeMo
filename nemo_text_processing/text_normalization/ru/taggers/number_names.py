@@ -88,7 +88,11 @@ def get_number_names():
         pynini.closure(nominative_up_to_thousand_name + pynini.accep(" ")) + nominative_up_to_thousand_name
     ).optimize()
 
-    # (* 5 1000 *) -> 5000 handles complex ordinal numbers, e.g. "пятитысячный"
+    # Convert e.g. "(* 5 1000 *)" back to  "5000" so complex ordinals will be formed correctly,
+    #  e.g. "пятитысячный" will eventually be formed. (If we didn't do this, the incorrect phrase
+    # "пять тысячный" would be formed).
+    # We do this for all thousands from "(*2 1000 *)" —> "2000" to "(*20 1000 *)" —> "20000".
+    # We do not go higher, in order to prevent the WFST graph becoming even larger.
     complex_numbers = pynini.cross("(* 2 1000 *)", "2000")
     for number in range(3, 21):
         complex_numbers |= pynini.cross(f"(* {number} 1000 *)", f"{number}000")
@@ -132,3 +136,11 @@ def get_alternative_formats():
     alternative_formats['one_thousand_alternative'] = one_thousand_alternative
     alternative_formats['separators'] = separators
     return alternative_formats
+
+
+if __name__ == '__main__':
+    from nemo_text_processing.text_normalization.en.graph_utils import generator_main
+
+    numbers = get_number_names()
+    for k, v in numbers.items():
+        generator_main(f'{k}.far', {k: v})

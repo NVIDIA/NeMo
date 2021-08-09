@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from argparse import ArgumentParser
+from time import perf_counter
 from typing import List
 
 from nemo_text_processing.text_normalization.normalize import Normalizer
@@ -28,7 +29,7 @@ class InverseNormalizer(Normalizer):
         lang: language specifying the ITN, by default: English.
     """
 
-    def __init__(self, lang: str = 'en'):
+    def __init__(self, lang: str = 'en', use_cache: bool = False):
         if lang == 'en':
             from nemo_text_processing.inverse_text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.inverse_text_normalization.en.verbalizers.verbalize_final import (
@@ -45,7 +46,7 @@ class InverseNormalizer(Normalizer):
                 VerbalizeFinalFst,
             )
 
-        self.tagger = ClassifyFst()
+        self.tagger = ClassifyFst(use_cache=use_cache)
         self.verbalizer = VerbalizeFinalFst()
         self.parser = TokenParser()
 
@@ -80,10 +81,15 @@ def parse_args():
     parser.add_argument("input_string", help="input string", type=str)
     parser.add_argument("--language", help="language", choices=['en', 'de', 'ru'], default="en", type=str)
     parser.add_argument("--verbose", help="print info for debugging", action='store_true')
+    parser.add_argument("--use_cache", help="set to True to use saved .far grammar files", action="store_true")
     return parser.parse_args()
 
 
 if __name__ == "__main__":
+    start_time = perf_counter()
     args = parse_args()
-    inverse_normalizer = InverseNormalizer(lang=args.language)
+    inverse_normalizer = InverseNormalizer(lang=args.language, use_cache=args.use_cache)
+    print(f'Time to generate graph: {round(perf_counter() - start_time, 2)} sec')
+    start_time = perf_counter()
     print(inverse_normalizer.inverse_normalize(args.input_string, verbose=args.verbose))
+    print(f'Execution time: {round(perf_counter() - start_time, 2)} sec')

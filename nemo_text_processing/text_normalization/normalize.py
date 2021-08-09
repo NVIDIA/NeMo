@@ -240,12 +240,13 @@ def parse_args():
     parser.add_argument(
         "--punct_pre_process", help="set to True to enable punctuation pre processing", action="store_true"
     )
+    parser.add_argument("--use_cache", help="set to True to use saved .far grammar files", action="store_true")
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    normalizer = Normalizer(input_case=args.input_case)
+    normalizer = Normalizer(input_case=args.input_case, use_cache=args.use_cache)
     print(
         normalizer.normalize(
             args.input_string,

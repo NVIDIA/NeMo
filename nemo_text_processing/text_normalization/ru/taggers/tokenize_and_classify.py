@@ -60,11 +60,11 @@ class ClassifyFst(GraphFst):
         use_cache: set to True to use saved .far grammar file
     """
 
-    def __init__(self, input_case: str, deterministic: bool = True, use_cache: bool = True):
+    def __init__(self, input_case: str, deterministic: bool = False, use_cache: bool = False):
         super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
         print('Ru TN only supports non-deterministic cases and produces multiple normalization options.')
 
-        far_file = get_abs_path("_ru_tokenize_and_classify_non_deterministic.far")
+        far_file = get_abs_path(f"_ru_tn_{deterministic}deterministic.far")
         if use_cache and os.path.exists(far_file):
             self.fst = pynini.Far(far_file, mode='r')['tokenize_and_classify']
             logging.info(f'ClassifyFst.fst was restored from {far_file}.')
