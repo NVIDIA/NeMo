@@ -20,7 +20,7 @@ from nemo.collections.nlp.modules.common.transformer.transformer_modules import 
 __all__ = ["BridgeEncoder"]
 
 
-class BridgeEncoder(nn.Module):
+class BridgeEncoder(torch.nn.Module):
     def __init__(
         self,
         num_layers: int,

@@ -21,7 +21,7 @@ from nemo.collections.nlp.modules.common.transformer.transformer_modules import 
 __all__ = ["PerceiverEncoder"]
 
 
-class PerceiverEncoder(nn.Module):
+class PerceiverEncoder(torch.nn.Module):
     def __init__(
         self,
         num_layers: int,
