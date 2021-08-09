@@ -75,6 +75,11 @@ decoder_model:
   nemo_path: ${decoder_exp_manager.exp_dir}/decoder_model.nemo # exported .nemo path
   lang: ${lang}
 
+  # Options related to covering grammars for TN
+  use_cg: false # Use covering grammars to avoid catastrophic errors
+  neural_confidence_threshold: 0.99 # If the neural model is not confident, then use the covering grammars
+  n_tagged: 1 # number of tagged options to consider, -1 - to get all possible tagged options
+
   optim:
     name: adamw
     lr: 2e-4
@@ -117,6 +122,7 @@ data:
     do_basic_tokenize: false
     max_decoder_len: 80
     mode: ${mode}
+    max_insts: -1 # Maximum number of instances (-1 means no limit)
     # Refer to the text_normalization doc for more information about data augmentation
     tagger_data_augmentation: true
     decoder_data_augmentation: true
