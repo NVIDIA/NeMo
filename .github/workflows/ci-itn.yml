@@ -32,6 +32,9 @@ jobs:
 #        conda install conda-build -y
 #        apt-get update && apt-get install -y --reinstall build-essential
 #        apt-get install -y make libsndfile1 sox libfreetype6 ffmpeg swig
+    - name: Install nemo core
+      run: |
+        pip install -e .
 
     - name: Build TN/ITN docker
       run: |
