@@ -33,7 +33,8 @@ jobs:
       run: |
         conda update -n base -c defaults conda -y
         conda install conda-build -y
-        apt-get update && apt-get install -y --reinstall build-essential && apt-get install -y make
+        apt-get update && apt-get install -y --reinstall build-essential
+        apt-get install -y make libsndfile1 sox libfreetype6 ffmpeg swig
 
     - name: Install test dependencies
       run:  |
