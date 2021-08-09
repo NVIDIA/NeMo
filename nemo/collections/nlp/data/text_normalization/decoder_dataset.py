@@ -72,7 +72,8 @@ class TextNormalizationDecoderDataset(Dataset):
 
         # Get cache path
         data_dir, filename = os.path.split(input_file)
-        cached_data_file = os.path.join(data_dir, f'cached_decoder_{filename}_{tokenizer_name}_{lang}_{max_insts}.pkl')
+        tokenizer_name_normalized = tokenizer_name.replace('/', '_')
+        cached_data_file = os.path.join(data_dir, f'cached_decoder_{filename}_{tokenizer_name_normalized}_{lang}_{max_insts}.pkl')
 
         if use_cache and os.path.exists(cached_data_file):
             logging.warning(
