@@ -21,6 +21,7 @@ import api.nmt_pb2 as nmt
 import api.nmt_pb2_grpc as nmtsrv
 import grpc
 
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--target_language", default="es", type=str, required=True)

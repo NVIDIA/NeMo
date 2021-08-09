@@ -25,6 +25,7 @@ import torch
 import nemo.collections.nlp as nemo_nlp
 from nemo.utils import logging
 
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -40,7 +41,12 @@ def get_args():
         help="Optionally provide a path a .nemo file for punctation and capitalization (recommend if working with Riva speech recognition outputs)",
     )
     parser.add_argument("--port", default=50052, type=int, required=False)
-    parser.add_argument("--lang_directions", required=False, action="append", help="Use this arg if any of your models don't have the src_language or tgt_language attributes.")
+    parser.add_argument(
+        "--lang_directions",
+        required=False,
+        action="append",
+        help="Use this arg if any of your models don't have the src_language or tgt_language attributes.",
+    )
     parser.add_argument("--batch_size", type=int, default=256, help="Maximum number of batches to process")
     parser.add_argument("--beam_size", type=int, default=1, help="Beam Size")
     parser.add_argument("--len_pen", type=float, default=0.6, help="Length Penalty")
@@ -60,7 +66,14 @@ class RivaTranslateServicer(nmtsrv.RivaTranslateServicer):
     """Provides methods that implement functionality of route guide server."""
 
     def __init__(
-        self, model_paths, punctuation_model_path, beam_size=1, len_pen=0.6, max_delta_length=5, batch_size=256, lang_directions=[]
+        self,
+        model_paths,
+        punctuation_model_path,
+        beam_size=1,
+        len_pen=0.6,
+        max_delta_length=5,
+        batch_size=256,
+        lang_directions=[],
     ):
         self._models = {}
         self._beam_size = beam_size
@@ -76,7 +89,9 @@ class RivaTranslateServicer(nmtsrv.RivaTranslateServicer):
 
         if len(self._lang_directions) != 0:
             if len(self._lang_directions) == len(self._model_paths):
-                raise ValueError(f"Found a different number of models ({len(self._model_paths)}) and language directions ({len(self._lang_directions)})")
+                raise ValueError(
+                    f"Found a different number of models ({len(self._model_paths)}) and language directions ({len(self._lang_directions)})"
+                )
 
         for idx, model_path in enumerate(self._model_paths):
             assert os.path.exists(model_path)
@@ -120,11 +135,12 @@ class RivaTranslateServicer(nmtsrv.RivaTranslateServicer):
         else:
             raise NotImplemented(f"Only support .nemo files, but got: {model_path}")
 
-        if (
-            (not hasattr(model, "src_language") or not hasattr(model, "tgt_language")) and
-            (src_language is None or tgt_language is None)
+        if (not hasattr(model, "src_language") or not hasattr(model, "tgt_language")) and (
+            src_language is None or tgt_language is None
         ):
-            raise ValueError(f"Could not find src_language and tgt_language in model attributes nor in --lang_directions. Please specify --lang_directions for all models. Ex: --lang_directions en-es --lang_directions en-de etc.")
+            raise ValueError(
+                f"Could not find src_language and tgt_language in model attributes nor in --lang_directions. Please specify --lang_directions for all models. Ex: --lang_directions en-es --lang_directions en-de etc."
+            )
 
         if src_language is not None and tgt_language is not None:
             model.src_language = src_language
