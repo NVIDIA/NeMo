@@ -130,16 +130,6 @@ then we will simply append the prefix ``tn`` to it and so the final input to our
 be ``tn I live in tn 123 King Ave``. Similarly, for the ITN problem, we just append the prefix ``itn``
 to the input.
 
-To improve the robustness of the decoder, we also apply a simple data augmentation technique during training the decoder.
-
-Data Augmentation for Training DuplexDecoderModel
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Since the tagger may not be perfect, the inputs to the decoder may not all be semiotic spans. Therefore, to make the decoder become more robust against the tagger's potential errors,
-we train the decoder with not only semiotic spans but also with some other more "noisy" spans. This way even if the tagger makes some errors, there will still be some chance that the
-final output is still correct.
-
-The argument ``data.train_ds.decoder_data_augmentation`` in the config file controls whether this data augmentation will be enabled or not.
-
 References
 ----------
 

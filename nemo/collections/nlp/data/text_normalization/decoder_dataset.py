@@ -43,7 +43,6 @@ class TextNormalizationDecoderDataset(Dataset):
         tokenizer_name: name of the tokenizer,
         mode: should be one of the values ['tn', 'itn', 'joint'].  `tn` mode is for TN only. `itn` mode is for ITN only. `joint` is for training a system that can do both TN and ITN at the same time.
         max_len: maximum length of sequence in tokens. The code will discard any training instance whose input or output is longer than the specified max_len.
-        decoder_data_augmentation (bool): a flag indicates whether to augment the dataset with additional data instances that may help the decoder become more robust against the tagger's errors. Refer to the doc for more info.
         lang: language of the dataset
         do_basic_tokenize: a flag indicates whether to do some basic tokenization for the inputs
         use_cache: Enables caching to use pickle format to store and read data from
@@ -57,7 +56,6 @@ class TextNormalizationDecoderDataset(Dataset):
         tokenizer_name: str,
         mode: str,
         max_len: int,
-        decoder_data_augmentation: bool,
         lang: str,
         do_basic_tokenize: bool,
         use_cache: bool = False,
@@ -113,19 +111,6 @@ class TextNormalizationDecoderDataset(Dataset):
                             do_basic_tokenize=do_basic_tokenize,
                         )
                         insts.append(inst)
-                        if decoder_data_augmentation:
-                            noise_left = random.randint(1, 2)
-                            noise_right = random.randint(1, 2)
-                            inst = DecoderDataInstance(
-                                w_words,
-                                s_words,
-                                inst_dir,
-                                start_idx=ix - noise_left,
-                                end_idx=ix + 1 + noise_right,
-                                lang=self.lang,
-                                do_basic_tokenize=do_basic_tokenize,
-                            )
-                            insts.append(inst)
 
             self.insts = insts
             inputs = [inst.input_str for inst in insts]

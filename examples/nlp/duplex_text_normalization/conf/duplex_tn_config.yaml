@@ -59,7 +59,7 @@ tagger_exp_manager:
 decoder_trainer:
   gpus: 1 # the number of gpus, 0 for CPU
   num_nodes: 1
-  max_epochs: 3  # the number of training epochs
+  max_epochs: 5  # the number of training epochs
   checkpoint_callback: false  # provided by exp_manager
   logger: false  # provided by exp_manager
   accumulate_grad_batches: 1 # accumulates grads every k batches
@@ -123,7 +123,6 @@ data:
     max_decoder_len: 80
     mode: ${mode}
     max_insts: -1 # Maximum number of instances (-1 means no limit)
-    decoder_data_augmentation: true # Refer to the text_normalization doc for more information about data augmentation
     use_cache: ${data.use_cache}
 
   validation_ds:

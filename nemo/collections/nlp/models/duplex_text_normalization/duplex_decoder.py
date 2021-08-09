@@ -320,7 +320,6 @@ class DuplexDecoderModel(NLPModel):
             self.transformer_name,
             cfg.mode,
             cfg.get('max_decoder_len', tokenizer.model_max_length),
-            cfg.get('decoder_data_augmentation', False),
             cfg.lang,
             cfg.do_basic_tokenize,
             cfg.get('use_cache', False),
