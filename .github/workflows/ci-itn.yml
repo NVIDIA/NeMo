@@ -3,7 +3,7 @@ name: CI-ITN
 on:
   push:
     branches:
-      - '*itn*'
+      - '**'
 
     paths:
       - 'nemo_text_preprocessing/**'
@@ -12,7 +12,7 @@ on:
 
   pull_request:
     branches:
-      - '*itn*'
+      - '**'
 
     paths:
       - 'nemo_text_preprocessing/**'
