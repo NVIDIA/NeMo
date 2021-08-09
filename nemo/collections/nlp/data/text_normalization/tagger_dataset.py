@@ -42,7 +42,6 @@ class TextNormalizationTaggerDataset(Dataset):
         tokenizer_name: name of the tokenizer,
         mode: should be one of the values ['tn', 'itn', 'joint'].  `tn` mode is for TN only. `itn` mode is for ITN only. `joint` is for training a system that can do both TN and ITN at the same time.
         do_basic_tokenize: a flag indicates whether to do some basic tokenization before using the tokenizer of the model
-        tagger_data_augmentation (bool): a flag indicates whether to augment the dataset with additional data instances
         lang: language of the dataset
         use_cache: Enables caching to use pickle format to store and read data from,
         max_insts: Maximum number of instances (-1 means no limit)
@@ -55,7 +54,6 @@ class TextNormalizationTaggerDataset(Dataset):
         tokenizer_name: str,
         mode: str,
         do_basic_tokenize: bool,
-        tagger_data_augmentation: bool,
         lang: str,
         use_cache: bool = False,
         max_insts: int = -1,
@@ -96,16 +94,6 @@ class TextNormalizationTaggerDataset(Dataset):
                     # Create a new TaggerDataInstance
                     inst = TaggerDataInstance(w_words, s_words, inst_dir, do_basic_tokenize)
                     insts.append(inst)
-                    # Data Augmentation (if enabled)
-                    if tagger_data_augmentation:
-                        filtered_w_words, filtered_s_words = [], []
-                        for ix, (w, s) in enumerate(zip(w_words, s_words)):
-                            if not s in constants.SPECIAL_WORDS:
-                                filtered_w_words.append(w)
-                                filtered_s_words.append(s)
-                        if len(filtered_s_words) > 1:
-                            inst = TaggerDataInstance(filtered_w_words, filtered_s_words, inst_dir)
-                            insts.append(inst)
 
             self.insts = insts
             texts = [inst.input_words for inst in insts]
