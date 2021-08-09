@@ -40,9 +40,11 @@ jobs:
 
     - name: Run TN grammars for English
       run: |
-        bash export_grammars.sh --GRAMMARS=tn_grammars --LANGUAGE=en --MODE=test
+        cd tools/text_processing_deployment
+        /bin/bash export_grammars.sh --GRAMMARS=tn_grammars --LANGUAGE=en --MODE=test
 
     - name: Run ITN grammars for English
       run: |
-        bash export_grammars.sh --GRAMMARS=itn_grammars --LANGUAGE=en --MODE=test
+        cd tools/text_processing_deployment
+        /bin/bash export_grammars.sh --GRAMMARS=itn_grammars --LANGUAGE=en --MODE=test
 
