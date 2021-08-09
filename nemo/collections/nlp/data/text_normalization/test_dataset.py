@@ -188,7 +188,7 @@ class TextNormalizationTestDataset:
         span_starts: List[List[int]],
         span_ends: List[List[int]],
         lang: str,
-    ):
+    ) -> dict:
         """
         Compute the class based accuracy metric. This uses model's predicted tags.
 
@@ -203,7 +203,7 @@ class TextNormalizationTestDataset:
             span_starts: A list of lists where inner list contains the start word index of the current token
             span_ends: A list of lists where inner list contains the end word index of the current token
             lang: Language
-        Return: the sentence accuracy score
+        Return: the class accuracy scores as dict
         """
 
         if len(targets) == 0:
@@ -251,6 +251,6 @@ class TextNormalizationTestDataset:
                 target_token_idx += 1
 
         for key in class2stats:
-            class2stats[key] = class2correct[key] / class2stats[key]
+            class2stats[key] = (class2correct[key] / class2stats[key], class2correct[key], class2stats[key])
 
         return class2stats

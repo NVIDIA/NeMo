@@ -169,7 +169,7 @@ class DuplexTextNormalizationModel(nn.Module):
                 if not isinstance(class_accuracy, str):
                     log_class_accuracies = ""
                     for key, value in class_accuracy.items():
-                        log_class_accuracies += f"\n\t{key}:\t{value}"
+                        log_class_accuracies += f"\n\t{key}:\t{value[0]}\t{value[1]}/{value[2]}"
                 else:
                     log_class_accuracies = class_accuracy
                 logging.info(f'class accuracies: {log_class_accuracies}')
