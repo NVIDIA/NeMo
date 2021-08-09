@@ -29,25 +29,14 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Update Conda
-      run: |
-        conda update -n base -c defaults conda -y
-        conda install conda-build -y
-        apt-get update && apt-get install -y --reinstall build-essential
-        apt-get install -y make libsndfile1 sox libfreetype6 ffmpeg swig
+#    - name: Update Conda
+#      run: |
+#        conda update -n base -c defaults conda -y
+#        conda install conda-build -y
+#        apt-get update && apt-get install -y --reinstall build-essential
+#        apt-get install -y make libsndfile1 sox libfreetype6 ffmpeg swig
 
-    - name: Install test dependencies
-      run:  |
-        # install test requirements
-        pip install -r requirements/requirements_test.txt
-
-    - name: Install dependencies
+    - name: Build TN/ITN docker
       run: |
-        # Install ITN requirements
-        /bin/bash nemo_text_processing/setup.sh
-        # Install NeMo
-        pip install -e ".[asr,text_processing]"
-
-    - name: ITN Tests
-      run: |
-        pytest tests/nemo_text_processing/
+        cd tools/text_processing_deployment
+        /bin/bash docker/build.sh
