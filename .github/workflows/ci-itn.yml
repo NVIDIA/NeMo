@@ -23,9 +23,6 @@ jobs:
   ci-itn:
     runs-on: ubuntu-latest
 
-    container:
-      image: conda/miniconda3
-
     steps:
     - uses: actions/checkout@v2
 
