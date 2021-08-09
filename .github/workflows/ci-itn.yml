@@ -33,7 +33,7 @@ jobs:
       run: |
         conda update -n base -c defaults conda -y
         conda install conda-build -y
-        apt-get update && apt-get install -y --reinstall build-essential && apt-get upgrade && apt-get install make
+        apt-get update && apt-get install -y --reinstall build-essential && apt-get upgrade && apt-get install make -y
 
     - name: Install test dependencies
       run:  |
