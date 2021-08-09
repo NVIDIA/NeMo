@@ -29,6 +29,11 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
+    - name: Install GCC
+      run: |
+        # install gcc
+        apt-get install libc-dev && conda install gcc
+
     - name: Install test dependencies
       run:  |
         # install test requirements
