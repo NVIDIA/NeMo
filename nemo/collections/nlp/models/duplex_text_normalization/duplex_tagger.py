@@ -153,8 +153,6 @@ class DuplexTaggerModel(NLPModel):
             texts.append([prefix] + sent)
 
         # Apply the model
-        prefix = constants.TN_PREFIX
-        texts = [[prefix] + sent for sent in sents]
         encodings = self._tokenizer(
             texts, is_split_into_words=True, padding=True, truncation=True, return_tensors='pt'
         )
