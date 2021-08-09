@@ -21,7 +21,7 @@ from nemo.collections.nlp.modules.common.transformer.transformer_modules import 
 __all__ = ["PerceiverEncoder"]
 
 
-class PerceiverEncoder(TransformerEncoder):
+class PerceiverEncoder(nn.Module):
     def __init__(
         self,
         num_layers: int,
@@ -39,19 +39,7 @@ class PerceiverEncoder(TransformerEncoder):
         hidden_init_method: str = "default",
         hidden_blocks: int = 2,
     ):
-        super().__init__(
-            num_layers=num_layers,
-            hidden_size=hidden_size,
-            inner_size=inner_size,
-            mask_future=mask_future,
-            num_attention_heads=num_attention_heads,
-            attn_score_dropout=attn_score_dropout,
-            attn_layer_dropout=attn_layer_dropout,
-            ffn_dropout=ffn_dropout,
-            hidden_act=hidden_act,
-            pre_ln=pre_ln,
-            pre_ln_final_layer_norm=pre_ln_final_layer_norm,
-        )
+        super().__init__()
 
         self._hidden_steps = hidden_steps
         self._hidden_init_method = hidden_init_method
@@ -100,6 +88,20 @@ class PerceiverEncoder(TransformerEncoder):
             # initialize latent with attention bridge
             self.att_bridge = AttentionBridge(hidden_size=hidden_size, k=hidden_steps, bridge_size=inner_size,)
 
+        self.self_att = TransformerEncoder(
+            num_layers=num_layers,
+            hidden_size=hidden_size,
+            inner_size=inner_size,
+            mask_future=mask_future,
+            num_attention_heads=num_attention_heads,
+            attn_score_dropout=attn_score_dropout,
+            attn_layer_dropout=attn_layer_dropout,
+            ffn_dropout=ffn_dropout,
+            hidden_act=hidden_act,
+            pre_ln=pre_ln,
+            pre_ln_final_layer_norm=pre_ln_final_layer_norm,
+        )
+
     @property
     def supported_init_methods(self):
         return ["params", "bridge"]
@@ -144,7 +146,7 @@ class PerceiverEncoder(TransformerEncoder):
         # apply block (cross-attention, self-attention) multiple times
         for block in range(self._hidden_blocks):
             # self-attention over hidden
-            hidden_states = super().forward(encoder_states=hidden_states, encoder_mask=hidden_mask,)
+            hidden_states = self.self_att(encoder_states=hidden_states, encoder_mask=hidden_mask,)
 
             # cross attention of hidden over encoder states
             hidden_states = self.cross_att(
@@ -155,7 +157,7 @@ class PerceiverEncoder(TransformerEncoder):
             )
 
         # final self-attention over hidden
-        hidden_states = super().forward(encoder_states=hidden_states, encoder_mask=hidden_mask,)
+        hidden_states = self.self_att(encoder_states=hidden_states, encoder_mask=hidden_mask,)
 
 
         return hidden_states, hidden_mask

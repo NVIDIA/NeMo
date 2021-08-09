@@ -20,7 +20,7 @@ from nemo.collections.nlp.modules.common.transformer.transformer_modules import 
 __all__ = ["BridgeEncoder"]
 
 
-class BridgeEncoder(TransformerEncoder):
+class BridgeEncoder(nn.Module):
     def __init__(
         self,
         num_layers: int,
@@ -38,19 +38,7 @@ class BridgeEncoder(TransformerEncoder):
         hidden_init_method: str = "default",
         hidden_blocks: int = 0,
     ):
-        super().__init__(
-            num_layers=num_layers,
-            hidden_size=hidden_size,
-            inner_size=inner_size,
-            mask_future=mask_future,
-            num_attention_heads=num_attention_heads,
-            attn_score_dropout=attn_score_dropout,
-            attn_layer_dropout=attn_layer_dropout,
-            ffn_dropout=ffn_dropout,
-            hidden_act=hidden_act,
-            pre_ln=pre_ln,
-            pre_ln_final_layer_norm=pre_ln_final_layer_norm,
-        )
+        super().__init__()
 
         self._hidden_steps = hidden_steps
         self._hidden_init_method = hidden_init_method
@@ -87,6 +75,21 @@ class BridgeEncoder(TransformerEncoder):
                 pre_ln_final_layer_norm=pre_ln_final_layer_norm,
             )
 
+        # self attention
+        self.hidden_enc = TransformerEncoder(
+            num_layers=num_layers,
+            hidden_size=hidden_size,
+            inner_size=inner_size,
+            mask_future=mask_future,
+            num_attention_heads=num_attention_heads,
+            attn_score_dropout=attn_score_dropout,
+            attn_layer_dropout=attn_layer_dropout,
+            ffn_dropout=ffn_dropout,
+            hidden_act=hidden_act,
+            pre_ln=pre_ln,
+            pre_ln_final_layer_norm=pre_ln_final_layer_norm,
+        )
+
     @property
     def supported_init_methods(self):
         return ["enc_shared", "identity", "enc"]
@@ -111,7 +114,7 @@ class BridgeEncoder(TransformerEncoder):
         """
         # self-attention over input
         if self.hidden_init_method == "enc_shared":
-            hidden_states = super().forward(encoder_states=encoder_states, encoder_mask=encoder_mask)
+            hidden_states = self.hidden_enc(encoder_states=encoder_states, encoder_mask=encoder_mask)
         elif self.hidden_init_method == "identity":
             hidden_states = encoder_states
         elif self.hidden_init_method == "enc":
@@ -127,6 +130,6 @@ class BridgeEncoder(TransformerEncoder):
 
         # apply self-attention over fixed-size hidden_states
         for block in range(self._hidden_blocks):
-            hidden_states = super().forward(encoder_states=hidden_states, encoder_mask=hidden_mask)
+            hidden_states = self.hidden_enc(encoder_states=hidden_states, encoder_mask=hidden_mask)
 
         return hidden_states, hidden_mask
