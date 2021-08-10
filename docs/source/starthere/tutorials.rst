@@ -54,7 +54,7 @@ To run a tutorial:
      - `Online Offline Microphone Speech Commands <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Online_Offline_Speech_Commands_Demo.ipynb>`_
    * - ASR
      - Voice Activity Detection (VAD)
-     - `Voice Activity Detection <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/06_Voice_Activity_Detection.ipynb>`_
+     - `Voice Activity Detection <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Voice_Activity_Detection.ipynb>`_
    * - ASR
      - Online and Offline VAD Inference
      - `Online Offline Microphone VAD <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/07_Online_Offline_Microphone_VAD_Demo.ipynb>`_
