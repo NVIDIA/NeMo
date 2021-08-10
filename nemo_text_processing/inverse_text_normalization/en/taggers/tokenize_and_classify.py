@@ -15,7 +15,6 @@
 
 import os
 
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import get_abs_path
 from nemo_text_processing.inverse_text_normalization.en.taggers.cardinal import CardinalFst
 from nemo_text_processing.inverse_text_normalization.en.taggers.date import DateFst
 from nemo_text_processing.inverse_text_normalization.en.taggers.decimal import DecimalFst
@@ -33,6 +32,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     delete_extra_space,
     delete_space,
     generator_main,
+    get_abs_path,
 )
 
 from nemo.utils import logging
