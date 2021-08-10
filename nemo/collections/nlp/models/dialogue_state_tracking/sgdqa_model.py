@@ -353,9 +353,9 @@ class SGDQAModel(NLPModel):
         metrics = self.multi_eval_epoch_end_helper(outputs=outputs, split=split, dataloader=dataloader)
 
         for k, v in metrics.items():
-            self.log(f'{split}_{k}', v)
+            self.log(f'{split}_{k}', v, rank_zero_only=True)
 
-        self.log(f'val_loss', avg_loss, prog_bar=True)
+        self.log(f'val_loss', avg_loss, prog_bar=True, rank_zero_only=True)
 
     def multi_test_epoch_end(self, outputs: List[dict], dataloader_idx: int = 0):
         """
@@ -370,9 +370,9 @@ class SGDQAModel(NLPModel):
         metrics = self.multi_eval_epoch_end_helper(outputs=outputs, split=split, dataloader=dataloader)
 
         for k, v in metrics.items():
-            self.log(f'{split}_{k}', v)
+            self.log(f'{split}_{k}', v, rank_zero_only=True)
 
-        self.log(f'test_loss', avg_loss, prog_bar=True)
+        self.log(f'test_loss', avg_loss, prog_bar=True, rank_zero_only=True)
 
     def multi_eval_epoch_end_helper(
         self, outputs: List[dict], split: str, dataloader: torch.utils.data.DataLoader

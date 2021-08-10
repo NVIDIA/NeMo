@@ -299,13 +299,13 @@ class TestExpManager:
             {"resume_if_exists": True, "explicit_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
         )
         checkpoint = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last.ckpt")
-        assert Path(test_trainer.resume_from_checkpoint).resolve() == checkpoint.resolve()
+        assert Path(test_trainer.checkpoint_connector.resume_checkpoint_path).resolve() == checkpoint.resolve()
 
         # Succeed again and make sure that run_0 exists and previous log files were moved
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
         exp_manager(test_trainer, {"resume_if_exists": True, "explicit_log_dir": str(log_dir)})
         checkpoint = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last.ckpt")
-        assert Path(test_trainer.resume_from_checkpoint).resolve() == checkpoint.resolve()
+        assert Path(test_trainer.checkpoint_connector.resume_checkpoint_path).resolve() == checkpoint.resolve()
         prev_run_dir = Path(tmp_path / "test_resume" / "default" / "version_0" / "run_0")
         assert prev_run_dir.exists()
         prev_log = Path(tmp_path / "test_resume" / "default" / "version_0" / "run_0" / "lightning_logs.txt")
