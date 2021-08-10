@@ -103,7 +103,8 @@ class ClassifyFst(GraphFst):
             telephone_graph = TelephoneFst(deterministic=deterministic).fst
             electronic_graph = ElectronicFst(deterministic=deterministic).fst
             money_graph = MoneyFst(cardinal=cardinal, decimal=decimal, deterministic=deterministic).fst
-            whitelist_graph = WhiteListFst(input_case=input_case, deterministic=deterministic).graph
+            whitelist = WhiteListFst(input_case=input_case, deterministic=deterministic)
+            whitelist_graph = whitelist.graph
             punct_graph = PunctuationFst(deterministic=deterministic).graph
 
             # VERBALIZERS
@@ -145,7 +146,7 @@ class ClassifyFst(GraphFst):
                 # the weight matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
                 classify_and_verbalize |= pynutil.add_weight(pynini.compose(roman_graph, v_roman_graph), 100)
 
-                abbreviation_graph = AbbreviationFst(deterministic=deterministic).fst
+                abbreviation_graph = AbbreviationFst(whitelist=whitelist, deterministic=deterministic).fst
                 classify_and_verbalize |= pynutil.add_weight(pynini.compose(abbreviation_graph, v_abbreviation), 100)
 
             punct = pynutil.add_weight(punct_graph, weight=1.1)

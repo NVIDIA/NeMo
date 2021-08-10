@@ -37,17 +37,21 @@ class AbbreviationFst(GraphFst):
         e.g. "ABC" -> tokens { abbreviation { value: "A B C" } }
 
     Args:
+        whitelist: whitelist FST
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, deterministic: bool = True):
+    def __init__(self, whitelist: 'pynini.FstLike', deterministic: bool = True):
         super().__init__(name="abbreviation", kind="classify", deterministic=deterministic)
 
         main_graph = NEMO_UPPER + pynini.closure(insert_space + NEMO_UPPER, 1)
-        misc_graph = pynutil.add_weight(TO_LOWER + pynini.closure(insert_space + TO_LOWER), 110)
-        misc_graph |= pynutil.add_weight(NEMO_UPPER + pynini.closure(insert_space + NEMO_LOWER, 1), 110)
-        misc_graph |= pynutil.add_weight(TO_LOWER + pynini.closure(insert_space + NEMO_LOWER), 110)
+        misc_graph = pynutil.add_weight(
+            TO_LOWER + pynini.closure(insert_space + pynini.union(TO_LOWER | NEMO_LOWER)), 110
+        )
+        misc_graph |= pynutil.add_weight(
+            pynini.closure(NEMO_UPPER, 2) + pynini.closure(insert_space + NEMO_LOWER, 1), 110
+        )
         misc_graph |= (
             NEMO_UPPER + pynutil.delete(".") + pynini.closure(insert_space + NEMO_UPPER + pynutil.delete("."))
         )
@@ -56,7 +60,12 @@ class AbbreviationFst(GraphFst):
         )
 
         # set weight of the misc graph to the value higher then word
-        graph = pynutil.add_weight(main_graph, 10) | pynutil.add_weight(misc_graph, 101)
+        graph = pynutil.add_weight(main_graph.optimize(), 10) | pynutil.add_weight(misc_graph.optimize(), 101)
+
+        # exclude words that are included in the whitelist
+        graph = pynini.compose(
+            pynini.difference(pynini.project(graph, "input"), pynini.project(whitelist.graph, "input")), graph
+        )
         graph = pynutil.insert("value: \"") + graph.optimize() + pynutil.insert("\"")
         graph = self.add_tokens(graph)
         self.fst = graph.optimize()
