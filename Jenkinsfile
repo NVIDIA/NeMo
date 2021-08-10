@@ -76,14 +76,17 @@ pipeline {
       }
     }
 
-    stage('L0: ITN Tests CPU') {
+    stage('L0: TN/ITN Tests CPU') {
       when {
         anyOf {
-          branch 'main'
+          branch 'tn_*'
           changeRequest target: 'main'
         }
       }
       steps {
+        // create .far graph for non-deterministic Eng TN first
+        sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2'
+        // run TN/ITN tests
         sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/ -m "not pleasefixme" --cpu'
       }
     }

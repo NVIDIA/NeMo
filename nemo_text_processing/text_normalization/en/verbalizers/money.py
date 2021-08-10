@@ -59,12 +59,19 @@ class MoneyFst(GraphFst):
         graph = decimal.numbers + delete_space + pynutil.insert(" ") + unit
 
         if not deterministic:
+            # For non-deterministic case, the currency symbol was not changed in the tagger, so here we need to
+            # create a transducer to replace the currency symbol with the correct spoken equivalent
+
+            # the graph finds instances where the fractional part is '.01' - this is need to add singular case for
+            # the minor currency
             fractional_non_one = (
                 pynutil.delete("fractional_part: \"")
                 + pynini.difference(pynini.closure(NEMO_NOT_QUOTE), pynini.union("oh one", "o one", "zero one", "one"))
                 + pynutil.delete("\"")
             )
             preserve_order = pynutil.delete("preserve_order: True")
+
+            # Create units graph for major and minor currencies in both singular and plural forms
             unit_major_sing = pynini.string_file(get_abs_path("data/currency/currency.tsv"))
             unit_major_plural = (
                 pynutil.delete("currency: \"")
@@ -77,12 +84,18 @@ class MoneyFst(GraphFst):
             unit_minor_plural = pynini.string_file(get_abs_path("data/currency/currency_minor_plural.tsv"))
             unit_minor_plural = pynutil.delete("currency: \"") + unit_minor_plural + pynutil.delete("\"")
 
+            # for the integer part of the money graph find cases, when the integer part is one
+            # this is need to add a singular currency value, e.g. `$1` -> `one dollar` not `one dollars`
             integer_one = pynini.compose(decimal.integer, pynini.accep("one"))
+
+            # graph for integer values that are not `1`, we need to use plural currency form for such cases
             integer_not_one = pynini.compose(decimal.integer, pynini.difference(NEMO_SIGMA, pynini.accep("one")))
             graph_integer = integer_one + delete_space + insert_space + unit_major_sing + delete_space + preserve_order
             graph_integer |= (
                 integer_not_one + delete_space + insert_space + unit_major_plural + delete_space + preserve_order
             )
+
+            # find when the fractional part is equal to `.01` -> to use singular form of the minor currency
             fractional_part_sing = (
                 delete_space
                 + pynutil.delete("fractional_part: \"" + pynini.union("o ", "oh ", "zero "))
@@ -92,6 +105,9 @@ class MoneyFst(GraphFst):
                 + insert_space
                 + unit_minor_sing
             )
+
+            # verbalize money values with .01 in the fractional part and use singular form of the minor currency
+            # e.g. '$12.01' -> 'twelve dollars (and) one cent'
             graph_decimal_with_minor = (
                 graph_integer
                 + delete_space
@@ -103,6 +119,10 @@ class MoneyFst(GraphFst):
             fractional_part_plural = (
                 delete_space + fractional_non_one + delete_space + insert_space + unit_minor_plural
             )
+
+            # verbalize money values with the fractional part not equal to '.01' and
+            # use plural form of the minor currency
+            # e.g. '$12.56' -> 'twelve dollars (and) fifty six cents'
             graph_decimal_with_minor |= (
                 graph_integer
                 + delete_space
@@ -110,6 +130,8 @@ class MoneyFst(GraphFst):
                 + pynini.closure(pynutil.insert("and "), 0, 1)
                 + fractional_part_plural
             )
+
+            # handle cases when there is no integer part
             graph_decimal_with_minor |= fractional_part_sing | fractional_part_plural
 
             # to make sure no texts with remaining currency symbol bypass the verbalizer

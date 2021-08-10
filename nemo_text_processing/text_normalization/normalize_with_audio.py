@@ -77,9 +77,7 @@ class NormalizerWithAudio(Normalizer):
     def __init__(self, input_case: str, lang: str = 'en', use_cache: bool = True):
         if lang == 'en':
             from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_with_audio import ClassifyFst
-            from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final_with_audio import (
-                VerbalizeFinalFst,
-            )
+            from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
 
             self.tagger = ClassifyFst(input_case=input_case, deterministic=False, use_cache=use_cache)
             self.verbalizer = VerbalizeFinalFst(deterministic=False)
