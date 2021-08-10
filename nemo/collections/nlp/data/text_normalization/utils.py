@@ -17,15 +17,20 @@ from copy import deepcopy
 from nltk import word_tokenize
 from tqdm import tqdm
 
-import nemo.collections.nlp.data.text_normalization.constants as constants
+from nemo.collections.nlp.data.text_normalization import constants
 
 __all__ = ['read_data_file', 'normalize_str']
 
 
-def read_data_file(fp):
+def read_data_file(fp: str):
     """ Reading the raw data from a file of NeMo format
     For more info about the data format, refer to the
     `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`.
+
+    Args:
+        fp: file paths
+    Returns:
+        insts: List of sentences parsed as list of words
     """
     insts, w_words, s_words, classes = [], [], [], []
     # Read input file

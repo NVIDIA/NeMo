@@ -60,8 +60,8 @@ class AppState(metaclass=Singleton):
 
         # Save and Restore (.nemo)
         self._tmpdir_name = None
-        self._model_config_yaml = "model_config.yaml"
-        self._model_weights_ckpt = "model_weights.ckpt"
+        self._is_model_being_restored = False
+        self._nemo_file_folder = None
         self._model_restore_path = None
         self._all_model_restore_paths = []
         self._model_guid_map = {}  # type: Dict[str, ModelMetadataRegistry]
@@ -348,14 +348,6 @@ class AppState(metaclass=Singleton):
         self._checkpoint_callback_params = params
 
     @property
-    def model_config_yaml(self):
-        return self._model_config_yaml
-
-    @property
-    def model_weights_ckpt(self):
-        return self._model_weights_ckpt
-
-    @property
     def model_restore_path(self):
         restore_path = self._all_model_restore_paths[-1] if len(self._all_model_restore_paths) > 0 else None
         return restore_path
@@ -384,3 +376,19 @@ class AppState(metaclass=Singleton):
         # Returns the global model idx and restoration path
         metadata = self._model_guid_map[guid]
         return metadata
+
+    @property
+    def is_model_being_restored(self) -> bool:
+        return self._is_model_being_restored
+
+    @is_model_being_restored.setter
+    def is_model_being_restored(self, is_restored: bool):
+        self._is_model_being_restored = is_restored
+
+    @property
+    def nemo_file_folder(self) -> str:
+        return self._nemo_file_folder
+
+    @nemo_file_folder.setter
+    def nemo_file_folder(self, path: str):
+        self._nemo_file_folder = path
