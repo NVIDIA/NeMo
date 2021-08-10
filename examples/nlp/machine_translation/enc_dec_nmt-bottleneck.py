@@ -29,6 +29,7 @@ from nemo.utils import logging
 from nemo.utils.config_utils import update_model_config
 from nemo.utils.exp_manager import ExpManagerConfig, exp_manager
 
+
 """
 Usage:
  1. If you need to start docker and install NeMo, otherwise skip this step:

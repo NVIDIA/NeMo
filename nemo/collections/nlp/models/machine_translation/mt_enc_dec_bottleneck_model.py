@@ -155,8 +155,9 @@ class MTBottleneckModel(MTEncDecModel):
 
         return z, z_mean, z_logv
 
-    def loss(self, z, z_mean, z_logv, z_mask, tgt_log_probs, tgt, tgt_mask, tgt_labels,
-             train=False, return_info=False):
+    def loss(
+        self, z, z_mean, z_logv, z_mask, tgt_log_probs, tgt, tgt_mask, tgt_labels, train=False, return_info=False
+    ):
         """
         Compute the loss from latent (z) and target (x).
 
@@ -336,7 +337,8 @@ class MTBottleneckModel(MTEncDecModel):
             tgt=tgt_ids,
             tgt_mask=tgt_mask,
             tgt_labels=labels,
-            train=True, return_info=True,
+            train=True,
+            return_info=True,
         )
         tensorboard_logs = {
             'train_loss': train_loss,
@@ -368,7 +370,8 @@ class MTBottleneckModel(MTEncDecModel):
             tgt=tgt_ids,
             tgt_mask=tgt_mask,
             tgt_labels=labels,
-            train=False, return_info=True,
+            train=False,
+            return_info=True,
         )
         # this will run encoder twice -- TODO: potentially fix
         _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)

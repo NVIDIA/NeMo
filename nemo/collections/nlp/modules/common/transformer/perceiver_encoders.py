@@ -159,5 +159,4 @@ class PerceiverEncoder(torch.nn.Module):
         # final self-attention over hidden
         hidden_states = self.self_att(encoder_states=hidden_states, encoder_mask=hidden_mask,)
 
-
         return hidden_states, hidden_mask
