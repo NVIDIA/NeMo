@@ -270,7 +270,8 @@ class ModelPT(LightningModule, Model):
         instance = cls._save_restore_connector.restore_from(
             cls, restore_path, override_config_path, map_location, strict, return_config
         )
-        instance._save_restore_connector = save_restore_connector
+        if isinstance(instance, ModelPT):
+            instance._save_restore_connector = save_restore_connector
         return instance
 
     @classmethod

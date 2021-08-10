@@ -72,7 +72,10 @@ class TextNormalizationDecoderDataset(Dataset):
 
         # Get cache path
         data_dir, filename = os.path.split(input_file)
-        cached_data_file = os.path.join(data_dir, f'cached_decoder_{filename}_{tokenizer_name}_{lang}_{max_insts}.pkl')
+        tokenizer_name_normalized = tokenizer_name.replace('/', '_')
+        cached_data_file = os.path.join(
+            data_dir, f'cached_decoder_{filename}_{tokenizer_name_normalized}_{lang}_{max_insts}.pkl'
+        )
 
         if use_cache and os.path.exists(cached_data_file):
             logging.warning(
@@ -240,13 +243,16 @@ class DecoderDataInstance:
         w_input = w_left + [extra_id_0] + c_w_words + [extra_id_1] + w_right
         s_input = s_left + [extra_id_0] + c_s_words + [extra_id_1] + s_right
         if inst_dir == constants.INST_BACKWARD:
+            input_center_words = c_s_words
             input_words = [constants.ITN_PREFIX] + s_input
             output_words = c_w_words
         if inst_dir == constants.INST_FORWARD:
+            input_center_words = c_w_words
             input_words = [constants.TN_PREFIX] + w_input
             output_words = c_s_words
         # Finalize
         self.input_str = ' '.join(input_words)
+        self.input_center_str = ' '.join(input_center_words)
         self.output_str = ' '.join(output_words)
         self.direction = inst_dir
         self.semiotic_class = semiotic_class
