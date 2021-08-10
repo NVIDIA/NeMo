@@ -103,7 +103,8 @@ class SDLoss(torch.nn.Module):
             self.mbr_graph = None
 
     def _intersect_mmi_exact(self, dense_fsa_vec: k2.DenseFsaVec, num_graphs: k2.Fsa, den_graph: k2.Fsa):
-        device = num_graphs.device
+        device = dense_fsa_vec.device
+        assert device == num_graphs.device and device == den_graph.device
 
         num_fsas = num_graphs.shape[0]
         assert dense_fsa_vec.dim0() == num_fsas
@@ -145,10 +146,16 @@ class SDLoss(torch.nn.Module):
                                           output_beam=10.0,
                                           a_to_b_map=a_to_b_map,
                                           seqframe_idx_name='seqframe_idx')
-        lat_slice = torch.arange(num_fsas, dtype=torch.int32).to(device) * 2
-        return k2.index(num_den_lats, lat_slice), k2.index(num_den_lats, lat_slice + 1)
+        if num_fsas == 1:
+            return k2.create_fsa_vec([num_den_lats[0]]), k2.create_fsa_vec([num_den_lats[1]])
+        else:
+            lat_slice = torch.arange(num_fsas, dtype=torch.int32).to(device) * 2
+            return k2.index(num_den_lats, lat_slice), k2.index(num_den_lats, lat_slice + 1)
 
     def _intersect_mmi_pruned(self, dense_fsa_vec: k2.DenseFsaVec, num_graphs: k2.Fsa, den_graph: k2.Fsa):
+        device = dense_fsa_vec.device
+        assert device == num_graphs.device and device == den_graph.device
+
         num_fsas = num_graphs.shape[0]
         assert dense_fsa_vec.dim0() == num_fsas
 

@@ -21,6 +21,8 @@ import torch
 def build_topo(name: str, tokens: List[int], with_selfloops: bool=True) -> k2.Fsa:
     if name == "ctc_default":
         return build_ctc_topo(tokens, with_selfloops)
+    # elif name == "ctc_no_selfloops":
+        # return build_ctc_topo(tokens, False)
     elif name == "ctc_compact":
         return build_ctc_topo_compact(tokens, with_selfloops)
     elif name == "ctc_shared_blank":
@@ -53,8 +55,9 @@ def build_ctc_topo(tokens: List[int], with_selfloops: bool=True) -> k2.Fsa:
     arcs = "" if with_selfloops else "0 0 0 0 0.0\n"
     for i in range(num_states):
         for j in range(num_states):
-            if with_selfloops and i == j:
-                arcs += f"{i} {i} {tokens[i]} 0 0.0\n"
+            if i == j:
+                if with_selfloops:
+                    arcs += f"{i} {i} {tokens[i]} 0 0.0\n"
             else:
                 arcs += f"{i} {j} {tokens[j]} {tokens[j]} 0.0\n"
         arcs += f"{i} {final_state} -1 -1 0.0\n"
