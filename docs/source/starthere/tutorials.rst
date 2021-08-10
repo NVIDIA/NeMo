@@ -36,7 +36,7 @@ To run a tutorial:
      - `ASR with NeMo <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_with_NeMo.ipynb>`_
    * - ASR
      - ASR with Subword Tokenization
-     - `ASR with Subword Tokenization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/08_ASR_with_Subword_Tokenization.ipynb>`_
+     - `ASR with Subword Tokenization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_with_Subword_Tokenization.ipynb>`_
    * - ASR
      - Offline ASR Inference with Beam Search and External Language Model Rescoring
      - `Offline ASR <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Offline_ASR.ipynb>`_
