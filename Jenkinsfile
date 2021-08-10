@@ -76,13 +76,11 @@ pipeline {
       }
     }
 
-    stage('L0: ITN Tests CPU') {
+    stage('L0: TN/ITN Tests CPU') {
       when {
         anyOf {
-          changeset "**/${projectDirectory}/nemo_text_processing/**/*.py"
-          changeset "**/${projectDirectory}/nemo_text_processing/**/*.md"
-          changeset "**/${projectDirectory}/nemo_text_processing/**/*.sh"
-          changeset "**/${projectDirectory}/nemo_text_processing/**/*.tsv"
+          branch '*tn*'
+          changeRequest target: 'main'
         }
       }
       steps {
