@@ -358,7 +358,7 @@ class MTBottleneckModel(MTEncDecModel):
             self.target_processor = self.target_processor_list[dataloader_idx]
 
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
-      z, z_mean, z_logv, z_mask, tgt_log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
+        z, z_mean, z_logv, z_mask, tgt_log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
         train_loss, info_dict = self.forward(
             z=z,
             z_mean=z_mean,
