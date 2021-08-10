@@ -33,7 +33,7 @@ To run a tutorial:
      - `NeMo Models <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/01_NeMo_Models.ipynb>`_
    * - ASR
      - ASR with NeMo
-     - `ASR with NeMo <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/01_ASR_with_NeMo.ipynb>`_
+     - `ASR with NeMo <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_with_NeMo.ipynb>`_
    * - ASR
      - ASR with Subword Tokenization
      - `ASR with Subword Tokenization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/08_ASR_with_Subword_Tokenization.ipynb>`_

@@ -1,4 +1,0 @@
--e git+git://github.com/NVIDIA/NeMo.git@v1.0.2#egg=nemo_toolkit[all]
-flask
-flask-cors
-gunicorn
