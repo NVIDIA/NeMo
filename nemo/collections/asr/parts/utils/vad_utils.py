@@ -306,13 +306,14 @@ def generate_vad_segment_table(vad_pred_dir, postprocessing_params, shift_len, n
     suffixes = ("frame", "mean", "median")
     vad_pred_filepath_list = [os.path.join(vad_pred_dir, x) for x in os.listdir(vad_pred_dir) if x.endswith(suffixes)]
 
-    table_out_dir = os.path.join(vad_pred_dir, "table_output")
+    table_out_dir = os.path.join(vad_pred_dir, "table_output" + str(postprocessing_params))
     if not os.path.exists(table_out_dir):
         os.mkdir(table_out_dir)
 
     per_args = {
         "shift_len": shift_len,
         "out_dir": table_out_dir,
+        "filter_active_first": False
     }
 
     per_args = {**per_args, **postprocessing_params}
@@ -361,7 +362,7 @@ def binarization(sequence, per_args):
     """
     shift_len = per_args.get('shift_len', 0.01)
 
-    onset = per_args.get('onset', 0.5) # 
+    onset = per_args.get('onset', 0.5) 
     offset = per_args.get('offset', 0.5)
     pad_onset = per_args.get('pad_onset', 0.0)
     pad_offset = per_args.get('pad_offset', 0.0)
@@ -369,13 +370,16 @@ def binarization(sequence, per_args):
     onset, offset = cal_vad_onset_offset(per_args.get('scale', 'absolute'), onset, offset)
 
     active = False
-    active_segments = set() 
+    active_segments = set()  # {(start, end), }
     for i in range(1, len(sequence)):
         # Current frame is active
         if active:
             # Switch from active to inactive
             if sequence[i] < offset:
-                active_segments.add((start - pad_onset, i * shift_len + pad_offset))
+                if start - pad_onset>=0:
+                    active_segments.add((start - pad_onset, i * shift_len + pad_offset))
+                else:
+                    active_segments.add((0, i * shift_len + pad_offset))
                 start = i * shift_len
                 active = False
 
@@ -392,6 +396,7 @@ def binarization(sequence, per_args):
 
     # Merge the overlapped active segments due to padding
     active_segments = merge_overlap_segment(active_segments)  #not sorted
+
     return active_segments
 
 def filtering(active_segments, per_args):
@@ -429,7 +434,6 @@ def filtering(active_segments, per_args):
             active_segments = merge_overlap_segment(active_segments) 
         if min_duration_on > 0.0:
             active_segments = filter_short_segments(active_segments, min_duration_on)
-    print(active_segments)
     return active_segments
 
 def filter_short_segments(segments, threshold):
@@ -458,7 +462,6 @@ def merge_overlap_segment(segments):
             merged[-1][1] = max(merged[-1][1], segment[1])
 
     merged_set = set([tuple(t) for t in merged])
-
     return merged_set
 
 
@@ -508,7 +511,8 @@ def vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_
 def get_parameter_grid(params):
     return list(ParameterGrid(params))
 
-def vad_tune_threshold_on_dev(params, vad_pred, groundtruth_RTTM, vad_pred_method="frame", focus_metric="DetER"):
+
+def vad_tune_threshold_on_dev(params, vad_pred, groundtruth_RTTM, result_file="res", vad_pred_method="frame", focus_metric="DetER"):
     """
     Tune threshold on dev set. Return best threshold which gives the lowest detection error rate (DetER) in thresholds.
     Args:
@@ -520,53 +524,40 @@ def vad_tune_threshold_on_dev(params, vad_pred, groundtruth_RTTM, vad_pred_metho
     Returns:
         best_threhsold (float): threshold that gives lowest DetER.
     """
-    all_perf = {}
     min_score = 100
-
+    all_perf = {}
     # try:
     #     onsets[0] >= 0 and onsets[-1] <= 1
     # except:
     #     raise ValueError("Invalid onset! Should be in [0, 1]")
 
+    paired_filenames, groundtruth_RTTM_dict, vad_pred_dict = pred_rttm_map(vad_pred, groundtruth_RTTM, vad_pred_method)
+    
     params_grid = get_parameter_grid(params)
+    metric = detection.DetectionErrorRate()
 
     for param in params_grid:
-        metric = detection.DetectionErrorRate()
-        paired_filenames, groundtruth_RTTM_dict, vad_pred_dict = pred_rttm_map(
-            vad_pred, groundtruth_RTTM, vad_pred_method
-        )
-        table_out_dir = "ami_table_output_tmp"
-        if not os.path.exists(table_out_dir):
-            os.makedirs(table_out_dir)
-                
+
+        # perform binarization, filtering accoring to param and write to rttm-like table
+        vad_table_dir = generate_vad_segment_table(vad_pred, param, shift_len=0.01, num_workers=20)
+        
+        # add reference and hypothesis to metrics 
         for filename in paired_filenames:
             vad_pred_filepath = vad_pred_dict[filename]
             groundtruth_RTTM_file = groundtruth_RTTM_dict[filename]
-
-            # todo
-            # if os.path.isdir(vad_pred):
-            #     table_out_dir = os.path.join(vad_pred, "table_output_" + str(param))
-            # else:
-            #     table_out_dir = os.path.join("tmp_table_outputs", "table_output_" + str(param))
-
-        
-            per_args = {"shift_len": 0.01, "out_dir": table_out_dir}
-            per_args = {**per_args, **param}
-            
-            vad_table_filepath = generate_vad_segment_table_per_file(vad_pred_filepath, per_args)
-            
-        
+            vad_table_filepath = os.path.join(vad_table_dir, filename + ".txt")
             reference, hypothesis = vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_file)
             metric(reference, hypothesis)  # accumulation
-        
-        shutil.rmtree(table_out_dir, ignore_errors=True)
+
+        # delete tmp table files
+        shutil.rmtree(vad_table_dir, ignore_errors=True)
 
         report = metric.report(display=False)
         DetER = report.iloc[[-1]][('detection error rate', '%')].item()
         FA = report.iloc[[-1]][('false alarm', '%')].item()
         MISS = report.iloc[[-1]][('miss', '%')].item()
 
-        assert (focus_metric == "DetER" or focus_metric == "FA" or focus_metric == "MISS"  ), "Metric we care most should be only in 'DetER', 'FA'or 'MISS'!"
+        assert (focus_metric == "DetER" or focus_metric == "FA" or focus_metric == "MISS"), "Metric we care most should be only in 'DetER', 'FA'or 'MISS'!"
         all_perf[str(param)] = {'DetER (%)': DetER, 'FA (%)': FA, 'MISS (%)': MISS}
         logging.info(f"parameter {param}, {all_perf[str(param)] }")
 
@@ -574,6 +565,11 @@ def vad_tune_threshold_on_dev(params, vad_pred, groundtruth_RTTM, vad_pred_metho
 
         del report
         metric.reset()  # reset internal accumulator
+
+        # save results for analysis
+        with open(result_file + ".txt", "a") as fp:
+            fp.write(f"{param}, {all_perf[str(param)] }\n")
+
         if score < min_score:
             best_threhsold = param
             optimal_scores= all_perf[str(param)]
@@ -651,7 +647,7 @@ def plot(
 
     prob = frame
     if threshold and per_args:
-        raise ValueError("threshold and per_args cannot been used at same time!")
+        raise ValueError("threshold and per_args cannot be used at same time!")
     if not threshold and not per_args:
         raise ValueError("One and only one of threshold and per_args must have been used!")
 
@@ -674,18 +670,18 @@ def plot(
     ax2.set_ylim([-0.1, 1.1])
     return None
 
-def gen_pred_from_active_segments(active_segments, prob):
 
+def gen_pred_from_active_segments(active_segments, prob, shift_len=0.01):
     pred = np.zeros(prob.shape)
     active_segments=[list(i) for i in active_segments]
     active_segments.sort(key=lambda x: x[0])
 
     for seg in active_segments:
-        start = int(seg[0]/0.01)
-        end = int(seg[1]/0.01)
+        start = int(seg[0]/shift_len)
+        end = int(seg[1]/shift_len)
         pred[start: end] = 1
-
     return pred
+
 
 def extract_labels(path2ground_truth_label, time):
     """

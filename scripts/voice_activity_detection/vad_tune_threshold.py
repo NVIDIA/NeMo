@@ -36,6 +36,7 @@ if __name__ == "__main__":
     parser.add_argument("--offset_range", help="range of offset in list 'START,END,STEP' to be tuned on")
     parser.add_argument("--min_duration_on_range", help="range of min_duration_on in list 'START,END,STEP' to be tuned on")
     parser.add_argument("--min_duration_off_range", help="range of min_duration_off in list 'START,END,STEP' to be tuned on")
+    # parser.add_argument("--filter_active_first", )
 
     parser.add_argument(
         "--vad_pred", help="Directory of vad predictions or a file contains the paths of them.", required=True
@@ -45,6 +46,11 @@ if __name__ == "__main__":
         help="Directory of groundtruch rttm files or a file contains the paths of them",
         type=str,
         required=True,
+    )
+    parser.add_argument(
+        "--result_file",
+        help="Filename of txt to store results",
+        default="res",
     )
     parser.add_argument(
         "--vad_pred_method",
@@ -81,11 +87,14 @@ if __name__ == "__main__":
             start, stop, step = [float(i) for i in args.min_duration_off_range.split(",")]
             min_duration_off = np.arange(start, stop, step)
             params['min_duration_off'] = min_duration_off
+        
+        # if args.filter_active_first:
+        #     params['filter_active_first'] = True
 
     except:
         raise ValueError("Theshold input is invalid! Please enter it as a 'START,STOP,STEP' ")
 
     best_threhsold, optimal_scores = vad_tune_threshold_on_dev(
-        params, args.vad_pred, args.groundtruth_RTTM, args.vad_pred_method, args.focus_metric
+        params, args.vad_pred, args.groundtruth_RTTM, args.result_file, args.vad_pred_method, args.focus_metric
     )
     logging.info(f"Best combination of thresholds for binarization selected from input ranges is {best_threhsold}, and the optimal score is {optimal_scores}")
