@@ -82,7 +82,7 @@ class MTBottleneckModel(MTEncDecModel):
             self.loss_fn = self.eval_loss_fn = loss_fn
 
         if self.model_type not in ["recon_only", "mim", "vae"]:
-            raise ValueError("Unknown model_type = {model_type}".format(model_type=self.model_type,))
+            raise ValueError(f"Unknown model_type = {self.model_type}")
 
         # project bridge dimension back to decoder hidden dimensions
         self.latent2hidden = build_linear_or_identity(self.latent_size, self.encoder.hidden_size)
@@ -129,7 +129,7 @@ class MTBottleneckModel(MTEncDecModel):
 
         return result
 
-    def encode_latent(self, hidden, hidden_mask):
+    def encode_latent(self, hidden):
         """
         Sample latent code z with reparameterization from bridge for
         probabilistic latent variable models (e.g., mim, vae),
@@ -155,42 +155,29 @@ class MTBottleneckModel(MTEncDecModel):
 
         return z, z_mean, z_logv
 
-    @typecheck()
-    def forward(self, src, src_mask, tgt, tgt_mask, labels, train=True, return_info=False):
+    def loss(self, z, z_mean, z_logv, z_mask, tgt_log_probs, tgt, tgt_mask, tgt_labels,
+             train=False, return_info=False):
         """
-        return_info - if True, returns loss, info_dict with additional information
-                      regarding the loss that can be logged
+        Compute the loss from latent (z) and target (x).
+
+        train - If True enables loss annealing, and label smoothing
         """
-        info_dict = {}
-
-        enc_hiddens, enc_mask = self.encoder(input_ids=src, encoder_mask=src_mask, return_mask=True,)
-
-        # build posterior distribution q(x|z)
-        z, z_mean, z_logv = self.encode_latent(hidden=enc_hiddens, hidden_mask=enc_mask,)
-
-        # decoding cross attention context
-        context_hiddens = self.latent2hidden(z)
-
-        tgt_hiddens = self.decoder(
-            input_ids=tgt, decoder_mask=tgt_mask, encoder_embeddings=context_hiddens, encoder_mask=enc_mask,
-        )
-
-        # build decoding distribution
-        log_probs = self.log_softmax(hidden_states=tgt_hiddens)
 
         recon_loss_fn = self.loss_fn if train else self.eval_loss_fn
 
+        info_dict = {}
+
         if self.recon_per_token:
-            log_p_x_given_z_per_token = -recon_loss_fn(log_probs=log_probs, labels=labels)
+            log_p_x_given_z_per_token = -recon_loss_fn(log_probs=tgt_log_probs, labels=tgt_labels)
 
             log_p_x_given_z = log_p_x_given_z_per_token
             log_p_x_given_z_per_token = log_p_x_given_z_per_token.detach()
         else:
             # averaging of log_p_x_given_z per sample
-            output_mask = (labels != self.decoder_tokenizer.pad_id).type_as(log_probs)
+            output_mask = (tgt_labels != self.decoder_tokenizer.pad_id).type_as(log_probs)
 
             log_p_x_given_z_per_token = (
-                -recon_loss_fn(log_probs=log_probs, labels=labels,).view(log_probs.shape[:2]) * output_mask
+                -recon_loss_fn(log_probs=tgt_log_probs, labels=tgt_labels,).view(log_probs.shape[:2]) * output_mask
             )
 
             # probability per sample
@@ -259,6 +246,31 @@ class MTBottleneckModel(MTEncDecModel):
         else:
             return loss
 
+    @typecheck()
+    def forward(self, src, src_mask, tgt, tgt_mask):
+        """
+        return_info - if True, returns loss, info_dict with additional information
+                      regarding the loss that can be logged
+        """
+
+        enc_hiddens, enc_mask = self.encoder(input_ids=src, encoder_mask=src_mask, return_mask=True,)
+
+        # build posterior distribution q(x|z)
+        z, z_mean, z_logv = self.encode_latent(hidden=enc_hiddens)
+        z_mask = enc_mask
+
+        # decoding cross attention context
+        context_hiddens = self.latent2hidden(z)
+
+        tgt_hiddens = self.decoder(
+            input_ids=tgt, decoder_mask=tgt_mask, encoder_embeddings=context_hiddens, encoder_mask=enc_mask,
+        )
+
+        # build decoding distribution
+        tgt_log_probs = self.log_softmax(hidden_states=tgt_hiddens)
+
+        return z, z_mean, z_logv, z_mask, tgt_log_probs
+
     @torch.no_grad()
     def batch_translate(
         self, src: torch.LongTensor, src_mask: torch.LongTensor,
@@ -276,10 +288,10 @@ class MTBottleneckModel(MTEncDecModel):
         try:
             self.eval()
 
-            enc_hiddens, enc_mask = self.encoder(input_ids=src, encoder_mask=src_mask, return_mask=True,)
+            enc_hiddens, enc_mask = self.encoder(input_ids=src, encoder_mask=src_mask, return_mask=True)
 
             # build posterior distribution q(x|z)
-            z, _, _ = self.encode_latent(hidden=enc_hiddens, hidden_mask=enc_mask,)
+            z, _, _ = self.encode_latent(hidden=enc_hiddens)
 
             # decoding cross attention context
             context_hiddens = self.latent2hidden(z)
@@ -314,7 +326,18 @@ class MTBottleneckModel(MTEncDecModel):
                 # is excess.
                 batch[i] = batch[i].squeeze(dim=0)
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
-        train_loss, info_dict = self(src_ids, src_mask, tgt_ids, tgt_mask, labels, train=True, return_info=True)
+        z, z_mean, z_logv, z_mask, tgt_log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
+        train_loss, info_dict = self.forward(
+            z=z,
+            z_mean=z_mean,
+            z_logv=z_logv,
+            z_mask=z_mask,
+            tgt_log_probs=tgt_log_probs,
+            tgt=tgt_ids,
+            tgt_mask=tgt_mask,
+            tgt_labels=labels,
+            train=True, return_info=True,
+        )
         tensorboard_logs = {
             'train_loss': train_loss,
             'lr': self._optimizer.param_groups[0]['lr'],
@@ -335,7 +358,18 @@ class MTBottleneckModel(MTEncDecModel):
             self.target_processor = self.target_processor_list[dataloader_idx]
 
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
-        eval_loss, info_dict = self(src_ids, src_mask, tgt_ids, tgt_mask, labels, train=False, return_info=True)
+      z, z_mean, z_logv, z_mask, tgt_log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
+        train_loss, info_dict = self.forward(
+            z=z,
+            z_mean=z_mean,
+            z_logv=z_logv,
+            z_mask=z_mask,
+            tgt_log_probs=tgt_log_probs,
+            tgt=tgt_ids,
+            tgt_mask=tgt_mask,
+            tgt_labels=labels,
+            train=False, return_info=True,
+        )
         # this will run encoder twice -- TODO: potentially fix
         _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
 
