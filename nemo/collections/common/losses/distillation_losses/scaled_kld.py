@@ -52,7 +52,7 @@ class ScaledKLDivLoss(nn.KLDivLoss, Serialization, Typing, ScaledDistillationLos
 
     @typecheck()
     def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        return super().forward(input=input, target=target)
+        return super().forward(input=input, target=target).sum(-1).mean()
 
     @property
     def grad_scale(self):

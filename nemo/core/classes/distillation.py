@@ -289,6 +289,8 @@ class DistillationModelPT(ModelPT):
             # Compute primary loss (required) and additional losses (optional)
             primary_loss_value, additional_losses = self._compute_loss()
 
+        # import pdb; pdb.set_trace()
+
         # Log the primary distillation training loss
         self.log('distillation_primary_loss', primary_loss_value, prog_bar=True)
 
