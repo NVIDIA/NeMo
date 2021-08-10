@@ -18,12 +18,15 @@ import torch
 from omegaconf import DictConfig, ListConfig
 
 from nemo.collections.asr.models import EncDecRNNTModel
-from nemo.collections.asr.parts.numba import __NUMBA_MINIMUM_VERSION__, numba_utils
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
+from nemo.core.utils import numba_utils
+from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 from nemo.utils.config_utils import assert_dataclass_signature_match
 
-NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cuda_is_supported(__NUMBA_MINIMUM_VERSION__)
+NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cpu_is_supported(
+    __NUMBA_MINIMUM_VERSION__
+) or numba_utils.numba_cuda_is_supported(__NUMBA_MINIMUM_VERSION__)
 
 
 @pytest.fixture()
@@ -75,6 +78,8 @@ def asr_model():
 
     decoding = {'strategy': 'greedy_batch', 'greedy': {'max_symbols': 30}}
 
+    loss = {'loss_name': 'default', 'warprnnt_numba_kwargs': {'fastemit_lambda': 0.001}}
+
     modelConfig = DictConfig(
         {
             'labels': ListConfig(labels),
@@ -84,6 +89,7 @@ def asr_model():
             'decoder': DictConfig(decoder),
             'joint': DictConfig(joint),
             'decoding': DictConfig(decoding),
+            'loss': DictConfig(loss),
         }
     )
 

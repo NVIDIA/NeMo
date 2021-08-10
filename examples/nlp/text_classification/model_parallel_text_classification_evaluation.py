@@ -16,7 +16,7 @@
 This script runs model parallel text classification evaluation.
 """
 import pytorch_lightning as pl
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models.text_classification import TextClassificationModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
@@ -27,7 +27,7 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="conf", config_name="text_classification_config")
 def main(cfg: DictConfig) -> None:
-    logging.info(f'\nConfig Params:\n{cfg.pretty()}')
+    logging.info(f'\nConfig Params:\n{OmegaConf.to_yaml(cfg)}')
     trainer = pl.Trainer(plugins=[NLPDDPPlugin()], **cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     # TODO: can we drop strict=False

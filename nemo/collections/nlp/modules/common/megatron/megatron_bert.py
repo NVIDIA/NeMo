@@ -65,6 +65,13 @@ class MegatronBertEncoder(BertModule):
         self._app_state = None
         self._model_name = model_name
 
+        if 'vocab_size' in config:
+            self._vocab_size = config.pop('vocab_size')
+        else:
+            self._vocab_size = None
+
+        self._hidden_size = config.get('hidden_size')
+
         if not os.path.exists(vocab_file):
             raise ValueError(f'Vocab file not found at {vocab_file}')
 
@@ -75,6 +82,8 @@ class MegatronBertEncoder(BertModule):
         config['tokenizer_type'] = 'BertWordPieceLowerCase'
         config['lazy_mpu_init'] = True
         config['onnx_safe'] = True
+
+        num_tokentypes = config.pop('num_tokentypes', 2)
 
         # if 'model_parallel_size' in config:
         if self._model_parallel_size is not None:
@@ -109,7 +118,7 @@ class MegatronBertEncoder(BertModule):
         logging.info(f'Megatron-lm argparse args: {args}')
 
         self.language_model, self._language_model_key = get_language_model(
-            attention_mask_func=bert_attention_mask_func, num_tokentypes=2, add_pooler=False
+            attention_mask_func=bert_attention_mask_func, num_tokentypes=num_tokentypes, add_pooler=False
         )
 
         self.config = OmegaConf.create(config)
@@ -151,8 +160,18 @@ class MegatronBertEncoder(BertModule):
         """
         return self._hidden_size
 
+    @property
+    def vocab_size(self):
+        """
+        Property returning vocab size.
+
+        Returns:
+            vocab size.
+        """
+        return self._vocab_size
+
     @typecheck()
-    def forward(self, input_ids, attention_mask, token_type_ids):
+    def forward(self, input_ids, attention_mask, token_type_ids=None):
         app_state = AppState()
         if app_state.model_parallel_size is None:
             self.complete_lazy_init()

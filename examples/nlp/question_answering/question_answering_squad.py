@@ -91,7 +91,7 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="conf", config_name="question_answering_squad_config")
 def main(cfg: DictConfig) -> None:
-    logging.info(f'Config: {cfg.pretty()}')
+    logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
     trainer = pl.Trainer(**cfg.trainer)
     exp_dir = exp_manager(trainer, cfg.get("exp_manager", None))
 
@@ -111,6 +111,7 @@ def main(cfg: DictConfig) -> None:
             model.save_to(cfg.model.nemo_path)
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.file is not None:
+        model.setup_test_data(test_data_config=cfg.model.test_ds)
         trainer.test(model)
 
     # change to path if you want results to be written to file e.g. os.path.join(exp_dir, "output_nbest_file.txt")

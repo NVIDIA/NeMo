@@ -40,7 +40,7 @@ python evaluate_text2sparql.py \
 import os
 
 import pytorch_lightning as pl
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models.neural_machine_translation import NeuralMachineTranslationModel
 from nemo.core.config import hydra_runner
@@ -49,7 +49,7 @@ from nemo.utils import logging
 
 @hydra_runner(config_path="conf", config_name="text2sparql_config")
 def main(cfg: DictConfig) -> None:
-    logging.info(f"Config:\n {cfg.pretty()}")
+    logging.info(f"Config:\n {OmegaConf.to_yaml(cfg)}")
     trainer = pl.Trainer(gpus=cfg.trainer.gpus)
     nmt_model = NeuralMachineTranslationModel.restore_from(restore_path=cfg.model.nemo_path)
     nmt_model.setup_test_data(cfg.model.test_ds)

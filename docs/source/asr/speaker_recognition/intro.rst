@@ -28,7 +28,7 @@ Resource and Documentation Guide
 --------------------------------
 
 Hands-on speaker recognition tutorial notebooks can be found under
-`the speaker recognition tutorials folder <https://github.com/NVIDIA/NeMo/tree/v1.0.0/tutorials/speaker_recognition/>`_. This and most other tutorials can be run on Google Colab by specifying the link to the notebooks' GitHub pages on Colab.
+`the speaker recognition tutorials folder <https://github.com/NVIDIA/NeMo/tree/v1.0.2/tutorials/speaker_recognition/>`_. This and most other tutorials can be run on Google Colab by specifying the link to the notebooks' GitHub pages on Colab.
 
 If you are looking for information about a particular SpeakerNet model, or would like to find out more about the model
 architectures available in the ``nemo_asr`` collection, check out the :doc:`Models <./models>` page.
@@ -44,5 +44,5 @@ Documentation for configuration files specific to the ``nemo_asr`` models can be
 :doc:`Configuration Files <./configs>` page.
 
 
-For a clear step-by-step tutorial we advice you to refer tutorials found in `folder <https://github.com/NVIDIA/NeMo/tree/v1.0.0/tutorials/speaker_recognition/>`_.
+For a clear step-by-step tutorial we advice you to refer tutorials found in `folder <https://github.com/NVIDIA/NeMo/tree/v1.0.2/tutorials/speaker_recognition/>`_.
 

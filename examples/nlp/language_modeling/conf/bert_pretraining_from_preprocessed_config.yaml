@@ -43,7 +43,7 @@ model:
   tokenizer: null
 
   train_ds:
-    data_file: null # path to hdf5 file (or directory)
+    data_file: ??? # path to hdf5 file (or directory)
     max_predictions_per_seq: 80
     batch_size: 16
     shuffle: true

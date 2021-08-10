@@ -167,7 +167,7 @@ class AudioSegment(object):
                 if offset > 0:
                     # pydub does things in milliseconds
                     seconds = offset * 1000
-                    samples = samples[int(seconds * sample_rate) :]
+                    samples = samples[int(seconds) :]
                 if duration > 0:
                     seconds = duration * 1000
                     samples = samples[: int(seconds)]

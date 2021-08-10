@@ -17,6 +17,7 @@ Script for inference ASR models using TensorRT
 """
 
 import os
+import time
 from argparse import ArgumentParser
 
 import numpy as np
@@ -61,7 +62,7 @@ def main():
     parser.add_argument(
         "--dont_normalize_text",
         default=False,
-        action='store_true',
+        action='store_false',
         help="Turn off trasnscript normalization. Recommended for non-English.",
     )
     parser.add_argument(

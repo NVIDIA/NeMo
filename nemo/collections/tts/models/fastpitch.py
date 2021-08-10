@@ -28,6 +28,7 @@ from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, MelLoss, PitchLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import FastPitchModule
+from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     Index,
@@ -52,7 +53,7 @@ class FastPitchConfig:
     pitch_predictor: Dict[Any, Any] = MISSING
 
 
-class FastPitchModel(SpectrogramGenerator):
+class FastPitchModel(SpectrogramGenerator, Exportable):
     """FastPitch Model that is used to generate mel spectrograms from text"""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -193,9 +194,10 @@ class FastPitchModel(SpectrogramGenerator):
 
     @typecheck(output_types={"spect": NeuralType(('B', 'C', 'T'), MelSpectrogramType())})
     def generate_spectrogram(self, tokens: 'torch.tensor', speaker: int = 0, pace: float = 1.0) -> torch.tensor:
+        # FIXME: return masks as well?
         self.eval()
         spect, *_ = self(text=tokens, durs=None, pitch=None, speaker=speaker, pace=pace)
-        return spect.transpose(1, 2)
+        return spect
 
     def training_step(self, batch, batch_idx):
         attn_prior, durs, speakers = None, None, None
@@ -205,7 +207,7 @@ class FastPitchModel(SpectrogramGenerator):
             audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
         mels, spec_len = self.preprocessor(input_signal=audio, length=audio_lens)
 
-        mels_pred, _, log_durs_pred, pitch_pred, attn_soft, attn_logprob, attn_hard, attn_hard_dur, pitch = self(
+        mels_pred, _, _, log_durs_pred, pitch_pred, attn_soft, attn_logprob, attn_hard, attn_hard_dur, pitch = self(
             text=text,
             durs=durs,
             pitch=pitch,
@@ -274,7 +276,7 @@ class FastPitchModel(SpectrogramGenerator):
         mels, mel_lens = self.preprocessor(input_signal=audio, length=audio_lens)
 
         # Calculate val loss on ground truth durations to better align L2 loss in time
-        mels_pred, _, log_durs_pred, pitch_pred, _, _, _, attn_hard_dur, pitch = self(
+        mels_pred, _, _, log_durs_pred, pitch_pred, _, _, _, attn_hard_dur, pitch = self(
             text=text,
             durs=durs,
             pitch=pitch,
@@ -377,3 +379,36 @@ class FastPitchModel(SpectrogramGenerator):
         list_of_models.append(model)
 
         return list_of_models
+
+    @property
+    def input_module(self):
+        return self.fastpitch
+
+    @property
+    def output_module(self):
+        return self.fastpitch
+
+    def forward_for_export(self, text):
+        (
+            spect,
+            num_frames,
+            durs_predicted,
+            log_durs_predicted,
+            pitch_predicted,
+            attn_soft,
+            attn_logprob,
+            attn_hard,
+            attn_hard_dur,
+            pitch,
+        ) = self.fastpitch(text=text)
+        return spect.to(torch.float), num_frames, durs_predicted, log_durs_predicted, pitch_predicted
+
+    @property
+    def disabled_deployment_input_names(self):
+        """Implement this method to return a set of input names disabled for export"""
+        return set(["durs", "pitch", "speaker", "pace", "spec", "attn_prior", "mel_lens", "input_lens"])
+
+    @property
+    def disabled_deployment_output_names(self):
+        """Implement this method to return a set of input names disabled for export"""
+        return set(["attn_soft", "pitch", "attn_logprob", "attn_hard", "attn_hard_dur",])

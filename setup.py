@@ -23,24 +23,27 @@ import subprocess
 from distutils import cmd as distutils_cmd
 from distutils import log as distutils_log
 from itertools import chain
-import imp
+import importlib.util
 
 import setuptools
 
 
-package_info = imp.load_source('package_info', 'nemo/package_info.py')
-from package_info import (
-    __contact_emails__,
-    __contact_names__,
-    __description__,
-    __download_url__,
-    __homepage__,
-    __keywords__,
-    __license__,
-    __package_name__,
-    __repository_url__,
-    __version__,
-)
+spec = importlib.util.spec_from_file_location('package_info', 'nemo/package_info.py')
+package_info = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(package_info)
+
+
+__contact_emails__ = package_info.__contact_emails__
+__contact_names__ = package_info.__contact_names__
+__description__ = package_info.__description__
+__download_url__ = package_info.__download_url__
+__homepage__ = package_info.__homepage__
+__keywords__ = package_info.__keywords__
+__license__ = package_info.__license__
+__package_name__ = package_info.__package_name__
+__repository_url__ = package_info.__repository_url__
+__version__ = package_info.__version__
+
 
 if os.path.exists('nemo/README.md'):
     with open("nemo/README.md", "r") as fh:
@@ -191,7 +194,7 @@ setuptools.setup(
         #  5 - Production/Stable
         #  6 - Mature
         #  7 - Inactive
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
         # Indicate who your project is intended for
         'Intended Audience :: Developers',
         'Intended Audience :: Science/Research',
