@@ -122,7 +122,7 @@ sixty three
 A B C
 a b c
 ~Test
-T e s t
+Test
 ~2006-08-05
 august fifth two thousand six
 the fifth of august two thousand six
