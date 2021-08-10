@@ -61,7 +61,7 @@ def main():
     parser.add_argument(
         "--dont_normalize_text",
         default=False,
-        action='store_false',
+        action='store_true',
         help="Turn off trasnscript normalization. Recommended for non-English.",
     )
     parser.add_argument(
