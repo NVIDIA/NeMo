@@ -153,8 +153,6 @@ class DuplexTaggerModel(NLPModel):
             texts.append([prefix] + sent)
 
         # Apply the model
-        prefix = constants.TN_PREFIX
-        texts = [[prefix] + sent for sent in sents]
         encodings = self._tokenizer(
             texts, is_split_into_words=True, padding=True, truncation=True, return_tensors='pt'
         )
@@ -283,14 +281,12 @@ class DuplexTaggerModel(NLPModel):
         start_time = perf_counter()
         logging.info(f'Creating {mode} dataset')
         input_file = cfg.data_path
-        tagger_data_augmentation = cfg.get('tagger_data_augmentation', False)
         dataset = TextNormalizationTaggerDataset(
             input_file,
             self._tokenizer,
             self.transformer_name,
             cfg.mode,
             cfg.do_basic_tokenize,
-            tagger_data_augmentation,
             cfg.lang,
             cfg.get('use_cache', False),
             cfg.get('max_insts', -1),
