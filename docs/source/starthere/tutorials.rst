@@ -42,13 +42,13 @@ To run a tutorial:
      - `Offline ASR <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Offline_ASR.ipynb>`_
    * - ASR
      - Online ASR inference with Microphone
-     - `Online ASR Microphone <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/02_Online_ASR_Microphone_Demo.ipynb>`_
+     - `Online ASR Microphone <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Online_ASR_Microphone_Demo.ipynb>`_
    * - ASR
      - Fine-tuning CTC Models on New Languages
      - `ASR CTC Language Fine-Tuning <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/10_ASR_CTC_Language_Finetuning.ipynb>`_
    * - ASR
      - Speech Commands
-     - `Speech Commands <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/03_Speech_Commands.ipynb>`_
+     - `Speech Commands <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Speech_Commands.ipynb>`_
    * - ASR
      - Online and Offline Speech Commands Inference
      - `Online Offline Microphone Speech Commands <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/04_Online_Offline_Speech_Commands_Demo.ipynb>`_
