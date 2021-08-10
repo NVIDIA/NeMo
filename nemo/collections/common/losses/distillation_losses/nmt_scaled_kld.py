@@ -19,17 +19,17 @@ from nemo.core.classes import Serialization, Typing, typecheck
 from nemo.core.classes.mixins.distill_mixins import ScaledDistillationLossMixin
 from nemo.core.neural_types import LogprobsType, LossType, NeuralType
 
-__all__ = ['ScaledKLDivLoss']
+__all__ = ['NMTScaledKLDivLoss']
 
 
-class ScaledKLDivLoss(nn.KLDivLoss, Serialization, Typing, ScaledDistillationLossMixin):
+class NMTScaledKLDivLoss(nn.KLDivLoss, Serialization, Typing, ScaledDistillationLossMixin):
     """
-    Wrapper around the KLDivLoss so that gradients of the loss function are scaled by temperature parameter (T^2).
+    Wrapper around the NMTKLDivLoss so that gradients of the loss function are scaled by temperature parameter (T^2).
     Reference: Distilling the Knowledge in a Neural Network (https://arxiv.org/abs/1503.02531)
     """
 
     def __init__(
-        self, temperature: float, size_average=None, reduce=None, reduction: str = 'mean', log_target: bool = False
+        self, temperature: float, size_average=None, reduce=None, reduction: str = 'none', log_target: bool = False
     ):
         super().__init__(size_average=size_average, reduce=reduce, reduction=reduction, log_target=log_target)
         self.temperature = temperature
@@ -52,7 +52,7 @@ class ScaledKLDivLoss(nn.KLDivLoss, Serialization, Typing, ScaledDistillationLos
 
     @typecheck()
     def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        return super().forward(input=input, target=target)
+        return super().forward(input=input, target=target).sum(-1).mean()
 
     @property
     def grad_scale(self):

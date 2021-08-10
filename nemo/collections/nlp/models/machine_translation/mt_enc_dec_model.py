@@ -275,8 +275,8 @@ class MTEncDecModel(EncDecNLPModel, MTEncDecDistillationMixin):
         teacher_decoder_layers = other_model.decoder._decoder.layers
         num_teacher_decoder_layers = len(teacher_decoder_layers)
 
-        num_student_encoder_layers = 3
-        num_student_decoder_layers = 3
+        num_student_encoder_layers = self.num_student_encoder_layers
+        num_student_decoder_layers = self.num_student_decoder_layers
 
         encoder_step_size = num_teacher_encoder_layers // num_student_encoder_layers
         decoder_step_size = num_teacher_decoder_layers // num_student_decoder_layers
