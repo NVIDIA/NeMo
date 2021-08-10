@@ -16,24 +16,21 @@
 Script for inference ASR models using TensorRT
 """
 
-import collections
 import os
-import time
 from argparse import ArgumentParser
-from pprint import pprint
 
 import numpy as np
 import pycuda.autoinit
 import pycuda.driver as cuda
 import tensorrt as trt
 import torch
-from omegaconf import open_dict
+from omegaconf import OmegaConf, open_dict
 
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
 from nemo.collections.asr.models import EncDecCTCModel
 from nemo.utils import logging
 
-TRT_LOGGER = trt.Logger()
+TRT_LOGGER = trt.Logger(trt.Logger.INFO)
 
 
 can_gpu = torch.cuda.is_available()
@@ -64,7 +61,7 @@ def main():
     parser.add_argument(
         "--dont_normalize_text",
         default=False,
-        action='store_false',
+        action='store_true',
         help="Turn off trasnscript normalization. Recommended for non-English.",
     )
     parser.add_argument(
@@ -87,15 +84,20 @@ def main():
         with open_dict(asr_model_cfg):
             asr_model_cfg.encoder.quantize = True
         asr_model = EncDecCTCModel.from_pretrained(model_name=args.asr_model, override_config_path=asr_model_cfg)
+
     asr_model.setup_test_data(
-        test_data_config={
-            'sample_rate': 16000,
-            'manifest_filepath': args.dataset,
-            'labels': asr_model.decoder.vocabulary,
-            'batch_size': args.batch_size,
-            'normalize_transcripts': args.dont_normalize_text,
-        }
+        test_data_config=OmegaConf.create(
+            {
+                'sample_rate': 16000,
+                'manifest_filepath': args.dataset,
+                'labels': asr_model.decoder.vocabulary,
+                'batch_size': args.batch_size,
+                'normalize_transcripts': not args.dont_normalize_text,
+                'shuffle': False,
+            }
+        )
     )
+
     asr_model.preprocessor.featurizer.dither = 0.0
     asr_model.preprocessor.featurizer.pad_to = 0
     if can_gpu:
@@ -157,8 +159,8 @@ def build_trt_engine(asr_model, onnx_path, qat):
     return trt_engine_path
 
 
-def trt_inference(stream, trt_ctx, d_input, d_output, input_signal, input_signal_length):
-    print("infer with shape: {}".format(input_signal.shape))
+def trt_inference(stream, trt_ctx, d_input, d_output, input_signal):
+    logging.info(f'infer with shape: {input_signal.shape}')
 
     trt_ctx.set_binding_shape(0, input_signal.shape)
     assert trt_ctx.all_binding_shapes_specified
@@ -191,26 +193,23 @@ def evaluate(asr_model, asr_onnx, labels_map, wer, qat):
         max_input_shape = profile_shape[2]
         input_nbytes = trt.volume(max_input_shape) * trt.float32.itemsize
         d_input = cuda.mem_alloc(input_nbytes)
-        max_output_shape = [max_input_shape[0], vocabulary_size, (max_input_shape[-1] + 1) // 2]
+        max_output_shape = [max_input_shape[0], vocabulary_size, max_input_shape[-1]]
         output_nbytes = trt.volume(max_output_shape) * trt.float32.itemsize
         d_output = cuda.mem_alloc(output_nbytes)
 
         for test_batch in asr_model.test_dataloader():
             if can_gpu:
                 test_batch = [x.cuda() for x in test_batch]
-            processed_signal, processed_signal_length = asr_model.preprocessor(
-                input_signal=test_batch[0], length=test_batch[1]
-            )
+            with autocast():
+                processed_signal, processed_signal_length = asr_model.preprocessor(
+                    input_signal=test_batch[0], length=test_batch[1]
+                )
 
-            greedy_predictions = trt_inference(
-                stream,
-                trt_ctx,
-                d_input,
-                d_output,
-                input_signal=processed_signal,
-                input_signal_length=processed_signal_length,
-            )
-            hypotheses += wer.ctc_decoder_predictions_tensor(greedy_predictions)
+                _, encoded_len, _ = asr_model(input_signal=test_batch[0], input_signal_length=test_batch[1])
+
+            greedy_predictions = trt_inference(stream, trt_ctx, d_input, d_output, input_signal=processed_signal)
+
+            hypotheses += wer.ctc_decoder_predictions_tensor(greedy_predictions, encoded_len)
             for batch_ind in range(greedy_predictions.shape[0]):
                 seq_len = test_batch[3][batch_ind].cpu().detach().numpy()
                 seq_ids = test_batch[2][batch_ind].cpu().detach().numpy()

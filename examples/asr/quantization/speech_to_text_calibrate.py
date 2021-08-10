@@ -19,7 +19,7 @@ Script for calibrating a pretrained ASR model for quantization
 from argparse import ArgumentParser
 
 import torch
-from omegaconf import open_dict
+from omegaconf import OmegaConf, open_dict
 
 from nemo.collections.asr.models import EncDecCTCModel
 from nemo.utils import logging
@@ -27,7 +27,6 @@ from nemo.utils import logging
 try:
     from pytorch_quantization import calib
     from pytorch_quantization import nn as quant_nn
-    from pytorch_quantization import quant_modules
     from pytorch_quantization.tensor_quant import QuantDescriptor
 except ImportError:
     raise ImportError(
@@ -58,7 +57,7 @@ def main():
     parser.add_argument(
         "--dont_normalize_text",
         default=False,
-        action='store_false',
+        action='store_true',
         help="Turn off trasnscript normalization. Recommended for non-English.",
     )
     parser.add_argument('--num_calib_batch', default=1, type=int, help="Number of batches for calibration.")
@@ -91,14 +90,16 @@ def main():
         asr_model = EncDecCTCModel.from_pretrained(model_name=args.asr_model, override_config_path=asr_model_cfg)
 
     asr_model.setup_test_data(
-        test_data_config={
-            'sample_rate': 16000,
-            'manifest_filepath': args.dataset,
-            'labels': asr_model.decoder.vocabulary,
-            'batch_size': args.batch_size,
-            'normalize_transcripts': args.dont_normalize_text,
-            'shuffle': True,
-        }
+        test_data_config=OmegaConf.create(
+            {
+                'sample_rate': 16000,
+                'manifest_filepath': args.dataset,
+                'labels': asr_model.decoder.vocabulary,
+                'batch_size': args.batch_size,
+                'normalize_transcripts': not args.dont_normalize_text,
+                'shuffle': False,
+            }
+        )
     )
     asr_model.preprocessor.featurizer.dither = 0.0
     asr_model.preprocessor.featurizer.pad_to = 0

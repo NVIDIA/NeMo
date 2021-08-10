@@ -21,7 +21,7 @@ from argparse import ArgumentParser
 from pprint import pprint
 
 import torch
-from omegaconf import open_dict
+from omegaconf import OmegaConf, open_dict
 
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
 from nemo.collections.asr.models import EncDecCTCModel
@@ -29,7 +29,6 @@ from nemo.utils import logging
 
 try:
     from pytorch_quantization import nn as quant_nn
-    from pytorch_quantization import quant_modules
 except ImportError:
     raise ImportError(
         "pytorch-quantization is not installed. Install from "
@@ -62,7 +61,7 @@ def main():
     parser.add_argument(
         "--dont_normalize_text",
         default=False,
-        action='store_false',
+        action='store_true',
         help="Turn off trasnscript normalization. Recommended for non-English.",
     )
     parser.add_argument(
@@ -73,8 +72,6 @@ def main():
     parser.add_argument('--quant-disable-keyword', type=str, nargs='+', help='disable quantizers by keyword')
     args = parser.parse_args()
     torch.set_grad_enabled(False)
-
-    quant_modules.initialize()
 
     if args.asr_model.endswith('.nemo'):
         logging.info(f"Using local ASR model from {args.asr_model}")
@@ -89,15 +86,20 @@ def main():
         with open_dict(asr_model_cfg):
             asr_model_cfg.encoder.quantize = True
         asr_model = EncDecCTCModel.from_pretrained(model_name=args.asr_model, override_config_path=asr_model_cfg)
+
     asr_model.setup_test_data(
-        test_data_config={
-            'sample_rate': 16000,
-            'manifest_filepath': args.dataset,
-            'labels': asr_model.decoder.vocabulary,
-            'batch_size': args.batch_size,
-            'normalize_transcripts': args.dont_normalize_text,
-        }
+        test_data_config=OmegaConf.create(
+            {
+                'sample_rate': 16000,
+                'manifest_filepath': args.dataset,
+                'labels': asr_model.decoder.vocabulary,
+                'batch_size': args.batch_size,
+                'normalize_transcripts': not args.dont_normalize_text,
+                'shuffle': False,
+            }
+        )
     )
+
     asr_model.preprocessor.featurizer.dither = 0.0
     asr_model.preprocessor.featurizer.pad_to = 0
     if can_gpu:
@@ -120,59 +122,61 @@ def main():
     if args.sensitivity:
         if wer_quant < args.wer_tolerance:
             logging.info("Tolerance is already met. Skip sensitivity analyasis.")
-            return
-        quant_layer_names = []
-        for name, module in asr_model.named_modules():
-            if isinstance(module, quant_nn.TensorQuantizer):
-                module.disable()
-                layer_name = name.replace("._input_quantizer", "").replace("._weight_quantizer", "")
-                if layer_name not in quant_layer_names:
-                    quant_layer_names.append(layer_name)
-        logging.info(F"{len(quant_layer_names)} quantized layers found.")
-
-        # Build sensitivity profile
-        quant_layer_sensitivity = {}
-        for i, quant_layer in enumerate(quant_layer_names):
-            logging.info(F"Enable {quant_layer}")
-            for name, module in asr_model.named_modules():
-                if isinstance(module, quant_nn.TensorQuantizer) and quant_layer in name:
-                    module.enable()
-                    logging.info(F"{name:40}: {module}")
-
-            # Eval the model
-            wer_value = evaluate(asr_model, labels_map, wer)
-            logging.info(F"WER: {wer_value}")
-            quant_layer_sensitivity[quant_layer] = args.wer_tolerance - wer_value
-
-            for name, module in asr_model.named_modules():
-                if isinstance(module, quant_nn.TensorQuantizer) and quant_layer in name:
-                    module.disable()
-                    logging.info(F"{name:40}: {module}")
-
-        # Skip most sensitive layers until WER target is met
-        for name, module in asr_model.named_modules():
-            if isinstance(module, quant_nn.TensorQuantizer):
-                module.enable()
-        quant_layer_sensitivity = collections.OrderedDict(sorted(quant_layer_sensitivity.items(), key=lambda x: x[1]))
-        pprint(quant_layer_sensitivity)
-        skipped_layers = []
-        for quant_layer, _ in quant_layer_sensitivity.items():
+        else:
+            quant_layer_names = []
             for name, module in asr_model.named_modules():
                 if isinstance(module, quant_nn.TensorQuantizer):
-                    if quant_layer in name:
-                        logging.info(F"Disable {name}")
-                        if not quant_layer in skipped_layers:
-                            skipped_layers.append(quant_layer)
+                    module.disable()
+                    layer_name = name.replace("._input_quantizer", "").replace("._weight_quantizer", "")
+                    if layer_name not in quant_layer_names:
+                        quant_layer_names.append(layer_name)
+            logging.info(F"{len(quant_layer_names)} quantized layers found.")
+
+            # Build sensitivity profile
+            quant_layer_sensitivity = {}
+            for i, quant_layer in enumerate(quant_layer_names):
+                logging.info(F"Enable {quant_layer}")
+                for name, module in asr_model.named_modules():
+                    if isinstance(module, quant_nn.TensorQuantizer) and quant_layer in name:
+                        module.enable()
+                        logging.info(F"{name:40}: {module}")
+
+                # Eval the model
+                wer_value = evaluate(asr_model, labels_map, wer)
+                logging.info(F"WER: {wer_value}")
+                quant_layer_sensitivity[quant_layer] = args.wer_tolerance - wer_value
+
+                for name, module in asr_model.named_modules():
+                    if isinstance(module, quant_nn.TensorQuantizer) and quant_layer in name:
                         module.disable()
-            wer_value = evaluate(asr_model, labels_map, wer)
-            if wer_value <= args.wer_tolerance:
-                logging.info(
-                    F"WER tolerance {args.wer_tolerance} is met by skipping {len(skipped_layers)} sensitive layers."
-                )
-                print(skipped_layers)
-                export_onnx(args, asr_model)
-                return
-        raise ValueError(f"WER tolerance {args.wer_tolerance} can not be met with any layer quantized!")
+                        logging.info(F"{name:40}: {module}")
+
+            # Skip most sensitive layers until WER target is met
+            for name, module in asr_model.named_modules():
+                if isinstance(module, quant_nn.TensorQuantizer):
+                    module.enable()
+            quant_layer_sensitivity = collections.OrderedDict(
+                sorted(quant_layer_sensitivity.items(), key=lambda x: x[1])
+            )
+            pprint(quant_layer_sensitivity)
+            skipped_layers = []
+            for quant_layer, _ in quant_layer_sensitivity.items():
+                for name, module in asr_model.named_modules():
+                    if isinstance(module, quant_nn.TensorQuantizer):
+                        if quant_layer in name:
+                            logging.info(F"Disable {name}")
+                            if not quant_layer in skipped_layers:
+                                skipped_layers.append(quant_layer)
+                            module.disable()
+                wer_value = evaluate(asr_model, labels_map, wer)
+                if wer_value <= args.wer_tolerance:
+                    logging.info(
+                        F"WER tolerance {args.wer_tolerance} is met by skipping {len(skipped_layers)} sensitive layers."
+                    )
+                    print(skipped_layers)
+                    export_onnx(args, asr_model)
+                    return
+            raise ValueError(f"WER tolerance {args.wer_tolerance} can not be met with any layer quantized!")
 
     export_onnx(args, asr_model)
 
@@ -200,7 +204,7 @@ def evaluate(asr_model, labels_map, wer):
             log_probs, encoded_len, greedy_predictions = asr_model(
                 input_signal=test_batch[0], input_signal_length=test_batch[1]
             )
-        hypotheses += wer.ctc_decoder_predictions_tensor(greedy_predictions)
+        hypotheses += wer.ctc_decoder_predictions_tensor(greedy_predictions, encoded_len)
         for batch_ind in range(greedy_predictions.shape[0]):
             seq_len = test_batch[3][batch_ind].cpu().detach().numpy()
             seq_ids = test_batch[2][batch_ind].cpu().detach().numpy()
