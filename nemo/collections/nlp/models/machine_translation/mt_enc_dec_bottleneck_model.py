@@ -327,7 +327,7 @@ class MTBottleneckModel(MTEncDecModel):
                 batch[i] = batch[i].squeeze(dim=0)
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
         z, z_mean, z_logv, z_mask, tgt_log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
-        train_loss, info_dict = self.loss(
+        eval_loss, info_dict = self.loss(
             z=z,
             z_mean=z_mean,
             z_logv=z_logv,
