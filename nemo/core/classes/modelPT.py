@@ -891,7 +891,10 @@ class ModelPT(LightningModule, Model):
                 # Check if model is being resumed or not - only works if `Trainer` is attached to model
                 if hasattr(self, 'trainer') and self.trainer is not None:
                     trainer = self.trainer
-                    if hasattr(trainer, 'resume_from_checkpoint') and trainer.resume_from_checkpoint is not None:
+                    if (
+                        hasattr(trainer, 'resume_from_checkpoint')
+                        and trainer.checkpoint_connector.resume_checkpoint_path is not None
+                    ):
                         logging.info(
                             "Model training is being resumed via Pytorch Lightning.\n"
                             "Initialization from pretrained model (via cloud) will be skipped."
