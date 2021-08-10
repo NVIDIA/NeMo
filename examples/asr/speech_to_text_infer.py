@@ -100,7 +100,7 @@ def main():
             reference = ''.join([labels_map[c] for c in seq_ids[0:seq_len]])
             references.append(reference)
         del test_batch
-
+    print("Ground Truth", references, "Predicted", hypotheses)
     wer_value = word_error_rate(hypotheses=hypotheses, references=references, use_cer=args.use_cer)
     if not args.use_cer:
         if wer_value > args.wer_tolerance:

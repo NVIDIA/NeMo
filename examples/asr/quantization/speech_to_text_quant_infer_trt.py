@@ -189,7 +189,7 @@ def evaluate(asr_model, asr_onnx, labels_map, wer, qat):
         trt_ctx = trt_engine.create_execution_context()
 
         profile_shape = trt_engine.get_profile_shape(profile_index=0, binding=0)
-        print("profile shape min:{}, opt:{}, max:{}".format(profile_shape[0], profile_shape[1], profile_shape[2]))
+        logging.info(f'profile shape min:{profile_shape[0]}, opt:{profile_shape[1]}, max:{profile_shape[2]}')
         max_input_shape = profile_shape[2]
         input_nbytes = trt.volume(max_input_shape) * trt.float32.itemsize
         d_input = cuda.mem_alloc(input_nbytes)

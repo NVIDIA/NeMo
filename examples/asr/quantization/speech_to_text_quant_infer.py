@@ -173,7 +173,7 @@ def main():
                     logging.info(
                         F"WER tolerance {args.wer_tolerance} is met by skipping {len(skipped_layers)} sensitive layers."
                     )
-                    print(skipped_layers)
+                    pprint(skipped_layers)
                     export_onnx(args, asr_model)
                     return
             raise ValueError(f"WER tolerance {args.wer_tolerance} can not be met with any layer quantized!")
