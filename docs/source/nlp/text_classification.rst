@@ -8,11 +8,11 @@ variety of tasks like text classification, sentiment analysis, domain/intent det
 The model takes a text input and predicts a label/class for the whole sequence. Megatron-LM and most of the BERT-based encoders
 supported by HuggingFace including BERT, RoBERTa, and DistilBERT.
 
-An example script on how to train the model can be found here: `NeMo/examples/nlp/text_classification/text_classification_with_bert.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/text_classification/text_classification_with_bert.py>`__.
-The default configuration file for the model can be found at: `NeMo/examples/nlp/text_classification/conf/text_classification_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/text_classification/conf/text_classification_config.yaml>`__.
+An example script on how to train the model can be found here: `NeMo/examples/nlp/text_classification/text_classification_with_bert.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/text_classification/text_classification_with_bert.py>`__.
+The default configuration file for the model can be found at: `NeMo/examples/nlp/text_classification/conf/text_classification_config.yaml <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/text_classification/conf/text_classification_config.yaml>`__.
 
 There is also a Jupyter notebook which explains how to work with this model. We recommend you try this model in the Jupyter notebook (can run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.):
-`NeMo/tutorials/nlp/Text_Classification_Sentiment_Analysis.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/v1.0.0/tutorials/nlp/Text_Classification_Sentiment_Analysis.ipynb>`__.
+`NeMo/tutorials/nlp/Text_Classification_Sentiment_Analysis.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Text_Classification_Sentiment_Analysis.ipynb>`__.
 This tutorial shows an example of how run the Text Classification model on a sentiment analysis task. You may connect to an instance with a GPU (**Runtime** -> **Change runtime type** -> select **GPU** for the hardware accelerator) to run the notebook.
 
 Data Format
@@ -79,7 +79,7 @@ Some datasets do not have the test set or their test set does not have any label
 Model Training
 --------------
 
-You may find an example of a config file to be used for training of the Text Classification model at `NeMo/examples/nlp/text_classification/conf/text_classification_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/text_classification/conf/text_classification_config.yaml>`__.
+You may find an example of a config file to be used for training of the Text Classification model at `NeMo/examples/nlp/text_classification/conf/text_classification_config.yaml <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/text_classification/conf/text_classification_config.yaml>`__.
 You can change any of these parameters directly from the config file or update them with the command-line arguments.
 
 The config file of the Text Classification model contains three main sections of ``trainer``, ``exp_manager``, and ``model``. You can
@@ -158,7 +158,7 @@ Model Evaluation and Inference
 ------------------------------
 
 After saving the model in ``.nemo`` format, you can load the model and perform evaluation or inference on the model. You can find 
-some examples in the example script: `NeMo/examples/nlp/text_classification/text_classification_with_bert.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/text_classification/text_classification_with_bert.py>`__.
+some examples in the example script: `NeMo/examples/nlp/text_classification/text_classification_with_bert.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/text_classification/text_classification_with_bert.py>`__.
 
 References
 ----------

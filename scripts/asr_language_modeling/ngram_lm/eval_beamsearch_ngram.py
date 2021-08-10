@@ -214,9 +214,7 @@ def main():
     )
     args = parser.parse_args()
 
-    asr_model = nemo_asr.models.EncDecCTCModelBPE.restore_from(
-        args.nemo_model_file, map_location=torch.device(args.device)
-    )
+    asr_model = nemo_asr.models.ASRModel.restore_from(args.nemo_model_file, map_location=torch.device(args.device))
 
     target_transcripts = []
     with open(args.input_manifest, 'r') as manifest_file:

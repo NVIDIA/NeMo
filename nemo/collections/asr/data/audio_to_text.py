@@ -83,6 +83,65 @@ def _speech_collate_fn(batch, pad_id):
     return audio_signal, audio_lengths, tokens, tokens_lengths
 
 
+class ASRManifestProcessor:
+    """
+    Class that processes a manifest json file containing paths to audio files, transcripts, and durations (in seconds).
+    Each new line is a different sample. Example below:
+    {"audio_filepath": "/path/to/audio.wav", "text_filepath": "/path/to/audio.txt", "duration": 23.147}
+    ...
+    {"audio_filepath": "/path/to/audio.wav", "text": "the transcription", "offset": 301.75, "duration": 0.82, "utt":
+    "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+    Args:
+        manifest_filepath: Path to manifest json as described above. Can be comma-separated paths.
+        parser: Str for a language specific preprocessor or a callable.
+        max_duration: If audio exceeds this length, do not include in dataset.
+        min_duration: If audio is less than this length, do not include in dataset.
+        max_utts: Limit number of utterances.
+        bos_id: Id of beginning of sequence symbol to append if not None.
+        eos_id: Id of end of sequence symbol to append if not None.
+        pad_id: Id of pad symbol. Defaults to 0.
+    """
+
+    def __init__(
+        self,
+        manifest_filepath: str,
+        parser: Union[str, Callable],
+        max_duration: Optional[float] = None,
+        min_duration: Optional[float] = None,
+        max_utts: int = 0,
+        bos_id: Optional[int] = None,
+        eos_id: Optional[int] = None,
+        pad_id: int = 0,
+    ):
+        self.parser = parser
+
+        self.collection = collections.ASRAudioText(
+            manifests_files=manifest_filepath.split(','),
+            parser=parser,
+            min_duration=min_duration,
+            max_duration=max_duration,
+            max_number=max_utts,
+        )
+
+        self.eos_id = eos_id
+        self.bos_id = bos_id
+        self.pad_id = pad_id
+
+    def process_text(self, index) -> (List[int], int):
+        sample = self.collection[index]
+
+        t, tl = sample.text_tokens, len(sample.text_tokens)
+
+        if self.bos_id is not None:
+            t = [self.bos_id] + t
+            tl += 1
+        if self.eos_id is not None:
+            t = t + [self.eos_id]
+            tl += 1
+
+        return t, tl
+
+
 class _AudioTextDataset(Dataset):
     """
     Dataset that loads tensors via a json file containing paths to audio files, transcripts, and durations (in seconds).
@@ -134,24 +193,21 @@ class _AudioTextDataset(Dataset):
         eos_id: Optional[int] = None,
         pad_id: int = 0,
     ):
-        self.parser = parser
-
-        self.collection = collections.ASRAudioText(
-            manifests_files=manifest_filepath.split(','),
+        self.manifest_processor = ASRManifestProcessor(
+            manifest_filepath=manifest_filepath,
             parser=parser,
-            min_duration=min_duration,
             max_duration=max_duration,
-            max_number=max_utts,
+            min_duration=min_duration,
+            max_utts=max_utts,
+            bos_id=bos_id,
+            eos_id=eos_id,
+            pad_id=pad_id,
         )
-
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
         self.trim = trim
-        self.eos_id = eos_id
-        self.bos_id = bos_id
-        self.pad_id = pad_id
 
     def __getitem__(self, index):
-        sample = self.collection[index]
+        sample = self.manifest_processor.collection[index]
         offset = sample.offset
 
         if offset is None:
@@ -162,23 +218,17 @@ class _AudioTextDataset(Dataset):
         )
         f, fl = features, torch.tensor(features.shape[0]).long()
 
-        t, tl = sample.text_tokens, len(sample.text_tokens)
-        if self.bos_id is not None:
-            t = [self.bos_id] + t
-            tl += 1
-        if self.eos_id is not None:
-            t = t + [self.eos_id]
-            tl += 1
+        t, tl = self.manifest_processor.process_text(index)
 
         output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
 
         return output
 
     def __len__(self):
-        return len(self.collection)
+        return len(self.manifest_processor.collection)
 
     def _collate_fn(self, batch):
-        return _speech_collate_fn(batch, pad_id=self.pad_id)
+        return _speech_collate_fn(batch, pad_id=self.manifest_processor.pad_id)
 
 
 class AudioToCharDataset(_AudioTextDataset):
@@ -1249,6 +1299,8 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
         trim (bool): Whether to use trim silence from beginning and end
             of audio signal using librosa.effects.trim().
             Defaults to False.
+        use_start_end_token: Boolean which dictates whether to add [BOS] and [EOS]
+            tokens to beginning and ending of speech respectively.
         pad_id (id): Token used to pad when collating samples in batches.
             If this is None, pads using 0s.
             Defaults to None.

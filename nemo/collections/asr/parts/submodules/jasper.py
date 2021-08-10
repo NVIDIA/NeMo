@@ -17,6 +17,7 @@ from typing import Callable, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch import Tensor
 from torch.nn.init import _calculate_correct_fan
 from torch.nn.modules.utils import _single
@@ -43,7 +44,7 @@ def tds_uniform_(tensor, mode='fan_in'):
     Normalized to -
 
     .. math::
-        \text{bound} = \text{2} \times \sqrt{\frac{1}{\text{fan\_mode}}}
+        \\text{bound} = \\text{2} \\times \\sqrt{\\frac{1}{\\text{fan\\_mode}}}
 
     Args:
         tensor: an n-dimensional `torch.Tensor`
@@ -66,7 +67,7 @@ def tds_normal_(tensor, mode='fan_in'):
     Normalized to -
 
     .. math::
-        \text{bound} = \text{2} \times \sqrt{\frac{1}{\text{fan\_mode}}}
+        \\text{bound} = \\text{2} \\times \\sqrt{\\frac{1}{\\text{fan\\_mode}}}
 
     Args:
         tensor: an n-dimensional `torch.Tensor`
@@ -162,51 +163,25 @@ def get_asymtric_padding(kernel_size, stride, dilation, future_context):
     return (left_context, right_context)
 
 
-class StatsPoolLayer(nn.Module):
-    def __init__(self, feat_in, pool_mode='xvector'):
-        super().__init__()
-        self.feat_in = 0
-        if pool_mode == 'gram':
-            gram = True
-            super_vector = False
-        elif pool_mode == 'superVector':
-            gram = True
-            super_vector = True
-        else:
-            gram = False
-            super_vector = False
+@torch.jit.script
+def _se_pool_step_script(x, context_window: int):
+    timesteps = x.shape[-1]
+    if timesteps < context_window:
+        y = F.adaptive_avg_pool1d(x, 1)
+    else:
+        y = F.avg_pool1d(x, context_window, 1)  # [B, C, T - context_window + 1]
+    return y
 
-        if gram:
-            self.feat_in += feat_in ** 2
-        else:
-            self.feat_in += 2 * feat_in
 
-        if super_vector and gram:
-            self.feat_in += 2 * feat_in
-
-        self.gram = gram
-        self.super = super_vector
-
-    def forward(self, encoder_output):
-
-        mean = encoder_output.mean(dim=-1)  # Time Axis
-        std = encoder_output.std(dim=-1)
-
-        pooled = torch.cat([mean, std], dim=-1)
-
-        if self.gram:
-            time_len = encoder_output.shape[-1]
-            # encoder_output = encoder_output
-            cov = encoder_output.bmm(encoder_output.transpose(2, 1))  # cov matrix
-            cov = cov.view(cov.shape[0], -1) / time_len
-
-        if self.gram and not self.super:
-            return cov
-
-        if self.super and self.gram:
-            pooled = torch.cat([pooled, cov], dim=-1)
-
-        return pooled
+@torch.jit.script
+def _masked_conv_init_lens(lens: torch.Tensor, current_maxlen: int, original_maxlen: torch.Tensor):
+    if current_maxlen > original_maxlen:
+        new_lens = torch.arange(current_maxlen)
+        new_max_lens = torch.tensor(current_maxlen)
+    else:
+        new_lens = lens
+        new_max_lens = original_maxlen
+    return new_lens, new_max_lens
 
 
 class MaskedConv1d(nn.Module):
@@ -292,8 +267,8 @@ class MaskedConv1d(nn.Module):
         # `self.lens` caches consecutive integers from 0 to `self.max_len` that are used to compute the mask for a
         # batch. Recomputed to bigger size as needed. Stored on a device of the latest batch lens.
         if self.use_mask:
-            self.max_len = 0
-            self.lens = None
+            self.max_len = torch.tensor(0)
+            self.lens = torch.tensor(0)
 
     def get_seq_len(self, lens):
         if self.same_padding or self.same_padding_asymmetric:
@@ -310,15 +285,7 @@ class MaskedConv1d(nn.Module):
 
     def forward(self, x, lens):
         if self.use_mask:
-            max_len = x.size(2)
-            if max_len > self.max_len:
-                self.lens = torch.arange(max_len)
-                self.max_len = max_len
-
-            self.lens = self.lens.to(lens.device)
-            mask = self.lens[:max_len].unsqueeze(0) < lens.unsqueeze(1)
-            x = x * mask.unsqueeze(1).to(device=x.device)
-            lens = self.get_seq_len(lens)
+            x, lens = self.update_masked_length(x, lens)
 
         # asymmtric pad if necessary
         if self.pad_layer is not None:
@@ -334,6 +301,15 @@ class MaskedConv1d(nn.Module):
             out = out.view(sh[0], self.real_out_channels, -1)
 
         return out, lens
+
+    def update_masked_length(self, x, lens):
+        max_len = x.size(2)
+        self.lens, self.max_len = _masked_conv_init_lens(self.lens, max_len, self.max_len)
+        self.lens = self.lens.to(lens.device)
+        mask = self.lens[:max_len].unsqueeze(0) < lens.unsqueeze(1)
+        x = x * mask.unsqueeze(1).to(device=x.device)
+        lens = self.get_seq_len(lens)
+        return x, lens
 
 
 class GroupShuffle(nn.Module):
@@ -412,23 +388,25 @@ class SqueezeExcite(nn.Module):
 
     def forward(self, x):
         # The use of negative indices on the transpose allow for expanded SqueezeExcite
-        batch, channels, timesteps = x.size()[:3]
         # Computes in float32 to avoid instabilities during training with AMP.
         with torch.cuda.amp.autocast(enabled=False):
             x = x.float()
-            if timesteps < self.context_window:
-                y = self.gap(x)
-            else:
-                y = self.pool(x)  # [B, C, T - context_window + 1]
+            y = self._se_pool_step(x)
             y = y.transpose(1, -1)  # [B, T - context_window + 1, C]
             y = self.fc(y)  # [B, T - context_window + 1, C]
             y = y.transpose(1, -1)  # [B, C, T - context_window + 1]
-
-        if self.context_window > 0:
-            y = torch.nn.functional.interpolate(y, size=timesteps, mode=self.interpolation_mode)
+        if self.context_window >= 0:
+            y = F.interpolate(y, size=x.shape[-1], mode=self.interpolation_mode)
 
         y = torch.sigmoid(y)
         return x * y
+
+    def _se_pool_step(self, x):
+        if self.context_window < 0:
+            y = self.pool(x)
+        else:
+            y = _se_pool_step_script(x, self.context_window)
+        return y
 
     def change_context_window(self, context_window: int):
         """
@@ -451,9 +429,9 @@ class SqueezeExcite(nn.Module):
         if hasattr(self, 'context_window'):
             logging.info(f"Changing Squeeze-Excitation context window from {self.context_window} to {context_window}")
 
-        self.context_window = int(context_window)
+        self.context_window = context_window
 
-        if self.context_window <= 0:
+        if self.context_window < 0:
             if PYTORCH_QUANTIZATION_AVAILABLE and self._quantize:
                 if not isinstance(self.pool, quant_nn.QuantAdaptiveAvgPool1d(1)):
                     self.pool = quant_nn.QuantAdaptiveAvgPool1d(1)  # context window = T
@@ -958,3 +936,114 @@ class JasperBlock(nn.Module):
             return xs + [out], lens
 
         return [out], lens
+
+
+class ParallelBlock(nn.Module):
+    """
+    Computational module that computes several `blocks` independently from each other and aggregates the outputs.
+    It expects audio inputs to be passed together with lengths, just like Jasper blocks, and all outputs to have
+    the same dimensions but it does not impose any additional requirements on the structure of the blocks themselves.
+
+    Args:
+        blocks: List of Jasper blocks that will be computed concurently. It is expected that they accept the same
+            input and return outputs with the same number of channels.
+        aggregation_mode: an optional string, indicating how the outputs will be aggregated. Supported values are
+            ['sum', 'dropout']. "sum" value forces outputs to be summed together. "dropout" value enables tower
+            dropout training with different blocks being dropped out during training.
+        block_dropout_prob: a probability of dropping any individual block during training with "dropout" aggregation
+            mode. Acts as a regularization technique.
+        residual_mode: an optional string indicating how residuals will be applied. Supported values are
+            ['sum', 'conv']. In 'sum' mode input features are summed together with the output. This will fail if the
+            number of channels in the input is different from the number of channels in an output tensor. In 'conv' mode
+            inputs are passed through pointwise convolution to make input channel dimension match output channel
+            dimension. In this mode `in_filters` and `out_filters` params are required.
+        in_filters: number of filters (channels) in the input tensor of each block.
+        out_filters: number of filters (channels) in the output tensor of each block.
+    """
+
+    def __init__(
+        self,
+        blocks,
+        aggregation_mode: str = "sum",
+        block_dropout_prob: int = 0.0,
+        residual_mode: str = "sum",
+        in_filters: int = None,
+        out_filters: int = None,
+    ):
+        super().__init__()
+        self.blocks = nn.ModuleList(blocks)
+
+        self.supported_aggregations = ["sum", "dropout"]
+        if aggregation_mode not in self.supported_aggregations:
+            raise ValueError(
+                f"Got non-supported aggregation mode: {aggregation_mode}. Supported values are {self.supported_aggregations}."
+            )
+        self.aggregation_mode = aggregation_mode
+
+        if aggregation_mode == "dropout":
+            self.weights = nn.Parameter(torch.ones(len(blocks)), requires_grad=False)
+            self.dropout = nn.Dropout(block_dropout_prob)
+
+        self.supported_residuals = ["sum", "conv"]
+        if residual_mode not in self.supported_residuals:
+            raise ValueError(
+                f"Got non-supported residual mode: {residual_mode}. Supported values are {self.supported_residuals}."
+            )
+        self.residual_mode = residual_mode
+
+        if residual_mode == "conv":
+            if in_filters is None or out_filters is None:
+                raise ValueError("in_filters and out_filters have to be specified when using 'conv' residual mode.")
+            self.res_conv = MaskedConv1d(in_filters, out_filters, kernel_size=1, bias=False, use_mask=True)
+
+    def get_dropout_mask(self):
+        weights = self.dropout(self.weights)
+        while torch.sum(weights) == 0 and self.dropout.p < 1.0:
+            weights = self.dropout(self.weights)
+        return weights
+
+    def forward(self, x: Tuple[List[Tensor], Optional[Tensor]]):
+        """
+        Forward pass computing aggregated output.
+
+        Args:
+            x: tuple of padded signal and lengths the signal. The shape of the signal is [B, D, T]. The lengths are
+                1D torch tensor of length B.
+
+        Returns:
+           torch tensor after passing input throught each block and aggregating these outputs according to the
+           aggregation mode.
+        """
+        if len(self.blocks) == 1:
+            return self.blocks[0](x)
+
+        result = None
+        max_mask = None
+
+        scaling_weights = None
+        if self.aggregation_mode == "dropout":
+            scaling_weights = self.get_dropout_mask()
+
+        for i, block in enumerate(self.blocks):
+            output, mask = block(x)
+
+            weighted_output = output[-1]
+            if self.aggregation_mode == "dropout":
+                weighted_output = scaling_weights[i] * output[-1]
+
+            if result is None:
+                result = weighted_output
+            else:
+                result = result + weighted_output
+
+            if max_mask is None:
+                max_mask = mask
+            else:
+                max_mask = torch.max(torch.stack([mask, max_mask]), dim=0)[0]
+        input_feat = x[0][-1]
+        lens = x[1]
+        if self.residual_mode == "sum":
+            result = result + input_feat
+        elif self.residual_mode == "conv":
+            result = result + self.res_conv(input_feat, lens)[0]
+        return [result], max_mask

@@ -55,13 +55,12 @@ def get_args():
 def translate(rank, world_size, args):
     if args.model.endswith(".nemo"):
         logging.info("Attempting to initialize from .nemo file")
-        model = MTEncDecModel.restore_from(restore_path=args.model)
+        model = MTEncDecModel.restore_from(restore_path=args.model, map_location=f"cuda:{rank}")
     elif args.model.endswith(".ckpt"):
         logging.info("Attempting to initialize from .ckpt file")
-        model = MTEncDecModel.load_from_checkpoint(checkpoint_path=args.model)
+        model = MTEncDecModel.load_from_checkpoint(checkpoint_path=args.model, map_location=f"cuda:{rank}")
     model.replace_beam_with_sampling(topk=args.topk)
     model.eval()
-    model.to(rank)
     if args.twoside:
         dataset = TarredTranslationDataset(
             text_tar_filepaths=args.text2translate,

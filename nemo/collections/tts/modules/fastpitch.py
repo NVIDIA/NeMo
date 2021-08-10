@@ -43,8 +43,6 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import torch
-import torch.nn.functional as F
-from torch import nn as nn
 
 from nemo.collections.tts.helpers.helpers import binarize_attention_parallel
 from nemo.core.classes import NeuralModule, typecheck
@@ -71,7 +69,7 @@ def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
     dec_lens = reps.sum(dim=1)
 
     max_len = dec_lens.max()
-    reps_cumsum = torch.cumsum(F.pad(reps, (1, 0, 0, 0), value=0.0), dim=1)[:, None, :]
+    reps_cumsum = torch.cumsum(torch.nn.functional.pad(reps, (1, 0, 0, 0), value=0.0), dim=1)[:, None, :]
     reps_cumsum = reps_cumsum.to(dtype)
 
     range_ = torch.arange(max_len).to(enc_out.device)[None, :, None]
@@ -103,15 +101,15 @@ def average_pitch(pitch, durs):
     return pitch_avg
 
 
-class ConvReLUNorm(nn.Module):
+class ConvReLUNorm(torch.nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=1, dropout=0.0):
         super(ConvReLUNorm, self).__init__()
-        self.conv = nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, padding=(kernel_size // 2))
-        self.norm = nn.LayerNorm(out_channels)
-        self.dropout = nn.Dropout(dropout)
+        self.conv = torch.nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, padding=(kernel_size // 2))
+        self.norm = torch.nn.LayerNorm(out_channels)
+        self.dropout = torch.nn.Dropout(dropout)
 
     def forward(self, signal):
-        out = F.relu(self.conv(signal))
+        out = torch.nn.functional.relu(self.conv(signal))
         out = self.norm(out.transpose(1, 2)).transpose(1, 2)
         return self.dropout(out)
 
@@ -122,7 +120,7 @@ class TemporalPredictor(NeuralModule):
     def __init__(self, input_size, filter_size, kernel_size, dropout, n_layers=2):
         super(TemporalPredictor, self).__init__()
 
-        self.layers = nn.Sequential(
+        self.layers = torch.nn.Sequential(
             *[
                 ConvReLUNorm(
                     input_size if i == 0 else filter_size, filter_size, kernel_size=kernel_size, dropout=dropout
@@ -130,7 +128,7 @@ class TemporalPredictor(NeuralModule):
                 for i in range(n_layers)
             ]
         )
-        self.fc = nn.Linear(filter_size, 1, bias=True)
+        self.fc = torch.nn.Linear(filter_size, 1, bias=True)
 
     @property
     def input_types(self):
@@ -178,13 +176,13 @@ class FastPitchModule(NeuralModule):
         self.binarize = False
 
         if n_speakers > 1:
-            self.speaker_emb = nn.Embedding(n_speakers, symbols_embedding_dim)
+            self.speaker_emb = torch.nn.Embedding(n_speakers, symbols_embedding_dim)
         else:
             self.speaker_emb = None
 
         self.max_token_duration = max_token_duration
 
-        self.pitch_emb = nn.Conv1d(
+        self.pitch_emb = torch.nn.Conv1d(
             1,
             symbols_embedding_dim,
             kernel_size=pitch_embedding_kernel_size,
@@ -195,7 +193,7 @@ class FastPitchModule(NeuralModule):
         self.register_buffer('pitch_mean', torch.zeros(1))
         self.register_buffer('pitch_std', torch.zeros(1))
 
-        self.proj = nn.Linear(self.decoder.d_model, n_mel_channels, bias=True)
+        self.proj = torch.nn.Linear(self.decoder.d_model, n_mel_channels, bias=True)
 
     @property
     def input_types(self):
@@ -215,6 +213,7 @@ class FastPitchModule(NeuralModule):
     def output_types(self):
         return {
             "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "num_frames": NeuralType(('B'), TokenDurationType()),
             "durs_predicted": NeuralType(('B', 'T'), TokenDurationType()),
             "log_durs_predicted": NeuralType(('B', 'T'), TokenLogDurationType()),
             "pitch_predicted": NeuralType(('B', 'T'), RegressionValuesType()),
@@ -284,9 +283,10 @@ class FastPitchModule(NeuralModule):
 
         # Output FFT
         dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens)
-        spect = self.proj(dec_out)
+        spect = self.proj(dec_out).transpose(1, 2)
         return (
             spect,
+            dec_lens,
             durs_predicted,
             log_durs_predicted,
             pitch_predicted,
@@ -296,3 +296,14 @@ class FastPitchModule(NeuralModule):
             attn_hard_dur,
             pitch,
         )
+
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        par = next(self.parameters())
+        inp = torch.randint(0, self.encoder.word_emb.num_embeddings, (1, 44), device=par.device, dtype=torch.int64)
+
+        return ({'text': inp},)

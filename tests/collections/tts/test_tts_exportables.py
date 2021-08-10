@@ -41,7 +41,6 @@ def hifigan_model():
 class TestExportable:
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    @pytest.mark.skip('Fastpitch export PR pending')
     def test_FastPitchModel_export_to_onnx(self, fastpitch_model):
         model = fastpitch_model.cuda()
         with tempfile.TemporaryDirectory() as tmpdir:

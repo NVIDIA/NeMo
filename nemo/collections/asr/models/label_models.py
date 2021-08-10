@@ -29,6 +29,7 @@ from nemo.collections.asr.losses.angularloss import AngularSoftmaxLoss
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.asr.parts.utils.speaker_utils import embedding_normalize
 from nemo.collections.common.losses import CrossEntropyLoss as CELoss
 from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.core.classes import ModelPT
@@ -119,7 +120,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         if self.task == 'diarization':
             logging.info("Setting up diarization parameters")
             _collate_func = self.dataset.sliced_seq_collate_fn
-            batch_size = 1
+            batch_size = config['batch_size']
             shuffle = False
         else:
             logging.info("Setting up identification parameters")
@@ -191,8 +192,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             input_signal=input_signal, length=input_signal_length,
         )
 
-        encoded, _ = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
-        logits, embs = self.decoder(encoder_output=encoded)
+        encoded, length = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
+        logits, embs = self.decoder(encoder_output=encoded, length=length)
         return logits, embs
 
     # PTL-specific methods
@@ -381,6 +382,7 @@ class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
         slices = torch.cat([x['slices'] for x in outputs])
         emb_shape = embs.shape[-1]
         embs = embs.view(-1, emb_shape).cpu().numpy()
+        embs = embedding_normalize(embs)
         out_embeddings = {}
         start_idx = 0
         with open(self.test_manifest, 'r') as manifest:
