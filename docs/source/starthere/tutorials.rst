@@ -69,7 +69,7 @@ To run a tutorial:
      - `ASR with Speaker Diarization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/speaker_recognition/ASR_with_SpeakerDiarization.ipynb>`_
    * - ASR
      - Online Noise Augmentation
-     - `Online Noise Augmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
+     - `Online Noise Augmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Online_Noise_Augmentation.ipynb>`_
    * - ASR
      - ASR for Telephony Speech
      - `ASR for Telephony Speech <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_for_telephony_speech.ipynb>`_
