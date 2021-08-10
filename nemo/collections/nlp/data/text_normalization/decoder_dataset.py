@@ -14,7 +14,6 @@
 
 import os
 import pickle
-import random
 
 from tqdm import tqdm
 from transformers import PreTrainedTokenizerBase
