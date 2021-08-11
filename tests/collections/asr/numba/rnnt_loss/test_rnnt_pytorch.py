@@ -57,7 +57,8 @@ class TestRNNTLossPytorch:
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
     def test_case_small(self, device):
-        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+        if device == 'cuda':
+            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
         acts = np.array(
             [
@@ -102,7 +103,8 @@ class TestRNNTLossPytorch:
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
     def test_case_small_random(self, device):
-        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+        if device == 'cuda':
+            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
         rng = np.random.RandomState(0)
         acts = rng.randn(1, 4, 3, 3)
@@ -121,7 +123,8 @@ class TestRNNTLossPytorch:
     @pytest.mark.parametrize('device', DEVICES)
     @pytest.mark.parametrize('fastemit_lambda', [1.0, 0.01, 0.00001])
     def test_case_small_random_fastemit_reg(self, device, fastemit_lambda):
-        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+        if device == 'cuda':
+            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
         rng = np.random.RandomState(0)
         acts = rng.randn(1, 4, 3, 3)
@@ -139,7 +142,8 @@ class TestRNNTLossPytorch:
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
     def big_test(self, device):
-        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+        if device == 'cuda':
+            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
         # minibatch x T x U x alphabet_size
         activations = [
@@ -255,7 +259,8 @@ class TestRNNTLossPytorch:
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
     def test_case_large_random(self, device):
-        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+        if device == 'cuda':
+            numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
         rng = np.random.RandomState(0)
         acts = rng.randn(4, 8, 11, 5)
