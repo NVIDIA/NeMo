@@ -19,10 +19,13 @@ diarizer:
     smoothing_params:
       method: "median" 
       overlap: 0.875
-    postprocessing_params:
-      onset: 0.5 # tune threshold on dev set. Check <NeMo_git_root>/scripts/voice_activity_detection/vad_tune_threshold.py
-      offset: 0.8
-    
+    postprocessing_params: # Tuned AMI results
+      onset: 0.9 # tune threshold on dev set. Check <NeMo_git_root>/scripts/voice_activity_detection/vad_tune_threshold.py
+      offset: 0.6
+      min_duration_on: 0.3 
+      min_duration_off: 0.7    
+      filter_active_first: False 
+      
   speaker_embeddings:
     oracle_vad_manifest: null
     model_path: ??? #.nemo local model path or pretrained model name (speakerverification_speakernet or speakerdiarization_speakernet)

@@ -14,23 +14,25 @@
 import glob
 import json
 import os
+import shutil
 from itertools import repeat
 from multiprocessing import Pool
-import shutil
+
 import librosa
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from pyannote.core import Annotation, Segment
 from pyannote.metrics import detection
+from sklearn.model_selection import ParameterGrid
 
 from nemo.utils import logging
-from sklearn.model_selection import ParameterGrid
 
 
 """
 This file contains all the utility functions required for voice activity detection. 
 """
+
 
 def prepare_manifest(config):
     """
@@ -284,6 +286,7 @@ def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
     except Exception as e:
         raise (e)
 
+
 def generate_vad_segment_table(vad_pred_dir, postprocessing_params, shift_len, num_workers):
     """
     Convert frame level prediction to speech segment in start and end times format.
@@ -292,7 +295,7 @@ def generate_vad_segment_table(vad_pred_dir, postprocessing_params, shift_len, n
             17,18, speech
     Args:
         vad_pred_dir (str): directory of prediction files to be processed.
-        threshold (float): threshold for prediction score (from 0 to 1).
+        postprocessing_params (dict): dictionary of thresholds for prediction score. See details in binarization and filtering/
         shift_len (float): amount of shift of window for generating the frame.
         out_dir (str): output dir of generated table/csv file.
         num_workers(float): number of process for multiprocessing
@@ -308,11 +311,7 @@ def generate_vad_segment_table(vad_pred_dir, postprocessing_params, shift_len, n
     if not os.path.exists(table_out_dir):
         os.mkdir(table_out_dir)
 
-    per_args = {
-        "shift_len": shift_len,
-        "out_dir": table_out_dir,
-        "filter_active_first": True #False
-    }
+    per_args = {"shift_len": shift_len, "out_dir": table_out_dir}
 
     per_args = {**per_args, **postprocessing_params}
 
@@ -336,7 +335,7 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
     active_segments = binarization(sequence, per_args)
     active_segments = filtering(active_segments, per_args)
 
-    seg_speech_table = pd.DataFrame(active_segments, columns =['start', 'end'])
+    seg_speech_table = pd.DataFrame(active_segments, columns=['start', 'end'])
     seg_speech_table = seg_speech_table.sort_values('start', ascending=True)
     seg_speech_table['dur'] = seg_speech_table['end'] - seg_speech_table['start'] + shift_len
     seg_speech_table['vad'] = 'speech'
@@ -368,7 +367,7 @@ def binarization(sequence, per_args):
     """
     shift_len = per_args.get('shift_len', 0.01)
 
-    onset = per_args.get('onset', 0.5) 
+    onset = per_args.get('onset', 0.5)
     offset = per_args.get('offset', 0.5)
     pad_onset = per_args.get('pad_onset', 0.0)
     pad_offset = per_args.get('pad_offset', 0.0)
@@ -376,13 +375,13 @@ def binarization(sequence, per_args):
     onset, offset = cal_vad_onset_offset(per_args.get('scale', 'absolute'), onset, offset)
 
     active = False
-    active_segments = set() # {(start1, end1), (start2, end2)}
+    active_segments = set()  # {(start1, end1), (start2, end2)}
     for i in range(1, len(sequence)):
         # Current frame is active
         if active:
             # Switch from active to inactive
             if sequence[i] < offset:
-                if start - pad_onset>=0:
+                if start - pad_onset >= 0:
                     active_segments.add((start - pad_onset, i * shift_len + pad_offset))
                 else:
                     active_segments.add((0, i * shift_len + pad_offset))
@@ -396,12 +395,12 @@ def binarization(sequence, per_args):
                 start = i * shift_len
                 active = True
 
-    # if active at the end, add final segment            
+    # if active at the end, add final segment
     if active:
         active_segments.add((start - pad_onset, i * shift_len + pad_offset))
 
     # Merge the overlapped active segments due to padding
-    active_segments = merge_overlap_segment(active_segments)  #not sorted
+    active_segments = merge_overlap_segment(active_segments)  # not sorted
 
     return active_segments
 
@@ -417,15 +416,15 @@ def filtering(active_segments, per_args):
         per_args:
             min_duration_on (float): threshold for small non_speech deletion
             min_duration_off (float): threshold for short speech segment deletion
-            filter_active_first (bolean): Whether to perform short speech segment deletion first.
+            filter_active_first (boolean): Whether to perform short speech segment deletion first.
 
     Returns:
         active_segments(set): Filtered set of speech segment in (start, end) format.  {(start1, end1), (start2, end2)}
     """
-    min_duration_on = per_args.get('min_duration_on', 0.0) 
-    min_duration_off = per_args.get('min_duration_off', 0.0) 
+    min_duration_on = per_args.get('min_duration_on', 0.0)
+    min_duration_off = per_args.get('min_duration_off', 0.0)
     filter_active_first = per_args.get('filter_active_first', True)
-    
+
     if filter_active_first:
         # Filter out the shorter active segments
         if min_duration_on > 0.0:
@@ -435,24 +434,25 @@ def filtering(active_segments, per_args):
             # Find inactive segments
             inactive_segments = get_gap_segments(active_segments)
             # Find shorter inactive segments
-            short_inactive_segments= inactive_segments - filter_short_segments(inactive_segments, min_duration_off)
+            short_inactive_segments = inactive_segments - filter_short_segments(inactive_segments, min_duration_off)
             # Return shorter inactive segments to be as active segments
             active_segments.update(short_inactive_segments)
             # Merge the overlapped active segments
-            active_segments = merge_overlap_segment(active_segments) 
+            active_segments = merge_overlap_segment(active_segments)
     else:
         if min_duration_off > 0.0:
             # Find inactive segments
             inactive_segments = get_gap_segments(active_segments)
             # Find shorter inactive segments
-            short_inactive_segments= inactive_segments - filter_short_segments(inactive_segments, min_duration_off)
+            short_inactive_segments = inactive_segments - filter_short_segments(inactive_segments, min_duration_off)
             # Return shorter inactive segments to be as active segments
             active_segments.update(short_inactive_segments)
             # Merge the overlapped active segments
-            active_segments = merge_overlap_segment(active_segments) 
+            active_segments = merge_overlap_segment(active_segments)
         if min_duration_on > 0.0:
             active_segments = filter_short_segments(active_segments, min_duration_on)
     return active_segments
+
 
 def filter_short_segments(segments, threshold):
     """
@@ -460,26 +460,28 @@ def filter_short_segments(segments, threshold):
     """
     res = set()
     for seg in segments:
-        if seg[1]-seg[0] >= threshold:
+        if seg[1] - seg[0] >= threshold:
             res.add(seg)
     return res
 
+
 def get_gap_segments(segments):
     """
-    Get the gap segments. {(start1, end1), (start2, end2),  (start3, end3)} -> {(end1, start2), (end2, start3)}
+    Get the gap segments. {(start1, end1), (start2, end2), (start3, end3)} -> {(end1, start2), (end2, start3)}
     """
-    segments=[list(i) for i in segments]
+    segments = [list(i) for i in segments]
     segments.sort(key=lambda x: x[0])
     gap_segments = set()
-    for i in range(len(segments)-1):
-        gap_segments.add((segments[i][1], segments[i+1][0]))
+    for i in range(len(segments) - 1):
+        gap_segments.add((segments[i][1], segments[i + 1][0]))
     return gap_segments
+
 
 def merge_overlap_segment(segments):
     """
     Merged the overlapped segemtns {(0, 1.5), (1, 3.5), } -> {(0, 3.5), }
     """
-    segments=[list(i) for i in segments]
+    segments = [list(i) for i in segments]
     segments.sort(key=lambda x: x[0])
     merged = []
     for segment in segments:
@@ -556,9 +558,11 @@ def get_parameter_grid(params):
     return params_grid
 
 
-def vad_tune_threshold_on_dev(params, vad_pred, groundtruth_RTTM, result_file="res", vad_pred_method="frame", focus_metric="DetER"):
+def vad_tune_threshold_on_dev(
+    params, vad_pred, groundtruth_RTTM, result_file="res", vad_pred_method="frame", focus_metric="DetER"
+):
     """
-    Tune threshold on dev set. Return best threshold which gives the lowest detection error rate (DetER) in thresholds.
+    Tune thresholds on dev set. Return best thresholds which gives the lowest detection error rate (DetER) in thresholds.
     Args:
         thresholds (list): list of thresholds.
         vad_pred_method (str): suffix of prediction file. Use to locate file. Should be either in "frame", "mean" or "median".
@@ -583,8 +587,8 @@ def vad_tune_threshold_on_dev(params, vad_pred, groundtruth_RTTM, result_file="r
 
         # perform binarization, filtering accoring to param and write to rttm-like table
         vad_table_dir = generate_vad_segment_table(vad_pred, param, shift_len=0.01, num_workers=20)
-        
-        # add reference and hypothesis to metrics 
+
+        # add reference and hypothesis to metrics
         for filename in paired_filenames:
             vad_pred_filepath = vad_pred_dict[filename]
             groundtruth_RTTM_file = groundtruth_RTTM_dict[filename]
@@ -600,7 +604,9 @@ def vad_tune_threshold_on_dev(params, vad_pred, groundtruth_RTTM, result_file="r
         FA = report.iloc[[-1]][('false alarm', '%')].item()
         MISS = report.iloc[[-1]][('miss', '%')].item()
 
-        assert (focus_metric == "DetER" or focus_metric == "FA" or focus_metric == "MISS"), "Metric we care most should be only in 'DetER', 'FA'or 'MISS'!"
+        assert (
+            focus_metric == "DetER" or focus_metric == "FA" or focus_metric == "MISS"
+        ), "Metric we care most should be only in 'DetER', 'FA'or 'MISS'!"
         all_perf[str(param)] = {'DetER (%)': DetER, 'FA (%)': FA, 'MISS (%)': MISS}
         logging.info(f"parameter {param}, {all_perf[str(param)] }")
 
@@ -615,7 +621,7 @@ def vad_tune_threshold_on_dev(params, vad_pred, groundtruth_RTTM, result_file="r
 
         if score < min_score:
             best_threhsold = param
-            optimal_scores= all_perf[str(param)]
+            optimal_scores = all_perf[str(param)]
             min_score = score
 
     return best_threhsold, optimal_scores
@@ -632,9 +638,9 @@ def check_if_param_valid(params):
         else:
             for j in params[i]:
                 print(j)
-                if not j >= 0: 
+                if not j >= 0:
                     raise ValueError("Invalid inputs! All float parameters should be larger than 0!")
-            
+
     if not (all(i <= 1 for i in params['onset']) and all(i <= 1 for i in params['offset'])):
         raise ValueError("Invalid inputs! The onset and offset thresholds should be in range [0, 1]!")
 
@@ -652,7 +658,9 @@ def pred_rttm_map(vad_pred, groundtruth_RTTM, vad_pred_method="frame"):
     elif os.path.isdir(groundtruth_RTTM):
         groundtruth_RTTM_files = glob.glob(os.path.join(groundtruth_RTTM, "*.rttm"))
     else:
-        raise ValueError("groundtruth_RTTM should either be a directory contains rttm files or a file contains paths to them!")
+        raise ValueError(
+            "groundtruth_RTTM should either be a directory contains rttm files or a file contains paths to them!"
+        )
     for f in groundtruth_RTTM_files:
         filename = os.path.basename(f).rsplit(".", 1)[0]
         groundtruth_RTTM_dict[filename] = f
@@ -676,9 +684,14 @@ def pred_rttm_map(vad_pred, groundtruth_RTTM, vad_pred_method="frame"):
 
 
 def plot(
-    path2audio_file, path2_vad_pred, path2ground_truth_label=None, 
-    offset=0, duration=None, 
-    threshold=None, per_args=None):
+    path2audio_file,
+    path2_vad_pred,
+    path2ground_truth_label=None,
+    offset=0,
+    duration=None,
+    threshold=None,
+    per_args=None,
+):
     """
     Plot VAD outputs for demonstration in tutorial
     Args:
@@ -692,10 +705,10 @@ def plot(
 
     audio, sample_rate = librosa.load(path=path2audio_file, sr=16000, mono=True, offset=offset, duration=duration)
     dur = librosa.get_duration(audio, sr=sample_rate)
-    
+
     time = np.arange(offset, offset + dur, FRAME_LEN)
     frame = np.loadtxt(path2_vad_pred)
-    frame = frame[int(offset/FRAME_LEN): int((offset+dur)/FRAME_LEN)]
+    frame = frame[int(offset / FRAME_LEN) : int((offset + dur) / FRAME_LEN)]
 
     len_pred = len(frame)
     ax1 = plt.subplot()
@@ -715,8 +728,8 @@ def plot(
     if threshold:
         pred = np.where(prob >= threshold, 1, 0)
     if per_args:
-        active_segments = binarization(prob, per_args) 
-        active_segments = filtering(active_segments, per_args) 
+        active_segments = binarization(prob, per_args)
+        active_segments = filtering(active_segments, per_args)
         pred = gen_pred_from_active_segments(active_segments, prob)
 
     if path2ground_truth_label:
@@ -734,13 +747,13 @@ def plot(
 
 def gen_pred_from_active_segments(active_segments, prob, shift_len=0.01):
     pred = np.zeros(prob.shape)
-    active_segments=[list(i) for i in active_segments]
+    active_segments = [list(i) for i in active_segments]
     active_segments.sort(key=lambda x: x[0])
 
     for seg in active_segments:
-        start = int(seg[0]/shift_len)
-        end = int(seg[1]/shift_len)
-        pred[start: end] = 1
+        start = int(seg[0] / shift_len)
+        end = int(seg[1] / shift_len)
+        pred[start:end] = 1
     return pred
 
 

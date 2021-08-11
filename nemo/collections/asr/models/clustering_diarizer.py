@@ -237,10 +237,10 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             self.vad_pred_dir = smoothing_pred_dir
 
         logging.info("Converting frame level prediction to speech/no-speech segment in start and end times format.")
-        postprocessing_params = self._cfg.diarizer.vad.postprocessing_params 
+        postprocessing_params = self._cfg.diarizer.vad.postprocessing_params
         table_out_dir = generate_vad_segment_table(
             vad_pred_dir=self.vad_pred_dir,
-            postprocessing_params=self._cfg.diarizer.vad.postprocessing_params, 
+            postprocessing_params=self._cfg.diarizer.vad.postprocessing_params,
             shift_len=self._vad_shift_length_in_sec,
             num_workers=self._cfg.num_workers,
         )

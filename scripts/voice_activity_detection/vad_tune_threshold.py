@@ -34,9 +34,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--onset_range", help="range of onset in list 'START,END,STEP' to be tuned on", type=str)
     parser.add_argument("--offset_range", help="range of offset in list 'START,END,STEP' to be tuned on", type=str)
-    parser.add_argument("--min_duration_on_range", help="range of min_duration_on in list 'START,END,STEP' to be tuned on", type=str)
-    parser.add_argument("--min_duration_off_range", help="range of min_duration_off in list 'START,END,STEP' to be tuned on", type=str)
-    parser.add_argument("--filter_active_first", help="Whether to filter short active first during filtering, should be either True or False!", type=bool)
+    parser.add_argument(
+        "--min_duration_on_range", help="range of min_duration_on in list 'START,END,STEP' to be tuned on", type=str
+    )
+    parser.add_argument(
+        "--min_duration_off_range", help="range of min_duration_off in list 'START,END,STEP' to be tuned on", type=str
+    )
+    parser.add_argument(
+        "--filter_active_first",
+        help="Whether to filter short active first during filtering, should be either True or False!",
+        type=bool,
+    )
 
     parser.add_argument(
         "--vad_pred", help="Directory of vad predictions or a file contains the paths of them.", required=True
@@ -48,9 +56,7 @@ if __name__ == "__main__":
         required=True,
     )
     parser.add_argument(
-        "--result_file",
-        help="Filename of txt to store results",
-        default="res",
+        "--result_file", help="Filename of txt to store results", default="res",
     )
     parser.add_argument(
         "--vad_pred_method",
@@ -87,14 +93,18 @@ if __name__ == "__main__":
             start, stop, step = [float(i) for i in args.min_duration_off_range.split(",")]
             min_duration_off = np.arange(start, stop, step)
             params['min_duration_off'] = min_duration_off
-        
+
         if args.filter_active_first:
             params['filter_active_first'] = args.filter_active_first
 
     except:
-        raise ValueError("Theshold input is invalid! Please enter it as a 'START,STOP,STEP' for onset, offset, min_duration_on and min_duration_off, and enter True/False for filter_active_first")
+        raise ValueError(
+            "Theshold input is invalid! Please enter it as a 'START,STOP,STEP' for onset, offset, min_duration_on and min_duration_off, and enter True/False for filter_active_first"
+        )
 
     best_threhsold, optimal_scores = vad_tune_threshold_on_dev(
         params, args.vad_pred, args.groundtruth_RTTM, args.result_file, args.vad_pred_method, args.focus_metric
     )
-    logging.info(f"Best combination of thresholds for binarization selected from input ranges is {best_threhsold}, and the optimal score is {optimal_scores}")
+    logging.info(
+        f"Best combination of thresholds for binarization selected from input ranges is {best_threhsold}, and the optimal score is {optimal_scores}"
+    )
