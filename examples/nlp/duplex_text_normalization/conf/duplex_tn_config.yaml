@@ -123,7 +123,9 @@ data:
     max_decoder_len: 80
     mode: ${mode}
     max_insts: -1 # Maximum number of instances (-1 means no limit)
-    decoder_data_augmentation: true # Refer to the text_normalization doc for more information about data augmentation
+    # Refer to the text_normalization doc for more information about data augmentation
+    tagger_data_augmentation: false
+    decoder_data_augmentation: true
     use_cache: ${data.use_cache}
 
   validation_ds:
