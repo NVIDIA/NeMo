@@ -20,7 +20,6 @@ import unicodedata
 from builtins import str as unicode
 from typing import List
 
-import g2p_en
 import nltk
 import torch
 from pytorch_lightning.utilities.distributed import rank_zero_only, sync_ddp_if_available
@@ -68,6 +67,8 @@ class G2p:
     ):
         download_corpora()
         _ = sync_ddp_if_available(torch.tensor(0))  # Barrier until rank 0 downloads the corpora
+
+        import g2p_en  # noqa: g2p_en tries to run download_corpora() on import but it is not rank zero guarded
 
         _g2p = g2p_en.G2p()
         _g2p.variables = None
