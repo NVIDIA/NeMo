@@ -188,6 +188,7 @@ class MTBottleneckModel(MTEncDecModel):
             # probability per sample
             log_p_x_given_z = log_p_x_given_z_per_token.sum(-1).mean()
 
+            import pudb; pudb.set_trace()
             tokens = output_mask.sum()
             log_p_x_given_z_per_token = log_p_x_given_z_per_token.sum().detach() / tokens
 
