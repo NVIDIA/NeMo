@@ -118,11 +118,11 @@ if __name__ == '__main__':
         encoder_tokenizer_name=args.encoder_tokenizer_name,
         encoder_tokenizer_model=encoder_tokenizer_model,
         encoder_bpe_dropout=args.encoder_tokenizer_bpe_dropout,
-        # encoder_r2l=args.encoder_tokenizer_r2l,
+        encoder_r2l=args.encoder_tokenizer_r2l,
         decoder_tokenizer_name=args.decoder_tokenizer_name,
         decoder_tokenizer_model=decoder_tokenizer_model,
         decoder_bpe_dropout=args.decoder_tokenizer_bpe_dropout,
-        # decoder_r2l=args.decoder_tokenizer_r2l,
+        decoder_r2l=args.decoder_tokenizer_r2l,
     )
 
     _, _ = MTDataPreproc.preprocess_parallel_dataset(
