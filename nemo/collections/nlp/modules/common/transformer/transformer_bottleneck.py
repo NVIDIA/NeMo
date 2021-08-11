@@ -284,6 +284,12 @@ class TransformerBottleneckDecoderNM(TransformerDecoderNM):
                     arch=arch, supported_arch=self.supported_arch,
                 )
             )
+        else:
+            raise ValueError(
+                "Unknown arch = {arch}, supported arch = {supported_arch}".format(
+                    arch=arch, supported_arch=self.supported_arch,
+                )
+            )
 
         # usual non-bottleneck transformer decoder
         if (not arch) or (arch == "seq2seq"):
