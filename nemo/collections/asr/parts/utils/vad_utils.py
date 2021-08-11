@@ -21,7 +21,7 @@ import librosa
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from pyannote.core import Annotation, Segment, Timeline
+from pyannote.core import Annotation, Segment
 from pyannote.metrics import detection
 
 from nemo.utils import logging
@@ -29,9 +29,8 @@ from sklearn.model_selection import ParameterGrid
 
 
 """
-This file contains all the utility functions required for speaker embeddings part in diarization scripts
+This file contains all the utility functions required for voice activity detection. 
 """
-
 
 def prepare_manifest(config):
     """
@@ -280,7 +279,6 @@ def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
 
         round_final = np.round(preds, 4)
         np.savetxt(overlap_filepath, round_final, delimiter='\n')
-        
         return overlap_filepath
 
     except Exception as e:
@@ -313,7 +311,7 @@ def generate_vad_segment_table(vad_pred_dir, postprocessing_params, shift_len, n
     per_args = {
         "shift_len": shift_len,
         "out_dir": table_out_dir,
-        "filter_active_first": False
+        "filter_active_first": True #False
     }
 
     per_args = {**per_args, **postprocessing_params}
@@ -351,14 +349,22 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
 
 def binarization(sequence, per_args):
     """
+    Binarize predictions to speech and non-speech
+
     Reference
     Paper: Gregory Gelly and Jean-Luc Gauvain. "Minimum Word Error Training of RNN-based Voice Activity Detection", InterSpeech 2015. 
     Implementation: https://github.com/pyannote/pyannote-audio/blob/master/pyannote/audio/utils/signal.py 
 
-
-    • an onset and offset thresholds for the detection of the beginning and end of a speech segment;
-    • padding durations before and after each speech segment;
+    Args:
+        per_args:
+            onset (float): onset threshold for detecting the beginning and end of a speech 
+            offset (float): offset threshold for detecting the end of a speech. 
+            pad_onset (float): adding durations before each speech segment
+            pad_offset (float): adding durations after each speech segment;
+            shift_len (float): amount of shift of window for generating the frame.
     
+    Returns:
+        active_segments(set): Set of speech segment in (start, end) format. 
     """
     shift_len = per_args.get('shift_len', 0.01)
 
@@ -370,7 +376,7 @@ def binarization(sequence, per_args):
     onset, offset = cal_vad_onset_offset(per_args.get('scale', 'absolute'), onset, offset)
 
     active = False
-    active_segments = set()  # {(start, end), }
+    active_segments = set() # {(start1, end1), (start2, end2)}
     for i in range(1, len(sequence)):
         # Current frame is active
         if active:
@@ -399,13 +405,25 @@ def binarization(sequence, per_args):
 
     return active_segments
 
+
 def filtering(active_segments, per_args):
     """
-    • a threshold for short speech segment deletion;
-    • and a threshold for small silence deletion.
+    Binarize predictions to speech and non-speech
+
+    Reference
+    Paper: Gregory Gelly and Jean-Luc Gauvain. "Minimum Word Error Training of RNN-based Voice Activity Detection", InterSpeech 2015. 
+    Implementation: https://github.com/pyannote/pyannote-audio/blob/master/pyannote/audio/utils/signal.py 
+    Args:
+        per_args:
+            min_duration_on (float): threshold for small non_speech deletion
+            min_duration_off (float): threshold for short speech segment deletion
+            filter_active_first (bolean): Whether to perform short speech segment deletion first.
+
+    Returns:
+        active_segments(set): Filtered set of speech segment in (start, end) format.  {(start1, end1), (start2, end2)}
     """
-    min_duration_on = per_args.get('min_duration_on', 0.2) 
-    min_duration_off = per_args.get('min_duration_off', 0.3) 
+    min_duration_on = per_args.get('min_duration_on', 0.0) 
+    min_duration_off = per_args.get('min_duration_off', 0.0) 
     filter_active_first = per_args.get('filter_active_first', True)
     
     if filter_active_first:
@@ -437,6 +455,9 @@ def filtering(active_segments, per_args):
     return active_segments
 
 def filter_short_segments(segments, threshold):
+    """
+    Remove segments which duration is smaller than a threshold.
+    """
     res = set()
     for seg in segments:
         if seg[1]-seg[0] >= threshold:
@@ -444,6 +465,9 @@ def filter_short_segments(segments, threshold):
     return res
 
 def get_gap_segments(segments):
+    """
+    Get the gap segments. {(start1, end1), (start2, end2),  (start3, end3)} -> {(end1, start2), (end2, start3)}
+    """
     segments=[list(i) for i in segments]
     segments.sort(key=lambda x: x[0])
     gap_segments = set()
@@ -452,6 +476,9 @@ def get_gap_segments(segments):
     return gap_segments
 
 def merge_overlap_segment(segments):
+    """
+    Merged the overlapped segemtns {(0, 1.5), (1, 3.5), } -> {(0, 3.5), }
+    """
     segments=[list(i) for i in segments]
     segments.sort(key=lambda x: x[0])
     merged = []
@@ -466,6 +493,9 @@ def merge_overlap_segment(segments):
 
 
 def cal_vad_onset_offset(scale, onset, offset):
+    """
+    Calculate onset and offset threshold given different scale.
+    """
     if scale == "absolute":
         mini = 0
         maxi = 1
@@ -509,7 +539,21 @@ def vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_
 
 
 def get_parameter_grid(params):
-    return list(ParameterGrid(params))
+    """
+    Get the parameter grid given a dictionary of parameters.
+    """
+    has_filter_active_first = False
+    if 'filter_active_first' in params:
+        filter_active_first = params['filter_active_first']
+        has_filter_active_first = True
+        params.pop("filter_active_first")
+
+    params_grid = list(ParameterGrid(params))
+
+    if has_filter_active_first:
+        for i in params_grid:
+            i['filter_active_first'] = filter_active_first
+    return params_grid
 
 
 def vad_tune_threshold_on_dev(params, vad_pred, groundtruth_RTTM, result_file="res", vad_pred_method="frame", focus_metric="DetER"):
@@ -526,15 +570,14 @@ def vad_tune_threshold_on_dev(params, vad_pred, groundtruth_RTTM, result_file="r
     """
     min_score = 100
     all_perf = {}
-    # try:
-    #     onsets[0] >= 0 and onsets[-1] <= 1
-    # except:
-    #     raise ValueError("Invalid onset! Should be in [0, 1]")
+    try:
+        check_if_param_valid(params)
+    except:
+        raise ValueError("Please check if the parameters are valid")
 
     paired_filenames, groundtruth_RTTM_dict, vad_pred_dict = pred_rttm_map(vad_pred, groundtruth_RTTM, vad_pred_method)
-    
-    params_grid = get_parameter_grid(params)
     metric = detection.DetectionErrorRate()
+    params_grid = get_parameter_grid(params)
 
     for param in params_grid:
 
@@ -578,6 +621,26 @@ def vad_tune_threshold_on_dev(params, vad_pred, groundtruth_RTTM, result_file="r
     return best_threhsold, optimal_scores
 
 
+def check_if_param_valid(params):
+    """
+    Check if the parameters are valid.
+    """
+    for i in params:
+        if i == "filter_active_first":
+            if not type(params["filter_active_first"]) == bool:
+                raise ValueError("Invalid inputs! filter_active_first should be either True or False!")
+        else:
+            for j in params[i]:
+                print(j)
+                if not j >= 0: 
+                    raise ValueError("Invalid inputs! All float parameters should be larger than 0!")
+            
+    if not (all(i <= 1 for i in params['onset']) and all(i <= 1 for i in params['offset'])):
+        raise ValueError("Invalid inputs! The onset and offset thresholds should be in range [0, 1]!")
+
+    return True
+
+
 def pred_rttm_map(vad_pred, groundtruth_RTTM, vad_pred_method="frame"):
     """
     Find paired files in vad_pred and groundtruth_RTTM
@@ -589,9 +652,7 @@ def pred_rttm_map(vad_pred, groundtruth_RTTM, vad_pred_method="frame"):
     elif os.path.isdir(groundtruth_RTTM):
         groundtruth_RTTM_files = glob.glob(os.path.join(groundtruth_RTTM, "*.rttm"))
     else:
-        raise ValueError(
-            "groundtruth_RTTM should either be a directory contains rttm files or a file contains paths to them!"
-        )
+        raise ValueError("groundtruth_RTTM should either be a directory contains rttm files or a file contains paths to them!")
     for f in groundtruth_RTTM_files:
         filename = os.path.basename(f).rsplit(".", 1)[0]
         groundtruth_RTTM_dict[filename] = f
