@@ -593,7 +593,6 @@ def vad_tune_threshold_on_dev(
 
         # add reference and hypothesis to metrics
         for filename in paired_filenames:
-            vad_pred_filepath = vad_pred_dict[filename]
             groundtruth_RTTM_file = groundtruth_RTTM_dict[filename]
             vad_table_filepath = os.path.join(vad_table_dir, filename + ".txt")
             reference, hypothesis = vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_file)
