@@ -54,9 +54,17 @@ def build_linear_or_identity(input_dim, output_dim):
 class MTBottleneckModel(MTEncDecModel):
     """
     Machine translation model which supports bottleneck architecture,
-    and VAE and MIM loss.
+    NLL, VAE, and MIM loss.
 
-    See MIM loss in <https://arxiv.org/pdf/2003.02645.pdf>
+    Supported losses:
+      1) nll - Conditional cross entropy (the usual NMT loss)
+      2) mim - MIM learning framework. A latent variable model with good
+                      reconstruction and compressed latent representation.
+                      https://arxiv.org/pdf/2003.02645.pdf
+      3) vae - VAE learning framework. A latent variable model which learns
+                      good probability estimation over observations and
+                      a regularized latent representation.
+                      https://arxiv.org/pdf/1312.6114.pdf
     """
 
     def __init__(self, cfg: MTBottleneckModelConfig, trainer: Trainer = None):
