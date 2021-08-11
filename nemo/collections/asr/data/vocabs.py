@@ -59,21 +59,15 @@ def download_corpora():
 class G2p:
     def __init__(
         self,
+        g2p_library,
         phoneme_dict_path=None,
         use_seq2seq_for_oov=False,
         ignore_ambiguous_words=True,
         text_preprocessing_func=_text_preprocessing,
         word_tokenize_func=_word_tokenize,
     ):
-        download_corpora()
-        _ = sync_ddp_if_available(torch.tensor(0))  # Barrier until rank 0 downloads the corpora
-
-        import g2p_en  # noqa: g2p_en tries to run download_corpora() on import but it is not rank zero guarded
-
-        _g2p = g2p_en.G2p()
-        _g2p.variables = None
-
-        self.homograph2features = _g2p.homograph2features
+        self._g2p = g2p_library
+        self.homograph2features = self._g2p.homograph2features
         self.g2p_dict = self._construct_grapheme2phoneme_dict(phoneme_dict_path)
         self.use_seq2seq_for_oov = use_seq2seq_for_oov
         self.ignore_ambiguous_words = ignore_ambiguous_words
@@ -92,7 +86,7 @@ class G2p:
         g2p_dict = {}
         with open(phoneme_dict_path, encoding=encoding) as file:
             for line in file:
-                if len(line) and ('A' <= line[0] <= 'Z' or line[0] == "'"):
+                if len(line) > 0 and ('A' <= line[0] <= 'Z' or line[0] == "'"):
                     parts = line.split('  ')
                     word = re.sub(_alt_re, '', parts[0])
                     word = word.lower()
@@ -161,7 +155,7 @@ class G2p:
             else:
                 if self.use_seq2seq_for_oov:
                     # run gru-based seq2seq model from _g2p
-                    pron = _g2p.predict(word)
+                    pron = self._g2p.predict(word)
                 else:
                     pron = word
 
@@ -213,7 +207,6 @@ class Base(abc.ABC):
     @abc.abstractmethod
     def encode(self, text: str) -> List[int]:
         """Turns str text into int tokens."""
-        pass
 
     def decode(self, tokens: List[int]) -> str:
         """Turns ints tokens into str text."""
@@ -317,8 +310,17 @@ class Phonemes(Base):
         self.spaces = spaces
         self.pad_with_space = pad_with_space
 
+        download_corpora()
+        _ = sync_ddp_if_available(torch.tensor(0))  # Barrier until rank 0 downloads the corpora
+
+        # g2p_en tries to run download_corpora() on import but it is not rank zero guarded
+        import g2p_en  # noqa pylint: disable=import-outside-toplevel
+
+        _g2p = g2p_en.G2p()
+        _g2p.variables = None
+
         if improved_version_g2p:
-            self.g2p = G2p(phoneme_dict_path)
+            self.g2p = G2p(_g2p, phoneme_dict_path)
         else:
             self.g2p = _g2p
 
