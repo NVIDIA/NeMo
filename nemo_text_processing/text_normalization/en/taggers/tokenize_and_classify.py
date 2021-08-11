@@ -68,7 +68,7 @@ class ClassifyFst(GraphFst):
         super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
 
         far_file = None
-        if cache_dir is not None or cache_dir == "None":
+        if cache_dir is not None and cache_dir != "None":
             os.makedirs(cache_dir, exist_ok=True)
             far_file = os.path.join(cache_dir, f"_{input_case}_en_tn.far")
         if not overwrite_cache and far_file and os.path.exists(far_file):
