@@ -202,6 +202,7 @@ class MTEncDecModel(EncDecNLPModel):
 
         self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
 
+        import pudb; pudb.set_trace()
         self.loss_fn = SmoothedCrossEntropyLoss(
             pad_id=self.decoder_tokenizer.pad_id, label_smoothing=cfg.label_smoothing
         )
