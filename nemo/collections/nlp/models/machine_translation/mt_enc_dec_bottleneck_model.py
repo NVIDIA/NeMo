@@ -71,10 +71,6 @@ class MTBottleneckModel(MTEncDecModel):
         if self.latent_size < 0:
             self.latent_size = self.encoder.hidden_size
 
-        # remove me
-        self.att_bridge_k: int = cfg.get("att_bridge_k", 16)
-        self.att_bridge_inner_size: int = cfg.get("att_bridge_inner_size", 1024)
-
         # TODO: add label smoothing support for per-sample reconstruction loss
         if not self.recon_per_token:
             loss_fn = NLLLoss(ignore_index=self.decoder_tokenizer.pad_id, reduction='none',)
