@@ -24,7 +24,7 @@ This script is designed for thresholds tuning for postprocessing of VAD
 See details about it in nemo/collections/asr/parts/utils/binarization
 
 Usage:
-python vad_tune_threshold.py --onset_range="0,1,0.2" --offset_range="0,1,0.2" --min_duration_on_range="0.1,0.8,0.05" --min_duration_off_range="0.1,0.8,0.05" --filter_active_first=False \
+python vad_tune_threshold.py --onset_range="0,1,0.2" --offset_range="0,1,0.2" --min_duration_on_range="0.1,0.8,0.05" --min_duration_off_range="0.1,0.8,0.05" --filter_speech_first=False \
 --vad_pred=<FULL PATH OF FOLDER OF FRAME LEVEL PREDICTION FILES> \
 --groundtruth_RTTM=<DIRECTORY OF VAD PREDICTIONS OR A FILE CONTAINS THE PATHS OF THEM> \
 --vad_pred_method="median"
@@ -41,8 +41,8 @@ if __name__ == "__main__":
         "--min_duration_off_range", help="range of min_duration_off in list 'START,END,STEP' to be tuned on", type=str
     )
     parser.add_argument(
-        "--filter_active_first",
-        help="Whether to filter short active first during filtering, should be either True or False!",
+        "--filter_speech_first",
+        help="Whether to filter short speech first during filtering, should be either True or False!",
         type=bool,
     )
 
@@ -94,12 +94,12 @@ if __name__ == "__main__":
             min_duration_off = np.arange(start, stop, step)
             params['min_duration_off'] = min_duration_off
 
-        if args.filter_active_first:
-            params['filter_active_first'] = args.filter_active_first
+        if args.filter_speech_first:
+            params['filter_speech_first'] = args.filter_speech_first
 
     except:
         raise ValueError(
-            "Theshold input is invalid! Please enter it as a 'START,STOP,STEP' for onset, offset, min_duration_on and min_duration_off, and enter True/False for filter_active_first"
+            "Theshold input is invalid! Please enter it as a 'START,STOP,STEP' for onset, offset, min_duration_on and min_duration_off, and enter True/False for filter_speech_first"
         )
 
     best_threhsold, optimal_scores = vad_tune_threshold_on_dev(

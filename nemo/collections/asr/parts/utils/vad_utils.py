@@ -295,7 +295,7 @@ def generate_vad_segment_table(vad_pred_dir, postprocessing_params, shift_len, n
             17,18, speech
     Args:
         vad_pred_dir (str): directory of prediction files to be processed.
-        postprocessing_params (dict): dictionary of thresholds for prediction score. See details in binarization and filtering/
+        postprocessing_params (dict): dictionary of thresholds for prediction score. See details in binarization and filtering.
         shift_len (float): amount of shift of window for generating the frame.
         out_dir (str): output dir of generated table/csv file.
         num_workers(float): number of process for multiprocessing
@@ -332,10 +332,10 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
     name = pred_filepath.split("/")[-1].rsplit(".", 1)[0]
     sequence = np.loadtxt(pred_filepath)
 
-    active_segments = binarization(sequence, per_args)
-    active_segments = filtering(active_segments, per_args)
+    speech_segments = binarization(sequence, per_args)
+    speech_segments = filtering(speech_segments, per_args)
 
-    seg_speech_table = pd.DataFrame(active_segments, columns=['start', 'end'])
+    seg_speech_table = pd.DataFrame(speech_segments, columns=['start', 'end'])
     seg_speech_table = seg_speech_table.sort_values('start', ascending=True)
     seg_speech_table['dur'] = seg_speech_table['end'] - seg_speech_table['start'] + shift_len
     seg_speech_table['vad'] = 'speech'
@@ -363,7 +363,7 @@ def binarization(sequence, per_args):
             shift_len (float): amount of shift of window for generating the frame.
     
     Returns:
-        active_segments(set): Set of speech segment in (start, end) format. 
+        speech_segments(set): Set of speech segment in (start, end) format. 
     """
     shift_len = per_args.get('shift_len', 0.01)
 
@@ -374,38 +374,38 @@ def binarization(sequence, per_args):
 
     onset, offset = cal_vad_onset_offset(per_args.get('scale', 'absolute'), onset, offset)
 
-    active = False
-    active_segments = set()  # {(start1, end1), (start2, end2)}
+    speech = False
+    speech_segments = set()  # {(start1, end1), (start2, end2)}
     for i in range(1, len(sequence)):
-        # Current frame is active
-        if active:
-            # Switch from active to inactive
+        # Current frame is speech
+        if speech:
+            # Switch from speech to non-speech
             if sequence[i] < offset:
                 if start - pad_onset >= 0:
-                    active_segments.add((start - pad_onset, i * shift_len + pad_offset))
+                    speech_segments.add((start - pad_onset, i * shift_len + pad_offset))
                 else:
-                    active_segments.add((0, i * shift_len + pad_offset))
+                    speech_segments.add((0, i * shift_len + pad_offset))
                 start = i * shift_len
-                active = False
+                speech = False
 
-        # Current frame is inactive
+        # Current frame is non-speech
         else:
-            # Switch from inactive to active
+            # Switch from non-speech to speech
             if sequence[i] > onset:
                 start = i * shift_len
-                active = True
+                speech = True
 
-    # if active at the end, add final segment
-    if active:
-        active_segments.add((start - pad_onset, i * shift_len + pad_offset))
+    # if speech at the end, add final segment
+    if speech:
+        speech_segments.add((start - pad_onset, i * shift_len + pad_offset))
 
-    # Merge the overlapped active segments due to padding
-    active_segments = merge_overlap_segment(active_segments)  # not sorted
+    # Merge the overlapped speech segments due to padding
+    speech_segments = merge_overlap_segment(speech_segments)  # not sorted
 
-    return active_segments
+    return speech_segments
 
 
-def filtering(active_segments, per_args):
+def filtering(speech_segments, per_args):
     """
     Binarize predictions to speech and non-speech
 
@@ -416,42 +416,42 @@ def filtering(active_segments, per_args):
         per_args:
             min_duration_on (float): threshold for small non_speech deletion
             min_duration_off (float): threshold for short speech segment deletion
-            filter_active_first (boolean): Whether to perform short speech segment deletion first.
+            filter_speech_first (boolean): Whether to perform short speech segment deletion first.
 
     Returns:
-        active_segments(set): Filtered set of speech segment in (start, end) format.  {(start1, end1), (start2, end2)}
+        speech_segments(set): Filtered set of speech segment in (start, end) format.  {(start1, end1), (start2, end2)}
     """
     min_duration_on = per_args.get('min_duration_on', 0.0)
     min_duration_off = per_args.get('min_duration_off', 0.0)
-    filter_active_first = per_args.get('filter_active_first', True)
+    filter_speech_first = per_args.get('filter_speech_first', True)
 
-    if filter_active_first:
-        # Filter out the shorter active segments
+    if filter_speech_first:
+        # Filter out the shorter speech segments
         if min_duration_on > 0.0:
-            active_segments = filter_short_segments(active_segments, min_duration_on)
-        # Filter out the shorter inactive segments and return to be as active segments
+            speech_segments = filter_short_segments(speech_segments, min_duration_on)
+        # Filter out the shorter non-speech segments and return to be as speech segments
         if min_duration_off > 0.0:
-            # Find inactive segments
-            inactive_segments = get_gap_segments(active_segments)
-            # Find shorter inactive segments
-            short_inactive_segments = inactive_segments - filter_short_segments(inactive_segments, min_duration_off)
-            # Return shorter inactive segments to be as active segments
-            active_segments.update(short_inactive_segments)
-            # Merge the overlapped active segments
-            active_segments = merge_overlap_segment(active_segments)
+            # Find non-speech segments
+            non_speech_segments = get_gap_segments(speech_segments)
+            # Find shorter non-speech segments
+            short_non_speech_segments = non_speech_segments - filter_short_segments(non_speech_segments, min_duration_off)
+            # Return shorter non-speech segments to be as speech segments
+            speech_segments.update(short_non_speech_segments)
+            # Merge the overlapped speech segments
+            speech_segments = merge_overlap_segment(speech_segments)
     else:
         if min_duration_off > 0.0:
-            # Find inactive segments
-            inactive_segments = get_gap_segments(active_segments)
-            # Find shorter inactive segments
-            short_inactive_segments = inactive_segments - filter_short_segments(inactive_segments, min_duration_off)
-            # Return shorter inactive segments to be as active segments
-            active_segments.update(short_inactive_segments)
-            # Merge the overlapped active segments
-            active_segments = merge_overlap_segment(active_segments)
+            # Find non-speech segments
+            non_speech_segments = get_gap_segments(speech_segments)
+            # Find shorter non-speech segments
+            short_non_speech_segments = non_speech_segments - filter_short_segments(non_speech_segments, min_duration_off)
+            # Return shorter non-speech segments to be as speech segments
+            speech_segments.update(short_non_speech_segments)
+            # Merge the overlapped speech segments
+            speech_segments = merge_overlap_segment(speech_segments)
         if min_duration_on > 0.0:
-            active_segments = filter_short_segments(active_segments, min_duration_on)
-    return active_segments
+            speech_segments = filter_short_segments(speech_segments, min_duration_on)
+    return speech_segments
 
 
 def filter_short_segments(segments, threshold):
@@ -544,17 +544,17 @@ def get_parameter_grid(params):
     """
     Get the parameter grid given a dictionary of parameters.
     """
-    has_filter_active_first = False
-    if 'filter_active_first' in params:
-        filter_active_first = params['filter_active_first']
-        has_filter_active_first = True
-        params.pop("filter_active_first")
+    has_filter_speech_first = False
+    if 'filter_speech_first' in params:
+        filter_speech_first = params['filter_speech_first']
+        has_filter_speech_first = True
+        params.pop("filter_speech_first")
 
     params_grid = list(ParameterGrid(params))
 
-    if has_filter_active_first:
+    if has_filter_speech_first:
         for i in params_grid:
-            i['filter_active_first'] = filter_active_first
+            i['filter_speech_first'] = filter_speech_first
     return params_grid
 
 
@@ -632,9 +632,9 @@ def check_if_param_valid(params):
     Check if the parameters are valid.
     """
     for i in params:
-        if i == "filter_active_first":
-            if not type(params["filter_active_first"]) == bool:
-                raise ValueError("Invalid inputs! filter_active_first should be either True or False!")
+        if i == "filter_speech_first":
+            if not type(params["filter_speech_first"]) == bool:
+                raise ValueError("Invalid inputs! filter_speech_first should be either True or False!")
         else:
             for j in params[i]:
                 print(j)
@@ -728,9 +728,9 @@ def plot(
     if threshold:
         pred = np.where(prob >= threshold, 1, 0)
     if per_args:
-        active_segments = binarization(prob, per_args)
-        active_segments = filtering(active_segments, per_args)
-        pred = gen_pred_from_active_segments(active_segments, prob)
+        speech_segments = binarization(prob, per_args)
+        speech_segments = filtering(speech_segments, per_args)
+        pred = gen_pred_from_speech_segments(speech_segments, prob)
 
     if path2ground_truth_label:
         label = extract_labels(path2ground_truth_label, time)
@@ -745,12 +745,12 @@ def plot(
     return None
 
 
-def gen_pred_from_active_segments(active_segments, prob, shift_len=0.01):
+def gen_pred_from_speech_segments(speech_segments, prob, shift_len=0.01):
     pred = np.zeros(prob.shape)
-    active_segments = [list(i) for i in active_segments]
-    active_segments.sort(key=lambda x: x[0])
+    speech_segments = [list(i) for i in speech_segments]
+    speech_segments.sort(key=lambda x: x[0])
 
-    for seg in active_segments:
+    for seg in speech_segments:
         start = int(seg[0] / shift_len)
         end = int(seg[1] / shift_len)
         pred[start:end] = 1
