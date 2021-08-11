@@ -189,6 +189,7 @@ class MTBottleneckModel(MTEncDecModel):
 
             info_dict["log_p_x_given_z"] = log_p_x_given_z.detach().cpu()
 
+        import pudb; pudb.set_trace()
         info_dict["log_p_x_given_z_per_token"] = log_p_x_given_z_per_token.detach().cpu()
 
         # loss warmup during training only
