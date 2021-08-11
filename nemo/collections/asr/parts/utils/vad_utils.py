@@ -287,7 +287,7 @@ def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
         raise (e)
 
 
-def generate_vad_segment_table(vad_pred_dir, postprocessing_params, shift_len, num_workers):
+def generate_vad_segment_table(vad_pred_dir, postprocessing_params, shift_len, num_workers, threshold=None):
     """
     Convert frame level prediction to speech segment in start and end times format.
     And save to csv file  in rttm-like format
