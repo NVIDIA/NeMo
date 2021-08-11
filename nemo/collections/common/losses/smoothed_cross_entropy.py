@@ -44,11 +44,6 @@ class SmoothedCrossEntropyLoss(Loss):
         eps (float): the small eps number to avoid division buy zero
     """
 
-    def __init__(self, per_token_reduction=True, **kwargs):
-        super().__init__(**kwargs)
-
-        self._per_token_reduction = per_token_reduction
-
     @property
     def input_types(self):
         """Returns definitions of module input ports.
@@ -71,12 +66,14 @@ class SmoothedCrossEntropyLoss(Loss):
         label_smoothing: Optional[float] = 0.0,
         predict_last_k: Optional[int] = 0,
         eps: float = 1e-6,
+        per_token_reduction: bool = True,
     ):
         super().__init__()
         self._pad_id = pad_id
         self._eps = eps
         self._predict_last_k = predict_last_k
         self._label_smoothing = label_smoothing
+        self._per_token_reduction = per_token_reduction
 
     @typecheck()
     def forward(self, log_probs, labels, output_mask=None):
@@ -101,8 +98,8 @@ class SmoothedCrossEntropyLoss(Loss):
 
         smoothing_log_probs = log_probs.mean(dim=-1)
         neg_log_likelihood = (1.0 - smoothing) * target_log_probs + smoothing * smoothing_log_probs
-        neg_log_likelihood = neg_log_likelihood[:, -self._predict_last_k :]
-        output_mask = output_mask[:, -self._predict_last_k :]
+        neg_log_likelihood = neg_log_likelihood[:, -self._predict_last_k:]
+        output_mask = output_mask[:, -self._predict_last_k:]
 
         # when False avoid per token reduction
         if self._per_token_reduction:
