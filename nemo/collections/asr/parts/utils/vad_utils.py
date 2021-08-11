@@ -434,7 +434,9 @@ def filtering(speech_segments, per_args):
             # Find non-speech segments
             non_speech_segments = get_gap_segments(speech_segments)
             # Find shorter non-speech segments
-            short_non_speech_segments = non_speech_segments - filter_short_segments(non_speech_segments, min_duration_off)
+            short_non_speech_segments = non_speech_segments - filter_short_segments(
+                non_speech_segments, min_duration_off
+            )
             # Return shorter non-speech segments to be as speech segments
             speech_segments.update(short_non_speech_segments)
             # Merge the overlapped speech segments
@@ -444,7 +446,9 @@ def filtering(speech_segments, per_args):
             # Find non-speech segments
             non_speech_segments = get_gap_segments(speech_segments)
             # Find shorter non-speech segments
-            short_non_speech_segments = non_speech_segments - filter_short_segments(non_speech_segments, min_duration_off)
+            short_non_speech_segments = non_speech_segments - filter_short_segments(
+                non_speech_segments, min_duration_off
+            )
             # Return shorter non-speech segments to be as speech segments
             speech_segments.update(short_non_speech_segments)
             # Merge the overlapped speech segments

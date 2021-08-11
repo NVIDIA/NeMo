@@ -19,7 +19,7 @@ diarizer:
     smoothing_params:
       method: "median" 
       overlap: 0.875
-    postprocessing_params: # Tuned parameter for AMI meeting corpus! You might need to tune the threshold on your dev set. Check <NeMo_git_root>/scripts/voice_activity_detection/vad_tune_threshold.py
+    postprocessing_params: # Tuned parameter for AMI meeting corpus! You might need to choose resonable threshold or tune the threshold on your dev set. Check <NeMo_git_root>/scripts/voice_activity_detection/vad_tune_threshold.py
       onset: 0.9  
       offset: 0.6
       min_duration_on: 0.3 
