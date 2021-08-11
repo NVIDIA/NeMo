@@ -71,7 +71,7 @@ class ClassifyFst(GraphFst):
             self.fst = pynini.Far(far_file, mode='r')['tokenize_and_classify']
             logging.info(f'ClassifyFst.fst was restored from {far_file}.')
         else:
-            logging.info(f'Re-creating ClassifyFst grammars.')
+            logging.info(f'Re-creating {far_file} ClassifyFst grammars.')
             number_names = get_number_names()
             alternative_formats = get_alternative_formats()
 
@@ -85,7 +85,7 @@ class ClassifyFst(GraphFst):
             )
             ordinal_graph = self.ordinal.fst
 
-            self.decimal = DecimalFst(cardinal=self.cardinal, ordinal=self.ordinal, deterministic=deterministic)
+            self.decimal = DecimalFst(cardinal=self.cardinal, deterministic=deterministic)
             decimal_graph = self.decimal.fst
 
             self.measure = MeasureFst(cardinal=self.cardinal, decimal=self.decimal, deterministic=deterministic)

@@ -34,18 +34,18 @@ def prepare_labels_for_insertion(file_path: str):
     Read the file and creates a union insertion graph
 
     Args:
-    file_path: path to a file (single column)
+        file_path: path to a file (single column)
 
     Returns fst that inserts labels from the file
     """
     labels = load_labels(file_path)
-    map = defaultdict(list)
+    mapping = defaultdict(list)
     for k, v in labels:
-        map[k].append(v)
+        mapping[k].append(v)
 
-    for k in map:
-        map[k] = insert_space + pynini.union(*[pynutil.insert(end) for end in map[k]])
-    return map
+    for k in mapping:
+        mapping[k] = insert_space + pynini.union(*[pynutil.insert(end) for end in mapping[k]])
+    return mapping
 
 
 class DecimalFst(GraphFst):
@@ -55,15 +55,14 @@ class DecimalFst(GraphFst):
 
     Args:
         cardinal: CardinalFst
-        ordinal: OrdinalFst
         deterministic: if True will provide a single transduction option,
                 for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal: GraphFst, ordinal: GraphFst, deterministic: bool = False):
+    def __init__(self, cardinal: GraphFst, deterministic: bool = False):
         super().__init__(name="decimal", kind="classify", deterministic=deterministic)
 
-        integer_part = cardinal.cardinal_numbers | ordinal.ordinal_numbers
+        integer_part = cardinal.cardinal_numbers
         cardinal_numbers_with_leading_zeros = cardinal.cardinal_numbers_with_leading_zeros
 
         delimiter_map = prepare_labels_for_insertion(get_abs_path("data/numbers/decimal_delimiter.tsv"))

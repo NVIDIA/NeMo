@@ -13,7 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, convert_space
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_ALPHA, GraphFst, convert_space
+from nemo_text_processing.text_normalization.ru.alphabet import TO_LATIN
 from nemo_text_processing.text_normalization.ru.utils import get_abs_path, load_labels
 
 try:
@@ -54,6 +55,12 @@ class WhiteListFst(GraphFst):
             return graph
 
         graph = _get_whitelist_graph(input_case)
-        graph |= _get_whitelist_graph(input_case, file="data/measurements.tsv")
+
+        units_graph = _get_whitelist_graph(input_case, file="data/measurements.tsv")
+        # do not replace single letter units, like `м` or `°`
+        units_graph = pynini.compose(pynini.difference(pynini.project(units_graph, "input"), NEMO_ALPHA), units_graph)
+        graph |= units_graph.optimize()
+        graph |= TO_LATIN + pynini.closure(pynutil.insert(" ") + TO_LATIN)
+
         self.final_graph = convert_space(graph)
         self.fst = (pynutil.insert("name: \"") + self.final_graph + pynutil.insert("\"")).optimize()

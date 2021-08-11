@@ -64,7 +64,7 @@ class ClassifyFst(GraphFst):
             self.fst = pynini.Far(far_file, mode='r')['tokenize_and_classify']
             logging.info(f'ClassifyFst.fst was restored from {far_file}.')
         else:
-            logging.info(f'Re-creating ClassifyFst grammars.')
+            logging.info(f'Re-creating {far_file} ClassifyFst grammars.')
             tn_classify = TNClassifyFst(input_case='cased', deterministic=False, use_cache=False)
             cardinal = CardinalFst(tn_cardinal=tn_classify.cardinal)
             cardinal_graph = cardinal.fst
