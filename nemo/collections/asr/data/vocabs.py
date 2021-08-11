@@ -14,6 +14,7 @@
 
 import abc
 import itertools
+import logging
 import re
 import string
 import unicodedata
@@ -23,16 +24,6 @@ from typing import List
 import nltk
 
 from nemo.collections.common.parts.preprocessing import parsers
-
-try:
-    import g2p_en  # noqa
-
-    _g2p = g2p_en.G2p()
-    _g2p.variables = None
-
-    HAVE_G2P = True
-except (FileNotFoundError, LookupError):
-    HAVE_G2P = False
 
 _words_re = re.compile("([a-z\-]+'[a-z\-]+|[a-z\-]+)|([^a-z{}]+)")
 
@@ -70,7 +61,20 @@ class G2p:
         except LookupError:
             nltk.download('cmudict', quiet=True)
 
-        self.homograph2features = _g2p.homograph2features
+        try:
+            import g2p_en  # noqa
+
+            _g2p = g2p_en.G2p()
+            _g2p.variables = None
+
+            # accessor for global import G2p with variables set to None
+            self._g2p = _g2p
+
+        except (ImportError, ModuleNotFoundError) as e:
+            logging.error(f"`g2p_en` was not installed prior to initializing {self.__class__.__name__}")
+            raise e
+
+        self.homograph2features = self._g2p.homograph2features
         self.g2p_dict = self._construct_grapheme2phoneme_dict(phoneme_dict_path)
         self.use_seq2seq_for_oov = use_seq2seq_for_oov
         self.ignore_ambiguous_words = ignore_ambiguous_words
@@ -158,7 +162,7 @@ class G2p:
             else:
                 if self.use_seq2seq_for_oov:
                     # run gru-based seq2seq model from _g2p
-                    pron = _g2p.predict(word)
+                    pron = self._g2p.predict(word)
                 else:
                     pron = word
 
@@ -317,7 +321,7 @@ class Phonemes(Base):
         if improved_version_g2p:
             self.g2p = G2p(phoneme_dict_path)
         else:
-            self.g2p = _g2p
+            self.g2p = self._g2p
 
     def encode(self, text):
         """See base class."""
