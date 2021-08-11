@@ -32,7 +32,7 @@ from nemo.collections.common.losses import NLLLoss
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTBottleneckModelConfig
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.collections.nlp.modules.common.transformer import AttentionBridge, TopKSequenceGenerator
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.common import typecheck
 from nemo.utils import logging, model_utils
 
 __all__ = ['MTBottleneckModel']
