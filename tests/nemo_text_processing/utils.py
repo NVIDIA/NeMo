@@ -24,7 +24,8 @@ except (ImportError, ModuleNotFoundError):
 
 CACHE_DIR = None
 
-def set_cache_dir(path: str=None):
+
+def set_cache_dir(path: str = None):
     """
     Sets cache directory for TN/ITN unittests. Default is None, e.g. no cache during tests.
     """
