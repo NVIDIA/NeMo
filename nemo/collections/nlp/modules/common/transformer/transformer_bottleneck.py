@@ -202,6 +202,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
         if return_mask is None:
             return_mask = self._return_mask
 
+        import pudb; pudb.set_trace()
         embeddings = self._embedding(input_ids=input_ids)
 
         if (not self.arch) or (self.arch == "seq2seq"):
