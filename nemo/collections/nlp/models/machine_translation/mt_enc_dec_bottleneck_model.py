@@ -202,7 +202,7 @@ class MTBottleneckModel(MTEncDecModel):
             # ignore warmup and auxiliary loss
             warmup_coef = 1.0
 
-        info_dict["warmup_coef"] = warmup_coef
+        info_dict["warmup_coef_recon"] = warmup_coef
 
         if self.model_type in ["mim", "vae"]:
             # tokens = tgt_mask.sum()
