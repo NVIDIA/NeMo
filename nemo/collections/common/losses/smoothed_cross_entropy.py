@@ -105,5 +105,7 @@ class SmoothedCrossEntropyLoss(Loss):
         if self._per_token_reduction:
             neg_log_likelihood = -torch.sum(neg_log_likelihood * output_mask)
             neg_log_likelihood = neg_log_likelihood / (output_mask.sum() + self._eps)
+        else:
+            neg_log_likelihood = -(neg_log_likelihood * output_mask)
 
         return neg_log_likelihood
