@@ -20,19 +20,12 @@ import unicodedata
 from builtins import str as unicode
 from typing import List
 
+import g2p_en
 import nltk
+import torch
+from pytorch_lightning.utilities.distributed import rank_zero_only, sync_ddp_if_available
 
 from nemo.collections.common.parts.preprocessing import parsers
-
-try:
-    import g2p_en  # noqa
-
-    _g2p = g2p_en.G2p()
-    _g2p.variables = None
-
-    HAVE_G2P = True
-except (FileNotFoundError, LookupError):
-    HAVE_G2P = False
 
 _words_re = re.compile("([a-z\-]+'[a-z\-]+|[a-z\-]+)|([^a-z{}]+)")
 
@@ -51,6 +44,19 @@ def _word_tokenize(text):
     return words
 
 
+@rank_zero_only
+def download_corpora():
+    # Download NLTK datasets if this class is to be instantiated
+    try:
+        nltk.data.find('taggers/averaged_perceptron_tagger.zip')
+    except LookupError:
+        nltk.download('averaged_perceptron_tagger', quiet=True)
+    try:
+        nltk.data.find('corpora/cmudict.zip')
+    except LookupError:
+        nltk.download('cmudict', quiet=True)
+
+
 class G2p:
     def __init__(
         self,
@@ -60,15 +66,11 @@ class G2p:
         text_preprocessing_func=_text_preprocessing,
         word_tokenize_func=_word_tokenize,
     ):
-        # Download NLTK datasets if this class is to be instantiated
-        try:
-            nltk.data.find('taggers/averaged_perceptron_tagger.zip')
-        except LookupError:
-            nltk.download('averaged_perceptron_tagger', quiet=True)
-        try:
-            nltk.data.find('corpora/cmudict.zip')
-        except LookupError:
-            nltk.download('cmudict', quiet=True)
+        download_corpora()
+        _ = sync_ddp_if_available(torch.tensor(0))  # Barrier until rank 0 downloads the corpora
+
+        _g2p = g2p_en.G2p()
+        _g2p.variables = None
 
         self.homograph2features = _g2p.homograph2features
         self.g2p_dict = self._construct_grapheme2phoneme_dict(phoneme_dict_path)
