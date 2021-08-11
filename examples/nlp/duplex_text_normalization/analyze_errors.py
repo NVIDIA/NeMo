@@ -26,6 +26,7 @@ USAGE Example:
 """
 
 from argparse import ArgumentParser
+from typing import List
 
 from nemo.collections.nlp.data.text_normalization import constants
 
@@ -284,8 +285,8 @@ def analyze(errors_log_fp: str, visualization_fp: str):
 if __name__ == '__main__':
     # Parse argument
     parser = ArgumentParser()
-    parser.add_argument('--errors_log_fp', type='str', help='Path to the error log file', required=True)
-    parser.add_argument('--visualization_fp', type='str', help='Path to the output visualization file', required=True)
+    parser.add_argument('--errors_log_fp', help='Path to the error log file', required=True)
+    parser.add_argument('--visualization_fp', help='Path to the output visualization file', required=True)
     args = parser.parse_args()
 
     analyze(args.errors_log_fp, args.visualization_fp)
