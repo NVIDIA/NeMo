@@ -247,7 +247,7 @@ class MTBottleneckModel(MTEncDecModel):
         else:
             return loss
 
-    @typecheck()
+    # @typecheck()
     def forward(self, src, src_mask, tgt, tgt_mask):
         """
         return_info - if True, returns loss, info_dict with additional information
