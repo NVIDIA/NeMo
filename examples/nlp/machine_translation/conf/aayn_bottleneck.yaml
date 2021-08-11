@@ -135,7 +135,7 @@ model:
     pre_ln: false
     pre_ln_final_layer_norm: true
     arch: seq2seq # seq2seq, bridge, perceiver (see description above)
-    hidden_steps: 16 # fixed number of hidden steps
+    hidden_steps: 32 # fixed number of hidden steps
     hidden_blocks: 1 # number of repeat blocks (see classes for description)
     hidden_init_method: default # see classes for available values
 
