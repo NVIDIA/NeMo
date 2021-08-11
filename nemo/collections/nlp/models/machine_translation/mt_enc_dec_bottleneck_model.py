@@ -217,7 +217,7 @@ class MTBottleneckModel(MTEncDecModel):
             q_z_given_x = torch.distributions.Normal(loc=z_mean, scale=torch.exp(0.5 * z_logv),)
             # average latent distribution to match averaging of observations
             if self.recon_per_token:
-                # TODO: replace mean with division by number of tokens
+                # average latent per dimension - to heuristically match per-token reconstruction
                 log_q_z_given_x = q_z_given_x.log_prob(z).mean(-1).mean(-1).mean()
             else:
                 log_q_z_given_x = q_z_given_x.log_prob(z).sum(-1).sum(-1).mean()
