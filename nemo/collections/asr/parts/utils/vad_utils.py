@@ -395,7 +395,7 @@ def binarization(sequence, per_args):
                 start = i * shift_len
                 speech = True
 
-    # if speech at the end, add final segment
+    # if it's speech at the end, add final segment
     if speech:
         speech_segments.add((start - pad_onset, i * shift_len + pad_offset))
 
@@ -568,7 +568,7 @@ def vad_tune_threshold_on_dev(
     """
     Tune thresholds on dev set. Return best thresholds which gives the lowest detection error rate (DetER) in thresholds.
     Args:
-        thresholds (list): list of thresholds.
+        params (dict): dictionary of parameter to be tuned on.
         vad_pred_method (str): suffix of prediction file. Use to locate file. Should be either in "frame", "mean" or "median".
         vad_pred_dir (str): directory of vad predictions or a file contains the paths of them
         groundtruth_RTTM_dir (str): directory of groundtruch rttm files or a file contains the paths of them.
@@ -588,7 +588,6 @@ def vad_tune_threshold_on_dev(
     params_grid = get_parameter_grid(params)
 
     for param in params_grid:
-
         # perform binarization, filtering accoring to param and write to rttm-like table
         vad_table_dir = generate_vad_segment_table(vad_pred, param, shift_len=0.01, num_workers=20)
 

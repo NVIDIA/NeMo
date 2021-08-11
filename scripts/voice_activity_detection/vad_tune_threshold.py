@@ -21,10 +21,11 @@ from nemo.utils import logging
 
 """
 This script is designed for thresholds tuning for postprocessing of VAD
-See details about it in nemo/collections/asr/parts/utils/binarization
+See details about it in nemo/collections/asr/parts/utils/vad_utils/binarization and filtering
 
 Usage:
-python vad_tune_threshold.py --onset_range="0,1,0.2" --offset_range="0,1,0.2" --min_duration_on_range="0.1,0.8,0.05" --min_duration_off_range="0.1,0.8,0.05" --filter_speech_first=False \
+python vad_tune_threshold.py \
+--onset_range="0,1,0.2" --offset_range="0,1,0.2" --min_duration_on_range="0.1,0.8,0.05" --min_duration_off_range="0.1,0.8,0.05" --filter_speech_first=False \
 --vad_pred=<FULL PATH OF FOLDER OF FRAME LEVEL PREDICTION FILES> \
 --groundtruth_RTTM=<DIRECTORY OF VAD PREDICTIONS OR A FILE CONTAINS THE PATHS OF THEM> \
 --vad_pred_method="median"
