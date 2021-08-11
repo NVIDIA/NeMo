@@ -82,7 +82,7 @@ class ClassifyFst(GraphFst):
         far_file = None
         if cache_dir is not None and cache_dir != 'None':
             os.makedirs(cache_dir, exist_ok=True)
-            far_file = os.path.join(cache_dir, "_en_tn_non_deterministic.far")
+            far_file = os.path.join(cache_dir, f"_{input_case}_en_tn_{deterministic}_deterministic.far")
         if not overwrite_cache and far_file and os.path.exists(far_file):
             self.fst = pynini.Far(far_file, mode='r')['tokenize_and_classify']
             logging.info(f'ClassifyFst.fst was restored from {far_file}.')
