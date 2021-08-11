@@ -58,7 +58,7 @@ Usage:
       model.beam_size=4 \
       model.max_generation_delta=256 \
       model.label_smoothing=0.1 \
-      model.model_type=recon_only \
+      model.model_type=nll \
       model.non_recon_warmup_batches=7500 \
       model.encoder_tokenizer.tokenizer_model=tokenizer.BPE.8192.model  \
       model.decoder_tokenizer.tokenizer_model=tokenizer.BPE.8192.model  \

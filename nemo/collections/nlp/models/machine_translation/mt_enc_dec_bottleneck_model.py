@@ -62,7 +62,7 @@ class MTBottleneckModel(MTEncDecModel):
     def __init__(self, cfg: MTBottleneckModelConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.model_type: str = cfg.get("model_type", "recon_only")
+        self.model_type: str = cfg.get("model_type", "nll")
         self.min_logv: float = cfg.get("min_logv", -6)
         self.latent_size: int = cfg.get("latent_size", -1)
         self.non_recon_warmup_batches: int = cfg.get("non_recon_warmup_batches", 200000)
@@ -77,7 +77,7 @@ class MTBottleneckModel(MTEncDecModel):
             self.eval_loss_fn = NLLLoss(ignore_index=self.decoder_tokenizer.pad_id, reduction='none')
             self.loss_fn._per_token_reduction = False
 
-        if self.model_type not in ["recon_only", "mim", "vae"]:
+        if self.model_type not in ["nll", "mim", "vae"]:
             raise ValueError(f"Unknown model_type = {self.model_type}")
 
         # project bridge dimension back to decoder hidden dimensions
@@ -87,7 +87,7 @@ class MTBottleneckModel(MTEncDecModel):
         self.hidden2latent_mean = build_linear_or_identity(self.encoder.hidden_size, self.latent_size)
 
         # MIM or VAE
-        if self.model_type != "recon_only":
+        if self.model_type != "nll":
             # for probabilistic latent variable models we also need variance
             self.hidden2latent_logv = build_linear_or_identity(self.encoder.hidden_size, self.latent_size)
 
@@ -129,12 +129,12 @@ class MTBottleneckModel(MTEncDecModel):
         """
         Sample latent code z with reparameterization from bridge for
         probabilistic latent variable models (e.g., mim, vae),
-        or return value for non-probabilistic models (recon_only)
+        or return value for non-probabilistic models (nll)
         """
         # all models have mean
         z_mean = self.hidden2latent_mean(hidden)
 
-        if self.model_type == "recon_only":
+        if self.model_type == "nll":
             # reconstruction only
             z = z_mean
             z_logv = torch.zeros_like(z)
@@ -235,7 +235,7 @@ class MTBottleneckModel(MTEncDecModel):
             info_dict["log_p_z"] = log_p_z.detach().cpu()
             info_dict["kl_div_q_p"] = (log_q_z_given_x - log_p_z).detach().cpu()
 
-        elif self.model_type == "recon_only":
+        elif self.model_type == "nll":
             loss = -log_p_x_given_z
 
         if return_info:
