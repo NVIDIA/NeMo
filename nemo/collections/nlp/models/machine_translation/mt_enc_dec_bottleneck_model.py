@@ -71,10 +71,10 @@ class MTBottleneckModel(MTEncDecModel):
         if self.latent_size < 0:
             self.latent_size = self.encoder.hidden_size
 
-        # TODO: add label smoothing support for per-sample reconstruction loss
         if not self.recon_per_token:
-            loss_fn = NLLLoss(ignore_index=self.decoder_tokenizer.pad_id, reduction='none',)
-            self.loss_fn = self.eval_loss_fn = loss_fn
+            # disable reduction for train and eval loss
+            self.eval_loss_fn = NLLLoss(ignore_index=self.decoder_tokenizer.pad_id, reduction='none')
+            self.loss_fn._per_token_reduction = False
 
         if self.model_type not in ["recon_only", "mim", "vae"]:
             raise ValueError(f"Unknown model_type = {self.model_type}")
