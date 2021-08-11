@@ -191,6 +191,9 @@ class MTBottleneckModel(MTEncDecModel):
             tokens = output_mask.sum()
             log_p_x_given_z_per_token = log_p_x_given_z_per_token.sum().detach() / tokens
 
+            if log_p_x_given_z_per_token > 0:
+                import pudb; pudb.set_trace()
+
             info_dict["log_p_x_given_z"] = log_p_x_given_z.detach().cpu()
 
         info_dict["log_p_x_given_z_per_token"] = log_p_x_given_z_per_token.detach().cpu()
