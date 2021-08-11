@@ -179,10 +179,10 @@ class MTBottleneckModel(MTEncDecModel):
             log_p_x_given_z_per_token = log_p_x_given_z_per_token.detach()
         else:
             # averaging of log_p_x_given_z per sample
-            output_mask = (tgt_labels != self.decoder_tokenizer.pad_id).type_as(log_probs)
+            output_mask = (tgt_labels != self.decoder_tokenizer.pad_id).type_as(tgt_log_probs)
 
             log_p_x_given_z_per_token = (
-                -recon_loss_fn(log_probs=tgt_log_probs, labels=tgt_labels,).view(log_probs.shape[:2]) * output_mask
+                -recon_loss_fn(log_probs=tgt_log_probs, labels=tgt_labels,).view(tgt_log_probs.shape[:2]) * output_mask
             )
 
             # probability per sample
