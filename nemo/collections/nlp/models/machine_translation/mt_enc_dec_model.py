@@ -214,7 +214,7 @@ class MTEncDecModel(EncDecNLPModel):
     def test_encoder_ids(self, ids, raise_error=False):
         invalid_ids = (ids >= self.encoder_tokenizer.vocab_size).any()
 
-        if raise_error and (not valid_ids):
+        if raise_error and invalid_ids:
             raise ValueError("Encoder ids are out of range (tip: check encoder tokenizer)")
 
         return not invalid_ids
@@ -222,7 +222,7 @@ class MTEncDecModel(EncDecNLPModel):
     def test_decoder_ids(self, ids, raise_error=False):
         invalid_ids = (ids >= self.decoder_tokenizer.vocab_size).any()
 
-        if raise_error and (not valid_ids):
+        if raise_error and invalid_ids:
             raise ValueError("Decoder ids are out of range (tip: check decoder tokenizer)")
 
         return not invalid_ids
