@@ -249,6 +249,9 @@ class MTBottleneckModel(MTEncDecModel):
         return_info - if True, returns loss, info_dict with additional information
                       regarding the loss that can be logged
         """
+        # test src/tgt for id range (i.e., hellp in catching wrong tokenizer)
+        self.test_encoder_ids(src, raise_error=True)
+        self.test_decoder_ids(tgt, raise_error=True)
 
         enc_hiddens, enc_mask = self.encoder(input_ids=src, encoder_mask=src_mask, return_mask=True,)
 
