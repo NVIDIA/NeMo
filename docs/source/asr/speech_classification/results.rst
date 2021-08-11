@@ -44,7 +44,7 @@ You may perform inference and transcribe a sample of speech after loading the mo
 
 Setting argument ``logprobs`` to True would return the log probabilities instead of transcriptions. You may find more details in `Modules <../api.html#modules>`__.
 
-Learn how to fine tune on your own data or on subset classes in ``<NeMo_git_root>/tutorials/asr/03_Speech_Commands.ipynb``
+Learn how to fine tune on your own data or on subset classes in ``<NeMo_git_root>/tutorials/asr/Speech_Commands.ipynb``
 f
 
 **Run VAD inference:**

@@ -53,7 +53,10 @@ class DuplexTaggerModel(NLPModel):
         self.loss_fct = nn.CrossEntropyLoss(ignore_index=constants.LABEL_PAD_TOKEN_ID)
 
         # setup to track metrics
-        self.classification_report = ClassificationReport(self.num_labels, mode='micro', dist_sync_on_step=True)
+        label_ids = {l: idx for idx, l in enumerate(constants.ALL_TAG_LABELS)}
+        self.classification_report = ClassificationReport(
+            self.num_labels, label_ids, mode='micro', dist_sync_on_step=True
+        )
 
         # Language
         self.lang = cfg.get('lang', None)
@@ -150,28 +153,27 @@ class DuplexTaggerModel(NLPModel):
             texts.append([prefix] + sent)
 
         # Apply the model
-        prefix = constants.TN_PREFIX
-        texts = [[prefix] + sent for sent in sents]
         encodings = self._tokenizer(
             texts, is_split_into_words=True, padding=True, truncation=True, return_tensors='pt'
         )
         logits = self.model(**encodings.to(self.device)).logits
         pred_indexes = torch.argmax(logits, dim=-1).tolist()
 
-        # Extract all_tag_preds
+        # Extract all_tag_preds for words
         all_tag_preds = []
         batch_size, max_len = encodings['input_ids'].size()
         for ix in range(batch_size):
-            raw_tag_preds = [constants.ALL_TAG_LABELS[p] for p in pred_indexes[ix][1:]]
+            raw_tag_preds = [
+                constants.ALL_TAG_LABELS[p] for p in pred_indexes[ix][2:]
+            ]  # remove first special token and task prefix token
             tag_preds, previous_word_idx = [], None
-            word_ids = encodings.word_ids(batch_index=ix)
+            word_ids = encodings.word_ids(batch_index=ix)[2:]
             for jx, word_idx in enumerate(word_ids):
                 if word_idx is None:
                     continue
-                elif word_idx != previous_word_idx:
-                    tag_preds.append(raw_tag_preds[jx - 1])
+                if word_idx != previous_word_idx:
+                    tag_preds.append(raw_tag_preds[jx])  # without special token at index 0
                 previous_word_idx = word_idx
-            tag_preds = tag_preds[1:]
             all_tag_preds.append(tag_preds)
 
         # Postprocessing
@@ -191,7 +193,7 @@ class DuplexTaggerModel(NLPModel):
         starts with I_TRANSFORM_TAG (instead of B_TRANSFORM_TAG).
 
         Args:
-            words: The words in the input text
+            words: The words in the input sentence
             inst_dir: The direction of the instance (i.e., INST_BACKWARD or INST_FORWARD).
             preds: The raw tag predictions
 
@@ -199,7 +201,7 @@ class DuplexTaggerModel(NLPModel):
         """
         final_preds = []
         for ix, p in enumerate(preds):
-            # a TRANSFORM span starts with I_TRANSFORM_TAG
+            # a TRANSFORM span starts with I_TRANSFORM_TAG, change to B_TRANSFORM_TAG
             if p == constants.I_PREFIX + constants.TRANSFORM_TAG:
                 if ix == 0 or (not constants.TRANSFORM_TAG in final_preds[ix - 1]):
                     final_preds.append(constants.B_PREFIX + constants.TRANSFORM_TAG)
@@ -290,6 +292,7 @@ class DuplexTaggerModel(NLPModel):
             tagger_data_augmentation,
             cfg.lang,
             cfg.get('use_cache', False),
+            cfg.get('max_insts', -1),
         )
         data_collator = DataCollatorForTokenClassification(self._tokenizer)
         dl = torch.utils.data.DataLoader(

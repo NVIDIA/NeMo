@@ -47,6 +47,7 @@ class TextNormalizationDecoderDataset(Dataset):
         lang: language of the dataset
         do_basic_tokenize: a flag indicates whether to do some basic tokenization for the inputs
         use_cache: Enables caching to use pickle format to store and read data from
+        max_insts: Maximum number of instances (-1 means no limit)
     """
 
     def __init__(
@@ -60,16 +61,21 @@ class TextNormalizationDecoderDataset(Dataset):
         lang: str,
         do_basic_tokenize: bool,
         use_cache: bool = False,
+        max_insts: int = -1,
     ):
         assert mode in constants.MODES
         assert lang in constants.SUPPORTED_LANGS
         self.mode = mode
         self.lang = lang
         self.use_cache = use_cache
+        self.max_insts = max_insts
 
         # Get cache path
         data_dir, filename = os.path.split(input_file)
-        cached_data_file = os.path.join(data_dir, f'cached_decoder_{filename}_{tokenizer_name}_{lang}.pkl')
+        tokenizer_name_normalized = tokenizer_name.replace('/', '_')
+        cached_data_file = os.path.join(
+            data_dir, f'cached_decoder_{filename}_{tokenizer_name_normalized}_{lang}_{max_insts}.pkl'
+        )
 
         if use_cache and os.path.exists(cached_data_file):
             logging.warning(
@@ -81,6 +87,8 @@ class TextNormalizationDecoderDataset(Dataset):
                 self.insts, self.inputs, self.examples, self.tn_count, self.itn_count = data
         else:
             raw_insts = read_data_file(input_file)
+            if max_insts >= 0:
+                raw_insts = raw_insts[:max_insts]
 
             # Convert raw instances to TaggerDataInstance
             insts, inputs, targets = [], [], []
@@ -235,13 +243,16 @@ class DecoderDataInstance:
         w_input = w_left + [extra_id_0] + c_w_words + [extra_id_1] + w_right
         s_input = s_left + [extra_id_0] + c_s_words + [extra_id_1] + s_right
         if inst_dir == constants.INST_BACKWARD:
+            input_center_words = c_s_words
             input_words = [constants.ITN_PREFIX] + s_input
             output_words = c_w_words
         if inst_dir == constants.INST_FORWARD:
+            input_center_words = c_w_words
             input_words = [constants.TN_PREFIX] + w_input
             output_words = c_s_words
         # Finalize
         self.input_str = ' '.join(input_words)
+        self.input_center_str = ' '.join(input_center_words)
         self.output_str = ' '.join(output_words)
         self.direction = inst_dir
         self.semiotic_class = semiotic_class

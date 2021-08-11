@@ -130,10 +130,10 @@ then we will simply append the prefix ``tn`` to it and so the final input to our
 be ``tn I live in tn 123 King Ave``. Similarly, for the ITN problem, we just append the prefix ``itn``
 to the input.
 
-To improve the effectiveness and robustness of our models, we also apply some simple data
+To improve the effectiveness and robustness of our models, we also experiment with some simple data
 augmentation techniques during training.
 
-Data Augmentation for Training DuplexTaggerModel
+Data Augmentation for Training DuplexTaggerModel (Set to be False by default)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 In the Google English TN training data, about 93% of the tokens are not in any semiotic span. In other words, the ground-truth tags of most tokens are of trivial types (i.e., ``SAME`` and ``PUNCT``). To alleviate this class imbalance problem,
 for each original instance with several semiotic spans, we create a new instance by simply concatenating all the semiotic spans together. For example, considering the following ITN instance:
@@ -144,8 +144,7 @@ Augmented instance: ``[two|B-TRANSFORM] [thousand|I-TRANSFORM] [two|I-TRANSFORM]
 
 The argument ``data.train_ds.tagger_data_augmentation`` in the config file controls whether this data augmentation will be enabled or not.
 
-
-Data Augmentation for Training DuplexDecoderModel
+Data Augmentation for Training DuplexDecoderModel (Set to be True by default)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Since the tagger may not be perfect, the inputs to the decoder may not all be semiotic spans. Therefore, to make the decoder become more robust against the tagger's potential errors,
 we train the decoder with not only semiotic spans but also with some other more "noisy" spans. This way even if the tagger makes some errors, there will still be some chance that the
