@@ -17,11 +17,13 @@ import pytest
 from nemo_text_processing.inverse_text_normalization.inverse_normalize import InverseNormalizer
 from parameterized import parameterized
 
-from ..utils import PYNINI_AVAILABLE, parse_test_case_file
+from ..utils import CACHE_DIR, PYNINI_AVAILABLE, parse_test_case_file
 
 
 class TestMoney:
-    inverse_normalizer = InverseNormalizer(lang='de') if PYNINI_AVAILABLE else None
+    inverse_normalizer = (
+        InverseNormalizer(lang='de', cache_dir=CACHE_DIR, overwrite_cache=False) if PYNINI_AVAILABLE else None
+    )
 
     @parameterized.expand(parse_test_case_file('de/data_inverse_text_normalization/test_cases_money.txt'))
     @pytest.mark.skipif(

@@ -71,20 +71,22 @@ class NormalizerWithAudio(Normalizer):
     Args:
         input_case: expected input capitalization
         lang: language
-        use_cache: whether to use saved .far grammar files
+        cache_dir: path to a dir with .far grammar file. Set to None to avoid using cache.
+        overwrite_cache: set to True to overwrite .far files
     """
 
-    def __init__(self, input_case: str, lang: str = 'en', use_cache: bool = True):
+    def __init__(self, input_case: str, lang: str = 'en', cache_dir: str = None, overwrite_cache: bool = False):
         if lang == 'en':
             from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_with_audio import ClassifyFst
             from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
 
-            self.tagger = ClassifyFst(input_case=input_case, deterministic=False, use_cache=use_cache)
+            self.tagger = ClassifyFst(
+                input_case=input_case, deterministic=False, cache_dir=cache_dir, overwrite_cache=overwrite_cache
+            )
             self.verbalizer = VerbalizeFinalFst(deterministic=False)
         else:
             super().__init__(input_case=input_case, lang=lang, deterministric=False)
         self.lang = lang
-        self.use_cache = use_cache
 
     def normalize(
         self,
@@ -260,7 +262,13 @@ def parse_args():
     parser.add_argument(
         "--no_punct_post_process", help="set to True to disable punctuation post processing", action="store_true"
     )
-    parser.add_argument("--no_cache", help="set to True to re-create .far grammar files", action="store_true")
+    parser.add_argument("--overwrite_cache", help="set to True to re-create .far grammar files", action="store_true")
+    parser.add_argument(
+        "--cache_dir",
+        help="path to a dir with .far grammar file. Set to None to avoid using cache",
+        default=None,
+        type=str,
+    )
     return parser.parse_args()
 
 
@@ -290,7 +298,9 @@ def normalize_manifest(args):
     Args:
         args.audio_data: path to .json manifest file.
     """
-    normalizer = NormalizerWithAudio(input_case=args.input_case, lang=args.language, use_cache=not args.no_cache)
+    normalizer = NormalizerWithAudio(
+        input_case=args.input_case, lang=args.language, cache_dir=args.cache_dir, overwrite_cache=args.overwrite_cache
+    )
     manifest_out = args.audio_data.replace('.json', '_normalized.json')
     asr_model = None
     with open(args.audio_data, 'r') as f:
@@ -313,7 +323,12 @@ if __name__ == "__main__":
 
     start = time.time()
     if args.text:
-        normalizer = NormalizerWithAudio(input_case=args.input_case, lang=args.language, use_cache=not args.no_cache)
+        normalizer = NormalizerWithAudio(
+            input_case=args.input_case,
+            lang=args.language,
+            cache_dir=args.cache_dir,
+            overwrite_cache=args.overwrite_cache,
+        )
         if os.path.exists(args.text):
             with open(args.text, 'r') as f:
                 args.text = f.read().strip()

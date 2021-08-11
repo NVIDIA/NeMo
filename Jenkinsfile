@@ -79,15 +79,34 @@ pipeline {
     stage('L0: TN/ITN Tests CPU') {
       when {
         anyOf {
-          branch 'tn_*'
+          branch 'tn_'
           changeRequest target: 'main'
         }
       }
-      steps {
-        // create .far graph for non-deterministic Eng TN first
-        sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2'
-        // run TN/ITN tests
-        sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/ -m "not pleasefixme" --cpu'
+      failFast true
+      parallel {
+        stage('Create En TN grammars') {
+          steps {
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize.py "1" --cache_dir /home/TestData/nlp/text_norm/ci --overwrite_cache'
+          }
+        }
+        stage('Create En ITN grammars') {
+          steps {
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language en "twenty" --cache_dir /home/TestData/nlp/text_norm/ci --overwrite_cache'
+          }
+        }
+        stage('Create & Run German ITN') {
+          steps {
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language de "zwanzig" --cache_dir /home/TestData/nlp/text_norm/ci --overwrite_cache'
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/de -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci'
+          }
+        }
+        stage('Create En non-deterministic TN & Run all En TN/ITN tests') {
+          steps {
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2'
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/en/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci'
+          }
+        }
       }
     }
 

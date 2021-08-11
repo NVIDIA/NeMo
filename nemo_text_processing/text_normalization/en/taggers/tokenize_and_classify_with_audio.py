@@ -71,18 +71,24 @@ class ClassifyFst(GraphFst):
         input_case: accepting either "lower_cased" or "cased" input.
         deterministic: if True will provide a single transduction option,
             for False multiple options (used for audio-based normalization)
-        use_cache: set to True to use saved .far grammar file
+        cache_dir: path to a dir with .far grammar file. Set to None to avoid using cache.
+        overwrite_cache: set to True to overwrite .far files
     """
 
-    def __init__(self, input_case: str, deterministic: bool = True, use_cache: bool = True):
+    def __init__(
+        self, input_case: str, deterministic: bool = True, cache_dir: str = None, overwrite_cache: bool = True
+    ):
         super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
 
-        far_file = get_abs_path("_en_tn_non_deterministic.far")
-        if use_cache and os.path.exists(far_file):
+        far_file = None
+        if cache_dir is not None or cache_dir == 'None':
+            os.makedirs(cache_dir, exist_ok=True)
+            far_file = os.path.join(cache_dir, "_en_tn_non_deterministic.far")
+        if not overwrite_cache and far_file and os.path.exists(far_file):
             self.fst = pynini.Far(far_file, mode='r')['tokenize_and_classify']
             logging.info(f'ClassifyFst.fst was restored from {far_file}.')
         else:
-            logging.info(f'Re-creating ClassifyFst grammars. This might take some time...')
+            logging.info(f'Creating ClassifyFst grammars. This might take some time...')
             # TAGGERS
             cardinal = CardinalFst(deterministic=deterministic)
             cardinal_graph = cardinal.fst
@@ -160,5 +166,7 @@ class ClassifyFst(GraphFst):
             graph = delete_space + graph + delete_space
 
             self.fst = graph.optimize()
-            generator_main(far_file, {"tokenize_and_classify": self.fst})
-            logging.info(f'ClassifyFst grammars are saved to {far_file}.')
+
+            if far_file:
+                generator_main(far_file, {"tokenize_and_classify": self.fst})
+                logging.info(f'ClassifyFst grammars are saved to {far_file}.')

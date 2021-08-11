@@ -37,16 +37,26 @@ class Normalizer:
     Args:
         input_case: expected input capitalization
         lang: language specifying the TN rules, by default: English
-        use_cache: whether to use saved .far grammar files
+        cache_dir: path to a dir with .far grammar file. Set to None to avoid using cache.
+        overwrite_cache: set to True to overwrite .far files
     """
 
-    def __init__(self, input_case: str, lang: str = 'en', deterministric: bool = True, use_cache: bool = False):
+    def __init__(
+        self,
+        input_case: str,
+        lang: str = 'en',
+        deterministric: bool = True,
+        cache_dir: str = None,
+        overwrite_cache: bool = False,
+    ):
         assert input_case in ["lower_cased", "cased"]
 
         if lang == 'en':
             from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
-        self.tagger = ClassifyFst(input_case=input_case, deterministic=deterministric, use_cache=use_cache)
+        self.tagger = ClassifyFst(
+            input_case=input_case, deterministic=deterministric, cache_dir=cache_dir, overwrite_cache=overwrite_cache
+        )
         self.verbalizer = VerbalizeFinalFst(deterministic=deterministric)
         self.parser = TokenParser()
 
@@ -235,12 +245,19 @@ def parse_args():
     parser.add_argument(
         "--punct_pre_process", help="set to True to enable punctuation pre processing", action="store_true"
     )
+    parser.add_argument("--overwrite_cache", help="set to True to re-create .far grammar files", action="store_true")
+    parser.add_argument(
+        "--cache_dir",
+        help="path to a dir with .far grammar file. Set to None to avoid using cache",
+        default=None,
+        type=str,
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    normalizer = Normalizer(input_case=args.input_case)
+    normalizer = Normalizer(input_case=args.input_case, cache_dir=args.cache_dir, overwrite_cache=args.overwrite_cache)
     print(
         normalizer.normalize(
             args.input_string,
