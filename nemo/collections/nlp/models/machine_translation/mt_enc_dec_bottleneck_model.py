@@ -189,7 +189,6 @@ class MTBottleneckModel(MTEncDecModel):
 
             info_dict["log_p_x_given_z"] = log_p_x_given_z.detach().cpu()
 
-        import pudb; pudb.set_trace()
         info_dict["log_p_x_given_z_per_token"] = log_p_x_given_z_per_token.detach().cpu()
 
         # loss warmup during training only
@@ -327,6 +326,7 @@ class MTBottleneckModel(MTEncDecModel):
                 # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
                 # is excess.
                 batch[i] = batch[i].squeeze(dim=0)
+        import pudb; pudb.set_trace()
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
         z, z_mean, z_logv, z_mask, tgt_log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
         train_loss, info_dict = self.loss(
