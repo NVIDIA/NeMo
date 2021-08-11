@@ -32,7 +32,6 @@ from nemo.collections.common.losses import NLLLoss
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTBottleneckModelConfig
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.collections.nlp.modules.common.transformer import AttentionBridge, TopKSequenceGenerator
-from nemo.core.classes.common import typecheck
 from nemo.utils import logging, model_utils
 
 __all__ = ['MTBottleneckModel']
@@ -247,7 +246,6 @@ class MTBottleneckModel(MTEncDecModel):
         else:
             return loss
 
-    # @typecheck()
     def forward(self, src, src_mask, tgt, tgt_mask):
         """
         return_info - if True, returns loss, info_dict with additional information
