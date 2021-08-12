@@ -1,4 +1,4 @@
-name: CI-SparrowHawk
+name: CI-ITN
 
 on:
   push:
@@ -20,34 +20,34 @@ on:
 #      - 'tests/nemo_text_preprocessing/**'
 
 jobs:
-  ci-sparrowhawk:
+  ci-itn:
     runs-on: ubuntu-latest
+
+    container:
+      image: conda/miniconda3
 
     steps:
     - uses: actions/checkout@v2
 
-#    - name: Update Conda
-#      run: |
-#        conda update -n base -c defaults conda -y
-#        conda install conda-build -y
-#        apt-get update && apt-get install -y --reinstall build-essential
-#        apt-get install -y make libsndfile1 sox libfreetype6 ffmpeg swig
-    - name: Install nemo core
+    - name: Update Conda
       run: |
-        pip install -e .
+        conda update -n base -c defaults conda -y
+        conda install conda-build -y
+        apt-get update && apt-get install -y --reinstall build-essential
+        apt-get install -y make libsndfile1 sox libfreetype6 ffmpeg swig
 
-    - name: Build TN/ITN docker
+    - name: Install test dependencies
+      run:  |
+        # install test requirements
+        pip install -r requirements/requirements_test.txt
+
+    - name: Install dependencies
       run: |
-        cd tools/text_processing_deployment
-        /bin/bash docker/build.sh
+        # Install ITN requirements
+        /bin/bash nemo_text_processing/setup.sh
+        # Install NeMo
+        pip install -e ".[asr,text_processing]"
 
-    - name: Run TN grammars for English
+    - name: ITN Tests
       run: |
-        cd tools/text_processing_deployment
-        /bin/bash export_grammars.sh --GRAMMARS=tn_grammars --LANGUAGE=en --MODE=test
-
-    - name: Run ITN grammars for English
-      run: |
-        cd tools/text_processing_deployment
-        /bin/bash export_grammars.sh --GRAMMARS=itn_grammars --LANGUAGE=en --MODE=test
-
+        pytest tests/nemo_text_processing/

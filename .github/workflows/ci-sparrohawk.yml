@@ -1,0 +1,53 @@
+#name: CI-SparrowHawk
+#
+#on:
+#  push:
+#    branches:
+#      - '**tn**'
+#
+##    paths:
+##      - 'nemo_text_preprocessing/**'
+##      - 'tools/text_processing_deployment/**'
+##      - 'tests/nemo_text_preprocessing/**'
+#
+#  pull_request:
+#    branches:
+#      - '**tn**'
+#
+##    paths:
+##      - 'nemo_text_preprocessing/**'
+##      - 'tools/text_processing_deployment/**'
+##      - 'tests/nemo_text_preprocessing/**'
+#
+#jobs:
+#  ci-sparrowhawk:
+#    runs-on: ubuntu-latest
+#
+#    steps:
+#    - uses: actions/checkout@v2
+#
+##    - name: Update Conda
+##      run: |
+##        conda update -n base -c defaults conda -y
+##        conda install conda-build -y
+##        apt-get update && apt-get install -y --reinstall build-essential
+##        apt-get install -y make libsndfile1 sox libfreetype6 ffmpeg swig
+#    - name: Install nemo core
+#      run: |
+#        pip install -e .
+#
+#    - name: Build TN/ITN docker
+#      run: |
+#        cd tools/text_processing_deployment
+#        /bin/bash docker/build.sh
+#
+#    - name: Run TN grammars for English
+#      run: |
+#        cd tools/text_processing_deployment
+#        /bin/bash export_grammars.sh --GRAMMARS=tn_grammars --LANGUAGE=en --MODE=test
+#
+#    - name: Run ITN grammars for English
+#      run: |
+#        cd tools/text_processing_deployment
+#        /bin/bash export_grammars.sh --GRAMMARS=itn_grammars --LANGUAGE=en --MODE=test
+#
