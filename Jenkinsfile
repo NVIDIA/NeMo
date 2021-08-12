@@ -1420,11 +1420,11 @@ pipeline {
             trainer.gpus="[0]" \
             +trainer.fast_dev_run=True \
             trainer.accelerator=null \
-            trainer.max_epochs=-1 \
-            model.train_ds.batch_size=8 \
-            model.train_ds.num_workers=1 \
-            model.validation_ds.batch_size=8 \
-            model.validation_ds.num_workers=1 \
+            +trainer.max_epochs=-1 \
+            model.train_ds.dataloader_params.batch_size=8 \
+            model.train_ds.dataloader_params.num_workers=1 \
+            model.validation_ds.dataloader_params.batch_size=8 \
+            model.validation_ds.dataloader_params.num_workers=1 \
             model.generator.upsample_initial_channel=64 \
             +model.debug=true \
             ~trainer.check_val_every_n_epoch'
