@@ -119,8 +119,8 @@ pipeline {
     stage('L2: NeMo text processing') {
       when {
         anyOf {
-          branch 'tn_'
-          branch 'itn_'
+          branch pattern: "tn_*", comparator: "REGEXP"
+          branch pattern: "itn_*", comparator: "REGEXP"
         }
       }
       failFast true
