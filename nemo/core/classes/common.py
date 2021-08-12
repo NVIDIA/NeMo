@@ -41,6 +41,7 @@ except ModuleNotFoundError:
 import wrapt
 
 import nemo
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
 from nemo.utils import logging
 from nemo.utils.cloud import maybe_download_from_cloud
