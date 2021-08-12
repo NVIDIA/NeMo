@@ -46,7 +46,7 @@ from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGe
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging, model_utils
 
-__all__ = ['MTEncDecModel']
+__all__ = ['MTEncDecModel', 'RetrievalMTEncDecModel']
 
 
 class MTEncDecModel(EncDecNLPModel):
@@ -842,6 +842,66 @@ class MTEncDecModel(EncDecNLPModel):
             self.train(mode=mode)
         return translations
 
+    # TODO: We should drop source/target_lang arguments in favor of using self.src/tgt_language
+    @torch.no_grad()
+    def translate_retrieval(self, ret_src, ret_tgt, text: List[str], source_lang: str = None, target_lang: str = None, nn_list=None) -> List[str]:
+        """
+        Translates list of sentences from source language to target language.
+        Should be regular text, this method performs its own tokenization/de-tokenization
+        Args:
+            text: list of strings to translate
+            source_lang: if not None, corresponding MosesTokenizer and MosesPunctNormalizer will be run
+            target_lang: if not None, corresponding MosesDecokenizer will be run
+        Returns:
+            list of translated strings
+        """
+        # __TODO__: This will reset both source and target processors even if you want to reset just one.
+        if source_lang is not None or target_lang is not None:
+            self.setup_pre_and_post_processing_utils(source_lang, target_lang)
+
+        mode = self.training
+        prepend_ids = []
+        if self.multilingual:
+            if source_lang is None or target_lang is None:
+                raise ValueError("Expect source_lang and target_lang to infer for multilingual model.")
+            src_symbol = self.encoder_tokenizer.token_to_id('<' + source_lang + '>')
+            tgt_symbol = self.encoder_tokenizer.token_to_id('<' + target_lang + '>')
+            prepend_ids = [src_symbol if src_symbol in self.multilingual_ids else tgt_symbol]
+        try:
+            self.eval()
+            inputs = []
+            for i, txt in enumerate(text):
+                if self.source_processor is not None:
+                    txt = self.source_processor.normalize(txt)
+                    txt = self.source_processor.tokenize(txt)
+                ids = self.encoder_tokenizer.text_to_ids(txt)
+                ids = prepend_ids + [self.encoder_tokenizer.bos_id] + ids + [self.encoder_tokenizer.eos_id]
+                for nn in nn_list[i]:
+                    if self.source_processor is not None:
+                        txt_src = self.source_processor.normalize(ret_src[nn].strip())
+                        txt_src = self.source_processor.tokenize(txt_src)
+                        txt_tgt = self.source_processor.normalize(ret_tgt[nn].strip())
+                        txt_tgt = self.source_processor.tokenize(txt_tgt)
+                    src_ids = self.encoder_tokenizer.text_to_ids(txt_src)
+                    tgt_ids = self.decoder_tokenizer.text_to_ids(txt_tgt)
+                    ids += [self.encoder_tokenizer.bos_id] + src_ids + [self.encoder_tokenizer.eos_id]
+                    ids += [self.encoder_tokenizer.bos_id] + tgt_ids + [self.encoder_tokenizer.eos_id]
+                if len(ids) > 510:
+                    print('length exceeded. truncating')
+                    ids = ids[:510]
+                inputs.append(ids)
+            max_len = max(len(txt) for txt in inputs)
+            src_ids_ = np.ones((len(inputs), max_len)) * self.encoder_tokenizer.pad_id
+            for i, txt in enumerate(inputs):
+                src_ids_[i][: len(txt)] = txt
+
+            src_mask = torch.FloatTensor((src_ids_ != self.encoder_tokenizer.pad_id)).to(self.device)
+            src = torch.LongTensor(src_ids_).to(self.device)
+            _, translations = self.batch_translate(src, src_mask)
+        finally:
+            self.train(mode=mode)
+        return translations
+
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
         """
@@ -922,3 +982,13 @@ class MTEncDecModel(EncDecNLPModel):
         result.append(model)
 
         return result
+
+
+class RetrievalMTEncDecModel(MTEncDecModel):
+    """
+    Retrieval augmented Encoder-decoder machine translation model. 
+    """
+
+    def __init__(self, cfg: MTEncDecModelConfig, trainer: Trainer = None):
+        super().__init__(cfg, trainer=trainer)
+

@@ -25,6 +25,7 @@ USAGE Example:
 from argparse import ArgumentParser
 
 import torch
+import numpy as np
 
 import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.modules.common.transformer import (
@@ -48,11 +49,23 @@ def main():
     # shallow fusion specific parameters
     parser.add_argument("--lm_model", type=str, default=None, help="")
     parser.add_argument("--fusion_coef", type=float, default=0.0, help="")
+    # Retrieval specific parameters
+    parser.add_argument('--retrieval', default=False, action='store_true')
+    parser.add_argument("--ret_src", type=str, default='/home/soumyes/nmt/retrieval/data/wmt/train.clean.en-de.tok.en.shuffled', help="")
+    parser.add_argument("--ret_tgt", type=str, default='/home/soumyes/nmt/retrieval/data/wmt/train.clean.en-de.tok.de.shuffled', help="")
+    parser.add_argument("--index_file", type=str, default='/home/soumyes/nmt/retrieval/data/bert-base-indices/newstest2019-en-de.npy', help="")
+    parser.add_argument('--use_add_index', default=False, action='store_true')
+    parser.add_argument("--ret_src_add", type=str, default='/home/soumyes/nmt/retrieval/data/wmt/newstest2019-en-de.src', help="")
+    parser.add_argument("--ret_tgt_add", type=str, default='/home/soumyes/nmt/retrieval/data/wmt/newstest2019-en-de.ref', help="")
+    parser.add_argument("--nns", type=int, default=2, help="")
 
     args = parser.parse_args()
     torch.set_grad_enabled(False)
     if args.model.endswith(".nemo"):
         logging.info("Attempting to initialize from .nemo file")
+        # if args.retrieval:
+        #     model = nemo_nlp.models.machine_translation.RetrievalMTEncDecModel.restore_from(restore_path=args.model)
+        # else:
         model = nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(restore_path=args.model)
         src_text = []
         tgt_text = []
@@ -94,12 +107,27 @@ def main():
 
     logging.info(f"Translating: {args.srctext}")
 
+    if args.retrieval:
+        print('Doing Retrieval')
+        nn_list = np.load(args.index_file)[:,:args.nns]
+        ret_src = open(args.ret_src, 'r').readlines()
+        ret_tgt = open(args.ret_tgt, 'r').readlines()
+        if args.use_add_index:
+            ret_src += open(args.ret_src_add, 'r').readlines()
+            ret_tgt += open(args.ret_tgt_add, 'r').readlines()
+
     count = 0
+    start = 0
     with open(args.srctext, 'r') as src_f:
         for line in src_f:
             src_text.append(line.strip())
             if len(src_text) == args.batch_size:
-                res = model.translate(text=src_text, source_lang=args.source_lang, target_lang=args.target_lang)
+                if args.retrieval:
+                    # import ipdb;ipdb.set_trace()
+                    res = model.translate_retrieval(ret_src, ret_tgt, text=src_text, source_lang=args.source_lang, target_lang=args.target_lang, nn_list=nn_list[start:start+args.batch_size])
+                    start=start+args.batch_size
+                else:
+                    res = model.translate(text=src_text, source_lang=args.source_lang, target_lang=args.target_lang)
                 if len(res) != len(src_text):
                     print(len(res))
                     print(len(src_text))
@@ -108,10 +136,13 @@ def main():
                 tgt_text += res
                 src_text = []
             count += 1
-            # if count % 300 == 0:
-            #    print(f"Translated {count} sentences")
+            if count % 300 == 0:
+               print(f"Translated {count} sentences")
         if len(src_text) > 0:
-            tgt_text += model.translate(text=src_text, source_lang=args.source_lang, target_lang=args.target_lang)
+            if args.retrieval:
+                tgt_text += model.translate_retrieval(ret_src, ret_tgt, text=src_text, source_lang=args.source_lang, target_lang=args.target_lang, nn_list=nn_list[start:])
+            else:
+                tgt_text += model.translate(text=src_text, source_lang=args.source_lang, target_lang=args.target_lang)
 
     with open(args.tgtout, 'w') as tgt_f:
         for line in tgt_text:

@@ -28,6 +28,7 @@ from pytorch_lightning import Trainer
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import create_spt_model
 from nemo.collections.nlp.data.language_modeling.sentence_dataset import SentenceDataset
 from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataset
+from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import RetrievalTranslationDataset
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer, get_tokenizer
 from nemo.utils import logging
@@ -507,13 +508,15 @@ class MTDataPreproc:
     @staticmethod
     def _get_lines_partition(num_lines, lines_per_dataset_fragment):
         # create partition based on fragment size
+        # if lines_per_dataset_fragment == -1:
+        #     fragment_indices =[0, num_lines]
         fragment_indices = []
         for i in range(0, num_lines, lines_per_dataset_fragment):
             fragment_indices.append([i, i + lines_per_dataset_fragment])
         # modify last indices
-        last_indices = fragment_indices.pop()
-        last_indices[1] = -1
-        fragment_indices.append(last_indices)
+        # last_indices = fragment_indices.pop()
+        # last_indices[1] = -1
+        # fragment_indices.append(last_indices)
         # if fragment_indices[-1][1] >= num_lines:
         #     fragment_indices.pop()
         return fragment_indices
@@ -918,6 +921,23 @@ class MTDataPreproc:
             cache_data_per_node=False,
             use_cache=False,
         )
+
+        # dataset = RetrievalTranslationDataset(
+        #     dataset_src=src_fname,
+        #     dataset_tgt=tgt_fname,
+        #     dataset_retrieval='/home/soumyes/nmt/retrieval/data/bert-base-indices/train-en-de.npy',
+        #     tokens_in_batch=num_tokens,
+        #     clean=True,
+        #     max_seq_length=max_seq_length,
+        #     min_seq_length=min_seq_length,
+        #     max_seq_length_diff=max_seq_length,
+        #     max_seq_length_ratio=max_seq_length,
+        #     cache_ids=False,
+        #     cache_data_per_node=False,
+        #     use_cache=False,
+        #     number_nearest_neighbors=2
+        # )
+
         encoder_tokenizer, decoder_tokenizer = MTDataPreproc.get_enc_dec_tokenizers(
             encoder_tokenizer_name,
             encoder_tokenizer_model,
