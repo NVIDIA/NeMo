@@ -278,7 +278,7 @@ class DistillationModelPT(ModelPT):
         self.teacher.reset_distillation_registry()
         self.student.reset_distillation_registry()
         
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
 
         # Delegate train steps, dynamically replacing self with self.teacher to maintain model
         # level unawareness.
