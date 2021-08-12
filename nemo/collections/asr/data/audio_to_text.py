@@ -425,7 +425,7 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
 
         tags = []
         self.id2enc_text = {}
-        for i, e in enumerate(self.collection):
+        for i, e in enumerate(self.manifest_processor.collection):
             tag = os.path.splitext(os.path.basename(e.audio_file))[0]
             tags.append(tag)
             # cache vocab encoding
@@ -583,7 +583,7 @@ class AudioToCharWithPriorDataset(AudioToCharDataset):
 
         self.n_window_stride = n_window_stride
         self.id2enc_text = {}
-        for i, e in enumerate(self.collection):
+        for i, e in enumerate(self.manifest_processor.collection):
             # cache vocab encoding
             self.id2enc_text[i] = self.vocab.encode(e.text_raw)
 
@@ -666,7 +666,7 @@ class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
 
     def __getitem__(self, item):
         audio, audio_len, text, text_len, attn_prior = super().__getitem__(item)
-        tag = Path(self.collection[item].audio_file).stem
+        tag = Path(self.manifest_processor.collection[item].audio_file).stem
         pitch_path = (
             Path(self.attn_prior_folder)
             / f"{tag}_pitch_pyin_fmin{self.pitch_fmin}_fmax{self.pitch_fmax}_fl{self.n_window_size}.npy"
@@ -736,12 +736,12 @@ class FastPitchDataset(_AudioTextDataset):
     def __getitem__(self, item):
         audio, audio_len, text, text_len = super().__getitem__(item)  # noqa
 
-        audio_path = self.collection[item].audio_file
+        audio_path = self.manifest_processor.collection[item].audio_file
         durs_path = audio_path.replace('/wavs/', '/fastpitch/durations/').replace('.wav', '.pt')
         pitch_path = audio_path.replace('/wavs/', '/fastpitch/pitch_char/').replace('.wav', '.pt')
         speaker = None
-        if self.collection[item].speaker is not None:
-            speaker = torch.zeros_like(text_len).fill_(self.collection[item].speaker)
+        if self.manifest_processor.collection[item].speaker is not None:
+            speaker = torch.zeros_like(text_len).fill_(self.manifest_processor.collection[item].speaker)
 
         return (audio, audio_len, text, text_len, torch.load(durs_path), torch.load(pitch_path), speaker, audio_path)
 
