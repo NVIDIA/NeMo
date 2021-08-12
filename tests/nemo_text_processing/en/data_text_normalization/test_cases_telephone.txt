@@ -1,0 +1,11 @@
++1 123-123-5678~one, one two three, one two three, five six seven eight
+123-123-5678~one two three, one two three, five six seven eight
++1-123-123-5678~one, one two three, one two three, five six seven eight
++1 (123)-123-5678~one, one two three, one two three, five six seven eight
++1(123) 123-5678~one, one two three, one two three, five six seven eight
+(123)-123-5678~one two three, one two three, five six seven eight
+(123) 123-5678~one two three, one two three, five six seven eight
+123-123-5678-1111~one two three, one two three, five six seven eight, one one one one
+123-123-5678-1~one two three, one two three, five six seven eight, one
+1-800-GO-U-HAUL~one, eight hundred, GO U HAUL
+1-800-GO-2-HAUL~one, eight hundred, GO two, HAUL

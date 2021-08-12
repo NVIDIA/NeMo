@@ -47,10 +47,10 @@ This NeMo Quick Start Guide is a starting point for users who want to try out Ne
 
 If you're new to NeMo, the best way to get started is to take a look at the following tutorials:
 
-* `Text Classification (Sentiment Analysis) <https://github.com/NVIDIA/NeMo/blob/main/tutorials/Text_Classification_Sentiment_Analysis>`__ - demonstrates the Text Classification model using the NeMo NLP collection.
-* `NeMo Primer <https://github.com/NVIDIA/NeMo/blob/main/tutorials/00_NeMo_Primer.ipynb>`__ - introduces NeMo, PyTorch Lightning, and OmegaConf, and shows how to use, modify, save, and restore NeMo models.
-* `NeMo Models <https://github.com/NVIDIA/NeMo/blob/main/tutorials/01_NeMo_Models.ipynb>`__ - explains the fundamental concepts of the NeMo model.
-* `NeMo voice swap demo <https://github.com/NVIDIA/NeMo/blob/main/tutorials/NeMo_voice_swap_app.ipynb>`__ - demonstrates how to swap a voice in the audio fragment with a computer generated one using NeMo.
+* `Text Classification (Sentiment Analysis) <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/Text_Classification_Sentiment_Analysis>`__ - demonstrates the Text Classification model using the NeMo NLP collection.
+* `NeMo Primer <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/00_NeMo_Primer.ipynb>`__ - introduces NeMo, PyTorch Lightning, and OmegaConf, and shows how to use, modify, save, and restore NeMo models.
+* `NeMo Models <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/01_NeMo_Models.ipynb>`__ - explains the fundamental concepts of the NeMo model.
+* `NeMo voice swap demo <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/NeMo_voice_swap_app.ipynb>`__ - demonstrates how to swap a voice in the audio fragment with a computer generated one using NeMo.
 
 Below we is the code snippet of Audio Translator application.
 
@@ -71,9 +71,9 @@ Below we is the code snippet of Audio Translator application.
     # Neural Machine Translation model
     nmt_model = nemo_nlp.models.MTEncDecModel.from_pretrained(model_name='nmt_ru_en_transformer6x6').cuda()
     # Spectrogram generator which takes text as an input and produces spectrogram
-    spectrogram_generator = nemo_tts.models.Tacotron2Model.from_pretrained(model_name="tts_en_tacotron2").cuda()
+    spectrogram_generator = nemo_tts.models.FastPitchModel.from_pretrained(model_name="tts_en_fastpitch").cuda()
     # Vocoder model which takes spectrogram and produces actual audio
-    vocoder = nemo_tts.models.WaveGlowModel.from_pretrained(model_name="tts_waveglow_88m").cuda()
+    vocoder = nemo_tts.models.HifiGanModel.from_pretrained(model_name="tts_hifigan").cuda()
     # Transcribe an audio file
     # IMPORTANT: The audio must be mono with 16Khz sampling rate
     # Get example from: https://nemo-public.s3.us-east-2.amazonaws.com/mcv-samples-ru/common_voice_ru_19034087.wav
@@ -84,7 +84,7 @@ Below we is the code snippet of Audio Translator application.
     print(english_text)
     # After this you should see English translation
     # Let's convert it into audio
-    # A helper function which combines Tacotron2 and WaveGlow to go directly from
+    # A helper function which combines FastPitch and HiFiGAN to go directly from
     # text to audio
     def text_to_audio(text):
       parsed = spectrogram_generator.parse(text)
@@ -149,9 +149,9 @@ Have a look at our `discussions board <https://github.com/NVIDIA/NeMo/discussion
 Contributing
 ------------
 
-We welcome community contributions! Refer to the `CONTRIBUTING.md <https://github.com/NVIDIA/NeMo/blob/main/CONTRIBUTING.md>`_  file for the process.
+We welcome community contributions! Refer to the `CONTRIBUTING.md <https://github.com/NVIDIA/NeMo/blob/stable/CONTRIBUTING.md>`_  file for the process.
 
 License
 -------
 
-NeMo is under `Apache 2.0 license <https://github.com/NVIDIA/NeMo/blob/main/LICENSE>`_.
+NeMo is under `Apache 2.0 license <https://github.com/NVIDIA/NeMo/blob/stable/LICENSE>`_.

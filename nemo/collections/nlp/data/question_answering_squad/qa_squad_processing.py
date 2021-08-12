@@ -21,7 +21,13 @@ from typing import Dict, List, Optional
 from tqdm import tqdm
 from transformers.models.bert.tokenization_bert import BasicTokenizer
 
-from nemo.collections.nlp.data.data_utils import DataProcessor, is_whitespace, normalize_answer
+from nemo.collections.nlp.data.data_utils import (
+    DataProcessor,
+    check_chinese_char,
+    is_whitespace,
+    normalize_answer,
+    normalize_chinese_answer,
+)
 from nemo.utils import logging
 
 """
@@ -40,6 +46,41 @@ def _get_tokens(s):
     if not s:
         return []
     return normalize_answer(s).split()
+
+
+def _get_tokens(s):
+    """get normalized tokens for both Chinese and English"""
+    if not s:
+        return []
+
+    # separate answers to en and ch pieces
+    ch_seq = ""
+    en_seq = ""
+    pos = 0
+
+    # Normalize and connect
+    final_tokens = []
+
+    while pos < len(s):
+        if check_chinese_char(s[pos]):
+            if en_seq != "":
+                final_tokens.extend(normalize_answer(en_seq).split())
+                en_seq = ""
+            ch_seq += s[pos]
+        else:
+            if ch_seq != "":
+                final_tokens.extend(normalize_chinese_answer(ch_seq))
+                ch_seq = ""
+            en_seq += s[pos]
+        pos += 1
+
+    if en_seq != "":
+        final_tokens.extend(normalize_answer(en_seq).split())
+
+    if ch_seq != "":
+        final_tokens.extend(normalize_chinese_answer(ch_seq))
+
+    return final_tokens
 
 
 def get_best_indexes(logits, n_best_size):

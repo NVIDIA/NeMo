@@ -59,7 +59,7 @@ model:
         cls_token: '[CLS]'
 
   train_ds:
-    data_file: null # path to data file
+    data_file: ??? # path to data file
     max_seq_length: ${model.max_seq_length}
     mask_prob: ${model.mask_prob}
     short_seq_prob: ${model.short_seq_prob}
@@ -71,7 +71,7 @@ model:
     pin_memory: false
 
   validation_ds:
-    data_file: null # path to data file
+    data_file: ??? # path to data file
     max_seq_length: ${model.max_seq_length}
     mask_prob: ${model.mask_prob}
     short_seq_prob: ${model.short_seq_prob}
