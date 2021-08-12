@@ -17,10 +17,11 @@
 import os
 
 import torch
-from megatron import get_args, initialize_megatron
+from megatron import fused_kernels, get_args, initialize_megatron
 from megatron.checkpointing import set_checkpoint_version
 from megatron.model import get_language_model
-from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
+from megatron.model.bert_model import bert_extended_attention_mask, bert_position_ids
+from megatron.model.enums import AttnMaskType
 from megatron.mpu import (
     get_model_parallel_group,
     model_parallel_is_initialized,
@@ -115,10 +116,13 @@ class MegatronBertEncoder(BertModule):
 
         # read Megatron arguments back
         args = get_args()
+
+        fused_kernels.load(args)
+
         logging.info(f'Megatron-lm argparse args: {args}')
 
         self.language_model, self._language_model_key = get_language_model(
-            attention_mask_func=bert_attention_mask_func, num_tokentypes=num_tokentypes, add_pooler=False
+            encoder_attn_mask_type=AttnMaskType.padding, num_tokentypes=num_tokentypes, add_pooler=False
         )
 
         self.config = OmegaConf.create(config)
@@ -132,6 +136,7 @@ class MegatronBertEncoder(BertModule):
         scaled_masked_softmax_fusion=False,
         bias_gelu_fusion=False,
         bias_dropout_fusion=False,
+        encoder_seq_length=512,
     ):
         def extra_args_provider(parser):
             parser.set_defaults(micro_batch_size=micro_batch_size)
@@ -139,6 +144,7 @@ class MegatronBertEncoder(BertModule):
             parser.set_defaults(scaled_masked_softmax_fusion=scaled_masked_softmax_fusion)
             parser.set_defaults(bias_gelu_fusion=bias_gelu_fusion)
             parser.set_defaults(bias_dropout_fusion=bias_dropout_fusion)
+            parser.set_defaults(encoder_seq_length=encoder_seq_length)
 
             return parser
 
@@ -180,9 +186,9 @@ class MegatronBertEncoder(BertModule):
         position_ids = bert_position_ids(input_ids)
 
         sequence_output = self.language_model(
-            input_ids=input_ids,
-            position_ids=position_ids,
-            attention_mask=extended_attention_mask,
+            enc_input_ids=input_ids,
+            enc_position_ids=position_ids,
+            enc_attn_mask=extended_attention_mask,
             tokentype_ids=token_type_ids,
         )
         return sequence_output

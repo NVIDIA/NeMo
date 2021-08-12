@@ -11,3 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
+from pytorch_lightning import Trainer
+
+from nemo.core.config import hydra_runner
+from nemo.utils.exp_manager import exp_manager
+
+
+@hydra_runner(config_path="conf", config_name="megatron_gpt_config")
+def main(cfg) -> None:
+
+    trainer = Trainer(plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes)], **cfg.trainer)
