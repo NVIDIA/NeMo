@@ -76,17 +76,39 @@ pipeline {
       }
     }
 
-    stage('L0: ITN Tests CPU') {
+    stage('L0: TN/ITN Tests CPU') {
       when {
         anyOf {
-          changeset glob: "nemo_text_processing/*"
+          branch 'tn_'
+          changeRequest target: 'main'
         }
       }
-      steps {
-        sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/ -m "not pleasefixme" --cpu'
+      failFast true
+      parallel {
+        stage('Create En TN grammars') {
+          steps {
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize.py "1" --cache_dir /home/TestData/nlp/text_norm/ci/grammars --overwrite_cache'
+          }
+        }
+        stage('Create En ITN grammars') {
+          steps {
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language en "twenty" --cache_dir /home/TestData/nlp/text_norm/ci/grammars --overwrite_cache'
+          }
+        }
+        stage('Create & Run German ITN') {
+          steps {
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language de "zwanzig" --cache_dir /home/TestData/nlp/text_norm/ci/grammars --overwrite_cache'
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/de -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars'
+          }
+        }
+        stage('Create En non-deterministic TN & Run all En TN/ITN tests') {
+          steps {
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars --overwrite_cache'
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/en/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars'
+          }
+        }
       }
     }
-
 
     stage('L0: Computer Vision Integration') {
       when {
@@ -1343,90 +1365,68 @@ pipeline {
             trainer.max_epochs=-1 \
             model.train_ds.dataloader_params.batch_size=12 \
             model.validation_ds.dataloader_params.batch_size=12 \
+            model.decoder.decoder_rnn_dim=256 \
+            model.decoder.attention_rnn_dim=1024 \
+            model.decoder.prenet_dim=128 \
+            model.postnet.postnet_n_convolutions=3 \
             ~trainer.check_val_every_n_epoch'
           }
         }
-        // stage('FastPitch') {
-        //   steps {
-        //     sh 'python examples/tts/fastpitch.py \
-        //     train_dataset=/home/TestData/an4_dataset/an4_train.json \
-        //     validation_datasets=/home/TestData/an4_dataset/an4_val.json \
-        //     trainer.gpus="[0]" \
-        //     +trainer.fast_dev_run=True \
-        //     trainer.accelerator=null \
-        //     trainer.max_epochs=-1 \
-        //     model.train_ds.batch_size=12 \
-        //     model.train_ds.num_workers=1 \
-        //     model.validation_ds.batch_size=12 \
-        //     model.validation_ds.num_workers=1 \
-        //     ~trainer.check_val_every_n_epoch'
-        //   }
-        // }
         stage('WaveGlow') {
           steps {
             sh 'python examples/tts/waveglow.py \
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
-            trainer.gpus="[1]" \
-            +trainer.fast_dev_run=True \
-            trainer.accelerator=null \
-            trainer.max_epochs=-1 \
-            model.train_ds.dataloader_params.batch_size=4 \
-            model.validation_ds.dataloader_params.batch_size=4 \
-            ~trainer.check_val_every_n_epoch'
-          }
-        }
-      }
-    }
-
-    stage('L2: TTS Fast dev runs 2') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-
-      parallel {
-        stage('MelGAN') {
-          steps {
-            sh 'python examples/tts/melgan.py \
-            train_dataset=/home/TestData/an4_dataset/an4_train.json \
-            validation_datasets=/home/TestData/an4_dataset/an4_val.json \
-            trainer.gpus="[0]" \
-            +trainer.fast_dev_run=True \
-            trainer.accelerator=ddp \
-            trainer.max_epochs=-1 \
-            model.train_ds.dataloader_params.batch_size=4 \
-            model.validation_ds.dataloader_params.batch_size=4 \
-            ~trainer.check_val_every_n_epoch'
-          }
-        }
-        stage('SqueezeWave') {
-          steps {
-            sh 'python examples/tts/squeezewave.py \
-            train_dataset=/home/TestData/an4_dataset/an4_train.json \
-            validation_datasets=/home/TestData/an4_dataset/an4_val.json \
             trainer.gpus="[0]" \
             +trainer.fast_dev_run=True \
             trainer.accelerator=null \
             trainer.max_epochs=-1 \
             model.train_ds.dataloader_params.batch_size=4 \
             model.validation_ds.dataloader_params.batch_size=4 \
+            model.waveglow.n_flows=4 \
+            model.waveglow.n_wn_layers=2 \
+            model.waveglow.n_wn_channels=32 \
             ~trainer.check_val_every_n_epoch'
           }
         }
-        stage('GlowTTS') {
+        stage('FastPitch') {
           steps {
-            sh 'python examples/tts/glow_tts.py \
+            sh 'python examples/tts/fastpitch.py \
+            --config-name fastpitch_align \
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
-            trainer.gpus="[1]" \
+            prior_folder=/home/TestData/an4_dataset/beta_priors \
+            trainer.gpus="[0]" \
             +trainer.fast_dev_run=True \
             trainer.accelerator=null \
             trainer.max_epochs=-1 \
-            model.train_ds.batch_size=4 \
-            model.validation_ds.batch_size=4 \
+            model.train_ds.dataloader_params.batch_size=12 \
+            model.train_ds.dataloader_params.num_workers=1 \
+            model.validation_ds.dataloader_params.batch_size=12 \
+            model.validation_ds.dataloader_params.num_workers=1 \
+            model.symbols_embedding_dim=64 \
+            model.input_fft.d_inner=384 \
+            model.input_fft.n_layer=2 \
+            model.output_fft.d_inner=384 \
+            model.output_fft.n_layer=2 \
+            ~trainer.check_val_every_n_epoch'
+          }
+        }
+        stage('Hifigan') {
+          steps {
+            sh 'python examples/tts/hifigan.py \
+            train_dataset=/home/TestData/an4_dataset/an4_train.json \
+            validation_datasets=/home/TestData/an4_dataset/an4_val.json \
+            trainer.gpus="[0]" \
+            +trainer.fast_dev_run=True \
+            trainer.accelerator=null \
+            +trainer.max_epochs=-1 \
+            model.train_ds.dataloader_params.batch_size=8 \
+            model.train_ds.dataloader_params.num_workers=1 \
+            model.validation_ds.dataloader_params.batch_size=8 \
+            model.validation_ds.dataloader_params.num_workers=1 \
+            model.generator.upsample_initial_channel=64 \
+            +model.debug=true \
             ~trainer.check_val_every_n_epoch'
           }
         }
