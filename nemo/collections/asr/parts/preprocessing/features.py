@@ -107,7 +107,7 @@ def splice_frames(x, frame_splicing):
 
 class WaveformFeaturizer(object):
     def __init__(self, sample_rate=16000, int_values=False, augmentor=None):
-        self.augmentor = None
+        self.augmentor = augmentor if augmentor is not None else AudioAugmentor()
         self.sample_rate = sample_rate
         self.int_values = int_values
 
