@@ -250,9 +250,6 @@ class NLPCheckpointConnector(CheckpointConnector):
             filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
             _checkpoint = self.dump_checkpoint(weights_only)
             # each model parallel rank needs to save a copy of its model
-            import pdb
-
-            pdb.set_trace()
             if app_state.data_parallel_rank == 0:
                 self.trainer.accelerator.save_checkpoint(_checkpoint, filepath)
         else:
