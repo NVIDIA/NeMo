@@ -52,33 +52,36 @@ pipeline {
       }
     }
 
-    stage('PyTorch Lightning DDP Checks') {
-      steps {
-        sh 'python "tests/core_ptl/check_for_ranks.py"'
-      }
-    }
+//     stage('PyTorch Lightning DDP Checks') {
+//       steps {
+//         sh 'python "tests/core_ptl/check_for_ranks.py"'
+//       }
+//     }
 
-    stage('L0: Unit Tests GPU') {
-      steps {
-        sh 'pytest -m "not pleasefixme" --with_downloads --relax_numba_compat'
-      }
-    }
-
-    stage('L0: Unit Tests CPU') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      steps {
-        sh 'CUDA_VISIBLE_DEVICES="" pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
-      }
-    }
+//     stage('L0: Unit Tests GPU') {
+//       steps {
+//         sh 'pytest -m "not pleasefixme" --with_downloads --relax_numba_compat'
+//       }
+//     }
+//
+//     stage('L0: Unit Tests CPU') {
+//       when {
+//         anyOf {
+//           branch 'main'
+//           changeRequest target: 'main'
+//         }
+//       }
+//       steps {
+//         sh 'CUDA_VISIBLE_DEVICES="" pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
+//       }
+//     }
 
     stage('L0: TN/ITN Tests CPU') {
       when {
-        branch pattern: "'^tn_.*|^itn_.*'"
+        anyOf {
+          branch '*tn_*'
+          branch '*itn_*'
+        }
       }
       failFast true
       parallel {
@@ -115,7 +118,10 @@ pipeline {
 
     stage('L2: NeMo text processing') {
       when {
-        branch pattern: "'^tn_.*|^itn_.*'"
+        anyOf {
+          branch '**tn_**'
+          branch '**itn_**'
+        }
       }
       failFast true
       parallel {
