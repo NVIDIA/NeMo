@@ -16,12 +16,12 @@ import pytest
 from nemo_text_processing.inverse_text_normalization.inverse_normalize import InverseNormalizer
 from parameterized import parameterized
 
-from ..utils import PYNINI_AVAILABLE, parse_test_case_file
+from ..utils import CACHE_DIR, PYNINI_AVAILABLE, parse_test_case_file
 
 
 class TestRuInverseNormalize:
 
-    normalizer = InverseNormalizer(lang='ru') if PYNINI_AVAILABLE else None
+    normalizer = InverseNormalizer(lang='ru', cache_dir=CACHE_DIR) if PYNINI_AVAILABLE else None
 
     @parameterized.expand(parse_test_case_file('ru/data_inverse_text_normalization/test_cases_cardinal.txt'))
     @pytest.mark.skipif(

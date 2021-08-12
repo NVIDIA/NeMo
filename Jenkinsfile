@@ -107,6 +107,12 @@ pipeline {
             sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/en/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars'
           }
         }
+        stage('Create Ru non-deterministic TN & Run all Ru TN/ITN tests') {
+          steps {
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars --overwrite_cache --language ru'
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/ru/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars'
+          }
+        }
       }
     }
 
