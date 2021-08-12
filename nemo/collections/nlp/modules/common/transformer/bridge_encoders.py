@@ -114,14 +114,14 @@ class BridgeEncoder(torch.nn.Module):
         """
         # self-attention over input
         if self.hidden_init_method == "enc_shared":
-            residual = hidden_states
+            residual = encoder_states
             hidden_states = self.hidden_enc(encoder_states=encoder_states, encoder_mask=encoder_mask)
             # residual connection
             hidden_states += residual
         elif self.hidden_init_method == "identity":
             hidden_states = encoder_states
         elif self.hidden_init_method == "enc":
-            residual = hidden_states
+            residual = encoder_states
             hidden_states = self.init_hidden_enc(encoder_states=encoder_states, encoder_mask=encoder_mask)
             # residual connection
             hidden_states += residual
