@@ -156,7 +156,7 @@ class ModelPT(LightningModule, Model):
         self, config_path: str, src: str, verify_src_exists: bool = True,
     ):
         """ Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
-            when model.save_to("mymodel.nemo") is called.        
+            when model.save_to("mymodel.nemo") is called.
 
             How it works:
             1. It always returns existing absolute path which can be used during Model constructor call
@@ -174,7 +174,7 @@ class ModelPT(LightningModule, Model):
             Args:
                 config_path (str): Artifact key. Usually corresponds to the model config.
                 src (str): Path to artifact.
-                verify_src_exists (bool): If set to False, then the artifact is optional and register_artifact will return None even if 
+                verify_src_exists (bool): If set to False, then the artifact is optional and register_artifact will return None even if
                                           src is not found. Defaults to True.
                 save_restore_connector (SaveRestoreConnector): Can be overrided to add custom save and restore logic.
 
