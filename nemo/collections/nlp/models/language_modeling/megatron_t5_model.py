@@ -391,7 +391,7 @@ class MegatronT5Model(NLPModel):
             enc_hidden_states=None,
             output_enc_hidden=True,
         )
-        predicted_tokens_dec = torch.LongTensor([self.tokenizer.cls_id]).unsqueeze(0).to(tokens_enc.device)
+        predicted_tokens_dec = torch.LongTensor([self.tokenizer.bos_id]).unsqueeze(0).to(tokens_enc.device)
 
         for _ in range(num_tokens_to_generate):
             # Overwrite the decoder token since we want to predict
@@ -418,7 +418,7 @@ class MegatronT5Model(NLPModel):
                 output_enc_hidden=False,
             )
             output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
-            log_probs, token_ids = torch.max(nn.functional.log_softmax(output_tensor), dim=-1)
+            log_probs, token_ids = torch.max(nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
             predicted_tokens_dec = torch.cat([predicted_tokens_dec, token_ids[:, -1].unsqueeze(1)], 1)
 
         return predicted_tokens_dec
@@ -454,14 +454,14 @@ class MegatronT5Model(NLPModel):
         predicted_tokens_dec = self.decode(
             tokens_enc,
             enc_mask,
-            request['tokens_to_generate'],
-        ).cpu().numpy()[0]
+            16,
+        ).cpu().numpy()[0].tolist()
         if self.tokenizer.eos_id in predicted_tokens_dec:
             idx = predicted_tokens_dec.index(self.tokenizer.eos_id)
             predicted_tokens_dec = predicted_tokens_dec[:idx]
         else:
             predicted_tokens_dec = [id for id in predicted_tokens_dec if id != self.tokenizer.pad_id]
-        predicted_tokens_dec = self.tokenizer.ids_to_tokens(predicted_tokens_dec[0])
+        predicted_tokens_dec = self.tokenizer.ids_to_tokens(predicted_tokens_dec)
         response['completion'] = self.tokenizer.tokens_to_text(predicted_tokens_dec)
         return response
 

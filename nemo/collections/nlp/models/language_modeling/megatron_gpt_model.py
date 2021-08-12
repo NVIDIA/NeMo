@@ -410,3 +410,26 @@ class MegatronGPTModel(NLPModel):
             f'Padded vocab_size: {after}, original vocab_size: {orig_vocab_size}, dummy tokens: {after - orig_vocab_size}.'
         )
         return after
+
+    def _get_params_for_weight_decay_optimization(self, params):
+        """Divide params into with-weight-decay and without-weight-decay groups.
+        Layernorms and baises will have no weight decay but the rest will.
+        """
+        weight_decay_params = {'params': []}
+        no_weight_decay_params = {'params': [], 'weight_decay': 0.0}
+        for module in params:
+            for module_ in module.modules():
+                if isinstance(module_, LayerNorm):
+                    no_weight_decay_params['params'].extend(
+                        [p for p in list(module_._parameters.values())
+                        if p is not None])
+                else:
+                    weight_decay_params['params'].extend(
+                        [p for n, p in list(module_._parameters.items())
+                        if p is not None and n != 'bias'])
+                    no_weight_decay_params['params'].extend(
+                        [p for n, p in list(module_._parameters.items())
+                        if p is not None and n == 'bias'])
+
+        return weight_decay_params, no_weight_decay_params
+
