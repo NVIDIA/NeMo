@@ -78,10 +78,7 @@ pipeline {
 
     stage('L0: TN/ITN Tests CPU') {
       when {
-        anyOf {
-          branch 'tn_*'
-          branch 'itn_*'
-        }
+        branch pattern: "'^tn_.*|^itn_.*'", comparator: "REGEXP"
       }
       failFast true
       parallel {
@@ -118,10 +115,7 @@ pipeline {
 
     stage('L2: NeMo text processing') {
       when {
-        anyOf {
-          branch pattern: "tn_*", comparator: "REGEXP"
-          branch pattern: "itn_*", comparator: "REGEXP"
-        }
+        branch pattern: "'^tn_.*|^itn_.*'", comparator: "REGEXP"
       }
       failFast true
       parallel {
