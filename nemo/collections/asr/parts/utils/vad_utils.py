@@ -369,8 +369,8 @@ def binarization(sequence, per_args):
 
     onset = per_args.get('onset', 0.5)
     offset = per_args.get('offset', 0.5)
-    pad_onset = per_args.get('pad_onset', 0.0)
-    pad_offset = per_args.get('pad_offset', 0.0)
+    pad_onset = per_args.get('pad_onset', 0)  # 0.0
+    pad_offset = per_args.get('pad_offset', 0)
 
     onset, offset = cal_vad_onset_offset(per_args.get('scale', 'absolute'), onset, offset, sequence)
 
@@ -637,11 +637,16 @@ def check_if_param_valid(params):
         if i == "filter_speech_first":
             if not type(params["filter_speech_first"]) == bool:
                 raise ValueError("Invalid inputs! filter_speech_first should be either True or False!")
+        elif i == "pad_onset":
+            continue
+        elif i == "pad_offset":
+            continue
         else:
             for j in params[i]:
-                print(j)
                 if not j >= 0:
-                    raise ValueError("Invalid inputs! All float parameters should be larger than 0!")
+                    raise ValueError(
+                        "Invalid inputs! All float parameters excpet pad_onset and pad_offset should be larger than 0!"
+                    )
 
     if not (all(i <= 1 for i in params['onset']) and all(i <= 1 for i in params['offset'])):
         raise ValueError("Invalid inputs! The onset and offset thresholds should be in range [0, 1]!")

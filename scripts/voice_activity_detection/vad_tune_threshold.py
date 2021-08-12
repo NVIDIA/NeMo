@@ -25,7 +25,7 @@ See details about it in nemo/collections/asr/parts/utils/vad_utils/binarization 
 
 Usage:
 python vad_tune_threshold.py \
---onset_range="0,1,0.2" --offset_range="0,1,0.2" --min_duration_on_range="0.1,0.8,0.05" --min_duration_off_range="0.1,0.8,0.05" --filter_speech_first=False \
+--onset_range="0,1,0.2" --offset_range="0,1,0.2" --min_duration_on_range="0.1,0.8,0.05" --min_duration_off_range="0.1,0.8,0.05" --not_filter_speech_first \
 --vad_pred=<FULL PATH OF FOLDER OF FRAME LEVEL PREDICTION FILES> \
 --groundtruth_RTTM=<DIRECTORY OF VAD PREDICTIONS OR A FILE CONTAINS THE PATHS OF THEM> \
 --vad_pred_method="median"
@@ -36,15 +36,26 @@ if __name__ == "__main__":
     parser.add_argument("--onset_range", help="range of onset in list 'START,END,STEP' to be tuned on", type=str)
     parser.add_argument("--offset_range", help="range of offset in list 'START,END,STEP' to be tuned on", type=str)
     parser.add_argument(
+        "--pad_onset_range",
+        help="range of pad_onset in list 'START,END,STEP' to be tuned on. pad_onset could be negative float",
+        type=str,
+    )
+    parser.add_argument(
+        "--pad_offset_range",
+        help="range of pad_offset in list 'START,END,STEP' to be tuned on. pad_offset could be negative float",
+        type=str,
+    )
+
+    parser.add_argument(
         "--min_duration_on_range", help="range of min_duration_on in list 'START,END,STEP' to be tuned on", type=str
     )
     parser.add_argument(
         "--min_duration_off_range", help="range of min_duration_off in list 'START,END,STEP' to be tuned on", type=str
     )
     parser.add_argument(
-        "--filter_speech_first",
+        "--not_filter_speech_first",
         help="Whether to filter short speech first during filtering, should be either True or False!",
-        type=bool,
+        action='store_true',
     )
 
     parser.add_argument(
@@ -74,7 +85,7 @@ if __name__ == "__main__":
 
     params = {}
     try:
-        # if not input range for values of parameters, use default value defined in function binarization in nemo/collections/asr/parts/utils/vad_utils.py
+        # if not input range for values of parameters, use default value defined in function binarization and filtering in nemo/collections/asr/parts/utils/vad_utils.py
         if args.onset_range:
             start, stop, step = [float(i) for i in args.onset_range.split(",")]
             onset = np.arange(start, stop, step)
@@ -84,6 +95,16 @@ if __name__ == "__main__":
             start, stop, step = [float(i) for i in args.offset_range.split(",")]
             offset = np.arange(start, stop, step)
             params['offset'] = offset
+
+        if args.pad_onset_range:
+            start, stop, step = [float(i) for i in args.pad_onset_range.split(",")]
+            pad_onset = np.arange(start, stop, step)
+            params['pad_onset'] = pad_onset
+
+        if args.pad_offset_range:
+            start, stop, step = [float(i) for i in args.pad_offset_range.split(",")]
+            pad_offset = np.arange(start, stop, step)
+            params['pad_offset'] = pad_offset
 
         if args.min_duration_on_range:
             start, stop, step = [float(i) for i in args.min_duration_on_range.split(",")]
@@ -95,8 +116,8 @@ if __name__ == "__main__":
             min_duration_off = np.arange(start, stop, step)
             params['min_duration_off'] = min_duration_off
 
-        if args.filter_speech_first:
-            params['filter_speech_first'] = args.filter_speech_first
+        if args.not_filter_speech_first:
+            params['filter_speech_first'] = False
 
     except:
         raise ValueError(
