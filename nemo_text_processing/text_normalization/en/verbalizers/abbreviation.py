@@ -13,33 +13,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst
 
 try:
     import pynini
     from pynini.lib import pynutil
 
-    PYNINI_AVAILABLE = False
+    PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-class PunctuationFst(GraphFst):
+class AbbreviationFst(GraphFst):
     """
-    Finite state transducer for classifying punctuation
-        e.g. a, -> tokens { name: "a" } tokens { name: "," }
+    Finite state transducer for verbalizing abbreviations
+        e.g. tokens { abbreviation { value: "A B C" } } -> "ABC"
 
     Args:
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
-
     """
 
     def __init__(self, deterministic: bool = True):
-        super().__init__(name="punctuation", kind="classify", deterministic=deterministic)
+        super().__init__(name="abbreviation", kind="verbalize", deterministic=deterministic)
 
-        s = "!#$%&\'()*+,-./:;<=>?@^_`{|}~\""
-        punct = pynini.union(*s)
-
-        self.graph = punct
-        self.fst = (pynutil.insert("name: \"") + self.graph + pynutil.insert("\"")).optimize()
+        graph = pynutil.delete("value: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        delete_tokens = self.delete_tokens(graph)
+        self.fst = delete_tokens.optimize()

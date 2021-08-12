@@ -37,5 +37,5 @@ class WordFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="word", kind="classify", deterministic=deterministic)
 
-        word = pynutil.insert("name: \"") + pynini.closure(NEMO_NOT_SPACE, 1) + pynutil.insert("\"")
-        self.fst = word.optimize()
+        self.graph = pynini.closure(NEMO_NOT_SPACE, 1)
+        self.fst = (pynutil.insert("name: \"") + self.graph + pynutil.insert("\"")).optimize()
