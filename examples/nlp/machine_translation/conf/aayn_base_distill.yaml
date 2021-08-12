@@ -162,7 +162,7 @@ model:
     # optional - distillation loss config
     loss:
       primary:
-        _target_: 'nemo.collections.common.losses.distillation_losses.nmt_scaled_kld.NMTScaledKLDivLoss'
+        _target_: 'nemo.collections.common.losses.distillation_losses.nmt_kld.NMTKLDivLoss'
         log_target: True
         reduction: 'none'
         temperature: ${model.distillation.temperature}

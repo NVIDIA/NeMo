@@ -17,6 +17,7 @@ from nemo.collections.common.losses.cross_entropy import CrossEntropyLoss, NLLLo
 from nemo.collections.common.losses.distillation_losses.cosine_embedding import CosineEmbeddingLossWrapper
 from nemo.collections.common.losses.distillation_losses.scaled_kld import ScaledKLDivLoss
 from nemo.collections.common.losses.distillation_losses.nmt_scaled_kld import NMTScaledKLDivLoss
+from nemo.collections.common.losses.distillation_losses.nmt_kld import NMTKLDivLoss
 from nemo.collections.common.losses.mse_loss import MSELoss
 from nemo.collections.common.losses.multi_similarity_loss import MultiSimilarityLoss
 from nemo.collections.common.losses.smoothed_cross_entropy import SmoothedCrossEntropyLoss
