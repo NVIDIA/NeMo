@@ -6,6 +6,8 @@ St.	Saint
 St	Saint
 Dr.	Drive
 Dr.	Doctor
+dr.	doctor
+dr	doctor
 Mr.	Mister
 Mrs.	Misses
 Ms.	Miss
@@ -15,3 +17,15 @@ Ms	Miss
 &Co.	and Co.
 §	section
 =	equals
+-	to
+-	minus
+-	dash
+#	number
+#	number sign
+.	dot
+!	exclamation mark
+'	quote
+?	question mark
+mt	mount
+sr	senior
+NVIDIA	N VIDIA

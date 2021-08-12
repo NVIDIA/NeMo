@@ -139,7 +139,7 @@ class MTEncDecModel(EncDecNLPModel):
         model_name = encoder_cfg_dict.pop('model_name', None)
         pretrained = encoder_cfg_dict.pop('pretrained', False)
         checkpoint_file = encoder_cfg_dict.pop('checkpoint_file', None)
-        self.encoder = get_transformer(
+        self._encoder = get_transformer(
             library=library,
             model_name=model_name,
             pretrained=pretrained,
@@ -156,7 +156,7 @@ class MTEncDecModel(EncDecNLPModel):
         model_name = decoder_cfg_dict.pop('model_name', None)
         pretrained = decoder_cfg_dict.pop('pretrained', False)
         decoder_cfg_dict['hidden_size'] = self.encoder.hidden_size
-        self.decoder = get_transformer(
+        self._decoder = get_transformer(
             library=library,
             model_name=model_name,
             pretrained=pretrained,
