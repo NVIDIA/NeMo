@@ -145,6 +145,7 @@ class PerceiverEncoder(torch.nn.Module):
 
         # apply block (cross-attention, self-attention) multiple times
         for block in range(self._hidden_blocks):
+            residual = hidden_states
             # self-attention over hidden
             hidden_states = self.self_att(encoder_states=hidden_states, encoder_mask=hidden_mask,)
 
@@ -156,7 +157,13 @@ class PerceiverEncoder(torch.nn.Module):
                 encoder_mask=encoder_mask,
             )
 
+            # residual connection
+            hidden_states += residual
+
+        residual = hidden_states
         # final self-attention over hidden
         hidden_states = self.self_att(encoder_states=hidden_states, encoder_mask=hidden_mask,)
+        # residual connection
+        hidden_states += residual
 
         return hidden_states, hidden_mask
