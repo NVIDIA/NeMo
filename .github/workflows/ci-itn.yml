@@ -31,7 +31,6 @@ jobs:
 
     - name: Update Conda
       run: |
-        conda activate
         conda install conda-build -y
         apt-get update && apt-get install -y --reinstall build-essential
         apt-get install -y make libsndfile1 sox libfreetype6 ffmpeg swig
@@ -39,12 +38,10 @@ jobs:
     - name: Install test dependencies
       run:  |
         # install test requirements
-        conda activate
         pip install -r requirements/requirements_test.txt
 
     - name: Install dependencies
       run: |
-        conda activate
         # Install ITN requirements
         /bin/bash nemo_text_processing/setup.sh
         # Install NeMo
@@ -52,5 +49,4 @@ jobs:
 
     - name: ITN Tests
       run: |
-        conda activate
         pytest tests/nemo_text_processing/ --cpu
