@@ -5,19 +5,9 @@ on:
     branches:
       - '**tn**'
 
-#    paths:
-#      - 'nemo_text_preprocessing/**'
-#      - 'tools/text_processing_deployment/**'
-#      - 'tests/nemo_text_preprocessing/**'
-
   pull_request:
     branches:
       - '**tn**'
-
-#    paths:
-#      - 'nemo_text_preprocessing/**'
-#      - 'tools/text_processing_deployment/**'
-#      - 'tests/nemo_text_preprocessing/**'
 
 jobs:
   ci-itn:
