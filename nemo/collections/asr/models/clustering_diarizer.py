@@ -238,7 +238,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         logging.info("Converting frame level prediction to speech/no-speech segment in start and end times format.")
         postprocessing_params = self._cfg.diarizer.vad.postprocessing_params
-        if self._cfg.diarizer.vad.threshold:
+        if self._cfg.diarizer.vad.get("threshold", None):
             logging.info("threshold is not None. Use threshold and update onset=offset=threshold")
             logging.warning("Support for threshold will be deprecated in release 1.5")
             postprocessing_params['onset'] = self._cfg.diarizer.vad.threshold

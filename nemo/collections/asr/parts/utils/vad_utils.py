@@ -307,7 +307,7 @@ def generate_vad_segment_table(vad_pred_dir, postprocessing_params, shift_len, n
     suffixes = ("frame", "mean", "median")
     vad_pred_filepath_list = [os.path.join(vad_pred_dir, x) for x in os.listdir(vad_pred_dir) if x.endswith(suffixes)]
 
-    table_out_dir = os.path.join(vad_pred_dir, "table_output" + str(postprocessing_params))
+    table_out_dir = os.path.join(vad_pred_dir, "table_output_tmp" + str(postprocessing_params))
     if not os.path.exists(table_out_dir):
         os.mkdir(table_out_dir)
 
@@ -372,7 +372,7 @@ def binarization(sequence, per_args):
     pad_onset = per_args.get('pad_onset', 0.0)
     pad_offset = per_args.get('pad_offset', 0.0)
 
-    onset, offset = cal_vad_onset_offset(per_args.get('scale', 'absolute'), onset, offset)
+    onset, offset = cal_vad_onset_offset(per_args.get('scale', 'absolute'), onset, offset, sequence)
 
     speech = False
     speech_segments = set()  # {(start1, end1), (start2, end2)}
@@ -407,7 +407,7 @@ def binarization(sequence, per_args):
 
 def filtering(speech_segments, per_args):
     """
-    Binarize predictions to speech and non-speech
+    Filter out short non_speech and speech segments.
 
     Reference
     Paper: Gregory Gelly and Jean-Luc Gauvain. "Minimum Word Error Training of RNN-based Voice Activity Detection", InterSpeech 2015. 
@@ -498,7 +498,7 @@ def merge_overlap_segment(segments):
     return merged_set
 
 
-def cal_vad_onset_offset(scale, onset, offset):
+def cal_vad_onset_offset(scale, onset, offset, sequence=None):
     """
     Calculate onset and offset threshold given different scale.
     """
@@ -506,11 +506,11 @@ def cal_vad_onset_offset(scale, onset, offset):
         mini = 0
         maxi = 1
     elif scale == "relative":
-        mini = np.nanmin(data)
-        maxi = np.nanmax(data)
+        mini = np.nanmin(sequence)
+        maxi = np.nanmax(sequence)
     elif scale == "percentile":
-        mini = np.nanpercentile(data, 1)
-        maxi = np.nanpercentile(data, 99)
+        mini = np.nanpercentile(sequence, 1)
+        maxi = np.nanpercentile(sequence, 99)
 
     onset = mini + onset * (maxi - mini)
     offset = mini + offset * (maxi - mini)
