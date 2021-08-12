@@ -18,6 +18,7 @@ from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA
 
 try:
     import pynini
+    from pynini.lib import pynutil
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -37,6 +38,6 @@ class ElectronicFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="electronic", kind="verbalize", deterministic=deterministic)
 
-        graph = pynini.closure(RU_ALPHA | " ")
+        graph = pynutil.delete("username: \"") + pynini.closure(RU_ALPHA | " ") + pynutil.delete("\"")
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

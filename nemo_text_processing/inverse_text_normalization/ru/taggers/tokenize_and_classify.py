@@ -69,7 +69,7 @@ class ClassifyFst(GraphFst):
         else:
             logging.info(f"Creating ClassifyFst grammars. This might take some time...")
             tn_classify = TNClassifyFst(
-                input_case='cased', deterministic=False, cache_dir=cache_dir, overwrite_cache=overwrite_cache
+                input_case='cased', deterministic=False, cache_dir=cache_dir, overwrite_cache=True
             )
             cardinal = CardinalFst(tn_cardinal=tn_classify.cardinal)
             cardinal_graph = cardinal.fst

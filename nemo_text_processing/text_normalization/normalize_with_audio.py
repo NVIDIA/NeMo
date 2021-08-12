@@ -79,19 +79,13 @@ class NormalizerWithAudio(Normalizer):
 
     def __init__(self, input_case: str, lang: str = 'en', cache_dir: str = None, overwrite_cache: bool = False):
 
-        super().__init__(input_case=input_case, lang=lang, cache_dir=cache_dir, overwrite_cache=overwrite_cache)
-        if lang == 'en':
-            from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_with_audio import ClassifyFst
-            from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
-        elif lang == 'ru':
-            from nemo_text_processing.text_normalization.ru.taggers.tokenize_and_classify import ClassifyFst
-            from nemo_text_processing.text_normalization.ru.verbalizers.verbalize_final import VerbalizeFinalFst
-
-        self.tagger = ClassifyFst(
-            input_case=input_case, deterministic=False, cache_dir=cache_dir, overwrite_cache=overwrite_cache
+        super().__init__(
+            input_case=input_case,
+            lang=lang,
+            deterministric=False,
+            cache_dir=cache_dir,
+            overwrite_cache=overwrite_cache,
         )
-        self.verbalizer = VerbalizeFinalFst(deterministic=False)
-        self.lang = lang
 
     def normalize(
         self,

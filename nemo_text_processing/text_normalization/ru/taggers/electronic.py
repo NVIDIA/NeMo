@@ -114,4 +114,4 @@ class ElectronicFst(GraphFst):
         verbalizer_graph = verbalizer_graph.optimize()
 
         self.final_graph = (tagger_graph @ verbalizer_graph).optimize()
-        self.fst = self.add_tokens(self.final_graph).optimize()
+        self.fst = self.add_tokens(pynutil.insert("username: \"") + self.final_graph + pynutil.insert("\"")).optimize()

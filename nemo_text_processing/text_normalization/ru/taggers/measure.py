@@ -159,4 +159,6 @@ class MeasureFst(GraphFst):
         self.verbalizer_graph = verbalizer_graph.optimize()
 
         final_graph = (tagger_graph @ verbalizer_graph).optimize()
-        self.fst = self.add_tokens(final_graph).optimize()
+        self.fst = self.add_tokens(
+            pynutil.insert("cardinal { integer: \"") + final_graph + pynutil.insert("\" }")
+        ).optimize()
