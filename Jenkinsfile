@@ -1169,8 +1169,8 @@ pipeline {
     stage('L2: NMT Attention is All You Need Inference') {
       when {
         anyOf {
-          branch 'v1.0.0'
-          changeRequest target: 'v1.0.0'
+          branch 'main'
+          changeRequest target: 'main'
         }
       }
       failFast true
