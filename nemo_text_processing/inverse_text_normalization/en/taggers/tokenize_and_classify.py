@@ -32,7 +32,6 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     delete_extra_space,
     delete_space,
     generator_main,
-    get_abs_path,
 )
 
 from nemo.utils import logging
@@ -53,17 +52,22 @@ class ClassifyFst(GraphFst):
     More details to deployment at NeMo/tools/text_processing_deployment.
 
     Args:
-        use_cache: set to True to use saved .far grammar file
+        cache_dir: path to a dir with .far grammar file. Set to None to avoid using cache.
+        overwrite_cache: set to True to overwrite .far files
     """
 
-    def __init__(self, use_cache: bool = False):
+    def __init__(self, cache_dir: str = None, overwrite_cache: bool = False):
         super().__init__(name="tokenize_and_classify", kind="classify")
 
-        far_file = get_abs_path("_en_itn.far")
-        if use_cache and os.path.exists(far_file):
-            self.fst = pynini.Far(far_file, mode='r')['tokenize_and_classify']
-            logging.info(f'ClassifyFst.fst was restored from {far_file}.')
+        far_file = None
+        if cache_dir is not None and cache_dir != "None":
+            os.makedirs(cache_dir, exist_ok=True)
+            far_file = os.path.join(cache_dir, "_en_itn.far")
+        if not overwrite_cache and far_file and os.path.exists(far_file):
+            self.fst = pynini.Far(far_file, mode="r")["tokenize_and_classify"]
+            logging.info(f"ClassifyFst.fst was restored from {far_file}.")
         else:
+            logging.info(f"Creating ClassifyFst grammars.")
             cardinal = CardinalFst()
             cardinal_graph = cardinal.fst
 
@@ -108,5 +112,6 @@ class ClassifyFst(GraphFst):
 
             self.fst = graph.optimize()
 
-            generator_main(far_file, {"tokenize_and_classify": self.fst})
-            logging.info(f'ClassifyFst grammars are saved to {far_file}.')
+            if far_file:
+                generator_main(far_file, {"tokenize_and_classify": self.fst})
+                logging.info(f"ClassifyFst grammars are saved to {far_file}.")

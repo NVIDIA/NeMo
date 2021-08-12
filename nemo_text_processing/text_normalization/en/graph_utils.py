@@ -114,6 +114,7 @@ except (ModuleNotFoundError, ImportError):
 def generator_main(file_name: str, graphs: Dict[str, pynini.FstLike]):
     """
     Exports graph as OpenFst finite state archive (FAR) file with given file name and rule name.
+
     Args:
         file_name: exported file name
         graphs: Mapping of a rule name and Pynini WFST graph to be exported

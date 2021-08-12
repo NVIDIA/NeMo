@@ -76,17 +76,21 @@ class NLPDDPPlugin(DDPPlugin):
                 if get_checkpoint_version() is not None:
                     # megatron checkpoint already restored
                     pass
-                elif trainer.resume_from_checkpoint is not None:
+                elif trainer.checkpoint_connector.resume_checkpoint_path is not None:
                     # PTL auto-resuming, need to update checkpoint name
                     # update path based on model parallel rank
-                    filepath = trainer.resume_from_checkpoint
+                    filepath = trainer.checkpoint_connector.resume_checkpoint_path
                     dirname = os.path.dirname(os.path.dirname(filepath))
                     basename = os.path.basename(filepath)
                     filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
-                    trainer.resume_from_checkpoint = filepath
-                    logging.info(f'Resuming training from checkpoint {trainer.resume_from_checkpoint}')
+                    trainer.checkpoint_connector.resume_checkpoint_path = filepath
+                    logging.info(
+                        f'Resuming training from checkpoint {trainer.checkpoint_connector.resume_checkpoint_path}'
+                    )
                     # need to set checkpoint version for megatron-lm
-                    checkpoint_version = torch.load(trainer.resume_from_checkpoint).get('checkpoint_version', None)
+                    checkpoint_version = torch.load(trainer.checkpoint_connector.resume_checkpoint_path).get(
+                        'checkpoint_version', None
+                    )
                     if checkpoint_version is not None:
                         set_checkpoint_version(checkpoint_version)
                     else:

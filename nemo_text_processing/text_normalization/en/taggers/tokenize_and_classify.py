@@ -20,8 +20,8 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     delete_extra_space,
     delete_space,
     generator_main,
-    get_abs_path,
 )
+from nemo_text_processing.text_normalization.en.taggers.abbreviation import AbbreviationFst
 from nemo_text_processing.text_normalization.en.taggers.cardinal import CardinalFst
 from nemo_text_processing.text_normalization.en.taggers.date import DateFst
 from nemo_text_processing.text_normalization.en.taggers.decimal import DecimalFst
@@ -58,17 +58,23 @@ class ClassifyFst(GraphFst):
         input_case: accepting either "lower_cased" or "cased" input.
         deterministic: if True will provide a single transduction option,
             for False multiple options (used for audio-based normalization)
-        use_cache: set to True to use saved .far grammar file
+        cache_dir: path to a dir with .far grammar file. Set to None to avoid using cache.
+        overwrite_cache: set to True to overwrite .far files
     """
 
-    def __init__(self, input_case: str, deterministic: bool = True, use_cache: bool = False):
+    def __init__(
+        self, input_case: str, deterministic: bool = True, cache_dir: str = None, overwrite_cache: bool = False
+    ):
         super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
 
-        far_file = get_abs_path(f"_en_tn_{deterministic}deterministic.far")
-        if use_cache and os.path.exists(far_file):
-            self.fst = pynini.Far(far_file, mode='r')['tokenize_and_classify']
-            logging.info(f'ClassifyFst.fst was restored from {far_file}.')
+        far_file = None
+        if cache_dir is not None and cache_dir != "None":
+            os.makedirs(cache_dir, exist_ok=True)
+            far_file = os.path.join(cache_dir, f"_{input_case}_en_tn_{deterministic}_deterministic.far")
+        if not overwrite_cache and far_file and os.path.exists(far_file):
+            self.fst = pynini.Far(far_file, mode="r")["tokenize_and_classify"]
         else:
+            logging.info(f"Creating ClassifyFst grammars.")
             cardinal = CardinalFst(deterministic=deterministic)
             cardinal_graph = cardinal.fst
 
@@ -108,8 +114,11 @@ class ClassifyFst(GraphFst):
 
             if not deterministic:
                 roman_graph = RomanFst(deterministic=deterministic).fst
-                # the weight for roman_graph matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
+                # the weight matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
                 classify |= pynutil.add_weight(roman_graph, 100)
+
+                abbreviation_graph = AbbreviationFst(deterministic=deterministic).fst
+                classify |= pynutil.add_weight(abbreviation_graph, 100)
 
             punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=1.1) + pynutil.insert(" }")
             token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")
@@ -122,5 +131,6 @@ class ClassifyFst(GraphFst):
 
             self.fst = graph.optimize()
 
-            generator_main(far_file, {"tokenize_and_classify": self.fst})
-            logging.info(f'ClassifyFst grammars are saved to {far_file}.')
+            if far_file:
+                generator_main(far_file, {"tokenize_and_classify": self.fst})
+                logging.info(f"ClassifyFst grammars are saved to {far_file}.")

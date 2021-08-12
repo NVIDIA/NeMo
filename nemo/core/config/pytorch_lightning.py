@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from hydra.core.config_store import ConfigStore
 
@@ -89,6 +89,9 @@ class TrainerConfig:
     stochastic_weight_avg: bool = False
     gradient_clip_algorithm: str = 'norm'
     max_time: Optional[Any] = None  # can be one of Union[str, timedelta, Dict[str, int], None]
+    reload_dataloaders_every_n_epochs: int = 0
+    ipus: Optional[int] = None
+    devices: Any = None
 
 
 # Register the trainer config.

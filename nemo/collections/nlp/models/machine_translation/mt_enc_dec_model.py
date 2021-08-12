@@ -139,7 +139,7 @@ class MTEncDecModel(EncDecNLPModel):
         model_name = encoder_cfg_dict.pop('model_name', None)
         pretrained = encoder_cfg_dict.pop('pretrained', False)
         checkpoint_file = encoder_cfg_dict.pop('checkpoint_file', None)
-        self.encoder = get_transformer(
+        self._encoder = get_transformer(
             library=library,
             model_name=model_name,
             pretrained=pretrained,
@@ -156,7 +156,7 @@ class MTEncDecModel(EncDecNLPModel):
         model_name = decoder_cfg_dict.pop('model_name', None)
         pretrained = decoder_cfg_dict.pop('pretrained', False)
         decoder_cfg_dict['hidden_size'] = self.encoder.hidden_size
-        self.decoder = get_transformer(
+        self._decoder = get_transformer(
             library=library,
             model_name=model_name,
             pretrained=pretrained,
@@ -211,8 +211,28 @@ class MTEncDecModel(EncDecNLPModel):
         ids[ids >= self.decoder_tokenizer.vocab_size] = self.decoder_tokenizer.unk_id
         return ids
 
+    def test_encoder_ids(self, ids, raise_error=False):
+        invalid_ids = (ids >= self.encoder_tokenizer.vocab_size).any()
+
+        if raise_error and invalid_ids:
+            raise ValueError("Encoder ids are out of range (tip: check encoder tokenizer)")
+
+        return not invalid_ids
+
+    def test_decoder_ids(self, ids, raise_error=False):
+        invalid_ids = (ids >= self.decoder_tokenizer.vocab_size).any()
+
+        if raise_error and invalid_ids:
+            raise ValueError("Decoder ids are out of range (tip: check decoder tokenizer)")
+
+        return not invalid_ids
+
     @typecheck()
     def forward(self, src, src_mask, tgt, tgt_mask):
+        # test src/tgt for id range (i.e., hellp in catching wrong tokenizer)
+        self.test_encoder_ids(src, raise_error=True)
+        self.test_decoder_ids(tgt, raise_error=True)
+
         src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
         tgt_hiddens = self.decoder(
             input_ids=tgt, decoder_mask=tgt_mask, encoder_embeddings=src_hiddens, encoder_mask=src_mask
