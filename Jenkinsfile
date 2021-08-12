@@ -74,7 +74,7 @@ pipeline {
 //       steps {
 //         sh 'CUDA_VISIBLE_DEVICES="" pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
 //       }
-    }
+//     }
 
     stage('L0: TN/ITN Tests CPU') {
       when {
