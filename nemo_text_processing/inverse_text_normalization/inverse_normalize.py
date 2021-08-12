@@ -25,10 +25,12 @@ class InverseNormalizer(Normalizer):
     Input is expected to have no punctuation and be lower cased.
 
     Args:
-        lang: language specifying the ITN, by default: English.
+        lang: language specifying the ITN
+        cache_dir: path to a dir with .far grammar file. Set to None to avoid using cache.
+        overwrite_cache: set to True to overwrite .far files
     """
 
-    def __init__(self, lang: str = 'en'):
+    def __init__(self, lang: str = 'en', cache_dir: str = None, overwrite_cache: bool = False):
         if lang == 'en':
             from nemo_text_processing.inverse_text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.inverse_text_normalization.en.verbalizers.verbalize_final import (
@@ -41,7 +43,7 @@ class InverseNormalizer(Normalizer):
                 VerbalizeFinalFst,
             )
 
-        self.tagger = ClassifyFst()
+        self.tagger = ClassifyFst(cache_dir=cache_dir, overwrite_cache=overwrite_cache)
         self.verbalizer = VerbalizeFinalFst()
         self.parser = TokenParser()
 
@@ -76,10 +78,20 @@ def parse_args():
     parser.add_argument("input_string", help="input string", type=str)
     parser.add_argument("--language", help="language", choices=['en', 'de'], default="en", type=str)
     parser.add_argument("--verbose", help="print info for debugging", action='store_true')
+    parser.add_argument("--overwrite_cache", help="set to True to re-create .far grammar files", action="store_true")
+    parser.add_argument(
+        "--cache_dir",
+        help="path to a dir with .far grammar file. Set to None to avoid using cache",
+        default=None,
+        type=str,
+    )
+
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    inverse_normalizer = InverseNormalizer(lang=args.language)
+    inverse_normalizer = InverseNormalizer(
+        lang=args.language, cache_dir=args.cache_dir, overwrite_cache=args.overwrite_cache
+    )
     print(inverse_normalizer.inverse_normalize(args.input_string, verbose=args.verbose))
