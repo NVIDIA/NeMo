@@ -1,18 +1,19 @@
 ~123
-one twenty three
 one two three
 one hundred twenty three
 one hundred and twenty three
 ~$123
-one twenty three dollars
 one two three dollars
 one hundred twenty three dollars
 one hundred and twenty three dollars
-~$123.2
-one twenty three dollars and two cents
+~$123.02
 one two three dollars two cents
+one hundred twenty three dollars and zero two cents
 one hundred twenty three dollars and two cents
-one hundred and twenty three point two dollars
+one hundred and twenty three point zero two dollars
+~$1.01
+one dollar and one cent
+one point zero one dollars
 ~1.24
 one point two four
 one two four
@@ -26,6 +27,7 @@ one twenty one dollars
 ~£1.00
 one pound
 one point o o pounds
+one pound and o o pence
 ~t-0t25d12-f
 t zero t twenty five d one two f
 t zero t twenty five d twelve f
@@ -48,23 +50,19 @@ It seemed to her that the jacket Oswald wore was darker than Commission Exhibit 
 It seemed to her that the jacket Oswald wore was darker than Commission Exhibit number one hundred sixty two.
 It seemed to her that the jacket Oswald wore was darker than Commission Exhibit number one hundred and sixty two.
 It seemed to her that the jacket Oswald wore was darker than Commission Exhibit number one six two.
-~"Father, let this cup pass." He prayed--was heard. What cup was it that passed away from him? Sure not the death-cup, now filled to the brim! There was no quailing in the awful word; He still was king of kings, of lords the lord:-- He feared lest, in the suffering waste and grim, His faith might grow too faint and sickly dim."
-"Father, let this cup pass." He prayed -- was heard. What cup was it that passed away from him? Sure not the death-cup, now filled to the brim! There was no quailing in the awful word; He still was king of kings, of lords the lord: -- He feared lest, in the suffering waste and grim, His faith might grow too faint and sickly dim."
+~"Father, let this cup pass." He prayed was heard. What cup was it that passed away from him? Sure not the death-cup, now filled to the brim! There was no quailing in the awful word; He still was king of kings, of lords the lord: He feared lest, in the suffering waste and grim, His faith might grow too faint and sickly dim."
+"Father, let this cup pass." He prayed was heard. What cup was it that passed away from him? Sure not the death-cup, now filled to the brim! There was no quailing in the awful word; He still was king of kings, of lords the lord: He feared lest, in the suffering waste and grim, His faith might grow too faint and sickly dim."
 ~1970-2010
 nineteen seventy to twenty ten
-one thousand nine seventy to two thousand ten
 one thousand nine hundred and seventy to two thousand ten
 one thousand nine hundred and seventy to twenty ten
 nineteen seventy twenty ten
-one thousand nine seventy two thousand ten
 one thousand nine hundred and seventy two thousand ten
 one thousand nine hundred and seventy twenty ten
 from nineteen seventy to twenty ten
-from one thousand nine seventy to two thousand ten
 from one thousand nine hundred and seventy to two thousand ten
 from one thousand nine hundred and seventy to twenty ten
 from nineteen seventy twenty ten
-from one thousand nine seventy two thousand ten
 from one thousand nine hundred and seventy two thousand ten
 from one thousand nine hundred and seventy twenty ten
 ~W26s
@@ -85,17 +83,18 @@ The box was twenty five by seven m.
 ~4567
 four thousand five hundred sixty seven
 four five six seven
-four thousand five sixty seven
 forty five sixty seven
 four thousand five hundred and sixty seven
 ~This example number 15,000 can be a very long one, and can fail to produce valid normalization for a such an easy number like 10,125 or dollar value $5349.01, and can fail to terminate, and can fail to terminate, and can fail to terminate, and can fail to terminate, and can fail to terminate, 452.
 This example number fifteen thousand can be a very long one, and can fail to produce valid normalization for a such an easy number like ten thousand one hundred twenty five or dollar value five thousand three hundred forty nine dollars and one cent, and can fail to terminate, and can fail to terminate, and can fail to terminate, and can fail to terminate, and can fail to terminate, four five two.
 ~$1.01
-one dollar and one cent
 one dollar one cent
-one dollar and zero one cents
+one dollar and one cent
+one point oh one united states dollars
+~$.02
+two cents
+point zero two dollars
 ~$17.31
-seventeen dollars and thirty one cent
 seventeen dollars and thirty one cents
 seventeen point three one dollars
 ~25.]
@@ -107,5 +106,23 @@ Francis one -- test
 Francis first -- test
 ~13000
 one three zero zero zero
-one three oh oh oh
+one three oh o oh
 thirteen thousand
+~11/17/05
+november seventeenth zero five
+november seventeenth o five
+the seventeenth of november o five
+~05
+five
+o five
+~0063
+o zero six three
+sixty three
+~ABC
+A B C
+a b c
+~Test
+Test
+~2006-08-05
+august fifth two thousand six
+the fifth of august two thousand six
