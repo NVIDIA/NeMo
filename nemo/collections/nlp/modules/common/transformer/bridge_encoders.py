@@ -47,9 +47,6 @@ class BridgeEncoder(torch.nn.Module):
         if self._hidden_init_method == "default":
             self._hidden_init_method = "enc_shared"
 
-        if hidden_blocks < 1:
-            raise ValueError(f"hidden_blocks = {hidden_blocks} but is expected to be >= 1")
-
         if self.hidden_init_method not in self.supported_init_methods:
             raise ValueError(
                 "Unknown hidden_init_method = {hidden_init_method}, supported methods are {supported_init_methods}".format(
