@@ -79,8 +79,8 @@ pipeline {
     stage('L0: TN/ITN Tests CPU') {
       when {
         anyOf {
-          branch 'tn_'
-          branch 'itn_'
+          branch 'tn_*'
+          branch 'itn_*'
         }
       }
       failFast true
