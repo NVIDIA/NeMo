@@ -1377,7 +1377,7 @@ pipeline {
             sh 'python examples/tts/waveglow.py \
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
-            trainer.gpus="[0]]" \
+            trainer.gpus="[0]" \
             +trainer.fast_dev_run=True \
             trainer.accelerator=null \
             trainer.max_epochs=-1 \
@@ -1400,10 +1400,10 @@ pipeline {
             +trainer.fast_dev_run=True \
             trainer.accelerator=null \
             trainer.max_epochs=-1 \
-            model.train_ds.batch_size=12 \
-            model.train_ds.num_workers=1 \
-            model.validation_ds.batch_size=12 \
-            model.validation_ds.num_workers=1 \
+            model.train_ds.dataloader_params.batch_size=12 \
+            model.train_ds.dataloader_params.num_workers=1 \
+            model.validation_ds.dataloader_params.batch_size=12 \
+            model.validation_ds.dataloader_params.num_workers=1 \
             model.symbols_embedding_dim=64 \
             model.input_fft.d_inner=384 \
             model.input_fft.n_layer=2 \
@@ -1417,7 +1417,6 @@ pipeline {
             sh 'python examples/tts/hifigan.py \
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
-            prior_folder=/home/TestData/an4_dataset/beta_priors \
             trainer.gpus="[0]" \
             +trainer.fast_dev_run=True \
             trainer.accelerator=null \
