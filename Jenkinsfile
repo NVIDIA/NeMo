@@ -78,8 +78,8 @@ pipeline {
 
     stage('L0: TN/ITN Tests CPU') {
       when {
-        allOf {
-          branch 'tn*'
+        anyOf {
+          branch 'main'
           changeRequest target: 'main'
         }
       }
@@ -118,8 +118,8 @@ pipeline {
 
     stage('L2: NeMo text processing') {
       when {
-        allOf {
-          branch 'tn*'
+        anyOf {
+          branch 'main'
           changeRequest target: 'main'
         }
       }
