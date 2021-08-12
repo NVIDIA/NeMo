@@ -52,28 +52,28 @@ pipeline {
       }
     }
 
-    stage('PyTorch Lightning DDP Checks') {
-      steps {
-        sh 'python "tests/core_ptl/check_for_ranks.py"'
-      }
-    }
-
-    stage('L0: Unit Tests GPU') {
-      steps {
-        sh 'pytest -m "not pleasefixme" --with_downloads --relax_numba_compat'
-      }
-    }
-
-    stage('L0: Unit Tests CPU') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      steps {
-        sh 'CUDA_VISIBLE_DEVICES="" pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
-      }
+//     stage('PyTorch Lightning DDP Checks') {
+//       steps {
+//         sh 'python "tests/core_ptl/check_for_ranks.py"'
+//       }
+//     }
+//
+//     stage('L0: Unit Tests GPU') {
+//       steps {
+//         sh 'pytest -m "not pleasefixme" --with_downloads --relax_numba_compat'
+//       }
+//     }
+//
+//     stage('L0: Unit Tests CPU') {
+//       when {
+//         anyOf {
+//           branch 'main'
+//           changeRequest target: 'main'
+//         }
+//       }
+//       steps {
+//         sh 'CUDA_VISIBLE_DEVICES="" pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
+//       }
     }
 
     stage('L0: TN/ITN Tests CPU') {
@@ -109,8 +109,9 @@ pipeline {
         }
         stage('Create Ru non-deterministic TN & Run all Ru TN/ITN tests') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars --overwrite_cache --language ru'
-            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/ru/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py "двадцать" --cache_dir /home/TestData/nlp/text_norm/ci/grammars --overwrite_cache --language ru'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "25" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars --language ru'
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/ru/test_ru*.py -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars'
           }
         }
       }
