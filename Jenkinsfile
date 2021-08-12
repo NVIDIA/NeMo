@@ -1158,7 +1158,9 @@ pipeline {
               '
             }
         }
-    stage('L2: NMT Bottleneck') {
+      }
+    }
+    stage('L2: NMT Bottleneck seq2seq') {
       when {
         anyOf {
           branch 'main'
@@ -1167,7 +1169,7 @@ pipeline {
       }
       failFast true
       parallel {
-        stage('L2: NMT Perceiver Encoder seq2seq') {
+        stage('L2: NMT Bottleneck seq2seq (fallback)') {
             steps {
               sh 'cd examples/nlp/machine_translation && \
               enc_dec_nmt-bottleneck.py \
@@ -1202,7 +1204,18 @@ pipeline {
               '
             }
         }
-        stage('L2: NMT Perceiver Encoder Bridge (identity init)') {
+      }
+    }
+    stage('L2: NMT Bottleneck') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('L2: NMT Bridge Encoder (identity)') {
             steps {
               sh 'cd examples/nlp/machine_translation && \
               enc_dec_nmt-bottleneck.py \
@@ -1236,7 +1249,7 @@ pipeline {
               exp_manager=null \
               '
             }
-        stage('L2: NMT Perceiver Encoder Perceiver (params init)') {
+        stage('L2: NMT Perceiver Encoder (params)') {
             steps {
               sh 'cd examples/nlp/machine_translation && \
               enc_dec_nmt-bottleneck.py \
@@ -1264,13 +1277,24 @@ pipeline {
               model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt13-en-de.ref \
               model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
               model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
-              trainer.gpus=[0] \
+              trainer.gpus=[1] \
               +trainer.fast_dev_run=true \
               +trainer.limit_test_batches=2 \
               exp_manager=null \
               '
             }
         }
+      }
+    }
+    stage('L2: NMT Bottleneck LVM') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
         stage('L2: NMT Bottleneck VAE') {
             steps {
               sh 'cd examples/nlp/machine_translation && \
@@ -1334,7 +1358,7 @@ pipeline {
               model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt13-en-de.ref \
               model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
               model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
-              trainer.gpus=[0] \
+              trainer.gpus=[1] \
               +trainer.fast_dev_run=true \
               +trainer.limit_test_batches=2 \
               exp_manager=null \
