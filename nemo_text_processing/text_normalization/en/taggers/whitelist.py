@@ -64,5 +64,5 @@ class WhiteListFst(GraphFst):
         if not deterministic:
             graph |= _get_whitelist_graph("lower_cased") | _get_whitelist_non_deterministic_graph()
 
-        graph = pynutil.insert("name: \"") + convert_space(graph) + pynutil.insert("\"")
-        self.fst = graph.optimize()
+        self.graph = (convert_space(graph)).optimize()
+        self.fst = (pynutil.insert("name: \"") + self.graph + pynutil.insert("\"")).optimize()
