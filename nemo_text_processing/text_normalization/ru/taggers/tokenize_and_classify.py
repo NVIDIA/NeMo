@@ -33,7 +33,6 @@ from nemo_text_processing.text_normalization.ru.taggers.ordinal import OrdinalFs
 from nemo_text_processing.text_normalization.ru.taggers.telephone import TelephoneFst
 from nemo_text_processing.text_normalization.ru.taggers.time import TimeFst
 from nemo_text_processing.text_normalization.ru.taggers.whitelist import WhiteListFst
-from nemo_text_processing.text_normalization.ru.utils import get_abs_path
 
 from nemo.utils import logging
 

@@ -79,8 +79,8 @@ pipeline {
     stage('L0: TN/ITN Tests CPU') {
       when {
         anyOf {
-          branch '*tn_*'
-          branch '*itn_*'
+          branch "tn*"
+          branch "itn*"
         }
       }
       failFast true
@@ -119,8 +119,8 @@ pipeline {
     stage('L2: NeMo text processing') {
       when {
         anyOf {
-          branch '**tn_**'
-          branch '**itn_**'
+          branch "tn*"
+          branch "itn*"
         }
       }
       failFast true
