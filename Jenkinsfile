@@ -1249,6 +1249,7 @@ pipeline {
               exp_manager=null \
               '
             }
+        }
         stage('L2: NMT Perceiver Encoder (params)') {
             steps {
               sh 'cd examples/nlp/machine_translation && \
