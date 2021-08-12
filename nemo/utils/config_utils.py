@@ -17,8 +17,8 @@ import inspect
 from dataclasses import is_dataclass
 from typing import Dict, List, Optional
 
+# TODO @blisc: Perhaps refactor instead of import guarding
 _HAS_HYDRA = True
-
 try:
     from omegaconf import DictConfig, OmegaConf, open_dict
 except ModuleNotFoundError:

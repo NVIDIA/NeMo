@@ -14,29 +14,29 @@
 
 from nemo.collections.asr.parts.preprocessing.feature_loader import ExternalFeatureLoader
 
-# from nemo.collections.asr.parts.preprocessing.features import (
-#     STFT,
-#     FeaturizerFactory,
-#     FilterbankFeatures,
-#     STFTExactPad,
-#     STFTPatch,
-#     WaveformFeaturizer,
-# )
-# from nemo.collections.asr.parts.preprocessing.perturb import (
-#     AudioAugmentor,
-#     AugmentationDataset,
-#     GainPerturbation,
-#     ImpulsePerturbation,
-#     NoisePerturbation,
-#     Perturbation,
-#     RirAndNoisePerturbation,
-#     ShiftPerturbation,
-#     SpeedPerturbation,
-#     TimeStretchPerturbation,
-#     TranscodePerturbation,
-#     WhiteNoisePerturbation,
-#     perturbation_types,
-#     process_augmentations,
-#     register_perturbation,
-# )
+from nemo.collections.asr.parts.preprocessing.features import (
+    STFT,
+    FeaturizerFactory,
+    FilterbankFeatures,
+    STFTExactPad,
+    STFTPatch,
+    WaveformFeaturizer,
+)
+from nemo.collections.asr.parts.preprocessing.perturb import (
+    AudioAugmentor,
+    AugmentationDataset,
+    GainPerturbation,
+    ImpulsePerturbation,
+    NoisePerturbation,
+    Perturbation,
+    RirAndNoisePerturbation,
+    ShiftPerturbation,
+    SpeedPerturbation,
+    TimeStretchPerturbation,
+    TranscodePerturbation,
+    WhiteNoisePerturbation,
+    perturbation_types,
+    process_augmentations,
+    register_perturbation,
+)
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment

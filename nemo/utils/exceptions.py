@@ -16,8 +16,6 @@
 class NeMoBaseException(Exception):
     """ NeMo Base Exception. All exceptions created in NeMo should inherit from this class"""
 
-    pass
-
 
 class LightningNotInstalledException(NeMoBaseException):
     def __init__(self, obj):

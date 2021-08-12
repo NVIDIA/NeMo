@@ -125,6 +125,7 @@ If you look into the code we see that `TextMelAudioDataset` is a child of `nemo.
    - [ ] Clean up to make code less hacky
    - [ ] Split up utils better
  - [ ] Enable building *text_normlization* without installing lightning
+ - [ ] Look into how `Serialization` works without hydra
 
 # Appendix
 

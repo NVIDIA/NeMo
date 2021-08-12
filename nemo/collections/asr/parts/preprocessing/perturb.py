@@ -43,8 +43,17 @@ from typing import List, Optional, Union
 import librosa
 import numpy as np
 import soundfile as sf
-import webdataset as wd
-from omegaconf import DictConfig, OmegaConf
+
+# TODO @blisc: Perhaps refactor instead of import guarding
+HAVE_OMEGACONG_WEBDATASET = True
+try:
+    import webdataset as wd
+    from omegaconf import DictConfig, OmegaConf
+except ModuleNotFoundError:
+    from nemo.utils.exceptions import LightningNotInstalledException
+
+    HAVE_OMEGACONG_WEBDATASET = False
+
 from scipy import signal
 from torch.utils.data import IterableDataset
 
@@ -792,10 +801,13 @@ def process_augmentations(augmenter) -> Optional[AudioAugmentor]:
     if isinstance(augmenter, AudioAugmentor):
         return augmenter
 
-    if not type(augmenter) in {dict, DictConfig}:
+    augmenter_types = {dict}
+    if HAVE_OMEGACONG_WEBDATASET:
+        augmenter_types = {dict, DictConfig}
+    if not type(augmenter) in augmenter_types:
         raise ValueError("Cannot parse augmenter. Must be a dict or an AudioAugmentor object ")
 
-    if isinstance(augmenter, DictConfig):
+    if HAVE_OMEGACONG_WEBDATASET and isinstance(augmenter, DictConfig):
         augmenter = OmegaConf.to_container(augmenter, resolve=True)
 
     augmenter = copy.deepcopy(augmenter)
@@ -864,6 +876,8 @@ class AugmentationDataset(IterableDataset):
                 if bkey in tar_filepaths:
                     tar_filepaths = tar_filepaths.replace(bkey, "}")
 
+        if not HAVE_OMEGACONG_WEBDATASET:
+            raise LightningNotInstalledException(self)
         self.audio_dataset = wd.WebDataset(urls=tar_filepaths, nodesplitter=None)
 
         if shuffle_n > 0:

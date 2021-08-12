@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 import json
-from typing import Any, Dict, Optional, Union
+from typing import Dict, Optional
 from pathlib import Path
 import pickle
-import math
 
 import torch
-import numpy as np
 import librosa
 
 

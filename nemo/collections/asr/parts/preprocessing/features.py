@@ -42,9 +42,17 @@ import torch.nn.functional as F
 from librosa.util import tiny
 from torch.autograd import Variable
 
-# from torch_stft import STFT
+# TODO @blisc: Perhaps refactor instead of import guarding
+try:
+    from torch_stft import STFT
+except ModuleNotFoundError:
+    from nemo.utils.exceptions import CheckInstall
 
-# from nemo.collections.asr.parts.preprocessing.perturb import AudioAugmentor
+    # fmt: off
+    class STFT(CheckInstall): pass
+    # fmt: on
+
+from nemo.collections.asr.parts.preprocessing.perturb import AudioAugmentor
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.common.parts.patch_utils import stft_patch
 from nemo.utils import logging
@@ -103,8 +111,8 @@ class WaveformFeaturizer(object):
         self.sample_rate = sample_rate
         self.int_values = int_values
 
-    # def max_augmentation_length(self, length):
-    #     return self.augmentor.max_augmentation_length(length)
+    def max_augmentation_length(self, length):
+        return self.augmentor.max_augmentation_length(length)
 
     def process(self, file_path, offset=0, duration=0, trim=False, orig_sr=None):
         audio = AudioSegment.from_file(
@@ -119,15 +127,15 @@ class WaveformFeaturizer(object):
         return self.process_segment(audio)
 
     def process_segment(self, audio_segment):
-        # self.augmentor.perturb(audio_segment)
+        self.augmentor.perturb(audio_segment)
         return torch.tensor(audio_segment.samples, dtype=torch.float)
 
     @classmethod
     def from_config(cls, input_config, perturbation_configs=None):
-        # if perturbation_configs is not None:
-        #     aa = AudioAugmentor.from_config(perturbation_configs)
-        # else:
-        #     aa = None
+        if perturbation_configs is not None:
+            aa = AudioAugmentor.from_config(perturbation_configs)
+        else:
+            aa = None
 
         sample_rate = input_config.get("sample_rate", 16000)
         int_values = input_config.get("int_values", False)
@@ -144,54 +152,54 @@ class FeaturizerFactory(object):
         return WaveformFeaturizer.from_config(input_cfg, perturbation_configs=perturbation_configs)
 
 
-# # Create helper class to patch forward func for use with AMP
-# class STFTPatch(STFT):
-#     def forward(self, input_data):
-#         return super().transform(input_data)[0]
+# Create helper class to patch forward func for use with AMP
+class STFTPatch(STFT):
+    def forward(self, input_data):
+        return super().transform(input_data)[0]
 
 
-# # Create helper class for STFT that yields num_frames = num_samples // hop_length
-# class STFTExactPad(STFTPatch):
-#     """adapted from Prem Seetharaman's https://github.com/pseeth/pytorch-stft"""
+# Create helper class for STFT that yields num_frames = num_samples // hop_length
+class STFTExactPad(STFTPatch):
+    """adapted from Prem Seetharaman's https://github.com/pseeth/pytorch-stft"""
 
-#     def __init__(self, *params, **kw_params):
-#         super().__init__(*params, **kw_params)
-#         self.pad_amount = (self.filter_length - self.hop_length) // 2
+    def __init__(self, *params, **kw_params):
+        super().__init__(*params, **kw_params)
+        self.pad_amount = (self.filter_length - self.hop_length) // 2
 
-#     def inverse(self, magnitude, phase):
-#         recombine_magnitude_phase = torch.cat([magnitude * torch.cos(phase), magnitude * torch.sin(phase)], dim=1)
+    def inverse(self, magnitude, phase):
+        recombine_magnitude_phase = torch.cat([magnitude * torch.cos(phase), magnitude * torch.sin(phase)], dim=1)
 
-#         inverse_transform = F.conv_transpose1d(
-#             recombine_magnitude_phase,
-#             Variable(self.inverse_basis, requires_grad=False),
-#             stride=self.hop_length,
-#             padding=0,
-#         )
+        inverse_transform = F.conv_transpose1d(
+            recombine_magnitude_phase,
+            Variable(self.inverse_basis, requires_grad=False),
+            stride=self.hop_length,
+            padding=0,
+        )
 
-#         if self.window is not None:
-#             window_sum = librosa.filters.window_sumsquare(
-#                 self.window,
-#                 magnitude.size(-1),
-#                 hop_length=self.hop_length,
-#                 win_length=self.win_length,
-#                 n_fft=self.filter_length,
-#                 dtype=np.float32,
-#             )
-#             # remove modulation effects
-#             approx_nonzero_indices = torch.from_numpy(np.where(window_sum > tiny(window_sum))[0])
-#             window_sum = torch.autograd.Variable(torch.from_numpy(window_sum), requires_grad=False).to(
-#                 magnitude.device
-#             )
-#             inverse_transform[..., approx_nonzero_indices] /= window_sum[approx_nonzero_indices]
+        if self.window is not None:
+            window_sum = librosa.filters.window_sumsquare(
+                self.window,
+                magnitude.size(-1),
+                hop_length=self.hop_length,
+                win_length=self.win_length,
+                n_fft=self.filter_length,
+                dtype=np.float32,
+            )
+            # remove modulation effects
+            approx_nonzero_indices = torch.from_numpy(np.where(window_sum > tiny(window_sum))[0])
+            window_sum = torch.autograd.Variable(torch.from_numpy(window_sum), requires_grad=False).to(
+                magnitude.device
+            )
+            inverse_transform[..., approx_nonzero_indices] /= window_sum[approx_nonzero_indices]
 
-#             # scale by hop ratio
-#             inverse_transform *= self.filter_length / self.hop_length
+            # scale by hop ratio
+            inverse_transform *= self.filter_length / self.hop_length
 
-#         inverse_transform = inverse_transform[..., self.pad_amount :]
-#         inverse_transform = inverse_transform[..., : -self.pad_amount :]
-#         inverse_transform = inverse_transform.squeeze(1)
+        inverse_transform = inverse_transform[..., self.pad_amount :]
+        inverse_transform = inverse_transform[..., : -self.pad_amount :]
+        inverse_transform = inverse_transform.squeeze(1)
 
-#         return inverse_transform
+        return inverse_transform
 
 
 class FilterbankFeatures(nn.Module):
