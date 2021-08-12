@@ -1,0 +1,3 @@
+trainer:
+  num_gpus: 1
+  num_nodes: 1
