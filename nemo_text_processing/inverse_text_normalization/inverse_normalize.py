@@ -94,12 +94,12 @@ def parse_args():
 
 
 if __name__ == "__main__":
-    start_time = perf_counter()
     args = parse_args()
     start_time = perf_counter()
     inverse_normalizer = InverseNormalizer(
         lang=args.language, cache_dir=args.cache_dir, overwrite_cache=args.overwrite_cache
     )
     print(f'Time to generate graph: {round(perf_counter() - start_time, 2)} sec')
+    start_time = perf_counter()
     print(inverse_normalizer.inverse_normalize(args.input_string, verbose=args.verbose))
     print(f'Execution time: {round(perf_counter() - start_time, 2)} sec')

@@ -78,6 +78,8 @@ class NormalizerWithAudio(Normalizer):
     """
 
     def __init__(self, input_case: str, lang: str = 'en', cache_dir: str = None, overwrite_cache: bool = False):
+
+        super().__init__(input_case=input_case, lang=lang, cache_dir=cache_dir, overwrite_cache=overwrite_cache)
         if lang == 'en':
             from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_with_audio import ClassifyFst
             from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst

@@ -33,7 +33,6 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     generator_main,
 )
 from nemo_text_processing.text_normalization.ru.taggers.tokenize_and_classify import ClassifyFst as TNClassifyFst
-from nemo_text_processing.text_normalization.ru.utils import get_abs_path
 
 from nemo.utils import logging
 
