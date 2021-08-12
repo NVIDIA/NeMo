@@ -20,7 +20,7 @@ diarizer:
       method: "median" 
       overlap: 0.875
     threshold: null # if not null, use this value and ignore the following onset and offset. Warning! it will be removed in release 1.5!
-    postprocessing_params: # Tuned parameter for CH109! (18 sessions as dev set) You might need to choose resonable threshold or tune the threshold on your dev set. Check <NeMo_git_root>/scripts/voice_activity_detection/vad_tune_threshold.py
+    postprocessing_params: # Tuned parameter for CH109! (with 11 moved multi-speech sessions as dev set) You might need to choose resonable threshold or tune the threshold on your dev set. Check <NeMo_git_root>/scripts/voice_activity_detection/vad_tune_threshold.py
       onset: 0.4
       offset: 0.7
       pad_onset: 0.05
