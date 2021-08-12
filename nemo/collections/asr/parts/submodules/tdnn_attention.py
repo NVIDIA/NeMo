@@ -58,7 +58,7 @@ class StatsPoolLayer(nn.Module):
 
 def lens_to_mask(lens: List[int], max_len: int, device: str = None):
     """
-    outputs masking labels for list of lengths of audio features, with max length of any 
+    outputs masking labels for list of lengths of audio features, with max length of any
     mask as max_len
     input:
         lens: list of lens
@@ -68,7 +68,6 @@ def lens_to_mask(lens: List[int], max_len: int, device: str = None):
         num_values: sum of mask values for each feature (useful for computing statistics later)
     """
     lens_mat = torch.arange(max_len).to(device)
-    lens = lens * max_len
     mask = lens_mat[:max_len].unsqueeze(0) < lens.unsqueeze(1)
     mask = mask.unsqueeze(1)
     num_values = torch.sum(mask, dim=2, keepdim=True)
@@ -79,8 +78,8 @@ def get_statistics_with_mask(x: torch.Tensor, m: torch.Tensor, dim: int = 2, eps
     """
     compute mean and standard deviation of input(x) provided with its masking labels (m)
     input:
-        x: feature input 
-        m: averaged mask labels 
+        x: feature input
+        m: averaged mask labels
     output:
         mean: mean of input features
         std: stadard deviation of input features
@@ -101,7 +100,7 @@ class TDNNModule(nn.Module):
         stride: stride for conv layer
         padding: padding for conv layer (default None: chooses padding value such that input and output feature shape matches)
     output:
-        tdnn layer output 
+        tdnn layer output
     """
 
     def __init__(
@@ -138,7 +137,7 @@ class MaskedSEModule(nn.Module):
     """
     Squeeze and Excite module implementation with conv1d layers
     input:
-        inp_filters: input filter channel size 
+        inp_filters: input filter channel size
         se_filters: intermediate squeeze and excite channel output and input size
         out_filters: output filter channel size
         kernel_size: kernel_size for both conv1d layers
@@ -175,7 +174,7 @@ class TDNNSEModule(nn.Module):
     Modified building SE_TDNN group module block from ECAPA implementation for faster training and inference
     Reference: ECAPA-TDNN Embeddings for Speaker Diarization (https://arxiv.org/pdf/2104.01466.pdf)
     inputs:
-        inp_filters: input filter channel size 
+        inp_filters: input filter channel size
         out_filters: output filter channel size
         group_scale: scale value to group wider conv channels (deafult:8)
         se_channels: squeeze and excite output channel size (deafult: 1024/8= 128)
@@ -231,7 +230,7 @@ class AttentivePoolLayer(nn.Module):
         inp_filters: input feature channel length from encoder
         attention_channels: intermediate attention channel size
         kernel_size: kernel_size for TDNN and attention conv1d layers (default: 1)
-        dilation: dilation size for TDNN and attention conv1d layers  (default: 1) 
+        dilation: dilation size for TDNN and attention conv1d layers  (default: 1)
     """
 
     def __init__(
