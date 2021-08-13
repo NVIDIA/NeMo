@@ -17,13 +17,12 @@
 import os
 import time
 from argparse import ArgumentParser
-from typing import Dict
 
 from nemo.utils import logging
 
 try:
     import pynini
-    from pynini.export import export
+    from nemo_text_processing.text_normalization.en.graph_utils import generator_main
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -41,32 +40,27 @@ except (ModuleNotFoundError, ImportError):
 # tokenize_and_classify.far and verbalize.far for production purposes
 
 
-def _generator_main(file_name: str, graphs: Dict[str, pynini.FstLike]):
-    """
-    Exports graph as OpenFst finite state archive (FAR) file with given file name and rule name. 
-
-    Args:
-        file_name: exported file name
-        graphs: Mapping of a rule name and Pynini WFST graph to be exported
-
-    """
-    exporter = export.Exporter(file_name)
-    for rule, graph in graphs.items():
-        exporter[rule] = graph.optimize()
-    exporter.close()
-    print(f'Created {file_name}')
-
-
 def itn_grammars(**kwargs):
     d = {}
-    d['classify'] = {'TOKENIZE_AND_CLASSIFY': ITNClassifyFst().fst}
+    d['classify'] = {
+        'TOKENIZE_AND_CLASSIFY': ITNClassifyFst(
+            cache_dir=kwargs["cache_dir"], overwrite_cache=kwargs["overwrite_cache"]
+        ).fst
+    }
     d['verbalize'] = {'ALL': ITNVerbalizeFst().fst, 'REDUP': pynini.accep("REDUP")}
     return d
 
 
 def tn_grammars(**kwargs):
     d = {}
-    d['classify'] = {'TOKENIZE_AND_CLASSIFY': TNClassifyFst(input_case=kwargs["input_case"], deterministic=True).fst}
+    d['classify'] = {
+        'TOKENIZE_AND_CLASSIFY': TNClassifyFst(
+            input_case=kwargs["input_case"],
+            deterministic=True,
+            cache_dir=kwargs["cache_dir"],
+            overwrite_cache=kwargs["overwrite_cache"],
+        ).fst
+    }
     d['verbalize'] = {'ALL': TNVerbalizeFst(deterministic=True).fst, 'REDUP': pynini.accep("REDUP")}
     return d
 
@@ -87,24 +81,35 @@ def export_grammars(output_dir, grammars):
             time.sleep(1)
         if category == "classify":
             category = "tokenize_and_classify"
-        _generator_main(f"{out_dir}/{category}.far", graphs)
+        generator_main(f"{out_dir}/{category}.far", graphs)
 
 
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--output_dir", help="output directory for grammars", required=True, type=str)
-    parser.add_argument("--language", help="language", choices=["en", "de"], type=str, default='en')
+    parser.add_argument("--language", help="language", choices=["en", "de", "ru"], type=str, default='en')
     parser.add_argument(
         "--grammars", help="grammars to be exported", choices=["tn_grammars", "itn_grammars"], type=str, required=True
     )
     parser.add_argument(
         "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )
+    parser.add_argument("--overwrite_cache", help="set to True to re-create .far grammar files", action="store_true")
+    parser.add_argument(
+        "--cache_dir",
+        help="path to a dir with .far grammar file. Set to None to avoid using cache",
+        default=None,
+        type=str,
+    )
     return parser.parse_args()
 
 
 if __name__ == '__main__':
     args = parse_args()
+
+    if args.language in ['ru', 'de'] and args.grammars == 'tn_grammars':
+        raise ValueError('Only ITN grammars could be deployed in Sparrowhawk for the selected languages.')
+
     if args.language == 'en':
         from nemo_text_processing.inverse_text_normalization.en.taggers.tokenize_and_classify import (
             ClassifyFst as ITNClassifyFst,
@@ -116,6 +121,13 @@ if __name__ == '__main__':
             ClassifyFst as TNClassifyFst,
         )
         from nemo_text_processing.text_normalization.en.verbalizers.verbalize import VerbalizeFst as TNVerbalizeFst
+    elif args.language == 'ru':
+        from nemo_text_processing.inverse_text_normalization.ru.taggers.tokenize_and_classify import (
+            ClassifyFst as ITNClassifyFst,
+        )
+        from nemo_text_processing.inverse_text_normalization.ru.verbalizers.verbalize import (
+            VerbalizeFst as ITNVerbalizeFst,
+        )
     elif args.language == 'de':
         from nemo_text_processing.inverse_text_normalization.de.taggers.tokenize_and_classify import (
             ClassifyFst as ITNClassifyFst,
@@ -124,7 +136,10 @@ if __name__ == '__main__':
             VerbalizeFst as ITNVerbalizeFst,
         )
 
-        if args.grammars == 'tn_grammars':
-            raise ValueError(f'"{args.language}" only supports Inverse Text Normalization task.')
     output_dir = os.path.join(args.output_dir, args.language)
-    export_grammars(output_dir=output_dir, grammars=locals()[args.grammars](input_case=args.input_case))
+    export_grammars(
+        output_dir=output_dir,
+        grammars=locals()[args.grammars](
+            input_case=args.input_case, cache_dir=args.cache_dir, overwrite_cache=args.overwrite_cache
+        ),
+    )

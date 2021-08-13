@@ -48,10 +48,7 @@ class DecimalFst(GraphFst):
             + pynutil.delete("\"")
         )
 
-        if deterministic:
-            self.fractional = pynutil.insert("point ") + self.fractional_default
-        else:
-            self.fractional = pynini.closure(pynutil.insert("point "), 0, 1) + self.fractional_default
+        self.fractional = pynutil.insert("point ") + self.fractional_default
 
         self.quantity = (
             delete_space
@@ -69,6 +66,11 @@ class DecimalFst(GraphFst):
             | (self.integer + self.quantity)
             | (self.optional_integer + self.fractional + self.optional_quantity)
         )
+
+        # 1.35 -> one thirty five (without "point")
+        if not deterministic:
+            graph |= self.integer + delete_space + insert_space + self.fractional_default + self.optional_quantity
+
         self.numbers = graph
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
