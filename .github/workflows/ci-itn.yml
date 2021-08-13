@@ -36,4 +36,5 @@ jobs:
 
     - name: ITN Tests
       run: |
-        pytest tests/nemo_text_processing/ --cpu
+        cd tests/nemo_text_processing
+        pytest . --cpu -s -v
