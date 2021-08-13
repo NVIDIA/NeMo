@@ -34,7 +34,20 @@ jobs:
         # Install ITN requirements
         /bin/bash nemo_text_processing/setup.sh
 
+    - name: Prepare Cache Dir
+      run: |
+        # Create cache dir
+        !mkdir -p ~/tn_cache/
+
+    - name: Cache graphs
+      uses: actions/cache@v2
+      with:
+        path: ~/tn_cache
+        key: ${{ runner.os }}-${{ hashFiles('setup.py') }}
+        restore-keys: |
+          ${{ runner.os }}-
+
     - name: ITN Tests
       run: |
         cd tests/nemo_text_processing
-        pytest . --cpu -s -v
+        pytest . -s -v --cpu --tn_cache_dir "~/tn_cache"
