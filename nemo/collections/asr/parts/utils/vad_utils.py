@@ -306,7 +306,7 @@ def generate_vad_segment_table(vad_pred_dir, postprocessing_params, shift_len, n
     p = Pool(processes=num_workers)
     suffixes = ("frame", "mean", "median")
     vad_pred_filepath_list = [os.path.join(vad_pred_dir, x) for x in os.listdir(vad_pred_dir) if x.endswith(suffixes)]
-    
+
     table_out_dir_name = "table_output_tmp_"
     for key in postprocessing_params:
         table_out_dir_name = table_out_dir_name + str(key) + str(postprocessing_params[key]) + "_"
