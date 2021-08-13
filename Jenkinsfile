@@ -52,29 +52,29 @@ pipeline {
       }
     }
 
-    stage('PyTorch Lightning DDP Checks') {
-      steps {
-        sh 'python "tests/core_ptl/check_for_ranks.py"'
-      }
-    }
-
-    stage('L0: Unit Tests GPU') {
-      steps {
-        sh 'pytest -m "not pleasefixme" --with_downloads --relax_numba_compat'
-      }
-    }
-
-    stage('L0: Unit Tests CPU') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      steps {
-        sh 'CUDA_VISIBLE_DEVICES="" pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
-      }
-    }
+//     stage('PyTorch Lightning DDP Checks') {
+//       steps {
+//         sh 'python "tests/core_ptl/check_for_ranks.py"'
+//       }
+//     }
+//
+//     stage('L0: Unit Tests GPU') {
+//       steps {
+//         sh 'pytest -m "not pleasefixme" --with_downloads --relax_numba_compat'
+//       }
+//     }
+//
+//     stage('L0: Unit Tests CPU') {
+//       when {
+//         anyOf {
+//           branch 'main'
+//           changeRequest target: 'main'
+//         }
+//       }
+//       steps {
+//         sh 'CUDA_VISIBLE_DEVICES="" pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
+//       }
+//     }
 
     stage('L0: TN/ITN Tests CPU') {
       when {
@@ -85,33 +85,33 @@ pipeline {
       }
       failFast true
       parallel {
-        stage('Create En TN grammars') {
+        stage('En TN grammars') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize.py "1" --cache_dir /home/TestData/nlp/text_norm/ci/grammars --overwrite_cache'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize.py "1" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-12'
           }
         }
-        stage('Create En ITN grammars') {
+        stage('En ITN grammars') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language en "twenty" --cache_dir /home/TestData/nlp/text_norm/ci/grammars --overwrite_cache'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language en "twenty" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-12'
           }
         }
-        stage('Create & Run German ITN') {
+        stage('German ITN') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language de "zwanzig" --cache_dir /home/TestData/nlp/text_norm/ci/grammars --overwrite_cache'
-            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/de -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language de "zwanzig" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-12'
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/de -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-12'
           }
         }
         stage('Create En non-deterministic TN & Run all En TN/ITN tests') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars --overwrite_cache'
-            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/en/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-12'
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/en/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-12'
           }
         }
-        stage('Create Ru ITN and non-deterministic TN & Run all Ru TN/ITN tests') {
+        stage('Run Ru ITN and non-deterministic TN & Run all Ru ITN tests') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py "двадцать" --cache_dir /home/TestData/nlp/text_norm/ci/grammars --overwrite_cache --language ru'
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "25" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars --language ru'
-            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/ru/test_ru*.py -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py "двадцать" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-12 --language ru'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "25" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-12 --language ru'
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/ru/test_ru_inverse_normalization.py -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-12'
           }
         }
       }
@@ -128,7 +128,7 @@ pipeline {
       parallel {
         stage('L2: Eng TN') {
           steps {
-            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_norm/output/ --grammars=tn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars --language=en && ls -R /home/TestData/nlp/text_norm/output/ && echo ".far files created "|| exit 1'
+            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_norm/output/ --grammars=tn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-12 --language=en && ls -R /home/TestData/nlp/text_norm/output/ && echo ".far files created "|| exit 1'
             sh 'cd nemo_text_processing/text_normalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_norm/ci/test.txt --input_case="lower_cased" --language=en --output=/home/TestData/nlp/text_norm/output/test.pynini.txt --verbose'
             sh 'cmp --silent /home/TestData/nlp/text_norm/output/test.pynini.txt /home/TestData/nlp/text_norm/ci/test_goal_py.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_norm/output/*'
@@ -137,7 +137,7 @@ pipeline {
 
         stage('L2: Eng ITN export') {
           steps {
-            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_denorm/output/ --grammars=itn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars --language=en && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
+            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_denorm/output/ --grammars=itn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-12 --language=en && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
             sh 'cd nemo_text_processing/inverse_text_normalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_denorm/ci/test.txt --language=en --output=/home/TestData/nlp/text_denorm/output/test.pynini.txt --verbose'
             sh 'cmp --silent /home/TestData/nlp/text_denorm/output/test.pynini.txt /home/TestData/nlp/text_denorm/ci/test_goal_py.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_denorm/output/*'
@@ -146,7 +146,7 @@ pipeline {
         stage('L2: TN with Audio (audio and raw text)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars --text "The total amounts to \\$4.76." \
+            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-12 --text "The total amounts to \\$4.76." \
             --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt 2>&1 && \
             cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt'
@@ -155,7 +155,7 @@ pipeline {
         stage('L2: TN with Audio (audio and text file)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars --text /home/TestData/nlp/text_norm/audio_based/text.txt \
+            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-12 --text /home/TestData/nlp/text_norm/audio_based/text.txt \
             --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_file.txt 2>&1 && \
             cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_file.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_file.txt'
@@ -164,7 +164,7 @@ pipeline {
         stage('L2: TN with Audio (manifest)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 --cache_dir /home/TestData/nlp/text_norm/ci/grammars && \
+            python normalize_with_audio.py --language=en --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-12 && \
             cmp --silent /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json /home/TestData/nlp/text_norm/audio_based/manifest_result.json || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json'
           }

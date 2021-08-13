@@ -82,7 +82,7 @@ class NormalizerWithAudio(Normalizer):
         super().__init__(
             input_case=input_case,
             lang=lang,
-            deterministric=False,
+            deterministic=False,
             cache_dir=cache_dir,
             overwrite_cache=overwrite_cache,
         )
