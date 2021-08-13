@@ -128,7 +128,10 @@ class CompressorEncoder(torch.nn.Module):
             hidden_states = self.init_hidden.unsqueeze(0).expand(encoder_states.shape[0], -1, -1)
         elif self._hidden_init_method == "bridge":
             # initialize latent with attention bridge
-            hidden_states = self.att_bridge(hidden=encoder_states, hidden_mask=encoder_mask,)
+            hidden_states = self.att_bridge(
+                hidden=encoder_states,
+                hidden_mask=encoder_mask,
+            )
 
         # apply block (cross-attention, self-attention) multiple times
         for att_bridge, enc in zip(self.att_bridge_layers, self.enc_layers):
@@ -137,8 +140,8 @@ class CompressorEncoder(torch.nn.Module):
             joint_hidden_states = torch.cat([hidden_states, encoder_states], dim=-2)
             joint_hidden_mask = torch.cat([hidden_mask, encoder_mask], dim=-1)
             hidden_states = att_bridge(
-                encoder_states=joint_hidden_states,
-                encoder_mask=joint_hidden_mask,
+                hidden=joint_hidden_states,
+                hidden_mask=joint_hidden_mask,
             )
 
             # cross attention of hidden over encoder states
