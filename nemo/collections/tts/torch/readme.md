@@ -7,13 +7,13 @@ This section of code can be used by installing the requirements inside our *requ
 This collection can be installed in the following ways:
  - pip install from github
     > ```bash
-    > pip install git+https://github.com/blisc/NeMo.git@rework_reqs#egg=nemo_toolkit[torch_tts]
+    > pip install git+https://github.com/nvidia/NeMo.git#egg=nemo_toolkit[torch_tts]
     > ```
   - inside a requirements file
-    > `git+https://github.com/blisc/NeMo.git@rework_reqs#egg=nemo_toolkit[torch_tts]`
+    > `git+https://github.com/nvidia/NeMo.git#egg=nemo_toolkit[torch_tts]`
   - cloning from github, and then installing
     > ```bash
-    >  git clone https://github.com/blisc/NeMo.git && cd NeMo && git checkout rework_reqs && pip install ".[torch_tts]"
+    >  git clone https://github.com/nvidia/NeMo.git && cd NeMo && pip install ".[torch_tts]"
     > ```
 
 ## Usage

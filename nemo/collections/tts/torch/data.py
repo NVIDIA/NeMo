@@ -26,6 +26,7 @@ from nemo.core.classes import Dataset
 from nemo.core.neural_types.elements import *
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
+from nemo.collections.common.parts.patch_utils import stft_patch
 from nemo.collections.common.parts.preprocessing.parsers import make_parser
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.tts.torch.helpers import beta_binomial_prior_distribution
@@ -75,8 +76,6 @@ class CharMelAudioDataset(Dataset):
         """Dataset that loads audio, log mel specs, text tokens, duration / attention priors, pitches, and energies.
         Log mels, priords, pitches, and energies will be computed on the fly and saved in the supplementary_folder if
         they did not exist before.
-
-        Note: This dataset currently only support characters. Phone-support is next to be added.
 
         Args:
             manifest_filepath (str, Path, List[str, Path]): Path(s) to the .json manifests containing information on the
@@ -222,7 +221,7 @@ class CharMelAudioDataset(Dataset):
         window_fn = torch_windows.get(window, None)
         window_tensor = window_fn(self.win_length, periodic=False) if window_fn else None
 
-        self.stft = lambda x: torch.stft(
+        self.stft = lambda x: stft_patch(
             input=x,
             n_fft=n_fft,
             hop_length=self.hop_len,
@@ -405,19 +404,19 @@ class CharMelAudioDataset(Dataset):
 
 
 class PhoneMelAudioDataset(CharMelAudioDataset):
-    # @property
-    # def output_types(self) -> Optional[Dict[str, NeuralType]]:
-    #     return {
-    #         'transcripts': NeuralType(('B', 'T'), TokenIndex()),
-    #         'transcript_length': NeuralType(('B'), LengthsType()),
-    #         'mels': NeuralType(('B', 'D', 'T'), TokenIndex()),
-    #         'mel_length': NeuralType(('B'), LengthsType()),
-    #         'audio': NeuralType(('B', 'T'), AudioSignal()),
-    #         'audio_length': NeuralType(('B'), LengthsType()),
-    #         'duration_prior': NeuralType(('B', 'T'), TokenDurationType()),
-    #         'pitches': NeuralType(('B', 'T'), RegressionValuesType()),
-    #         'energies': NeuralType(('B', 'T'), RegressionValuesType()),
-    #     }
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {
+            'transcripts': NeuralType(('B', 'T'), TokenIndex()),
+            'transcript_length': NeuralType(('B'), LengthsType()),
+            'mels': NeuralType(('B', 'D', 'T'), TokenIndex()),
+            'mel_length': NeuralType(('B'), LengthsType()),
+            'audio': NeuralType(('B', 'T'), AudioSignal()),
+            'audio_length': NeuralType(('B'), LengthsType()),
+            'duration_prior': NeuralType(('B', 'T'), TokenDurationType()),
+            'pitches': NeuralType(('B', 'T'), RegressionValuesType()),
+            'energies': NeuralType(('B', 'T'), RegressionValuesType()),
+        }
 
     def __init__(
         self,
@@ -436,14 +435,29 @@ class PhoneMelAudioDataset(CharMelAudioDataset):
         phoneme_dict_path=None,
         **kwargs,
     ):
-        """Dataset that loads audio, log mel specs, text tokens, duration / attention priors, pitches, and energies.
-        Log mels, priords, pitches, and energies will be computed on the fly and saved in the supplementary_folder if
-        they did not exist before.
-        This dataset subclasses CharMelAudioDataset and differs in that it returns tokenized phone representations as
-        opposed to character representations.
+        """Dataset which extends CharMelAudioDataset to load phones in place of characters. It returns audio, log mel
+        specs, phone tokens, duration / attention priors, pitches, and energies. Log mels, priords, pitches, and
+        energies will be computed on the fly and saved in the supplementary_folder if they did not exist before. These
+        supplementary files can be shared with CharMelAudioDataset.
 
         Args:
-
+            punct (bool): Whether to keep punctuation in the input. Defaults to True
+            stresses (bool): Whether to add phone stresses in the input. Defaults to False
+            spaces (bool): Whether to encode space characters. Defaults to True
+            chars (bool): Whether to use add characters to the labels map. NOTE: The current parser class does not
+                actually parse transcripts to characters. Defaults to False
+            space (str): The space character. Defaults to ' '
+            silence (bool): Whether to use add silence tokens. Defaults to False
+            apostrophe (bool): Whether to use keep apostrophes. Defaults to True
+            oov (str): How out of vocabulary tokens are decoded. Defaults to Base.OOV == "<oov>"
+            sep (str): How to seperate phones when tokens are decoded. Defaults to "|"
+            add_blank_at (str): Where to add the blank symbol that is used in CTC. Can be None which does not add a
+                blank token in the vocab, "last" which makes self.vocab.labels[-1] the blank token, or
+                "last_but_one" which makes self.vocab.labels[-2] the blank token
+            pad_with_space (bool): Whether to use pad input with space tokens at start and end. Defaults to False
+            improved_version_g2p (bool): Defaults to False
+            phoneme_dict_path (path): Location of cmudict. Defaults to None which means the code will download it
+                automatically
         """
         if "tokenize_text" in kwargs:
             tokenize_text = kwargs.pop("tokenize_text")
