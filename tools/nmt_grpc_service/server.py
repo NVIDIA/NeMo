@@ -97,7 +97,9 @@ class RivaTranslateServicer(nmtsrv.RivaTranslateServicer):
             logging.info(f"Loading model {model_path}")
             if len(self._lang_directions) > 0:
                 if len(self._lang_directions[idx].split('-')) != 2:
-                    raise ValueError(f"Language direction must of the form lang1-lang2, got {self._lang_directions[idx]}")
+                    raise ValueError(
+                        f"Language direction must of the form lang1-lang2, got {self._lang_directions[idx]}"
+                    )
                 src_language = self._lang_directions[idx].split('-')[0]
                 tgt_language = self._lang_directions[idx].split('-')[1]
             else:
