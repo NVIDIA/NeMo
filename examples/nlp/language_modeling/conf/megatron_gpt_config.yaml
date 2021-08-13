@@ -1,3 +1,7 @@
 trainer:
-  num_gpus: 1
+  gpus: 1
   num_nodes: 1
+
+model:
+  pre_process: True
+  post_process: True

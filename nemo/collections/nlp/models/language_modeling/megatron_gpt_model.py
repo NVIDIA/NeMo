@@ -14,6 +14,7 @@
 
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
+from megatron.model import GPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 
 
@@ -24,3 +25,17 @@ class MegatronGPTModel(NLPModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
+
+        model = GPTModel(
+            num_tokentypes=0, parallel_output=True, pre_process=cfg.pre_process, post_process=cfg.post_process
+        )
+
+    # list_available_models, setup_training_data, setup_validation_data
+    def list_available_models():
+        pass
+
+    def setup_training_data(self, train_data_config):
+        pass
+
+    def setup_validation_data(self, val_data_config):
+        pass

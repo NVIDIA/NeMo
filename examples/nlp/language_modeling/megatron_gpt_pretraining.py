@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from pytorch_lightning import Trainer
 
@@ -23,6 +24,8 @@ from nemo.utils.exp_manager import exp_manager
 def main(cfg) -> None:
 
     trainer = Trainer(plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes)], **cfg.trainer)
+
+    model = MegatronGPTModel(cfg.model, trainer)
 
 
 if __name__ == '__main__':
