@@ -45,7 +45,7 @@ You may perform inference and transcribe a sample of speech after loading the mo
 Setting argument ``logprobs`` to True would return the log probabilities instead of transcriptions. You may find more details in `Modules <../api.html#modules>`__.
 
 Learn how to fine tune on your own data or on subset classes in ``<NeMo_git_root>/tutorials/asr/Speech_Commands.ipynb``
-f
+
 
 **Run VAD inference:**
 
@@ -53,7 +53,20 @@ f
 
   python examples/speaker_recognition/vad_infer.py  --vad_model="vad_marblenet" --dataset=<FULL PATH OF MANIFEST TO BE PERFORMED INFERENCE ON> --out_dir='frame/demo' --time_length=0.63
 
-Have a look at scripts under ``<NeMo-git-root>/scripts/voice_activity_detection`` for posterior processing and threshold tuning.
+Have a look at scripts under ``<NeMo-git-root>/scripts/voice_activity_detection`` for posterior processing, postprocessing and threshold tuning.
+
+Posterior processing includes generating predictions with overlapping input segments. Then a smoothing filter is applied to decide the label for a frame spanned by multiple segments. 
+
+For VAD postprocessing we introduce 
+
+Binarization: 
+  - ``onset`` and ``offset`` threshold for detecting the beginning and end of a speech. 
+  - padding durations ``pad_onset`` before and padding duarations ``pad_offset`` after each speech segment;
+
+Filtering:
+  - ``min_duration_on`` threshold for short speech segment deletion,
+  - ``min_duration_on`` threshold for small silence deletion,
+  - ``filter_speech_first`` to control whether to perform short speech segment deletion first.
 
 
 NGC Pretrained Checkpoints
