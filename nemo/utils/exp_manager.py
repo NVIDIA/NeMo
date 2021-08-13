@@ -735,7 +735,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
             # for model parallel we need to delete models for each model parallel rank
             if self.last_model_path and self.last_model_path != filepath and app_state.data_parallel_rank == 0:
-                self._del_model(self.last_model_path)
+                self._del_model(trainer, self.last_model_path)
 
             self.last_model_path = filepath
 
