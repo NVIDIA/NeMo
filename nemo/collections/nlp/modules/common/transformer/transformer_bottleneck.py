@@ -164,7 +164,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
                 hidden_blocks=kwargs["hidden_blocks"],
                 hidden_init_method=kwargs["hidden_init_method"],
             )
-        elif arch == "perceiver":
+        elif arch == "compressor":
             encoder = CompressorEncoder(
                 num_layers=kwargs["num_layers"],
                 hidden_size=kwargs["hidden_size"],
