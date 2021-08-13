@@ -42,7 +42,7 @@ class WhiteListFst(GraphFst):
     """
 
     def __init__(self, input_case: str, deterministic: bool = True):
-        super().__init__(name="whitelist", kind="classify")
+        super().__init__(name="whitelist", kind="classify", deterministic=deterministic)
 
         def _get_whitelist_graph(input_case, file="data/whitelist.tsv"):
             whitelist = load_labels(get_abs_path(file))
