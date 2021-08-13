@@ -9,8 +9,8 @@ ngc batch run --name "translation_de_en_wmt21" --preempt RUNONCE \
     --image "nvcr.io/nvidia/pytorch:21.03-py3" \
     --ace nv-us-west-2 \
     --instance $INSTANCE \
-    --commandline "export GLOO_SOCKET_IFNAME=eth0 && export NCCL_SOCKET_IFNAME=eth0 && nvidia-smi && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y libsndfile1 ffmpeg && \
-    pip install wandb==0.10.21 && pip install Cython && wandb login $WANDBLOGIN && \
+    --commandline "export DEBIAN_FRONTEND=noninteractive && nvidia-smi && apt-get update && apt-get install -y libsndfile1 ffmpeg && \
+    pip install wandb==0.10.21 && pip install Cython && wandb login ${WANDBLOGIN} && \
     git clone https://github.com/sergiogcharles/NeMo.git && cd NeMo && \
     git checkout origin/nmt_distill && ./reinstall.sh && \
     cp -R /data/* /raid/ && \
