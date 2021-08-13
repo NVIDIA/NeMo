@@ -11,7 +11,7 @@ on:
 
 jobs:
   ci-itn:
-    if: ${{ contains(github.ref, 'tn') }}
+    if: ${{ contains(github.ref, 'tn') || contains(github.event.pull_request.head.ref, 'tn') }}
     runs-on: ubuntu-latest
 
     container:
