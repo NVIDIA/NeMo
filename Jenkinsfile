@@ -40,6 +40,23 @@ pipeline {
         sh 'python setup.py style'
       }
     }
+
+    stage('Torch TTS unit tests') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      steps {
+        sh 'python pip install ".[torch_tts]"'
+        sh 'python pip list | grep lightning'
+        sh 'python pip list | grep omegaconf'
+        sh 'python pip list | grep hydra'
+        sh 'pytest -m "torch_tts" --cpu --relax_numba_compat'
+      }
+    }
+
     stage('Installation') {
       steps {
         sh './reinstall.sh release'
@@ -60,7 +77,7 @@ pipeline {
 
     stage('L0: Unit Tests GPU') {
       steps {
-        sh 'pytest -m "not pleasefixme" --with_downloads --relax_numba_compat'
+        sh 'pytest -m "not pleasefixme and not torch_tts" --with_downloads --relax_numba_compat'
       }
     }
 
@@ -72,7 +89,7 @@ pipeline {
         }
       }
       steps {
-        sh 'CUDA_VISIBLE_DEVICES="" pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
+        sh 'CUDA_VISIBLE_DEVICES="" pytest -m "not pleasefixme and not torch_tts" --cpu --with_downloads --relax_numba_compat'
       }
     }
 
