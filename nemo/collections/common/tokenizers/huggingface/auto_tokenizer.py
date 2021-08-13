@@ -126,14 +126,17 @@ class AutoTokenizer(TokenizerSpec):
             special_tokens_dict["sep_token"] = sep_token
         elif self.tokenizer.sep_token is None and self.tokenizer.eos_token:
             special_tokens_dict["sep_token"] = self.tokenizer.eos_token
+
         if bos_token is not None:
             special_tokens_dict["bos_token"] = bos_token
         elif self.tokenizer.bos_token is None and self.tokenizer.cls_token:
             special_tokens_dict["bos_token"] = self.tokenizer.cls_token
+
         if eos_token is not None:
             special_tokens_dict["eos_token"] = eos_token
         elif self.tokenizer.eos_token is None and self.tokenizer.sep_token:
             special_tokens_dict["eos_token"] = self.tokenizer.sep_token
+
         if cls_token is not None:
             special_tokens_dict["cls_token"] = cls_token
         elif self.tokenizer.cls_token is None and self.tokenizer.bos_token:
