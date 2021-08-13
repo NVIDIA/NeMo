@@ -11,7 +11,7 @@ on:
 
 jobs:
   ci-itn:
-    if: ${{ github.ref == *'tn'* }}
+    if: ${{ contains(github.ref, 'tn') }}
     runs-on: ubuntu-latest
 
     container:
