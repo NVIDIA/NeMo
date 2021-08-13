@@ -1177,7 +1177,7 @@ pipeline {
       failFast true
       steps {
         sh 'cd examples/nlp/machine_translation && \
-        enc_dec_nmt-bottleneck.py \
+        python enc_dec_nmt-bottleneck.py \
         --config-path=conf \
         --config-name=aayn_bottleneck \
         do_testing=true \
