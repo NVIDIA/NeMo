@@ -209,7 +209,6 @@ def main():
         model = TransformerLMModel.restore_from(
             restore_path=args.lm_model_file, map_location=torch.device(device)
         ).eval()
-        max_seq_length = args.max_seq_length
         model_tokenizer = model.tokenizer
     else:
         nemo_model = False
@@ -219,9 +218,9 @@ def main():
             .to(device)
             .eval()
         )
-        max_seq_length = args.max_seq_length
         model_tokenizer = get_tokenizer(tokenizer_name=args.lm_model_file)
 
+    max_seq_length = args.max_seq_length
     dataset = BeamScoresDataset(args.beams_file, model_tokenizer, args.eval_manifest, args.beam_size, max_seq_length)
     data_loader = torch.utils.data.DataLoader(dataset=dataset, batch_size=args.batch_size)
 
