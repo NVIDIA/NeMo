@@ -45,20 +45,30 @@ class Normalizer:
         self,
         input_case: str,
         lang: str = 'en',
-        deterministric: bool = True,
+        deterministic: bool = True,
         cache_dir: str = None,
         overwrite_cache: bool = False,
     ):
         assert input_case in ["lower_cased", "cased"]
 
-        if lang == 'en':
+        if lang == 'en' and deterministic:
             from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
+        elif lang == 'en' and not deterministic:
+            from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_with_audio import ClassifyFst
+            from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
+        elif lang == 'ru':
+            # Ru TN only support non-deterministic cases and produces multiple normalization options
+            # use normalize_with_audio.py
+            from nemo_text_processing.text_normalization.ru.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.text_normalization.ru.verbalizers.verbalize_final import VerbalizeFinalFst
+
         self.tagger = ClassifyFst(
-            input_case=input_case, deterministic=deterministric, cache_dir=cache_dir, overwrite_cache=overwrite_cache
+            input_case=input_case, deterministic=deterministic, cache_dir=cache_dir, overwrite_cache=overwrite_cache
         )
-        self.verbalizer = VerbalizeFinalFst(deterministic=deterministric)
+        self.verbalizer = VerbalizeFinalFst(deterministic=deterministic)
         self.parser = TokenParser()
+        self.lang = lang
 
     def normalize_list(self, texts: List[str], verbose=False) -> List[str]:
         """
