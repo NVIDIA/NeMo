@@ -2,15 +2,11 @@ name: CI-ITN
 
 on:
   push:
-#    branches:
-#      - '**tn**'
-
   pull_request:
-#    branches:
-#      - '**tn**'
 
 jobs:
   ci-itn:
+    # This line is needed to make sure branch name has keyword *tn* in it
     if: ${{ contains(github.ref, 'tn') || contains(github.event.pull_request.head.ref, 'tn') }}
     runs-on: ubuntu-latest
 
@@ -33,10 +29,10 @@ jobs:
 
     - name: Install dependencies
       run: |
-        # Install ITN requirements
-        /bin/bash nemo_text_processing/setup.sh
         # Install NeMo
         pip install -e ".[asr,text_processing]"
+        # Install ITN requirements
+        /bin/bash nemo_text_processing/setup.sh
 
     - name: ITN Tests
       run: |
