@@ -37,17 +37,18 @@ jobs:
     - name: Prepare Cache Dir
       run: |
         # Create cache dir
-        mkdir -p ~/tn_cache/
+        mkdir -p ./tn_cache/
 
     - name: Cache graphs
       uses: actions/cache@v2
       with:
-        path: ~/tn_cache
-        key: ${{ runner.os }}-${{ hashFiles('setup.py') }}
+        path: ./tn_cache
+        key: ${{ runner.os }}-${{ hashFiles('nemo_text_processing/**') }}-${{ hashFiles('tests/nemo_text_processing/**') }}
         restore-keys: |
+          ${{ runner.os }}-${{ hashFiles('nemo_text_processing/**') }}-
           ${{ runner.os }}-
 
     - name: ITN Tests
       run: |
         cd tests/nemo_text_processing
-        pytest . -s -v --cpu --tn_cache_dir "~/tn_cache"
+        pytest . -s -v --cpu --tn_cache_dir "./tn_cache"
