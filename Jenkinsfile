@@ -49,10 +49,10 @@ pipeline {
         }
       }
       steps {
-        sh 'python pip install ".[torch_tts]"'
-        sh 'python pip list | grep lightning'
-        sh 'python pip list | grep omegaconf'
-        sh 'python pip list | grep hydra'
+        sh 'pip install ".[torch_tts]"'
+        sh 'pip list | grep lightning'
+        sh 'pip list | grep omegaconf'
+        sh 'pip list | grep hydra'
         sh 'pytest -m "torch_tts" --cpu --relax_numba_compat'
       }
     }
