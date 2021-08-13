@@ -163,7 +163,6 @@ class G2p:
                         pron.extend(self.g2p_dict[sub_word][0])
                         pron.extend(["-"])
                     pron.pop()
->>>>>>> Updated TTS dataset to allow using mixed representations with configurable phoneme probability
                 else:
                     if self.use_seq2seq_for_oov:
                         # run gru-based seq2seq model from _g2p
@@ -334,9 +333,9 @@ class Phonemes(Base):
 
         if improved_version_g2p:
             if chars:
-                self.g2p = G2p(phoneme_dict_path, phoneme_prob)
+                self.g2p = G2p(_g2p, phoneme_dict_path, phoneme_prob=phoneme_prob)
             else:
-                self.g2p = G2p(phoneme_dict_path, 1.0)
+                self.g2p = G2p(phoneme_dict_path, phoneme_prob=1.0)
         else:
             self.g2p = _g2p
 
