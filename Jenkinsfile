@@ -50,7 +50,7 @@ pipeline {
       }
       steps {
         sh 'pip install ".[torch_tts]"'
-        sh 'pip list"'
+        sh 'pip list'
         sh 'pip list | grep lightning | test $? -eq 1'
         sh 'pip list | grep omegaconf | test $? -eq 1'
         sh 'pip list | grep hydra | test $? -eq 1'
