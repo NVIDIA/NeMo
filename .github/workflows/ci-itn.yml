@@ -37,7 +37,7 @@ jobs:
     - name: Prepare Cache Dir
       run: |
         # Create cache dir
-        !mkdir -p ~/tn_cache/
+        mkdir -p ~/tn_cache/
 
     - name: Cache graphs
       uses: actions/cache@v2
