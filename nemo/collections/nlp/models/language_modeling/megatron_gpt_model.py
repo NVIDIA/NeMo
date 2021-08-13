@@ -12,14 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
-from pytorch_lightning import Trainer
-
-from nemo.core.config import hydra_runner
-from nemo.utils.exp_manager import exp_manager
+from omegaconf.dictconfig import DictConfig
+from pytorch_lightning.trainer.trainer import Trainer
+from nemo.collections.nlp.models.nlp_model import NLPModel
 
 
-@hydra_runner(config_path="conf", config_name="megatron_gpt_config")
-def main(cfg) -> None:
+class MegatronGPTModel(NLPModel):
+    """
+    Megatron GPT pretraining
+    """
 
-    trainer = Trainer(plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes)], **cfg.trainer)
+    def __init__(self, cfg: DictConfig, trainer: Trainer):
+        super().__init__(cfg, trainer=trainer)
