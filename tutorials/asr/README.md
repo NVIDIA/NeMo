@@ -25,6 +25,9 @@ In this repository, you will find several tutorials discussing what is Automatic
 
 8) `Online_Noise_Augmentation`: While academic datasets are useful for training ASR model, there can often be cases where such datasets are prestine and dont really represent the use case in the real world. So we discuss how to make the model more noise robust with Online audio augmentation.
 
+9) `Intro_to_Transducers`: Previous tutorials discuss ASR models in context of the Connectionist Temporal Classification Loss. In this tutorial, we introduce the Transducer loss, and the components of this loss function that are constructed in the config file. This tutorial is a prerequisite to the `ASR_with_Transducers` tutorial.
+
+10) `ASR_with_Transducers`: In this tutorial, we take a deep dive into Transducer based ASR models, discussing the similarity of setup and config to CTC models and then train a small ContextNet model on the AN4 dataset. We then discuss how to change the decoding strategy of a trained Transducer from greedy search to beam search. Finally, we wrap up this tutorial by extraining the alignment matrix from a trained Transducer model. 
 
 ----------------
 
