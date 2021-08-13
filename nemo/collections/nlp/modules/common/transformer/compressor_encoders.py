@@ -72,7 +72,7 @@ class CompressorEncoder(torch.nn.Module):
             k=hidden_steps,
             bridge_size=inner_size,
         )
-        self.att_bridge_layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(hidden_blocks)])
+        self.att_bridge_layers = torch.nn.ModuleList([copy.deepcopy(layer) for _ in range(hidden_blocks)])
 
         layer = TransformerEncoder(
             num_layers=num_layers,
@@ -88,7 +88,7 @@ class CompressorEncoder(torch.nn.Module):
             pre_ln_final_layer_norm=pre_ln_final_layer_norm,
         )
 
-        self.enc_layers = nn.ModuleList([copy.deepcopy(layer) for _ in range(hidden_blocks)])
+        self.enc_layers = torch.nn.ModuleList([copy.deepcopy(layer) for _ in range(hidden_blocks)])
 
     @property
     def supported_init_methods(self):
