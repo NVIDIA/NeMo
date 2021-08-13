@@ -5,3 +5,10 @@ trainer:
 model:
   pre_process: True
   post_process: True
+  micro_batch_size: 1
+  tensor_model_parallel_size: 1
+  encoder_seq_length: 512
+  num_layers: 1
+  hidden_size: 16
+
+
