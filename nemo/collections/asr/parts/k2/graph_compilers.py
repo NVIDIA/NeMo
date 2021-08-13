@@ -80,7 +80,7 @@ class CtcTrainingNumGraphCompiler(CtcTrainingTopologyCompiler):
     ):
         super().__init__(num_classes, topo_type, topo_with_selfloops, device)
         if aux_graph is None:
-            self.base_graph = None
+            self.den_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert()]).to(self.device)
         else:
             self.base_graph = intersect_with_self_loops(self.ctc_topo_inv, aux_graph).invert_()
             self.base_graph = k2.arc_sort(self.base_graph).to(self.device)
@@ -105,7 +105,7 @@ class CtcCrfTrainingGraphCompiler(CtcTrainingTopologyCompiler):
     ):
         super().__init__(num_classes, topo_type, topo_with_selfloops, device)
         if aux_graph is None:
-            self.den_graph = None
+            self.den_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert()]).to(self.device)
         else:
             self.den_graph = intersect_with_self_loops(self.ctc_topo_inv, aux_graph).invert_()
             self.den_graph = k2.create_fsa_vec([self.den_graph.detach()]).to(self.device)
@@ -135,7 +135,7 @@ class MmiTrainingGraphCompiler(CtcTrainingNumGraphCompiler):
     ):
         super().__init__(num_classes, topo_type, topo_with_selfloops, device, aux_graph)
         if aux_graph is None:
-            self.den_graph = None
+            self.den_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert()]).to(self.device)
         else:
             self.den_graph = k2.create_fsa_vec([self.base_graph.detach()]).to(self.device)
 

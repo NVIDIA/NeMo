@@ -80,7 +80,7 @@ class SDLoss(torch.nn.Module):
         self.pad_fsavec = topo_type == "ctc_compact"
         if token_lm is None:
             logging.warning(f"""token_lm is empty. 
-                            Using loss without token_lm will result in error.""")
+                            Sequence-discriminative loss will operate as a regular CTC.""")
             self.lm_graph = token_lm
         else:
             self.lm_graph = load_graph(token_lm) if isinstance(token_lm, str) else token_lm
@@ -95,6 +95,8 @@ class SDLoss(torch.nn.Module):
         else:
             raise ValueError(f"Invalid value of `sd_type`: {sd_type}.")
         self.graph_compiler = compiler(self.num_classes, topo_type, topo_with_selfloops, aux_graph=self.lm_graph)
+        if self.lm_graph is None:
+            self.lm_graph = self.graph_compiler.den_graph
         if use_mbr and mbr_graph is not None:
             self.mbr_graph = load_graph(mbr_graph) if isinstance(mbr_graph, str) else mbr_graph
             if len(self.mbr_graph.shape) == 2:
@@ -204,8 +206,6 @@ class SDLoss(torch.nn.Module):
         dense_fsa_vec = prep_padded_densefsavec(log_probs, supervisions) if self.pad_fsavec else k2.DenseFsaVec(log_probs, supervisions)
 
         num_lats, den_lats = self.intersect_mmi(dense_fsa_vec, num_graphs, den_graph)
-        # if self.pad_fsavec:
-            # shift_labels_inpl([num_lats, den_lats], -1)
 
         # use_double_scores=True does matter
         # since otherwise it sometimes makes rounding errors
