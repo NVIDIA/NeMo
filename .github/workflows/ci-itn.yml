@@ -2,15 +2,16 @@ name: CI-ITN
 
 on:
   push:
-    branches:
-      - '**tn**'
+#    branches:
+#      - '**tn**'
 
   pull_request:
-    branches:
-      - '**tn**'
+#    branches:
+#      - '**tn**'
 
 jobs:
   ci-itn:
+    if: ${{ github.ref == *'tn'* }}
     runs-on: ubuntu-latest
 
     container:
