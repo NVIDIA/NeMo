@@ -36,9 +36,9 @@ import torch
 from nemo.collections.tts.torch.data import CharMelAudioDataset
 
 dataset = CharMelAudioDataset(
-  manifest_filepath="/data/speech/LJSpeech/nvidia_ljspeech_val.json",  # Path to file that describes the location of audio and text
+  manifest_filepath="<PATH_TO_MANIFEST_JSON>",  # Path to file that describes the location of audio and text
   sample_rate=22050,
-  supplementary_folder="/data/speech/LJSpeech/debug0",  # An additional folder that will store log_mels, priors, pitches, and energies
+  supplementary_folder="./debug0",  # An additional folder that will store log_mels, priors, pitches, and energies
   max_duration=20.,  # Max duration of samples in seconds
   min_duration=0.1,  # Min duration of samples in seconds
   ignore_file=None,
@@ -70,9 +70,9 @@ import torch
 from nemo.collections.tts.torch.data import PhoneMelAudioDataset
 
 dataset = PhoneMelAudioDataset(
-  manifest_filepath="/data/speech/LJSpeech/nvidia_ljspeech_val.json",  # Path to file that describes the location of audio and text
+  manifest_filepath="<PATH_TO_MANIFEST_JSON>",  # Path to file that describes the location of audio and text
   sample_rate=22050,
-  supplementary_folder="/data/speech/LJSpeech/debug0",  # An additional folder that will store log_mels, priors, pitches, and energies
+  supplementary_folder="./debug0",  # An additional folder that will store log_mels, priors, pitches, and energies
 )
 
 dataloader = torch.utils.data.DataLoader(dataset, 10, collate_fn=dataset._collate_fn)
