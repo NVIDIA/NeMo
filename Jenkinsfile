@@ -51,9 +51,9 @@ pipeline {
       steps {
         sh 'pip install ".[torch_tts]"'
         sh 'pip list'
-        sh 'pip list | grep lightning | test $? -eq 1'
-        sh 'pip list | grep omegaconf | test $? -eq 1'
-        sh 'pip list | grep hydra | test $? -eq 1'
+        sh 'test $(pip list | grep -c lightning) -eq 0'
+        sh 'test $(pip list | grep -c omegaconf) -eq 0'
+        sh 'test $(pip list | grep -c hydra) -eq 0'
         sh 'pytest -m "torch_tts" --cpu --relax_numba_compat'
       }
     }
