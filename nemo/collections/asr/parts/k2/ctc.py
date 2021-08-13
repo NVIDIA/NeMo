@@ -35,7 +35,6 @@ from nemo.collections.asr.parts.k2.utils import create_supervision
 from nemo.collections.asr.parts.k2.utils import get_tot_objf_and_num_frames
 from nemo.collections.asr.parts.k2.utils import load_graph
 from nemo.collections.asr.parts.k2.utils import prep_padded_densefsavec
-# from nemo.collections.asr.parts.k2.utils import shift_labels_inpl
 from nemo.collections.asr.parts.k2.utils import make_blank_first
 from nemo.collections.asr.parts.k2.utils import GradExpNormalize
 
@@ -93,13 +92,11 @@ class CTCLoss(torch.nn.Module):
 
         if log_probs.device != self.graph_compiler.device:
             self.graph_compiler.to(log_probs.device)
-        num_graphs = self.graph_compiler.compile(targets, target_lengths)
+        num_graphs = self.graph_compiler.compile(targets + 1 if self.pad_fsavec else targets, target_lengths)
 
         dense_fsa_vec = prep_padded_densefsavec(log_probs, supervisions) if self.pad_fsavec else k2.DenseFsaVec(log_probs, supervisions)
 
         num_lats = k2.intersect_dense(num_graphs, dense_fsa_vec, torch.finfo(torch.float32).max)
-        # if self.pad_fsavec:
-            # shift_labels_inpl([num_lats], -1)
 
         # use_double_scores=True does matter
         # since otherwise it sometimes makes rounding errors
