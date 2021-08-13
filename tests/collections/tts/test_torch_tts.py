@@ -29,9 +29,7 @@ class TestCharDataset:
         sup_path = os.path.join(test_data_dir, 'tts/mini_ljspeech/sup')
 
         dataset = CharMelAudioDataset(
-            manifest_filepath=manifest_path
-            sample_rate=22050,
-            supplementary_folder=sup_path
+            manifest_filepath=manifest_path, sample_rate=22050, supplementary_folder=sup_path
         )
 
         dataloader = torch.utils.data.DataLoader(dataset, 2, collate_fn=dataset._collate_fn)
