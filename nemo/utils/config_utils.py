@@ -17,14 +17,14 @@ import inspect
 from dataclasses import is_dataclass
 from typing import Dict, List, Optional
 
+from nemo.utils import logging
+
 # TODO @blisc: Perhaps refactor instead of import guarding
 _HAS_HYDRA = True
 try:
     from omegaconf import DictConfig, OmegaConf, open_dict
 except ModuleNotFoundError:
     _HAS_HYDRA = False
-
-from nemo.utils import logging
 
 
 def update_model_config(

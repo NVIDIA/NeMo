@@ -40,6 +40,8 @@ import librosa
 import numpy as np
 import soundfile as sf
 
+from nemo.utils import logging
+
 # TODO @blisc: Perhaps refactor instead of import guarding
 HAVE_KALDI_PYDUB = True
 try:
@@ -50,8 +52,6 @@ try:
 except ModuleNotFoundError:
     HAVE_KALDI_PYDUB = False
 
-
-from nemo.utils import logging
 
 available_formats = sf.available_formats()
 sf_supported_formats = ["." + i.lower() for i in available_formats.keys()]

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from nemo.collections.asr.parts.preprocessing.feature_loader import ExternalFeatureLoader
-
 from nemo.collections.asr.parts.preprocessing.features import (
     STFT,
     FeaturizerFactory,

@@ -43,6 +43,12 @@ from typing import List, Optional, Union
 import librosa
 import numpy as np
 import soundfile as sf
+from scipy import signal
+from torch.utils.data import IterableDataset
+
+from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
+from nemo.collections.common.parts.preprocessing import collections, parsers
+from nemo.utils import logging
 
 # TODO @blisc: Perhaps refactor instead of import guarding
 HAVE_OMEGACONG_WEBDATASET = True
@@ -54,12 +60,6 @@ except ModuleNotFoundError:
 
     HAVE_OMEGACONG_WEBDATASET = False
 
-from scipy import signal
-from torch.utils.data import IterableDataset
-
-from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
-from nemo.collections.common.parts.preprocessing import collections, parsers
-from nemo.utils import logging
 
 try:
     from nemo.collections.asr.parts.utils import numba_utils

@@ -21,4 +21,3 @@ except ModuleNotFoundError:
     # fmt: off
     class LogEpochTimeCallback(CheckInstall): pass
     # fmt: on
-

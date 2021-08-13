@@ -28,4 +28,3 @@ except ModuleNotFoundError:
     class AutoTokenizer(CheckInstall): pass
     class SentencePieceTokenizer(CheckInstall): pass
     # fmt: on
-

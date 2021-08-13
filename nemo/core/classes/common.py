@@ -24,6 +24,14 @@ from functools import total_ordering
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
+import wrapt
+
+import nemo
+from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
+from nemo.utils import logging
+from nemo.utils.cloud import maybe_download_from_cloud
+from nemo.utils.model_utils import import_class_by_path, maybe_update_config_version
+
 # TODO @blisc: Perhaps refactor instead of import guarding
 _HAS_HYDRA = True
 try:
@@ -37,15 +45,6 @@ except ModuleNotFoundError:
     class SaveRestoreConnector(CheckInstall):
         pass
 
-
-import wrapt
-
-import nemo
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
-from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
-from nemo.utils import logging
-from nemo.utils.cloud import maybe_download_from_cloud
-from nemo.utils.model_utils import import_class_by_path, maybe_update_config_version
 
 __all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck']
 

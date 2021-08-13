@@ -35,4 +35,3 @@ class CheckInstall:
 
     def __getattr__(self, *args, **kwargs):
         raise LightningNotInstalledException(self)
-

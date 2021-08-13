@@ -56,4 +56,3 @@ def add_filehandlers_to_pl_logger(all_log_file, err_log_file):
         HANDLERS["memory_err"].setTarget(HANDLERS["file_err"])
         HANDLERS["memory_err"].close()
         del HANDLERS["memory_err"]
-

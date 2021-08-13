@@ -84,27 +84,6 @@ for batch in dataloader:
   # You can tokenize via dataset.vocab.encode(), and go backwards with dataset.vocab.decode().
 ```
 
-### Torch Modules
-
-
-```python
-import torch
-from nemo.collections.tts.modules.hifigan_modules import Generator
-
-gen = Generator(
-    resblock = 2,
-    upsample_rates = [8,8,4],
-    upsample_kernel_sizes = [16,16,8],
-    upsample_initial_channel = 256,
-    resblock_kernel_sizes = [3,5,7],
-    resblock_dilation_sizes = [[1,2], [2,6], [3,12]],
-)
-
-gen(x=torch.randn((8, 80, 100)))
-```
-
-Now you can use the hifigan generator in a pure torch setting.
-
 ## NeMo Features
 
 If you look into the code we see that `TextMelAudioDataset` is a child of `nemo.core.classes.Dataset`. **You do not have to subclass this to add to the torch_tts repo**. It is sufficient to use `torch.utils.data.Dataset`. Using the nemo class adds some additional features not present in torch:
@@ -118,70 +97,10 @@ If you look into the code we see that `TextMelAudioDataset` is a child of `nemo.
 
  - [ ] Populate *torch_tts*
    - [x] Create a new datalayer that can be used interchangeably
-   - [ ] Add phone support
+   - [x] Add phone support
    - [ ] Add TTS models
  - [ ] Split Lightning away from core
-   - [x] v0.1 that hacks away a lot of lightning
-   - [ ] Clean up to make code less hacky
-   - [ ] Split up utils better
+   - [x] v0.1 that import checks a lot of lightning
+   - [ ] Split up code (core, collections, utils) better
  - [ ] Enable building *text_normlization* without installing lightning
  - [ ] Look into how `Serialization` works without hydra
-
-# Appendix
-
-## Pip install
-
-NeMo can be installed in a number of ways. We can install just the core, collections, and even other tools such as
-text normlization and inverse normalization.
-
-How can we install these? From the NeMo folder we can run:
-
-  - pip install {--editable} .
-  - pip install {--editable} ".[all]"
-
-In either case, we install all of the code inside the nemo folder. Even though we require librosa for speech tasks, if
-we only install core, we can still run `from nemo.collections.asr import *`. It will crash saying librosa is not installed,
-but the key is that the code in the asr collection is still "installed".
-
-Is it possible to create a version of NeMo that can minimize our dependencies? Can we create collections or parts of the
-code base that only relies upon pip packages that are already in our pytorch container?
-This will make it easier for other teams to use standalone tools like our text normalization tools, or for other teams
-to depend on only torch portions of NeMo.
-
-My proposal is to split NeMo into two parts that can coexist:
-
-  - Parts that depend only on torch
-  - Parts that depend on ligthning, hydra, omegaconf, etc
-
-"core"
-tts -> asr, torch_tts, lightning
-nlp -> lightning
-asr -> lightning
-all -> asr, nlp, tts
-
-text_normalization
-torch_tts
-
-~~lightning -> core [Not an install option]~~
-
-Make core installable. core will be our current.
-New "core" will be current core minus ModelPT, exp_manager, etc.
-
-These parts I envision are:
-
-  - pip install .
-    - The new NeMo "core"
-    - Allows for simple utilities: logging, exportable
-  - pip install ".[text_normalization]"
-    - The text normalization tool
-    - We can have other tools here as well
-  - ~~pip install ".[torch_all]"~~
-    - ~~A collection of our torch modules~~
-  - pip install ".[torch_tts]"
-    - A collection of our torch modules
-  - pip install ".[~~lightning~~core]"
-    - Our current "core" which includes ModelPT
-  - pip install ".[~~lightning_asr~~asr]"
-    - Our current asr collection. We can enable `pip install ".[asr]"` here as well for backwards compatibility
-  - pip install ".[all]"
-    - Installs all requirements. Everything in NeMo is expected to work here

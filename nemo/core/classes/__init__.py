@@ -13,7 +13,6 @@
 # limitations under the License.
 
 
-from nemo.utils import exceptions
 from nemo.core.classes.common import (
     FileIO,
     Model,
@@ -26,6 +25,8 @@ from nemo.core.classes.common import (
 from nemo.core.classes.dataset import Dataset, IterableDataset
 from nemo.core.classes.exportable import Exportable, ExportFormat
 from nemo.core.classes.loss import Loss
+from nemo.core.classes.module import NeuralModule
+from nemo.utils import exceptions
 
 # TODO @blisc: Perhaps refactor instead of import guarding
 try:
@@ -38,6 +39,3 @@ except ModuleNotFoundError:
 
     class ModelPT(CheckInstall):
         pass
-
-
-from nemo.core.classes.module import NeuralModule

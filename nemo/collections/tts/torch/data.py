@@ -14,24 +14,22 @@
 
 
 import json
-from typing import Dict, Optional
-from pathlib import Path
 import pickle
+from pathlib import Path
+from typing import Dict, Optional
 
-import torch
 import librosa
+import torch
 
-
+from nemo.collections.asr.data.vocabs import Base, Phonemes
+from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
+from nemo.collections.common.parts.patch_utils import stft_patch
+from nemo.collections.common.parts.preprocessing.parsers import make_parser
+from nemo.collections.tts.torch.helpers import beta_binomial_prior_distribution
 from nemo.core.classes import Dataset
 from nemo.core.neural_types.elements import *
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
-from nemo.collections.common.parts.patch_utils import stft_patch
-from nemo.collections.common.parts.preprocessing.parsers import make_parser
-from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
-from nemo.collections.tts.torch.helpers import beta_binomial_prior_distribution
-from nemo.collections.asr.data.vocabs import Base, Phonemes
-
 
 CONSTANT = 1e-5
 

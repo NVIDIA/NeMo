@@ -21,6 +21,8 @@ from typing import List, Optional, Union
 
 import wrapt
 
+from nemo.utils import logging
+
 # TODO @blisc: Perhaps refactor instead of import guarding
 
 _HAS_HYDRA = True
@@ -32,7 +34,6 @@ try:
 except ModuleNotFoundError:
     _HAS_HYDRA = False
 
-from nemo.utils import logging
 
 _VAL_TEST_FASTPATH_KEY = 'ds_item'
 
