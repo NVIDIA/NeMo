@@ -355,6 +355,7 @@ def binarization(sequence, per_args):
     Implementation: https://github.com/pyannote/pyannote-audio/blob/master/pyannote/audio/utils/signal.py 
 
     Args:
+        sequence (list) : A list of frame level predictions.
         per_args:
             onset (float): onset threshold for detecting the beginning and end of a speech 
             offset (float): offset threshold for detecting the end of a speech. 
@@ -413,6 +414,7 @@ def filtering(speech_segments, per_args):
     Paper: Gregory Gelly and Jean-Luc Gauvain. "Minimum Word Error Training of RNN-based Voice Activity Detection", InterSpeech 2015. 
     Implementation: https://github.com/pyannote/pyannote-audio/blob/master/pyannote/audio/utils/signal.py 
     Args:
+        speech_segments (set): A set of speech segment in (start, end) format.  {(start1, end1), (start2, end2)}
         per_args:
             min_duration_on (float): threshold for small non_speech deletion
             min_duration_off (float): threshold for short speech segment deletion
