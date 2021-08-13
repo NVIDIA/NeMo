@@ -83,7 +83,6 @@ model:
     activation: relu
     log_softmax: true
     dropout: 0.0
-    use_transformer_init: true
 
 trainer:
   gpus: 4
