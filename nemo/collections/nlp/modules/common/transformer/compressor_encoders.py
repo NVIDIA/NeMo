@@ -139,6 +139,7 @@ class CompressorEncoder(torch.nn.Module):
             # self-attention over hidden
             joint_hidden_states = torch.cat([hidden_states, encoder_states], dim=-2)
             joint_hidden_mask = torch.cat([hidden_mask, encoder_mask], dim=-1)
+            import pudb; pudb.set_trace()
             hidden_states = att_bridge(
                 hidden=joint_hidden_states,
                 hidden_mask=joint_hidden_mask,
@@ -146,10 +147,8 @@ class CompressorEncoder(torch.nn.Module):
 
             # cross attention of hidden over encoder states
             hidden_states = enc(
-                decoder_states=hidden_states,
-                decoder_mask=hidden_mask,
-                encoder_states=encoder_states,
-                encoder_mask=encoder_mask,
+                encoder_states=hidden_states,
+                encoder_mask=hidden_mask,
             )
 
             # residual connection
