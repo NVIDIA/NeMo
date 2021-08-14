@@ -1102,6 +1102,14 @@ pipeline {
               python enc_dec_nmt.py \
               --config-path=conf \
               --config-name=aayn_base \
+              model.encoder.num_layers=2 \
+              model.encoder.hidden_size = 32 \
+              model.encoder.attention_heads = 4 \
+              model.encoder.inner_size = 64 \
+              model.decoder.num_layers=2 \
+              model.decoder.hidden_size = 32 \
+              model.decoder.attention_heads = 4 \
+              model.decoder.inner_size = 64 \
               do_testing=true \
               model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
@@ -1112,6 +1120,8 @@ pipeline {
               model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
               model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
               trainer.gpus=[0] \
+              ~trainer.max_epochs \
+              +trainer.max_steps=1 \
               +trainer.fast_dev_run=true \
               +trainer.limit_test_batches=2 \
               exp_manager=null \
@@ -1126,6 +1136,14 @@ pipeline {
               --config-path=conf \
               --config-name=aayn_base \
               do_testing=true \
+              model.encoder.num_layers=2 \
+              model.encoder.hidden_size = 32 \
+              model.encoder.attention_heads = 4 \
+              model.encoder.inner_size = 64 \
+              model.decoder.num_layers=2 \
+              model.decoder.hidden_size = 32 \
+              model.decoder.attention_heads = 4 \
+              model.decoder.inner_size = 64 \
               model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
               model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
@@ -1138,6 +1156,8 @@ pipeline {
               model.decoder.pre_ln=true \
               trainer.gpus=[1] \
               +trainer.fast_dev_run=true \
+              ~trainer.max_epochs \
+              +trainer.max_steps=1 \
               +trainer.limit_test_batches=2 \
               exp_manager=null \
               '
@@ -1150,6 +1170,14 @@ pipeline {
               --config-path=conf \
               --config-name=aayn_base \
               do_testing=true \
+              model.encoder.num_layers=2 \
+              model.encoder.hidden_size = 32 \
+              model.encoder.attention_heads = 4 \
+              model.encoder.inner_size = 64 \
+              model.decoder.num_layers=2 \
+              model.decoder.hidden_size = 32 \
+              model.decoder.attention_heads = 4 \
+              model.decoder.inner_size = 64 \
               model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src \
               model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref \
               model.validation_ds.src_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.src,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src] \
@@ -1159,6 +1187,8 @@ pipeline {
               model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
               model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
               trainer.gpus=[0] \
+              ~trainer.max_epochs \
+              +trainer.max_steps=1 \
               +trainer.fast_dev_run=true \
               +trainer.limit_test_batches=2 \
               exp_manager=null \
