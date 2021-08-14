@@ -72,6 +72,8 @@ class CompressorEncoder(torch.nn.Module):
             hidden_size=hidden_size,
             k=hidden_steps,
             bridge_size=inner_size,
+            softmax_scale=2.0,
+            softmax_bias=-1,
         )
         self.att_bridge_layers = torch.nn.ModuleList([copy.deepcopy(layer) for _ in range(hidden_blocks)])
 
