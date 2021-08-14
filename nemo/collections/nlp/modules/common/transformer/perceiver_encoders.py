@@ -181,9 +181,6 @@ class PerceiverEncoder(torch.nn.Module):
         for self_att, cross_att in zip(self.self_att_layers, self.cross_att_layers):
             residual = hidden_states
 
-            # self-attention over hidden
-            hidden_states = self_att(encoder_states=hidden_states, encoder_mask=hidden_mask,)
-
             # cross attention of hidden over encoder states
             hidden_states = cross_att(
                 decoder_states=hidden_states,
@@ -191,6 +188,9 @@ class PerceiverEncoder(torch.nn.Module):
                 encoder_states=encoder_states,
                 encoder_mask=encoder_mask,
             )
+
+            # self-attention over hidden
+            hidden_states = self_att(encoder_states=hidden_states, encoder_mask=hidden_mask,)
 
             # # self-attention over hidden
             # hidden_states = self.self_att(encoder_states=hidden_states, encoder_mask=hidden_mask,)
@@ -206,10 +206,10 @@ class PerceiverEncoder(torch.nn.Module):
             # residual connection
             hidden_states += residual
 
-        residual = hidden_states
-        # final self-attention over hidden
-        hidden_states = self.self_att(encoder_states=hidden_states, encoder_mask=hidden_mask,)
-        # residual connection
-        hidden_states += residual
+        # residual = hidden_states
+        # # final self-attention over hidden
+        # hidden_states = self.self_att(encoder_states=hidden_states, encoder_mask=hidden_mask,)
+        # # residual connection
+        # hidden_states += residual
 
         return hidden_states, hidden_mask
