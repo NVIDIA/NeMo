@@ -6,13 +6,19 @@ model:
   preproc_out_dir: null # path to store data preprocessing outputs
   
   train_ds:
-    use_tarred_dataset: true
-    tar_files: ??? # path to tarred files
-    metadata_file: ??? # metadata for tarred dataset
-    shard_strategy: scatter
+    file_name: ??? # path to file with training data
     tokens_in_batch: 4096
-    tar_shuffle_n: 256
-    
+    clean: true
+    shuffle: true
+    num_workers: 8
+
+    # tarred dataset specific config
+    # use_tarred_dataset: true
+    # tar_files: ??? # path to tarred files
+    # metadata_file: ??? # metadata for tarred dataset
+    # shard_strategy: scatter
+    # tar_shuffle_n: 256
+
   validation_ds:
     file_name: ??? # path to file with validation data
     tokens_in_batch: 512
@@ -77,7 +83,6 @@ model:
     activation: relu
     log_softmax: true
     dropout: 0.0
-    use_transformer_init: true
 
 trainer:
   gpus: 4
