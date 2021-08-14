@@ -29,13 +29,13 @@ It is common practice to apply data cleaning, normalization, and tokenization to
 NeMo expects already cleaned, normalized, and tokenized data. The only data pre-processing NeMo does is subword tokenization with BPE :cite:`nlp-language_modeling-sennrich2015neural`.
 
 .. note::
-    If LM is intended to be used in a conjunction with another model (e.g. re-scoring of ASR, shallow fusion with NMT), make sure that the training data is preprocessed accordingly (lower-case no punctuation for ASR, Moses tokenization/normalization for NMT). Otherwise, it might introduce inadequate LM scores.
+    If LM is intended to be used in a conjunction with another model (e.g. :ref:`re-scoring of ASR <neural_rescoring>`, shallow fusion with NMT), make sure that the training data is preprocessed accordingly (lower-case no punctuation for ASR, Moses tokenization/normalization for NMT). Otherwise, it might introduce inadequate LM scores.
 
 
 Tokenizer Training
 ------------------
 
-Byte-pair encoding (BPE) is a sub-word tokenization algorithm that is commonly used to reduce the large vocabulary size of datasets by splitting words into frequently occuring sub-words. Our LMs support all tokenizers available in NeMo, but require special beginning-of-string ``<bos>`` and end-of-string ``<eos>`` tokens. 
+Our LMs support all tokenizers available in NeMo, but require special beginning-of-string ``<bos>`` and end-of-string ``<eos>`` tokens.
 
 Below is the example of training `YouTokenToMe <https://github.com/VKCOM/YouTokenToMe>`__ BPE tokenizer:
 
@@ -211,10 +211,6 @@ of filepaths, e.g. ``['/data/shard1.tar', '/data/shard2.tar']``, or in a single 
   ``[``, ``<`` and the special tag ``_OP_``. Supported closing braces (equivalent to ``}``) are ``)``, ``]``, ``>`` and the special 
   tag ``_CL_``. For SLURM based tasks, we suggest the use of the special tags for ease of use.
 
-The ``shard_strategy`` field of the config file can be set if you have multiple shards and are running an experiment with 
-multiple workers. It defaults to ``scatter``, which preallocates a set of shards per worker which do not change during runtime. For more information about the individual tarred datasets and the parameters available, including shuffling options,
-see the corresponding class APIs in the `Datasets <./api.html#Datasets>`__ section.
-
 Tarred datasets for sentence-level LMs can be created with the following script:
 
 .. code::
@@ -248,23 +244,34 @@ To train the model on this dataset, the following parameters have to be specifie
 
 Below is the full list of available configuration options for ``TarredSentenceDataset``:
 
-+-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
-| **Parameter**                                                         | **Data Type**   |   **Default**  | **Description**                                                                                                |
-+-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
-| **model.{train_ds,validation_ds,test_ds}.use_tarred_dataset**         | bool            | ``false``      | Whether to use tarred datasets.                                                                                |
-+-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
-| **model.{train_ds,validation_ds,test_ds}.tar_files**                  | str             | ``null``       | String specifying path to all tar files.                                                                       |
-+-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
-| **model.{train_ds,validation_ds,test_ds}.metadata_file**              | str             | ``null``       | Path to JSON metadata file that contains only a single entry for the total number of batches in the dataset.   |
-+-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
-| **model.{train_ds,validation_ds,test_ds}.lines_per_dataset_fragment** | int             | ``1000000``    | Number of lines to consider for bucketing and padding.                                                         |
-+-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
-| **model.{train_ds,validation_ds,test_ds}.num_batches_per_tarfile**    | int             | ``100``        | Number of batches (pickle files) within each tarfile.                                                          |
-+-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
-| **model.{train_ds,validation_ds,test_ds}.tar_shuffle_n**              | int             | ``100``        | How many samples to look ahead and load to be shuffled.                                                        |
-+-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
-| **model.{train_ds,validation_ds,test_ds}.shard_strategy**             | str             | ``scatter``    | How the shards are distributed between multiple workers.                                                       |
-+-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
+.. list-table::
+   :widths: 30 5 5 60
+   :header-rows: 1
+
+   * - Parameter
+     - Data Type
+     - Default
+     - Description
+   * - **model.{train_ds,validation_ds,test_ds}.use_tarred_dataset**
+     - bool
+     - ``false``
+     - Whether to use tarred datasets.
+   * - **model.{train_ds,validation_ds,test_ds}.tar_files**
+     - str
+     - ``null``
+     - Path to all tar files. Either a list or a single brace-expandable string.
+   * - **model.{train_ds,validation_ds,test_ds}.metadata_file**
+     - str
+     - ``null``
+     - Path to JSON metadata file that contains only a single entry for the total number of batches in the dataset.
+   * - **model.{train_ds,validation_ds,test_ds}.tar_shuffle_n**
+     - int
+     - ``100``
+     - How many samples to look ahead and load to be shuffled.
+   * - **model.{train_ds,validation_ds,test_ds}.shard_strategy**
+     - str
+     - ``scatter``
+     - How the shards are distributed between multiple workers. Either ``scatter`` (each node gets a unique set of shards) or ``replicate`` (each node gets all of the set of shards available in the tarred dataset).
 
 References
 ----------
