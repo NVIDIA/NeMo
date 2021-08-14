@@ -135,7 +135,7 @@ class CompressorEncoder(torch.nn.Module):
 
         # apply block (cross-attention, self-attention) multiple times
         for att_bridge, enc in zip(self.att_bridge_layers, self.enc_layers):
-            residual = hidden_states
+            # residual = hidden_states
             # self-attention over hidden
             joint_hidden_states = torch.cat([hidden_states, encoder_states], dim=-2)
             joint_hidden_mask = torch.cat([hidden_mask, encoder_mask], dim=-1)
@@ -151,6 +151,6 @@ class CompressorEncoder(torch.nn.Module):
             )
 
             # residual connection
-            hidden_states += residual
+            # hidden_states += residual
 
         return hidden_states, hidden_mask
