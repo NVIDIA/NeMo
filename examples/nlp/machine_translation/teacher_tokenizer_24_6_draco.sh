@@ -21,7 +21,7 @@ python enc_dec_nmt.py \
 	model.beam_size=4 \
 	model.max_generation_delta=6 \
 	model.label_smoothing=0.1 \
-	model.preproc_out_dir=/preproc_data \
+	model.preproc_out_dir=/raid/preproc_data/wmt21_de_en_yttm_tokens_${TOKENS_IN_BATCH} \
 	model.encoder.hidden_size=1024 \
 	model.encoder.hidden_size=1536 \
 	model.encoder.inner_size=6144 \
@@ -39,16 +39,16 @@ python enc_dec_nmt.py \
 	model.decoder.ffn_dropout=0.1 \
 	model.train_ds.use_tarred_dataset=true \
 	model.train_ds.shard_strategy=scatter \
-	model.train_ds.src_file_name=/data/train.dedup.de \
-	model.train_ds.tgt_file_name=/data/train.dedup.en \
+	model.train_ds.src_file_name=/raid/wmt21/train.dedup.de \
+	model.train_ds.tgt_file_name=/raid/wmt21/train.dedup.en \
 	model.train_ds.tokens_in_batch=${TOKENS_IN_BATCH} \
-	model.validation_ds.src_file_name=[/data/newstest2020-en-de.clean.tok.ref,/data/newstest2019-en-de.clean.tok.ref,/data/newstest2018-en-de.clean.tok.ref,/data/newstest2014-en-de.clean.tok.ref,/data/newstest2013-en-de.clean.tok.ref] \
-	model.validation_ds.tgt_file_name=[/data/newstest2020-en-de.clean.tok.src,/data/newstest2019-en-de.clean.tok.src,/data/newstest2018-en-de.clean.tok.src,/data/newstest2014-en-de.clean.tok.src,/data/newstest2013-en-de.clean.tok.src] \
+	model.validation_ds.src_file_name=[/raid/wmt21/val/newstest2020-en-de.clean.tok.ref,/raid/wmt21/val/newstest2019-en-de.clean.tok.ref,/raid/wmt21/val/newstest2018-en-de.clean.tok.ref,/raid/wmt21/val/newstest2014-en-de.clean.tok.ref,/raid/wmt21/val/newstest2013-en-de.clean.tok.ref] \
+	model.validation_ds.tgt_file_name=[/raid/wmt21/val/newstest2020-en-de.clean.tok.src,/raid/wmt21/val/newstest2019-en-de.clean.tok.src,/raid/wmt21/val/newstest2018-en-de.clean.tok.src,/raid/wmt21/val/newstest2014-en-de.clean.tok.src,/raid/wmt21/val/newstest2013-en-de.clean.tok.src] \
 	~model.test_ds \
 	model.optim.lr=$LEARNING_RATE \
 	+model.optim.sched.warmup_steps=$WARMUP_STEPS \
   	~model.optim.sched.warmup_ratio \
-	+exp_manager.explicit_log_dir=/results \
+	+exp_manager.explicit_log_dir=/raid/results/wmt21_de_en_yttm_tokens_${TOKENS_IN_BATCH} \
 	+exp_manager.resume_if_exists=True \
 	+exp_manager.resume_ignore_no_checkpoint=True \
 	+exp_manager.create_checkpoint_callback=True \
