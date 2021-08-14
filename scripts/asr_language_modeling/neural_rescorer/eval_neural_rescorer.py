@@ -50,7 +50,7 @@ import numpy as np
 import pandas as pd
 import torch
 import tqdm
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM
 
 from nemo.collections.nlp.models.language_modeling import TransformerLMModel
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
@@ -234,6 +234,10 @@ def main():
         def autocast():
             yield
 
+    if "attention_mask" in inspect.getfullargspec(model.forward).args:
+        support_att_mask = True
+    else:
+        support_att_mask = False
     logging.info(f"Rescoring with beam_size: {args.beam_size}")
     logging.info("Calculating the scores...")
     with autocast():
@@ -243,7 +247,6 @@ def main():
                 input_ids, input_mask, acoustic_score, dist, ref_len, len_in_chars, idx = batch
 
                 max_len_in_batch = input_mask.sum(dim=0).argmin().item()
-                # max_len_in_batch = len_in_chars.max()
                 input_ids, input_mask = input_ids[:, :max_len_in_batch], input_mask[:, :max_len_in_batch]
                 if torch.cuda.is_available():
                     input_ids, input_mask = input_ids.to(device), input_mask.to(device)
@@ -253,7 +256,7 @@ def main():
                         len_in_chars.to(device),
                     )
                 # some models like Transformer-XL don't need attention_mask as input
-                if "attention_mask" in inspect.getfullargspec(model.forward).args:
+                if support_att_mask:
                     log_probs = model(input_ids=input_ids, attention_mask=input_mask)
                 else:
                     log_probs = model(input_ids=input_ids)
