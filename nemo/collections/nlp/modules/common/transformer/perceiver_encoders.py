@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import torch
+import copy
 
 from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoder
 from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
