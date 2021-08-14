@@ -221,7 +221,7 @@ class AttentionBridge(torch.nn.Module):
     Code is based on the paper https://arxiv.org/pdf/1703.03130.pdf
     """
 
-    def __init__(self, hidden_size, k, bridge_size, softmax_scale=1.0, softmax_bias=0.0):
+    def __init__(self, hidden_size, k, bridge_size):
         """
         hidden_size - size of input hidden state
         k - number of attention heads
@@ -232,8 +232,6 @@ class AttentionBridge(torch.nn.Module):
         self.hidden_size = hidden_size
         self.k = k
         self.bridge_size = bridge_size
-        self.softmax_scale = softmax_scale
-        self.softmax_bias = softmax_bias
 
         self.attn_scale = np.sqrt(np.sqrt(self.bridge_size))
 
@@ -258,7 +256,7 @@ class AttentionBridge(torch.nn.Module):
             attention_mask.squeeze_(1)
             attention_scores = attention_scores + attention_mask.to(attention_scores.dtype)
 
-        A = torch.softmax(attention_scores, dim=-1) * self.softmax_scale + self.softmax_bias
+        A = torch.softmax(attention_scores, dim=-1)
         M = A @ hidden
 
         if return_ortho_loss:
