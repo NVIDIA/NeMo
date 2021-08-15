@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from megatron.global_vars import get_args
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_megatron_for_nemo
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from megatron.model import GPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.utils import logging
 
 
 class MegatronGPTModel(NLPModel):
@@ -36,9 +38,14 @@ class MegatronGPTModel(NLPModel):
             num_attention_heads=cfg.get('num_attention_heads', 1),
             max_position_embeddings=cfg.get('max_position_embeddings', 512),
         )
-        # model = GPTModel(
-        #     num_tokentypes=0, parallel_output=True, pre_process=cfg.pre_process, post_process=cfg.post_process
-        # )
+        args = get_args()
+        vars(args)['padded_vocab_size'] = 10
+
+        model = GPTModel(
+            num_tokentypes=0, parallel_output=True, pre_process=cfg.pre_process, post_process=cfg.post_process
+        )
+
+        logging.info(f'done')
 
     # list_available_models, setup_training_data, setup_validation_data
     def list_available_models():
