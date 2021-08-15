@@ -3,12 +3,27 @@ trainer:
   num_nodes: 1
 
 model:
-  pre_process: True
-  post_process: True
+  # needed to initialize megatron
   micro_batch_size: 1
   tensor_model_parallel_size: 1
   encoder_seq_length: 512
   num_layers: 1
   hidden_size: 16
+
+  # GPT
+  pre_process: True
+  post_process: True
+
+  train_ds:
+    data_prefix: /raid/data/gpt/simple_wiki_gpt_preproc
+    data_impl: mmap
+    splits_string: 949,50,1
+    train_valid_test_num_samples:
+      - 10000
+      - 100
+      - 100
+    seq_length: ${model.encoder_seq_length}
+    seed: 123
+    skip_warmup: False
 
 
