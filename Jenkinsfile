@@ -76,6 +76,20 @@ pipeline {
       }
     }
 
+    stage('ITN/TN Ru') {
+      steps {
+        sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py "двадцать" \
+        --cache_dir /home/TestData/nlp/text_norm/ci/grammars/ru_itn --language ru --overwrite_cache'
+        sh 'cd tests/nemo_text_processing && \
+        CUDA_VISIBLE_DEVICES="" pytest ru/test_ru_inverse_normalization.py -m "not pleasefixme" --cpu \
+        --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/ru_itn'
+        sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py \
+        --text "25" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/ru_tn --language ru --overwrite_cache'
+        sh 'cd tests/nemo_text_processing && CUDA_VISIBLE_DEVICES="" pytest ru/test_ru_normalization.py -m "not pleasefixme" \
+        --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/ru_tn'
+      }
+    }
+
     stage('L0: TN/ITN Tests CPU') {
       when {
         anyOf {
