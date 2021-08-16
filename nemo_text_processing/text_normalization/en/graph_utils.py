@@ -118,7 +118,6 @@ def generator_main(file_name: str, graphs: Dict[str, pynini.FstLike]):
     Args:
         file_name: exported file name
         graphs: Mapping of a rule name and Pynini WFST graph to be exported
-
     """
     exporter = export.Exporter(file_name)
     for rule, graph in graphs.items():
