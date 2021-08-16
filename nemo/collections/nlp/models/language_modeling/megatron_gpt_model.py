@@ -47,7 +47,6 @@ class MegatronGPTModel(NLPModel):
             merge_file=cfg.merge_file,
         )
         args = get_args()
-        vars(args)['padded_vocab_size'] = 10  # temporarily set so we can instaniate GPTModel
 
         app_state = AppState()
         app_state.model_parallel_size = args.tensor_model_parallel_size
@@ -56,13 +55,13 @@ class MegatronGPTModel(NLPModel):
             num_tokentypes=0, parallel_output=True, pre_process=cfg.pre_process, post_process=cfg.post_process
         )
 
-        logging.info(f'done with constructor')
-
-    def forward(self):
-        logging.info('finished forward')
+    def forward(self, tokens, position_ids, attention_mask, labels):
+        output_tensor = self.model(tokens, position_ids, attention_mask, labels=labels)
+        return output_tensor
 
     def training_step(self, batch, batch_idx):
         tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
+        output_tensor = self(tokens, position_ids, attention_mask, labels)
         logging.info('finished training_step')
 
     def process_batch(self, batch):
