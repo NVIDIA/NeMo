@@ -24,12 +24,18 @@ def initialize_megatron_for_nemo(
     hidden_size=16,
     num_attention_heads=1,
     max_position_embeddings=512,
+    tokenizer_type=None,
+    vocab_file=None,
+    merge_file=None,
 ):
     args_defaults = {}
     args_defaults['num_layers'] = num_layers
     args_defaults['hidden_size'] = hidden_size
     args_defaults['num_attention_heads'] = num_attention_heads
     args_defaults['max_position_embeddings'] = max_position_embeddings
+    args_defaults['tokenizer_type'] = tokenizer_type
+    args_defaults['vocab_file'] = vocab_file
+    args_defaults['merge_file'] = merge_file
 
     extra_args_provider = get_extra_args_provider(micro_batch_size, tensor_model_parallel_size, encoder_seq_length)
 
