@@ -34,9 +34,7 @@ class TestCharDataset:
 
         dataloader = torch.utils.data.DataLoader(dataset, 2, collate_fn=dataset._collate_fn)
 
-        for batch in dataloader:
-            tokens, tokens_lengths, log_mels, log_mel_lengths, duration_priors, pitches, energies = batch
-            exit(0)
+        data, _, _, _, _, _, _ = next(iter(dataloader))
 
 
 class TestPhoneDataset:
@@ -53,6 +51,4 @@ class TestPhoneDataset:
 
         dataloader = torch.utils.data.DataLoader(dataset, 2, collate_fn=dataset._collate_fn)
 
-        for batch in dataloader:
-            tokens, tokens_lengths, log_mels, log_mel_lengths, duration_priors, pitches, energies = batch
-            exit(0)
+        _, _, _, _, _, _, _ = next(iter(dataloader))

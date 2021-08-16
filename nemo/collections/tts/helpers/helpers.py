@@ -23,7 +23,11 @@ from numba import jit, prange
 from numpy import ndarray
 from pesq import pesq
 from pystoi import stoi
-from pytorch_lightning.utilities import rank_zero_only
+
+try:
+    from pytorch_lightning.utilities import rank_zero_only
+except ModuleNotFoundError:
+    pass
 
 from nemo.utils import logging
 

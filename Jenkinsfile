@@ -54,7 +54,7 @@ pipeline {
         sh 'test $(pip list | grep -c lightning) -eq 0'
         sh 'test $(pip list | grep -c omegaconf) -eq 0'
         sh 'test $(pip list | grep -c hydra) -eq 0'
-        sh 'pytest -m "torch_tts" --cpu --relax_numba_compat'
+        sh 'pytest -m "torch_tts" --cpu tests/collections/tts/test_torch_tts.py --relax_numba_compat'
       }
     }
 
