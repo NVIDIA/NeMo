@@ -192,11 +192,11 @@ class DuplexTextNormalizationModel(nn.Module):
                         tn_error_ctx += 1
                     formatted_input_str = get_formatted_string(basic_tokenize(_input, lang=self.lang))
                     formatted_tag_pred_str = get_formatted_string(tag_pred)
-                    formatted_class_str = get_formatted_string(classes)
+                    class_str = " ".join(classes)
                     error_f.write(f'Original Input : {_input}\n')
                     error_f.write(f'Input          : {formatted_input_str}\n')
                     error_f.write(f'Predicted Tags : {formatted_tag_pred_str}\n')
-                    error_f.write(f'Ground Classes : {formatted_class_str}\n')
+                    error_f.write(f'Ground Classes : {class_str}\n')
                     error_f.write(f'Predicted Str  : {final_pred}\n')
                     error_f.write(f'Ground-Truth   : {target}\n')
                     error_f.write('\n')
