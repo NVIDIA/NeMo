@@ -27,6 +27,8 @@ def main(cfg) -> None:
 
     model = MegatronGPTModel(cfg.model, trainer)
 
+    trainer.fit(model)
+
 
 if __name__ == '__main__':
     main()

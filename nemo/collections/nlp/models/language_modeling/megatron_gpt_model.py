@@ -13,13 +13,14 @@
 # limitations under the License.
 
 from megatron.global_vars import get_args
+import torch
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_megatron_for_nemo
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from megatron.model import GPTModel
 from megatron.data.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.utils import logging
+from nemo.utils import AppState, logging
 
 
 class MegatronGPTModel(NLPModel):
@@ -42,6 +43,9 @@ class MegatronGPTModel(NLPModel):
         args = get_args()
         vars(args)['padded_vocab_size'] = 10  # temporarily set so we can instaniate GPTModel
 
+        app_state = AppState()
+        app_state.model_parallel_size = args.tensor_model_parallel_size
+
         self.model = GPTModel(
             num_tokentypes=0, parallel_output=True, pre_process=cfg.pre_process, post_process=cfg.post_process
         )
@@ -49,20 +53,25 @@ class MegatronGPTModel(NLPModel):
         logging.info(f'done with constructor')
 
     def forward(self):
-
         pass
 
-    def setup_training_data(self, cfg):
-        train_ds, valid_ds, test_ds = build_train_valid_test_datasets(
-            data_prefix=cfg.data_prefix,
-            data_impl=cfg.data_impl,
-            splits_string=cfg.splits_string,
-            train_valid_test_num_samples=cfg.train_valid_test_num_samples,
-            seq_length=cfg.seq_length,
-            seed=cfg.seed,
-            skip_warmup=cfg.skip_warmup,
+    def training_step(self):
+        pass
+
+    def setup(self, stage=None):
+        self._train_ds, self._valid_ds, self._test_ds = build_train_valid_test_datasets(
+            data_prefix=self.cfg.train_ds.data_prefix,
+            data_impl=self.cfg.train_ds.data_impl,
+            splits_string=self.cfg.train_ds.splits_string,
+            train_valid_test_num_samples=self.cfg.train_ds.train_valid_test_num_samples,
+            seq_length=self.cfg.train_ds.seq_length,
+            seed=self.cfg.train_ds.seed,
+            skip_warmup=self.cfg.train_ds.skip_warmup,
         )
-        logging.info(f'done with setup_training_data')
+        logging.info(f'done with setup')
+
+    def setup_training_data(self, cfg):
+        pass
 
     def setup_validation_data(self, cfg):
         pass
