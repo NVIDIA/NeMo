@@ -26,5 +26,6 @@ model:
     seq_length: ${model.encoder_seq_length}
     seed: 123
     skip_warmup: False
+    num_workers: 0
 
 
