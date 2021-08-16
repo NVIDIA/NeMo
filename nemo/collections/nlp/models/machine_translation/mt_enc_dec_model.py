@@ -587,7 +587,7 @@ class MTEncDecModel(EncDecNLPModel):
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=1,
-            sampler=None if cfg.get("use_tarred_dataset", False) else sampler,
+            sampler=None if (cfg.get("use_tarred_dataset", False) or isinstance(dataset, ConcatDataset)) else sampler,
             num_workers=cfg.get("num_workers", 2),
             pin_memory=cfg.get("pin_memory", False),
             drop_last=cfg.get("drop_last", False),
