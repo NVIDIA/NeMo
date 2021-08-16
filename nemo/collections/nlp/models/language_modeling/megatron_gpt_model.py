@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from megatron.global_vars import get_args
+from megatron import mpu
+from megatron.global_vars import get_args, get_tokenizer
 import torch
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_megatron_for_nemo
 from omegaconf.dictconfig import DictConfig
@@ -20,6 +21,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from megatron.model import GPTModel
 from megatron.data.gpt_dataset import build_train_valid_test_datasets
 from megatron.data.data_samplers import build_pretraining_data_loader
+from megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.utils import AppState, logging
 
@@ -40,6 +42,9 @@ class MegatronGPTModel(NLPModel):
             hidden_size=cfg.get('hidden_size', 16),
             num_attention_heads=cfg.get('num_attention_heads', 1),
             max_position_embeddings=cfg.get('max_position_embeddings', 512),
+            tokenizer_type='GPT2BPETokenizer',
+            vocab_file=cfg.vocab_file,
+            merge_file=cfg.merge_file,
         )
         args = get_args()
         vars(args)['padded_vocab_size'] = 10  # temporarily set so we can instaniate GPTModel
@@ -54,13 +59,37 @@ class MegatronGPTModel(NLPModel):
         logging.info(f'done with constructor')
 
     def forward(self):
-        pass
+        logging.info('finished forward')
 
-    def training_step(self):
-        pass
+    def training_step(self, batch, batch_idx):
+        tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
+        logging.info('finished training_step')
+
+    def process_batch(self, batch):
+        args = get_args()
+        tokenizer = get_tokenizer()
+
+        # Items and their type.
+        keys = ['text']
+        datatype = torch.int64
+
+        data = batch
+        data_b = mpu.broadcast_data(keys, data, datatype)
+
+        # Unpack.
+        tokens_ = data_b['text'].long()
+        labels = tokens_[:, 1:].contiguous()
+        tokens = tokens_[:, :-1].contiguous()
+
+        # Get the masks and postition ids.
+        attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
+            tokens, tokenizer.eod, args.reset_position_ids, args.reset_attention_mask, args.eod_mask_loss
+        )
+
+        return tokens, labels, loss_mask, attention_mask, position_ids
 
     def setup(self, stage=None):
-        logging.info("Building GPT datasets.")
+        logging.info('Building GPT datasets.')
         self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
             data_prefix=self.cfg.train_ds.data_prefix,
             data_impl=self.cfg.train_ds.data_impl,

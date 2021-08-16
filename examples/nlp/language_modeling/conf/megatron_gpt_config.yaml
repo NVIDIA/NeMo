@@ -9,6 +9,8 @@ model:
   encoder_seq_length: 512
   num_layers: 1
   hidden_size: 16
+  vocab_file: /raid/data/gpt/vocab.json
+  merge_file: /raid/data/gpt/merges.txt
 
   # GPT
   pre_process: True
