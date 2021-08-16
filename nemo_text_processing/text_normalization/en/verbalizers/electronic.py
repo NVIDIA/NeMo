@@ -13,13 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_ALPHA,
-    NEMO_NOT_QUOTE,
-    GraphFst,
-    delete_space,
-    insert_space,
-)
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space, insert_space
 from nemo_text_processing.text_normalization.en.utils import get_abs_path
 
 try:
@@ -43,7 +37,13 @@ class ElectronicFst(GraphFst):
 
     def __init__(self, deterministic: bool = True):
         super().__init__(name="electronic", kind="verbalize", deterministic=deterministic)
-        graph_digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv"))).optimize()
+        graph_digit_no_zero = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv"))).optimize()
+        graph_zero = pynini.cross("0", "zero")
+
+        if not deterministic:
+            graph_zero |= pynini.cross("0", "o") | pynini.cross("0", "oh")
+
+        graph_digit = graph_digit_no_zero | graph_zero
         graph_symbols = pynini.string_file(get_abs_path("data/electronic/symbols.tsv")).optimize()
         user_name = (
             pynutil.delete("username:")
@@ -59,34 +59,33 @@ class ElectronicFst(GraphFst):
             + pynutil.delete("\"")
         )
 
-        domain_default = (
-            pynini.closure(NEMO_NOT_QUOTE + insert_space)
-            + pynini.cross(".", "dot ")
-            + NEMO_NOT_QUOTE
-            + pynini.closure(insert_space + NEMO_NOT_QUOTE)
-        )
+        server_common = pynini.string_file(get_abs_path("data/electronic/server_name.tsv"))
+        domain_common = pynini.string_file(get_abs_path("data/electronic/domain.tsv"))
 
-        server_default = (
-            pynini.closure((graph_digit | NEMO_ALPHA) + insert_space, 1)
-            + pynini.closure(graph_symbols + insert_space)
-            + pynini.closure((graph_digit | NEMO_ALPHA) + insert_space, 1)
+        convert_defaults = (
+            NEMO_NOT_QUOTE | pynutil.add_weight(domain_common, -0.1) | pynutil.add_weight(server_common, -0.1)
         )
-        server_common = pynini.string_file(get_abs_path("data/electronic/server_name.tsv")) + insert_space
-
-        domain_common = pynini.cross(".", "dot ") + pynini.string_file(get_abs_path("data/electronic/domain.tsv"))
+        domain = convert_defaults + pynini.closure(pynutil.insert(" ") + convert_defaults)
+        domain = pynini.compose(
+            domain,
+            pynini.closure(
+                pynutil.add_weight(graph_symbols, -0.1) | pynutil.add_weight(graph_digit, -0.1) | NEMO_NOT_QUOTE
+            ),
+        )
 
         domain = (
             pynutil.delete("domain:")
             + delete_space
             + pynutil.delete("\"")
-            + (pynutil.add_weight(server_common, 1.09) | pynutil.add_weight(server_default, 1.1))
-            + (pynutil.add_weight(domain_common, 1.09) | pynutil.add_weight(domain_default, 1.1))
+            + domain
             + delete_space
             + pynutil.delete("\"")
         )
 
+        protocol = pynutil.delete("protocol: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
         graph = (
-            pynini.closure(user_name + delete_space + pynutil.insert("at ") + delete_space, 0, 1)
+            pynini.closure(protocol + delete_space, 0, 1)
+            + pynini.closure(user_name + delete_space + pynutil.insert("at ") + delete_space, 0, 1)
             + domain
             + delete_space
         )
