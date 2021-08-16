@@ -180,8 +180,8 @@ class DuplexTextNormalizationModel(nn.Module):
                 "class_accuracy": log_class_accuracies,
             }
             # Write errors to log file
-            for _input, tag_pred, final_pred, target in zip(
-                cur_inputs, cur_tag_preds, cur_final_preds, cur_targets_sent
+            for _input, tag_pred, final_pred, target, classes in zip(
+                cur_inputs, cur_tag_preds, cur_final_preds, cur_targets_sent, cur_classes
             ):
                 if not TextNormalizationTestDataset.is_same(final_pred, target, direction, self.lang):
                     if direction == constants.INST_BACKWARD:
@@ -192,9 +192,11 @@ class DuplexTextNormalizationModel(nn.Module):
                         tn_error_ctx += 1
                     formatted_input_str = get_formatted_string(basic_tokenize(_input, lang=self.lang))
                     formatted_tag_pred_str = get_formatted_string(tag_pred)
+                    formatted_class_str = get_formatted_string(classes)
                     error_f.write(f'Original Input : {_input}\n')
                     error_f.write(f'Input          : {formatted_input_str}\n')
                     error_f.write(f'Predicted Tags : {formatted_tag_pred_str}\n')
+                    error_f.write(f'Ground Classes : {formatted_class_str}\n')
                     error_f.write(f'Predicted Str  : {final_pred}\n')
                     error_f.write(f'Ground-Truth   : {target}\n')
                     error_f.write('\n')

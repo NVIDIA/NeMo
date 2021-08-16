@@ -246,9 +246,9 @@ def analyze(errors_log_fp: str, visualization_fp: str):
 
     # Process lines
     tn_error_cases, itn_error_cases = [], []
-    for ix in range(0, len(lines), 7):
+    for ix in range(0, len(lines), 8):
         mode_line = lines[ix]
-        info_lines = lines[ix + 1 : ix + 6]
+        info_lines = lines[ix + 1 : ix + 7]
         # Append new error case
         if mode_line.startswith('Forward Problem'):
             mode = constants.TN_MODE
