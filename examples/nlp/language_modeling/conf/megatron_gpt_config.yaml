@@ -15,7 +15,8 @@ model:
   post_process: True
 
   train_ds:
-    data_prefix: /raid/data/gpt/simple_wiki_gpt_preproc
+    data_prefix: 
+      - /raid/data/gpt/simple_wiki_gpt_preproc_text_document
     data_impl: mmap
     splits_string: 949,50,1
     train_valid_test_num_samples:
