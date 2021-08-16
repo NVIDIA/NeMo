@@ -19,6 +19,7 @@ from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from megatron.model import GPTModel
 from megatron.data.gpt_dataset import build_train_valid_test_datasets
+from megatron.data.data_samplers import build_pretraining_data_loader
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.utils import AppState, logging
 
@@ -59,7 +60,8 @@ class MegatronGPTModel(NLPModel):
         pass
 
     def setup(self, stage=None):
-        self._train_ds, self._valid_ds, self._test_ds = build_train_valid_test_datasets(
+        logging.info("Building GPT datasets.")
+        self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
             data_prefix=self.cfg.train_ds.data_prefix,
             data_impl=self.cfg.train_ds.data_impl,
             splits_string=self.cfg.train_ds.splits_string,
@@ -68,10 +70,14 @@ class MegatronGPTModel(NLPModel):
             seed=self.cfg.train_ds.seed,
             skip_warmup=self.cfg.train_ds.skip_warmup,
         )
-        logging.info(f'done with setup')
+        self.setup_training_data(self.cfg.train_ds)
+        logging.info(f'Finished building GPT datasets.')
 
     def setup_training_data(self, cfg):
-        pass
+        # TODO: Add megatron specific sampler
+        # see build_pretraining_data_loader from megatron-lm
+        if hasattr(self, '_train_ds'):
+            self._train_dl = torch.utils.data.DataLoader(self._train_ds, num_workers=cfg.num_workers, pin_memory=True)
 
     def setup_validation_data(self, cfg):
         pass
