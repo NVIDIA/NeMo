@@ -62,7 +62,16 @@ class MegatronGPTModel(NLPModel):
     def training_step(self, batch, batch_idx):
         tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
         output_tensor = self(tokens, position_ids, attention_mask, labels)
+        loss = self.loss_func(loss_mask, output_tensor)
+        self.log('train_loss', loss)
         logging.info('finished training_step')
+        return loss
+
+    def loss_func(self, loss_mask, output_tensor):
+        losses = output_tensor.float()
+        loss_mask = loss_mask.view(-1).float()
+        loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
+        return loss
 
     def process_batch(self, batch):
         args = get_args()
@@ -79,6 +88,13 @@ class MegatronGPTModel(NLPModel):
         tokens_ = data_b['text'].long()
         labels = tokens_[:, 1:].contiguous()
         tokens = tokens_[:, :-1].contiguous()
+
+        if self.cfg.debug:
+            logging.info('debugging')
+            tokens_list = tokens.detach().tolist()[0]
+            labels_list = labels.detach().tolist()[0]
+            logging.info(f'detokenize tokens: {tokenizer.detokenize(tokens_list)}')
+            logging.info(f'detokenize labels: {tokenizer.detokenize(labels_list)}')
 
         # Get the masks and postition ids.
         attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(

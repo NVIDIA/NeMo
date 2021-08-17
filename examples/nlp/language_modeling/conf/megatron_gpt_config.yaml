@@ -3,6 +3,7 @@ trainer:
   num_nodes: 1
 
 model:
+  debug: False # logs debugging info
   # needed to initialize megatron
   micro_batch_size: 1
   tensor_model_parallel_size: 1
