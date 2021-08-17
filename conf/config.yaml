@@ -1,0 +1,4 @@
+defaults:
+  - data_preparation: download_pile
+  - training: 126m
+  - override hydra/launcher: submitit_slurm
