@@ -25,32 +25,14 @@ import nltk
 from nemo.collections.common.parts.preprocessing import parsers
 
 try:
-    nltk.data.find('taggers/averaged_perceptron_tagger.zip')
-except LookupError:
-    nltk.download('averaged_perceptron_tagger', quiet=True)
-try:
-    nltk.data.find('corpora/cmudict.zip')
-except LookupError:
-    nltk.download('cmudict', quiet=True)
+    import g2p_en  # noqa
 
-# try:
-#     import g2p_en  # noqa
+    _g2p = g2p_en.G2p()
+    _g2p.variables = None
 
-#     _g2p = g2p_en.G2p()
-#     _g2p.variables = None
-
-#     HAVE_G2P = True
-# except (FileNotFoundError, LookupError):
-#     HAVE_G2P = False
-
-
-import g2p_en  # noqa
-
-_g2p = g2p_en.G2p()
-_g2p.variables = None
-
-HAVE_G2P = True
-
+    HAVE_G2P = True
+except (FileNotFoundError, LookupError):
+    HAVE_G2P = False
 
 _words_re = re.compile("([a-z\-]+'[a-z\-]+|[a-z\-]+)|([^a-z{}]+)")
 
