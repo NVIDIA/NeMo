@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from omegaconf.omegaconf import OmegaConf
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from pytorch_lightning import Trainer
@@ -24,9 +25,11 @@ from nemo.utils import logging
 @hydra_runner(config_path="conf", config_name="megatron_gpt_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
+    logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
     trainer = Trainer(plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes)], **cfg.trainer)
+
+    exp_manager(trainer, cfg.exp_manager)
 
     model = MegatronGPTModel(cfg.model, trainer)
 
