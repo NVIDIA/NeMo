@@ -57,9 +57,10 @@ class NLPDDPPlugin(DDPPlugin):
         app_state = AppState()
 
         if app_state.model_parallel_size is not None:
+            self.init_model_parallel(app_state.global_rank, app_state.world_size)
 
-            if self.lightning_module.has_megatron_encoder and not self.lightning_module.is_model_parallel_initialized:
-                self.init_model_parallel(app_state.global_rank, app_state.world_size)
+            # if self.lightning_module.has_megatron_encoder and not self.lightning_module.is_model_parallel_initialized:
+            #     self.init_model_parallel(app_state.global_rank, app_state.world_size)
 
     def start_training(self, trainer: 'Trainer') -> None:
         """ PTL Hook that is called after DPP is initialized. """

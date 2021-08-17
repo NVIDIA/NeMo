@@ -36,6 +36,7 @@ def initialize_megatron_for_nemo(
     args_defaults['tokenizer_type'] = tokenizer_type
     args_defaults['vocab_file'] = vocab_file
     args_defaults['merge_file'] = merge_file
+    args_defaults['lazy_mpu_init'] = True
 
     extra_args_provider = get_extra_args_provider(micro_batch_size, tensor_model_parallel_size, encoder_seq_length)
 
@@ -43,7 +44,7 @@ def initialize_megatron_for_nemo(
     set_pipeline_model_parallel_rank(0)
     set_pipeline_model_parallel_world_size(1)
 
-    initialize_megatron(extra_args_provider=extra_args_provider, args_defaults=args_defaults)
+    initialize_megatron(extra_args_provider=extra_args_provider, args_defaults=args_defaults, ignore_unknown_args=True)
 
 
 def get_extra_args_provider(

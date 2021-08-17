@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from megatron import mpu
+from megatron import fused_kernels, mpu
 from megatron.global_vars import get_args, get_tokenizer
 import torch
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_megatron_for_nemo
@@ -48,6 +48,8 @@ class MegatronGPTModel(NLPModel):
         )
         args = get_args()
 
+        fused_kernels.load(args)
+
         app_state = AppState()
         app_state.model_parallel_size = args.tensor_model_parallel_size
 
@@ -64,7 +66,6 @@ class MegatronGPTModel(NLPModel):
         output_tensor = self(tokens, position_ids, attention_mask, labels)
         loss = self.loss_func(loss_mask, output_tensor)
         self.log('train_loss', loss)
-        logging.info('finished training_step')
         return loss
 
     def loss_func(self, loss_mask, output_tensor):
