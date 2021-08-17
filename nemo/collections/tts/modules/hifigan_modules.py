@@ -44,8 +44,8 @@ import torch.nn.functional as F
 from torch.nn import AvgPool1d, Conv1d, Conv2d, ConvTranspose1d
 from torch.nn.utils import remove_weight_norm, spectral_norm, weight_norm
 
-from nemo.core.classes import NeuralModule
 from nemo.core.classes.common import typecheck
+from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType, VoidType
 from nemo.core.neural_types.neural_type import NeuralType
 

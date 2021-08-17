@@ -23,9 +23,21 @@ from numba import jit, prange
 from numpy import ndarray
 from pesq import pesq
 from pystoi import stoi
-from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.utils import logging
+
+try:
+    from pytorch_lightning.utilities import rank_zero_only
+except ModuleNotFoundError:
+    from functools import wraps
+
+    def rank_zero_only(fn):
+        @wraps(fn)
+        def wrapped_fn(*args, **kwargs):
+            logging.error(
+                f"Function {fn} requires lighting to be installed, but it was not found. Please install lightning first"
+            )
+            exit(1)
 
 
 class OperationMode(Enum):

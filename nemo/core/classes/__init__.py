@@ -25,5 +25,17 @@ from nemo.core.classes.common import (
 from nemo.core.classes.dataset import Dataset, IterableDataset
 from nemo.core.classes.exportable import Exportable, ExportFormat
 from nemo.core.classes.loss import Loss
-from nemo.core.classes.modelPT import ModelPT
 from nemo.core.classes.module import NeuralModule
+from nemo.utils import exceptions
+
+# TODO @blisc: Perhaps refactor instead of import guarding
+try:
+    import pytorch_lightning
+    import hydra
+    import omegaconf
+    from nemo.core.classes.modelPT import ModelPT
+except ModuleNotFoundError:
+    from nemo.utils.exceptions import CheckInstall
+
+    class ModelPT(CheckInstall):
+        pass
