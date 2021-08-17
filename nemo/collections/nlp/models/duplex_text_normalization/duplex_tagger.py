@@ -148,7 +148,7 @@ class DuplexTaggerModel(NLPModel):
         for ix, sent in enumerate(sents):
             if inst_directions[ix] == constants.INST_BACKWARD:
                 prefix = constants.ITN_PREFIX
-            if inst_directions[ix] == constants.INST_FORWARD:
+            elif inst_directions[ix] == constants.INST_FORWARD:
                 prefix = constants.TN_PREFIX
             texts.append([prefix] + sent)
 
@@ -176,9 +176,9 @@ class DuplexTaggerModel(NLPModel):
                 previous_word_idx = word_idx
             all_tag_preds.append(tag_preds)
 
-        # Postprocessing
+        # Post-correction of simple tagger mistakes, i.e. I- tag is proceeding the B- tag in a span
         all_tag_preds = [
-            self.postprocess_tag_preds(words, inst_dir, ps)
+            self._postprocess_tag_preds(words, inst_dir, ps)
             for words, inst_dir, ps in zip(sents, inst_directions, all_tag_preds)
         ]
 
@@ -187,14 +187,14 @@ class DuplexTaggerModel(NLPModel):
 
         return all_tag_preds, nb_spans, span_starts, span_ends
 
-    def postprocess_tag_preds(self, words, inst_dir, preds):
+    def _postprocess_tag_preds(self, words: List[str], inst_dir: str, preds:List[str]):
         """ Function for postprocessing the raw tag predictions of the model. It
         corrects obvious mistakes in the tag predictions such as a TRANSFORM span
         starts with I_TRANSFORM_TAG (instead of B_TRANSFORM_TAG).
 
         Args:
             words: The words in the input sentence
-            inst_dir: The direction of the instance (i.e., INST_BACKWARD or INST_FORWARD).
+            inst_dir: The direction of the instance (i.e., constants.INST_BACKWARD or INST_FORWARD).
             preds: The raw tag predictions
 
         Returns: The processed raw tag predictions
@@ -219,7 +219,7 @@ class DuplexTaggerModel(NLPModel):
             final_preds.append(p)
         return final_preds
 
-    def decode_tag_preds(self, tag_preds):
+    def decode_tag_preds(self, tag_preds: List[List[str]]):
         """ Decoding the raw tag predictions to locate the semiotic spans in the
         input texts.
 
@@ -247,7 +247,8 @@ class DuplexTaggerModel(NLPModel):
             nb_spans.append(cur_nb_spans)
             span_starts.append(cur_span_starts)
             span_ends.append(cur_span_ends)
-
+        import pdb;
+        pdb.set_trace()  # duplicated prediction?
         return nb_spans, span_starts, span_ends
 
     # Functions for processing data

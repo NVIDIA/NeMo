@@ -22,9 +22,9 @@ SPLIT_NAMES = [TRAIN, DEV, TEST]
 # Languages
 ENGLISH = 'en'
 RUSSIAN = 'ru'
-GERMANY = 'de'
+GERMAN = 'de'
 MULTILINGUAL = 'multilingual'
-SUPPORTED_LANGS = [ENGLISH, RUSSIAN, GERMANY, MULTILINGUAL]
+SUPPORTED_LANGS = [ENGLISH, RUSSIAN, GERMAN, MULTILINGUAL]
 
 # Task Prefixes
 ITN_PREFIX = str(0)
@@ -58,6 +58,7 @@ ALL_TAG_LABELS = []
 for prefix in TAGGER_LABELS_PREFIXES:
     for tag in ALL_TAGS:
         ALL_TAG_LABELS.append(prefix + tag)
+
 ALL_TAG_LABELS.sort()
 
 # Special Words
