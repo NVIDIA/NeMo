@@ -28,7 +28,7 @@
 
 import copy
 from dataclasses import dataclass
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict, Any
 
 import numpy as np
 import torch
@@ -38,6 +38,8 @@ from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
+
+from nemo.utils import logging
 
 
 class BeamRNNTInfer(Typing):
@@ -111,6 +113,8 @@ class BeamRNNTInfer(Typing):
 
         nsc_prefix_alpha: Unused int.
 
+        softmax_temperature: Scales the logits of the joint prior to computing log_softmax.
+
         preserve_alignments: Bool flag which preserves the history of alignments generated during
             beam decoding (sample). When set to true, the Hypothesis will contain
             the non-null value for `alignments` in it. Here, `alignments` is a List of List of ints.
@@ -150,6 +154,8 @@ class BeamRNNTInfer(Typing):
         alsd_max_target_len: Union[int, float] = 1.0,
         nsc_max_timesteps_expansion: int = 1,
         nsc_prefix_alpha: int = 1,
+        language_model: Optional[Dict[str, Any]] = None,
+        softmax_temperature: float = 1.0,
         preserve_alignments: bool = False,
     ):
         self.decoder = decoder_model
@@ -199,6 +205,16 @@ class BeamRNNTInfer(Typing):
         self.alsd_max_target_length = alsd_max_target_len
         self.nsc_max_timesteps_expansion = nsc_max_timesteps_expansion
         self.nsc_prefix_alpha = nsc_prefix_alpha
+
+        if softmax_temperature != 1.0 and language_model is not None:
+            logging.warning(
+                "Softmax temperature is not supported with LM decoding."
+                "Setting softmax-temperature value to 1.0."
+            )
+
+            self.softmax_temperature = 1.0
+        else:
+            self.softmax_temperature = softmax_temperature
         self.preserve_alignments = preserve_alignments
 
     @typecheck()
@@ -309,7 +325,7 @@ class BeamRNNTInfer(Typing):
             symbols_added = 0
 
             while not_blank:
-                ytu = torch.log_softmax(self.joint.joint(hi, y), dim=-1)  # [1, 1, 1, V + 1]
+                ytu = torch.log_softmax(self.joint.joint(hi, y) / self.softmax_temperature, dim=-1)  # [1, 1, 1, V + 1]
                 ytu = ytu[0, 0, 0, :]  # [V + 1]
 
                 # max() requires float
@@ -397,7 +413,7 @@ class BeamRNNTInfer(Typing):
                 y, state, lm_tokens = self.decoder.score_hypothesis(max_hyp, cache)  # [1, 1, D]
 
                 # get next token
-                ytu = torch.log_softmax(self.joint.joint(hi, y), dim=-1)  # [1, 1, 1, V + 1]
+                ytu = torch.log_softmax(self.joint.joint(hi, y) / self.softmax_temperature, dim=-1)  # [1, 1, 1, V + 1]
                 ytu = ytu[0, 0, 0, :]  # [V + 1]
 
                 # remove blank token before top k
@@ -522,7 +538,7 @@ class BeamRNNTInfer(Typing):
                 beam_y, beam_state, beam_lm_tokens = self.decoder.batch_score_hypothesis(C, cache, beam_state)
 
                 # Extract the log probabilities and the predicted tokens
-                beam_logp = torch.log_softmax(self.joint.joint(h_enc, beam_y), dim=-1)  # [B, 1, 1, V + 1]
+                beam_logp = torch.log_softmax(self.joint.joint(h_enc, beam_y) / self.softmax_temperature, dim=-1)  # [B, 1, 1, V + 1]
                 beam_logp = beam_logp[:, 0, 0, :]  # [B, V + 1]
                 beam_topk = beam_logp[:, ids].topk(beam, dim=-1)
 
@@ -692,7 +708,7 @@ class BeamRNNTInfer(Typing):
                 h_enc = h_enc.unsqueeze(1)  # [B=beam, T=1, D]; batch over the beams
 
                 # Extract the log probabilities and the predicted tokens
-                beam_logp = torch.log_softmax(self.joint.joint(h_enc, beam_y), dim=-1)  # [B=beam, 1, 1, V + 1]
+                beam_logp = torch.log_softmax(self.joint.joint(h_enc, beam_y) / self.softmax_temperature, dim=-1)  # [B=beam, 1, 1, V + 1]
                 beam_logp = beam_logp[:, 0, 0, :]  # [B=beam, V + 1]
                 beam_topk = beam_logp[:, ids].topk(beam, dim=-1)
 

@@ -456,7 +456,7 @@ trainer:
   log_every_n_steps: 100  # Interval of logging.
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   check_val_every_n_epoch: 1  # RNNT decoding is slower than CTC, so eval takes longer. Increase value to speed up training slightly.
-  precision: 16  # RNNT requires a lot of memory, so precision 16 is very important. Use very small batch size for precision 32.
+  precision: 32  # RNNT requires a lot of memory, so precision 16 is very important. Use very small batch size for precision 32.
   gradient_clip_val: 1.0  # Gradient norm clip value
   sync_batchnorm: true
   benchmark: false
