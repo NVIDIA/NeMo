@@ -9,7 +9,7 @@
 # The changes between models is captured in the following table. The rest of the parameters is the same across all models.
 # +-----------------+---------+---------+------------+----------------+------------+
 # | Model           | filters | epilog  | activation | weight         | time_masks |
-# |                 |         | filters |            | init           |            |
+# |                 |         | filters |            | init_mode      |            |
 # +-----------------+---------+---------+------------+----------------+------------+
 # | CarneliNet-256  | 256     | 640     | Swish      | tds_uniform    | 2          |
 # +-----------------+---------+---------+------------+----------------+------------+
@@ -88,7 +88,8 @@ model:
   encoder:
     _target_: nemo.collections.asr.modules.ParallelConvASREncoder
     feat_in: *n_mels
-    activation: relu
+    activation: swish
+    init_mode: tds_uniform
     conv_mask: true
 
     jasper:
