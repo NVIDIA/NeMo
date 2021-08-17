@@ -113,7 +113,8 @@ class DuplexDecoderModel(NLPModel):
             labels=batch['labels'],
         )
         val_loss = outputs.loss
-
+        import pdb; pdb.set_trace()
+        # outputs.keys() ['loss', 'logits', 'past_key_values', 'encoder_last_hidden_state']
         return {'val_loss': val_loss}
 
     def validation_epoch_end(self, outputs):
