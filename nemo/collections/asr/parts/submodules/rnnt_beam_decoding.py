@@ -35,7 +35,7 @@ import torch
 from tqdm import tqdm
 
 from nemo.collections.asr.modules import rnnt_abstract
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses, is_prefix
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 
@@ -113,6 +113,8 @@ class BeamRNNTInfer(Typing):
 
         nsc_prefix_alpha: Unused int.
 
+        maes_prefix_alpha: Maximum prefix length in prefix search. (mAES)
+
         softmax_temperature: Scales the logits of the joint prior to computing log_softmax.
 
         preserve_alignments: Bool flag which preserves the history of alignments generated during
@@ -154,6 +156,10 @@ class BeamRNNTInfer(Typing):
         alsd_max_target_len: Union[int, float] = 1.0,
         nsc_max_timesteps_expansion: int = 1,
         nsc_prefix_alpha: int = 1,
+        maes_num_steps: int = 2,
+        maes_prefix_alpha: int = 1,
+        maes_expansion_gamma: float = 2.3,
+        maes_expansion_betas: float = 2.0,
         language_model: Optional[Dict[str, Any]] = None,
         softmax_temperature: float = 1.0,
         preserve_alignments: bool = False,
@@ -205,11 +211,14 @@ class BeamRNNTInfer(Typing):
         self.alsd_max_target_length = alsd_max_target_len
         self.nsc_max_timesteps_expansion = nsc_max_timesteps_expansion
         self.nsc_prefix_alpha = nsc_prefix_alpha
+        self.maes_prefix_alpha = maes_prefix_alpha
+        self.maes_num_steps = maes_num_steps
+        self.maes_expansion_gamma = maes_expansion_gamma
+        self.maes_expansion_betas = maes_expansion_betas
 
         if softmax_temperature != 1.0 and language_model is not None:
             logging.warning(
-                "Softmax temperature is not supported with LM decoding."
-                "Setting softmax-temperature value to 1.0."
+                "Softmax temperature is not supported with LM decoding." "Setting softmax-temperature value to 1.0."
             )
 
             self.softmax_temperature = 1.0
@@ -538,7 +547,9 @@ class BeamRNNTInfer(Typing):
                 beam_y, beam_state, beam_lm_tokens = self.decoder.batch_score_hypothesis(C, cache, beam_state)
 
                 # Extract the log probabilities and the predicted tokens
-                beam_logp = torch.log_softmax(self.joint.joint(h_enc, beam_y) / self.softmax_temperature, dim=-1)  # [B, 1, 1, V + 1]
+                beam_logp = torch.log_softmax(
+                    self.joint.joint(h_enc, beam_y) / self.softmax_temperature, dim=-1
+                )  # [B, 1, 1, V + 1]
                 beam_logp = beam_logp[:, 0, 0, :]  # [B, V + 1]
                 beam_topk = beam_logp[:, ids].topk(beam, dim=-1)
 
@@ -708,7 +719,9 @@ class BeamRNNTInfer(Typing):
                 h_enc = h_enc.unsqueeze(1)  # [B=beam, T=1, D]; batch over the beams
 
                 # Extract the log probabilities and the predicted tokens
-                beam_logp = torch.log_softmax(self.joint.joint(h_enc, beam_y) / self.softmax_temperature, dim=-1)  # [B=beam, 1, 1, V + 1]
+                beam_logp = torch.log_softmax(
+                    self.joint.joint(h_enc, beam_y) / self.softmax_temperature, dim=-1
+                )  # [B=beam, 1, 1, V + 1]
                 beam_logp = beam_logp[:, 0, 0, :]  # [B=beam, V + 1]
                 beam_topk = beam_logp[:, ids].topk(beam, dim=-1)
 
@@ -793,6 +806,41 @@ class BeamRNNTInfer(Typing):
 
         return hypotheses
 
+    def prefix_search(
+        self, hypotheses: List[Hypothesis], enc_out: torch.Tensor, prefix_alpha: int
+    ) -> List[Hypothesis]:
+        """
+        Prefix search for NSC and mAES strategies.
+        Based on https://arxiv.org/pdf/1211.3711.pdf
+        """
+
+        for j, hyp_j in enumerate(hypotheses[:-1]):
+            for hyp_i in hypotheses[(j + 1) :]:
+                curr_id = len(hyp_j.y_sequence)
+                pref_id = len(hyp_i.y_sequence)
+
+                if is_prefix(hyp_j.y_sequence, hyp_i.y_sequence) and (curr_id - pref_id) <= prefix_alpha:
+
+                    logp = torch.log_softmax(
+                        self.joint(enc_out, hyp_i.dec_out[-1])
+                        / self.softmax_temperature,
+                        dim=-1,
+                    )
+                    curr_score = hyp_i.score + float(logp[hyp_j.y_sequence[pref_id]])
+
+                    for k in range(pref_id, (curr_id - 1)):
+                        logp = torch.log_softmax(
+                            self.joint(enc_out, hyp_j.dec_out[k])
+                            / self.softmax_temperature,
+                            dim=-1,
+                        )
+
+                        curr_score += float(logp[hyp_j.y_sequence[k + 1]])
+
+                    hyp_j.score = np.logaddexp(hyp_j.score, curr_score)
+
+        return hypotheses
+
 
 @dataclass
 class BeamRNNTInferConfig:
@@ -804,6 +852,10 @@ class BeamRNNTInferConfig:
     alsd_max_target_len: float = 1.0
     nsc_max_timesteps_expansion: int = 1
     nsc_prefix_alpha: int = 1
+    maes_num_steps: int = 2,
+    maes_prefix_alpha: int = 1,
+    maes_expansion_gamma: float = 2.3,
+    maes_expansion_betas: float = 2.0,
     language_model: Optional[Dict[str, Any]] = None
     softmax_temperature: float = 1.0
     preserve_alignments: bool = False

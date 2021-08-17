@@ -71,8 +71,9 @@ class Hypothesis:
 
     score: float
     y_sequence: Union[List[int], torch.Tensor]
-    dec_state: Optional[Union[List[List[torch.Tensor]], List[torch.Tensor]]] = None
     text: Optional[str] = None
+    dec_out: Optional[List[torch.Tensor]] = None
+    dec_state: Optional[Union[List[List[torch.Tensor]], List[torch.Tensor]]] = None
     timestep: Union[List[int], torch.Tensor] = field(default_factory=list)
     alignments: Optional[Union[List[int], List[List[int]]]] = None
     length: int = 0
@@ -87,3 +88,21 @@ class NBestHypotheses:
     """List of N best hypotheses"""
 
     n_best_hypotheses: Optional[List[Hypothesis]]
+
+
+def is_prefix(x: List[int], pref: List[int]) -> bool:
+    """Check if pref is a prefix of x.
+    Args:
+        x: Label ID sequence.
+        pref: Prefix label ID sequence.
+    Returns:
+        : Whether pref is a prefix of x.
+    """
+    if len(pref) >= len(x):
+        return False
+
+    for i in range(len(pref)):
+        if pref[i] != x[i]:
+            return False
+
+    return True
