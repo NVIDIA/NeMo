@@ -42,7 +42,7 @@ class TelephoneFst(GraphFst):
         super().__init__(name="telephone", kind="classify", deterministic=deterministic)
 
         separator = pynini.cross("-", " ")  # between components
-        number = number_names['nominative_up_to_thousand_names']
+        number = number_names["cardinal_names_nominative"]
 
         country_code = (
             pynutil.insert("country_code: \"")

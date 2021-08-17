@@ -72,20 +72,22 @@ def get_number_names():
         get_abs_path("data/numbers/6_cardinals_prepositional_предложный.tsv")
     ).optimize()
 
-    cardinal_l = (pynini.closure(cardinal_name_nominative + pynini.accep(" ")) + cardinal_name_nominative).optimize()
+    cardinal_name_nominative = (
+        pynini.closure(cardinal_name_nominative + pynini.accep(" ")) + cardinal_name_nominative
+    ).optimize()
+    cardinal_l = pynutil.add_weight(cardinal_name_nominative, -0.1)
     for case in [
-        cardinal_name_genitive,
-        cardinal_name_dative,
-        cardinal_name_accusative,
-        cardinal_name_instrumental,
-        cardinal_name_prepositional,
+        pynutil.add_weight(cardinal_name_genitive, 0.1),
+        pynutil.add_weight(cardinal_name_dative, 0.1),
+        pynutil.add_weight(cardinal_name_accusative, 0.1),
+        pynutil.add_weight(cardinal_name_instrumental, 0.1),
+        pynutil.add_weight(cardinal_name_prepositional, 0.1),
     ]:
         cardinal_l |= (pynini.closure(case + pynini.accep(" ")) + case).optimize()
 
-    # Numbers up to 1000 in nominative case (to use, for example, with telephone)
-    nominative_up_to_thousand_name = pynini.string_file(get_abs_path("data/numbers/cardinals_nominative_case.tsv"))
-    nominative_up_to_thousand_name_l = (
-        pynini.closure(nominative_up_to_thousand_name + pynini.accep(" ")) + nominative_up_to_thousand_name
+    # Numbers in nominative case (to use, for example, with telephone or serial_graph (in cardinals))
+    cardinal_names_nominative_l = (
+        pynini.closure(cardinal_name_nominative + pynini.accep(" ")) + cardinal_name_nominative
     ).optimize()
 
     # Convert e.g. "(* 5 1000 *)" back to  "5000" so complex ordinals will be formed correctly,
@@ -109,7 +111,7 @@ def get_number_names():
     number_names = {}
     number_names['ordinal_number_names'] = (fg_ordinal @ (p @ ordinal_l)).optimize()
     number_names['cardinal_number_names'] = (fg @ (p @ cardinal_l)).optimize()
-    number_names['nominative_up_to_thousand_names'] = (fg @ (p @ nominative_up_to_thousand_name_l)).optimize()
+    number_names['cardinal_names_nominative'] = (fg @ (p @ cardinal_names_nominative_l)).optimize()
     return number_names
 
 
