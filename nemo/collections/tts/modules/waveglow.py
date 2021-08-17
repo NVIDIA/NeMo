@@ -180,7 +180,7 @@ class WaveGlowModule(NeuralModule, Exportable):
         spec = spec.contiguous().view(spec.size(0), spec.size(1), -1)
         spec = spec.permute(0, 2, 1)
 
-        audio = split_view(self.n_group, 1).permute(0, 2, 1)
+        audio = split_view(audio, self.n_group, 1).permute(0, 2, 1)
         output_audio = []
         log_s_list = []
         log_det_W_list = []
