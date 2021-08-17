@@ -18,10 +18,13 @@ from pytorch_lightning import Trainer
 
 from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
+from nemo.utils import logging
 
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_config")
 def main(cfg) -> None:
+    logging.info("\n\n************** Experiment configuration ***********")
+    logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
 
     trainer = Trainer(plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes)], **cfg.trainer)
 
