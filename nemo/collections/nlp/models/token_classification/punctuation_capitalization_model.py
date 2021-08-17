@@ -433,8 +433,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             stm = self.remove_margins(stm, margin, keep_left=first, keep_right=last)
             for b_probs, logits in [(b_punct_probs, pl), (b_capit_probs, cl)]:
                 p = torch.nn.functional.softmax(
-                    self.remove_margins(logits, margin, keep_left=first, keep_right=last)[stm],
-                    dim=-1,
+                    self.remove_margins(logits, margin, keep_left=first, keep_right=last)[stm], dim=-1,
                 )
                 b_probs.append(p.detach().cpu().numpy())
         return b_punct_probs, b_capit_probs, new_start_word_ids
