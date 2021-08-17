@@ -42,12 +42,12 @@ def get_args():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description="The script is for restoring punctuation and capitalization in text. Long strings are split into "
-                    "segments of length `--max_seq_length`. `--max_seq_length` is the length which includes [CLS] and "
-                    "[SEP] tokens. Parameter `--step` controls segments overlapping. `--step` is a distance between "
-                    "beginnings of consequent segments. Model outputs for tokens near the borders of tensors are "
-                    "less accurate and can be discarded before final predictions computation. Parameter `--margin` is "
-                    "number of discarded outputs near segments borders. Probabilities of tokens in overlapping "
-                    "parts of segments multiplied before selecting the best prediction."
+        "segments of length `--max_seq_length`. `--max_seq_length` is the length which includes [CLS] and [SEP] "
+        "tokens. Parameter `--step` controls segments overlapping. `--step` is a distance between beginnings of "
+        "consequent segments. Model outputs for tokens near the borders of tensors are less accurate and can be "
+        "discarded before final predictions computation. Parameter `--margin` is number of discarded outputs near "
+        "segments borders. Probabilities of tokens in overlapping parts of segments multiplied before selecting the "
+        "best prediction."
     )
     input_ = parser.add_mutually_exclusive_group(required=True)
     input_.add_argument(
@@ -55,16 +55,16 @@ def get_args():
         "-m",
         type=Path,
         help="Path to the file with NeMo manifest which needs punctuation and capitalization. If the first element "
-             "of manifest contains key 'pred_text', 'pred_text' values are passed for tokenization. Otherwise 'text' "
-             "values are passed for punctuation and capitalization. Exactly one parameter of "
-             "`--input_manifest` and `--input_text` should be provided."
+        "of manifest contains key 'pred_text', 'pred_text' values are passed for tokenization. Otherwise 'text' "
+        "values are passed for punctuation and capitalization. Exactly one parameter of `--input_manifest` and "
+        "`--input_text` should be provided."
     )
     input_.add_argument(
         "--input_text",
         "-t",
         type=Path,
         help="Path to file with text which needs punctuation and capitalization. Exactly one parameter of "
-             "`--input_manifest` and `--input_text` should be provided."
+        "`--input_manifest` and `--input_text` should be provided."
     )
     output = parser.add_mutually_exclusive_group(required=True)
     output.add_argument(
@@ -72,23 +72,23 @@ def get_args():
         "-M",
         type=Path,
         help="Path to output NeMo manifest. Text with punctuation and capitalization will be under 'pred_text' key "
-             "if 'pred_text' key is present in the first element of input manifest. Otherwise text with restored "
-             "punctuation and capitalization will be under 'text' key. Exactly one parameter of "
-             "`--output_manifest` and `--output_text` should be provided."
+        "if 'pred_text' key is present in the first element of input manifest. Otherwise text with restored "
+        "punctuation and capitalization will be under 'text' key. Exactly one parameter of `--output_manifest` and "
+        "`--output_text` should be provided."
     )
     output.add_argument(
         "--output_text",
         "-T",
         type=Path,
         help="Path to file with text with restored punctuation and capitalization. Exactly one parameter of "
-             "`--output_manifest` and `--output_text` should be provided."
+        "`--output_manifest` and `--output_text` should be provided."
     )
     model = parser.add_mutually_exclusive_group(required=False)
     model.add_argument(
         "--pretrained_name",
         "-p",
         help="The name of NGC pretrained model. No more than one of parameters `--pretrained_name`, `--model_path`"
-             "should be provided.",
+        "should be provided.",
         choices=[m.pretrained_model_name for m in PunctuationCapitalizationModel.list_available_models()],
     )
     model.add_argument(
@@ -96,7 +96,7 @@ def get_args():
         "-P",
         type=Path,
         help="Path to .nemo checkpoint of punctuation and capitalization model. No more than one of parameters "
-             "`--pretrained_name` and `--model_path` should be provided."
+        "`--pretrained_name` and `--model_path` should be provided."
     )
     parser.add_argument(
         "--max_seq_length",
@@ -104,7 +104,7 @@ def get_args():
         type=int,
         default=64,
         help="Maximum length of segments into which queries are split. `max_seq_length` includes [CLS] and [SEP] "
-             "tokens."
+        "tokens."
     )
     parser.add_argument(
         "--margin",
@@ -112,14 +112,13 @@ def get_args():
         type=int,
         default=16,
         help="number of subtokens in the beginning and the end of segments which are not used for prediction "
-             "computation. The first segment does not have left margin and the last segment does not have right "
-             "margin. For example, if input sequence is tokenized into characters, ``max_seq_length=5``, "
-             "``step=1``, and ``margin=1`` than query 'hello' will be tokenized into segments "
-             "``[['[CLS]', 'h', 'e', 'l', '[SEP]'], ['[CLS]', 'e', 'l', 'l', '[SEP]'], "
-             "['[CLS]', 'l', 'l', 'o', '[SEP]']]``. These segments are passed to the model. Before final predictions "
-             "computation, margins are removed. In the next list, subtokens which logits are not used for final "
-             "predictions computation are marked with asterisk: ``[['[CLS]'*, 'h', 'e', 'l'*, '[SEP]'*], "
-             "['[CLS]'*, 'e'*, 'l', 'l'*, '[SEP]'*], ['[CLS]'*, 'l'*, 'l', 'o', '[SEP]'*]]``."
+        "computation. The first segment does not have left margin and the last segment does not have right margin. For "
+        "example, if input sequence is tokenized into characters, ``max_seq_length=5``, ``step=1``, and ``margin=1`` "
+        "than query 'hello' will be tokenized into segments ``[['[CLS]', 'h', 'e', 'l', '[SEP]'], ['[CLS]', 'e', 'l', "
+        "'l', '[SEP]'], ['[CLS]', 'l', 'l', 'o', '[SEP]']]``. These segments are passed to the model. Before final "
+        "predictions computation, margins are removed. In the next list, subtokens which logits are not used for final "
+        "predictions computation are marked with asterisk: ``[['[CLS]'*, 'h', 'e', 'l'*, '[SEP]'*], ['[CLS]'*, 'e'*, "
+        "'l', 'l'*, '[SEP]'*], ['[CLS]'*, 'l'*, 'l', 'o', '[SEP]'*]]``."
     )
     parser.add_argument(
         "--step",
@@ -127,9 +126,9 @@ def get_args():
         type=int,
         default=8,
         help="Relative shift of consequent segments into which long queries are split. Long queries are split into "
-             "segments which can overlap. Parameter ``step`` controls such overlapping. Imagine that queries are "
-             "tokenized into characters, ``max_seq_length=5``, and ``step=2``. In such a case query 'hello' is "
-             "tokenized into segments ``[['[CLS]', 'h', 'e', 'l', '[SEP]'], ['[CLS]', 'l', 'l', 'o', '[SEP]']]``."
+        "segments which can overlap. Parameter ``step`` controls such overlapping. Imagine that queries are "
+        "tokenized into characters, ``max_seq_length=5``, and ``step=2``. In such a case query 'hello' is tokenized "
+        "into segments ``[['[CLS]', 'h', 'e', 'l', '[SEP]'], ['[CLS]', 'l', 'l', 'o', '[SEP]']]``."
     )
     parser.add_argument(
         "--batch_size",

@@ -454,14 +454,18 @@ def get_subtokens_and_subtokens_mask(query, tokenizer):
 
 def check_max_seq_length_and_margin_and_step(max_seq_length, margin, step):
     if margin >= (max_seq_length - 2) // 2 and margin > 0 or margin < 0:
-        raise ValueError(f"Parameter `margin` has to be not negative and less than `(max_seq_length - 2) // 2`. "
-                         f"Don't forget about CLS and EOS tokens in the beginning and the end of segment. "
-                         f"margin={margin}, max_seq_length={max_seq_length}")
+        raise ValueError(
+            f"Parameter `margin` has to be not negative and less than `(max_seq_length - 2) // 2`. Don't forget about "
+            f"CLS and EOS tokens in the beginning and the end of segment. margin={margin}, "
+            f"max_seq_length={max_seq_length}"
+        )
     if step <= 0:
         raise ValueError(f"Parameter `step` has to be positive whereas step={step}")
     if step > max_seq_length - 2 - 2 * margin:
-        logging.warning(f"Parameter step={step} is too big. It will be reduced to "
-                        f"`min(max_seq_length, <maximum query length> + 2) - 2 - 2 * margin`.")
+        logging.warning(
+            f"Parameter step={step} is too big. It will be reduced to `min(max_seq_length, <maximum query length> + 2) "
+            f"- 2 - 2 * margin`."
+        )
 
 
 def get_features_infer(
@@ -521,22 +525,22 @@ def get_features_infer(
     all_input_ids, all_segment_ids, all_subtokens_mask, all_input_mask, all_input_mask = [], [], [], [], []
     all_quantities_of_preceding_words, all_query_ids, all_is_first, all_is_last = [], [], [], []
     for q_i, query_st in enumerate(st):
-        q_input_ids, q_segment_ids, q_subtokens_mask, q_input_mask, q_quantities_of_preceding_words = [], [], [], [], []
+        q_inp_ids, q_segment_ids, q_subtokens_mask, q_inp_mask, q_quantities_of_preceding_words = [], [], [], [], []
         for i in range(0, max(len(query_st), length) - length + step, step):
-            subtokens = [tokenizer.cls_token] + query_st[i:i + length] + [tokenizer.sep_token]
-            q_input_ids.append(tokenizer.tokens_to_ids(subtokens))
+            subtokens = [tokenizer.cls_token] + query_st[i : i + length] + [tokenizer.sep_token]
+            q_inp_ids.append(tokenizer.tokens_to_ids(subtokens))
             q_segment_ids.append([0] * len(subtokens))
-            q_subtokens_mask.append([0] + stm[q_i][i:i + length] + [0])
-            q_input_mask.append([1] * len(subtokens))
+            q_subtokens_mask.append([0] + stm[q_i][i : i + length] + [0])
+            q_inp_mask.append([1] * len(subtokens))
             q_quantities_of_preceding_words.append(np.count_nonzero(stm[q_i][:i]))
-        all_input_ids.append(q_input_ids)
+        all_input_ids.append(q_inp_ids)
         all_segment_ids.append(q_segment_ids)
         all_subtokens_mask.append(q_subtokens_mask)
-        all_input_mask.append(q_input_mask)
+        all_input_mask.append(q_inp_mask)
         all_quantities_of_preceding_words.append(q_quantities_of_preceding_words)
-        all_query_ids.append([q_i] * len(q_input_ids))
-        all_is_first.append([True] + [False] * (len(q_input_ids) - 1))
-        all_is_last.append([False] * (len(q_input_ids) - 1) + [True])
+        all_query_ids.append([q_i] * len(q_inp_ids))
+        all_is_first.append([True] + [False] * (len(q_inp_ids) - 1))
+        all_is_last.append([False] * (len(q_inp_ids) - 1) + [True])
     return (
         list(itertools.chain(*all_input_ids)),
         list(itertools.chain(*all_segment_ids)),
@@ -545,7 +549,7 @@ def get_features_infer(
         list(itertools.chain(*all_quantities_of_preceding_words)),
         list(itertools.chain(*all_query_ids)),
         list(itertools.chain(*all_is_first)),
-        list(itertools.chain(*all_is_last))
+        list(itertools.chain(*all_is_last)),
     )
 
 
@@ -612,16 +616,11 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
             'quantities_of_preceding_words': NeuralType(('B',), Index()),
             'query_ids': NeuralType(('B',), Index()),
             'is_first': NeuralType(('B',), BoolType()),
-            'is_last': NeuralType(('B',), BoolType())
+            'is_last': NeuralType(('B',), BoolType()),
         }
 
     def __init__(
-        self,
-        queries: List[str],
-        tokenizer: TokenizerSpec,
-        max_seq_length: int = 128,
-        step: int = 32,
-        margin: int = 16
+        self, queries: List[str], tokenizer: TokenizerSpec, max_seq_length: int = 128, step: int = 32, margin: int = 16
     ):
         features = get_features_infer(
             queries=queries, max_seq_length=max_seq_length, tokenizer=tokenizer, step=step, margin=margin
@@ -639,14 +638,13 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
         return len(self.all_input_ids)
 
     def collate_fn(self, batch):
-        input_ids, segment_ids, input_mask, subtokens_mask, quantities_of_preceding_words, query_ids, is_first, is_last = \
-            zip(*batch)
+        inp_ids, segment_ids, inp_mask, st_mask, n_preceding, query_ids, is_first, is_last = zip(*batch)
         return (
-            pad_sequence([torch.tensor(x) for x in input_ids], batch_first=True, padding_value=0),
+            pad_sequence([torch.tensor(x) for x in inp_ids], batch_first=True, padding_value=0),
             pad_sequence([torch.tensor(x) for x in segment_ids], batch_first=True, padding_value=0),
-            pad_sequence([torch.tensor(x) for x in input_mask], batch_first=True, padding_value=0),
-            pad_sequence([torch.tensor(x) for x in subtokens_mask], batch_first=True, padding_value=0),
-            quantities_of_preceding_words,
+            pad_sequence([torch.tensor(x) for x in inp_mask], batch_first=True, padding_value=0),
+            pad_sequence([torch.tensor(x) for x in st_mask], batch_first=True, padding_value=0),
+            n_preceding,
             query_ids,
             is_first,
             is_last,
