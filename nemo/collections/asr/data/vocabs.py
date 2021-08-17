@@ -16,15 +16,17 @@ import abc
 import itertools
 import re
 import string
+import time
 import unicodedata
 from builtins import str as unicode
 from typing import List
 
 import nltk
 import torch
-from pytorch_lightning.utilities.distributed import rank_zero_only, sync_ddp_if_available
 
 from nemo.collections.common.parts.preprocessing import parsers
+from nemo.utils import logging
+from nemo.utils.get_rank import is_global_rank_zero
 
 _words_re = re.compile("([a-z\-]+'[a-z\-]+|[a-z\-]+)|([^a-z{}]+)")
 
@@ -43,7 +45,6 @@ def _word_tokenize(text):
     return words
 
 
-@rank_zero_only
 def download_corpora():
     # Download NLTK datasets if this class is to be instantiated
     try:
@@ -310,10 +311,29 @@ class Phonemes(Base):
         self.spaces = spaces
         self.pad_with_space = pad_with_space
 
-        download_corpora()
-        _ = sync_ddp_if_available(torch.tensor(0))  # Barrier until rank 0 downloads the corpora
-
         # g2p_en tries to run download_corpora() on import but it is not rank zero guarded
+        # Try to check if torch distributed is available, if not get global rank zero to download corpora and make
+        # all other ranks sleep for a minute
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            group = torch.distributed.group.WORLD
+            if is_global_rank_zero():
+                download_corpora()
+            torch.distributed.barrier(group=group)
+        elif is_global_rank_zero():
+            logging.error(
+                f"Torch distributed needs to be initialized before you initialized {self}. This class is prone to "
+                "data access race conditions. Now downloading corpora from global rank 0. If other ranks pass this "
+                "before rank 0, errors might result."
+            )
+            download_corpora()
+        else:
+            logging.error(
+                f"Torch distributed needs to be initialized before you initialized {self}. This class is prone to "
+                "data access race conditions. This process is not rank 0, and now going to sleep for 1 min. If this "
+                "rank wakes from sleep prior to rank 0 finishing downloading, errors might result."
+            )
+            time.sleep(60)
+
         import g2p_en  # noqa pylint: disable=import-outside-toplevel
 
         _g2p = g2p_en.G2p()
