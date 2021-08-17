@@ -251,7 +251,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
                 self.global_step,
                 dataformats="HWC",
             )
-            spec_predict = mels_pred[0].data.cpu().numpy().T
+            spec_predict = mels_pred[0].data.cpu().numpy()
             self.tb_logger.add_image(
                 "train_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
             )
@@ -324,7 +324,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         )
         spec_predict = spec_predict[0].data.cpu().numpy()
         self.tb_logger.add_image(
-            "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict.T), self.global_step, dataformats="HWC",
+            "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
         )
         self.log_train_images = True
 
