@@ -3,12 +3,10 @@ sample_rate: 44100
 train_dataset: ???
 validation_datasets: ???
 prior_folder: ???
-# init_from_ptl_ckpt: null
-# init_from_nemo_model: null
 
 model:
   learn_alignment: true
-  n_speakers: 2
+  n_speakers: 1
   symbols_embedding_dim: 384
   max_token_duration: 75
   n_mel_channels: 80
@@ -156,9 +154,15 @@ model:
 
   optim:
     name: adam
-    lr: 2e-4
+    lr: 1e-1
     betas: [0.9, 0.98]
     weight_decay: 1e-6
+
+    sched:
+      name: NoamAnnealing
+      warmup_steps: 1000
+      last_epoch: -1
+      d_model: 1  # Disable scaling based on model dim
 
 trainer:
   gpus: -1 # number of gpus

@@ -1,5 +1,5 @@
 name: "FastPitch"
-sample_rate: 44100
+sample_rate: 22050
 train_dataset: ???
 validation_datasets: ???
 prior_folder: ???
@@ -11,9 +11,8 @@ model:
   max_token_duration: 75
   n_mel_channels: 80
   pitch_embedding_kernel_size: 3
-  n_window_size: 2048
-  n_window_stride: 512
-  fmax: null
+  n_window_size: 1024
+  n_window_stride: 256
   pitch_fmin: 80
   pitch_fmax: 640
   pitch_avg: 211.27540199742586
@@ -89,7 +88,7 @@ model:
     dither: 0.0
     features: ${model.n_mel_channels}
     frame_splicing: 1
-    highfreq: null
+    highfreq: 8000
     log: true
     log_zero_guard_type: add
     log_zero_guard_value: 1e-05
@@ -153,7 +152,7 @@ model:
     n_layers: 2
 
   optim:
-    name: adam
+    name: lamb
     lr: 1e-1
     betas: [0.9, 0.98]
     weight_decay: 1e-6
