@@ -360,3 +360,12 @@ def eval_tts_scores(
     ## fs was set 16,000, as pesq lib doesnt currently support felxible fs.
 
     return {'STOI': stoi_score, 'PESQ': pesq_score}
+
+
+def split_view(tensor, split_size, dim=0):
+    assert tensor.shape[dim] % split_size == 0
+    if dim < 0:  # Support negative indexing
+        dim = len(tensor.shape) + dim
+    cur_shape = tensor.shape
+    new_shape = cur_shape[:dim] + (tensor.shape[dim] // split_size, split_size) + cur_shape[dim + 1 :]
+    return tensor.reshape(*new_shape)
