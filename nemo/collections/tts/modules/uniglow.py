@@ -15,7 +15,7 @@
 import torch
 import torch.nn.functional as F
 
-from nemo.collections.tts.helpers.helpers import OperationMode, remove
+from nemo.collections.tts.helpers.helpers import OperationMode, remove, split_view
 from nemo.collections.tts.modules.submodules import Invertible1x1Conv, WaveNet
 from nemo.core.classes import Exportable, NeuralModule, typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType, NormalDistributionSamplesType, VoidType
@@ -125,7 +125,7 @@ class UniGlowModule(NeuralModule, Exportable):
         logdet = 0
 
         spec = spec[:, :, :-1]
-        audio = audio.unfold(1, self.n_group, self.n_group).permute(0, 2, 1)
+        audio = split_view(audio, self.n_group, 1).permute(0, 2, 1)
         if spec.size(2) != audio.size(2):
             spec = F.interpolate(spec, size=audio.size(2))
 
