@@ -70,9 +70,9 @@ class TestRuNormalizeWithAudio:
     )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
-    def test_norm_date(self, expected, test_input, n_tagged=-1):
-        preds = self.normalizer.normalize(test_input, n_tagged=n_tagged)
-        assert expected in preds, f'{test_input} FAILED with n_tagged={n_tagged}'
+    def test_norm_date(self, expected, test_input):
+        preds = self.normalizer.normalize(test_input, n_tagged=-1)
+        assert expected in preds, expected not in preds
 
     @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_electronic.txt'))
     @pytest.mark.skipif(

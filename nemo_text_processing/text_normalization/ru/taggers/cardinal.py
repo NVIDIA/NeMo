@@ -17,8 +17,8 @@
 # Russian minimally supervised number grammar.
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_ALPHA,
     NEMO_DIGIT,
+    NEMO_SIGMA,
     NEMO_SPACE,
     GraphFst,
     insert_space,
@@ -96,7 +96,13 @@ class CardinalFst(GraphFst):
             + pynutil.insert("\"")
         )
         self.final_graph = final_graph
-        final_graph = self.add_tokens(self.final_graph)
+
+        # to cover cases "2-х" -> "двух" (this is not covered by ordinal endings)
+        final_graph |= pynini.compose(
+            pynini.compose(NEMO_DIGIT ** (1, ...) + pynini.cross('-х', ''), final_graph),
+            NEMO_SIGMA + pynini.accep("х\"") + NEMO_SIGMA,
+        )
+        final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
 
     def get_cardinal_numbers(self, number_names: dict, alternative_formats: dict, mode: str = "all"):

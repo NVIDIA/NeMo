@@ -80,7 +80,7 @@ class MeasureFst(GraphFst):
 
         cardinal_optional_dash_alpha = (
             pynutil.insert("cardinal { integer: \"")
-            + cardinal_graph_nominative
+            + cardinal_graph
             + pynini.closure(pynini.cross('-', ''), 0, 1)
             + pynutil.insert("\" } units: \"")
             + pynini.closure(RU_ALPHA, 1)
