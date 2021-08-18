@@ -26,7 +26,7 @@ except (ModuleNotFoundError, ImportError):
 
 class MoneyFst(GraphFst):
     """
-    Finite state transducer for classifying money, suppletive aware, e.g. 
+    Finite state transducer for classifying money, e.g.
         "5руб." -> money { "пять рублей" }
 
     Args:
@@ -96,4 +96,6 @@ class MoneyFst(GraphFst):
         verbalizer_graph = (verbalizer_graph_cardinal | verbalizer_graph_decimal).optimize()
 
         self.final_graph = (tagger_graph @ verbalizer_graph).optimize()
-        self.fst = self.add_tokens(self.final_graph).optimize()
+        self.fst = self.add_tokens(
+            pynutil.insert("integer_part: \"") + self.final_graph + pynutil.insert("\"")
+        ).optimize()

@@ -77,11 +77,11 @@ def get_number_names():
     ).optimize()
     cardinal_l = pynutil.add_weight(cardinal_name_nominative, -0.1)
     for case in [
-        pynutil.add_weight(cardinal_name_genitive, 0.1),
-        pynutil.add_weight(cardinal_name_dative, 0.1),
-        pynutil.add_weight(cardinal_name_accusative, 0.1),
-        pynutil.add_weight(cardinal_name_instrumental, 0.1),
-        pynutil.add_weight(cardinal_name_prepositional, 0.1),
+        pynutil.add_weight(cardinal_name_genitive, 0.1).optimize(),
+        pynutil.add_weight(cardinal_name_dative, 0.1).optimize(),
+        pynutil.add_weight(cardinal_name_accusative, 0.1).optimize(),
+        pynutil.add_weight(cardinal_name_instrumental, 0.1).optimize(),
+        pynutil.add_weight(cardinal_name_prepositional, 0.1).optimize(),
     ]:
         cardinal_l |= (pynini.closure(case + pynini.accep(" ")) + case).optimize()
 
@@ -101,7 +101,7 @@ def get_number_names():
 
     complex_numbers = (
         NEMO_SIGMA + pynutil.add_weight(complex_numbers, -1) + pynini.closure(pynini.union(" ", ")", "(", "+", "*"))
-    )
+    ).optimize()
     fg_ordinal = pynutil.add_weight(pynini.compose(fg, complex_numbers), -1) | fg
     ordinal_name = pynini.string_file(get_abs_path("data/numbers/ordinals.tsv"))
     ordinal_l = (pynini.closure(cardinal_name_nominative + pynini.accep(" ")) + ordinal_name).optimize()
@@ -128,6 +128,9 @@ def get_alternative_formats():
 
     one_thousand_alternative = pynini.cdrewrite(one_thousand_map, "[BOS]", "", NEMO_SIGMA)
 
+    # Adapted from
+    # https://github.com/google/TextNormalizationCoveringGrammars/blob/master/src/universal/thousands_punct.grm
+    # Specifies common ways of delimiting thousands in digit strings.
     t = pynini.Far(get_abs_path('data/utils/universal_thousands_punct.far'))
     separators = (
         pynutil.add_weight(t['dot_thousands'], 0.1)
@@ -135,8 +138,8 @@ def get_alternative_formats():
         | pynutil.add_weight(t['space_thousands'], 0.1)
     )
     alternative_formats = {}
-    alternative_formats['one_thousand_alternative'] = one_thousand_alternative
-    alternative_formats['separators'] = separators
+    alternative_formats['one_thousand_alternative'] = one_thousand_alternative.optimize()
+    alternative_formats['separators'] = separators.optimize()
     return alternative_formats
 
 
