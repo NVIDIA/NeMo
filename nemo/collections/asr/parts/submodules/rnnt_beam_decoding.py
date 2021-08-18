@@ -179,6 +179,7 @@ class BeamRNNTInfer(Typing):
         self.score_norm = score_norm
 
         if self.beam_size == 1:
+            logging.info("Beam size of 1 was used, switching to sample level `greedy_search`")
             self.search_algorithm = self.greedy_search
         elif search_type == "default":
             self.search_algorithm = self.default_beam_search
@@ -268,10 +269,16 @@ class BeamRNNTInfer(Typing):
                 # during the beam loop.
                 with self.decoder.as_frozen(), self.joint.as_frozen():
 
+                    _p = next(self.joint.parameters())
+                    dtype = _p.dtype
+
                     # Decode every sample in the batch independently.
                     for batch_idx in idx_gen:
                         inseq = encoder_output[batch_idx : batch_idx + 1, :, :]  # [1, T, D]
                         logitlen = encoded_lengths[batch_idx]
+
+                        if inseq.dtype != dtype:
+                            inseq = inseq.to(dtype=dtype)
 
                         # Execute the specific search strategy
                         nbest_hyps = self.search_algorithm(inseq, logitlen)  # sorted list of hypothesis
@@ -831,11 +838,7 @@ class BeamRNNTInfer(Typing):
 
         cache = {}
 
-        beam_dec_out, beam_state, beam_lm_tokens = self.decoder.batch_score_hypothesis(
-            init_tokens,
-            cache,
-            beam_state,
-        )
+        beam_dec_out, beam_state, beam_lm_tokens = self.decoder.batch_score_hypothesis(init_tokens, cache, beam_state,)
 
         state = self.decoder.batch_select_state(beam_state, 0)
 
@@ -869,7 +872,7 @@ class BeamRNNTInfer(Typing):
             hyps = self.prefix_search(
                 sorted(kept_hyps, key=lambda x: len(x.y_sequence), reverse=True),
                 enc_out_t,
-                prefix_alpha=self.maes_prefix_alpha
+                prefix_alpha=self.maes_prefix_alpha,
             )  # type: List[Hypothesis]
             kept_hyps = []
 
@@ -880,9 +883,7 @@ class BeamRNNTInfer(Typing):
                 beam_dec_out = torch.stack([h.dec_out[-1] for h in hyps])
 
                 beam_logp = torch.log_softmax(
-                    self.joint.joint(beam_enc_out, beam_dec_out)
-                    / self.softmax_temperature,
-                    dim=-1,
+                    self.joint.joint(beam_enc_out, beam_dec_out) / self.softmax_temperature, dim=-1,
                 )
                 beam_logp = beam_logp[:, 0, 0, :]
 
@@ -916,13 +917,11 @@ class BeamRNNTInfer(Typing):
                             list_exp.append(new_hyp)
 
                 if not list_exp:
-                    kept_hyps = sorted(list_b, key=lambda x: x.score, reverse=True)[
-                                :beam
-                                ]
+                    kept_hyps = sorted(list_b, key=lambda x: x.score, reverse=True)[:beam]
 
                     break
                 else:
-                    print("beam state", len(beam_state), "list exp", len(list_exp))
+                    x = [hyp.dec_state for hyp in list_exp]
                     beam_state = self.decoder.batch_initialize_states(
                         beam_state,
                         [hyp.dec_state for hyp in list_exp],
@@ -962,9 +961,7 @@ class BeamRNNTInfer(Typing):
                         hyps = list_exp[:]
                     else:
                         beam_logp = torch.log_softmax(
-                            self.joint.joint(beam_enc_out, beam_dec_out)
-                            / self.softmax_temperature,
-                            dim=-1,
+                            self.joint.joint(beam_enc_out, beam_dec_out) / self.softmax_temperature, dim=-1,
                         )
 
                         beam_logp = beam_logp[:, 0, 0, :]
@@ -982,9 +979,7 @@ class BeamRNNTInfer(Typing):
                                 # hyp.lm_scores = beam_lm_scores[i]
                                 pass
 
-                        kept_hyps = sorted(
-                            list_b + list_exp, key=lambda x: x.score, reverse=True
-                        )[:beam]
+                        kept_hyps = sorted(list_b + list_exp, key=lambda x: x.score, reverse=True)[:beam]
 
         return self.sort_nbest(kept_hyps)
 
@@ -1026,9 +1021,7 @@ class BeamRNNTInfer(Typing):
 
                 if is_prefix(hyp_j.y_sequence, hyp_i.y_sequence) and (curr_id - pref_id) <= prefix_alpha:
                     logp = torch.log_softmax(
-                        self.joint.joint(enc_out, hyp_i.dec_out[-1])
-                        / self.softmax_temperature,
-                        dim=-1,
+                        self.joint.joint(enc_out, hyp_i.dec_out[-1]) / self.softmax_temperature, dim=-1,
                     )
                     logp = logp[0, 0, 0, :]
 
@@ -1036,9 +1029,7 @@ class BeamRNNTInfer(Typing):
 
                     for k in range(pref_id, (curr_id - 1)):
                         logp = torch.log_softmax(
-                            self.joint.joint(enc_out, hyp_j.dec_out[k])
-                            / self.softmax_temperature,
-                            dim=-1,
+                            self.joint.joint(enc_out, hyp_j.dec_out[k]) / self.softmax_temperature, dim=-1,
                         )
                         logp = logp[0, 0, 0, :]
 
