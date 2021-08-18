@@ -266,7 +266,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def _normalize_line(normalizer: NormalizerWithAudio, line: str, asr_model: ASRModel = None):
+def _normalize_line(normalizer: NormalizerWithAudio, line: str, asr_model=None):
     line = json.loads(line)
     audio = line['audio_filepath']
     if 'transcript' in line:
