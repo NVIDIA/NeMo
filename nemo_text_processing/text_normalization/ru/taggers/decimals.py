@@ -34,9 +34,11 @@ def prepare_labels_for_insertion(file_path: str):
     Read the file and creates a union insertion graph
 
     Args:
-        file_path: path to a file (single column)
+        file_path: path to a file (3 columns: a label type e.g.
+        "@@decimal_delimiter@@", a label e.g. "целого", and a weight e.g. "0.1").
 
-    Returns fst that inserts labels from the file
+    Returns dictionary mapping from label type to an fst that inserts the labels with the specified weights.
+
     """
     labels = load_labels(file_path)
     mapping = defaultdict(list)
@@ -44,9 +46,10 @@ def prepare_labels_for_insertion(file_path: str):
         mapping[k].append((v, w))
 
     for k in mapping:
-        mapping[k] = insert_space + pynini.union(
-            *[pynutil.add_weight(pynutil.insert(end), weight) for end, weight in mapping[k]]
-        )
+        mapping[k] = (
+            insert_space
+            + pynini.union(*[pynutil.add_weight(pynutil.insert(end), weight) for end, weight in mapping[k]])
+        ).optimize()
     return mapping
 
 

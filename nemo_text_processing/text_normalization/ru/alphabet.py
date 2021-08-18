@@ -59,7 +59,7 @@ try:
     ]
 
     REWRITE_STRESSED = pynini.closure(pynini.string_map(RU_STRESSED_MAP).optimize() | RU_ALPHA).optimize()
-    TO_CYRILLIC = pynini.string_file(get_abs_path("data/cyrillic_to_latin.tsv")).optimize()
+    TO_CYRILLIC = pynini.string_file(get_abs_path("data/latin_to_cyrillic.tsv")).optimize()
     TO_LATIN = pynini.invert(TO_CYRILLIC).optimize()
     RU_ALPHA_OR_SPACE = pynini.union(RU_ALPHA, NEMO_SPACE, NEMO_NON_BREAKING_SPACE).optimize()
 

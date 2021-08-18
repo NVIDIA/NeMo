@@ -74,6 +74,36 @@ class TestRuNormalizeWithAudio:
         preds = self.normalizer.normalize(test_input, n_tagged=-1)
         assert expected in preds, expected not in preds
 
+    @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_telephone.txt'))
+    @pytest.mark.skipif(
+        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
+    )
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_norm_telephone(self, expected, test_input):
+        preds = self.normalizer.normalize(test_input, n_tagged=-1)
+        assert expected in preds, expected not in preds
+
+    @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_money.txt'))
+    @pytest.mark.skipif(
+        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
+    )
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_norm_money(self, expected, test_input):
+        preds = self.normalizer.normalize(test_input, n_tagged=-1)
+        assert expected in preds, expected not in preds
+
+    @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_time.txt'))
+    @pytest.mark.skipif(
+        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
+    )
+    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.unit
+    def test_norm_time(self, expected, test_input):
+        preds = self.normalizer.normalize(test_input, n_tagged=-1)
+        assert expected in preds, expected not in preds
+
     @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_electronic.txt'))
     @pytest.mark.skipif(
         not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"

@@ -81,5 +81,5 @@ class TelephoneFst(GraphFst):
 
         self.final_graph = (tagger_graph @ verbalizer_graph).optimize()
         self.fst = self.add_tokens(
-            pynutil.insert("number_part: ") + self.final_graph + pynutil.insert("\"")
+            pynutil.insert("number_part: \"") + self.final_graph + pynutil.insert("\"")
         ).optimize()
