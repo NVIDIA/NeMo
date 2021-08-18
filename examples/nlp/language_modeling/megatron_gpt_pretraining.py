@@ -13,13 +13,13 @@
 # limitations under the License.
 
 from omegaconf.omegaconf import OmegaConf
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from pytorch_lightning import Trainer
 
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
-from nemo.utils.exp_manager import exp_manager
 from nemo.utils import logging
+from nemo.utils.exp_manager import exp_manager
 
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_config")
