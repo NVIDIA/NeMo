@@ -35,7 +35,7 @@ import torch
 from tqdm import tqdm
 
 from nemo.collections.asr.modules import rnnt_abstract
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses, is_prefix
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses, is_prefix, select_k_expansions
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 
@@ -159,7 +159,7 @@ class BeamRNNTInfer(Typing):
         maes_num_steps: int = 2,
         maes_prefix_alpha: int = 1,
         maes_expansion_gamma: float = 2.3,
-        maes_expansion_betas: float = 2.0,
+        maes_expansion_beta: int = 2,
         language_model: Optional[Dict[str, Any]] = None,
         softmax_temperature: float = 1.0,
         preserve_alignments: bool = False,
@@ -189,6 +189,9 @@ class BeamRNNTInfer(Typing):
         elif search_type == "nsc":
             raise NotImplementedError("`nsc` (Constrained Beam Search) has not been implemented.")
             # self.search_algorithm = self.nsc_beam_search
+        elif search_type == "maes":
+            logging.info("USING MAES")
+            self.search_algorithm = self.modified_adaptive_expansion_search
         else:
             raise NotImplementedError(
                 f"The search type ({search_type}) supplied is not supported!\n"
@@ -210,11 +213,11 @@ class BeamRNNTInfer(Typing):
         self.tsd_max_symmetric_expansion_per_step = tsd_max_sym_exp_per_step
         self.alsd_max_target_length = alsd_max_target_len
         self.nsc_max_timesteps_expansion = nsc_max_timesteps_expansion
-        self.nsc_prefix_alpha = nsc_prefix_alpha
-        self.maes_prefix_alpha = maes_prefix_alpha
-        self.maes_num_steps = maes_num_steps
-        self.maes_expansion_gamma = maes_expansion_gamma
-        self.maes_expansion_betas = maes_expansion_betas
+        self.nsc_prefix_alpha = int(nsc_prefix_alpha)
+        self.maes_prefix_alpha = int(maes_prefix_alpha)
+        self.maes_num_steps = int(maes_num_steps)
+        self.maes_expansion_gamma = float(maes_expansion_gamma)
+        self.maes_expansion_beta = int(maes_expansion_beta)
 
         if softmax_temperature != 1.0 and language_model is not None:
             logging.warning(
@@ -224,6 +227,7 @@ class BeamRNNTInfer(Typing):
             self.softmax_temperature = 1.0
         else:
             self.softmax_temperature = softmax_temperature
+        self.language_model = language_model
         self.preserve_alignments = preserve_alignments
 
     @typecheck()
@@ -783,6 +787,207 @@ class BeamRNNTInfer(Typing):
         else:
             return B
 
+    def modified_adaptive_expansion_search(self, h: torch.Tensor, encoded_lengths: torch.Tensor) -> List[Hypothesis]:
+        """
+        Based on/modified from https://ieeexplore.ieee.org/document/9250505
+        Args:
+            x: Encoded speech features (1, T_max, D_enc)
+
+        Returns:
+            nbest_hyps: N-best hypothesis.
+        """
+        if self.preserve_alignments:
+            raise NotImplementedError(
+                "`preseve_alignments` is not implemented for Alignment-length Synchronous Decoding."
+            )
+
+        h = h[0]  # [T, D]
+
+        beam = min(self.beam_size, self.vocab_size)
+        beam_state = self.decoder.initialize_state(
+            torch.zeros(beam, device=h.device, dtype=h.dtype)
+        )  # [L, B, H], [L, B, H] for LSTMS
+        blank_tensor = torch.tensor([self.blank], device=h.device, dtype=torch.long)
+
+        # Precompute some constants for blank position
+        ids = list(range(self.vocab_size + 1))
+        ids.remove(self.blank)
+
+        # Used when blank token is first vs last token
+        if self.blank == 0:
+            index_incr = 1
+        else:
+            index_incr = 0
+
+        init_tokens = [
+            Hypothesis(
+                y_sequence=[self.blank],
+                score=0.0,
+                dec_state=self.decoder.batch_select_state(beam_state, 0),
+                timestep=[-1],
+                length=0,
+            )
+        ]
+
+        cache = {}
+
+        beam_dec_out, beam_state, beam_lm_tokens = self.decoder.batch_score_hypothesis(
+            init_tokens,
+            cache,
+            beam_state,
+        )
+
+        state = self.decoder.batch_select_state(beam_state, 0)
+
+        if self.language_model is not None:
+            # beam_lm_states, beam_lm_scores = self.lm.buff_predict(
+            #     None, beam_lm_tokens, 1
+            # )
+            # lm_state = select_lm_state(
+            #     beam_lm_states, 0, self.lm_layers, self.is_wordlm
+            # )
+            # lm_scores = beam_lm_scores[0]
+            raise NotImplementedError()
+        else:
+            lm_state = None
+            lm_scores = None
+
+        kept_hyps = [
+            Hypothesis(
+                y_sequence=[self.blank],
+                score=0.0,
+                dec_state=state,
+                dec_out=[beam_dec_out[0]],
+                lm_state=lm_state,
+                lm_scores=lm_scores,
+            )
+        ]
+
+        for enc_out_t in h:
+            enc_out_t = enc_out_t.unsqueeze(0).unsqueeze(0)
+
+            hyps = self.prefix_search(
+                sorted(kept_hyps, key=lambda x: len(x.y_sequence), reverse=True),
+                enc_out_t,
+                prefix_alpha=self.maes_prefix_alpha
+            )  # type: List[Hypothesis]
+            kept_hyps = []
+
+            beam_enc_out = enc_out_t  # .unsqueeze(0).unsqueeze(0)
+
+            list_b = []
+            for n in range(self.maes_num_steps):
+                beam_dec_out = torch.stack([h.dec_out[-1] for h in hyps])
+
+                beam_logp = torch.log_softmax(
+                    self.joint.joint(beam_enc_out, beam_dec_out)
+                    / self.softmax_temperature,
+                    dim=-1,
+                )
+                beam_logp = beam_logp[:, 0, 0, :]
+
+                k_expansions = select_k_expansions(
+                    hyps, beam_logp, beam, self.maes_expansion_gamma, self.maes_expansion_beta
+                )
+
+                list_exp = []
+                for i, hyp in enumerate(hyps):
+                    for k, new_score in k_expansions[i]:
+                        new_hyp = Hypothesis(
+                            y_sequence=hyp.y_sequence[:],
+                            score=new_score,
+                            dec_out=hyp.dec_out[:],
+                            dec_state=hyp.dec_state,
+                            lm_state=hyp.lm_state,
+                            lm_scores=hyp.lm_scores,
+                        )
+
+                        if k == 0:  # self.blank
+                            list_b.append(new_hyp)
+                        else:
+                            new_hyp.y_sequence.append(int(k))
+
+                            if self.language_model is not None:
+                                # new_hyp.score += self.lm_weight * float(
+                                #     hyp.lm_scores[k]
+                                # )
+                                pass
+
+                            list_exp.append(new_hyp)
+
+                if not list_exp:
+                    kept_hyps = sorted(list_b, key=lambda x: x.score, reverse=True)[
+                                :beam
+                                ]
+
+                    break
+                else:
+                    print("beam state", len(beam_state), "list exp", len(list_exp))
+                    beam_state = self.decoder.batch_initialize_states(
+                        beam_state,
+                        [hyp.dec_state for hyp in list_exp],
+                        # [hyp.y_sequence for hyp in list_exp],  # <look into when this is necessary>
+                    )
+
+                    beam_dec_out, beam_state, beam_lm_tokens = self.decoder.batch_score_hypothesis(
+                        list_exp,
+                        cache,
+                        beam_state,
+                        # self.language_model is not None,
+                    )
+
+                    if self.language_model is not None:
+                        # beam_lm_states = create_lm_batch_states(
+                        #     [hyp.lm_state for hyp in list_exp],
+                        #     self.lm_layers,
+                        #     self.is_wordlm,
+                        # )
+                        # beam_lm_states, beam_lm_scores = self.lm.buff_predict(
+                        #     beam_lm_states, beam_lm_tokens, len(list_exp)
+                        # )
+                        pass
+
+                    if n < (self.maes_num_steps - 1):
+                        for i, hyp in enumerate(list_exp):
+                            hyp.dec_out.append(beam_dec_out[i])
+                            hyp.dec_state = self.decoder.batch_select_state(beam_state, i)
+
+                            if self.language_model is not None:
+                                # hyp.lm_state = select_lm_state(
+                                #     beam_lm_states, i, self.lm_layers, self.is_wordlm
+                                # )
+                                # hyp.lm_scores = beam_lm_scores[i]
+                                pass
+
+                        hyps = list_exp[:]
+                    else:
+                        beam_logp = torch.log_softmax(
+                            self.joint.joint(beam_enc_out, beam_dec_out)
+                            / self.softmax_temperature,
+                            dim=-1,
+                        )
+
+                        beam_logp = beam_logp[:, 0, 0, :]
+
+                        for i, hyp in enumerate(list_exp):
+                            hyp.score += float(beam_logp[i, self.blank])
+
+                            hyp.dec_out.append(beam_dec_out[i])
+                            hyp.dec_state = self.decoder.batch_select_state(beam_state, i)
+
+                            if self.language_model is not None:
+                                # hyp.lm_state = select_lm_state(
+                                #     beam_lm_states, i, self.lm_layers, self.is_wordlm
+                                # )
+                                # hyp.lm_scores = beam_lm_scores[i]
+                                pass
+
+                        kept_hyps = sorted(
+                            list_b + list_exp, key=lambda x: x.score, reverse=True
+                        )[:beam]
+
+        return self.sort_nbest(kept_hyps)
+
     def recombine_hypotheses(self, hypotheses: List[Hypothesis]) -> List[Hypothesis]:
         """Recombine hypotheses with equivalent output sequence.
 
@@ -820,20 +1025,22 @@ class BeamRNNTInfer(Typing):
                 pref_id = len(hyp_i.y_sequence)
 
                 if is_prefix(hyp_j.y_sequence, hyp_i.y_sequence) and (curr_id - pref_id) <= prefix_alpha:
-
                     logp = torch.log_softmax(
-                        self.joint(enc_out, hyp_i.dec_out[-1])
+                        self.joint.joint(enc_out, hyp_i.dec_out[-1])
                         / self.softmax_temperature,
                         dim=-1,
                     )
+                    logp = logp[0, 0, 0, :]
+
                     curr_score = hyp_i.score + float(logp[hyp_j.y_sequence[pref_id]])
 
                     for k in range(pref_id, (curr_id - 1)):
                         logp = torch.log_softmax(
-                            self.joint(enc_out, hyp_j.dec_out[k])
+                            self.joint.joint(enc_out, hyp_j.dec_out[k])
                             / self.softmax_temperature,
                             dim=-1,
                         )
+                        logp = logp[0, 0, 0, :]
 
                         curr_score += float(logp[hyp_j.y_sequence[k + 1]])
 
@@ -852,10 +1059,10 @@ class BeamRNNTInferConfig:
     alsd_max_target_len: float = 1.0
     nsc_max_timesteps_expansion: int = 1
     nsc_prefix_alpha: int = 1
-    maes_num_steps: int = 2,
-    maes_prefix_alpha: int = 1,
-    maes_expansion_gamma: float = 2.3,
-    maes_expansion_betas: float = 2.0,
+    maes_num_steps: int = 2
+    maes_prefix_alpha: int = 1
+    maes_expansion_gamma: float = 2.3
+    maes_expansion_beta: int = 2
     language_model: Optional[Dict[str, Any]] = None
     softmax_temperature: float = 1.0
     preserve_alignments: bool = False

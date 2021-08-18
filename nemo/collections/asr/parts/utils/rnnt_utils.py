@@ -27,7 +27,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Tuple
 
 import torch
 
@@ -76,10 +76,10 @@ class Hypothesis:
     dec_state: Optional[Union[List[List[torch.Tensor]], List[torch.Tensor]]] = None
     timestep: Union[List[int], torch.Tensor] = field(default_factory=list)
     alignments: Optional[Union[List[int], List[List[int]]]] = None
-    length: int = 0
+    length: Union[int, torch.Tensor] = 0
     y: List[torch.tensor] = None
-    lm_state: Union[Dict[str, Any], List[Any]] = None
-    lm_scores: torch.Tensor = None
+    lm_state: Optional[Union[Dict[str, Any], List[Any]]] = None
+    lm_scores: Optional[torch.Tensor] = None
     tokens: Optional[Union[List[int], torch.Tensor]] = None
 
 
@@ -106,3 +106,38 @@ def is_prefix(x: List[int], pref: List[int]) -> bool:
             return False
 
     return True
+
+
+def select_k_expansions(
+    hyps: List[Hypothesis],
+    logps: torch.Tensor,
+    beam_size: int,
+    gamma: float,
+    beta: int,
+) -> List[Tuple[int, Hypothesis]]:
+    """Return K hypotheses candidates for expansion from a list of hypothesis.
+    K candidates are selected according to the extended hypotheses probabilities
+    and a prune-by-value method. Where K is equal to beam_size + beta.
+    Args:
+        hyps: Hypotheses.
+        beam_logp: Log-probabilities for hypotheses expansions.
+        beam_size: Beam size.
+        gamma: Allowed logp difference for prune-by-value method.
+        beta: Number of additional candidates to store.
+    Return:
+        k_expansions: Best K expansion hypotheses candidates.
+    """
+    k_expansions = []
+
+    for i, hyp in enumerate(hyps):
+        hyp_i = [(int(k), hyp.score + float(logp)) for k, logp in enumerate(logps[i])]
+        k_best_exp = max(hyp_i, key=lambda x: x[1])[1]
+
+        k_expansions.append(
+            sorted(
+                filter(lambda x: (k_best_exp - gamma) <= x[1], hyp_i),
+                key=lambda x: x[1],
+            )[: beam_size + beta]
+        )
+
+    return k_expansions

@@ -97,7 +97,7 @@ class AbstractRNNTDecoding(ABC):
         self.compute_hypothesis_token_set = self.cfg.get("compute_hypothesis_token_set", False)
         self.preserve_alignments = self.cfg.get('preserve_alignments', False)
 
-        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd']
+        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes']
         if self.cfg.strategy not in possible_strategies:
             raise ValueError(f"Decoding strategy must be one of {possible_strategies}")
 
@@ -156,6 +156,26 @@ class AbstractRNNTDecoding(ABC):
                 alsd_max_target_len=self.cfg.beam.get('alsd_max_target_len', 2),
                 preserve_alignments=self.preserve_alignments,
             )
+
+        elif self.cfg.strategy == 'maes':
+            self.decoding = beam_decode.BeamRNNTInfer(
+                decoder_model=decoder,
+                joint_model=joint,
+                beam_size=self.cfg.beam.beam_size,
+                return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
+                search_type='maes',
+                score_norm=self.cfg.beam.get('score_norm', True),
+                maes_num_steps=self.cfg.beam.get('maes_num_steps', 2),
+                maes_prefix_alpha=self.cfg.beam.get('maes_prefix_alpha', 1),
+                maes_expansion_gamma=self.cfg.beam.get('maes_expansion_gamma', 2.3),
+                maes_expansion_beta=self.cfg.beam.get('maes_expansion_beta', 2.0),
+                preserve_alignments=self.preserve_alignments,
+            )
+
+        else:
+
+            raise ValueError(f"Incorrect decoding strategy supplied. Must be one of {possible_strategies}\n"
+                             f"but was provided {self.cfg.strategy}")
 
     def rnnt_decoder_predictions_tensor(
         self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor, return_hypotheses: bool = False
