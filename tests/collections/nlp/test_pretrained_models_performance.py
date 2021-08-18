@@ -77,17 +77,11 @@ class TestPretrainedModelPerformance:
         preds_5 = model.add_punctuation_capitalization(['what can i do for you today'], max_seq_length=5, margin=0)[0]
         assert preds_5 == 'What can I? Do for you. Today.'
         preds_5_step_1 = model.add_punctuation_capitalization(
-            ['what can i do for you today'],
-            max_seq_length=5,
-            margin=0,
-            step=1
+            ['what can i do for you today'], max_seq_length=5, margin=0, step=1
         )[0]
         assert preds_5_step_1 == 'What Can I do for you today.'
         preds_6_step_1_margin_6 = model.add_punctuation_capitalization(
-            ['what can i do for you today'],
-            max_seq_length=6,
-            margin=1,
-            step=1
+            ['what can i do for you today'], max_seq_length=6, margin=1, step=1
         )[0]
         assert preds_6_step_1_margin_6 == 'What can I do for you today.'
 
