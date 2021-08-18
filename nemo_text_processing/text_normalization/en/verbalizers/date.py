@@ -55,7 +55,6 @@ class DateFst(GraphFst):
         day = day_cardinal @ ordinal.suffix
 
         if not deterministic:
-            month |= pynutil.insert(" of ") + month
             day |= day_cardinal
 
         month = pynutil.delete("month:") + delete_space + pynutil.delete("\"") + month + pynutil.delete("\"")

@@ -12,11 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.asr.models.asr_model import ASRModel
-from nemo.collections.asr.models.classification_models import EncDecClassificationModel
-from nemo.collections.asr.models.clustering_diarizer import ClusteringDiarizer
-from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
-from nemo.collections.asr.models.ctc_models import EncDecCTCModel
-from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel, ExtractSpeakerEmbeddingsModel
-from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
-from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
+# TODO @blisc: Perhaps refactor instead of import guarding
+try:
+    from nemo.collections.asr.models.asr_model import ASRModel
+    from nemo.collections.asr.models.classification_models import EncDecClassificationModel
+    from nemo.collections.asr.models.clustering_diarizer import ClusteringDiarizer
+    from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
+    from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+    from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel, ExtractSpeakerEmbeddingsModel
+    from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
+    from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
+except ModuleNotFoundError:
+    from nemo.utils.exceptions import CheckInstall
+
+    # fmt: off
+    class ASRModel(CheckInstall): pass
+    class EncDecClassificationModel(CheckInstall): pass
+    class ClusteringDiarizer(CheckInstall): pass
+    class EncDecCTCModelBPE(CheckInstall): pass
+    class EncDecCTCModel(CheckInstall): pass
+    class EncDecSpeakerLabelModel(CheckInstall): pass
+    class ExtractSpeakerEmbeddingsModel(CheckInstall): pass
+    class EncDecRNNTBPEModel(CheckInstall): pass
+    class EncDecRNNTModel(CheckInstall): pass
+    # fmt: on
