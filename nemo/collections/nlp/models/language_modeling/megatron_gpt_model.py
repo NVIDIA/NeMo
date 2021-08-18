@@ -13,17 +13,19 @@
 # limitations under the License.
 
 from random import shuffle
-from megatron import fused_kernels, mpu
-from megatron.global_vars import get_args, get_tokenizer
+
 import torch
-from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_megatron_for_nemo
+from megatron import fused_kernels, mpu
+from megatron.data.data_samplers import build_pretraining_data_loader
+from megatron.data.gpt_dataset import build_train_valid_test_datasets
+from megatron.global_vars import get_args, get_tokenizer
+from megatron.model import GPTModel
+from megatron.utils import average_losses_across_data_parallel_group, get_ltor_masks_and_position_ids
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
-from megatron.model import GPTModel
-from megatron.data.gpt_dataset import build_train_valid_test_datasets
-from megatron.data.data_samplers import build_pretraining_data_loader
-from megatron.utils import average_losses_across_data_parallel_group, get_ltor_masks_and_position_ids
+
 from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_megatron_for_nemo
 from nemo.utils import AppState, logging
 
 
@@ -155,4 +157,3 @@ class MegatronGPTModel(NLPModel):
 
     def list_available_models():
         pass
-
