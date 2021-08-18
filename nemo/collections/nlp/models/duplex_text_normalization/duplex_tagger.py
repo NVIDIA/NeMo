@@ -247,8 +247,6 @@ class DuplexTaggerModel(NLPModel):
             nb_spans.append(cur_nb_spans)
             span_starts.append(cur_span_starts)
             span_ends.append(cur_span_ends)
-        import pdb;
-        pdb.set_trace()  # duplicated prediction?
         return nb_spans, span_starts, span_ends
 
     # Functions for processing data

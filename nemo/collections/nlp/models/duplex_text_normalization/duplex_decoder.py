@@ -176,7 +176,11 @@ class DuplexDecoderModel(NLPModel):
         extra_id_0 = constants.EXTRA_ID_0
         extra_id_1 = constants.EXTRA_ID_1
 
-        # Build all_inputs
+        """
+        Build all_inputs - extracted spans to be transformed by the decoder model
+        Inputs for TN direction have "0" prefix, while the backward, ITN direction, has prefix "1"
+        "input_centers" - List[str] - ground-truth labels for the span #TODO: rename
+        """
         input_centers, input_dirs, all_inputs = [], [], []
         for ix, sent in enumerate(sents):
             cur_inputs = []
@@ -204,7 +208,13 @@ class DuplexDecoderModel(NLPModel):
         # Apply the decoding model
         batch = tokenizer(all_inputs, padding=True, return_tensors='pt')
         input_ids = batch['input_ids'].to(self.device)
+
+        import pdb; pdb.set_trace()
         outputs = model.generate(input_ids, output_scores=True, return_dict_in_generate=True, max_length=model_max_len)
+
+        """
+        torch.argmax(outputs.logits, -1)
+        """
         generated_ids, sequence_toks_scores = outputs['sequences'], outputs['scores']
         generated_texts = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
 
