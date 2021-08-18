@@ -36,6 +36,7 @@ class MegatronGPTModel(NLPModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
+        app_state = AppState()
 
         initialize_megatron_for_nemo(
             micro_batch_size=cfg.get('micro_batch_size', 1),
@@ -53,7 +54,6 @@ class MegatronGPTModel(NLPModel):
 
         fused_kernels.load(args)
 
-        app_state = AppState()
         app_state.model_parallel_size = args.tensor_model_parallel_size
 
         self.model = GPTModel(
@@ -81,7 +81,8 @@ class MegatronGPTModel(NLPModel):
         return loss
 
     def validation_epoch_end(self, outputs):
-        pass
+        averaged_loss = average_losses_across_data_parallel_group(outputs)
+        self.log('val_loss', averaged_loss[0], prog_bar=True)
 
     def loss_func(self, loss_mask, output_tensor):
         losses = output_tensor.float()
@@ -139,10 +140,7 @@ class MegatronGPTModel(NLPModel):
         # see build_pretraining_data_loader from megatron-lm
         if hasattr(self, '_train_ds'):
             self._train_dl = torch.utils.data.DataLoader(
-                self._train_ds,
-                num_workers=cfg.num_workers,
-                pin_memory=True,
-                batch_size=self.cfg.model.micro_batch_size,
+                self._train_ds, num_workers=cfg.num_workers, pin_memory=True, batch_size=self.cfg.micro_batch_size,
             )
 
     def setup_validation_data(self, cfg):
@@ -152,7 +150,7 @@ class MegatronGPTModel(NLPModel):
                 num_workers=cfg.num_workers,
                 pin_memory=True,
                 shuffle=False,
-                batch_size=self.cfg.model.micro_batch_size,
+                batch_size=self.cfg.micro_batch_size,
             )
 
     def list_available_models():
