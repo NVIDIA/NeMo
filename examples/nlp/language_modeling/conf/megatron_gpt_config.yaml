@@ -5,6 +5,7 @@ trainer:
   precision: 16
   logger: False
   checkpoint_callback: False
+  val_check_interval: 100
 
 exp_manager:
   exp_dir: /raid/nemo_experiments/
@@ -13,7 +14,7 @@ exp_manager:
 model:
   debug: False # logs debugging info
   # needed to initialize megatron
-  micro_batch_size: 1
+  micro_batch_size: 64
   tensor_model_parallel_size: 1
   encoder_seq_length: 512
   num_layers: 1

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from random import shuffle
 from megatron import fused_kernels, mpu
 from megatron.global_vars import get_args, get_tokenizer
 import torch
@@ -21,7 +22,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from megatron.model import GPTModel
 from megatron.data.gpt_dataset import build_train_valid_test_datasets
 from megatron.data.data_samplers import build_pretraining_data_loader
-from megatron.utils import get_ltor_masks_and_position_ids
+from megatron.utils import average_losses_across_data_parallel_group, get_ltor_masks_and_position_ids
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.utils import AppState, logging
 
@@ -66,7 +67,19 @@ class MegatronGPTModel(NLPModel):
         output_tensor = self(tokens, position_ids, attention_mask, labels)
         loss = self.loss_func(loss_mask, output_tensor)
         self.log('train_loss', loss)
+        # Reduced loss for logging.
+        averaged_loss = average_losses_across_data_parallel_group([loss])
+        self.log('reduced_train_loss', averaged_loss[0], prog_bar=True)
         return loss
+
+    def validation_step(self, batch, batch_idx):
+        tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
+        output_tensor = self(tokens, position_ids, attention_mask, labels)
+        loss = self.loss_func(loss_mask, output_tensor)
+        return loss
+
+    def validation_epoch_end(self, outputs):
+        pass
 
     def loss_func(self, loss_mask, output_tensor):
         losses = output_tensor.float()
@@ -116,16 +129,29 @@ class MegatronGPTModel(NLPModel):
             skip_warmup=self.cfg.train_ds.skip_warmup,
         )
         self.setup_training_data(self.cfg.train_ds)
+        self.setup_validation_data(self.cfg.train_ds)
         logging.info(f'Finished building GPT datasets.')
 
     def setup_training_data(self, cfg):
         # TODO: Add megatron specific sampler
         # see build_pretraining_data_loader from megatron-lm
         if hasattr(self, '_train_ds'):
-            self._train_dl = torch.utils.data.DataLoader(self._train_ds, num_workers=cfg.num_workers, pin_memory=True)
+            self._train_dl = torch.utils.data.DataLoader(
+                self._train_ds,
+                num_workers=cfg.num_workers,
+                pin_memory=True,
+                batch_size=self.cfg.model.micro_batch_size,
+            )
 
     def setup_validation_data(self, cfg):
-        pass
+        if hasattr(self, '_validation_ds'):
+            self._validation_dl = torch.utils.data.DataLoader(
+                self._validation_ds,
+                num_workers=cfg.num_workers,
+                pin_memory=True,
+                shuffle=False,
+                batch_size=self.cfg.model.micro_batch_size,
+            )
 
     def list_available_models():
         pass
