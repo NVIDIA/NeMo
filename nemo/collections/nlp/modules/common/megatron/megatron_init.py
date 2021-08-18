@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+from nemo.utils import AppState
 from megatron.initialize import initialize_megatron
 from megatron.mpu.initialize import set_pipeline_model_parallel_rank, set_pipeline_model_parallel_world_size
 
@@ -28,6 +30,9 @@ def initialize_megatron_for_nemo(
     vocab_file=None,
     merge_file=None,
 ):
+    app_state = AppState()
+    os.environ["WORLD_SIZE"] = str(app_state.world_size)
+
     args_defaults = {}
     args_defaults['num_layers'] = num_layers
     args_defaults['hidden_size'] = hidden_size
