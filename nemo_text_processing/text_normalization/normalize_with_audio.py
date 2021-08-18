@@ -22,8 +22,13 @@ from joblib import Parallel, delayed
 from nemo_text_processing.text_normalization.data_loader_utils import post_process_punctuation, pre_process
 from nemo_text_processing.text_normalization.normalize import Normalizer
 
-from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.asr.models import ASRModel
+try:
+    from nemo.collections.asr.metrics.wer import word_error_rate
+    from nemo.collections.asr.models import ASRModel
+
+    ASR_AVAILABLE = True
+except (ModuleNotFoundError, ImportError):
+    ASR_AVAILABLE = False
 
 try:
     import pynini
@@ -233,7 +238,7 @@ def parse_args():
         "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )
     parser.add_argument("--language", help="Select target language", choices=["en", "ru"], default="en", type=str)
-    parser.add_argument("--audio_data", help="path to an audio file or .json manifest")
+    parser.add_argument("--audio_data", default=None, help="path to an audio file or .json manifest")
     parser.add_argument(
         '--model', type=str, default='QuartzNet15x5Base-En', help='Pre-trained model name or path to model checkpoint'
     )
@@ -310,6 +315,8 @@ def normalize_manifest(args):
 if __name__ == "__main__":
     args = parse_args()
 
+    if not ASR_AVAILABLE and args.audio_data:
+        raise ValueError("NeMo ASR collection is not installed.")
     start = time.time()
     if args.text:
         normalizer = NormalizerWithAudio(
