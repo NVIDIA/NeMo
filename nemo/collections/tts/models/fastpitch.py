@@ -200,7 +200,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         return spect
 
     def training_step(self, batch, batch_idx):
-        attn_prior, durs, speakers = None, None, None
+        attn_prior, durs = None, None
         if self.learn_alignment:
             audio, audio_lens, text, text_lens, attn_prior, pitch, speakers = batch
         else:

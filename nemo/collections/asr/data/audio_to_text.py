@@ -603,7 +603,7 @@ class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
             'text_len': NeuralType(('B',), LengthsType()),
             'attn_prior': NeuralType(('B', 'T', 'D'), ProbsType()),
             'pitch': NeuralType(('B', 'T'), RegressionValuesType()),
-            'speakers': NeuralType(('B',), Index()),
+            'speakers': NeuralType(('B',), Index(), optional=True),
         }
 
     def __init__(self, sup_data_path, pitch_fmin, pitch_fmax, n_window_size, pitch_avg, pitch_std, **kwargs):
@@ -641,9 +641,6 @@ class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
         speaker = None
         if self.collection[item].speaker is not None:
             speaker = torch.zeros_like(text_len).fill_(self.collection[item].speaker)
-        else:
-            # cannot return none as speaker, since it neural type validation fails.
-            speaker = torch.zeros_like(text_len).fill_(0)
 
         return audio, audio_len, text, text_len, attn_prior, torch.tensor(pitch), speaker
 

@@ -16,8 +16,8 @@ model:
   fmax: null
   pitch_fmin: 80
   pitch_fmax: 640
-  pitch_avg: 211.27540199742586
-  pitch_std: 52.1851002822779
+  pitch_avg: 211.27540199742586 # for a female speaker (8051 HiFiGAN)
+  pitch_std: 52.1851002822779 # for a female speaker (8051 HiFiGAN)
 
   train_ds:
     dataset:

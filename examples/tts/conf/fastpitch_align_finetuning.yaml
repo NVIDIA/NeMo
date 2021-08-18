@@ -154,7 +154,7 @@ model:
     dropout: 0.1
     n_layers: 2
 
-  optim:
+  optim: # simple optimizer for finetuning, no lr scheduling.
     name: adam
     lr: 2e-4
     betas: [0.9, 0.98]
