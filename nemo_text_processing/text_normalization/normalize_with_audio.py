@@ -213,7 +213,7 @@ def calculate_cer(normalized_texts: List[str], transcript: str, remove_punct=Fal
     return normalized_options
 
 
-def get_asr_model(asr_model: ASRModel):
+def get_asr_model(asr_model):
     """
     Returns ASR Model
 
