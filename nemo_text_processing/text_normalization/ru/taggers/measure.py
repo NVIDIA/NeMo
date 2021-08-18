@@ -131,7 +131,15 @@ class MeasureFst(GraphFst):
         integer = pynutil.delete(" \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
         integer_part = pynutil.delete("integer_part:") + integer
         fractional_part = pynutil.delete("fractional_part:") + integer
-        graph_decimal = optional_sign + integer_part + pynini.accep(" ") + fractional_part
+        optional_quantity_part = pynini.closure(
+            pynini.accep(" ")
+            + pynutil.delete("quantity: \"")
+            + pynini.closure(NEMO_NOT_QUOTE, 1)
+            + pynutil.delete("\""),
+            0,
+            1,
+        )
+        graph_decimal = optional_sign + integer_part + pynini.accep(" ") + fractional_part + optional_quantity_part
 
         graph_decimal = pynutil.delete("decimal {") + delete_space + graph_decimal + delete_space + pynutil.delete("}")
 

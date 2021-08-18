@@ -70,7 +70,7 @@ class CardinalFst(GraphFst):
         self.cardinal_numbers_with_leading_zeros = (leading_zeros + self.cardinal_numbers_default).optimize()
 
         # "123" -> "один два три"
-        single_digits_graph = pynini.compose(NEMO_DIGIT, self.cardinal_numbers_default)
+        single_digits_graph = pynini.compose(NEMO_DIGIT, self.cardinal_numbers_nominative)
         self.single_digits_graph = single_digits_graph + pynini.closure(insert_space + single_digits_graph)
 
         optional_quantity = pynini.string_file(get_abs_path("data/numbers/quantity.tsv")).optimize()
@@ -89,7 +89,12 @@ class CardinalFst(GraphFst):
             + optional_quantity
         ).optimize()
 
-        final_graph |= pynutil.insert("integer: \"") + (self.single_digits_graph | serial_graph) + pynutil.insert("\"")
+        final_graph = pynutil.add_weight(final_graph, -0.1)
+        final_graph |= (
+            pynutil.insert("integer: \"")
+            + pynutil.add_weight(self.single_digits_graph | serial_graph, 10)
+            + pynutil.insert("\"")
+        )
         self.final_graph = final_graph
         final_graph = self.add_tokens(self.final_graph)
         self.fst = final_graph.optimize()
@@ -122,11 +127,8 @@ class CardinalFst(GraphFst):
             c325-b -> tokens { cardinal { integer: "си три два пять би" } }
         """
         num_graph = self.cardinal_numbers_nominative
-        # serial numbers will be normalized in the nominative only to reduce the number of possible options
-        single_digits_graph = pynini.compose(NEMO_DIGIT, num_graph)
-        single_digits_graph = single_digits_graph + pynini.closure(insert_space + single_digits_graph)
+        num_graph |= self.single_digits_graph
 
-        num_graph |= single_digits_graph
         alpha = TO_CYRILLIC | RU_ALPHA
 
         delimiter = insert_space | pynini.cross("-", " ") | pynini.cross("/", " ")
@@ -136,5 +138,4 @@ class CardinalFst(GraphFst):
         next_alpha_or_num = pynini.closure(delimiter + (alpha | num_graph))
         serial_graph = (letter_num | num_letter | num_delimiter_num) + next_alpha_or_num
 
-        serial_graph.optimize()
-        return pynutil.add_weight(serial_graph, 10)
+        return serial_graph.optimize()

@@ -88,14 +88,18 @@ class DecimalFst(GraphFst):
             NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT
         ) @ cardinal_numbers_with_leading_zeros + decimal_endings_map['10000']
 
-        optional_quantity = pynini.string_file(get_abs_path("data/numbers/quantity.tsv")).optimize()
-        optional_quantity = pynutil.insert("quantity: \"") + optional_quantity + pynutil.insert("\"")
-        optional_quantity = pynini.closure(
-            (pynutil.add_weight(pynini.accep(NEMO_SPACE), -0.1) | insert_space) + optional_quantity, 0, 1
-        )
+        self.optional_quantity = pynini.string_file(get_abs_path("data/numbers/quantity.tsv")).optimize()
 
         self.graph_fractional = graph_fractional
         graph_fractional = pynutil.insert("fractional_part: \"") + graph_fractional + pynutil.insert("\"")
+        optional_quantity = pynini.closure(
+            (pynutil.add_weight(pynini.accep(NEMO_SPACE), -0.1) | insert_space)
+            + pynutil.insert("quantity: \"")
+            + self.optional_quantity
+            + pynutil.insert("\""),
+            0,
+            1,
+        )
         self.final_graph = (
             cardinal.optional_graph_negative + graph_integer + insert_space + graph_fractional + optional_quantity
         )
