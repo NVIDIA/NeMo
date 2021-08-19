@@ -61,7 +61,9 @@ class MoneyFst(GraphFst):
         add_leading_zero_to_double_digit = (NEMO_DIGIT + NEMO_DIGIT) | (pynutil.insert("0") + NEMO_DIGIT)
         # twelve dollars (and) fifty cents, zero cents
         cents_standalone = (
-            pynutil.insert("fractional_part: \"")
+            pynutil.insert("morphosyntactic_features: \",\"")  # always use a comma in the decimal
+            + insert_space
+            + pynutil.insert("fractional_part: \"")
             + pynini.union(
                 pynutil.add_weight(((NEMO_SIGMA - "un") @ cardinal_graph), -0.7) @ add_leading_zero_to_double_digit
                 + delete_space
@@ -83,6 +85,8 @@ class MoneyFst(GraphFst):
         # setenta y cinco dólares con sesenta y tres~$75,63
         optional_cents_suffix = pynini.closure(
             delete_extra_space
+            + pynutil.insert("morphosyntactic_features: \",\"")  # always use a comma in the decimal
+            + insert_space
             + pynutil.insert("fractional_part: \"")
             + pynini.closure((pynutil.delete("con") | pynutil.delete('y')) + delete_space, 0, 1)
             + pynutil.add_weight(cardinal_graph @ add_leading_zero_to_double_digit, -0.7)

@@ -5,3 +5,4 @@ setenta y cinco dólares con sesenta y tres centavos~$75,63
 setenta y cinco dólares con sesenta y tres~$75,63
 veintinueve dólares cincuenta centavos~$29,50
 un dólar~$1
+veinticinco centavos~$0,25
