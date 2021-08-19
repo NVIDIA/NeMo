@@ -24,6 +24,7 @@ from nemo.core.neural_types.elements import (
     VoidType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
+from nemo.utils import logging
 
 
 class WaveGlowModule(NeuralModule, Exportable):
@@ -176,6 +177,7 @@ class WaveGlowModule(NeuralModule, Exportable):
         if spec.size(2) > audio.size(1):
             spec = spec[:, :, : audio.size(1)]
 
+        logging.debug(f"spec: {spec.shape}. n_group: {self.n_group}")
         spec = split_view(spec, self.n_group, 2).permute(0, 2, 1, 3)
         spec = spec.contiguous().view(spec.size(0), spec.size(1), -1)
         spec = spec.permute(0, 2, 1)
