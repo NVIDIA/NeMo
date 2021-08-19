@@ -1,4 +1,4 @@
 usted~ud.
 ustedes~uds.
 habla usted español~habla ud. español
-habla ustedes español~habla uds. español
+hablan ustedes español~hablan uds. español
