@@ -253,7 +253,6 @@ class FastPitchModule(NeuralModule):
                 pitch = average_pitch(pitch.unsqueeze(1), durs).squeeze(1)
             pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
         else:
-            print(pitch_predicted)
             if pitch_transform is not None:
                 pitch_predicted = pitch_predicted + pitch_transform / 52.1851002822779
             pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
@@ -263,7 +262,6 @@ class FastPitchModule(NeuralModule):
         if self.learn_alignment and spec is not None:
             len_regulated, dec_lens = regulate_len(attn_hard_dur, enc_out, pace)
         elif spec is None and durs is not None:
-            print(durs)
             len_regulated, dec_lens = regulate_len(durs, enc_out, pace)
         # Use predictions during inference
         elif spec is None:
