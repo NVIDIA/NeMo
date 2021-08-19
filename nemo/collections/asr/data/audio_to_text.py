@@ -393,6 +393,7 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
             pad_with_space (bool): True if pad text with spaces at the beginning and at the end.
             improved_version_g2p (bool): True if use new version of g2p.
             phoneme_dict_path (str): path to phoneme dict file (like CMU Pronouncing dictionary). If it's None then cmudict.dict() will be used.
+            phoneme_prob: probability of using phoneme representation for each word. Only used when notation='phonemes' and chars=True.
 
         Returns:
             (vocabs.Base) Vocabulary
