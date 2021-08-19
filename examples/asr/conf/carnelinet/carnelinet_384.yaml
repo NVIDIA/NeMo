@@ -234,7 +234,7 @@ trainer:
   logger: false  # Provided by exp_manager
   log_every_n_steps: 50  # Interval of logging.
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
-  precision: 32 # Change to 16 to train with AMP and gain training speed increase and lower memory consumption
+  precision: 32 # If AMP is available, change to 16 to gain training speed increase and lower memory consumption (preferred).
   sync_batchnorm: false
   benchmark: false
 
