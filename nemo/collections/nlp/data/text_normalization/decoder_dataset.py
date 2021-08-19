@@ -15,6 +15,7 @@
 import os
 import pickle
 import random
+from collections import OrderedDict
 from typing import List
 
 from tqdm import tqdm
@@ -85,7 +86,7 @@ class TextNormalizationDecoderDataset(Dataset):
             )
             with open(cached_data_file, 'rb') as f:
                 data = pickle.load(f)
-                self.insts, self.inputs, self.examples, self.tn_count, self.itn_count = data
+                self.insts, self.inputs, self.examples, self.tn_count, self.itn_count, self.label_ids_semiotic = data
         else:
             raw_insts = read_data_file(fp=input_file, max_insts=max_insts)
             all_semiotic_classes = set([])
@@ -131,13 +132,19 @@ class TextNormalizationDecoderDataset(Dataset):
 
             all_semiotic_classes = list(all_semiotic_classes)
             all_semiotic_classes.sort()
-            label_ids_semiotic = {l: idx for idx, l in enumerate(all_semiotic_classes)}
-            logging.info(f'Label_ids: {label_ids_semiotic}')
+
+            self.label_ids_semiotic = OrderedDict({l: idx for idx, l in enumerate(all_semiotic_classes)})
+
+            logging.info(f'Label_ids: {self.label_ids_semiotic}')
+            dir_name, file_name = os.path.split(input_file)
+            with open(os.path.join(dir_name, f"label_ids_{file_name}.tsv"), 'w') as f:
+                f.write('\n'.join(self.label_ids_semiotic.keys()))
+
             self.insts = insts
 
             inputs = [inst.input_str.strip() for inst in insts]
             targets = [inst.output_str.strip() for inst in insts]
-            classes = [label_ids_semiotic[inst.semiotic_class] for inst in insts]
+            classes = [self.label_ids_semiotic[inst.semiotic_class] for inst in insts]
             directions = [constants.DIRECTIONS_TO_ID[inst.direction] for inst in insts]
 
             # Tokenization
@@ -177,7 +184,14 @@ class TextNormalizationDecoderDataset(Dataset):
             # Write to cache (if use_cache)
             if use_cache:
                 with open(cached_data_file, 'wb') as out_file:
-                    data = self.insts, self.inputs, self.examples, self.tn_count, self.itn_count
+                    data = (
+                        self.insts,
+                        self.inputs,
+                        self.examples,
+                        self.tn_count,
+                        self.itn_count,
+                        self.label_ids_semiotic,
+                    )
                     pickle.dump(data, out_file, protocol=pickle.HIGHEST_PROTOCOL)
 
     def __getitem__(self, idx):
@@ -221,7 +235,7 @@ class DecoderDataInstance:
         start_idx: int,
         end_idx: int,
         lang: str,
-        semiotic_class: str,
+        semiotic_class: str = None,
         do_basic_tokenize: bool = False,
     ):
         start_idx = max(start_idx, 0)

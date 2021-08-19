@@ -20,14 +20,13 @@ import nltk
 import torch
 import wordninja
 from nemo_text_processing.text_normalization.normalize_with_audio import PYNINI_AVAILABLE, NormalizerWithAudio
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
 
 from nemo.collections.nlp.data.text_normalization import TextNormalizationDecoderDataset, constants
-from nemo.collections.nlp.models.duplex_text_normalization.utils import is_url
+from nemo.collections.nlp.models.duplex_text_normalization.utils import get_formatted_string, is_url
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.parts.utils_funcs import list2str, tensor2list
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 from nemo.utils.decorators.experimental import experimental
@@ -108,10 +107,10 @@ class DuplexDecoderModel(NLPModel):
     def __create_results_dict(self):
         results = {}
         directions = [constants.TN_MODE, constants.ITN_MODE] if self.mode == constants.JOINT_MODE else [self.mode]
-        for class_id in range(self.num_classes):
+        for class_name in self._cfg.label_ids:
             for direction in directions:
-                results[f"correct_{class_id}_{direction}"] = 0
-                results[f"total_{class_id}_{direction}"] = 0
+                results[f"correct_{class_name}_{direction}"] = 0
+                results[f"total_{class_name}_{direction}"] = 0
         return results
 
     # Validation and Testing
@@ -138,14 +137,16 @@ class DuplexDecoderModel(NLPModel):
             input_ids=batch['input_ids'], model_max_len=self.model_max_len
         )
 
+        ids_to_name_mapping = {v: k for k, v in self._cfg.label_ids.items()}
         # TODO add generated text post-processing generated_texts = self.postprocess_output_spans(input_centers, generated_texts, input_dirs)
         results = defaultdict(int)
         for idx, class_id in enumerate(batch['semiotic_class_id']):
             direction = constants.TASK_ID_TO_MODE[batch['direction'][idx].item()]
-            results[f"correct_{class_id}_{direction}"] += torch.tensor(
+            class_name = ids_to_name_mapping[class_id.item()]
+            results[f"correct_{class_name}_{direction}"] += torch.tensor(
                 labels_str[idx] == generated_texts[idx], dtype=torch.int
             ).to(self.device)
-            results[f"total_{class_id}_{direction}"] += torch.tensor(1).to(self.device)
+            results[f"total_{class_name}_{direction}"] += torch.tensor(1).to(self.device)
 
         results["val_loss"] = val_loss
         return results
@@ -158,13 +159,10 @@ class DuplexDecoderModel(NLPModel):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         results = self.__create_results_dict()
 
-        import pdb
-
-        pdb.set_trace()
         for key in results:
             count = [x[key] for x in outputs if key in x]
-            count = torch.stack(count).sum() if len(count) > 0 else count
-            results[key] = torch.stack().sum()
+            count = torch.stack(count).sum() if len(count) > 0 else torch.tensor(0).to(self.device)
+            results[key] = count
 
         all_results = defaultdict(list)
 
@@ -186,22 +184,32 @@ class DuplexDecoderModel(NLPModel):
                 for _v in v:
                     final_results[key] += _v.item()
 
-            accuracies = {}
-            for idx in range(NUM_CLASSES):
-                total = final_results[f"total_{idx}"]
-                if total == 0:
-                    accuracies[idx] = 0
-                else:
-                    accuracies[idx] = round(final_results[f"correct_{idx}"] / total * 100, 3)
+            accuracies = defaultdict(dict)
+            for key, value in final_results.items():
+                if "total_" in key:
+                    _, class_name, mode = key.split('_')
+                    correct = final_results[f"correct_{class_name}_{mode}"]
+                    if value == 0:
+                        accuracies[mode][class_name] = (0, correct, value)
+                    else:
+                        acc = round(correct / value * 100, 3)
+                        accuracies[mode][class_name] = (acc, correct, value)
 
-                for k, v in accuracies.items():
-                    logging.info(f"Accuracy: {k}: {v}")
+            for mode in accuracies:
+                report = f"Accuracy {mode.upper()} task:\n"
+                report += '\n'.join(
+                    [
+                        get_formatted_string((class_name, f'{v[0]}% ({v[1]}/{v[2]})'), str_max_len=20)
+                        for class_name, v in accuracies[mode].items()
+                    ]
+                )
+                logging.info(report)
 
         self.log('val_loss', avg_loss)
-
         if self.trainer.is_global_zero:
-            for k, v in accuracies.items():
-                self.log(f'{k}', v, rank_zero_only=True)
+            for mode in accuracies:
+                for class_name, values in accuracies[mode].items():
+                    self.log(f'{mode.upper()}_acc_{class_name.upper()}', values[0], rank_zero_only=True)
         return {
             'val_loss': avg_loss,
         }
@@ -422,6 +430,27 @@ class DuplexDecoderModel(NLPModel):
             cfg.get('use_cache', False),
             cfg.get('max_insts', -1),
         )
+
+        if mode == 'train':
+            # for previous configs compatibility
+            if not hasattr(self._cfg, "class_labels") or self._cfg.class_labels is None:
+                OmegaConf.set_struct(self._cfg, False)
+                self._cfg.class_labels = {}
+                self._cfg.class_labels = OmegaConf.create({'class_labels_file': 'label_ids.csv'})
+                OmegaConf.set_struct(self._cfg, True)
+            if not hasattr(self._cfg, "label_ids"):
+                OmegaConf.set_struct(self._cfg, False)
+                self._cfg.label_ids = {}
+                OmegaConf.set_struct(self._cfg, True)
+
+            # save label maps to the config
+            self._cfg.label_ids = OmegaConf.create(dict(dataset.label_ids_semiotic))
+            self.ids_to_labels = {v: k for k, v in self._cfg.label_ids.items()}
+            label_ids_filename = self._cfg.get('class_labels.class_labels_file', 'label_ids.csv')
+            with open(label_ids_filename, 'w') as f:
+                f.write('\n'.join(dataset.label_ids_semiotic.keys()))
+            self.register_artifact('class_labels.class_labels_file', label_ids_filename)
+
         data_collator = DataCollatorForSeq2Seq(
             tokenizer, model=model, label_pad_token_id=constants.LABEL_PAD_TOKEN_ID,
         )
