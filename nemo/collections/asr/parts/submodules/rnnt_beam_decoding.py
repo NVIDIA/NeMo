@@ -814,7 +814,8 @@ class BeamRNNTInfer(Typing):
         beam_state = self.decoder.initialize_state(
             torch.zeros(beam, device=h.device, dtype=h.dtype)
         )  # [L, B, H], [L, B, H] for LSTMS
-        blank_tensor = torch.tensor([self.blank], device=h.device, dtype=torch.long)
+
+        # blank_tensor = torch.tensor([self.blank], device=h.device, dtype=torch.long)
 
         # Precompute some constants for blank position
         ids = list(range(self.vocab_size + 1))
@@ -838,8 +839,7 @@ class BeamRNNTInfer(Typing):
 
         cache = {}
 
-        beam_dec_out, beam_state, beam_lm_tokens = self.decoder.batch_score_hypothesis(init_tokens, cache, beam_state,)
-
+        beam_dec_out, beam_state, beam_lm_tokens = self.decoder.batch_score_hypothesis(init_tokens, cache, beam_state)
         state = self.decoder.batch_select_state(beam_state, 0)
 
         if self.language_model is not None:
@@ -903,7 +903,7 @@ class BeamRNNTInfer(Typing):
                             lm_scores=hyp.lm_scores,
                         )
 
-                        if k == 0:  # self.blank
+                        if k == self.blank:
                             list_b.append(new_hyp)
                         else:
                             new_hyp.y_sequence.append(int(k))
@@ -921,7 +921,6 @@ class BeamRNNTInfer(Typing):
 
                     break
                 else:
-                    x = [hyp.dec_state for hyp in list_exp]
                     beam_state = self.decoder.batch_initialize_states(
                         beam_state,
                         [hyp.dec_state for hyp in list_exp],
