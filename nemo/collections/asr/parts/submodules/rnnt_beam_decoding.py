@@ -876,7 +876,7 @@ class BeamRNNTInfer(Typing):
             )  # type: List[Hypothesis]
             kept_hyps = []
 
-            beam_enc_out = enc_out_t  # .unsqueeze(0).unsqueeze(0)
+            beam_enc_out = enc_out_t
 
             list_b = []
             for n in range(self.maes_num_steps):

@@ -530,14 +530,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         for state_id in range(len(decoder_states[0])):
             new_states[state_id] = torch.stack([state for state in new_states[state_id]])
 
-        return tuple(new_states)
-
-        # Older method avoids extra memory allocation but limits use for prefix_search
-        # for layer in range(self.pred_rnn_layers):
-        #     for state_id in range(len(batch_states)):
-        #         batch_states[state_id][layer] = torch.stack([s[state_id][layer] for s in decoder_states])
-        #
-        # return batch_states
+        return new_states
 
     def batch_select_state(self, batch_states: List[torch.Tensor], idx: int) -> List[List[torch.Tensor]]:
         """Get decoder state from batch of states, for given id.
