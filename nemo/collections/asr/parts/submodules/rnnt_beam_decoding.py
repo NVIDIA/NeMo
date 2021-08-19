@@ -274,7 +274,7 @@ class BeamRNNTInfer(Typing):
 
                     # Decode every sample in the batch independently.
                     for batch_idx in idx_gen:
-                        inseq = encoder_output[batch_idx : batch_idx + 1, :, :]  # [1, T, D]
+                        inseq = encoder_output[batch_idx : batch_idx + 1, : encoded_lengths[batch_idx], :]  # [1, T, D]
                         logitlen = encoded_lengths[batch_idx]
 
                         if inseq.dtype != dtype:
@@ -866,7 +866,8 @@ class BeamRNNTInfer(Typing):
             )
         ]
 
-        for enc_out_t in h:
+        for t in range(encoded_lengths):
+            enc_out_t = h[t]
             enc_out_t = enc_out_t.unsqueeze(0).unsqueeze(0)
 
             hyps = self.prefix_search(
