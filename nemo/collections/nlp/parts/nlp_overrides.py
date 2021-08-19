@@ -19,6 +19,7 @@ import torch
 from megatron import mpu
 from megatron.checkpointing import get_checkpoint_version, set_checkpoint_version
 from megatron.initialize import _set_random_seed
+import pytorch_lightning as pl
 from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
@@ -30,7 +31,7 @@ from torch.nn.parallel import DistributedDataParallel
 
 from nemo.collections.nlp.modules.common.megatron.megatron_bert import MegatronBertEncoder
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder import MegatronEncoderModule
-from nemo.utils import AppState, logging
+from nemo.utils import AppState, app_state, logging
 
 
 class NLPDDPPlugin(DDPPlugin):
@@ -175,6 +176,26 @@ class NLPDDPPlugin(DDPPlugin):
                 seed = os.environ.get("PL_GLOBAL_SEED", 1234)
                 # random seed must be set for megatron model parallel init
                 _set_random_seed(seed)
+
+    def save_checkpoint(self, checkpoint: Dict[str, Any], filepath: str) -> None:
+        """Save model/training states as a checkpoint file through state-dump and file-write.
+
+        Args:
+            checkpoint: dict containing model and trainer state
+            filepath: write-target file's path
+        """
+        app_state = AppState()
+        # dump states as a checkpoint dictionary object
+        checkpoint = self.on_save(checkpoint)
+        if self.is_global_zero or app_state.data_parallel_rank == 0:
+            try:
+                # write the checkpoint dictionary on the file
+                atomic_save(checkpoint, filepath)
+            except AttributeError as err:
+                key = pl.LightningModule.CHECKPOINT_HYPER_PARAMS_KEY
+                checkpoint.pop(key, None)
+                rank_zero_warn(f"Warning, `{key}` dropped from checkpoint. An attribute is not picklable: {err}")
+                atomic_save(checkpoint, filepath)
 
     @property
     def distributed_sampler_kwargs(self):
