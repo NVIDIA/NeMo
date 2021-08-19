@@ -713,8 +713,9 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
             # each model parallel rank needs to remove its model
             if app_state.data_parallel_rank == 0:
-                super()._del_model(trainer, filepath)
-                logging.info(f"Removed model parallel checkpoint: {filepath}")
+                if self._fs.exists(filepath):
+                    self._fs.rm(filepath)
+                    logging.info(f"Removed model parallel checkpoint: {filepath}")
 
         else:
             return super()._del_model(trainer, filepath)

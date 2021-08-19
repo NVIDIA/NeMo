@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector
-from random import shuffle
 
 import torch
 from megatron import fused_kernels, mpu
@@ -27,6 +26,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_megatron_for_nemo
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.utils import AppState, logging
 
 
