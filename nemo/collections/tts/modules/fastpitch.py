@@ -185,7 +185,6 @@ class FastPitchModule(NeuralModule):
             "attn_prior": NeuralType(('B', 'T', 'T'), ProbsType(), optional=True),
             "mel_lens": NeuralType(('B'), LengthsType(), optional=True),
             "input_lens": NeuralType(('B'), LengthsType(), optional=True),
-            "pitch_transform": NeuralType(optional=True),
         }
 
     @property
@@ -216,7 +215,6 @@ class FastPitchModule(NeuralModule):
         attn_prior=None,
         mel_lens=None,
         input_lens=None,
-        pitch_transform=None,
     ):
 
         if not self.learn_alignment and self.training:
@@ -245,16 +243,10 @@ class FastPitchModule(NeuralModule):
         # Predict pitch
         pitch_predicted = self.pitch_predictor(enc_out, enc_mask)
         if pitch is not None:
-            if self.learn_alignment and attn_hard_dur is not None:
+            if self.learn_alignment:
                 pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
-            elif durs is not None:
-                if pace is not 1.0:
-                    exit(1)
-                pitch = average_pitch(pitch.unsqueeze(1), durs).squeeze(1)
             pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
         else:
-            if pitch_transform is not None:
-                pitch_predicted = pitch_predicted + pitch_transform / 52.1851002822779
             pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
 
         enc_out = enc_out + pitch_emb.transpose(1, 2)
