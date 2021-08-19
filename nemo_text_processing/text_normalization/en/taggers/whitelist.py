@@ -42,7 +42,7 @@ class WhiteListFst(GraphFst):
     """
 
     def __init__(self, input_case: str, deterministic: bool = True):
-        super().__init__(name="whitelist", kind="classify")
+        super().__init__(name="whitelist", kind="classify", deterministic=deterministic)
 
         def _get_whitelist_graph(input_case, file="data/whitelist.tsv"):
             whitelist = load_labels(get_abs_path(file))
@@ -64,5 +64,5 @@ class WhiteListFst(GraphFst):
         if not deterministic:
             graph |= _get_whitelist_graph("lower_cased") | _get_whitelist_non_deterministic_graph()
 
-        graph = pynutil.insert("name: \"") + convert_space(graph) + pynutil.insert("\"")
-        self.fst = graph.optimize()
+        self.graph = (convert_space(graph)).optimize()
+        self.fst = (pynutil.insert("name: \"") + self.graph + pynutil.insert("\"")).optimize()

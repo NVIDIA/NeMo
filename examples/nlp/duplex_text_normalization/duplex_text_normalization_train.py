@@ -39,6 +39,7 @@ USAGE Example:
 # python duplex_text_normalization_train.py
         data.base_dir=PATH_TO_DATASET_DIR
         mode={tn,itn,joint}
+        lang={en,ru,de}
 
 There are 3 different modes. `tn` mode is for training a system for TN only.
 `itn` mode is for training a system for ITN. `joint` is for training a system
@@ -50,12 +51,14 @@ following command:
 # python duplex_text_normalization_train.py
         data.base_dir=PATH_TO_DATASET_DIR
         mode={tn,itn,joint}
+        lang={en,ru,de}
         decoder_model.do_training=false
 
 Or you can also train only a decoder (without training a tagger):
 # python duplex_text_normalization_train.py
         data.base_dir=PATH_TO_DATASET_DIR
         mode={tn,itn,joint}
+        lang={en,ru,de}
         tagger_model.do_training=false
 
 Information on the arguments:
@@ -63,6 +66,8 @@ Information on the arguments:
 Most arguments in the example config file are quite self-explanatory (e.g.,
 `decoder_model.optim.lr` refers to the learning rate for training the decoder).
 Some arguments we want to mention are:
+
++ lang: The language of the dataset.
 
 + data.base_dir: The path to the dataset directory. It is expected that the
 directory contains three files: train.tsv, dev.tsv, and test.tsv.
@@ -78,6 +83,8 @@ will be saved to.
 from helpers import DECODER_MODEL, TAGGER_MODEL, instantiate_model_and_trainer
 from omegaconf import DictConfig, OmegaConf
 
+from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset
+from nemo.collections.nlp.models import DuplexTextNormalizationModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -114,6 +121,18 @@ def main(cfg: DictConfig) -> None:
             decoder_model.to(decoder_trainer.accelerator.root_device)
             decoder_model.save_to(cfg.decoder_model.nemo_path)
         logging.info('Training finished!')
+
+    # Evaluation after training
+    if (
+        hasattr(cfg.data, 'test_ds')
+        and cfg.data.test_ds.data_path is not None
+        and cfg.tagger_model.do_training
+        and cfg.decoder_model.do_training
+    ):
+        tn_model = DuplexTextNormalizationModel(tagger_model, decoder_model, cfg.lang)
+        test_dataset = TextNormalizationTestDataset(cfg.data.test_ds.data_path, cfg.data.test_ds.mode, cfg.lang)
+        results = tn_model.evaluate(test_dataset, cfg.data.test_ds.batch_size, cfg.inference.errors_log_fp)
+        print(f'\nTest results: {results}')
 
 
 if __name__ == '__main__':
