@@ -26,9 +26,11 @@ except (ModuleNotFoundError, ImportError):
 
 class DecimalFst(GraphFst):
     """
-    Finite state transducer for verbalizing decimal, e.g.
-        decimal { negative: "true" integer_part: "12"  fractional_part: "5006" quantity: "billion" } -> -12.5006 billion
-        #TODO: update comment for Spanish? ie with comma?
+    Finite state transducer for verbalizing decimal,
+        e.g. decimal { negative: "true" integer_part: "1" morphosyntactic_features: ","  fractional_part: "26" } -> -1,26
+        e.g. decimal { negative: "true" integer_part: "1" morphosyntactic_features: "."  fractional_part: "26" } -> -1.26
+        e.g. decimal { negative: "true" integer_part: "1" morphosyntactic_features: ","  fractional_part: "26" quantity: "millón" } -> 1,26 millón
+        e.g. decimal { negative: "true" integer_part: "2" quantity: "millones" } -> 2 millones
     """
 
     def __init__(self):
@@ -42,8 +44,13 @@ class DecimalFst(GraphFst):
             + pynutil.delete("\"")
         )
         optional_integer = pynini.closure(integer + delete_space, 0, 1)
+
+        decimal_point = pynini.cross("morphosyntactic_features: \",\"", ",")
+        decimal_point |= pynini.cross("morphosyntactic_features: \".\"", ".")
+
         fractional = (
-            pynutil.insert(",")
+            decimal_point
+            + delete_space
             + pynutil.delete("fractional_part:")
             + delete_space
             + pynutil.delete("\"")

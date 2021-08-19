@@ -1,2 +1,22 @@
 uno coma dos seis~1,26
+menos uno coma dos seis~-1,26
 uno coma veintiséis~1,26
+cero coma dos seis~0,26
+cero coma veintiséis~0,26
+cuatrocientos millones~400 millones
+uno punto treinta y tres~1.33
+uno punto treinta y tres millones~1.33 millones
+cero coma seis millones~0,6 millones
+mil ochocientos veinticuatro millón~1824 millón
+mil ochocientos veinticuatro millones~1824 millones
+punto dos seis~.26
+un millón~1 millón
+dos millones~2 millones
+un millardo~1 millardo
+dos millardos~2 millardos
+un billón~1 billón
+dos billones~2 billones
+un trillón~1 trillón
+dos trillones~2 trillones
+un cuatrillón~1 cuatrillón
+dos cuatrillones~2 cuatrillones

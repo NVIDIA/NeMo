@@ -43,7 +43,19 @@ def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstL
     numbers = cardinal_up_to_hundred @ (
         pynutil.delete(pynini.closure("0")) + pynini.difference(NEMO_DIGIT, "0") + pynini.closure(NEMO_DIGIT)
     )
-    suffix = pynini.union("million", "billion", "trillion", "quadrillion", "quintillion", "sextillion")
+
+    suffix = pynini.union(
+        "millón",
+        "millones",
+        "millardo",
+        "millardos",
+        "billón",
+        "billones",
+        "trillón",
+        "trillones",
+        "cuatrillón",
+        "cuatrillones",
+    )
     res = (
         pynutil.insert("integer_part: \"")
         + numbers
@@ -60,10 +72,15 @@ def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstL
 class DecimalFst(GraphFst):
     """
     Finite state transducer for classifying decimal
-        e.g. minus twelve point five o o six billion -> decimal { negative: "true" integer_part: "12"  fractional_part: "5006" quantity: "billion" }
-        e.g. one billion -> decimal { integer_part: "1" quantity: "billion" }
+        Decimal point is either "." or ",", determined by whether "punto" or "coma" is spoken.
+            e.g. menos uno coma dos seis -> decimal { negative: "true" integer_part: "1" morphosyntactic_features: "," fractional_part: "26" }
+            e.g. menos uno punto dos seis -> decimal { negative: "true" integer_part: "1" morphosyntactic_features: "." fractional_part: "26" }
+        Also writes large numbers in shortened form, e.g. 
+            e.g. uno coma dos seis millón -> decimal { negative: "true" integer_part: "1" morphosyntactic_features: "," fractional_part: "26" quantity: "millón" }
+            e.g. dos millones -> decimal { negative: "true" integer_part: "2" quantity: "millones" }
     Args:
         cardinal: CardinalFst
+
     """
 
     def __init__(self, cardinal: GraphFst):
@@ -72,22 +89,26 @@ class DecimalFst(GraphFst):
         cardinal_graph = cardinal.graph_no_exception | pynini.string_file(get_abs_path("data/numbers/es/zero.tsv"))
 
         graph_decimal = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
-        graph_decimal |= pynini.string_file(get_abs_path("data/numbers/zero.tsv")) | pynini.cross("o", "0")
+        graph_decimal |= pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
 
         graph_decimal = pynini.closure(graph_decimal + delete_space) + graph_decimal
         graph_decimal |= cardinal_graph
         self.graph = graph_decimal
 
-        point = pynutil.delete("coma")
+        decimal_point = pynini.cross("coma", "morphosyntactic_features: \",\"")
+        decimal_point |= pynini.cross("punto", "morphosyntactic_features: \".\"")
 
         optional_graph_negative = pynini.closure(
-            pynutil.insert("negative: ") + pynini.cross("minus", "\"true\"") + delete_extra_space, 0, 1
+            pynutil.insert("negative: ") + pynini.cross("menos", "\"true\"") + delete_extra_space, 0, 1
         )
 
         graph_fractional = pynutil.insert("fractional_part: \"") + graph_decimal + pynutil.insert("\"")
         graph_integer = pynutil.insert("integer_part: \"") + cardinal_graph + pynutil.insert("\"")
         final_graph_wo_sign = (
-            pynini.closure(graph_integer + delete_extra_space, 0, 1) + point + delete_extra_space + graph_fractional
+            pynini.closure(graph_integer + delete_extra_space, 0, 1)
+            + decimal_point
+            + delete_extra_space
+            + graph_fractional
         )
         final_graph = optional_graph_negative + final_graph_wo_sign
 
