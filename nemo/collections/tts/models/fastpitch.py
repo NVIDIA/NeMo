@@ -165,6 +165,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             "attn_prior": NeuralType(('B', 'T', 'T'), ProbsType(), optional=True),
             "mel_lens": NeuralType(('B'), LengthsType(), optional=True),
             "input_lens": NeuralType(('B'), LengthsType(), optional=True),
+            "pitch_transform": NeuralType(optional=True),
         }
     )
     def forward(
@@ -179,6 +180,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         attn_prior=None,
         mel_lens=None,
         input_lens=None,
+        pitch_transform=None,
     ):
         return self.fastpitch(
             text=text,
@@ -190,6 +192,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             attn_prior=attn_prior,
             mel_lens=mel_lens,
             input_lens=input_lens,
+            pitch_transform=pitch_transform,
         )
 
     @typecheck(output_types={"spect": NeuralType(('B', 'C', 'T'), MelSpectrogramType())})

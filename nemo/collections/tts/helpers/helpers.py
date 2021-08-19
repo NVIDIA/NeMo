@@ -372,3 +372,37 @@ def eval_tts_scores(
     ## fs was set 16,000, as pesq lib doesnt currently support felxible fs.
 
     return {'STOI': stoi_score, 'PESQ': pesq_score}
+
+
+def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
+    """A function that takes predicted durations per encoded token, and repeats enc_out according to the duration.
+    NOTE: durations.shape[1] == enc_out.shape[1]
+
+    Args:
+        durations (torch.tensor): A tensor of shape (batch x enc_length) that represents how many times to repeat each
+            token in enc_out.
+        enc_out (torch.tensor): A tensor of shape (batch x enc_length x enc_hidden) that represents the encoded tokens.
+        pace (float): The pace of speaker. Higher values result in faster speaking pace. Defaults to 1.0.
+        max_mel_len (int): The maximum length above which the output will be removed. If sum(durations, dim=1) >
+            max_mel_len, the values after max_mel_len will be removed. Defaults to None, which has no max length.
+    """
+
+    dtype = enc_out.dtype
+    reps = durations.float() / pace
+    reps = (reps + 0.5).long()
+    dec_lens = reps.sum(dim=1)
+
+    max_len = dec_lens.max()
+    reps_cumsum = torch.cumsum(torch.nn.functional.pad(reps, (1, 0, 0, 0), value=0.0), dim=1)[:, None, :]
+    reps_cumsum = reps_cumsum.to(dtype)
+
+    range_ = torch.arange(max_len).to(enc_out.device)[None, :, None]
+    mult = (reps_cumsum[:, :, :-1] <= range_) & (reps_cumsum[:, :, 1:] > range_)
+    mult = mult.to(dtype)
+    enc_rep = torch.matmul(mult, enc_out)
+
+    if mel_max_len:
+        enc_rep = enc_rep[:, :mel_max_len]
+        dec_lens = torch.clamp_max(dec_lens, mel_max_len)
+
+    return enc_rep, dec_lens
