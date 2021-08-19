@@ -53,9 +53,8 @@ class DuplexTaggerModel(NLPModel):
         self.loss_fct = nn.CrossEntropyLoss(ignore_index=constants.LABEL_PAD_TOKEN_ID)
 
         # setup to track metrics
-        label_ids = {l: idx for idx, l in enumerate(constants.ALL_TAG_LABELS)}
         self.classification_report = ClassificationReport(
-            self.num_labels, label_ids, mode='micro', dist_sync_on_step=True
+            self.num_labels, constants.LABEL_IDS, mode='micro', dist_sync_on_step=True
         )
 
         # Language
@@ -187,7 +186,7 @@ class DuplexTaggerModel(NLPModel):
 
         return all_tag_preds, nb_spans, span_starts, span_ends
 
-    def _postprocess_tag_preds(self, words: List[str], inst_dir: str, preds:List[str]):
+    def _postprocess_tag_preds(self, words: List[str], inst_dir: str, preds: List[str]):
         """ Function for postprocessing the raw tag predictions of the model. It
         corrects obvious mistakes in the tag predictions such as a TRANSFORM span
         starts with I_TRANSFORM_TAG (instead of B_TRANSFORM_TAG).

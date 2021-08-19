@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import defaultdict
 from time import perf_counter
 from typing import List, Optional
 
@@ -26,6 +27,7 @@ from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSe
 from nemo.collections.nlp.data.text_normalization import TextNormalizationDecoderDataset, constants
 from nemo.collections.nlp.models.duplex_text_normalization.utils import is_url
 from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.collections.nlp.parts.utils_funcs import list2str, tensor2list
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 from nemo.utils.decorators.experimental import experimental
@@ -46,6 +48,11 @@ class DuplexDecoderModel(NLPModel):
         self._tokenizer = AutoTokenizer.from_pretrained(cfg.tokenizer)
         super().__init__(cfg=cfg, trainer=trainer)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(cfg.transformer)
+        self.model_max_len = cfg.get('max_seq_length', 25)
+        self.mode = cfg.get('mode', 'joint')
+        # TODO add to the config
+        self.num_classes = 8
+
         self.transformer_name = cfg.transformer
 
         # Language
@@ -98,6 +105,15 @@ class DuplexDecoderModel(NLPModel):
         self.log('lr', lr, prog_bar=True)
         return {'loss': train_loss, 'lr': lr}
 
+    def __create_results_dict(self):
+        results = {}
+        directions = [constants.TN_MODE, constants.ITN_MODE] if self.mode == constants.JOINT_MODE else [self.mode]
+        for class_id in range(self.num_classes):
+            for direction in directions:
+                results[f"correct_{class_id}_{direction}"] = 0
+                results[f"total_{class_id}_{direction}"] = 0
+        return results
+
     # Validation and Testing
     def validation_step(self, batch, batch_idx):
         """
@@ -113,9 +129,26 @@ class DuplexDecoderModel(NLPModel):
             labels=batch['labels'],
         )
         val_loss = outputs.loss
-        import pdb; pdb.set_trace()
-        # outputs.keys() ['loss', 'logits', 'past_key_values', 'encoder_last_hidden_state']
-        return {'val_loss': val_loss}
+
+        labels_str = self._tokenizer.batch_decode(
+            torch.ones_like(batch['labels']) * ((batch['labels'] == -100) * 100) + batch['labels'],
+            skip_special_tokens=True,
+        )
+        generated_texts, _, _ = self._generate_predictions(
+            input_ids=batch['input_ids'], model_max_len=self.model_max_len
+        )
+
+        # TODO add generated text post-processing generated_texts = self.postprocess_output_spans(input_centers, generated_texts, input_dirs)
+        results = defaultdict(int)
+        for idx, class_id in enumerate(batch['semiotic_class_id']):
+            direction = constants.TASK_ID_TO_MODE[batch['direction'][idx].item()]
+            results[f"correct_{class_id}_{direction}"] += torch.tensor(
+                labels_str[idx] == generated_texts[idx], dtype=torch.int
+            ).to(self.device)
+            results[f"total_{class_id}_{direction}"] += torch.tensor(1).to(self.device)
+
+        results["val_loss"] = val_loss
+        return results
 
     def validation_epoch_end(self, outputs):
         """
@@ -123,8 +156,52 @@ class DuplexDecoderModel(NLPModel):
         :param outputs: list of individual outputs of each validation step.
         """
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        results = self.__create_results_dict()
+
+        import pdb
+
+        pdb.set_trace()
+        for key in results:
+            count = [x[key] for x in outputs if key in x]
+            count = torch.stack(count).sum() if len(count) > 0 else count
+            results[key] = torch.stack().sum()
+
+        all_results = defaultdict(list)
+
+        if torch.distributed.is_initialized():
+            world_size = torch.distributed.get_world_size()
+            for ind in range(world_size):
+                for key, v in results.items():
+                    all_results[key].append(torch.empty_like(v))
+            for key, v in results.items():
+                torch.distributed.all_gather(all_results[key], v)
+        else:
+            for key, v in results.items():
+                all_results[key].append(v)
+
+        if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+            # val_name = self._validation_names[dataloader_idx].upper()
+            final_results = defaultdict(int)
+            for key, v in all_results.items():
+                for _v in v:
+                    final_results[key] += _v.item()
+
+            accuracies = {}
+            for idx in range(NUM_CLASSES):
+                total = final_results[f"total_{idx}"]
+                if total == 0:
+                    accuracies[idx] = 0
+                else:
+                    accuracies[idx] = round(final_results[f"correct_{idx}"] / total * 100, 3)
+
+                for k, v in accuracies.items():
+                    logging.info(f"Accuracy: {k}: {v}")
+
         self.log('val_loss', avg_loss)
 
+        if self.trainer.is_global_zero:
+            for k, v in accuracies.items():
+                self.log(f'{k}', v, rank_zero_only=True)
         return {
             'val_loss': avg_loss,
         }
@@ -142,6 +219,19 @@ class DuplexDecoderModel(NLPModel):
         :param outputs: list of individual outputs of each test step.
         """
         return self.validation_epoch_end(outputs)
+
+    def _generate_predictions(self, input_ids: torch.Tensor, model_max_len: int = 512):
+        """
+        Generates predictions
+        """
+        outputs = self.model.generate(
+            input_ids, output_scores=True, return_dict_in_generate=True, max_length=model_max_len
+        )
+
+        generated_ids, sequence_toks_scores = outputs['sequences'], outputs['scores']
+        generated_texts = self._tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
+
+        return generated_texts, generated_ids, sequence_toks_scores
 
     # Functions for inference
     @torch.no_grad()
@@ -209,14 +299,9 @@ class DuplexDecoderModel(NLPModel):
         batch = tokenizer(all_inputs, padding=True, return_tensors='pt')
         input_ids = batch['input_ids'].to(self.device)
 
-        import pdb; pdb.set_trace()
-        outputs = model.generate(input_ids, output_scores=True, return_dict_in_generate=True, max_length=model_max_len)
-
-        """
-        torch.argmax(outputs.logits, -1)
-        """
-        generated_ids, sequence_toks_scores = outputs['sequences'], outputs['scores']
-        generated_texts = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
+        generated_texts, generated_ids, sequence_toks_scores = self._generate_predictions(
+            input_ids=input_ids, model_max_len=model_max_len
+        )
 
         # Use covering grammars (if enabled)
         if self.use_cg:

@@ -27,8 +27,10 @@ MULTILINGUAL = 'multilingual'
 SUPPORTED_LANGS = [ENGLISH, RUSSIAN, GERMAN, MULTILINGUAL]
 
 # Task Prefixes
-ITN_PREFIX = str(0)
-TN_PREFIX = str(1)
+ITN_TASK = 0
+TN_TASK = 1
+ITN_PREFIX = str(ITN_TASK)
+TN_PREFIX = str(TN_TASK)
 
 # Tagger Labels Prefixes
 B_PREFIX = 'B-'  # Denote beginning
@@ -40,11 +42,14 @@ TN_MODE = 'tn'
 ITN_MODE = 'itn'
 JOINT_MODE = 'joint'
 MODES = [TN_MODE, ITN_MODE, JOINT_MODE]
+TASK_ID_TO_MODE = {ITN_TASK: ITN_MODE, TN_TASK: TN_MODE}
+MODE_TO_TASK_ID = {v: k for k, v in TASK_ID_TO_MODE.items()}
 
 # Instance Directions
 INST_BACKWARD = 'BACKWARD'
 INST_FORWARD = 'FORWARD'
 INST_DIRECTIONS = [INST_BACKWARD, INST_FORWARD]
+DIRECTIONS_TO_ID = {INST_BACKWARD: ITN_TASK, INST_FORWARD: TN_TASK}
 
 # TAGS
 SAME_TAG = 'SAME'  # Tag indicates that a token can be kept the same without any further transformation
@@ -60,6 +65,7 @@ for prefix in TAGGER_LABELS_PREFIXES:
         ALL_TAG_LABELS.append(prefix + tag)
 
 ALL_TAG_LABELS.sort()
+LABEL_IDS = {l: idx for idx, l in enumerate(ALL_TAG_LABELS)}
 
 # Special Words
 SIL_WORD = 'sil'

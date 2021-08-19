@@ -15,6 +15,7 @@
 import os
 import pickle
 import random
+from typing import List
 
 from tqdm import tqdm
 from transformers import PreTrainedTokenizerBase
@@ -74,7 +75,7 @@ class TextNormalizationDecoderDataset(Dataset):
         data_dir, filename = os.path.split(input_file)
         tokenizer_name_normalized = tokenizer_name.replace('/', '_')
         cached_data_file = os.path.join(
-            data_dir, f'cached_decoder_{filename}_{tokenizer_name_normalized}_{lang}_{max_insts}.pkl'
+            data_dir, f'cached_decoder_{filename}_{tokenizer_name_normalized}_{lang}_{max_insts}_{mode}.pkl'
         )
 
         if use_cache and os.path.exists(cached_data_file):
@@ -86,14 +87,13 @@ class TextNormalizationDecoderDataset(Dataset):
                 data = pickle.load(f)
                 self.insts, self.inputs, self.examples, self.tn_count, self.itn_count = data
         else:
-            raw_insts = read_data_file(input_file)
-            if max_insts >= 0:
-                raw_insts = raw_insts[:max_insts]
-
+            raw_insts = read_data_file(fp=input_file, max_insts=max_insts)
+            all_semiotic_classes = set([])
             # Convert raw instances to TaggerDataInstance
-            insts, inputs, targets = [], [], []
+            insts = []
             for (classes, w_words, s_words) in tqdm(raw_insts):
                 for ix, (_class, w_word, s_word) in enumerate(zip(classes, w_words, s_words)):
+                    all_semiotic_classes.update([_class])
                     if s_word in constants.SPECIAL_WORDS:
                         continue
                     for inst_dir in constants.INST_DIRECTIONS:
@@ -113,6 +113,7 @@ class TextNormalizationDecoderDataset(Dataset):
                             do_basic_tokenize=do_basic_tokenize,
                         )
                         insts.append(inst)
+
                         if decoder_data_augmentation:
                             noise_left = random.randint(1, 2)
                             noise_right = random.randint(1, 2)
@@ -122,14 +123,22 @@ class TextNormalizationDecoderDataset(Dataset):
                                 inst_dir,
                                 start_idx=ix - noise_left,
                                 end_idx=ix + 1 + noise_right,
+                                semiotic_class=_class,
                                 lang=self.lang,
                                 do_basic_tokenize=do_basic_tokenize,
                             )
                             insts.append(inst)
 
+            all_semiotic_classes = list(all_semiotic_classes)
+            all_semiotic_classes.sort()
+            label_ids_semiotic = {l: idx for idx, l in enumerate(all_semiotic_classes)}
+            logging.info(f'Label_ids: {label_ids_semiotic}')
             self.insts = insts
-            inputs = [inst.input_str for inst in insts]
-            targets = [inst.output_str for inst in insts]
+
+            inputs = [inst.input_str.strip() for inst in insts]
+            targets = [inst.output_str.strip() for inst in insts]
+            classes = [label_ids_semiotic[inst.semiotic_class] for inst in insts]
+            directions = [constants.DIRECTIONS_TO_ID[inst.direction] for inst in insts]
 
             # Tokenization
             self.inputs, self.examples = [], []
@@ -153,6 +162,8 @@ class TextNormalizationDecoderDataset(Dataset):
                 # Update
                 self.inputs.append(inputs[idx])
                 _input['labels'] = _target['input_ids']
+                _input['semiotic_class_id'] = [classes[idx]]
+                _input['direction'] = [directions[idx]]
                 self.examples.append(_input)
                 if inputs[idx].startswith(constants.TN_PREFIX):
                     self.tn_count += 1
@@ -170,6 +181,10 @@ class TextNormalizationDecoderDataset(Dataset):
                     pickle.dump(data, out_file, protocol=pickle.HIGHEST_PROTOCOL)
 
     def __getitem__(self, idx):
+        """
+        Returns:
+        'input_ids', 'attention_mask', 'labels', 'semiotic_class_id', 'direction_id'
+        """
         example = self.examples[idx]
         item = {key: val[0] for key, val in example.items()}
         return item
@@ -199,7 +214,15 @@ class DecoderDataInstance:
     """
 
     def __init__(
-        self, w_words, s_words, inst_dir, start_idx, end_idx, lang, semiotic_class=None, do_basic_tokenize=False
+        self,
+        w_words: List[str],
+        s_words: List[str],
+        inst_dir: str,
+        start_idx: int,
+        end_idx: int,
+        lang: str,
+        semiotic_class: str,
+        do_basic_tokenize: bool = False,
     ):
         start_idx = max(start_idx, 0)
         end_idx = min(end_idx, len(w_words))

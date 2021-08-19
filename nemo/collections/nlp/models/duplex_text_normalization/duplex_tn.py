@@ -234,7 +234,9 @@ class DuplexTextNormalizationModel(nn.Module):
         sents = self.input_preprocessing(list(sents))
 
         # Tagging
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
         # span_ends included
         tag_preds, nb_spans, span_starts, span_ends = self.tagger._infer(sents, inst_directions)
         output_spans = self.decoder._infer(sents, nb_spans, span_starts, span_ends, inst_directions)
@@ -260,7 +262,9 @@ class DuplexTextNormalizationModel(nn.Module):
             cur_output_str = ' '.join(cur_words)
             cur_output_str = ' '.join(basic_tokenize(cur_output_str, self.lang))
             final_outputs.append(cur_output_str)
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
         return tag_preds, output_spans, final_outputs
 
     def input_preprocessing(self, sents):

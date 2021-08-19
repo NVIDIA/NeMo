@@ -71,9 +71,11 @@ decoder_trainer:
 decoder_model:
   do_training: true
   transformer: t5-base  # For ru, try cointegrated/rut5-base | For de or multilingual, try google/mt5-base
+  max_sequence_len: 512
   tokenizer: ${decoder_model.transformer}
   nemo_path: ${decoder_exp_manager.exp_dir}/decoder_model.nemo # exported .nemo path
   lang: ${lang}
+  mode: ${mode}
 
   # Options related to covering grammars for TN
   use_cg: false # Use covering grammars to avoid catastrophic errors
