@@ -35,9 +35,9 @@ class MeasureFst(GraphFst):
     """
     Finite state transducer for classifying measure,  e.g.
         "2 кг" -> measure { cardinal { integer: "два килограма" } }
-        # This class also converts words containing numbers and letters
-        # e.g. "тест-8" —> "тест восемь"
-        # e.g. "тест-1,02" —> "тест одна целая две сотых"
+        This class also converts words containing numbers and letters
+        e.g. "тест-8" —> "тест восемь"
+        e.g. "тест-1,02" —> "тест одна целая две сотых"
 
     Args:
         cardinal: CardinalFst
