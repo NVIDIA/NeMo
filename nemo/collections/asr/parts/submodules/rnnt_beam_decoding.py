@@ -815,18 +815,6 @@ class BeamRNNTInfer(Typing):
             torch.zeros(beam, device=h.device, dtype=h.dtype)
         )  # [L, B, H], [L, B, H] for LSTMS
 
-        # blank_tensor = torch.tensor([self.blank], device=h.device, dtype=torch.long)
-
-        # Precompute some constants for blank position
-        ids = list(range(self.vocab_size + 1))
-        ids.remove(self.blank)
-
-        # Used when blank token is first vs last token
-        if self.blank == 0:
-            index_incr = 1
-        else:
-            index_incr = 0
-
         init_tokens = [
             Hypothesis(
                 y_sequence=[self.blank],
@@ -867,8 +855,7 @@ class BeamRNNTInfer(Typing):
         ]
 
         for t in range(encoded_lengths):
-            enc_out_t = h[t]
-            enc_out_t = enc_out_t.unsqueeze(0).unsqueeze(0)
+            enc_out_t = h[t: t + 1].unsqueeze(0)
 
             hyps = self.prefix_search(
                 sorted(kept_hyps, key=lambda x: len(x.y_sequence), reverse=True),
@@ -921,6 +908,7 @@ class BeamRNNTInfer(Typing):
                     kept_hyps = sorted(list_b, key=lambda x: x.score, reverse=True)[:beam]
 
                     break
+
                 else:
                     beam_state = self.decoder.batch_initialize_states(
                         beam_state,
@@ -963,7 +951,6 @@ class BeamRNNTInfer(Typing):
                         beam_logp = torch.log_softmax(
                             self.joint.joint(beam_enc_out, beam_dec_out) / self.softmax_temperature, dim=-1,
                         )
-
                         beam_logp = beam_logp[:, 0, 0, :]
 
                         for i, hyp in enumerate(list_exp):
