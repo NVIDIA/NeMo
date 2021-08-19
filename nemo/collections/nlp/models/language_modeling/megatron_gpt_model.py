@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from random import shuffle
 
 import torch
@@ -37,10 +38,19 @@ class MegatronGPTModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
         app_state = AppState()
+        app_state.global_rank = trainer.global_rank
+        app_state.world_size = trainer.world_size
+        app_state.model_parallel_size = cfg.get('tensor_model_parallel_size', 1)
+        app_state.model_parallel_rank = compute_model_parallel_rank(
+            app_state.global_rank, app_state.model_parallel_size
+        )
 
         initialize_megatron_for_nemo(
+            world_size=app_state.world_size,
+            global_rank=app_state.global_rank,
             micro_batch_size=cfg.get('micro_batch_size', 1),
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
+            tensor_model_parallel_rank=app_state.model_parallel_rank,
             encoder_seq_length=cfg.get('encoder_seq_length', 512),
             num_layers=cfg.get('num_layers', 1),
             hidden_size=cfg.get('hidden_size', 16),
@@ -53,8 +63,6 @@ class MegatronGPTModel(NLPModel):
         args = get_args()
 
         fused_kernels.load(args)
-
-        app_state.model_parallel_size = args.tensor_model_parallel_size
 
         self.model = GPTModel(
             num_tokentypes=0, parallel_output=True, pre_process=cfg.pre_process, post_process=cfg.post_process
@@ -78,6 +86,17 @@ class MegatronGPTModel(NLPModel):
         tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
         output_tensor = self(tokens, position_ids, attention_mask, labels)
         loss = self.loss_func(loss_mask, output_tensor)
+        # take the first k tokens and then generate text - compare with ground truth (won't look similar in general)
+        """
+        k = num_context
+        n = max_generate_length
+        context_tokens = tokens[0:k]
+        while k < n:
+            output_tensor = self(context_tokens)
+            next_token = sample(output_tensor)
+            context_tokens.append(next_token)
+            k += 1
+        """
         return loss
 
     def validation_epoch_end(self, outputs):
@@ -87,7 +106,7 @@ class MegatronGPTModel(NLPModel):
     def loss_func(self, loss_mask, output_tensor):
         losses = output_tensor.float()
         loss_mask = loss_mask.view(-1).float()
-        loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
+        loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
         return loss
 
     def process_batch(self, batch):
@@ -138,6 +157,7 @@ class MegatronGPTModel(NLPModel):
     def setup_training_data(self, cfg):
         # TODO: Add megatron specific sampler
         # see build_pretraining_data_loader from megatron-lm
+        # consumed_samples = self.trainer.global_step
         if hasattr(self, '_train_ds'):
             self._train_dl = torch.utils.data.DataLoader(
                 self._train_ds, num_workers=cfg.num_workers, pin_memory=True, batch_size=self.cfg.micro_batch_size,

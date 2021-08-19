@@ -15,12 +15,20 @@
 import os
 from nemo.utils import AppState
 from megatron.initialize import initialize_megatron
-from megatron.mpu.initialize import set_pipeline_model_parallel_rank, set_pipeline_model_parallel_world_size
+from megatron.mpu.initialize import (
+    set_pipeline_model_parallel_rank,
+    set_pipeline_model_parallel_world_size,
+    set_tensor_model_parallel_rank,
+    set_tensor_model_parallel_world_size,
+)
 
 
 def initialize_megatron_for_nemo(
+    global_rank=0,
+    world_size=1,
     micro_batch_size=1,
     tensor_model_parallel_size=1,
+    tensor_model_parallel_rank=0,
     encoder_seq_length=512,
     num_layers=1,
     hidden_size=16,
@@ -30,8 +38,8 @@ def initialize_megatron_for_nemo(
     vocab_file=None,
     merge_file=None,
 ):
-    app_state = AppState()
-    os.environ["WORLD_SIZE"] = str(app_state.world_size)
+    os.environ["WORLD_SIZE"] = str(world_size)
+    os.environ["RANK"] = str(global_rank)
 
     args_defaults = {}
     args_defaults['num_layers'] = num_layers
@@ -44,6 +52,10 @@ def initialize_megatron_for_nemo(
     args_defaults['lazy_mpu_init'] = True
 
     extra_args_provider = get_extra_args_provider(micro_batch_size, tensor_model_parallel_size, encoder_seq_length)
+
+    # tensor model parallelism
+    set_tensor_model_parallel_world_size(tensor_model_parallel_size)
+    set_tensor_model_parallel_rank(tensor_model_parallel_rank)
 
     # pipeline model parallelism not implemented in NeMo yet
     set_pipeline_model_parallel_rank(0)
