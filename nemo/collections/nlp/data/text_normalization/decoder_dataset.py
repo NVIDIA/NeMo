@@ -132,16 +132,14 @@ class TextNormalizationDecoderDataset(Dataset):
 
             all_semiotic_classes = list(all_semiotic_classes)
             all_semiotic_classes.sort()
-
             self.label_ids_semiotic = OrderedDict({l: idx for idx, l in enumerate(all_semiotic_classes)})
-
             logging.info(f'Label_ids: {self.label_ids_semiotic}')
+            # save labels list for the input_file to the file
             dir_name, file_name = os.path.split(input_file)
-            with open(os.path.join(dir_name, f"label_ids_{file_name}.tsv"), 'w') as f:
+            with open(os.path.join(dir_name, f"label_ids_{file_name}"), 'w') as f:
                 f.write('\n'.join(self.label_ids_semiotic.keys()))
 
             self.insts = insts
-
             inputs = [inst.input_str.strip() for inst in insts]
             targets = [inst.output_str.strip() for inst in insts]
             classes = [self.label_ids_semiotic[inst.semiotic_class] for inst in insts]
@@ -197,7 +195,11 @@ class TextNormalizationDecoderDataset(Dataset):
     def __getitem__(self, idx):
         """
         Returns:
-        'input_ids', 'attention_mask', 'labels', 'semiotic_class_id', 'direction_id'
+            'input_ids': input ids
+            'attention_mask': attention mask
+            'labels': ground truth labels
+            'semiotic_class_id': id of the semiotic class of the example
+            'direction_id': id of the TN/ITN tast (see constants for the values)
         """
         example = self.examples[idx]
         item = {key: val[0] for key, val in example.items()}

@@ -21,7 +21,7 @@ import nltk
 import torch
 import wordninja
 from nemo_text_processing.text_normalization.normalize_with_audio import PYNINI_AVAILABLE, NormalizerWithAudio
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
 
@@ -428,22 +428,6 @@ class DuplexDecoderModel(NLPModel):
             self.test_dataset, self._test_dl = None, None
             return
         self.test_dataset, self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, data_split="test")
-
-    def update_data(self, data) -> None:
-        """
-        Update data directory and get data stats with Data Descriptor
-        Weights are later used to setup loss
-
-        Args:
-            data: data config
-        """
-        if not hasattr(self._cfg, "data"):
-            OmegaConf.set_struct(self._cfg, False)
-            self._cfg.data = data
-            OmegaConf.set_struct(self._cfg, True)
-        else:
-            self._cfg.data = data
-        logging.info(f'Setting model.data to {data}.')
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, data_split: str):
         tokenizer, model = self._tokenizer, self.model
