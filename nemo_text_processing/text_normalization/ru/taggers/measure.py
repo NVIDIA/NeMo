@@ -35,6 +35,9 @@ class MeasureFst(GraphFst):
     """
     Finite state transducer for classifying measure,  e.g.
         "2 кг" -> measure { cardinal { integer: "два килограма" } }
+        This class also converts words containing numbers and letters
+        e.g. "тест-8" —> "тест восемь"
+        e.g. "тест-1,02" —> "тест одна целая две сотых"
 
     Args:
         cardinal: CardinalFst
@@ -51,7 +54,8 @@ class MeasureFst(GraphFst):
             pynutil.add_weight(pynutil.delete(pynini.union(NEMO_SPACE, NEMO_NON_BREAKING_SPACE)), -1), 0, 1
         )
 
-        cardinal_graph = cardinal.cardinal_numbers
+        cardinal_graph = cardinal.cardinal_numbers_default
+        cardinal_graph_nominative = cardinal.cardinal_numbers_nominative
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
         optional_graph_negative = cardinal.optional_graph_negative
 
@@ -77,22 +81,22 @@ class MeasureFst(GraphFst):
             )
         )
 
-        cardinal_dash_alpha = (
+        cardinal_optional_dash_alpha = (
             pynutil.insert("cardinal { integer: \"")
             + cardinal_graph
-            + pynini.cross('-', '')
+            + pynini.closure(pynini.cross('-', ''), 0, 1)
             + pynutil.insert("\" } units: \"")
             + pynini.closure(RU_ALPHA, 1)
             + pynutil.insert("\"")
         )
 
-        alpha_dash_cardinal = (
+        alpha_optional_dash_cardinal = (
             pynutil.insert("units: \"")
             + pynini.closure(RU_ALPHA, 1)
-            + pynini.cross('-', '')
+            + pynini.closure(pynini.cross('-', ''), 0, 1)
             + pynutil.insert("\"")
             + pynutil.insert(" cardinal { integer: \"")
-            + cardinal_graph
+            + cardinal_graph_nominative
             + pynutil.insert("\" } preserve_order: true")
         )
 
@@ -117,8 +121,8 @@ class MeasureFst(GraphFst):
 
         tagger_graph = (
             self.tagger_graph_default
-            | cardinal_dash_alpha
-            | alpha_dash_cardinal
+            | cardinal_optional_dash_alpha
+            | alpha_optional_dash_cardinal
             | decimal_dash_alpha
             | alpha_dash_decimal
         ).optimize()
@@ -130,7 +134,15 @@ class MeasureFst(GraphFst):
         integer = pynutil.delete(" \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
         integer_part = pynutil.delete("integer_part:") + integer
         fractional_part = pynutil.delete("fractional_part:") + integer
-        graph_decimal = optional_sign + integer_part + pynini.accep(" ") + fractional_part
+        optional_quantity_part = pynini.closure(
+            pynini.accep(" ")
+            + pynutil.delete("quantity: \"")
+            + pynini.closure(NEMO_NOT_QUOTE, 1)
+            + pynutil.delete("\""),
+            0,
+            1,
+        )
+        graph_decimal = optional_sign + integer_part + pynini.accep(" ") + fractional_part + optional_quantity_part
 
         graph_decimal = pynutil.delete("decimal {") + delete_space + graph_decimal + delete_space + pynutil.delete("}")
 
