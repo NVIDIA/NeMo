@@ -91,10 +91,15 @@ class NBestHypotheses:
 
 
 def is_prefix(x: List[int], pref: List[int]) -> bool:
-    """Check if pref is a prefix of x.
+    """
+    Obtained from https://github.com/espnet/espnet.
+
+    Check if pref is a prefix of x.
+
     Args:
         x: Label ID sequence.
         pref: Prefix label ID sequence.
+
     Returns:
         : Whether pref is a prefix of x.
     """
@@ -109,21 +114,22 @@ def is_prefix(x: List[int], pref: List[int]) -> bool:
 
 
 def select_k_expansions(
-    hyps: List[Hypothesis],
-    logps: torch.Tensor,
-    beam_size: int,
-    gamma: float,
-    beta: int,
+    hyps: List[Hypothesis], logps: torch.Tensor, beam_size: int, gamma: float, beta: int,
 ) -> List[Tuple[int, Hypothesis]]:
-    """Return K hypotheses candidates for expansion from a list of hypothesis.
+    """
+    Obtained from https://github.com/espnet/espnet
+
+    Return K hypotheses candidates for expansion from a list of hypothesis.
     K candidates are selected according to the extended hypotheses probabilities
     and a prune-by-value method. Where K is equal to beam_size + beta.
+
     Args:
         hyps: Hypotheses.
         beam_logp: Log-probabilities for hypotheses expansions.
         beam_size: Beam size.
         gamma: Allowed logp difference for prune-by-value method.
         beta: Number of additional candidates to store.
+
     Return:
         k_expansions: Best K expansion hypotheses candidates.
     """
@@ -131,13 +137,18 @@ def select_k_expansions(
 
     for i, hyp in enumerate(hyps):
         hyp_i = [(int(k), hyp.score + float(logp)) for k, logp in enumerate(logps[i])]
-        k_best_exp = max(hyp_i, key=lambda x: x[1])[1]
+        k_best_exp_val = max(hyp_i, key=lambda x: x[1])
 
-        k_expansions.append(
-            sorted(
-                filter(lambda x: (k_best_exp - gamma) <= x[1], hyp_i),
-                key=lambda x: x[1],
-            )[: beam_size + beta]
-        )
+        k_best_exp_idx = k_best_exp_val[0]
+        k_best_exp = k_best_exp_val[1]
+
+        expansions = sorted(filter(lambda x: (k_best_exp - gamma) <= x[1], hyp_i), key=lambda x: x[1],)[
+            : beam_size + beta
+        ]
+
+        if len(expansions) > 0:
+            k_expansions.append(expansions)
+        else:
+            k_expansions.append([(k_best_exp_idx, k_best_exp)])
 
     return k_expansions
