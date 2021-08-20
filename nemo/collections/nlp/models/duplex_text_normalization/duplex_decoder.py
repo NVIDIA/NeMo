@@ -49,8 +49,6 @@ class DuplexDecoderModel(NLPModel):
         self.model = AutoModelForSeq2SeqLM.from_pretrained(cfg.transformer)
         self.model_max_len = cfg.get('max_seq_length', 25)
         self.mode = cfg.get('mode', 'joint')
-        # TODO add to the config
-        self.num_classes = 8
 
         self.transformer_name = cfg.transformer
 
@@ -104,15 +102,6 @@ class DuplexDecoderModel(NLPModel):
         self.log('lr', lr, prog_bar=True)
         return {'loss': train_loss, 'lr': lr}
 
-    def __create_results_dict(self):
-        results = {}
-        directions = [constants.TN_MODE, constants.ITN_MODE] if self.mode == constants.JOINT_MODE else [self.mode]
-        for class_name in self._cfg.label_ids:
-            for direction in directions:
-                results[f"correct_{class_name}_{direction}"] = 0
-                results[f"total_{class_name}_{direction}"] = 0
-        return results
-
     # Validation and Testing
     def validation_step(self, batch, batch_idx):
         """
@@ -151,13 +140,22 @@ class DuplexDecoderModel(NLPModel):
         results["val_loss"] = val_loss
         return results
 
-    def validation_epoch_end(self, outputs):
+    def validation_epoch_end(self, outputs: List):
         """
         Called at the end of validation to aggregate outputs.
-        :param outputs: list of individual outputs of each validation step.
+
+        Args:
+            outputs: list of individual outputs of each validation step.
         """
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        results = self.__create_results_dict()
+
+        # create a dictionary to store all the results
+        results = {}
+        directions = [constants.TN_MODE, constants.ITN_MODE] if self.mode == constants.JOINT_MODE else [self.mode]
+        for class_name in self._cfg.label_ids:
+            for direction in directions:
+                results[f"correct_{class_name}_{direction}"] = 0
+                results[f"total_{class_name}_{direction}"] = 0
 
         for key in results:
             count = [x[key] for x in outputs if key in x]
