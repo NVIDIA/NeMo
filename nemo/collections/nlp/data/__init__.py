@@ -38,3 +38,4 @@ from nemo.collections.nlp.data.token_classification.token_classification_dataset
     BertTokenClassificationDataset,
     BertTokenClassificationInferDataset,
 )
+from nemo.collections.nlp.data.language_modeling.megatron import *
