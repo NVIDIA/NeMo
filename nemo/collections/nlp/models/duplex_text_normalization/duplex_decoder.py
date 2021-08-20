@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from collections import defaultdict
 from time import perf_counter
-from typing import List, Optional
+from typing import Dict, List, Optional, Union
 
 import nltk
 import torch
@@ -45,6 +46,7 @@ class DuplexDecoderModel(NLPModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self._tokenizer = AutoTokenizer.from_pretrained(cfg.tokenizer)
+
         super().__init__(cfg=cfg, trainer=trainer)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(cfg.transformer)
         self.model_max_len = cfg.get('max_seq_length', 25)
@@ -103,12 +105,11 @@ class DuplexDecoderModel(NLPModel):
         return {'loss': train_loss, 'lr': lr}
 
     # Validation and Testing
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-
         # Apply Transformer
         outputs = self.model(
             input_ids=batch['input_ids'],
@@ -126,12 +127,11 @@ class DuplexDecoderModel(NLPModel):
             input_ids=batch['input_ids'], model_max_len=self.model_max_len
         )
 
-        ids_to_name_mapping = {v: k for k, v in self._cfg.label_ids.items()}
         # TODO add generated text post-processing generated_texts = self.postprocess_output_spans(input_centers, generated_texts, input_dirs)
         results = defaultdict(int)
         for idx, class_id in enumerate(batch['semiotic_class_id']):
             direction = constants.TASK_ID_TO_MODE[batch['direction'][idx].item()]
-            class_name = ids_to_name_mapping[class_id.item()]
+            class_name = self._val_id_to_class[dataloader_idx][class_id.item()]
             results[f"correct_{class_name}_{direction}"] += torch.tensor(
                 labels_str[idx] == generated_texts[idx], dtype=torch.int
             ).to(self.device)
@@ -140,7 +140,7 @@ class DuplexDecoderModel(NLPModel):
         results["val_loss"] = val_loss
         return results
 
-    def validation_epoch_end(self, outputs: List):
+    def multi_validation_epoch_end(self, outputs: List, dataloader_idx=0):
         """
         Called at the end of validation to aggregate outputs.
 
@@ -152,7 +152,7 @@ class DuplexDecoderModel(NLPModel):
         # create a dictionary to store all the results
         results = {}
         directions = [constants.TN_MODE, constants.ITN_MODE] if self.mode == constants.JOINT_MODE else [self.mode]
-        for class_name in self._cfg.label_ids:
+        for class_name in self._val_class_to_id[dataloader_idx]:
             for direction in directions:
                 results[f"correct_{class_name}_{direction}"] = 0
                 results[f"total_{class_name}_{direction}"] = 0
@@ -176,7 +176,7 @@ class DuplexDecoderModel(NLPModel):
                 all_results[key].append(v)
 
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-            # val_name = self._validation_names[dataloader_idx].upper()
+            val_name = self._validation_names[dataloader_idx].upper()
             final_results = defaultdict(int)
             for key, v in all_results.items():
                 for _v in v:
@@ -193,13 +193,24 @@ class DuplexDecoderModel(NLPModel):
                         acc = round(correct / value * 100, 3)
                         accuracies[mode][class_name] = (acc, correct, value)
 
-            for mode in accuracies:
-                report = f"Accuracy {mode.upper()} task:\n"
+            for mode, values in accuracies.items():
+                report = f"Accuracy {mode.upper()} task {val_name}:\n"
                 report += '\n'.join(
                     [
                         get_formatted_string((class_name, f'{v[0]}% ({v[1]}/{v[2]})'), str_max_len=20)
-                        for class_name, v in accuracies[mode].items()
+                        for class_name, v in values.items()
                     ]
+                )
+                # calculate average across all classes
+                all_total = 0
+                all_correct = 0
+                for _, class_values in values.items():
+                    _, correct, total = class_values
+                    all_correct += correct
+                    all_total += total
+                all_acc = all_correct / all_total if all_total > 0 else 0
+                report += '\n' + get_formatted_string(
+                    ('AVG', f'{round(all_acc, 3)}% ({all_correct}/{all_total})'), str_max_len=20
                 )
                 logging.info(report)
 
@@ -207,24 +218,24 @@ class DuplexDecoderModel(NLPModel):
         if self.trainer.is_global_zero:
             for mode in accuracies:
                 for class_name, values in accuracies[mode].items():
-                    self.log(f'{mode.upper()}_acc_{class_name.upper()}', values[0], rank_zero_only=True)
+                    self.log(f'{val_name}_{mode.upper()}_acc_{class_name.upper()}', values[0], rank_zero_only=True)
         return {
             'val_loss': avg_loss,
         }
 
-    def test_step(self, batch, batch_idx):
+    def test_step(self, batch, batch_idx, dataloader_idx: int = 0):
         """
         Lightning calls this inside the test loop with the data from the test dataloader
         passed in as `batch`.
         """
-        return self.validation_step(batch, batch_idx)
+        return self.validation_step(batch, batch_idx, dataloader_idx)
 
-    def test_epoch_end(self, outputs):
+    def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         """
         Called at the end of test to aggregate outputs.
-        :param outputs: list of individual outputs of each test step.
+        outputs: list of individual outputs of each test step.
         """
-        return self.validation_epoch_end(outputs)
+        return self.multi_validation_epoch_end(outputs, dataloader_idx)
 
     def _generate_predictions(self, input_ids: torch.Tensor, model_max_len: int = 512):
         """
@@ -389,7 +400,9 @@ class DuplexDecoderModel(NLPModel):
             )
             self.train_dataset, self._train_dl = None, None
             return
-        self.train_dataset, self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, mode="train")
+        self.train_dataset, self._train_dl = self._setup_dataloader_from_config(
+            cfg=train_data_config, data_split="train"
+        )
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if not val_data_config or not val_data_config.data_path:
@@ -399,8 +412,13 @@ class DuplexDecoderModel(NLPModel):
             self.validation_dataset, self._validation_dl = None, None
             return
         self.validation_dataset, self._validation_dl = self._setup_dataloader_from_config(
-            cfg=val_data_config, mode="val"
+            cfg=val_data_config, data_split="val"
         )
+
+    def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict] = None):
+        if val_data_config is None:
+            val_data_config = self._cfg.validation_ds
+        return super().setup_multiple_validation_data(val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         if not test_data_config or test_data_config.data_path is None:
@@ -409,45 +427,54 @@ class DuplexDecoderModel(NLPModel):
             )
             self.test_dataset, self._test_dl = None, None
             return
-        self.test_dataset, self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, mode="test")
+        self.test_dataset, self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, data_split="test")
 
-    def _setup_dataloader_from_config(self, cfg: DictConfig, mode: str):
+    def update_data(self, data) -> None:
+        """
+        Update data directory and get data stats with Data Descriptor
+        Weights are later used to setup loss
+
+        Args:
+            data: data config
+        """
+        if not hasattr(self._cfg, "data"):
+            OmegaConf.set_struct(self._cfg, False)
+            self._cfg.data = data
+            OmegaConf.set_struct(self._cfg, True)
+        else:
+            self._cfg.data = data
+        logging.info(f'Setting model.data to {data}.')
+
+    def _setup_dataloader_from_config(self, cfg: DictConfig, data_split: str):
         tokenizer, model = self._tokenizer, self.model
         start_time = perf_counter()
-        logging.info(f'Creating {mode} dataset')
+        logging.info(f'Creating {data_split} dataset')
+
         input_file = cfg.data_path
+        if not os.path.exists(input_file):
+            raise ValueError(f"{input_file} not found.")
+
         dataset = TextNormalizationDecoderDataset(
-            input_file,
-            tokenizer,
-            self.transformer_name,
-            cfg.mode,
-            cfg.get('max_decoder_len', tokenizer.model_max_length),
-            cfg.get('decoder_data_augmentation', False),
-            cfg.lang,
-            cfg.do_basic_tokenize,
-            cfg.get('use_cache', False),
-            cfg.get('max_insts', -1),
+            input_file=input_file,
+            tokenizer=tokenizer,
+            tokenizer_name=self.transformer_name,
+            mode=self._cfg.mode,
+            max_len=cfg.get('max_decoder_len', tokenizer.model_max_length),
+            decoder_data_augmentation=cfg.get('decoder_data_augmentation', False),
+            lang=self._cfg.lang,
+            do_basic_tokenize=cfg.do_basic_tokenize,
+            use_cache=cfg.get('use_cache', False),
+            max_insts=cfg.get('max_insts', -1),
         )
 
-        if mode == 'train':
-            # for previous configs compatibility
-            if not hasattr(self._cfg, "class_labels") or self._cfg.class_labels is None:
-                OmegaConf.set_struct(self._cfg, False)
-                self._cfg.class_labels = {}
-                self._cfg.class_labels = OmegaConf.create({'class_labels_file': 'label_ids.csv'})
-                OmegaConf.set_struct(self._cfg, True)
-            if not hasattr(self._cfg, "label_ids"):
-                OmegaConf.set_struct(self._cfg, False)
-                self._cfg.label_ids = {}
-                OmegaConf.set_struct(self._cfg, True)
-
-            # save label maps to the config
-            self._cfg.label_ids = OmegaConf.create(dict(dataset.label_ids_semiotic))
-            self.ids_to_labels = {v: k for k, v in self._cfg.label_ids.items()}
-            label_ids_filename = self._cfg.get('class_labels.class_labels_file', 'label_ids.csv')
-            with open(label_ids_filename, 'w') as f:
-                f.write('\n'.join(dataset.label_ids_semiotic.keys()))
-            self.register_artifact('class_labels.class_labels_file', label_ids_filename)
+        # create and save class names to class_ids mapping for validation
+        # (each validation set might have different classes)
+        if data_split in ['val', 'test']:
+            if not hasattr(self, "_val_class_to_id"):
+                self._val_class_to_id = []
+                self._val_id_to_class = []
+            self._val_class_to_id.append(dataset.label_ids_semiotic)
+            self._val_id_to_class.append({v: k for k, v in dataset.label_ids_semiotic.items()})
 
         data_collator = DataCollatorForSeq2Seq(
             tokenizer, model=model, label_pad_token_id=constants.LABEL_PAD_TOKEN_ID,

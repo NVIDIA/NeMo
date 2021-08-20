@@ -76,9 +76,6 @@ decoder_model:
   nemo_path: ${decoder_exp_manager.exp_dir}/decoder_model.nemo # exported .nemo path
   lang: ${lang}
   mode: ${mode}
-  label_ids: null # class_name to class_id map, will be filled during training
-  class_labels:
-    class_labels_file: label_ids.csv # will be generated during training and saved in .nemo file
 
   # Options related to covering grammars for TN
   use_cg: false # Use covering grammars to avoid catastrophic errors
@@ -116,42 +113,36 @@ decoder_exp_manager:
 
 # Data
 data:
-  base_dir: ??? # /path/to/data
-  use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up (especially when using multi GPUs)
+  base_dir: ??? # /path/to/data # for tagger model
+  use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up (especially when using multi GPUs) # for tagger model
 
   train_ds:
-    lang: ${lang}
-    data_path: ${data.base_dir}/train.tsv
+    data_path: train.tsv # provide the full path to the file
     batch_size: 64
     shuffle: true
     do_basic_tokenize: false
     max_decoder_len: 80
-    mode: ${mode}
     max_insts: -1 # Maximum number of instances (-1 means no limit)
     # Refer to the text_normalization doc for more information about data augmentation
     tagger_data_augmentation: false
     decoder_data_augmentation: true
-    use_cache: ${data.use_cache}
+    use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up (especially when using multi GPUs)
 
   validation_ds:
-    lang: ${lang}
-    data_path: ${data.base_dir}/dev.tsv
+    data_path: dev.tsv # provide the full path to the file. Provide multiple paths to run evaluation on multiple datasets
     batch_size: 64
     shuffle: false
     do_basic_tokenize: false
     max_decoder_len: 80
-    mode: ${mode}
     max_insts: -1 # Maximum number of instances (-1 means no limit)
-    use_cache: ${data.use_cache}
+    use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up (especially when using multi GPUs)
 
   test_ds:
-    lang: ${lang}
-    data_path: ${data.base_dir}/test.tsv
+    data_path: test.tsv # provide the full path to the file
     batch_size: 64
     shuffle: false
     do_basic_tokenize: false
-    mode: ${mode}
-    use_cache: ${data.use_cache}
+    use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up (especially when using multi GPUs)
 
 # Inference
 inference:
