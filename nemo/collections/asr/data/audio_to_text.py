@@ -637,7 +637,7 @@ class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
         pitch -= self.pitch_avg
         pitch[pitch == -self.pitch_avg] = 0.0  # Zero out values that were perviously zero
         pitch /= self.pitch_std
-        
+
         speaker = None
         if self.collection[item].speaker is not None:
             speaker = torch.zeros_like(text_len).fill_(self.collection[item].speaker)
@@ -649,7 +649,7 @@ class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
         audio, audio_len, text, text_len, attn_prior = super()._collate_fn(list(zip(*batch[:5])))
         pitch_list = batch[5]
         speaker_list = batch[6]
-        
+
         pitch = torch.zeros(len(pitch_list), max([pitch.shape[0] for pitch in pitch_list]))
 
         for i, pitch_i in enumerate(pitch_list):
@@ -660,7 +660,7 @@ class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
             speakers.append(speaker_i)
 
         speakers = torch.stack(speakers).to(text_len.dtype) if speakers[0] is not None else None
-        
+
         return audio, audio_len, text, text_len, attn_prior, pitch, speakers
 
 
