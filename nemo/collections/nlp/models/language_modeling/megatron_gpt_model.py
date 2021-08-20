@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
-from random import shuffle
+from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector
 
 import torch
 from megatron import fused_kernels, mpu
@@ -27,6 +26,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_megatron_for_nemo
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.utils import AppState, logging
 
 
@@ -140,6 +140,9 @@ class MegatronGPTModel(NLPModel):
         return tokens, labels, loss_mask, attention_mask, position_ids
 
     def setup(self, stage=None):
+        app_state = AppState()
+        self._trainer.checkpoint_connector = NLPCheckpointConnector(self._trainer)
+
         logging.info('Building GPT datasets.')
         self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
             data_prefix=self.cfg.train_ds.data_prefix,
