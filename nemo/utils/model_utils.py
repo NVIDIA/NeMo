@@ -19,13 +19,21 @@ from enum import Enum
 from pathlib import Path
 from typing import List, Optional, Union
 
-import pytorch_lightning as pl
 import wrapt
-from omegaconf import DictConfig, ListConfig, OmegaConf
-from omegaconf import errors as omegaconf_errors
-from packaging import version
 
 from nemo.utils import logging
+
+# TODO @blisc: Perhaps refactor instead of import guarding
+
+_HAS_HYDRA = True
+
+try:
+    from omegaconf import DictConfig, ListConfig, OmegaConf
+    from omegaconf import errors as omegaconf_errors
+    from packaging import version
+except ModuleNotFoundError:
+    _HAS_HYDRA = False
+
 
 _VAL_TEST_FASTPATH_KEY = 'ds_item'
 
@@ -49,7 +57,7 @@ class ArtifactItem:
     hashed_path: Optional[str] = None
 
 
-def resolve_dataset_name_from_cfg(cfg: DictConfig) -> str:
+def resolve_dataset_name_from_cfg(cfg: 'DictConfig') -> str:
     """
     Parses items of the provided sub-config to find the first potential key that
     resolves to an existing file or directory.
@@ -218,6 +226,9 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
     Args:
         model: ModelPT subclass, which requires >=1 Validation Dataloaders to be setup.
     """
+    if not _HAS_HYDRA:
+        logging.error("This function requires Hydra/Omegaconf and it was not installed.")
+        exit(1)
     cfg = copy.deepcopy(model._cfg)
     dataloaders = []
 
@@ -287,6 +298,9 @@ def resolve_test_dataloaders(model: 'ModelPT'):
     Args:
         model: ModelPT subclass, which requires >=1 Test Dataloaders to be setup.
     """
+    if not _HAS_HYDRA:
+        logging.error("This function requires Hydra/Omegaconf and it was not installed.")
+        exit(1)
     cfg = copy.deepcopy(model._cfg)
     dataloaders = []
 
@@ -335,7 +349,7 @@ def resolve_test_dataloaders(model: 'ModelPT'):
 
 
 @wrapt.decorator
-def wrap_training_step(wrapped, instance: pl.LightningModule, args, kwargs):
+def wrap_training_step(wrapped, instance: 'pl.LightningModule', args, kwargs):
     output_dict = wrapped(*args, **kwargs)
 
     if isinstance(output_dict, dict) and output_dict is not None and 'log' in output_dict:
@@ -345,7 +359,7 @@ def wrap_training_step(wrapped, instance: pl.LightningModule, args, kwargs):
     return output_dict
 
 
-def convert_model_config_to_dict_config(cfg: Union[DictConfig, 'NemoConfig']) -> DictConfig:
+def convert_model_config_to_dict_config(cfg: Union['DictConfig', 'NemoConfig']) -> 'DictConfig':
     """
     Converts its input into a standard DictConfig.
     Possible input values are:
@@ -358,6 +372,9 @@ def convert_model_config_to_dict_config(cfg: Union[DictConfig, 'NemoConfig']) ->
     Returns:
         The equivalent DictConfig
     """
+    if not _HAS_HYDRA:
+        logging.error("This function requires Hydra/Omegaconf and it was not installed.")
+        exit(1)
     if not isinstance(cfg, (OmegaConf, DictConfig)) and is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)
 
@@ -369,8 +386,11 @@ def convert_model_config_to_dict_config(cfg: Union[DictConfig, 'NemoConfig']) ->
     return config
 
 
-def _convert_config(cfg: OmegaConf):
+def _convert_config(cfg: 'OmegaConf'):
     """ Recursive function convertint the configuration from old hydra format to the new one. """
+    if not _HAS_HYDRA:
+        logging.error("This function requires Hydra/Omegaconf and it was not installed.")
+        exit(1)
 
     # Get rid of cls -> _target_.
     if 'cls' in cfg and '_target_' not in cfg:
@@ -391,7 +411,7 @@ def _convert_config(cfg: OmegaConf):
         logging.warning(f"Skipped conversion for config/subconfig:\n{cfg}\n Reason: {e}.")
 
 
-def maybe_update_config_version(cfg: DictConfig):
+def maybe_update_config_version(cfg: 'DictConfig'):
     """
     Recursively convert Hydra 0.x configs to Hydra 1.x configs.
 
@@ -406,6 +426,9 @@ def maybe_update_config_version(cfg: DictConfig):
     Returns:
         An updated DictConfig that conforms to Hydra 1.x format.
     """
+    if not _HAS_HYDRA:
+        logging.error("This function requires Hydra/Omegaconf and it was not installed.")
+        exit(1)
     if cfg is not None and not isinstance(cfg, DictConfig):
         try:
             temp_cfg = OmegaConf.create(cfg)

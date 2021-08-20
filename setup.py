@@ -79,18 +79,29 @@ install_requires = req_file("requirements.txt")
 extras_require = {
     # User packages
     'test': req_file("requirements_test.txt"),
-    # Collections Packages
+    # NeMo Tools
+    'text_processing': req_file("requirements_text_processing.txt"),
+    # Torch Packages
+    'torch_tts': req_file("requirements_torch_tts.txt"),
+    # Lightning Collections Packages
+    'core': req_file("requirements_lightning.txt"),
     'asr': req_file("requirements_asr.txt"),
     'cv': req_file("requirements_cv.txt"),
     'nlp': req_file("requirements_nlp.txt"),
     'tts': req_file("requirements_tts.txt"),
-    'text_processing': req_file("requirements_text_processing.txt"),
 }
 
 extras_require['all'] = list(chain(extras_require.values()))
 
-# TTS depends on ASR
-extras_require['tts'] = list(chain([extras_require['tts'], extras_require['asr']]))
+# Add lightning requirements as needed
+extras_require['test'] = list(chain([extras_require['tts'], extras_require['core']]))
+extras_require['asr'] = list(chain([extras_require['asr'], extras_require['core']]))
+extras_require['cv'] = list(chain([extras_require['cv'], extras_require['core']]))
+extras_require['nlp'] = list(chain([extras_require['nlp'], extras_require['core']]))
+extras_require['tts'] = list(chain([extras_require['tts'], extras_require['core']]))
+
+# TTS has extra dependencies
+extras_require['tts'] = list(chain([extras_require['tts'], extras_require['asr'], extras_require['torch_tts']]))
 
 tests_requirements = extras_require["test"]
 
@@ -232,7 +243,7 @@ setuptools.setup(
     # Add in any packaged data.
     include_package_data=True,
     exclude=['tools', 'tests'],
-    package_data={'': ['*.tsv', '*.txt', '*.far']},
+    package_data={'': ['*.tsv', '*.txt', '*.far', '*.fst']},
     zip_safe=False,
     # PyPI package information.
     keywords=__keywords__,
