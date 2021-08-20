@@ -40,3 +40,4 @@ from nemo.collections.nlp.data.zero_shot_intent_recognition.zero_shot_intent_dat
     ZeroShotIntentDataset,
     ZeroShotIntentInferenceDataset,
 )
+from nemo.collections.nlp.data.language_modeling.megatron import *
