@@ -197,7 +197,7 @@ class DuplexDecoderModel(NLPModel):
                 report = f"Accuracy {mode.upper()} task {val_name}:\n"
                 report += '\n'.join(
                     [
-                        get_formatted_string((class_name, f'{v[0]}% ({v[1]}/{v[2]})'), str_max_len=20)
+                        get_formatted_string((class_name, f'{v[0]}% ({v[1]}/{v[2]})'), str_max_len=24)
                         for class_name, v in values.items()
                     ]
                 )
@@ -210,7 +210,7 @@ class DuplexDecoderModel(NLPModel):
                     all_total += total
                 all_acc = (all_correct / all_total) * 100 if all_total > 0 else 0
                 report += '\n' + get_formatted_string(
-                    ('AVG', f'{round(all_acc, 3)}% ({all_correct}/{all_total})'), str_max_len=20
+                    ('AVG', f'{round(all_acc, 3)}% ({all_correct}/{all_total})'), str_max_len=24
                 )
                 logging.info(report)
 
