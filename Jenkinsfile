@@ -1367,11 +1367,10 @@ pipeline {
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
             trainer.gpus="[0]" \
-            +trainer.fast_dev_run=True \
+            +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 trainer.max_epochs=1 \
             trainer.accelerator=null \
-            trainer.max_epochs=-1 \
-            model.train_ds.dataloader_params.batch_size=12 \
-            model.validation_ds.dataloader_params.batch_size=12 \
+            model.train_ds.dataloader_params.batch_size=4 \
+            model.validation_ds.dataloader_params.batch_size=4 \
             model.decoder.decoder_rnn_dim=256 \
             model.decoder.attention_rnn_dim=1024 \
             model.decoder.prenet_dim=128 \
@@ -1385,9 +1384,8 @@ pipeline {
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
             trainer.gpus="[0]" \
-            +trainer.fast_dev_run=True \
+            +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 trainer.max_epochs=1 \
             trainer.accelerator=null \
-            trainer.max_epochs=-1 \
             model.train_ds.dataloader_params.batch_size=4 \
             model.validation_ds.dataloader_params.batch_size=4 \
             model.waveglow.n_flows=4 \
@@ -1404,12 +1402,11 @@ pipeline {
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
             prior_folder=/home/TestData/an4_dataset/beta_priors \
             trainer.gpus="[0]" \
-            +trainer.fast_dev_run=True \
+            +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 trainer.max_epochs=1 \
             trainer.accelerator=null \
-            trainer.max_epochs=-1 \
-            model.train_ds.dataloader_params.batch_size=12 \
+            model.train_ds.dataloader_params.batch_size=4 \
             model.train_ds.dataloader_params.num_workers=1 \
-            model.validation_ds.dataloader_params.batch_size=12 \
+            model.validation_ds.dataloader_params.batch_size=4 \
             model.validation_ds.dataloader_params.num_workers=1 \
             model.symbols_embedding_dim=64 \
             model.input_fft.d_inner=384 \
@@ -1425,12 +1422,11 @@ pipeline {
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
             trainer.gpus="[0]" \
-            +trainer.fast_dev_run=True \
+            +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 +trainer.max_epochs=1 \
             trainer.accelerator=null \
-            +trainer.max_epochs=-1 \
-            model.train_ds.dataloader_params.batch_size=8 \
+            model.train_ds.dataloader_params.batch_size=4 \
             model.train_ds.dataloader_params.num_workers=1 \
-            model.validation_ds.dataloader_params.batch_size=8 \
+            model.validation_ds.dataloader_params.batch_size=4 \
             model.validation_ds.dataloader_params.num_workers=1 \
             model.generator.upsample_initial_channel=64 \
             +model.debug=true \
