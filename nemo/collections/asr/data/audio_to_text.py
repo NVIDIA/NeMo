@@ -734,8 +734,9 @@ class FastPitchDataset(_AudioTextDataset):
         return (audio, audio_len, text, text_len, torch.load(durs_path), torch.load(pitch_path), speaker, audio_path)
 
     def _collate_fn(self, batch):
+        pad_id = self.manifest_processor.pad_id
         asr_batch = list(zip(*batch))[:4]
-        asr_batch = _speech_collate_fn(list(zip(*asr_batch)), pad_id=self.pad_id)
+        asr_batch = _speech_collate_fn(list(zip(*asr_batch)), pad_id=pad_id)
         audio, audio_len, text, text_len = asr_batch
 
         max_tokens_len = text.size(1)
@@ -744,8 +745,8 @@ class FastPitchDataset(_AudioTextDataset):
             pad = (0, max_tokens_len - tokens_i_len.item())
             assert len(durs_i) == len(pitch_i), f"{len(durs_i)}, {len(pitch_i)}: {path_i}"
             assert len(durs_i) == tokens_i_len, f"{len(durs_i)}, {tokens_i_len}:  {path_i}"
-            durs.append(F.pad(durs_i, pad, value=self.pad_id))
-            pitch.append(F.pad(pitch_i, pad, value=self.pad_id))
+            durs.append(F.pad(durs_i, pad, value=pad_id))
+            pitch.append(F.pad(pitch_i, pad, value=pad_id))
             speakers.append(speaker_i)
 
         return (
