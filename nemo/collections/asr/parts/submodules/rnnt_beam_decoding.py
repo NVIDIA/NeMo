@@ -28,7 +28,7 @@
 
 import copy
 from dataclasses import dataclass
-from typing import List, Optional, Union, Dict, Any
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
@@ -38,11 +38,7 @@ from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses, is_prefix, select_k_expansions
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
-
 from nemo.utils import logging
-
-
-
 
 
 class BeamRNNTInfer(Typing):
@@ -92,12 +88,14 @@ class BeamRNNTInfer(Typing):
 
                 For a given decoding accuracy, it is possible to attain faster decoding via ALSD than TSD.
 
-            `maes` = modified adaptive synchronous decoding. Please refer to the paper:
+            `maes` = modified adaptive expansion searcn. Please refer to the paper:
                 [Accelerating RNN Transducer Inference via Adaptive Expansion Search](https://ieeexplore.ieee.org/document/9250505)
 
-                Modified Adaptive Synchronous Decoding (mAES) execution time is adaptive w.r.t acoustic length T
-                and the number of expansions (for tokens) required per timestep. The number of expansions can usually
-                be constrained to 1 or 2, and in most cases 1 is sufficient.
+                Modified Adaptive Synchronous Decoding (mAES) execution time is adaptive w.r.t the
+                number of expansions (for tokens) required per timestep. The number of expansions can usually
+                be constrained to 1 or 2, and in most cases 2 is sufficient.
+
+                This beam search technique can possibly obtain superior WER while sacrificing some evaluation time.
 
         score_norm: bool, whether to normalize the scores of the log probabilities.
 
@@ -118,12 +116,30 @@ class BeamRNNTInfer(Typing):
             execution time and memory.
 
         # The following two flags are placeholders and unused until `nsc` implementation is stabilized.
-
         nsc_max_timesteps_expansion: Unused int.
 
         nsc_prefix_alpha: Unused int.
 
-        maes_prefix_alpha: Maximum prefix length in prefix search. (mAES)
+        # mAES flags
+        maes_num_steps: Number of adaptive steps to take. From the paper, 2 steps is generally sufficient,
+            and can be reduced to 1 to improve decoding speed while sacrificing some accuracy. int > 0.
+
+        maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to keep this as 1
+            in order to reduce expensive beam search cost later. int >= 0.
+
+        maes_expansion_beta: Maximum number of prefix expansions allowed, in addition to the beam size.
+            Effectively, the number of hypothesis = beam_size + maes_expansion_beta. Must be an int >= 0,
+            and affects the speed of inference since large values will perform large beam search in the next step.
+
+        maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
+            The default (2.3) is selected from the paper. It performs a comparison (max_log_prob - gamma <= log_prob[v])
+            where v is all vocabulary indices in the Vocab set and max_log_prob is the "most" likely token to be
+            predicted. Gamma therefore provides a margin of additional tokens which can be potential candidates for
+            expansion apart from the "most likely" candidate.
+            Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
+            but hurting accuracy). Higher values will increase the number of expansions (by reducing pruning-by-value,
+            thereby reducing speed but potentially improving accuracy). This is a hyper parameter to be experimentally
+            tuned on a validation set.
 
         softmax_temperature: Scales the logits of the joint prior to computing log_softmax.
 
@@ -876,7 +892,7 @@ class BeamRNNTInfer(Typing):
         ]
 
         for t in range(encoded_lengths):
-            enc_out_t = h[t: t + 1].unsqueeze(0)  # [1, 1, D]
+            enc_out_t = h[t : t + 1].unsqueeze(0)  # [1, 1, D]
 
             # Perform prefix search to obtain hypothesis
             hyps = self.prefix_search(
