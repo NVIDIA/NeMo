@@ -42,7 +42,7 @@ class TelephoneFst(GraphFst):
         super().__init__(name="telephone", kind="classify", deterministic=deterministic)
 
         separator = pynini.cross("-", " ")  # between components
-        number = number_names['nominative_up_to_thousand_names']
+        number = number_names["cardinal_names_nominative"]
 
         country_code = (
             pynutil.insert("country_code: \"")
@@ -81,5 +81,5 @@ class TelephoneFst(GraphFst):
 
         self.final_graph = (tagger_graph @ verbalizer_graph).optimize()
         self.fst = self.add_tokens(
-            pynutil.insert("number_part: ") + self.final_graph + pynutil.insert("\"")
+            pynutil.insert("number_part: \"") + self.final_graph + pynutil.insert("\"")
         ).optimize()
