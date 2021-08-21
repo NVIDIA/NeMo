@@ -25,6 +25,7 @@ tagger_model:
   tokenizer: ${tagger_model.transformer}
   nemo_path: ${tagger_exp_manager.exp_dir}/tagger_model.nemo # exported .nemo path
   lang: ${lang}
+  mode: ${mode}
 
   optim:
     name: adamw
@@ -113,9 +114,6 @@ decoder_exp_manager:
 
 # Data
 data:
-  base_dir: ??? # /path/to/data # for tagger model
-  use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up (especially when using multi GPUs) # for tagger model
-
   train_ds:
     data_path: train.tsv # provide the full path to the file
     batch_size: 64

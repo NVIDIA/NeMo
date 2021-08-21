@@ -45,7 +45,7 @@ def read_data_file(fp: str, max_insts: int = -1):
                 w_words, s_words, classes = [], [], []
 
                 if max_insts > 0 and len(insts) >= max_insts:
-                    return insts
+                    break
             else:
                 classes.append(es[0])
                 w_words.append(es[1])

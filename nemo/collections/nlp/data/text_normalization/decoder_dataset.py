@@ -134,19 +134,22 @@ class TextNormalizationDecoderDataset(Dataset):
             all_semiotic_classes.sort()
             self.label_ids_semiotic = OrderedDict({l: idx for idx, l in enumerate(all_semiotic_classes)})
             logging.info(f'Label_ids: {self.label_ids_semiotic}')
-            # save labels list for the input_file to the file
+
+            # save labels list from the training file to the input_file to the file
             dir_name, file_name = os.path.split(input_file)
-            with open(os.path.join(dir_name, f"label_ids_{file_name}"), 'w') as f:
-                f.write('\n'.join(self.label_ids_semiotic.keys()))
+            if 'train' in file_name:
+                with open(os.path.join(dir_name, f"label_ids_{file_name}"), 'w') as f:
+                    f.write('\n'.join(self.label_ids_semiotic.keys()))
 
             self.insts = insts
             inputs = [inst.input_str.strip() for inst in insts]
+            inputs_center = [inst.input_center_str.strip() for inst in insts]
             targets = [inst.output_str.strip() for inst in insts]
             classes = [self.label_ids_semiotic[inst.semiotic_class] for inst in insts]
             directions = [constants.DIRECTIONS_TO_ID[inst.direction] for inst in insts]
 
             # Tokenization
-            self.inputs, self.examples = [], []
+            self.inputs, self.examples, _inputs_center = [], [], []
             self.tn_count, self.itn_count, long_examples_filtered = 0, 0, 0
             input_max_len, target_max_len = 0, 0
             for idx in range(len(inputs)):
@@ -169,6 +172,8 @@ class TextNormalizationDecoderDataset(Dataset):
                 _input['labels'] = _target['input_ids']
                 _input['semiotic_class_id'] = [classes[idx]]
                 _input['direction'] = [directions[idx]]
+                _inputs_center.append(inputs_center[idx])
+
                 self.examples.append(_input)
                 if inputs[idx].startswith(constants.TN_PREFIX):
                     self.tn_count += 1
@@ -178,6 +183,12 @@ class TextNormalizationDecoderDataset(Dataset):
                 target_max_len = max(target_max_len, target_len)
             print(f'long_examples_filtered: {long_examples_filtered}')
             print(f'input_max_len: {input_max_len} | target_max_len: {target_max_len}')
+
+            # we need to pad input_center, so we first collect all values, and then batch_tokenize with padding
+            _input_centers = tokenizer(_inputs_center, padding=True)
+
+            for idx in range(len(self.examples)):
+                self.examples[idx]['input_center'] = [_input_centers['input_ids'][idx]]
 
             # Write to cache (if use_cache)
             if use_cache:
@@ -200,6 +211,7 @@ class TextNormalizationDecoderDataset(Dataset):
             'labels': ground truth labels
             'semiotic_class_id': id of the semiotic class of the example
             'direction_id': id of the TN/ITN tast (see constants for the values)
+            'inputs_center': ids of input center (only semiotic span, no special tokens and context)
         """
         example = self.examples[idx]
         item = {key: val[0] for key, val in example.items()}

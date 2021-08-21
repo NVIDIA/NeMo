@@ -46,6 +46,8 @@ class DuplexTaggerModel(NLPModel):
         self._tokenizer = AutoTokenizer.from_pretrained(cfg.tokenizer, add_prefix_space=True)
         super().__init__(cfg=cfg, trainer=trainer)
         self.num_labels = len(constants.ALL_TAG_LABELS)
+        self.mode = cfg.get('mode', 'joint')
+
         self.model = AutoModelForTokenClassification.from_pretrained(cfg.transformer, num_labels=self.num_labels)
         self.transformer_name = cfg.transformer
 
@@ -256,7 +258,7 @@ class DuplexTaggerModel(NLPModel):
             )
             self._train_dl = None
             return
-        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, mode="train")
+        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, data_split="train")
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if not val_data_config or not val_data_config.data_path:
@@ -265,7 +267,7 @@ class DuplexTaggerModel(NLPModel):
             )
             self._validation_dl = None
             return
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, mode="val")
+        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, data_split="val")
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         if not test_data_config or test_data_config.data_path is None:
@@ -274,21 +276,21 @@ class DuplexTaggerModel(NLPModel):
             )
             self._test_dl = None
             return
-        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, mode="test")
+        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, data_split="test")
 
-    def _setup_dataloader_from_config(self, cfg: DictConfig, mode: str):
+    def _setup_dataloader_from_config(self, cfg: DictConfig, data_split: str):
         start_time = perf_counter()
-        logging.info(f'Creating {mode} dataset')
+        logging.info(f'Creating {data_split} dataset')
         input_file = cfg.data_path
         tagger_data_augmentation = cfg.get('tagger_data_augmentation', False)
         dataset = TextNormalizationTaggerDataset(
             input_file,
             self._tokenizer,
             self.transformer_name,
-            cfg.mode,
+            self.mode,
             cfg.do_basic_tokenize,
             tagger_data_augmentation,
-            cfg.lang,
+            self.lang,
             cfg.get('use_cache', False),
             cfg.get('max_insts', -1),
         )

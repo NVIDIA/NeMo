@@ -49,7 +49,7 @@ class DuplexDecoderModel(NLPModel):
 
         super().__init__(cfg=cfg, trainer=trainer)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(cfg.transformer)
-        self.model_max_len = cfg.get('max_seq_length', 25)
+        self.model_max_len = cfg.get('max_seq_length', 512)
         self.mode = cfg.get('mode', 'joint')
 
         self.transformer_name = cfg.transformer
@@ -127,7 +127,12 @@ class DuplexDecoderModel(NLPModel):
             input_ids=batch['input_ids'], model_max_len=self.model_max_len
         )
 
-        # TODO add generated text post-processing generated_texts = self.postprocess_output_spans(input_centers, generated_texts, input_dirs)
+        input_centers = self._tokenizer.batch_decode(batch['input_center'], skip_special_tokens=True)
+
+        direction = [x.item() for x in batch['direction']]
+        direction_str = [constants.DIRECTIONS_ID_TO_NAME[x] for x in direction]
+        # apply post_processing
+        generated_texts = self.postprocess_output_spans(input_centers, generated_texts, direction_str)
         results = defaultdict(int)
         for idx, class_id in enumerate(batch['semiotic_class_id']):
             direction = constants.TASK_ID_TO_MODE[batch['direction'][idx].item()]
@@ -363,10 +368,21 @@ class DuplexDecoderModel(NLPModel):
 
         return final_texts
 
-    def postprocess_output_spans(self, input_centers, output_spans, input_dirs):
+    def postprocess_output_spans(self, input_centers: List[str], generated_spans: List[str], input_dirs: List[str]):
+        """
+        Post processing of the generated texts
+
+        Args:
+            input_centers: Input str (no special tokens or context)
+            generated_spans: Generated spans
+            input_dirs: task direction: constants.INST_BACKWARD or constants.INST_FORWARD
+
+        Returns:
+            Processing texts
+        """
         en_greek_writtens = list(constants.EN_GREEK_TO_SPOKEN.keys())
         en_greek_spokens = list(constants.EN_GREEK_TO_SPOKEN.values())
-        for ix, (_input, _output) in enumerate(zip(input_centers, output_spans)):
+        for ix, (_input, _output) in enumerate(zip(input_centers, generated_spans)):
             if self.lang == constants.ENGLISH:
                 # Handle URL
                 if is_url(_input):
@@ -379,18 +395,18 @@ class DuplexDecoderModel(NLPModel):
                     _output = _output.replace('%', ' percent ')
                     _output = _output.replace('www', ' w w w ')
                     _output = _output.replace('ftp', ' f t p ')
-                    output_spans[ix] = ' '.join(wordninja.split(_output))
+                    generated_spans[ix] = ' '.join(wordninja.split(_output))
                     continue
                 # Greek letters
                 if _input in en_greek_writtens:
                     if input_dirs[ix] == constants.INST_FORWARD:
-                        output_spans[ix] = constants.EN_GREEK_TO_SPOKEN[_input]
+                        generated_spans[ix] = constants.EN_GREEK_TO_SPOKEN[_input]
                 if _input in en_greek_spokens:
                     if input_dirs[ix] == constants.INST_FORWARD:
-                        output_spans[ix] = _input
+                        generated_spans[ix] = _input
                     if input_dirs[ix] == constants.INST_BACKWARD:
-                        output_spans[ix] = constants.EN_SPOKEN_TO_GREEK[_input]
-        return output_spans
+                        generated_spans[ix] = constants.EN_SPOKEN_TO_GREEK[_input]
+        return generated_spans
 
     # Functions for processing data
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
