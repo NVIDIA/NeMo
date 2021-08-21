@@ -35,6 +35,7 @@ import torch
 from sklearn.cluster._kmeans import k_means
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import MinMaxScaler
+from collections import Counter
 
 from nemo.utils import logging
 
@@ -42,8 +43,8 @@ scaler = MinMaxScaler(feature_range=(0, 1))
 
 try:
     from torch.linalg import eigh as eigh
-
     TORCH_EIGN = True
+
 except ImportError:
     TORCH_EIGN = False
     from scipy.linalg import eigh as eigh
@@ -116,6 +117,61 @@ def getMinimumConnection(mat, max_N, n_list):
             break
 
     return affinity_mat, p_value
+
+def addAnchorEmb(emb, anchor_sample_n, anchor_spk_n, sigma):
+    """
+    Add randomly generated synthetic embeddings to make eigen analysis more stable.
+    We refer to these embeddings as anchor embeddings.
+
+    anchor_sample_n (int):
+        The number of embedding samples per speaker
+
+    anchor_spk_n (int):
+        The number of speakers for synthetic embedding
+
+    sigma (int):
+        The amplitude of synthetic noise for each embedding vector
+
+    """
+    emb_dim = emb.shape[1]
+    mean, std_org = np.mean(emb, axis=0), np.std(emb, axis=0)
+    new_emb_list = []
+    for _ in range(anchor_spk_n): 
+        emb_m = np.tile(np.random.randn(1, emb_dim), (anchor_sample_n, 1))
+        emb_noise = np.random.randn(anchor_sample_n, emb_dim).T
+        emb_noise = np.dot(np.diag(std_org), emb_noise/np.max(np.abs(emb_noise))).T
+        emb_gen = emb_m + sigma * emb_noise
+        new_emb_list.append(emb_gen)
+    
+    new_emb_list.append(emb)
+    new_emb_np = np.vstack(new_emb_list)
+    return new_emb_np, anchor_sample_n*anchor_spk_n
+
+def getEnhancedSpeakerCount(key, emb, cuda, random_test_count=5, anchor_spk_n=3, anchor_sample_n=10, sigma=50):
+    """
+    Calculates the number of speakers using NME analysis with anchor embeddings.
+    """
+    est_num_of_spk_list = []
+    for seed in range(random_test_count):
+        np.random.seed(seed)
+        emb_aug, anchor_length = addAnchorEmb(emb, anchor_sample_n, anchor_spk_n, sigma)
+        mat = getCosAffinityMatrix(emb_aug) 
+        nmesc = NMESC(
+            mat,
+            max_num_speaker=emb.shape[0],
+            max_rp_threshold=0.25,
+            sparse_search=True,
+            sparse_search_volume=30,
+            fixed_thres=None,
+            NME_mat_size=300,
+            cuda=cuda,
+        )
+        est_num_of_spk, _, _ = nmesc.NMEanalysis()
+        est_num_of_spk_list.append(est_num_of_spk)
+
+    ctt = Counter(est_num_of_spk_list)
+    oracle_num_speakers = max(ctt.most_common(1)[0][0] - anchor_spk_n, 1)
+    return oracle_num_speakers
 
 
 def getCosAffinityMatrix(emb):
@@ -327,31 +383,27 @@ class NMESC:
         if self.use_subsampling_for_NME:
             subsample_ratio = self.subsampleAffinityMat(self.NME_mat_size)
 
-        """
-        Scans p_values and find a p_value that generates
-        the smallest g_p value.
-        """
+        # Scans p_values and find a p_value that generates
+        # the smallest g_p value.
         eig_ratio_list, est_spk_n_dict = [], {}
         self.p_value_list = self.getPvalueList()
         for p_value in self.p_value_list:
             est_num_of_spk, g_p = self.getEigRatio(p_value)
             est_spk_n_dict[p_value] = est_num_of_spk
             eig_ratio_list.append(g_p)
-
+        
         index_nn = np.argmin(eig_ratio_list)
         rp_p_value = self.p_value_list[index_nn]
         affinity_mat = getAffinityGraphMat(self.mat, rp_p_value)
 
-        """
-        Checks whether affinity graph is fully connected.
-        If not, it adds minimum number of connections to make it fully connected.
-        """
+        # Checks whether affinity graph is fully connected.
+        # If not, it adds minimum number of connections to make it fully connected.
         if not isGraphFullyConnected(affinity_mat):
             affinity_mat, rp_p_value = getMinimumConnection(self.mat, self.max_N, self.p_value_list)
 
         p_hat_value = int(subsample_ratio * rp_p_value)
         est_num_of_spk = est_spk_n_dict[rp_p_value]
-        return est_num_of_spk, p_hat_value
+        return est_num_of_spk, p_hat_value, eig_ratio_list[index_nn]
 
     def subsampleAffinityMat(self, NME_mat_size):
         """
@@ -426,7 +478,7 @@ class NMESC:
         return p_value_list
 
 
-def COSclustering(key, emb, oracle_num_speakers=None, max_num_speaker=8, min_samples=6, fixed_thres=None, cuda=False):
+def COSclustering(key, emb, oracle_num_speakers=None, max_num_speaker=8, min_samples=6, enhanced_count_thres=80, fixed_thres=None, cuda=False):
     """
     Clustering method for speaker diarization based on cosine similarity.
 
@@ -445,16 +497,21 @@ def COSclustering(key, emb, oracle_num_speakers=None, max_num_speaker=8, min_sam
 
         min_samples: (int)
             Minimum number of samples required for NME clustering, this avoids
-            zero p_neighbour_lists. Default of 6 is selected since (1/rp_threshold) >= 4
-            when max_rp_threshold = 0.25. Thus, NME analysis is skipped for matrices
-            smaller than (min_samples)x(min_samples).
+            zero p_neighbour_lists. If the input has fewer segments than min_samples,
+            it is directed to the enhanced speaker counting mode.
     Returns:
         Y: (List[int])
             Speaker label for each segment.
     """
-    mat = getCosAffinityMatrix(emb)
-    if oracle_num_speakers:
-        max_num_speaker = oracle_num_speakers
+    
+    if emb.shape[0] == 1:
+        return np.array([0])
+    elif emb.shape[0] < enhanced_count_thres and oracle_num_speakers == None:
+        oracle_num_speakers = getEnhancedSpeakerCount(key, emb, cuda)
+    
+    max_num_speaker = oracle_num_speakers if oracle_num_speakers else max_num_speaker
+    
+    mat = getCosAffinityMatrix(emb) 
 
     nmesc = NMESC(
         mat,
@@ -466,18 +523,16 @@ def COSclustering(key, emb, oracle_num_speakers=None, max_num_speaker=8, min_sam
         NME_mat_size=300,
         cuda=cuda,
     )
-
+        
     if emb.shape[0] > min_samples:
-        est_num_of_spk, p_hat_value = nmesc.NMEanalysis()
+        est_num_of_spk, p_hat_value, best_g_p_value = nmesc.NMEanalysis()
         affinity_mat = getAffinityGraphMat(mat, p_hat_value)
     else:
         affinity_mat = mat
-        est_num_of_spk, _, _ = estimateNumofSpeakers(affinity_mat, max_num_speaker, cuda)
 
-    if oracle_num_speakers:
-        est_num_of_spk = oracle_num_speakers
+    est_num_of_spk = oracle_num_speakers if oracle_num_speakers else est_num_of_spk
 
     spectral_model = _SpectralClustering(n_clusters=est_num_of_spk, cuda=cuda)
     Y = spectral_model.predict(affinity_mat)
-
+    
     return Y
