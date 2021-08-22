@@ -1,11 +1,12 @@
 trainer:
-  gpus: 2
+  gpus: 1
   num_nodes: 1
   accelerator: ddp
   precision: 16
   logger: False
   checkpoint_callback: False
   val_check_interval: 100
+  replace_sampler_ddp: False
 
 exp_manager:
   exp_dir: /raid/nemo_experiments/
@@ -15,31 +16,37 @@ model:
   debug: False # logs debugging info
   # needed to initialize megatron
   micro_batch_size: 64
-  tensor_model_parallel_size: 2
+  tensor_model_parallel_size: 1
   encoder_seq_length: 512
   num_layers: 4
   hidden_size: 128
   num_attention_heads: 4
   vocab_file: /raid/data/gpt/vocab.json
   merge_file: /raid/data/gpt/merges.txt
+  seed: 1234
 
   # GPT
   pre_process: True
   post_process: True
 
-  train_ds:
+  data:
     data_prefix: 
-      - /raid/data/gpt/simple_wiki_gpt_preproc_text_document
+      - .5
+      - /raid/data/pile/my-gpt3_00_text_document
+      - .5
+      - /raid/data/pile/my-gpt3_01_text_document
+      #- /raid/data/gpt/simple_wiki_gpt_preproc_text_document
     data_impl: mmap
-    splits_string: 949,50,1
+    #splits_string: 949,50,1
+    splits_string: 3,2,1
     train_valid_test_num_samples:
       - 10000
       - 100
       - 100
     seq_length: ${model.encoder_seq_length}
-    seed: 123
     skip_warmup: False
     num_workers: 0
+    dataloader_type: single # cyclic
   
   optim:
     name: adam
