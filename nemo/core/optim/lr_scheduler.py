@@ -587,7 +587,17 @@ def prepare_lr_scheduler(
 
         # Compute effective num max_steps
         num_samples = len(train_dataloader.dataset)
-        batch_size = train_dataloader.batch_size
+        # TODO: not sure if this will be the correct LR schedule for Megatron
+        # we may need to override ModelPT setup_optimization
+        if train_dataloader.batch_size is not None:
+            batch_size = train_dataloader.batch_size
+        elif train_dataloader.batch_sampler is not None:
+            if train_dataloader.batch_sampler.micro_batch_size is not None:
+                batch_size = train_dataloader.batch_sampler.micro_batch_size
+            else:
+                raise ValueError(f'Could not find batch_size from batch_sampler: {train_dataloader.batch_sampler}')
+        else:
+            raise ValueError(f'Could not find batch_size from train_dataloader: {train_dataloader}')
         drop_last = train_dataloader.drop_last
 
         max_steps = compute_max_steps(
