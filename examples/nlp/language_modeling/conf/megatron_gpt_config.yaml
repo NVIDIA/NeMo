@@ -14,6 +14,15 @@ trainer:
 exp_manager:
   exp_dir: /raid/nemo_experiments/
   name: megatron_gpt
+  create_wandb_logger: True
+  wandb_logger_kwargs:
+    project: nemo_megatron_gpt_pretraining
+    name: dev
+  create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: val_loss
+    save_top_k: 10
+    mode: min
 
 model:
   debug: False # logs debugging info
