@@ -145,11 +145,19 @@ class MegatronGPTModel(NLPModel):
 
     def build_train_valid_test_datasets(self):
         logging.info('Building GPT datasets.')
+        global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size / self.cfg.tensor_model_parallel_size
+        eval_iters = (self.trainer.max_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
+        test_iters = 0
+        train_valid_test_num_samples = [
+            self.trainer.max_steps * global_batch_size,
+            eval_iters * global_batch_size,
+            test_iters * global_batch_size,
+        ]
         self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
             data_prefix=self.cfg.data.data_prefix,
             data_impl=self.cfg.data.data_impl,
             splits_string=self.cfg.data.splits_string,
-            train_valid_test_num_samples=self.cfg.data.train_valid_test_num_samples,
+            train_valid_test_num_samples=train_valid_test_num_samples,
             seq_length=self.cfg.data.seq_length,
             seed=self.cfg.seed,
             skip_warmup=self.cfg.data.skip_warmup,
@@ -199,24 +207,15 @@ class MegatronGPTModel(NLPModel):
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
-            consumed_samples = self.trainer.global_step  # TODO: how to calculate this?
+            consumed_samples = (
+                self.trainer.global_step
+            )  # TODO: calculate this correctly: steps * data parallel world size * micro batch size *
             self._train_dl = self.build_pretraining_data_loader(self._train_ds, consumed_samples)
-            # self._train_dl.batch_size = self.cfg.micro_batch_size
-            # self._train_dl = torch.utils.data.DataLoader(
-            #     self._train_ds, num_workers=cfg.num_workers, pin_memory=True, batch_size=self.cfg.micro_batch_size,
-            # )
 
     def setup_validation_data(self, cfg):
         if hasattr(self, '_validation_ds'):
             consumed_samples = 0  # TODO: how to calculate this?
             self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples)
-            # self._validation_dl = torch.utils.data.DataLoader(
-            #     self._validation_ds,
-            #     num_workers=cfg.num_workers,
-            #     pin_memory=True,
-            #     shuffle=False,
-            #     batch_size=self.cfg.micro_batch_size,
-            # )
 
     def list_available_models():
         pass

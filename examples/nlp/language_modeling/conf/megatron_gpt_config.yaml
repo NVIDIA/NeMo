@@ -5,8 +5,11 @@ trainer:
   precision: 16
   logger: False
   checkpoint_callback: False
-  val_check_interval: 100
   replace_sampler_ddp: False
+  max_epochs: null
+  max_steps: 10000
+  val_check_interval: 1000
+  limit_val_batches: 10
 
 exp_manager:
   exp_dir: /raid/nemo_experiments/
@@ -30,6 +33,9 @@ model:
   post_process: True
 
   data:
+    # data_prefix
+      # weight 
+      # path
     data_prefix: 
       - .5
       - /raid/data/pile/my-gpt3_00_text_document
@@ -37,12 +43,7 @@ model:
       - /raid/data/pile/my-gpt3_01_text_document
       #- /raid/data/gpt/simple_wiki_gpt_preproc_text_document
     data_impl: mmap
-    #splits_string: 949,50,1
-    splits_string: 3,2,1
-    train_valid_test_num_samples:
-      - 10000
-      - 100
-      - 100
+    splits_string: 949,50,1
     seq_length: ${model.encoder_seq_length}
     skip_warmup: False
     num_workers: 0
