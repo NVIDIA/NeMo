@@ -213,11 +213,12 @@ class DuplexDecoderModel(NLPModel):
                     _, correct, total = class_values
                     all_correct += correct
                     all_total += total
-                all_acc = (all_correct / all_total) * 100 if all_total > 0 else 0
+                all_acc = round((all_correct / all_total) * 100, 3) if all_total > 0 else 0
                 report += '\n' + get_formatted_string(
-                    ('AVG', f'{round(all_acc, 3)}% ({all_correct}/{all_total})'), str_max_len=24
+                    ('AVG', f'{all_acc}% ({all_correct}/{all_total})'), str_max_len=24
                 )
                 logging.info(report)
+                accuracies[mode]['AVG'] = [all_acc]
 
         self.log('val_loss', avg_loss)
         if self.trainer.is_global_zero:
