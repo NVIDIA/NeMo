@@ -1,5 +1,5 @@
 trainer:
-  gpus: 1
+  gpus: 4
   num_nodes: 1
   accelerator: ddp
   precision: 16
@@ -28,7 +28,7 @@ model:
   debug: False # logs debugging info
   # needed to initialize megatron
   micro_batch_size: 64
-  tensor_model_parallel_size: 1
+  tensor_model_parallel_size: 2
   encoder_seq_length: 512
   num_layers: 4
   hidden_size: 128

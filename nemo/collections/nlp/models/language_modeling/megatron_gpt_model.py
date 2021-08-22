@@ -84,6 +84,8 @@ class MegatronGPTModel(NLPModel):
         # Reduced loss for logging.
         averaged_loss = average_losses_across_data_parallel_group([loss])
         self.log('reduced_train_loss', averaged_loss[0], prog_bar=True)
+        lr = self._optimizer.param_groups[0]['lr']
+        self.log('lr', lr)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -110,6 +112,7 @@ class MegatronGPTModel(NLPModel):
     def loss_func(self, loss_mask, output_tensor):
         losses = output_tensor.float()
         loss_mask = loss_mask.view(-1).float()
+        # TODO: add nemo version here
         loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
         return loss
 
