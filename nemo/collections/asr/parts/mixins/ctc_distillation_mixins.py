@@ -15,8 +15,6 @@
 from math import ceil
 from typing import Union
 
-import torch
-
 from nemo.core.classes.mixins import DistillationMixin
 from nemo.utils import logging
 

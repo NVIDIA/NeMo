@@ -25,8 +25,9 @@ def get_class_path(cls):
 
 
 class MockSerializationImpl(Serialization):
-    def __init__(self, cfg: DictConfig):
+    def __init__(self, cfg: DictConfig, trainer=None):
         self.cfg = cfg
+        self.trainer = trainer
         self.value = self.__class__.__name__
 
 
