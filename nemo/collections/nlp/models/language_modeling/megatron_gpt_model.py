@@ -16,7 +16,11 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector
 
 import torch
 from megatron import fused_kernels, mpu
-from megatron.data.data_samplers import build_pretraining_data_loader
+from megatron.data.data_samplers import (
+    MegatronPretrainingRandomSampler,
+    MegatronPretrainingSampler,
+    build_pretraining_data_loader,
+)
 from megatron.data.gpt_dataset import build_train_valid_test_datasets
 from megatron.global_vars import get_args, get_tokenizer
 from megatron.model import GPTModel
@@ -80,6 +84,8 @@ class MegatronGPTModel(NLPModel):
         # Reduced loss for logging.
         averaged_loss = average_losses_across_data_parallel_group([loss])
         self.log('reduced_train_loss', averaged_loss[0], prog_bar=True)
+        lr = self._optimizer.param_groups[0]['lr']
+        self.log('lr', lr)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -106,6 +112,7 @@ class MegatronGPTModel(NLPModel):
     def loss_func(self, loss_mask, output_tensor):
         losses = output_tensor.float()
         loss_mask = loss_mask.view(-1).float()
+        # TODO: add nemo version here
         loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
         return loss
 
@@ -139,42 +146,79 @@ class MegatronGPTModel(NLPModel):
 
         return tokens, labels, loss_mask, attention_mask, position_ids
 
-    def setup(self, stage=None):
-        app_state = AppState()
-        self._trainer.checkpoint_connector = NLPCheckpointConnector(self._trainer)
-
+    def build_train_valid_test_datasets(self):
         logging.info('Building GPT datasets.')
+        global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size / self.cfg.tensor_model_parallel_size
+        eval_iters = (self.trainer.max_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
+        test_iters = 0
+        train_valid_test_num_samples = [
+            self.trainer.max_steps * global_batch_size,
+            eval_iters * global_batch_size,
+            test_iters * global_batch_size,
+        ]
         self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
-            data_prefix=self.cfg.train_ds.data_prefix,
-            data_impl=self.cfg.train_ds.data_impl,
-            splits_string=self.cfg.train_ds.splits_string,
-            train_valid_test_num_samples=self.cfg.train_ds.train_valid_test_num_samples,
-            seq_length=self.cfg.train_ds.seq_length,
-            seed=self.cfg.train_ds.seed,
-            skip_warmup=self.cfg.train_ds.skip_warmup,
+            data_prefix=self.cfg.data.data_prefix,
+            data_impl=self.cfg.data.data_impl,
+            splits_string=self.cfg.data.splits_string,
+            train_valid_test_num_samples=train_valid_test_num_samples,
+            seq_length=self.cfg.data.seq_length,
+            seed=self.cfg.seed,
+            skip_warmup=self.cfg.data.skip_warmup,
         )
-        self.setup_training_data(self.cfg.train_ds)
-        self.setup_validation_data(self.cfg.train_ds)
+        logging.info(f'Length of train dataset: {len(self._train_ds)}')
+        logging.info(f'Length of val dataset: {len(self._validation_ds)}')
+        logging.info(f'Length of test dataset: {len(self._test_ds)}')
         logging.info(f'Finished building GPT datasets.')
+        return self._train_ds, self._validation_ds, self._test_ds
+
+    def build_pretraining_data_loader(self, dataset, consumed_samples):
+        """Buld dataloader given an input dataset."""
+
+        if dataset is None:
+            return None
+
+        # Megatron sampler
+        if self.cfg.data.dataloader_type == 'single':
+            batch_sampler = MegatronPretrainingSampler(
+                total_samples=len(dataset),
+                consumed_samples=consumed_samples,
+                micro_batch_size=self.cfg.micro_batch_size,
+                data_parallel_rank=mpu.get_data_parallel_rank(),
+                data_parallel_size=mpu.get_data_parallel_world_size(),
+            )
+        elif self.cfg.data.dataloader_type == 'cyclic':
+            batch_sampler = MegatronPretrainingRandomSampler(
+                total_samples=len(dataset),
+                consumed_samples=consumed_samples,
+                micro_batch_size=self.cfg.micro_batch_size,
+                data_parallel_rank=mpu.get_data_parallel_rank(),
+                data_parallel_size=mpu.get_data_parallel_world_size(),
+            )
+        else:
+            raise Exception('{} dataloader type is not supported.'.format(self.cfg.dataloader_type))
+
+        # Torch dataloader.
+        return torch.utils.data.DataLoader(
+            dataset, batch_sampler=batch_sampler, num_workers=self.cfg.data.num_workers, pin_memory=True,
+        )
+
+    def setup(self, stage=None):
+        self._trainer.checkpoint_connector = NLPCheckpointConnector(self._trainer)
+        self.build_train_valid_test_datasets()
+        self.setup_training_data(self.cfg.data)
+        self.setup_validation_data(self.cfg.data)
 
     def setup_training_data(self, cfg):
-        # TODO: Add megatron specific sampler
-        # see build_pretraining_data_loader from megatron-lm
-        # consumed_samples = self.trainer.global_step
         if hasattr(self, '_train_ds'):
-            self._train_dl = torch.utils.data.DataLoader(
-                self._train_ds, num_workers=cfg.num_workers, pin_memory=True, batch_size=self.cfg.micro_batch_size,
-            )
+            consumed_samples = (
+                self.trainer.global_step
+            )  # TODO: calculate this correctly: steps * data parallel world size * micro batch size *
+            self._train_dl = self.build_pretraining_data_loader(self._train_ds, consumed_samples)
 
     def setup_validation_data(self, cfg):
         if hasattr(self, '_validation_ds'):
-            self._validation_dl = torch.utils.data.DataLoader(
-                self._validation_ds,
-                num_workers=cfg.num_workers,
-                pin_memory=True,
-                shuffle=False,
-                batch_size=self.cfg.micro_batch_size,
-            )
+            consumed_samples = 0  # TODO: how to calculate this?
+            self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples)
 
     def list_available_models():
         pass
