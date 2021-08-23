@@ -66,3 +66,4 @@ model:
     - 0.98
     sched:
       name: WarmupAnnealing
+      warmup_ratio: 0.1
