@@ -12,5 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.common.losses.distillation_losses.cosine_embedding import CosineEmbeddingLossWrapper
-from nemo.collections.common.losses.distillation_losses.scaled_kld import ScaledKLDivLoss
+# TODO @blisc: Perhaps refactor instead of import guarding
+try:
+    from nemo.collections.common.losses.distillation_losses.cosine_embedding import CosineEmbeddingLossWrapper
+    from nemo.collections.common.losses.distillation_losses.scaled_kld import ScaledKLDivLoss
+except (ImportError, ModuleNotFoundError):
+    from nemo.utils.exceptions import CheckInstall
+
+    class CosineEmbeddingLossWrapper(CheckInstall):
+        pass
+
+    class ScaledKLDivLoss(CheckInstall):
+        pass

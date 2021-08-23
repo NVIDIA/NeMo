@@ -18,11 +18,20 @@ from enum import Enum
 from typing import Dict, Iterator, List, Optional, Union
 
 import torch
-from omegaconf import DictConfig
 
-_DISTILLATION_TYPE = None
-_DISTILLATION_LOSS_DICT = {}
-_DISTILLATION_CFG = DictConfig({})
+# TODO @blisc: Perhaps refactor instead of import guarding
+try:
+    from omegaconf import DictConfig
+
+    _DISTILLATION_TYPE = None
+    _DISTILLATION_LOSS_DICT = {}
+    _DISTILLATION_CFG = DictConfig({})
+
+except (ImportError, ModuleNotFoundError):
+
+    _DISTILLATION_TYPE = None
+    _DISTILLATION_LOSS_DICT = {}
+    _DISTILLATION_CFG = {}
 
 
 class DistillationType(Enum):
@@ -43,7 +52,7 @@ def as_distill_type(distill_type: Optional[DistillationType]):
     _DISTILLATION_TYPE = original_type
 
 
-def set_distill_cfg(cfg: DictConfig):
+def set_distill_cfg(cfg: 'DictConfig'):
     global _DISTILLATION_CFG
     _DISTILLATION_CFG = cfg
 
