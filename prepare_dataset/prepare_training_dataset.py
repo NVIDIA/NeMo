@@ -4,7 +4,6 @@ import os
 import requests
 import tqdm
 import hydra
-import submitit
 import zstandard as zstd
 
 
@@ -109,8 +108,6 @@ def main(cfg) -> None:
     # Download merges
     if data_cfg.get("download_vocab_url") is not None:
         download_merges(cfg=data_cfg)
-
-    
 
     # Download dataset files
     if data_cfg.get("download_the_pile") is not None:
