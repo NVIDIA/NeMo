@@ -25,17 +25,18 @@ from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset impo
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_datasets_weights_and_num_samples
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_train_valid_test_split_
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
+from nemo.collections.nlp.data.language_modeling.megatron.megatraon_dataset import MegatronDataset
 from nemo.collections.nlp.data.language_modeling.megatron import helpers
 
 
-def build_train_valid_test_datasets(data_prefix, data_impl, splits_string,
+def build_train_valid_test_datasets(cfg, trainer, data_prefix, data_impl, splits_string,
                                     train_valid_test_num_samples,
                                     seq_length, seed, skip_warmup):
     """Build train, valid, and test datasets."""
 
     # Single dataset.
     if len(data_prefix) == 1:
-        return _build_train_valid_test_datasets(data_prefix[0],
+        return _build_train_valid_test_datasets(cfg, trainer, data_prefix[0],
                                                 data_impl, splits_string,
                                                 train_valid_test_num_samples,
                                                 seq_length, seed, skip_warmup)
@@ -52,7 +53,7 @@ def build_train_valid_test_datasets(data_prefix, data_impl, splits_string,
     test_datasets = []
     for i in range(len(prefixes)):
         train_ds, valid_ds, test_ds = _build_train_valid_test_datasets(
-            prefixes[i], data_impl, splits_string,
+            cfg, trainer, prefixes[i], data_impl, splits_string,
             datasets_train_valid_test_num_samples[i],
             seq_length, seed, skip_warmup)
         if train_ds:
@@ -77,7 +78,7 @@ def build_train_valid_test_datasets(data_prefix, data_impl, splits_string,
             blending_test_dataset)
 
 
-def _build_train_valid_test_datasets(data_prefix, data_impl, splits_string,
+def _build_train_valid_test_datasets(cfg, trainer, data_prefix, data_impl, splits_string,
                                      train_valid_test_num_samples,
                                      seq_length, seed, skip_warmup):
     """Build train, valid, and test datasets."""
@@ -107,7 +108,7 @@ def _build_train_valid_test_datasets(data_prefix, data_impl, splits_string,
         if splits[index + 1] > splits[index]:
             documents = np.arange(start=splits[index], stop=splits[index + 1],
                                   step=1, dtype=np.int32)
-            dataset = GPTDataset(name, data_prefix,
+            dataset = GPTDataset(cfg, trainer, name, data_prefix,
                                   documents, indexed_dataset,
                                   train_valid_test_num_samples[index],
                                   seq_length, seed)
@@ -136,11 +137,12 @@ def get_indexed_dataset_(data_prefix, data_impl, skip_warmup):
     return indexed_dataset
 
 
-class GPTDataset(torch.utils.data.Dataset):
+class GPTDataset(MegatronDataset):
 
-    def __init__(self, name, data_prefix, documents, indexed_dataset,
+    def __init__(self, cfg, trainer, name, data_prefix, documents, indexed_dataset,
                  num_samples, seq_length, seed):
 
+        super().__init__(cfg, trainer=trainer)
         self.name = name
         self.indexed_dataset = indexed_dataset
 
