@@ -7,11 +7,14 @@ trainer:
   checkpoint_callback: False
   replace_sampler_ddp: False
   max_epochs: null
-  max_steps: 10000
-  val_check_interval: 1000
-  limit_val_batches: 10
+  max_steps: 5000000
+  log_every_n_steps: 100
+  val_check_interval: 2000
+  limit_val_batches: 50
+  gradient_clip_val: 1.0
 
 exp_manager:
+  # TODO: add always save nemo
   exp_dir: /raid/nemo_experiments/
   name: megatron_gpt
   create_wandb_logger: True
@@ -23,16 +26,19 @@ exp_manager:
     monitor: val_loss
     save_top_k: 10
     mode: min
+    always_save_nemo: True
 
 model:
   debug: False # logs debugging info
+  # add validation generation config, size of context, m
   # needed to initialize megatron
-  micro_batch_size: 64
+  micro_batch_size: 16
   tensor_model_parallel_size: 2
-  encoder_seq_length: 512
-  num_layers: 4
-  hidden_size: 128
-  num_attention_heads: 4
+  max_position_embeddings: 1024
+  encoder_seq_length: 1024
+  num_layers: 24
+  hidden_size: 1024
+  num_attention_heads: 16
   vocab_file: /raid/data/gpt/vocab.json
   merge_file: /raid/data/gpt/merges.txt
   seed: 1234
@@ -60,10 +66,11 @@ model:
   
   optim:
     name: adam
-    lr: 0.001
+    lr: 0.00015
+    weight_decay: 0.1
     betas: 
     - 0.9
-    - 0.98
+    - 0.999
     sched:
-      name: WarmupAnnealing
-      warmup_ratio: 0.1
+      name: CosineAnnealing
+      warmup_steps: 50000
