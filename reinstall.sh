@@ -30,7 +30,7 @@ else
 fi
 
 echo 'Installing additional nemo_text_processing conda dependency'
-bash nemo_text_processing/setup.sh > /dev/null 2>&1 && echo "nemo_text_processing installed!" || echo "nemo_text_processing could not be installed!"
+#bash nemo_text_processing/setup.sh > /dev/null 2>&1 && echo "nemo_text_processing installed!" || echo "nemo_text_processing could not be installed!"
 
 if [ -x "$(command -v conda)" ]; then
   # we need at least numba .53, and .54 breaks the PyTorch 21.06 container

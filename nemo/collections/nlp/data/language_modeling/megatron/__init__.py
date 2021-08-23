@@ -16,3 +16,5 @@ from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import Be
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import GPTDataset
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import IndexedDataset, MMapIndexedDataset
 from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
+from nemo.collections.nlp.data.language_modeling.megatron.orqa_wiki_dataset import OpenRetrievalEvidenceDataset
+from nemo.collections.nlp.data.language_modeling.megatron.realm_index import OpenRetreivalDataStore, FaissMIPSIndex
