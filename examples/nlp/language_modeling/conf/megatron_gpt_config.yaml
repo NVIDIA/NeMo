@@ -26,7 +26,7 @@ exp_manager:
     monitor: val_loss
     save_top_k: 10
     mode: min
-    always_save_nemo: True
+    always_save_nemo: False
 
 model:
   debug: False # logs debugging info
