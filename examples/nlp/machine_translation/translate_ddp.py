@@ -61,7 +61,7 @@ def translate(rank, world_size, args):
     #     model = MTEncDecModel.load_from_checkpoint(checkpoint_path=args.model, map_location=f"cuda:{rank}")
     logging.info("Attempting to initialize from .nemo file")
     model = MTEncDecModel.restore_from(restore_path=args.model, map_location=f"cuda:{rank}")
-    model.replace_beam_with_sampling(topk=args.topk)
+    # model.replace_beam_with_sampling(topk=args.topk)
     model.eval()
     if args.twoside:
         dataset = TarredTranslationDataset(

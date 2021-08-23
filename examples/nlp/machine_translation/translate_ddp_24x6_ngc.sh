@@ -21,7 +21,8 @@ ngc batch run --name "translation_de_en_wmt21" --preempt RUNONCE \
         --tgt_language en \
         --metadata_path /raid/wmt21_de_en_yttm_tokens_8000/metadata.tokens.8000.json \
         --twoside \
-        --result_dir /results" \
+        --result_dir /results \
+        --topk 1" \
     --result /results/ \
     --org nvidian \
     --team ac-aiapps \
