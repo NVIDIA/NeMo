@@ -76,6 +76,14 @@ pipeline {
       }
     }
 
+    stage('Basic Import Checks') {
+      steps {
+        sh 'python -c "import nemo.collections.asr as nemo_asr"'
+        sh 'python -c "import nemo.collections.nlp as nemo_nlp"'
+        sh 'python -c "import nemo.collections.tts as nemo_tts"'
+      }
+    }
+
     stage('L0: Unit Tests GPU') {
       steps {
         sh 'pytest -m "not pleasefixme and not torch_tts" --with_downloads --relax_numba_compat'
