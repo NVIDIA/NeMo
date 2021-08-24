@@ -19,7 +19,7 @@ import torch
 import torch.nn.functional as F
 from megatron import get_args, mpu
 
-from nemo.collections.nlp.models.language_modeling.megatron import LayerNorm
+from nemo.collections.nlp.models.language_modeling.megatron.fused_layer_norm import MixedFusedLayerNorm as LayerNorm
 from nemo.collections.nlp.models.language_modeling.megatron.enums import AttnMaskType, AttnType, LayerType
 from nemo.collections.nlp.models.language_modeling.megatron.fused_bias_gelu import bias_gelu_impl
 from nemo.collections.nlp.models.language_modeling.megatron.fused_softmax import FusedScaleMaskSoftmax

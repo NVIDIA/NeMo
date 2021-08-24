@@ -1,5 +1,5 @@
 trainer:
-  gpus: 4
+  gpus: 2
   num_nodes: 1
   accelerator: ddp
   precision: 16
@@ -15,11 +15,11 @@ trainer:
 
 exp_manager:
   # TODO: add always save nemo
-  exp_dir: /raid/nemo_experiments/
+  exp_dir: /raid/Data/Megatron-GPT
   name: megatron_gpt
   create_wandb_logger: True
   wandb_logger_kwargs:
-    project: nemo_megatron_gpt_pretraining
+    project: nemo_megatron_gpt_pretraining_sandeep
     name: dev
   create_checkpoint_callback: True
   checkpoint_callback_params:
@@ -39,8 +39,8 @@ model:
   num_layers: 24
   hidden_size: 1024
   num_attention_heads: 16
-  vocab_file: /raid/data/gpt/vocab.json
-  merge_file: /raid/data/gpt/merges.txt
+  vocab_file: /home/sandeepsub/code/Megatron-LM/tools/gpt2-vocab.json
+  merge_file: /home/sandeepsub/code/Megatron-LM/tools/gpt2-merges.txt
   seed: 1234
 
   # GPT
@@ -53,13 +53,13 @@ model:
       # path
     data_prefix: 
       - .5
-      - /raid/data/pile/my-gpt3_00_text_document
+      - /raid/Data/NMT/Datasources/Monolingual/Pile/the-eye.eu/public/AI/pile/train/pile_subset_text_document
       - .5
-      - /raid/data/pile/my-gpt3_01_text_document
+      - /raid/Data/NMT/Datasources/Monolingual/Pile/the-eye.eu/public/AI/pile/train/pile_subset_text_document
       #- /raid/data/gpt/simple_wiki_gpt_preproc_text_document
     data_impl: mmap
     splits_string: 949,50,1
-    seq_length: ${model.encoder_seq_length}
+    seq_length: 1024
     skip_warmup: False
     num_workers: 0
     dataloader_type: single # cyclic
