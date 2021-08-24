@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from nemo.utils import AppState
+from nemo.utils import AppState, logging
 from megatron.initialize import initialize_megatron
 from megatron.mpu.initialize import (
     set_pipeline_model_parallel_rank,
@@ -64,7 +64,9 @@ def initialize_megatron_for_nemo(
     set_pipeline_model_parallel_world_size(1)
 
     initialize_megatron(extra_args_provider=extra_args_provider, args_defaults=args_defaults, ignore_unknown_args=True)
-
+    logging.info(f"Initialized Megatron ...")
+    app_state = AppState()
+    app_state._megatron_init = True
 
 def get_extra_args_provider(
     micro_batch_size=1, tensor_model_parallel_size=1, encoder_seq_length=512,
