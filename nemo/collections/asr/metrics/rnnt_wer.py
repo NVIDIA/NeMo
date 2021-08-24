@@ -128,7 +128,9 @@ class AbstractRNNTDecoding(ABC):
                 decoder_model=decoder,
                 joint_model=joint,
                 blank_index=self.blank_id,
-                max_symbols_per_step=self.cfg.greedy.get('max_symbols', None),
+                max_symbols_per_step=(
+                    self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                ),
                 preserve_alignments=self.preserve_alignments,
             )
 
@@ -137,7 +139,9 @@ class AbstractRNNTDecoding(ABC):
                 decoder_model=decoder,
                 joint_model=joint,
                 blank_index=self.blank_id,
-                max_symbols_per_step=self.cfg.greedy.get('max_symbols', None),
+                max_symbols_per_step=(
+                    self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                ),
                 preserve_alignments=self.preserve_alignments,
             )
 

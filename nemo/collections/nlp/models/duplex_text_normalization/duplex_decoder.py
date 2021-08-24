@@ -20,7 +20,6 @@ from typing import Dict, List, Optional, Union
 import nltk
 import torch
 import wordninja
-from nemo_text_processing.text_normalization.normalize_with_audio import PYNINI_AVAILABLE, NormalizerWithAudio
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
@@ -31,6 +30,13 @@ from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 from nemo.utils.decorators.experimental import experimental
+
+try:
+    from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
+
+    PYNINI_AVAILABLE = True
+except (ModuleNotFoundError, ImportError):
+    PYNINI_AVAILABLE = False
 
 nltk.download('punkt')
 
