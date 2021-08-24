@@ -38,7 +38,7 @@ class CardinalFst(GraphFst):
     def __init__(self, tn_cardinal: GraphFst, deterministic: bool = True):
         super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
 
-        graph = tn_cardinal.cardinal_numbers
+        graph = tn_cardinal.cardinal_numbers_default
         self.graph = graph.invert().optimize()
 
         optional_sign = pynini.closure(
