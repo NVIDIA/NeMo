@@ -535,15 +535,20 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                                     alignments[batch_idx].append([])  # blank buffer for next timestep
                     else:
                         # Collect batch indices where blanks occurred now/past
-                        blank_indices = []
-                        if hidden is not None:
-                            blank_indices = (blank_mask == 1).nonzero(as_tuple=False)
+                        blank_indices = (blank_mask == 1).nonzero(as_tuple=False)
 
                         # Recover prior state for all samples which predicted blank now/past
                         if hidden is not None:
                             # LSTM has 2 states
                             for state_id in range(len(hidden)):
                                 hidden_prime[state_id][:, blank_indices, :] = hidden[state_id][:, blank_indices, :]
+
+                        elif len(blank_indices) > 0 and hidden is None:
+                            # Reset state if there were some blank and other non-blank predictions in batch
+                            # Original state is filled with zeros so we just multiply
+                            # LSTM has 2 states
+                            for state_id in range(len(hidden_prime)):
+                                hidden_prime[state_id][:, blank_indices, :] *= 0.0
 
                         # Recover prior predicted label for all samples which predicted blank now/past
                         k[blank_indices] = last_label[blank_indices, 0]
@@ -688,15 +693,20 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                                 alignments[batch_idx].append([])  # blank buffer for next timestep
                 else:
                     # Collect batch indices where blanks occurred now/past
-                    blank_indices = []
-                    if hidden is not None:
-                        blank_indices = (blank_mask == 1).nonzero(as_tuple=False)
+                    blank_indices = (blank_mask == 1).nonzero(as_tuple=False)
 
                     # Recover prior state for all samples which predicted blank now/past
                     if hidden is not None:
                         # LSTM has 2 states
                         for state_id in range(len(hidden)):
                             hidden_prime[state_id][:, blank_indices, :] = hidden[state_id][:, blank_indices, :]
+
+                    elif len(blank_indices) > 0 and hidden is None:
+                        # Reset state if there were some blank and other non-blank predictions in batch
+                        # Original state is filled with zeros so we just multiply
+                        # LSTM has 2 states
+                        for state_id in range(len(hidden_prime)):
+                            hidden_prime[state_id][:, blank_indices, :] *= 0.0
 
                     # Recover prior predicted label for all samples which predicted blank now/past
                     k[blank_indices] = last_label[blank_indices, 0]
@@ -889,17 +899,22 @@ class ONNXGreedyBatchedRNNTInfer:
 
                 else:
                     # Collect batch indices where blanks occurred now/past
-                    blank_indices = []
-                    if hidden is not None:
-                        blank_indices = blank_mask.astype(np.int32).nonzero()
-                        if type(blank_indices) in (list, tuple):
-                            blank_indices = blank_indices[0]
+                    blank_indices = blank_mask.astype(np.int32).nonzero()
+                    if type(blank_indices) in (list, tuple):
+                        blank_indices = blank_indices[0]
 
                     # Recover prior state for all samples which predicted blank now/past
                     if hidden is not None:
                         # LSTM has 2 states
                         for state_id in range(len(hidden)):
                             hidden_prime[state_id][:, blank_indices, :] = hidden[state_id][:, blank_indices, :]
+
+                    elif len(blank_indices) > 0 and hidden is None:
+                        # Reset state if there were some blank and other non-blank predictions in batch
+                        # Original state is filled with zeros so we just multiply
+                        # LSTM has 2 states
+                        for state_id in range(len(hidden_prime)):
+                            hidden_prime[state_id][:, blank_indices, :] *= 0.0
 
                     # Recover prior predicted label for all samples which predicted blank now/past
                     k[blank_indices] = last_label[blank_indices, 0]
