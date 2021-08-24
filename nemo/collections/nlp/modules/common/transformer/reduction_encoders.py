@@ -36,7 +36,7 @@ class MaxPoolingEncoder(torch.nn.Module):
         hidden_act: str = "relu",
         pre_ln: bool = False,
         pre_ln_final_layer_norm: bool = True,
-        hidden_steps: int = -1,
+        hidden_steps: int = 4,
         hidden_init_method: str = "default",
         hidden_blocks: int = 2,
     ):
@@ -45,6 +45,9 @@ class MaxPoolingEncoder(torch.nn.Module):
         self._hidden_steps = hidden_steps
         self._hidden_init_method = hidden_init_method
         self._hidden_blocks = hidden_blocks
+
+        if self._hidden_steps < 2:
+            raise ValueError("Expected hidden_steps >= 2 but received hidden_steps = {self._hidden_steps}")
 
         if self.hidden_init_method not in self.supported_init_methods:
             raise ValueError(
@@ -110,7 +113,7 @@ class MaxPoolingEncoder(torch.nn.Module):
             hidden_states += residual
 
             # max pool reduction if possible
-            if hidden_states.shape[1] >= 2:
+            if hidden_states.shape[1] >= self.hidden_steps:
                 # max pool hidden states
                 hidden_states = hidden_states.permute(0, 2, 1)
                 hidden_states = self.max_pool(hidden_states)
