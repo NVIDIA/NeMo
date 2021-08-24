@@ -7,11 +7,11 @@ trainer:
   checkpoint_callback: False
   replace_sampler_ddp: False
   max_epochs: null
-  max_steps: 5000000
+  max_steps: 500000
   log_every_n_steps: 100
   val_check_interval: 2000
   limit_val_batches: 50
-  gradient_clip_val: 1.0
+  #gradient_clip_val: 1.0
 
 exp_manager:
   # TODO: add always save nemo
@@ -32,8 +32,8 @@ model:
   debug: False # logs debugging info
   # add validation generation config, size of context, m
   # needed to initialize megatron
-  micro_batch_size: 16
-  tensor_model_parallel_size: 2
+  micro_batch_size: 8
+  tensor_model_parallel_size: 1
   max_position_embeddings: 1024
   encoder_seq_length: 1024
   num_layers: 24
@@ -66,11 +66,12 @@ model:
   
   optim:
     name: adam
-    lr: 0.00015
-    weight_decay: 0.1
+    lr: 0.0001
+    #weight_decay: 0.01
     betas: 
     - 0.9
-    - 0.999
+    - 0.98
     sched:
       name: CosineAnnealing
-      warmup_steps: 50000
+      #name: WarmupAnnealing
+      warmup_ratio: .01

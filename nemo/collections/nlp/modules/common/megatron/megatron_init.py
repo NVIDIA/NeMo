@@ -37,6 +37,7 @@ def initialize_megatron_for_nemo(
     tokenizer_type=None,
     vocab_file=None,
     merge_file=None,
+    use_cpu_initialization=True,
 ):
     os.environ["WORLD_SIZE"] = str(world_size)
     os.environ["RANK"] = str(global_rank)
@@ -50,6 +51,7 @@ def initialize_megatron_for_nemo(
     args_defaults['vocab_file'] = vocab_file
     args_defaults['merge_file'] = merge_file
     args_defaults['lazy_mpu_init'] = True
+    args_defaults['use_cpu_initialization'] = True # need to change this to use gpu init
 
     extra_args_provider = get_extra_args_provider(micro_batch_size, tensor_model_parallel_size, encoder_seq_length)
 
