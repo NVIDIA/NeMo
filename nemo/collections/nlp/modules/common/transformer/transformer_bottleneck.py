@@ -59,7 +59,7 @@ class NeMoTransformerBottleneckDecoderConfig(NeMoTransformerBottleneckConfig):
 
 class TransformerBottleneckEncoderNM(TransformerEncoderNM):
 
-    _SUPPORTED_ARCH = ["seq2seq", "bridge", "perceiver", "compressor", "max_pooling"]
+    _SUPPORTED_ARCH = ["seq2seq", "bridge", "perceiver", "compressor", "max_pool"]
 
     def __init__(
         self,
@@ -185,7 +185,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
                 hidden_blocks=kwargs["hidden_blocks"],
                 hidden_init_method=kwargs["hidden_init_method"],
             )
-        elif arch == "max_pooling":
+        elif arch == "max_pool":
             encoder = MaxPoolingEncoder(
                 num_layers=kwargs["num_layers"],
                 hidden_size=kwargs["hidden_size"],
