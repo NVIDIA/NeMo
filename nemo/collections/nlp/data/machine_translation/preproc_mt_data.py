@@ -25,7 +25,7 @@ from joblib import Parallel, delayed
 from omegaconf import ListConfig, OmegaConf
 from pytorch_lightning import Trainer
 
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import create_spt_model
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
 from nemo.collections.nlp.data.language_modeling.sentence_dataset import SentenceDataset
 from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataset
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
@@ -329,15 +329,19 @@ class MTDataPreproc:
     def get_monolingual_tokenizer(
         tokenizer_name=None, tokenizer_model=None, bpe_dropout=0.0,
     ):
-        if tokenizer_name != 'yttm':
-            raise NotImplementedError(f"Currently we only support yttm tokenizer.")
-
-        if bpe_dropout is None:
-            bpe_dropout = 0.0
-
-        tokenizer = get_tokenizer(
-            tokenizer_name=tokenizer_name, tokenizer_model=tokenizer_model, bpe_dropout=bpe_dropout,
-        )
+        if tokenizer_name == 'yttm':
+            if bpe_dropout is None:
+                bpe_dropout = 0.0
+            tokenizer = get_tokenizer(
+                tokenizer_name=tokenizer_name, tokenizer_model=tokenizer_model, bpe_dropout=bpe_dropout,
+            )
+        elif tokenizer_name == 'sentencepiece':
+            tokenizer = SentencePieceTokenizer(model_path=tokenizer_model)
+        else:
+            try:
+                tokenizer = get_tokenizer(tokenizer_name, special_tokens={"pad_token": "[PAD]"})
+            except Exception as e:
+                raise ValueError(f'{tokenizer_name} is not supported by either NeMo or HuggingFace. {e}')
 
         return tokenizer
 

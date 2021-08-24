@@ -25,42 +25,6 @@ __all__ = [
 ]
 
 
-def handle_quotes(text):
-    text_ = ""
-    quote = 0
-    i = 0
-    while i < len(text):
-        if text[i] == "\"":
-            if quote % 2:
-                text_ = text_[:-1] + "\""
-            else:
-                text_ += "\""
-                i += 1
-            quote += 1
-        else:
-            text_ += text[i]
-        i += 1
-    return text_
-
-
-def remove_spaces(text):
-    text = text.replace("( ", "(")
-    text = text.replace(" )", ")")
-    text = text.replace("[ ", "[")
-    text = text.replace(" ]", "]")
-    text = text.replace(" / ", "/")
-    text = text.replace("„ ", "„")
-    text = text.replace(" - ", "-")
-    text = text.replace(" ' ", "'")
-    text = re.sub(r'([0-9])( )([\.,])', '\\1\\3', text)
-    text = re.sub(r'([\.,])( )([0-9])', '\\1\\3', text)
-    text = re.sub(r'([0-9])(:)( )([0-9])', '\\1\\2\\4', text)
-    text = text.replace(" %", "%")
-    text = text.replace("$ ", "$")
-    text = re.sub(r'([^0-9])(,)([0-9])', '\\1\\2 \\3', text)
-    return text
-
-
 class AutoTokenizer(TokenizerSpec):
     '''
         Wrapper of HuggingFace AutoTokenizer https://huggingface.co/transformers/model_doc/auto.html#autotokenizer.
@@ -122,18 +86,23 @@ class AutoTokenizer(TokenizerSpec):
         if pad_token is not None:
             special_tokens_dict["pad_token"] = pad_token
 
+        # if the model does not have eos_token but has sep_token,
+        # set eos_token = sep_token, and vice versa
         if sep_token is not None:
             special_tokens_dict["sep_token"] = sep_token
         elif self.tokenizer.sep_token is None and self.tokenizer.eos_token:
             special_tokens_dict["sep_token"] = self.tokenizer.eos_token
-        if bos_token is not None:
-            special_tokens_dict["bos_token"] = bos_token
-        elif self.tokenizer.bos_token is None and self.tokenizer.cls_token:
-            special_tokens_dict["bos_token"] = self.tokenizer.cls_token
         if eos_token is not None:
             special_tokens_dict["eos_token"] = eos_token
         elif self.tokenizer.eos_token is None and self.tokenizer.sep_token:
             special_tokens_dict["eos_token"] = self.tokenizer.sep_token
+
+        # if the model does not have bos_token but has cls_token,
+        # set bos_token = cls_token, and vice versa
+        if bos_token is not None:
+            special_tokens_dict["bos_token"] = bos_token
+        elif self.tokenizer.bos_token is None and self.tokenizer.cls_token:
+            special_tokens_dict["bos_token"] = self.tokenizer.cls_token
         if cls_token is not None:
             special_tokens_dict["cls_token"] = cls_token
         elif self.tokenizer.cls_token is None and self.tokenizer.bos_token:
@@ -203,7 +172,7 @@ class AutoTokenizer(TokenizerSpec):
 
     def tokens_to_text(self, tokens):
         text = self.tokenizer.convert_tokens_to_string(tokens)
-        return remove_spaces(handle_quotes(text.strip()))
+        return text
 
     def token_to_id(self, token):
         return self.tokens_to_ids([token])[0]
