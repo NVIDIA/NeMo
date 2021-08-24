@@ -46,9 +46,6 @@ class MaxPoolingEncoder(torch.nn.Module):
         self._hidden_init_method = hidden_init_method
         self._hidden_blocks = hidden_blocks
 
-        if self._hidden_init_method == "default":
-            self._hidden_init_method = "params"
-
         if self.hidden_init_method not in self.supported_init_methods:
             raise ValueError(
                 "Unknown hidden_init_method = {hidden_init_method}, supported methods are {supported_init_methods}".format(
