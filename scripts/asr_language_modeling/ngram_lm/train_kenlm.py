@@ -78,6 +78,9 @@ def main():
     parser.add_argument(
         "--do_lowercase", action='store_true', help="Whether to apply lower case conversion on the training text"
     )
+    parser.add_argument(
+        "--no_unicode_encoding", action='store_true', help="Whether to encode the text as Unicode characters"
+    )
     args = parser.parse_args()
 
     """ TOKENIZER SETUP """
@@ -102,7 +105,7 @@ def main():
             path=encoded_train_file,
             chunk_size=CHUNK_SIZE,
             buffer_size=CHUNK_BUFFER_SIZE,
-            token_offset=TOKEN_OFFSET,
+            token_offset=-1 if args.no_unicode_encoding else TOKEN_OFFSET,
         )
         # --discount_fallback is needed for training KenLM for BPE-based models
         discount_arg = "--discount_fallback"
@@ -145,7 +148,7 @@ def main():
         raise RuntimeError("Training KenLM was not successful!")
 
     os.remove(encoded_train_file)
-    logging.info(f"Deleted the temporary encoded training file '{encoded_train_file}'.")
+    #logging.info(f"Deleted the temporary encoded training file '{encoded_train_file}'.")
     os.remove(arpa_file)
     logging.info(f"Deleted the arpa file '{arpa_file}'.")
 

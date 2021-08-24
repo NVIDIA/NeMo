@@ -133,6 +133,10 @@ class AbstractRNNTDecoding(ABC):
                 search_type='default',
                 score_norm=self.cfg.beam.get('score_norm', True),
                 preserve_alignments=self.preserve_alignments,
+                ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                ngram_lm_beta=self.cfg.beam.get('ngram_lm_beta', 0.0),
+                ngram_lm_bos=self.cfg.beam.get('ngram_lm_bos', True),
             )
 
         elif self.cfg.strategy == 'tsd':

@@ -38,7 +38,8 @@ from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
-
+import kenlm
+import math
 
 class BeamRNNTInfer(Typing):
     """
@@ -121,6 +122,13 @@ class BeamRNNTInfer(Typing):
 
             NOTE: `preserve_alignments` is an invalid argument for any `search_type`
             other than basic beam search.
+        ngram_lm_model: str
+            The path to the N-gram LM
+        ngram_lm_alpha: float
+            alpha weight of N-gram LM
+        ngram_lm_beta: float
+            beta penalty of N-gram LM
+
     """
 
     @property
@@ -151,6 +159,10 @@ class BeamRNNTInfer(Typing):
         nsc_max_timesteps_expansion: int = 1,
         nsc_prefix_alpha: int = 1,
         preserve_alignments: bool = False,
+        ngram_lm_model: str = None,
+        ngram_lm_alpha: float = 0.0,
+        ngram_lm_beta: float = 0.0,
+        ngram_lm_bos: bool = True,
     ):
         self.decoder = decoder_model
         self.joint = joint_model
@@ -160,6 +172,10 @@ class BeamRNNTInfer(Typing):
         self.search_type = search_type
         self.return_best_hypothesis = return_best_hypothesis
 
+        if ngram_lm_model:
+            self.ngram_lm = kenlm.Model(ngram_lm_model)
+        else:
+            self.ngram_lm = None
         if beam_size < 1:
             raise ValueError("Beam search size cannot be less than 1!")
 
@@ -200,6 +216,9 @@ class BeamRNNTInfer(Typing):
         self.nsc_max_timesteps_expansion = nsc_max_timesteps_expansion
         self.nsc_prefix_alpha = nsc_prefix_alpha
         self.preserve_alignments = preserve_alignments
+        self.ngram_lm_alpha = ngram_lm_alpha
+        self.ngram_lm_beta = ngram_lm_beta
+        self.ngram_lm_bos = ngram_lm_bos
 
     @typecheck()
     def __call__(
@@ -378,11 +397,21 @@ class BeamRNNTInfer(Typing):
         dec_state = self.decoder.initialize_state(h)
 
         # Initialize first hypothesis for the beam (blank)
-        kept_hyps = [Hypothesis(score=0.0, y_sequence=[self.blank], dec_state=dec_state, timestep=[-1], length=0)]
+        if self.ngram_lm is not None:
+            init_lm_state = kenlm.State()
+        else:
+            init_lm_state = None
+        kept_hyps = [Hypothesis(score=0.0, y_sequence=[self.blank], dec_state=dec_state, timestep=[-1], length=0, lm_state=init_lm_state)]
         cache = {}
 
         if self.preserve_alignments:
             kept_hyps[0].alignments = [[]]
+
+        if self.ngram_lm:
+            if self.ngram_lm_bos:
+                self.ngram_lm.BeginSentenceWrite(init_lm_state)
+            else:
+                self.ngram_lm.NullContextWrite(init_lm_state)
 
         for i in range(int(encoded_lengths)):
             hi = h[:, i : i + 1, :]  # [1, 1, D]
@@ -412,6 +441,7 @@ class BeamRNNTInfer(Typing):
                 # for each possible step
                 for logp, k in zip(*ytu):
                     # construct hypothesis for step
+
                     new_hyp = Hypothesis(
                         score=(max_hyp.score + float(logp)),
                         y_sequence=max_hyp.y_sequence[:],
@@ -429,6 +459,15 @@ class BeamRNNTInfer(Typing):
                         kept_hyps.append(new_hyp)
                     else:
                         # if non-blank token was predicted, update state and sequence and then search more hypothesis
+                        if self.ngram_lm:
+                            next_state = kenlm.State()
+                            lm_score = self.ngram_lm.BaseScore(new_hyp.lm_state, str(int(k)), next_state)
+                            # Convert the KenLM's scores from base 10 to natural base
+                            lm_score *= 1.0 / math.log10(math.e)
+                            lm_score += self.ngram_lm_beta
+                            new_hyp.lm_state = next_state
+                            new_hyp.score = new_hyp.score + self.ngram_lm_alpha * lm_score
+
                         new_hyp.dec_state = state
                         new_hyp.y_sequence.append(int(k))
                         new_hyp.timestep.append(i)
@@ -789,3 +828,8 @@ class BeamRNNTInferConfig:
     nsc_max_timesteps_expansion: int = 1
     nsc_prefix_alpha: int = 1
     preserve_alignments: bool = False
+    ngram_lm_model: Optional[str] = None
+    ngram_lm_alpha: Optional[float] = 0.0
+    ngram_lm_beta: Optional[float] = 0.0
+    ngram_lm_bos: Optional[bool] = True
+
