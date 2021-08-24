@@ -42,6 +42,7 @@ class MaxPoolingEncoder(torch.nn.Module):
     ):
         super().__init__()
 
+        # minimal steps to allow reduction
         self._hidden_steps = hidden_steps
         self._hidden_init_method = hidden_init_method
         self._hidden_blocks = hidden_blocks
