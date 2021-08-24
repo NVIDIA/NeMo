@@ -415,8 +415,13 @@ model:
       beam_size: 4
       score_norm: true
       return_best_hypothesis: False
-      tsd_max_sym_exp: 10  # for Time Synchronous Decoding
-      alsd_max_target_len: 5.0  # for Alignment-Length Synchronous Decoding
+      softmax_temperature: 1.0  # scale the logits by some temperature prior to softmax
+      tsd_max_sym_exp: 10  # for Time Synchronous Decoding, int > 0
+      alsd_max_target_len: 5.0  # for Alignment-Length Synchronous Decoding, float > 1.0
+      maes_num_steps: 2  # for modified Adaptive Expansion Search, int > 0
+      maes_prefix_alpha: 1  # for modified Adaptive Expansion Search, int > 0
+      maes_expansion_beta: 2  # for modified Adaptive Expansion Search, int >= 0
+      maes_expansion_gamma: 2.3  # for modified Adaptive Expansion Search, float >= 0
 
   # RNNT loss config
   loss:
@@ -456,7 +461,7 @@ trainer:
   log_every_n_steps: 100  # Interval of logging.
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   check_val_every_n_epoch: 1  # RNNT decoding is slower than CTC, so eval takes longer. Increase value to speed up training slightly.
-  precision: 16  # RNNT requires a lot of memory, so precision 16 is very important. Use very small batch size for precision 32.
+  precision: 32  # RNNT requires a lot of memory, so precision 16 is very important. Use very small batch size for precision 32.
   gradient_clip_val: 1.0  # Gradient norm clip value
   sync_batchnorm: true
   benchmark: false
