@@ -110,7 +110,7 @@ class MaxPoolingEncoder(torch.nn.Module):
             hidden_states += residual
 
             # max pool reduction if possible
-            if hidden_states = self.max_pool(hidden_states).shape[1] >= 2:
+            if hidden_states.shape[1] >= 2:
                 # max pool hidden states
                 hidden_states = hidden_states.permute(0, 2, 1)
                 hidden_states = self.max_pool(hidden_states)
