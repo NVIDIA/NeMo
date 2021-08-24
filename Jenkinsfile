@@ -854,8 +854,8 @@ pipeline {
         model.train_ds.file_path=/home/TestData/nlp/retail_text_classification/train.tsv \
         model.train_ds.batch_size=4 \
         model.language_model.pretrained_model_name=megatron-bert-uncased \
-        model.language_model.config_file=/home/TestData/nlp/mp_2_bert_toy/config.json \
-        model.language_model.lm_checkpoint=/home/TestData/nlp/mp_2_bert_toy/iter_2000000 \
+        model.language_model.config_file=/home/TestData/nlp/mp_2_tiny_toy_bert/config.json \
+        model.language_model.lm_checkpoint=/home/TestData/nlp/mp_2_tiny_toy_bert/ \
         model.nemo_path=null \
         ~model.infer_samples \
         exp_manager=null'
