@@ -18,7 +18,11 @@ import time
 import numpy as np
 import torch
 from megatron import get_args, get_tokenizer, mpu, print_rank_0
-from megatron.data.dataset_utils import create_masked_lm_predictions, pad_and_convert_to_numpy
+
+from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
+    create_masked_lm_predictions,
+    pad_and_convert_to_numpy,
+)
 
 
 def get_one_epoch_dataloader(dataset, micro_batch_size=None):
@@ -35,7 +39,7 @@ def get_one_epoch_dataloader(dataset, micro_batch_size=None):
     sampler = torch.utils.data.SequentialSampler(dataset)
     # importantly, drop_last must be False to get all the data.
     assert False, 'DistributedBatchSampler deprecated, change the implementation'
-    from megatron.data.samplers import DistributedBatchSampler
+    from nemo.collections.nlp.data.language_modeling.megatron.samplers import DistributedBatchSampler
 
     batch_sampler = DistributedBatchSampler(
         sampler, batch_size=global_batch_size, drop_last=False, rank=rank, world_size=world_size
@@ -167,7 +171,7 @@ def get_block_samples_mapping(
         start_time = time.time()
         print_rank_0(' > building samples index mapping for {} ...'.format(name))
 
-        from megatron.data import helpers
+        from nemo.collections.nlp.data.language_modeling.megatron import helpers
 
         mapping_array = helpers.build_blocks_mapping(
             block_dataset.doc_idx,
