@@ -689,8 +689,8 @@ class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
         pitch /= self.pitch_std
 
         speaker = None
-        if self.collection[item].speaker is not None:
-            speaker = torch.zeros_like(text_len).fill_(self.collection[item].speaker)
+        if self.manifest_processor.collection[item].speaker is not None:
+            speaker = torch.zeros_like(text_len).fill_(self.manifest_processor.collection[item].speaker)
 
         return audio, audio_len, text, text_len, attn_prior, torch.tensor(pitch), speaker
 
