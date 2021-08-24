@@ -14,13 +14,16 @@
 
 import enum
 
+
 class LayerType(enum.Enum):
     encoder = 1
     decoder = 2
- 
+
+
 class AttnType(enum.Enum):
     self_attn = 1
     cross_attn = 2
+
 
 class AttnMaskType(enum.Enum):
     padding = 1

@@ -5,9 +5,7 @@ import shutil
 
 import numpy as np
 import torch
-
-from megatron import get_args
-from megatron import mpu
+from megatron import get_args, mpu
 
 
 def detach(tensor):
@@ -19,6 +17,7 @@ class OpenRetreivalDataStore(object):
     Serializable data structure for holding data for blocks --
     embeddings and necessary metadata for Retriever
     """
+
     def __init__(self, embedding_path=None, load_from_path=True, rank=None):
         self.embed_data = dict()
         if embedding_path is None:
@@ -79,12 +78,11 @@ class OpenRetreivalDataStore(object):
             os.makedirs(self.temp_dir_name, exist_ok=True)
 
         # save the data for each shard
-        with open('{}/{}.pkl'.format(self.temp_dir_name, self.rank), 'wb') \
-            as writer:
+        with open('{}/{}.pkl'.format(self.temp_dir_name, self.rank), 'wb') as writer:
             pickle.dump(self.state(), writer)
 
     def merge_shards_and_save(self):
-        #Combine all the shards made using save_shard
+        # Combine all the shards made using save_shard
         shard_names = os.listdir(self.temp_dir_name)
         seen_own_shard = False
 
@@ -111,14 +109,17 @@ class OpenRetreivalDataStore(object):
             pickle.dump(self.state(), final_file)
         shutil.rmtree(self.temp_dir_name, ignore_errors=True)
 
-        print("Finished merging {} shards for a total of {} embeds".format(
-            len(shard_names), len(self.embed_data)), flush=True)
+        print(
+            "Finished merging {} shards for a total of {} embeds".format(len(shard_names), len(self.embed_data)),
+            flush=True,
+        )
 
 
 class FaissMIPSIndex(object):
     """
     Wrapper object for a BlockData which similarity search via FAISS under the hood
     """
+
     def __init__(self, embed_size, embed_data=None, use_gpu=False):
         self.embed_size = embed_size
         self.embed_data = embed_data
@@ -215,8 +216,7 @@ class FaissMIPSIndex(object):
 
         if reconstruct:
             # get the vectors themselves
-            top_k_block_embeds = self.mips_index.search_and_reconstruct(\
-                query_embeds, top_k)
+            top_k_block_embeds = self.mips_index.search_and_reconstruct(query_embeds, top_k)
             return top_k_block_embeds
         else:
             # get distances and indices of closest vectors

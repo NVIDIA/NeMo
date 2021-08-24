@@ -30,9 +30,7 @@ class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):
 
         scale_t = torch.tensor([scale])
 
-        softmax_results = scaled_upper_triang_masked_softmax_cuda.forward(
-            inputs, scale_t[0]
-        )
+        softmax_results = scaled_upper_triang_masked_softmax_cuda.forward(inputs, scale_t[0])
         ctx.save_for_backward(softmax_results, scale_t)
         return softmax_results
 
@@ -42,9 +40,7 @@ class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):
 
         softmax_results, scale_t = ctx.saved_tensors
 
-        input_grads = scaled_upper_triang_masked_softmax_cuda.backward(
-            output_grads, softmax_results, scale_t[0]
-        )
+        input_grads = scaled_upper_triang_masked_softmax_cuda.backward(output_grads, softmax_results, scale_t[0])
         return input_grads, None
 
 
@@ -62,9 +58,7 @@ class ScaledMaskedSoftmax(torch.autograd.Function):
 
         scale_t = torch.tensor([scale])
 
-        softmax_results = scaled_masked_softmax_cuda.forward(
-            inputs, mask, scale_t[0]
-        )
+        softmax_results = scaled_masked_softmax_cuda.forward(inputs, mask, scale_t[0])
         ctx.save_for_backward(softmax_results, scale_t)
         return softmax_results
 
@@ -74,9 +68,7 @@ class ScaledMaskedSoftmax(torch.autograd.Function):
 
         softmax_results, scale_t = ctx.saved_tensors
 
-        input_grads = scaled_masked_softmax_cuda.backward(
-            output_grads, softmax_results, scale_t[0]
-        )
+        input_grads = scaled_masked_softmax_cuda.backward(output_grads, softmax_results, scale_t[0])
         return input_grads, None, None
 
 
@@ -105,8 +97,9 @@ class FusedScaleMaskSoftmax(torch.nn.Module):
         super(FusedScaleMaskSoftmax, self).__init__()
         self.input_in_fp16 = input_in_fp16
         self.input_in_bf16 = input_in_bf16
-        assert not (self.input_in_fp16 and self.input_in_bf16),\
-            'both fp16 and bf16 flags cannot be active at the same time.'
+        assert not (
+            self.input_in_fp16 and self.input_in_bf16
+        ), 'both fp16 and bf16 flags cannot be active at the same time.'
         self.input_in_float16 = self.input_in_fp16 or self.input_in_bf16
         self.attn_mask_type = attn_mask_type
         self.scaled_masked_softmax_fusion = scaled_masked_softmax_fusion
@@ -114,10 +107,8 @@ class FusedScaleMaskSoftmax(torch.nn.Module):
         self.softmax_in_fp32 = softmax_in_fp32
         self.scale = scale
 
-        assert (
-            self.scale is None or softmax_in_fp32
-        ), "softmax should be in fp32 when scaled"
- 
+        assert self.scale is None or softmax_in_fp32, "softmax should be in fp32 when scaled"
+
     def forward(self, input, mask):
         # [b, np, sq, sk]
         assert input.dim() == 4
@@ -128,17 +119,21 @@ class FusedScaleMaskSoftmax(torch.nn.Module):
 
         # constraints on various tensor dimensions to enable warp based
         # optimization and upper triangular optimization (for causal mask)
-        custom_kernel_constraint = key_seq_len > 16 and key_seq_len <= 2048 and \
-            query_seq_len % 4 == 0 and attn_batch_size % 4 == 0
+        custom_kernel_constraint = (
+            key_seq_len > 16 and key_seq_len <= 2048 and query_seq_len % 4 == 0 and attn_batch_size % 4 == 0
+        )
 
         # invoke custom kernel
-        if self.input_in_float16 and mask is not None and \
-            custom_kernel_constraint and self.scaled_masked_softmax_fusion:
+        if (
+            self.input_in_float16
+            and mask is not None
+            and custom_kernel_constraint
+            and self.scaled_masked_softmax_fusion
+        ):
             scale = self.scale if self.scale is not None else 1.0
 
             if self.attn_mask_type == AttnMaskType.causal:
-                assert query_seq_len == key_seq_len, \
-                    "causal mask is only for self attention"
+                assert query_seq_len == key_seq_len, "causal mask is only for self attention"
                 input = input.view(-1, query_seq_len, key_seq_len)
                 probs = ScaledUpperTriangMaskedSoftmax.apply(input, scale)
                 probs = probs.view(*data_size)
