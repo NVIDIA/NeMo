@@ -18,19 +18,28 @@ import collections
 
 import numpy as np
 import torch
-
 from megatron import get_tokenizer
+
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
     create_masked_lm_predictions,
-    get_samples_mapping
+    get_samples_mapping,
 )
 
-class T5Dataset(torch.utils.data.Dataset):
 
-    def __init__(self, name, indexed_dataset, data_prefix,
-                 num_epochs, max_num_samples, masked_lm_prob,
-                 max_seq_length, max_seq_length_dec,
-                 short_seq_prob, seed):
+class T5Dataset(torch.utils.data.Dataset):
+    def __init__(
+        self,
+        name,
+        indexed_dataset,
+        data_prefix,
+        num_epochs,
+        max_num_samples,
+        masked_lm_prob,
+        max_seq_length,
+        max_seq_length_dec,
+        short_seq_prob,
+        seed,
+    ):
 
         # Params to store.
         self.name = name
@@ -43,15 +52,17 @@ class T5Dataset(torch.utils.data.Dataset):
         self.indexed_dataset = indexed_dataset
 
         # Build the samples mapping.
-        self.samples_mapping = get_samples_mapping(self.indexed_dataset,
-                                                   data_prefix,
-                                                   num_epochs,
-                                                   max_num_samples,
-                                                   self.max_seq_length - 2, # account for added tokens
-                                                   short_seq_prob,
-                                                   self.seed,
-                                                   self.name,
-                                                   False)
+        self.samples_mapping = get_samples_mapping(
+            self.indexed_dataset,
+            data_prefix,
+            num_epochs,
+            max_num_samples,
+            self.max_seq_length - 2,  # account for added tokens
+            short_seq_prob,
+            self.seed,
+            self.name,
+            False,
+        )
 
         # Vocab stuff.
         tokenizer = get_tokenizer()
@@ -78,24 +89,42 @@ class T5Dataset(torch.utils.data.Dataset):
         # Note that this rng state should be numpy and not python since
         # python randint is inclusive whereas the numpy one is exclusive.
         np_rng = np.random.RandomState(seed=(self.seed + idx))
-        return build_training_sample(sample, seq_length,
-                                     self.max_seq_length,  # needed for padding
-                                     self.max_seq_length_dec,
-                                     self.vocab_id_list,
-                                     self.vocab_id_to_token_dict,
-                                     self.cls_id, self.sep_id,
-                                     self.mask_id, self.pad_id,
-                                     self.masked_lm_prob, np_rng,
-                                     self.bos_id, self.eos_id,
-                                     self.sentinel_tokens)
+        return build_training_sample(
+            sample,
+            seq_length,
+            self.max_seq_length,  # needed for padding
+            self.max_seq_length_dec,
+            self.vocab_id_list,
+            self.vocab_id_to_token_dict,
+            self.cls_id,
+            self.sep_id,
+            self.mask_id,
+            self.pad_id,
+            self.masked_lm_prob,
+            np_rng,
+            self.bos_id,
+            self.eos_id,
+            self.sentinel_tokens,
+        )
 
 
-def build_training_sample(sample, target_seq_length,
-                          max_seq_length, max_seq_length_dec,
-                          vocab_id_list, vocab_id_to_token_dict,
-                          cls_id, sep_id, mask_id, pad_id,
-                          masked_lm_prob, np_rng, bos_id=None,
-                          eos_id=None, sentinel_tokens=None):
+def build_training_sample(
+    sample,
+    target_seq_length,
+    max_seq_length,
+    max_seq_length_dec,
+    vocab_id_list,
+    vocab_id_to_token_dict,
+    cls_id,
+    sep_id,
+    mask_id,
+    pad_id,
+    masked_lm_prob,
+    np_rng,
+    bos_id=None,
+    eos_id=None,
+    sentinel_tokens=None,
+):
     """Build training sample.
 
     Arguments:
@@ -131,17 +160,33 @@ def build_training_sample(sample, target_seq_length,
     # Masking.
     max_predictions_per_seq = masked_lm_prob * max_num_tokens
     (tokens, masked_positions, masked_labels, _, masked_spans) = create_masked_lm_predictions(
-        tokens, vocab_id_list, vocab_id_to_token_dict, masked_lm_prob,
-        cls_id, sep_id, mask_id, max_predictions_per_seq, np_rng,
-        max_ngrams=10, geometric_dist=True, masking_style="t5")
+        tokens,
+        vocab_id_list,
+        vocab_id_to_token_dict,
+        masked_lm_prob,
+        cls_id,
+        sep_id,
+        mask_id,
+        max_predictions_per_seq,
+        np_rng,
+        max_ngrams=10,
+        geometric_dist=True,
+        masking_style="t5",
+    )
 
     # Padding.
-    tokens_enc, tokens_dec_in, labels, enc_mask, \
-    dec_mask, enc_dec_mask, loss_mask \
-        = pad_and_convert_to_numpy(tokens, masked_positions,
-                                   masked_labels, pad_id, max_seq_length,
-                                   max_seq_length_dec, masked_spans,
-                                   bos_id, eos_id, sentinel_tokens)
+    tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, enc_dec_mask, loss_mask = pad_and_convert_to_numpy(
+        tokens,
+        masked_positions,
+        masked_labels,
+        pad_id,
+        max_seq_length,
+        max_seq_length_dec,
+        masked_spans,
+        bos_id,
+        eos_id,
+        sentinel_tokens,
+    )
 
     train_sample = {
         'text_enc': tokens_enc,
@@ -156,11 +201,18 @@ def build_training_sample(sample, target_seq_length,
     return train_sample
 
 
-def pad_and_convert_to_numpy(tokens, masked_positions,
-                             masked_labels, pad_id,
-                             max_seq_length, max_seq_length_dec,
-                             masked_spans=None, bos_id=None,
-                             eos_id=None, sentinel_tokens=None):
+def pad_and_convert_to_numpy(
+    tokens,
+    masked_positions,
+    masked_labels,
+    pad_id,
+    max_seq_length,
+    max_seq_length_dec,
+    masked_spans=None,
+    bos_id=None,
+    eos_id=None,
+    sentinel_tokens=None,
+):
     """Pad sequences and convert them to numpy."""
 
     sentinel_tokens = collections.deque(sentinel_tokens)
@@ -177,7 +229,7 @@ def pad_and_convert_to_numpy(tokens, masked_positions,
         t5_decoder_out.extend(span.label)
 
         end_index = span.index[0]
-        t5_input.extend(tokens[start_index: end_index])
+        t5_input.extend(tokens[start_index:end_index])
         t5_input.append(flag)
 
         # the next start index is the token after the last span token
@@ -225,8 +277,7 @@ def pad_and_convert_to_numpy(tokens, masked_positions,
     loss_mask = ([1] * num_tokens_dec) + ([0] * padding_length_dec)
     loss_mask = np.array(loss_mask, dtype=np.int64)
 
-    return tokens_enc, tokens_dec_in, labels, enc_mask, \
-           dec_mask, enc_dec_mask, loss_mask
+    return tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, enc_dec_mask, loss_mask
 
 
 def make_attention_mask(source_block, target_block):
@@ -256,7 +307,7 @@ def make_attention_mask_3d(source_block, target_block):
 def make_history_mask(block):
     length = block.shape[0]
     arange = np.arange(length)
-    history_mask = (arange[None, ] <= arange[:, None])
+    history_mask = arange[None,] <= arange[:, None]
     history_mask = history_mask.astype(np.int64)
     return history_mask
 
@@ -264,6 +315,8 @@ def make_history_mask(block):
 def make_history_mask_3d(block):
     batch, length = block.shape
     arange = torch.arange(length, device=block.device)
-    history_mask = (arange[None, ] <= arange[:, None])[None, ]
+    history_mask = (arange[None,] <= arange[:, None])[
+        None,
+    ]
     history_mask = history_mask.expand(batch, length, length)
     return history_mask

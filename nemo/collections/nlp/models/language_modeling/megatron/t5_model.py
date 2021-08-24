@@ -15,23 +15,19 @@
 """T5 model."""
 
 import torch
+from megatron import get_args, mpu
 
-from megatron import (
-    get_args,
-    mpu
-)
 from nemo.collections.nlp.models.language_modeling.megatron.enums import AttnMaskType
-from nemo.collections.nlp.models.language_modeling.megatron.language_model import parallel_lm_logits, get_language_model
-from nemo.collections.nlp.models.language_modeling.megatron.transformer import LayerNorm
-from nemo.collections.nlp.models.language_modeling.megatron.utils import (
-    init_method_normal,
-    scaled_init_method_normal
+from nemo.collections.nlp.models.language_modeling.megatron.language_model import (
+    get_language_model,
+    parallel_lm_logits,
 )
 from nemo.collections.nlp.models.language_modeling.megatron.module import MegatronModule
+from nemo.collections.nlp.models.language_modeling.megatron.transformer import LayerNorm
+from nemo.collections.nlp.models.language_modeling.megatron.utils import init_method_normal, scaled_init_method_normal
 
 
 def t5_extended_attention_mask(attention_mask_list):
-
     def attn_mask_postprocess(attn_mask):
         # [b, 1, s, s]
         extended_attention_mask = attn_mask.unsqueeze(1)
@@ -43,8 +39,7 @@ def t5_extended_attention_mask(attention_mask_list):
 def t5_position_ids(token_ids):
     # Create position ids
     seq_length = token_ids.size(1)
-    position_ids = torch.arange(seq_length, dtype=torch.long,
-                                device=token_ids.device)
+    position_ids = torch.arange(seq_length, dtype=torch.long, device=token_ids.device)
     position_ids = position_ids.unsqueeze(0).expand_as(token_ids)
 
     return position_ids
@@ -73,10 +68,7 @@ class T5LMHead(MegatronModule):
         self.parallel_output = parallel_output
 
     def forward(self, hidden_states, word_embeddings_weight):
-        output = parallel_lm_logits(hidden_states,
-                                    word_embeddings_weight,
-                                    self.parallel_output,
-                                    bias=self.bias)
+        output = parallel_lm_logits(hidden_states, word_embeddings_weight, self.parallel_output, bias=self.bias)
         return output
 
 
@@ -90,8 +82,7 @@ class T5Model(MegatronModule):
         self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
         self.parallel_output = parallel_output
         init_method = init_method_normal(args.init_method_std)
-        scaled_init_method = scaled_init_method_normal(args.init_method_std,
-                                                       args.num_layers)
+        scaled_init_method = scaled_init_method_normal(args.init_method_std, args.num_layers)
 
         self.language_model, self._language_model_key = get_language_model(
             num_tokentypes=num_tokentypes,
@@ -99,43 +90,52 @@ class T5Model(MegatronModule):
             add_decoder=True,
             encoder_attn_mask_type=AttnMaskType.padding,
             init_method=init_method,
-            scaled_init_method=scaled_init_method)
+            scaled_init_method=scaled_init_method,
+        )
 
-        self.lm_head = T5LMHead(
-            self.language_model.embedding.word_embeddings.weight.size(0),
-            parallel_output)
+        self.lm_head = T5LMHead(self.language_model.embedding.word_embeddings.weight.size(0), parallel_output)
         self._lm_head_key = 'lm_head'
 
     def set_input_tensor(self, input_tensor):
         """See megatron.model.transformer.set_input_tensor()"""
         self.language_model.set_input_tensor(input_tensor)
 
-    def forward(self, encoder_input_ids, decoder_input_ids, encoder_attn_mask,
-                decoder_attn_mask, encoder_decoder_attn_mask,
-                tokentype_ids=None, lm_labels=None, enc_hidden_states=None):
+    def forward(
+        self,
+        encoder_input_ids,
+        decoder_input_ids,
+        encoder_attn_mask,
+        decoder_attn_mask,
+        encoder_decoder_attn_mask,
+        tokentype_ids=None,
+        lm_labels=None,
+        enc_hidden_states=None,
+    ):
 
         # Converting the attention masks to proper parameter settings
         encoder_attn_mask, decoder_attn_mask, encoder_decoder_attn_mask = t5_extended_attention_mask(
-            [encoder_attn_mask, decoder_attn_mask, encoder_decoder_attn_mask])
+            [encoder_attn_mask, decoder_attn_mask, encoder_decoder_attn_mask]
+        )
 
         encoder_position_ids = t5_position_ids(encoder_input_ids)
         decoder_position_ids = t5_position_ids(decoder_input_ids)
 
-        lm_output = self.language_model(encoder_input_ids,
-                                        encoder_position_ids,
-                                        encoder_attn_mask,
-                                        decoder_input_ids,
-                                        decoder_position_ids,
-                                        decoder_attn_mask,
-                                        encoder_decoder_attn_mask,
-                                        tokentype_ids=tokentype_ids,
-                                        enc_hidden_states=enc_hidden_states)
+        lm_output = self.language_model(
+            encoder_input_ids,
+            encoder_position_ids,
+            encoder_attn_mask,
+            decoder_input_ids,
+            decoder_position_ids,
+            decoder_attn_mask,
+            encoder_decoder_attn_mask,
+            tokentype_ids=tokentype_ids,
+            enc_hidden_states=enc_hidden_states,
+        )
 
         decoder_output, encoder_output = lm_output
 
         # Output.
-        lm_logits = self.lm_head(decoder_output,
-                                 self.language_model.embedding.word_embeddings.weight)
+        lm_logits = self.lm_head(decoder_output, self.language_model.embedding.word_embeddings.weight)
 
         if lm_labels is None:
             return lm_logits, encoder_output
@@ -144,28 +144,22 @@ class T5Model(MegatronModule):
                 assert lm_logits.dtype == torch.half
                 lm_loss = mpu.vocab_parallel_cross_entropy(lm_logits, lm_labels)
             else:
-                lm_loss = mpu.vocab_parallel_cross_entropy(lm_logits.float(),
-                                                           lm_labels)
+                lm_loss = mpu.vocab_parallel_cross_entropy(lm_logits.float(), lm_labels)
             return lm_loss, encoder_output
 
-    def state_dict_for_save_checkpoint(self, destination=None, prefix='',
-                                       keep_vars=False):
+    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
         """For easy load when model is combined with other heads,
         add an extra key."""
 
         state_dict_ = {}
-        state_dict_[self._language_model_key] \
-            = self.language_model.state_dict_for_save_checkpoint(
-            destination, prefix, keep_vars)
-        state_dict_[self._lm_head_key] \
-            = self.lm_head.state_dict_for_save_checkpoint(
-            destination, prefix, keep_vars)
+        state_dict_[self._language_model_key] = self.language_model.state_dict_for_save_checkpoint(
+            destination, prefix, keep_vars
+        )
+        state_dict_[self._lm_head_key] = self.lm_head.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
         return state_dict_
 
     def load_state_dict(self, state_dict, strict=True):
         """Customized load."""
 
-        self.language_model.load_state_dict(
-            state_dict[self._language_model_key], strict=strict)
-        self.lm_head.load_state_dict(state_dict[self._lm_head_key],
-                                     strict=strict)
+        self.language_model.load_state_dict(state_dict[self._language_model_key], strict=strict)
+        self.lm_head.load_state_dict(state_dict[self._lm_head_key], strict=strict)

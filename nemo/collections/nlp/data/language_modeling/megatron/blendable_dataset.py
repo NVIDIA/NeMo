@@ -18,14 +18,12 @@ import time
 
 import numpy as np
 import torch
+from megatron import mpu, print_rank_0
 
-from megatron import print_rank_0
-from megatron import mpu
 from nemo.collections.nlp.data.language_modeling.megatron import helpers
 
+
 class BlendableDataset(torch.utils.data.Dataset):
-
-
     def __init__(self, datasets, weights):
 
         self.datasets = datasets
@@ -48,17 +46,20 @@ class BlendableDataset(torch.utils.data.Dataset):
         self.dataset_index = np.zeros(self.size, dtype=np.uint8)
         self.dataset_sample_index = np.zeros(self.size, dtype=np.int64)
 
-        helpers.build_blending_indices(self.dataset_index,
-                                       self.dataset_sample_index,
-                                       weights, num_datasets, self.size,
-                                       torch.distributed.get_rank() == 0)
-        print_rank_0('> elapsed time for building blendable dataset indices: '
-                     '{:.2f} (sec)'.format(time.time() - start_time))
-
+        helpers.build_blending_indices(
+            self.dataset_index,
+            self.dataset_sample_index,
+            weights,
+            num_datasets,
+            self.size,
+            torch.distributed.get_rank() == 0,
+        )
+        print_rank_0(
+            '> elapsed time for building blendable dataset indices: ' '{:.2f} (sec)'.format(time.time() - start_time)
+        )
 
     def __len__(self):
         return self.size
-
 
     def __getitem__(self, idx):
         dataset_idx = self.dataset_index[idx]

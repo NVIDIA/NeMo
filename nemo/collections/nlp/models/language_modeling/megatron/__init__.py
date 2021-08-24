@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.models.language_modeling.megatron.fused_layer_norm import MixedFusedLayerNorm as LayerNorm
-from nemo.collections.nlp.models.language_modeling.megatron.distributed import DistributedDataParallel
 from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertModel
+from nemo.collections.nlp.models.language_modeling.megatron.distributed import DistributedDataParallel
+from nemo.collections.nlp.models.language_modeling.megatron.fused_layer_norm import MixedFusedLayerNorm as LayerNorm
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
-from nemo.collections.nlp.models.language_modeling.megatron.t5_model import T5Model
 from nemo.collections.nlp.models.language_modeling.megatron.language_model import get_language_model
 from nemo.collections.nlp.models.language_modeling.megatron.module import Float16Module
+from nemo.collections.nlp.models.language_modeling.megatron.t5_model import T5Model
