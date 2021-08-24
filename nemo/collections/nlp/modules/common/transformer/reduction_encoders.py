@@ -115,5 +115,6 @@ class MaxPoolingEncoder(torch.nn.Module):
             import pudb; pudb.set_trace()
             # pool reduction
             hidden_states = self.max_pool(hidden_states)
+            hidden_mask = self.max_pool(hidden_mask)
 
         return hidden_states, hidden_mask
