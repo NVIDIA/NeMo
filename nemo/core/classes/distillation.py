@@ -12,17 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from typing import Dict, List, Union
 
 import torch
 from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
+from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.core import typecheck
 from nemo.core.classes.mixins import DistillationMixin, DistillationType, distill_mixins
 from nemo.core.classes.mixins.distill_mixins import ScaledDistillationLossMixin
 from nemo.core.classes.modelPT import ModelPT
 from nemo.utils import logging, model_utils
+from nemo.utils.get_rank import is_global_rank_zero
 
 
 class DistillationModelPT(ModelPT):
@@ -468,9 +471,15 @@ class DistillationModelPT(ModelPT):
 
         return loss_value, additional_losses
 
+    @rank_zero_only
     def save_to(self, save_path: str):
         """ Delegate save_to to student model """
-        self.student.save_to(save_path=save_path)
+        # Add NeMo rank check as well
+        if not is_global_rank_zero():
+            return
+        else:
+            save_path = os.path.abspath(os.path.expanduser(save_path))
+            self.student._save_restore_connector.save_to(self.student, save_path)
 
     @classmethod
     def restore_from(
@@ -509,10 +518,10 @@ class DistillationModelPT(ModelPT):
             output = self.student.setup_test_data(test_data_config)
         return output
 
-    def teardown(self, stage: str):
-        with distill_mixins.as_distill_type(DistillationType.TEACHER):
-            self.teacher.teardown(stage)
-
-        with distill_mixins.as_distill_type(DistillationType.STUDENT):
-            output = self.student.teardown(stage)
-        return output
+    # def teardown(self, stage: str):
+    #     with distill_mixins.as_distill_type(DistillationType.TEACHER):
+    #         self.teacher.teardown(stage)
+    #
+    #     with distill_mixins.as_distill_type(DistillationType.STUDENT):
+    #         output = self.student.teardown(stage)
+    #     return output
