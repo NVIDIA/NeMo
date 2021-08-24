@@ -171,7 +171,9 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         """
         return {
             "input_signal": NeuralType(('B', 'T'), AudioSignal(freq=self._sample_rate)),
-            "length": NeuralType(tuple('B'), LengthsType()),
+            "length": NeuralType(
+                tuple('B'), LengthsType()
+            ),  # Please note that length should be in samples not seconds.
         }
 
     @property

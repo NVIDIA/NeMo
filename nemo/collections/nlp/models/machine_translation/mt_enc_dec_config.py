@@ -25,6 +25,10 @@ from nemo.collections.nlp.modules.common.transformer.transformer import (
     NeMoTransformerConfig,
     NeMoTransformerEncoderConfig,
 )
+from nemo.collections.nlp.modules.common.transformer.transformer_bottleneck import (
+    NeMoTransformerBottleneckDecoderConfig,
+    NeMoTransformerBottleneckEncoderConfig,
+)
 from nemo.core.config.modelPT import OptimConfig, SchedConfig
 
 
@@ -131,4 +135,43 @@ class AAYNBaseConfig(MTEncDecModelConfig):
         ffn_dropout=0.1,
         attn_score_dropout=0.1,
         attn_layer_dropout=0.1,
+    )
+
+
+@dataclass
+class MTBottleneckModelConfig(AAYNBaseConfig):
+    model_type: str = 'nll'
+    min_logv: float = -6
+    latent_size: int = -1  # -1 will take value of encoder hidden
+    non_recon_warmup_batches: int = 200000
+    recon_per_token: bool = True
+
+    encoder: NeMoTransformerBottleneckEncoderConfig = NeMoTransformerBottleneckEncoderConfig(
+        library='nemo',
+        model_name=None,
+        pretrained=False,
+        hidden_size=512,
+        inner_size=2048,
+        num_layers=6,
+        num_attention_heads=8,
+        ffn_dropout=0.1,
+        attn_score_dropout=0.1,
+        attn_layer_dropout=0.1,
+        arch='seq2seq',
+        hidden_steps=32,
+        hidden_blocks=1,
+        hidden_init_method='params',
+    )
+
+    decoder: NeMoTransformerBottleneckDecoderConfig = NeMoTransformerBottleneckDecoderConfig(
+        library='nemo',
+        model_name=None,
+        pretrained=False,
+        inner_size=2048,
+        num_layers=6,
+        num_attention_heads=8,
+        ffn_dropout=0.1,
+        attn_score_dropout=0.1,
+        attn_layer_dropout=0.1,
+        arch='seq2seq',
     )

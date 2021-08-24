@@ -4,7 +4,7 @@ Exporting NeMo Models
 Exporting Models
 ----------------
 
-Most of the NeMo models can be exported to ONNX or TorchScript to be deployed for inference in optimized execution environments, such as Jarvis or Triton Inference Server.  
+Most of the NeMo models can be exported to ONNX or TorchScript to be deployed for inference in optimized execution environments, such as Riva or Triton Inference Server.  
 Export interface is provided by the ``Exportable`` mix-in class. If a model extends ``Exportable``, it can be exported by:
 
 .. code-block:: Python

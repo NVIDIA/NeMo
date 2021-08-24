@@ -13,12 +13,12 @@
 # limitations under the License.
 
 """
-Given NMT model's .nemo file, this script can be used to translate text.
+Given NMT model's .nemo file(s), this script can be used to translate text.
 USAGE Example:
 1. Obtain text file in src language. You can use sacrebleu to obtain standard test sets like so:
     sacrebleu -t wmt14 -l de-en --echo src > wmt14-de-en.src
 2. Translate:
-    python nmt_transformer_infer.py --model=[Path to .nemo file] --srctext=wmt14-de-en.src --tgtout=wmt14-de-en.pre
+    python nmt_transformer_infer.py --model=[Path to .nemo file(s)] --srctext=wmt14-de-en.src --tgtout=wmt14-de-en.pre
 """
 
 
@@ -30,67 +30,128 @@ import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.modules.common.transformer import (
     BeamSearchSequenceGenerator,
     BeamSearchSequenceGeneratorWithLanguageModel,
+    EnsembleBeamSearchSequenceGenerator,
 )
 from nemo.utils import logging
 
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--model", type=str, required=True, help="")
-    parser.add_argument("--srctext", type=str, required=True, help="")
-    parser.add_argument("--tgtout", type=str, required=True, help="")
-    parser.add_argument("--batch_size", type=int, default=256, help="")
-    parser.add_argument("--beam_size", type=int, default=4, help="")
-    parser.add_argument("--len_pen", type=float, default=0.6, help="")
-    parser.add_argument("--max_delta_length", type=int, default=5, help="")
-    parser.add_argument("--target_lang", type=str, default=None, help="")
-    parser.add_argument("--source_lang", type=str, default=None, help="")
+    parser.add_argument(
+        "--model",
+        type=str,
+        required=True,
+        help="Path to .nemo model file(s). If ensembling, provide comma separated paths to multiple models.",
+    )
+    parser.add_argument("--srctext", type=str, required=True, help="Path to the file to translate.")
+    parser.add_argument(
+        "--tgtout", type=str, required=True, help="Path to the file where translations are to be written."
+    )
+    parser.add_argument(
+        "--batch_size", type=int, default=256, help="Number of sentences to batch together while translatiing."
+    )
+    parser.add_argument("--beam_size", type=int, default=4, help="Beam size.")
+    parser.add_argument(
+        "--len_pen", type=float, default=0.6, help="Length Penalty. Ref: https://arxiv.org/abs/1609.08144"
+    )
+    parser.add_argument(
+        "--max_delta_length",
+        type=int,
+        default=5,
+        help="Stop generating if target sequence length exceeds source length by this number.",
+    )
+    parser.add_argument(
+        "--target_lang", type=str, default=None, help="Target language identifier ex: en,de,fr,es etc."
+    )
+    parser.add_argument(
+        "--source_lang", type=str, default=None, help="Source language identifier ex: en,de,fr,es etc."
+    )
+    parser.add_argument(
+        "--write_scores",
+        action="store_true",
+        help="Whether to write a separate file with scores not including length penalties corresponding to each beam hypothesis (.score suffix)",
+    )
     # shallow fusion specific parameters
-    parser.add_argument("--lm_model", type=str, default=None, help="")
-    parser.add_argument("--fusion_coef", type=float, default=0.0, help="")
+    parser.add_argument(
+        "--lm_model",
+        type=str,
+        default=None,
+        help="Optional path to an LM model that has the same tokenizer as NMT models for shallow fuison. Note: If using --write_scores, it will add LM scores as well.",
+    )
+    parser.add_argument(
+        "--fusion_coef", type=float, default=0.07, help="Weight assigned to LM scores during shallow fusion."
+    )
 
     args = parser.parse_args()
     torch.set_grad_enabled(False)
-    if args.model.endswith(".nemo"):
-        logging.info("Attempting to initialize from .nemo file")
-        model = nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(restore_path=args.model)
-        src_text = []
-        tgt_text = []
-    else:
-        raise NotImplemented(f"Only support .nemo files, but got: {args.model}")
+    logging.info("Attempting to initialize from .nemo file")
+    models = []
+    for model_path in args.model.split(','):
+        if not model_path.endswith('.nemo'):
+            raise NotImplementedError(f"Only support .nemo files, but got: {model_path}")
+        model = nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(restore_path=model_path).eval()
+        models.append(model)
+
+    src_text = []
+    tgt_text = []
+    tgt_text_all = []
+    src_texts = []
+    all_scores = []
 
     if torch.cuda.is_available():
-        model = model.cuda()
+        models = [model.cuda() for model in models]
 
     if args.lm_model is not None:
         lm_model = nemo_nlp.models.language_modeling.TransformerLMModel.restore_from(restore_path=args.lm_model).eval()
-        model.beam_search = BeamSearchSequenceGeneratorWithLanguageModel(
-            embedding=model.decoder.embedding,
-            decoder=model.decoder.decoder,
-            log_softmax=model.log_softmax,
-            bos=model.decoder_tokenizer.bos_id,
-            pad=model.decoder_tokenizer.pad_id,
-            eos=model.decoder_tokenizer.eos_id,
+    else:
+        lm_model = None
+
+    if len(models) > 1:
+        ensemble_generator = EnsembleBeamSearchSequenceGenerator(
+            encoders=[model.encoder for model in models],
+            embeddings=[model.decoder.embedding for model in models],
+            decoders=[model.decoder.decoder for model in models],
+            log_softmaxes=[model.log_softmax for model in models],
+            max_sequence_length=512,
+            beam_size=args.beam_size,
+            bos=models[0].decoder_tokenizer.bos_id,
+            pad=models[0].decoder_tokenizer.pad_id,
+            eos=models[0].decoder_tokenizer.eos_id,
+            len_pen=args.len_pen,
+            max_delta_length=args.max_delta_length,
             language_model=lm_model,
             fusion_coef=args.fusion_coef,
-            max_sequence_length=model.decoder.max_sequence_length,
-            beam_size=args.beam_size,
-            len_pen=args.len_pen,
-            max_delta_length=args.max_delta_length,
         )
     else:
-        model.beam_search = BeamSearchSequenceGenerator(
-            embedding=model.decoder.embedding,
-            decoder=model.decoder.decoder,
-            log_softmax=model.log_softmax,
-            bos=model.decoder_tokenizer.bos_id,
-            pad=model.decoder_tokenizer.pad_id,
-            eos=model.decoder_tokenizer.eos_id,
-            max_sequence_length=model.decoder.max_sequence_length,
-            beam_size=args.beam_size,
-            len_pen=args.len_pen,
-            max_delta_length=args.max_delta_length,
-        )
+        model = models[0]
+        if lm_model is not None:
+            model.beam_search = BeamSearchSequenceGeneratorWithLanguageModel(
+                embedding=model.decoder.embedding,
+                decoder=model.decoder.decoder,
+                log_softmax=model.log_softmax,
+                bos=model.decoder_tokenizer.bos_id,
+                pad=model.decoder_tokenizer.pad_id,
+                eos=model.decoder_tokenizer.eos_id,
+                language_model=lm_model,
+                fusion_coef=args.fusion_coef,
+                max_sequence_length=model.decoder.max_sequence_length,
+                beam_size=args.beam_size,
+                len_pen=args.len_pen,
+                max_delta_length=args.max_delta_length,
+            )
+        else:
+            model.beam_search = BeamSearchSequenceGenerator(
+                embedding=model.decoder.embedding,
+                decoder=model.decoder.decoder,
+                log_softmax=model.log_softmax,
+                bos=model.decoder_tokenizer.bos_id,
+                pad=model.decoder_tokenizer.pad_id,
+                eos=model.decoder_tokenizer.eos_id,
+                max_sequence_length=model.decoder.max_sequence_length,
+                beam_size=args.beam_size,
+                len_pen=args.len_pen,
+                max_delta_length=args.max_delta_length,
+            )
 
     logging.info(f"Translating: {args.srctext}")
 
@@ -99,23 +160,95 @@ def main():
         for line in src_f:
             src_text.append(line.strip())
             if len(src_text) == args.batch_size:
-                res = model.translate(text=src_text, source_lang=args.source_lang, target_lang=args.target_lang)
-                if len(res) != len(src_text):
-                    print(len(res))
-                    print(len(src_text))
-                    print(res)
-                    print(src_text)
-                tgt_text += res
+                if len(models) > 1:
+                    src_ids, src_mask = models[0].prepare_inference_batch(src_text)
+                    best_translations = ensemble_generator(src_ids, src_mask, return_beam_scores=args.write_scores)
+                    if args.write_scores:
+                        all_results, scores, best_translations = (
+                            best_translations[0],
+                            best_translations[1],
+                            best_translations[2],
+                        )
+                        scores = scores.view(-1).data.cpu().numpy().tolist()
+                        all_scores += scores
+                        src_texts += [item for item in src_text for i in range(args.beam_size)]
+                        all_results = models[0].ids_to_postprocessed_text(
+                            all_results, models[0].decoder_tokenizer, models[0].target_processor
+                        )
+                        tgt_text_all += all_results
+                    best_translations = models[0].ids_to_postprocessed_text(
+                        best_translations, models[0].decoder_tokenizer, models[0].target_processor
+                    )
+                    tgt_text += best_translations
+                else:
+                    best_translations = model.translate(
+                        text=src_text,
+                        source_lang=args.source_lang,
+                        target_lang=args.target_lang,
+                        return_beam_scores=args.write_scores,
+                    )
+                    if args.write_scores:
+                        all_results, scores, best_translations = (
+                            best_translations[0],
+                            best_translations[1],
+                            best_translations[2],
+                        )
+                        all_scores += scores
+                        src_texts += [item for item in src_text for i in range(args.beam_size)]
+                        tgt_text_all += all_results
+                    tgt_text += best_translations
                 src_text = []
+                print(f"Translated {count + 1} sentences")
             count += 1
-            # if count % 300 == 0:
-            #    print(f"Translated {count} sentences")
         if len(src_text) > 0:
-            tgt_text += model.translate(text=src_text, source_lang=args.source_lang, target_lang=args.target_lang)
+            if len(models) > 1:
+                src_ids, src_mask = models[0].prepare_inference_batch(src_text)
+                best_translations = ensemble_generator(src_ids, src_mask, return_beam_scores=args.write_scores)
+                if args.write_scores:
+                    all_results, scores, best_translations = (
+                        best_translations[0],
+                        best_translations[1],
+                        best_translations[2],
+                    )
+                    scores = scores.view(-1).data.cpu().numpy().tolist()
+                    all_scores += scores
+                    src_texts += [item for item in src_text for i in range(args.beam_size)]
+                    all_results = models[0].ids_to_postprocessed_text(
+                        all_results, models[0].decoder_tokenizer, models[0].target_processor
+                    )
+                    tgt_text_all += all_results
+                best_translations = models[0].ids_to_postprocessed_text(
+                    best_translations, models[0].decoder_tokenizer, models[0].target_processor
+                )
+                tgt_text += best_translations
+            else:
+                best_translations = model.translate(
+                    text=src_text,
+                    source_lang=args.source_lang,
+                    target_lang=args.target_lang,
+                    return_beam_scores=args.write_scores,
+                )
+                if args.write_scores:
+                    all_results, scores, best_translations = (
+                        best_translations[0],
+                        best_translations[1],
+                        best_translations[2],
+                    )
+                    all_scores += scores
+                    src_texts += [item for item in src_text for i in range(args.beam_size)]
+                    tgt_text_all += all_results
+                tgt_text += best_translations
+            src_text = []
+            print(f"Translated {count} sentences")
 
     with open(args.tgtout, 'w') as tgt_f:
         for line in tgt_text:
             tgt_f.write(line + "\n")
+
+    if args.write_scores:
+        with open(args.tgtout + '.score', 'w') as tgt_f_scores:
+            for line, score, inp in zip(tgt_text_all, all_scores, src_texts):
+                tgt_f_scores.write(inp + "\t" + line + "\t" + str(score) + "\n")
 
 
 if __name__ == '__main__':

@@ -120,7 +120,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         if self.task == 'diarization':
             logging.info("Setting up diarization parameters")
             _collate_func = self.dataset.sliced_seq_collate_fn
-            batch_size = 1
+            batch_size = config['batch_size']
             shuffle = False
         else:
             logging.info("Setting up identification parameters")
@@ -192,8 +192,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             input_signal=input_signal, length=input_signal_length,
         )
 
-        encoded, _ = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
-        logits, embs = self.decoder(encoder_output=encoded)
+        encoded, length = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
+        logits, embs = self.decoder(encoder_output=encoded, length=length)
         return logits, embs
 
     # PTL-specific methods

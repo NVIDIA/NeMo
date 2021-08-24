@@ -19,8 +19,10 @@ from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTData
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='NMT dataset pre-processing')
-    parser.add_argument('--tokenizer_model', type=str, required=True, help='Path to tokenizer model')
-    parser.add_argument('--tokenizer_name', type=str, default='yttm', help='BPE Tokenizer Name, Options: [yttm]')
+    parser.add_argument(
+        '--tokenizer_name', type=str, default='yttm', help='Supports yttm, sentencepiece and HuggingFace tokenizers',
+    )
+    parser.add_argument('--tokenizer_model', type=str, default=None, help='Path to tokenizer model')
     parser.add_argument('--bpe_droput', type=float, default=0.0, help='BPE dropout to use')
     parser.add_argument('--clean', action="store_true", help='Whether to clean dataset based on length diff')
     parser.add_argument('--pkl_file_prefix', type=str, default='parallel', help='Prefix for tar and pickle files')
@@ -45,7 +47,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if not os.path.exists(args.out_dir):
         os.mkdir(args.out_dir)
-    if not os.path.exists(args.tokenizer_model):
+    if args.tokenizer_name in ["yttm", "sentencepiece"] and not os.path.exists(args.tokenizer_model):
         assert FileNotFoundError("Could not find tokenizer model %s" % (args.tokenizer))
 
     tokenizer_model = MTDataPreproc.get_monolingual_tokenizer(

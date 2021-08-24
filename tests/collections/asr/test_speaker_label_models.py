@@ -61,3 +61,34 @@ class EncDecSpeechLabelModelTest(TestCase):
         confdict = speaker_model.to_config_dict()
         instance2 = EncDecSpeakerLabelModel.from_config_dict(confdict)
         self.assertTrue(isinstance(instance2, EncDecSpeakerLabelModel))
+
+    @pytest.mark.unit
+    def test_ecapa_enc_dec(self):
+        preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
+        encoder = {
+            'cls': 'nemo.collections.asr.modules.ECAPAEncoder',
+            'params': {
+                'feat_in': 80,
+                'filters': [4, 4, 4, 4, 3],
+                'kernel_sizes': [5, 3, 3, 3, 1],
+                'dilations': [1, 1, 1, 1, 1],
+                'scale': 2,
+            },
+        }
+
+        decoder = {
+            'cls': 'nemo.collections.asr.modules.SpeakerDecoder',
+            'params': {'feat_in': 3, 'num_classes': 2, 'pool_mode': 'attention', 'emb_sizes': 192},
+        }
+
+        modelConfig = DictConfig(
+            {'preprocessor': DictConfig(preprocessor), 'encoder': DictConfig(encoder), 'decoder': DictConfig(decoder)}
+        )
+        speaker_model = EncDecSpeakerLabelModel(cfg=modelConfig)
+        speaker_model.train()
+        # TODO: make proper config and assert correct number of weights
+
+        # Check to/from config_dict:
+        confdict = speaker_model.to_config_dict()
+        instance2 = EncDecSpeakerLabelModel.from_config_dict(confdict)
+        self.assertTrue(isinstance(instance2, EncDecSpeakerLabelModel))

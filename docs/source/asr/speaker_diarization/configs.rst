@@ -50,11 +50,19 @@ Diarizer Architecture Configurations
       model_path: null #.nemo local model path or pretrained model name or none
       window_length_in_sec: 0.15
       shift_length_in_sec: 0.01
-      threshold: 0.5 # tune threshold on dev set. Check <NeMo_git_root>/scripts/voice_activity_detection/vad_tune_threshold.py
       vad_decision_smoothing: True
       smoothing_params:
         method: "median" 
         overlap: 0.875
+      threshold: null # if not null, use this value and ignore the following onset and offset. Warning! it will be removed in release 1.5!
+      postprocessing_params: # Tune parameter on dev set. Check <NeMo_git_root>/scripts/voice_activity_detection/vad_tune_threshold.py
+        onset: 0.4
+        offset: 0.7
+        pad_onset: 0.05
+        pad_offset: -0.1
+        min_duration_on: 0.2 
+        min_duration_off: 0.2    
+        filter_speech_first: True 
 
     speaker_embeddings:
       oracle_vad_manifest: null # leave it null if to perform diarization with above VAD model else path to manifest file genrerated as shown in Datasets section

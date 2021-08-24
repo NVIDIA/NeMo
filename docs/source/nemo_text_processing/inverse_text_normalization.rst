@@ -13,7 +13,7 @@ See :doc:`Text Procesing Deployment <../tools/text_processing_deployment>` for d
 
 .. note::
 
-    For more details, see the tutorial `NeMo/tutorials/text_processing/Inverse_Text_Normalization.ipynb <https://github.com/NVIDIA/NeMo/blob/main/tutorials/text_processing/Inverse_Text_Normalization.ipynb>`__ in `Google's Colab <https://colab.research.google.com/github/NVIDIA/NeMo/blob/main/tutorials/text_processing/Inverse_Text_Normalization.ipynb>`_.
+    For more details, see the tutorial `NeMo/tutorials/text_processing/Inverse_Text_Normalization.ipynb <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Inverse_Text_Normalization.ipynb>`__ in `Google's Colab <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Inverse_Text_Normalization.ipynb>`_.
 
 
 
@@ -24,23 +24,20 @@ Classes
 ----------------------------------
 
 
-The base class for every grammar is :class:`GraphFst<nemo_text_processing.text_normalization.GraphFst>`.
+The base class for every grammar is :class:`GraphFst<nemo_text_processing.text_normalization.en.GraphFst>`.
 This tool is designed as a two-stage application: 1. `classification` of the input into semiotic tokens and 2. `verbalization` into written form.
-For every stage and every semiotic token class there is a corresponding grammar, e.g. :class:`taggers.CardinalFst<nemo_text_processing.inverse_text_normalization.taggers.cardinal.CardinalFst>`
-and :class:`verbalizers.CardinalFst<nemo_text_processing.inverse_text_normalization.verbalizers.cardinal.CardinalFst>`.
-Together, they compose the final grammars :class:`ClassifyFst<nemo_text_processing.inverse_text_normalization.ClassifyFst>` and 
-:class:`VerbalizeFinalFst<nemo_text_processing.inverse_text_normalization.VerbalizeFinalFst>` that are compiled into WFST and used for inference.
+For every stage and every semiotic token class there is a corresponding grammar, e.g. :class:`taggers.CardinalFst<nemo_text_processing.inverse_text_normalization.en.taggers.cardinal.CardinalFst>`
+and :class:`verbalizers.CardinalFst<nemo_text_processing.inverse_text_normalization.en.verbalizers.cardinal.CardinalFst>`.
+Together, they compose the final grammars :class:`ClassifyFst<nemo_text_processing.inverse_text_normalization.en.ClassifyFst>` and 
+:class:`VerbalizeFinalFst<nemo_text_processing.inverse_text_normalization.en.VerbalizeFinalFst>` that are compiled into WFST and used for inference.
 
 
 
-
-
-
-.. autoclass:: nemo_text_processing.inverse_text_normalization.ClassifyFst
+.. autoclass:: nemo_text_processing.inverse_text_normalization.en.ClassifyFst
     :show-inheritance:
     :members:
 
-.. autoclass:: nemo_text_processing.inverse_text_normalization.VerbalizeFinalFst
+.. autoclass:: nemo_text_processing.inverse_text_normalization.en.VerbalizeFinalFst
     :show-inheritance:
     :members:
  
@@ -52,7 +49,7 @@ Example prediction run:
 
 .. code::
 
-    python run_prediction.py  --input=<INPUT_TEXT_FILE> --output=<OUTPUT_PATH>  [--verbose]
+    python run_prediction.py  --input=<INPUT_TEXT_FILE> --output=<OUTPUT_PATH> --language=<LANGUAGE> [--verbose]
 
 
 The input is expected to be lower-cased. Punctuation are outputted with separating spaces after semiotic tokens, e.g. `"i see, it is ten o'clock..."` -> `"I see, it is 10:00  .  .  ."`.
@@ -76,7 +73,7 @@ Example evaluation run on (cleaned) `Google's text normalization dataset <https:
 
 .. code::
 
-    python run_evaluation.py  --input=./en_with_types/output-00001-of-00100 [--cat CLASS_CATEGORY] [--filter]
+    python run_evaluation.py  --input=./en_with_types/output-00001-of-00100 <--language LANGUAGE> [--cat CLASS_CATEGORY] [--filter]
 
 
 

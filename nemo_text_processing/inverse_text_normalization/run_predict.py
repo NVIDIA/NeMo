@@ -56,6 +56,7 @@ def write_file(file_path: str, data: List[str]):
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--input", help="input file path", required=True, type=str)
+    parser.add_argument("--language", help="language", choices=['en', 'de'], default="en", type=str)
     parser.add_argument("--output", help="output file path", required=True, type=str)
     parser.add_argument("--verbose", help="print denormalization info. For debugging", action='store_true')
     return parser.parse_args()
@@ -64,7 +65,7 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     file_path = args.input
-    inverse_normalizer = InverseNormalizer()
+    inverse_normalizer = InverseNormalizer(lang=args.language)
 
     print("Loading data: " + file_path)
     data = load_file(file_path)
