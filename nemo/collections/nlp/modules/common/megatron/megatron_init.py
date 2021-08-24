@@ -68,7 +68,7 @@ def initialize_megatron_for_nemo(
     initialize_megatron(extra_args_provider=extra_args_provider, args_defaults=args_defaults, ignore_unknown_args=True)
     logging.info(f"Initialized Megatron ...")
     app_state = AppState()
-    app_state._megatron_init = True
+    app_state._is_megatron_initialized = True
 
 
 def get_extra_args_provider(

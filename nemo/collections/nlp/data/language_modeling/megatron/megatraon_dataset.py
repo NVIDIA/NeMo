@@ -30,7 +30,7 @@ class MegatronDataset(torch.utils.data.Dataset):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         app_state = AppState()
 
-        if not hasattr(app_state, "_megatron_init"):
+        if not app_state._is_megatron_initialized:
             logging.info(
                 f"Initializing megatron since it hasn't been initialized by the model. This is normal if you are using a NeMo model with Megatron dataloaders."
             )

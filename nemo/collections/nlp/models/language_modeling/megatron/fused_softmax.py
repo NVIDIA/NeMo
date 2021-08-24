@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import torch
-from megatron.model.enums import AttnMaskType
+
+from nemo.collections.nlp.models.language_modeling.megatron.enums import AttnMaskType
 
 
 class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):

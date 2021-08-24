@@ -16,12 +16,21 @@
 
 import torch
 from megatron import get_args, mpu
-from megatron.model import LayerNorm
-from megatron.model.enums import AttnMaskType
-from megatron.model.language_model import get_language_model, parallel_lm_logits
-from megatron.model.utils import erf_gelu, get_linear_layer, init_method_normal, openai_gelu, scaled_init_method_normal
 
-from .module import MegatronModule
+from nemo.collections.nlp.models.language_modeling.megatron import LayerNorm
+from nemo.collections.nlp.models.language_modeling.megatron.enums import AttnMaskType
+from nemo.collections.nlp.models.language_modeling.megatron.language_model import (
+    get_language_model,
+    parallel_lm_logits,
+)
+from nemo.collections.nlp.models.language_modeling.megatron.module import MegatronModule
+from nemo.collections.nlp.models.language_modeling.megatron.utils import (
+    erf_gelu,
+    get_linear_layer,
+    init_method_normal,
+    openai_gelu,
+    scaled_init_method_normal,
+)
 
 
 def bert_extended_attention_mask(attention_mask):
