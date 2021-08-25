@@ -20,12 +20,12 @@ import torch.nn.functional as F
 
 from megatron import get_args
 from megatron import mpu
-from .module import MegatronModule
-from megatron.model.enums import AttnMaskType, LayerType, AttnType
-from megatron.model import LayerNorm
-from megatron.model.fused_softmax import FusedScaleMaskSoftmax
-from megatron.model.fused_bias_gelu import bias_gelu_impl
-from megatron.model.utils import attention_mask_func, openai_gelu, erf_gelu
+from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
+from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, LayerType, AttnType
+from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import MixedFusedLayerNorm as LayerNorm
+from nemo.collections.nlp.modules.common.megatron.fused_softmax import FusedScaleMaskSoftmax
+from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import bias_gelu_impl
+from nemo.collections.nlp.modules.common.megatron.utils import attention_mask_func, openai_gelu, erf_gelu
 
 # flags required to enable jit fusion kernels
 torch._C._jit_set_profiling_mode(False)
