@@ -202,7 +202,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
                 hidden_blocks=kwargs["hidden_blocks"],
                 hidden_init_method=kwargs["hidden_init_method"],
             )
-        eilf arch == "max_pool_perceiver":
+        elif arch == "max_pool_perceiver":
             encoder = MaxPoolingPerceiverEncoder(
                 num_layers=kwargs["num_layers"],
                 hidden_size=kwargs["hidden_size"],
