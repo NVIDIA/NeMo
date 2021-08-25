@@ -19,7 +19,7 @@ from nemo.collections.nlp.modules.common.transformer.transformer_decoders import
 from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
 from nemo.collections.nlp.modules.common.transformer.transformer_modules import AttentionBridge
 
-__all__ = ["PerceiverEncoder"]
+__all__ = ["PerceiverEncoder", "MaxPoolingPerceiverEncoder"]
 
 
 class PerceiverEncoder(torch.nn.Module):
@@ -106,35 +106,6 @@ class PerceiverEncoder(torch.nn.Module):
         )
         self.self_att_layers = torch.nn.ModuleList([copy.deepcopy(layer) for _ in range(hidden_blocks)])
 
-        # # cross-attention encoder
-        # self.cross_att = TransformerDecoder(
-        #     num_layers=1,
-        #     hidden_size=hidden_size,
-        #     inner_size=inner_size,
-        #     num_attention_heads=num_attention_heads,
-        #     attn_score_dropout=attn_score_dropout,
-        #     attn_layer_dropout=attn_layer_dropout,
-        #     ffn_dropout=ffn_dropout,
-        #     hidden_act=hidden_act,
-        #     pre_ln=pre_ln,
-        #     pre_ln_final_layer_norm=pre_ln_final_layer_norm,
-        # )
-
-        # # self-attention encoder
-        # self.self_att = TransformerEncoder(
-        #     num_layers=num_layers,
-        #     hidden_size=hidden_size,
-        #     inner_size=inner_size,
-        #     mask_future=mask_future,
-        #     num_attention_heads=num_attention_heads,
-        #     attn_score_dropout=attn_score_dropout,
-        #     attn_layer_dropout=attn_layer_dropout,
-        #     ffn_dropout=ffn_dropout,
-        #     hidden_act=hidden_act,
-        #     pre_ln=pre_ln,
-        #     pre_ln_final_layer_norm=pre_ln_final_layer_norm,
-        # )
-
     @property
     def supported_init_methods(self):
         return ["params", "bridge"]
@@ -192,24 +163,108 @@ class PerceiverEncoder(torch.nn.Module):
             # self-attention over hidden
             hidden_states = self_att(encoder_states=hidden_states, encoder_mask=hidden_mask,)
 
-            # # self-attention over hidden
-            # hidden_states = self.self_att(encoder_states=hidden_states, encoder_mask=hidden_mask,)
+            # residual connection
+            hidden_states += residual
 
-            # # cross attention of hidden over encoder states
-            # hidden_states = self.cross_att(
-            #     decoder_states=hidden_states,
-            #     decoder_mask=hidden_mask,
-            #     encoder_states=encoder_states,
-            #     encoder_mask=encoder_mask,
-            # )
+        return hidden_states, hidden_mask
+
+
+class MaxPoolingPerceiverEncoder(torch.nn.Module):
+    def __init__(
+        self,
+        num_layers: int,
+        hidden_size: int,
+        inner_size: int,
+        mask_future: bool = False,
+        num_attention_heads: int = 1,
+        attn_score_dropout: float = 0.0,
+        attn_layer_dropout: float = 0.0,
+        ffn_dropout: float = 0.0,
+        hidden_act: str = "relu",
+        pre_ln: bool = False,
+        pre_ln_final_layer_norm: bool = True,
+        hidden_steps: int = 32,
+        hidden_init_method: str = "default",
+        hidden_blocks: int = 2,
+    ):
+        super().__init__(
+            num_layers=num_layers,
+            hidden_size=hidden_size,
+            inner_size=inner_size,
+            mask_future=mask_future,
+            num_attention_heads=num_attention_heads,
+            attn_score_dropout=attn_score_dropout,
+            attn_layer_dropout=attn_layer_dropout,
+            ffn_dropout=ffn_dropout,
+            hidden_act=hidden_act,
+            pre_ln=pre_ln,
+            pre_ln_final_layer_norm=pre_ln_final_layer_norm,
+            hidden_steps=hidden_steps,
+            hidden_init_method=hidden_init_method,
+            hidden_blocks=hidden_blocks,
+        )
+
+        # pooling layer
+        self.max_pool = torch.nn.MaxPool1d(
+            kernel_size=2,
+            stride=2,
+        )
+
+    def forward(self, encoder_states, encoder_mask):
+        """
+        Args:
+            encoder_states: output of the encoder (B x L_enc x H)
+            encoder_mask: encoder inputs mask (B x L_enc)
+        """
+        # all hidden values are active
+        hidden_mask = torch.ones(
+            encoder_states.shape[0], self._hidden_steps, dtype=encoder_mask.dtype, device=encoder_mask.device
+        )
+
+        # initialize hidden state
+        if self._hidden_init_method == "params":
+            # initialize latent with learned parameters
+            hidden_states = self.init_hidden.unsqueeze(0).expand(encoder_states.shape[0], -1, -1)
+            hidden_states = self.init_cross_att(
+                decoder_states=hidden_states,
+                decoder_mask=hidden_mask,
+                encoder_states=encoder_states,
+                encoder_mask=encoder_mask,
+            )
+        elif self._hidden_init_method == "bridge":
+            # initialize latent with attention bridge
+            hidden_states = self.att_bridge(hidden=encoder_states, hidden_mask=encoder_mask,)
+
+        # apply block (cross-attention, self-attention) multiple times
+        # for block in range(self._hidden_blocks):
+        for self_att, cross_att in zip(self.self_att_layers, self.cross_att_layers):
+            residual = hidden_states
+
+            # cross attention of hidden over encoder states
+            hidden_states = cross_att(
+                decoder_states=hidden_states,
+                decoder_mask=hidden_mask,
+                encoder_states=encoder_states,
+                encoder_mask=encoder_mask,
+            )
+
+            # self-attention over hidden
+            hidden_states = self_att(encoder_states=hidden_states, encoder_mask=hidden_mask,)
 
             # residual connection
             hidden_states += residual
 
-        # residual = hidden_states
-        # # final self-attention over hidden
-        # hidden_states = self.self_att(encoder_states=hidden_states, encoder_mask=hidden_mask,)
-        # # residual connection
-        # hidden_states += residual
+            # max pool reduction if possible
+            if hidden_states.shape[1] >= 2:
+                # max pool hidden states
+                hidden_states = hidden_states.permute(0, 2, 1)
+                hidden_states = self.max_pool(hidden_states)
+                hidden_states = hidden_states.permute(0, 2, 1)
+
+                # max pool mask
+                hidden_mask = self.max_pool(
+                    hidden_mask.unsqueeze(0).type_as(hidden_states)
+                    ).squeeze(0).type_as(hidden_mask)
+
 
         return hidden_states, hidden_mask
