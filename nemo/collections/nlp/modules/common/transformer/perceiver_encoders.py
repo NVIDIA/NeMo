@@ -267,4 +267,5 @@ class MaxPoolingPerceiverEncoder(torch.nn.Module):
                     ).squeeze(0).type_as(hidden_mask)
 
 
+        import pudb; pudb.set_trace()
         return hidden_states, hidden_mask
