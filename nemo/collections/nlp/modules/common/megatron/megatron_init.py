@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from nemo.utils import AppState
+
 from megatron.initialize import initialize_megatron
 from megatron.mpu.initialize import (
     set_pipeline_model_parallel_rank,
@@ -21,6 +21,8 @@ from megatron.mpu.initialize import (
     set_tensor_model_parallel_rank,
     set_tensor_model_parallel_world_size,
 )
+
+from nemo.utils import AppState, logging
 
 
 def initialize_megatron_for_nemo(
@@ -51,7 +53,7 @@ def initialize_megatron_for_nemo(
     args_defaults['vocab_file'] = vocab_file
     args_defaults['merge_file'] = merge_file
     args_defaults['lazy_mpu_init'] = True
-    args_defaults['use_cpu_initialization'] = True # need to change this to use gpu init
+    args_defaults['use_cpu_initialization'] = True  # need to change this to use gpu init
 
     extra_args_provider = get_extra_args_provider(micro_batch_size, tensor_model_parallel_size, encoder_seq_length)
 
@@ -64,6 +66,9 @@ def initialize_megatron_for_nemo(
     set_pipeline_model_parallel_world_size(1)
 
     initialize_megatron(extra_args_provider=extra_args_provider, args_defaults=args_defaults, ignore_unknown_args=True)
+    logging.info(f"Initialized Megatron ...")
+    app_state = AppState()
+    app_state._is_megatron_initialized = True
 
 
 def get_extra_args_provider(

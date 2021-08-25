@@ -14,7 +14,17 @@
 
 from nemo.collections.common.tokenizers.bytelevel_tokenizers import ByteLevelTokenizer
 from nemo.collections.common.tokenizers.char_tokenizer import CharTokenizer
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
+
+# TODO @blisc: Perhaps refactor instead of import guarding
+try:
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
+except ModuleNotFoundError:
+    from nemo.utils.exceptions import CheckInstall
+
+    # fmt: off
+    class AutoTokenizer(CheckInstall): pass
+    class SentencePieceTokenizer(CheckInstall): pass
+    # fmt: on

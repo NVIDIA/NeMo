@@ -53,22 +53,22 @@ class CardinalFst(GraphFst):
         graph_zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
 
         single_digits_graph = pynini.invert(graph_digit | graph_zero)
-        self.single_digits_graph = single_digits_graph + pynini.closure(pynutil.insert(" ") + single_digits_graph)
+        self.single_digits_graph = single_digits_graph + pynini.closure(insert_space + single_digits_graph)
 
         if not deterministic:
             single_digits_graph = (
                 pynini.invert(graph_digit | graph_zero) | pynini.cross("0", "oh") | pynini.cross("0", "o")
             )
-            self.single_digits_graph = single_digits_graph + pynini.closure(pynutil.insert(" ") + single_digits_graph)
+            self.single_digits_graph = single_digits_graph + pynini.closure(insert_space + single_digits_graph)
 
             single_digits_graph_with_commas = pynini.closure(
-                self.single_digits_graph + pynutil.insert(" "), 1, 3
+                self.single_digits_graph + insert_space, 1, 3
             ) + pynini.closure(
                 pynutil.delete(",")
                 + single_digits_graph
-                + pynutil.insert(" ")
+                + insert_space
                 + single_digits_graph
-                + pynutil.insert(" ")
+                + insert_space
                 + single_digits_graph,
                 1,
             )

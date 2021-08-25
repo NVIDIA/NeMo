@@ -203,7 +203,9 @@ Train Neural Rescorer
 =====================
 
 An example script to train such a language model with Transformer can be found at `examples/nlp/language_modeling/transformer_lm.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/language_modeling/transformer_lm.py>`__.
-It trains a TransformerLMModel which can be used as a neural rescorer for an ASR system.
+It trains a ``TransformerLMModel`` which can be used as a neural rescorer for an ASR system. Full documentation on language models training is available at:
+
+:doc:`../nlp/language_modeling`
 
 
 Evaluation

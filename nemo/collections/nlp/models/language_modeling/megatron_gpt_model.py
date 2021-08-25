@@ -12,25 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector
-
 import torch
 from megatron import fused_kernels, mpu
-from megatron.data.data_samplers import (
+from megatron.global_vars import get_args, get_tokenizer
+from omegaconf.dictconfig import DictConfig
+from pytorch_lightning.trainer.trainer import Trainer
+
+from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
     build_pretraining_data_loader,
 )
-from megatron.data.gpt_dataset import build_train_valid_test_datasets
-from megatron.global_vars import get_args, get_tokenizer
-from megatron.model import GPTModel
-from megatron.utils import average_losses_across_data_parallel_group, get_ltor_masks_and_position_ids
-from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.trainer.trainer import Trainer
-
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
+from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_megatron_for_nemo
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    average_losses_across_data_parallel_group,
+    get_ltor_masks_and_position_ids,
+)
+from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector
 from nemo.utils import AppState, logging
 
 
@@ -41,6 +43,7 @@ class MegatronGPTModel(NLPModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
+        self.cfg = cfg
         app_state = AppState()
         app_state.global_rank = trainer.global_rank
         app_state.world_size = trainer.world_size
@@ -157,6 +160,8 @@ class MegatronGPTModel(NLPModel):
             test_iters * global_batch_size,
         ]
         self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
+            cfg=self.cfg,
+            trainer=self.trainer,
             data_prefix=self.cfg.data.data_prefix,
             data_impl=self.cfg.data.data_impl,
             splits_string=self.cfg.data.splits_string,
