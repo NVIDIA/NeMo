@@ -30,12 +30,13 @@
 # This file is part of https://github.com/scikit-learn/scikit-learn/blob/114616d9f6ce9eba7c1aacd3d4a254f868010e25/sklearn/manifold/_spectral_embedding.py and
 # https://github.com/tango4j/Auto-Tuning-Spectral-Clustering.
 
+from collections import Counter
+
 import numpy as np
 import torch
 from sklearn.cluster._kmeans import k_means
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import MinMaxScaler
-from collections import Counter
 
 from nemo.utils import logging
 
@@ -43,6 +44,7 @@ scaler = MinMaxScaler(feature_range=(0, 1))
 
 try:
     from torch.linalg import eigh as eigh
+
     TORCH_EIGN = True
 
 except ImportError:
@@ -118,6 +120,7 @@ def getMinimumConnection(mat, max_N, n_list):
 
     return affinity_mat, p_value
 
+
 def addAnchorEmb(emb, anchor_sample_n, anchor_spk_n, sigma):
     """
     Add randomly generated synthetic embeddings to make eigen analysis more stable.
@@ -136,16 +139,17 @@ def addAnchorEmb(emb, anchor_sample_n, anchor_spk_n, sigma):
     emb_dim = emb.shape[1]
     mean, std_org = np.mean(emb, axis=0), np.std(emb, axis=0)
     new_emb_list = []
-    for _ in range(anchor_spk_n): 
+    for _ in range(anchor_spk_n):
         emb_m = np.tile(np.random.randn(1, emb_dim), (anchor_sample_n, 1))
         emb_noise = np.random.randn(anchor_sample_n, emb_dim).T
-        emb_noise = np.dot(np.diag(std_org), emb_noise/np.max(np.abs(emb_noise))).T
+        emb_noise = np.dot(np.diag(std_org), emb_noise / np.max(np.abs(emb_noise))).T
         emb_gen = emb_m + sigma * emb_noise
         new_emb_list.append(emb_gen)
-    
+
     new_emb_list.append(emb)
     new_emb_np = np.vstack(new_emb_list)
-    return new_emb_np, anchor_sample_n*anchor_spk_n
+    return new_emb_np, anchor_sample_n * anchor_spk_n
+
 
 def getEnhancedSpeakerCount(key, emb, cuda, random_test_count=5, anchor_spk_n=3, anchor_sample_n=10, sigma=50):
     """
@@ -155,7 +159,7 @@ def getEnhancedSpeakerCount(key, emb, cuda, random_test_count=5, anchor_spk_n=3,
     for seed in range(random_test_count):
         np.random.seed(seed)
         emb_aug, anchor_length = addAnchorEmb(emb, anchor_sample_n, anchor_spk_n, sigma)
-        mat = getCosAffinityMatrix(emb_aug) 
+        mat = getCosAffinityMatrix(emb_aug)
         nmesc = NMESC(
             mat,
             max_num_speaker=emb.shape[0],
@@ -391,7 +395,7 @@ class NMESC:
             est_num_of_spk, g_p = self.getEigRatio(p_value)
             est_spk_n_dict[p_value] = est_num_of_spk
             eig_ratio_list.append(g_p)
-        
+
         index_nn = np.argmin(eig_ratio_list)
         rp_p_value = self.p_value_list[index_nn]
         affinity_mat = getAffinityGraphMat(self.mat, rp_p_value)
@@ -478,7 +482,16 @@ class NMESC:
         return p_value_list
 
 
-def COSclustering(key, emb, oracle_num_speakers=None, max_num_speaker=8, min_samples=6, enhanced_count_thres=80, fixed_thres=None, cuda=False):
+def COSclustering(
+    key,
+    emb,
+    oracle_num_speakers=None,
+    max_num_speaker=8,
+    min_samples=6,
+    enhanced_count_thres=80,
+    fixed_thres=None,
+    cuda=False,
+):
     """
     Clustering method for speaker diarization based on cosine similarity.
 
@@ -503,15 +516,15 @@ def COSclustering(key, emb, oracle_num_speakers=None, max_num_speaker=8, min_sam
         Y: (List[int])
             Speaker label for each segment.
     """
-    
+
     if emb.shape[0] == 1:
         return np.array([0])
     elif emb.shape[0] < enhanced_count_thres and oracle_num_speakers == None:
         oracle_num_speakers = getEnhancedSpeakerCount(key, emb, cuda)
-    
+
     max_num_speaker = oracle_num_speakers if oracle_num_speakers else max_num_speaker
-    
-    mat = getCosAffinityMatrix(emb) 
+
+    mat = getCosAffinityMatrix(emb)
 
     nmesc = NMESC(
         mat,
@@ -523,7 +536,7 @@ def COSclustering(key, emb, oracle_num_speakers=None, max_num_speaker=8, min_sam
         NME_mat_size=300,
         cuda=cuda,
     )
-        
+
     if emb.shape[0] > min_samples:
         est_num_of_spk, p_hat_value, best_g_p_value = nmesc.NMEanalysis()
         affinity_mat = getAffinityGraphMat(mat, p_hat_value)
@@ -534,5 +547,5 @@ def COSclustering(key, emb, oracle_num_speakers=None, max_num_speaker=8, min_sam
 
     spectral_model = _SpectralClustering(n_clusters=est_num_of_spk, cuda=cuda)
     Y = spectral_model.predict(affinity_mat)
-    
+
     return Y
