@@ -169,7 +169,7 @@ class PerceiverEncoder(torch.nn.Module):
         return hidden_states, hidden_mask
 
 
-class MaxPoolingPerceiverEncoder(torch.nn.Module):
+class MaxPoolingPerceiverEncoder(PerceiverEncoder):
     def __init__(
         self,
         num_layers: int,
