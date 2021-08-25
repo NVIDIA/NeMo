@@ -267,5 +267,4 @@ class MaxPoolingPerceiverEncoder(PerceiverEncoder):
                     ).squeeze(0).type_as(hidden_mask)
 
 
-        import pudb; pudb.set_trace()
         return hidden_states, hidden_mask
