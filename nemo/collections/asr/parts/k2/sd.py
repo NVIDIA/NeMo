@@ -84,10 +84,14 @@ class SDLoss(torch.nn.Module):
             self.lm_graph = token_lm
         else:
             self.lm_graph = load_graph(token_lm) if isinstance(token_lm, str) else token_lm
-            if hasattr(self.lm_graph, 'aux_labels'):
-                delattr(self.lm_graph, 'aux_labels')
-            if self.pad_fsavec:
-                shift_labels_inpl([self.lm_graph], 1)
+            if self.lm_graph is None:
+                logging.warning(f"""Faled to load token_lm. 
+                                Sequence-discriminative loss will operate as a regular CTC.""")
+            else:
+                if hasattr(self.lm_graph, 'aux_labels'):
+                    delattr(self.lm_graph, 'aux_labels')
+                if self.pad_fsavec:
+                    shift_labels_inpl([self.lm_graph], 1)
         if sd_type == 'mmi':
             from nemo.collections.asr.parts.k2.graph_compilers import MmiTrainingGraphCompiler as compiler
         elif sd_type == 'crf':
@@ -148,11 +152,8 @@ class SDLoss(torch.nn.Module):
                                           output_beam=10.0,
                                           a_to_b_map=a_to_b_map,
                                           seqframe_idx_name='seqframe_idx')
-        if num_fsas == 1:
-            return k2.create_fsa_vec([num_den_lats[0]]), k2.create_fsa_vec([num_den_lats[1]])
-        else:
-            lat_slice = torch.arange(num_fsas, dtype=torch.int32).to(device) * 2
-            return k2.index(num_den_lats, lat_slice), k2.index(num_den_lats, lat_slice + 1)
+        lat_slice = torch.arange(num_fsas, dtype=torch.int32).to(device) * 2
+        return k2.index(num_den_lats, lat_slice), k2.index(num_den_lats, lat_slice + 1)
 
     def _intersect_mmi_pruned(self, dense_fsa_vec: k2.DenseFsaVec, num_graphs: k2.Fsa, den_graph: k2.Fsa):
         device = dense_fsa_vec.device
