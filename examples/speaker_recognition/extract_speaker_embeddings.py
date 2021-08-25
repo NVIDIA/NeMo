@@ -28,18 +28,18 @@ Args:
 
 """
 
+import json
+import os
+import pickle as pkl
 from argparse import ArgumentParser
 
-import pickle as pkl
 import numpy as np
 import torch
 from omegaconf import OmegaConf
 from tqdm import tqdm
-import json
-import os
-from nemo.collections.asr.parts.utils.speaker_utils import embedding_normalize
 
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
+from nemo.collections.asr.parts.utils.speaker_utils import embedding_normalize
 from nemo.utils import logging
 
 try:
@@ -50,6 +50,7 @@ except ImportError:
     @contextmanager
     def autocast(enabled=None):
         yield
+
 
 def get_embeddings(speaker_model, manifest_file, batch_size=1, embedding_dir='./', device='cuda'):
     test_config = OmegaConf.create(
@@ -67,9 +68,9 @@ def get_embeddings(speaker_model, manifest_file, batch_size=1, embedding_dir='./
     speaker_model = speaker_model.to(device)
     speaker_model.eval()
 
-    all_embs=[]
+    all_embs = []
     out_embeddings = {}
-           
+
     for test_batch in tqdm(speaker_model.test_dataloader()):
         test_batch = [x.to(device) for x in test_batch]
         audio_signal, audio_signal_len, labels, slices = test_batch
@@ -99,7 +100,8 @@ def get_embeddings(speaker_model, manifest_file, batch_size=1, embedding_dir='./
     embeddings_file = name + '_embeddings.pkl'
     pkl.dump(out_embeddings, open(embeddings_file, 'wb'))
     logging.info("Saved embedding files to {}".format(embedding_dir))
-    
+
+
 def main():
     parser = ArgumentParser()
     parser.add_argument(
@@ -131,13 +133,13 @@ def main():
         speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name="speakerverification_speakernet")
         logging.info(f"using pretrained speaker verification model from NGC")
 
-    
     device = 'cuda'
     if not torch.cuda.is_available():
         device = 'cpu'
         logging.warning("Running model on CPU, for faster performance it is adviced to use atleast one NVIDIA GPUs")
 
-    get_embeddings(speaker_model, args.manifest, batch_size=64,embedding_dir=args.embedding_dir, device=device)
+    get_embeddings(speaker_model, args.manifest, batch_size=64, embedding_dir=args.embedding_dir, device=device)
+
 
 if __name__ == '__main__':
     main()
