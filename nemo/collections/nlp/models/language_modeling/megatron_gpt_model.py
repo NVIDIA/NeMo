@@ -25,13 +25,13 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
 )
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
-from nemo.collections.nlp.models.language_modeling.megatron.utils import (
-    average_losses_across_data_parallel_group,
-    get_ltor_masks_and_position_ids,
-)
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_megatron_for_nemo
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    average_losses_across_data_parallel_group,
+    get_ltor_masks_and_position_ids,
+)
 from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector
 from nemo.utils import AppState, logging
 

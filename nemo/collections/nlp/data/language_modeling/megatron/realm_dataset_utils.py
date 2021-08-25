@@ -19,11 +19,6 @@ import numpy as np
 import torch
 from megatron import get_args, get_tokenizer, mpu, print_rank_0
 
-from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
-    create_masked_lm_predictions,
-    pad_and_convert_to_numpy,
-)
-
 
 def get_one_epoch_dataloader(dataset, micro_batch_size=None):
     """Specifically one epoch to be used in an indexing job."""

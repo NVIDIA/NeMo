@@ -17,13 +17,10 @@
 import torch
 from megatron import get_args, mpu
 
-from nemo.collections.nlp.models.language_modeling.megatron.enums import AttnMaskType
-from nemo.collections.nlp.models.language_modeling.megatron.language_model import (
-    get_language_model,
-    parallel_lm_logits,
-)
-from nemo.collections.nlp.models.language_modeling.megatron.module import MegatronModule
-from nemo.collections.nlp.models.language_modeling.megatron.utils import init_method_normal, scaled_init_method_normal
+from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType
+from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model, parallel_lm_logits
+from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
+from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal, scaled_init_method_normal
 
 
 def post_language_model_processing(
