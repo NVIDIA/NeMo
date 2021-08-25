@@ -76,8 +76,9 @@ class DecimalFst(GraphFst):
             e.g. menos uno coma dos seis -> decimal { negative: "true" integer_part: "1" morphosyntactic_features: "," fractional_part: "26" }
             e.g. menos uno punto dos seis -> decimal { negative: "true" integer_part: "1" morphosyntactic_features: "." fractional_part: "26" }
         Also writes large numbers in shortened form, e.g. 
-            e.g. uno coma dos seis millón -> decimal { negative: "true" integer_part: "1" morphosyntactic_features: "," fractional_part: "26" quantity: "millón" }
-            e.g. dos millones -> decimal { negative: "true" integer_part: "2" quantity: "millones" }
+            e.g. uno coma dos seis millón -> decimal { negative: "false" integer_part: "1" morphosyntactic_features: "," fractional_part: "26" quantity: "millón" }
+            e.g. dos millones -> decimal { negative: "false" integer_part: "2" quantity: "millones" }
+            e.g. mil ochocientos veinticuatro millones -> decimal { negative: "false" integer_part: "1824" quantity: "millones" }
     Args:
         cardinal: CardinalFst
 

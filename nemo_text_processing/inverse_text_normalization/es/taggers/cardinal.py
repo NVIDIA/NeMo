@@ -35,8 +35,18 @@ except (ModuleNotFoundError, ImportError):
 class CardinalFst(GraphFst):
     """
     Finite state transducer for classifying cardinals
-        e.g. minus twenty three -> cardinal { integer: "23" negative: "-" } }
-    Numbers below thirteen are not converted. 
+        e.g. menos veintitrés -> cardinal { negative: "-" integer: "23"} 
+    This class converts cardinals up to (but not including) "un cuatrillón",
+    i.e up to "one septillion" in English (10^{24}).
+    Cardinals below ten are not converted (in order to avoid 
+    "vivo en una casa" --> "vivo en 1 casa" and any other odd conversions.)
+
+    Although technically Spanish grammar requires that "y" only comes after
+    "10s" numbers (ie. "treinta", ..., "noventa"), these rules will convert
+    numbers even with "y" in an ungrammatical place (because "y" is ignored
+    inside cardinal numbers).
+        e.g. "mil y una" -> cardinal { integer: "1001"}
+        e.g. "ciento y una" -> cardinal { integer: "101"}
     """
 
     def __init__(self):
@@ -64,29 +74,68 @@ class CardinalFst(GraphFst):
 
         graph_thousands = pynini.union(
             graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("mil"),
-            pynutil.insert("001") + pynutil.delete("mil"),
+            pynutil.insert("001") + pynutil.delete("mil"), # because we say 'mil', not 'un mil'
             pynutil.insert("000", weight=0.1),
         )
 
-        graph_million = pynini.union(
+        graph_millones = pynini.union(
             graph_hundred_component_at_least_one_none_zero_digit
             + delete_space
             + (pynutil.delete("millones") | pynutil.delete("millón")),
-            # for mil millones:
-            pynutil.delete('millones') + pynutil.insert("000", weight=0.1),
-            # weight=0.9 prevents
-            # "ochocientos treinta y cuatro mil cincuenta" (834050)
-            # ----> 834000000050
-            pynutil.insert("000", weight=0.1),
+            pynutil.insert("000") + pynutil.delete("millones"), # to allow for 'mil millones'
+            pynutil.insert("000", weight=0.1)
         )
 
-        graph_billion = pynini.union(
+        graph_mil_millones = pynini.union(
             graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("mil"),
-            pynutil.insert("000", weight=0.1),
+            pynutil.insert("001") + pynutil.delete("mil"), # because we say 'mil', not 'un mil'
         )
+        graph_mil_millones += delete_space + (graph_millones | pynutil.insert("000") + pynutil.delete("millones")) # allow for 'mil millones'
+        graph_mil_millones |= pynutil.insert("000000", weight=0.1)
+
+        # also allow 'millardo' instead of 'mil millones'
+        graph_millardo = (
+            graph_hundred_component_at_least_one_none_zero_digit
+            + delete_space
+            + (pynutil.delete("millardo") | pynutil.delete("millardos"))
+        )
+
+        graph_billones = pynini.union(
+            graph_hundred_component_at_least_one_none_zero_digit
+            + delete_space
+            + (pynutil.delete("billones") | pynutil.delete("billón")),
+            pynutil.insert("000", weight=0.1)
+        )
+
+        graph_mil_billones = pynini.union(
+            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("mil"),
+            pynutil.insert("001") + pynutil.delete("mil"), # because we say 'mil', not 'un mil'
+        )
+        graph_mil_billones += delete_space + (graph_billones | pynutil.insert("000") + pynutil.delete("billones")) # allow for 'mil billones'
+        graph_mil_billones |= pynutil.insert("000000", weight=0.1)
+
+
+        graph_trillones = pynini.union(
+            graph_hundred_component_at_least_one_none_zero_digit
+            + delete_space
+            + (pynutil.delete("trillones") | pynutil.delete("trillón")),
+            pynutil.insert("000", weight=0.1)
+        )
+
+        graph_mil_trillones = pynini.union(
+            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("mil"),
+            pynutil.insert("001") + pynutil.delete("mil"), # because we say 'mil', not 'un mil'
+        )
+        graph_mil_trillones += delete_space + (graph_trillones | pynutil.insert("000") + pynutil.delete("trillones")) # allow for 'mil trillones'
+        graph_mil_trillones |= pynutil.insert("000000", weight=0.1)        
 
         graph = pynini.union(
-            pynini.closure(graph_billion + delete_space + graph_million + delete_space)
+            (graph_mil_trillones | pynutil.insert("000", weight=0.1) + graph_trillones)
+            + delete_space
+            + (graph_mil_billones | pynutil.insert("000", weight=0.1) + graph_billones)
+            + delete_space
+            + (graph_mil_millones | pynutil.insert("000", weight=0.1) + graph_millones | graph_millardo + graph_millones)
+            + delete_space
             + graph_thousands
             + delete_space
             + graph_hundred_component,
@@ -97,9 +146,11 @@ class CardinalFst(GraphFst):
             pynutil.delete(pynini.closure("0")) + pynini.difference(NEMO_DIGIT, "0") + pynini.closure(NEMO_DIGIT), "0"
         )
 
-        graph_exception = pynini.project(pynini.union(graph_digit, graph_zero), 'input')
-
+        # ignore "y" inside cardinal numbers
         graph = pynini.cdrewrite(pynutil.delete("y"), NEMO_SPACE, NEMO_SPACE, NEMO_SIGMA) @ graph
+
+        # don't convert cardinals from zero to ten inclusive
+        graph_exception = pynini.project(pynini.union(graph_digit, graph_zero), 'input')
 
         self.graph_no_exception = graph
 

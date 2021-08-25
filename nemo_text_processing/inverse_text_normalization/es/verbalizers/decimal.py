@@ -29,8 +29,8 @@ class DecimalFst(GraphFst):
     Finite state transducer for verbalizing decimal,
         e.g. decimal { negative: "true" integer_part: "1" morphosyntactic_features: ","  fractional_part: "26" } -> -1,26
         e.g. decimal { negative: "true" integer_part: "1" morphosyntactic_features: "."  fractional_part: "26" } -> -1.26
-        e.g. decimal { negative: "true" integer_part: "1" morphosyntactic_features: ","  fractional_part: "26" quantity: "millón" } -> 1,26 millón
-        e.g. decimal { negative: "true" integer_part: "2" quantity: "millones" } -> 2 millones
+        e.g. decimal { negative: "false" integer_part: "1" morphosyntactic_features: ","  fractional_part: "26" quantity: "millón" } -> 1,26 millón
+        e.g. decimal { negative: "false" integer_part: "2" quantity: "millones" } -> 2 millones
     """
 
     def __init__(self):
