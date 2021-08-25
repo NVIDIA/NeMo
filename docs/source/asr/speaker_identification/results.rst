@@ -28,8 +28,43 @@ If you have a local ``.nemo`` checkpoint that you'd like to load, simply use the
 Where the model base class is the ASR model class of the original checkpoint, or the general `ASRModel` class.
 
 
-Inference
-----------
+Speaker Label Inference
+------------------------
+
+Speaker label Inference, is to infer speaker labels from a pretrained speaker model with known speaker labels. We provide `speaker_reco_infer.py` script for this purpose under `<NeMo_root>/examples/speaker_recognition` folder.
+
+The audio files should be 16KHz monochannel wav files.
+
+Write audio files to a ``manifest.json`` file with lines as in format:
+
+.. code-block:: json
+    
+    {"audio_filepath": "<absolute path to dataset>/audio_file.wav", "duration": "duration of file in sec", "label": "UNK"}
+      
+This python call will use the pretrain model and infer labels on provided test set using labels from trained manifest file
+
+.. code-block:: bash
+  
+    python speaker_reco_infer.py --spkr_model='/path/to/.nemo/file' --train_manifest='/path/to/train/manifest/file'
+    --test_manifest=/path/to/train/manifest/file' --batch_size=32
+    
+
+Speaker Embedding Extraction
+-----------------------------
+
+Speaker Embedding Extraction, is to extract speaker embeddings for any wav file (from known or unkown speakers). We provide two ways to do this:
+
+* single python liner for extracting embeddings from a single file 
+* python script for extracting embeddings from a bunch of files provided through manifest file
+
+For extracting embeddings from a single file:
+
+.. code-block:: python
+
+  speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name="<pretrained_model_name or path/to/nemo/file>")
+  embs = speaker_model.get_embedding('audio_path')
+
+For extracting embeddings from a bunch of files:
 
 The audio files should be 16KHz monochannel wav files.
 
@@ -54,8 +89,6 @@ The SpeakerNet-ASR collection has checkpoints of several models trained on vario
 
 The tables below list the SpeakerNet models available from NGC, and the models can be accessed via the
 :code:`from_pretrained()` method inside the EncDecSpeakerLabelModel Model class.
-
-.. note:: While loading, remember to use EncDecSpeakerLabelModel for recognition tasks and ExtractSpeakerEmbeddingsModel while extracting embeddings.
 
 In general, you can load any of these models with code in the following format.
 

@@ -28,7 +28,7 @@ from pytorch_lightning.utilities import rank_zero_only
 from tqdm import tqdm
 
 from nemo.collections.asr.models.classification_models import EncDecClassificationModel
-from nemo.collections.asr.models.label_models import ExtractSpeakerEmbeddingsModel
+from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.mixins.mixins import DiarizationMixin
 from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
@@ -116,16 +116,16 @@ class ClusteringDiarizer(Model, DiarizationMixin):
     def _init_speaker_model(self):
         model_path = self._cfg.diarizer.speaker_embeddings.model_path
         if model_path is not None and model_path.endswith('.nemo'):
-            self._speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(model_path)
+            self._speaker_model = EncDecSpeakerLabelModel.restore_from(model_path)
             logging.info("Speaker Model restored locally from {}".format(model_path))
         else:
-            if model_path not in get_available_model_names(ExtractSpeakerEmbeddingsModel):
+            if model_path not in get_available_model_names(EncDecSpeakerLabelModel):
                 logging.warning(
                     "requested {} model name not available in pretrained models, instead".format(model_path)
                 )
                 model_path = "speakerdiarization_speakernet"
             logging.info("Loading pretrained {} model from NGC".format(model_path))
-            self._speaker_model = ExtractSpeakerEmbeddingsModel.from_pretrained(model_name=model_path)
+            self._speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name=model_path)
 
         self._speaker_dir = os.path.join(self._out_dir, 'speaker_outputs')
 

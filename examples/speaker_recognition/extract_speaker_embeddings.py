@@ -31,14 +31,15 @@ Args:
 from argparse import ArgumentParser
 
 import pickle as pkl
+import numpy as np
 import torch
 from omegaconf import OmegaConf
 from tqdm import tqdm
 import json
 import os
-from collections import defaultdict
+from nemo.collections.asr.parts.utils.speaker_utils import embedding_normalize
 
-from nemo.collections.asr.models.label_models import ExtractSpeakerEmbeddingsModel
+from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.utils import logging
 
 try:
@@ -79,12 +80,14 @@ def get_embeddings(speaker_model, manifest_file, batch_size=1, embedding_dir='./
             all_embs.extend(embs.cpu().detach().numpy())
         del test_batch
 
+    all_embs = np.asarray(all_embs)
+    all_embs = embedding_normalize(all_embs)
     with open(manifest_file, 'r') as manifest:
         for i, line in enumerate(manifest.readlines()):
             line = line.strip()
             dic = json.loads(line)
             uniq_name = '@'.join(dic['audio_filepath'].split('/')[-3:])
-            out_embeddings[uniq_name] = [all_embs[i]]
+            out_embeddings[uniq_name] = all_embs[i]
 
     embedding_dir = os.path.join(embedding_dir, 'embeddings')
     if not os.path.exists(embedding_dir):
@@ -121,11 +124,11 @@ def main():
 
     if args.model_path.endswith('.nemo'):
         logging.info(f"Using local speaker model from {args.model_path}")
-        speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(restore_path=args.model_path)
+        speaker_model = EncDecSpeakerLabelModel.restore_from(restore_path=args.model_path)
     elif args.model_path.endswith('.ckpt'):
-        speaker_model = ExtractSpeakerEmbeddingsModel.load_from_checkpoint(checkpoint_path=args.model_path)
+        speaker_model = EncDecSpeakerLabelModel.load_from_checkpoint(checkpoint_path=args.model_path)
     else:
-        speaker_model = ExtractSpeakerEmbeddingsModel.from_pretrained(model_name="speakerverification_speakernet")
+        speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name="speakerverification_speakernet")
         logging.info(f"using pretrained speaker verification model from NGC")
 
     
@@ -134,7 +137,7 @@ def main():
         device = 'cpu'
         logging.warning("Running model on CPU, for faster performance it is adviced to use atleast one NVIDIA GPUs")
 
-    get_embeddings(speaker_model, args.manifest, batch_size=1,embedding_dir=args.embedding_dir, device=device)
+    get_embeddings(speaker_model, args.manifest, batch_size=64,embedding_dir=args.embedding_dir, device=device)
 
 if __name__ == '__main__':
     main()

@@ -27,7 +27,7 @@ NVIDIA NeMo User Guide
 
    asr/intro
    asr/speech_classification/intro
-   asr/speaker_recognition/intro
+   asr/speaker_identification/intro
    asr/speaker_diarization/intro
 
 .. toctree::
