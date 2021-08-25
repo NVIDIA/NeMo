@@ -19,7 +19,7 @@ scores for different tagging labels. For a decoder, the script will evaluate its
 accuracy scores for different semiotic classes (DATE, CARDINAL, LETTERS, ...).
 
 USAGE Example:
-python class_based_decoding_evaluation.py
+python class_based_evaluation.py
         tagger_pretrained_model=PATH_TO_TRAINED_TAGGER
         decoder_pretrained_model=PATH_TO_TRAINED_DECODER
         data.test_ds.data_path=PATH_TO_TEST_FILE
@@ -44,7 +44,7 @@ def print_class_based_stats(class2stats):
         correct_count = np.sum(class2stats[class_name])
         total_count = len(class2stats[class_name])
         class_acc = np.average(class2stats[class_name])
-        class_acc = str(round(class_acc, 3)) + f'% ({correct_count}/{total_count})'
+        class_acc = str(round(class_acc * 100, 3)) + f'% ({correct_count}/{total_count})'
         formatted_str = get_formatted_string((class_name, class_acc), str_max_len=20)
         print(formatted_str)
     print()
@@ -74,6 +74,7 @@ def main(cfg: DictConfig) -> None:
     test_dataset, test_dl = decoder_model.test_dataset, decoder_model._test_dl
     # Inference
     itn_class2stats, tn_class2stats = {}, {}
+
     for ix, examples in tqdm(enumerate(test_dl)):
         # Extract infos of the current batch
         start_idx = ix * batch_size
