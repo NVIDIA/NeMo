@@ -160,9 +160,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         else:
             self.task = 'identification'
 
-        self.embedding_dir = test_data_layer_params.get('embedding_dir', './')
         self._test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
-        self.test_manifest = test_data_layer_params.get('manifest_filepath', None)
 
     def test_dataloader(self):
         if self._test_dl is not None:

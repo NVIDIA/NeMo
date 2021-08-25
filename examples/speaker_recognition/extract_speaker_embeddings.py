@@ -30,9 +30,13 @@ Args:
 
 from argparse import ArgumentParser
 
-import pytorch_lightning as pl
+import pickle as pkl
 import torch
 from omegaconf import OmegaConf
+from tqdm import tqdm
+import json
+import os
+from collections import defaultdict
 
 from nemo.collections.asr.models.label_models import ExtractSpeakerEmbeddingsModel
 from nemo.utils import logging
@@ -46,7 +50,53 @@ except ImportError:
     def autocast(enabled=None):
         yield
 
+def get_embeddings(speaker_model, manifest_file, batch_size=1, embedding_dir='./', device='cuda'):
+    test_config = OmegaConf.create(
+        dict(
+            manifest_filepath=manifest_file,
+            sample_rate=16000,
+            labels=None,
+            batch_size=batch_size,
+            shuffle=False,
+            time_length=20,
+        )
+    )
 
+    speaker_model.setup_test_data(test_config)
+    speaker_model = speaker_model.to(device)
+    speaker_model.eval()
+
+    all_embs=[]
+    out_embeddings = {}
+           
+    for test_batch in tqdm(speaker_model.test_dataloader()):
+        test_batch = [x.to(device) for x in test_batch]
+        audio_signal, audio_signal_len, labels, slices = test_batch
+        with autocast():
+            _, embs = speaker_model.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+            emb_shape = embs.shape[-1]
+            embs = embs.view(-1, emb_shape)
+            all_embs.extend(embs.cpu().detach().numpy())
+        del test_batch
+
+    with open(manifest_file, 'r') as manifest:
+        for i, line in enumerate(manifest.readlines()):
+            line = line.strip()
+            dic = json.loads(line)
+            uniq_name = '@'.join(dic['audio_filepath'].split('/')[-3:])
+            out_embeddings[uniq_name] = [all_embs[i]]
+
+    embedding_dir = os.path.join(embedding_dir, 'embeddings')
+    if not os.path.exists(embedding_dir):
+        os.makedirs(embedding_dir, exist_ok=True)
+
+    prefix = manifest_file.split('/')[-1].rsplit('.', 1)[-2]
+
+    name = os.path.join(embedding_dir, prefix)
+    embeddings_file = name + '_embeddings.pkl'
+    pkl.dump(out_embeddings, open(embeddings_file, 'wb'))
+    logging.info("Saved embedding files to {}".format(embedding_dir))
+    
 def main():
     parser = ArgumentParser()
     parser.add_argument(
@@ -78,26 +128,13 @@ def main():
         speaker_model = ExtractSpeakerEmbeddingsModel.from_pretrained(model_name="speakerverification_speakernet")
         logging.info(f"using pretrained speaker verification model from NGC")
 
-    num_gpus = 1 if torch.cuda.is_available() else 0
-    if not num_gpus:
+    
+    device = 'cuda'
+    if not torch.cuda.is_available():
+        device = 'cpu'
         logging.warning("Running model on CPU, for faster performance it is adviced to use atleast one NVIDIA GPUs")
 
-    trainer = pl.Trainer(gpus=num_gpus, accelerator=None)
-
-    test_config = OmegaConf.create(
-        dict(
-            manifest_filepath=args.manifest,
-            sample_rate=16000,
-            labels=None,
-            batch_size=1,
-            shuffle=False,
-            time_length=20,
-            embedding_dir=args.embedding_dir,
-        )
-    )
-    speaker_model.setup_test_data(test_config)
-    trainer.test(speaker_model)
-
+    get_embeddings(speaker_model, args.manifest, batch_size=1,embedding_dir=args.embedding_dir, device=device)
 
 if __name__ == '__main__':
     main()
