@@ -73,7 +73,10 @@ def instantiate_model_and_trainer(cfg: DictConfig, model_name: str, do_training:
     # Setup train and validation data
     if do_training:
         model.setup_training_data(train_data_config=cfg.data.train_ds)
-        model.setup_validation_data(val_data_config=cfg.data.validation_ds)
+        if model_name == DECODER_MODEL:
+            model.setup_multiple_validation_data(val_data_config=cfg.data.validation_ds)
+        else:
+            model.setup_validation_data(val_data_config=cfg.data.validation_ds)
 
     logging.info(f'Model Device {model.device}')
     return trainer, model
