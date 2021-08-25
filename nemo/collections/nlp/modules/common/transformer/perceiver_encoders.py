@@ -248,12 +248,6 @@ class MaxPoolingPerceiverEncoder(PerceiverEncoder):
                 encoder_mask=encoder_mask,
             )
 
-            # self-attention over hidden
-            hidden_states = self_att(encoder_states=hidden_states, encoder_mask=hidden_mask,)
-
-            # residual connection
-            hidden_states += residual
-
             # max pool reduction if possible
             if hidden_states.shape[1] >= 2:
                 # max pool hidden states
@@ -261,10 +255,33 @@ class MaxPoolingPerceiverEncoder(PerceiverEncoder):
                 hidden_states = self.max_pool(hidden_states)
                 hidden_states = hidden_states.permute(0, 2, 1)
 
+                residual = residual.permute(0, 2, 1)
+                residual = self.max_pool(residual)
+                residual = residual.permute(0, 2, 1)
+
                 # max pool mask
                 hidden_mask = self.max_pool(
                     hidden_mask.unsqueeze(0).type_as(hidden_states)
                     ).squeeze(0).type_as(hidden_mask)
+
+
+            # self-attention over hidden
+            hidden_states = self_att(encoder_states=hidden_states, encoder_mask=hidden_mask,)
+
+            # residual connection
+            hidden_states += residual
+
+            # # max pool reduction if possible
+            # if hidden_states.shape[1] >= 2:
+            #     # max pool hidden states
+            #     hidden_states = hidden_states.permute(0, 2, 1)
+            #     hidden_states = self.max_pool(hidden_states)
+            #     hidden_states = hidden_states.permute(0, 2, 1)
+
+            #     # max pool mask
+            #     hidden_mask = self.max_pool(
+            #         hidden_mask.unsqueeze(0).type_as(hidden_states)
+            #         ).squeeze(0).type_as(hidden_mask)
 
 
         return hidden_states, hidden_mask
