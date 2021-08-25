@@ -1,5 +1,5 @@
 trainer:
-  gpus: 4
+  gpus: 1
   num_nodes: 1
   accelerator: ddp
   precision: 16
@@ -11,7 +11,7 @@ trainer:
   log_every_n_steps: 100
   val_check_interval: 2000
   limit_val_batches: 50
-  #gradient_clip_val: 1.0
+  #gradient_clip_val: 1.0 # TODO: implement model parallel gradient clipping
 
 exp_manager:
   # TODO: add always save nemo
@@ -30,10 +30,10 @@ exp_manager:
 
 model:
   debug: False # logs debugging info
-  # add validation generation config, size of context, m
+  # TODO: add validation generation config, size of context, max sequence length
   # needed to initialize megatron
   micro_batch_size: 8
-  tensor_model_parallel_size: 2
+  tensor_model_parallel_size: 1
   max_position_embeddings: 1024
   encoder_seq_length: 1024
   num_layers: 24
@@ -56,10 +56,8 @@ model:
       - /raid/data/pile/my-gpt3_00_text_document
       - .5
       - /raid/data/pile/my-gpt3_01_text_document
-      #- /raid/data/gpt/simple_wiki_gpt_preproc_text_document
     data_impl: mmap
     splits_string: 949,50,1
-    #seq_length: ${model.encoder_seq_length}
     seq_length: 1024
     skip_warmup: False
     num_workers: 0
@@ -74,5 +72,4 @@ model:
     - 0.98
     sched:
       name: CosineAnnealing
-      #name: WarmupAnnealing
       warmup_ratio: .01
