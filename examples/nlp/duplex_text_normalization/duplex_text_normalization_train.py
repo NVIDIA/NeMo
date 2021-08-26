@@ -35,10 +35,11 @@ at the example config file to see the list of parameters used for training.
 
 USAGE Example:
 1. Obtain a processed dataset (refer to the `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`)
-2.
-# python duplex_text_normalization_train.py
-        data.base_dir=PATH_TO_DATASET_DIR
-        mode={tn,itn,joint}
+2. Run:
+# python duplex_text_normalization_train.py \
+        data.validation_ds.data_path=PATH_TO_VALIDATION_FILE \
+        data.train_ds.data_path=PATH_TO_TRAIN_FILE \
+        mode={tn,itn,joint} \
         lang={en,ru,de}
 
 There are 3 different modes. `tn` mode is for training a system for TN only.
@@ -49,16 +50,20 @@ first train a tagger and then train a decoder sequentially.
 You can also train only a tagger (without training a decoder) by running the
 following command:
 # python duplex_text_normalization_train.py
-        data.base_dir=PATH_TO_DATASET_DIR
+        data.validation_ds.data_path=PATH_TO_VALIDATION_FILE \
+        data.train_ds.data_path=PATH_TO_TRAIN_FILE \
+        data.test_ds.data_path=PATH_TO_TEST_FILE \
         mode={tn,itn,joint}
         lang={en,ru,de}
         decoder_model.do_training=false
 
 Or you can also train only a decoder (without training a tagger):
-# python duplex_text_normalization_train.py
-        data.base_dir=PATH_TO_DATASET_DIR
-        mode={tn,itn,joint}
-        lang={en,ru,de}
+# python duplex_text_normalization_train.py \
+        data.validation_ds.data_path=PATH_TO_VALIDATION_FILE \
+        data.train_ds.data_path=PATH_TO_TRAIN_FILE \
+        data.test_ds.data_path=PATH_TO_TEST_FILE \
+        mode={tn,itn,joint} \
+        lang={en,ru,de} \
         tagger_model.do_training=false
 
 Information on the arguments:
@@ -68,9 +73,6 @@ Most arguments in the example config file are quite self-explanatory (e.g.,
 Some arguments we want to mention are:
 
 + lang: The language of the dataset.
-
-+ data.base_dir: The path to the dataset directory. It is expected that the
-directory contains three files: train.tsv, dev.tsv, and test.tsv.
 
 + tagger_model.nemo_path: This is the path where the final trained tagger model
 will be saved to.

@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-from dataclasses import dataclass
 from typing import List, Optional, Union
 
 from attr import asdict
@@ -36,7 +35,7 @@ from nemo.collections.nlp.modules.common.transformer.transformer_utils import (
     get_megatron_transformer,
     get_nemo_transformer,
 )
-from nemo.utils import logging
+from nemo.utils import AppState, logging
 
 __all__ = ['get_pretrained_lm_models_list', 'get_lm_model']
 
@@ -102,7 +101,10 @@ def get_lm_model(
             config_dict=config_dict, config_file=config_file, pretrained_model_name=pretrained_model_name,
         )
 
-    if checkpoint_file and os.path.exists(checkpoint_file):
+    if checkpoint_file:
+        app_state = AppState()
+        if not app_state.is_model_being_restored and not os.path.exists(checkpoint_file):
+            raise ValueError(f'{checkpoint_file} not found')
         model.restore_weights(restore_path=checkpoint_file)
 
     return model
