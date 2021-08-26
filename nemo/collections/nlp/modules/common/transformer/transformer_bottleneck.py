@@ -179,7 +179,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         input_types = super().input_types
         input_types.update(
-            {"return_mask": NeuralType((), BoolType(), True), }
+            {"return_mask": NeuralType((), BoolType(), True),}
         )
 
         return input_types
@@ -188,7 +188,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         output_types = super().output_types
         output_types.update(
-            {"hidden_mask": NeuralType(('B', 'T'), MaskType(), True), }
+            {"hidden_mask": NeuralType(('B', 'T'), MaskType(), True),}
         )
         return output_types
 
