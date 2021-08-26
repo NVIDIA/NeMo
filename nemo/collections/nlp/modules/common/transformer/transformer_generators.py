@@ -121,9 +121,12 @@ class GreedySequenceGenerator:
 
         # for encoder-decoder generation, maximum length of generated sequence
         # is min(max_sequence_length, src_len + max_delta_length)
-        if (encoder_hidden_states is not None) and (self.max_delta_len > 0):
+        if (encoder_hidden_states is not None):
             batch_size, src_len, _ = encoder_hidden_states.size()
-            max_seq_length = min(self.max_seq_length, src_len + self.max_delta_len)
+            if (self.max_delta_len > 0):
+                max_seq_length = min(self.max_seq_length, src_len + self.max_delta_len)
+            else:
+                max_seq_length = self.max_seq_length
         else:
             max_seq_length = self.max_seq_length
 
@@ -509,9 +512,12 @@ class EnsembleBeamSearchSequenceGenerator:
 
         # for encoder-decoder generation, maximum length of generated sequence
         # is min(max_sequence_length, src_len + max_delta_length)
-        if (encoder_hidden_states is not None) and (self.max_delta_len > 0):
+        if (encoder_hidden_states is not None):
             batch_size, src_len, _ = encoder_hidden_states.size()
-            max_seq_length = min(self.max_seq_length, src_len + self.max_delta_len)
+            if (self.max_delta_len > 0):
+                max_seq_length = min(self.max_seq_length, src_len + self.max_delta_len)
+            else:
+                max_seq_length = self.max_seq_length
         else:
             max_seq_length = self.max_seq_length
 
