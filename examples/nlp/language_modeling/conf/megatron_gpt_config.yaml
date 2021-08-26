@@ -33,7 +33,7 @@ model:
   # TODO: add validation generation config, size of context, max sequence length
   # needed to initialize megatron
   micro_batch_size: 8
-  tensor_model_parallel_size: 1
+  tensor_model_parallel_size: 2
   max_position_embeddings: 1024
   encoder_seq_length: 1024
   num_layers: 24
@@ -66,7 +66,7 @@ model:
   optim:
     name: adam
     lr: 0.0001
-    weight_decay: 0.01
+    #weight_decay: 0.01
     betas: 
     - 0.9
     - 0.98
