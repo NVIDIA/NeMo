@@ -15,6 +15,7 @@
 import pytorch_lightning as pl
 from omegaconf import DictConfig, OmegaConf
 
+from nemo.collections.nlp.data.text_normalization import constants
 from nemo.collections.nlp.models import DuplexDecoderModel, DuplexTaggerModel
 from nemo.utils import logging
 
@@ -59,10 +60,23 @@ def instantiate_model_and_trainer(cfg: DictConfig, model_name: str, do_training:
         if model_name == DECODER_MODEL:
             model = DuplexDecoderModel.restore_from(pretrained_cfg)
 
+    # Set model.lang (if it is still None)
+    if model.lang is None:
+        model.lang = cfg.lang
+    assert model.lang in constants.SUPPORTED_LANGS
+    # Setup covering grammars (if enabled)
+    # We only support integrating with English TN covering grammars at the moment
+    if model_name == DECODER_MODEL and model_cfg.use_cg and cfg.lang == constants.ENGLISH:
+        if model.cg_normalizer is None:
+            model.setup_cgs(model_cfg)
+
     # Setup train and validation data
     if do_training:
         model.setup_training_data(train_data_config=cfg.data.train_ds)
-        model.setup_validation_data(val_data_config=cfg.data.validation_ds)
+        if model_name == DECODER_MODEL:
+            model.setup_multiple_validation_data(val_data_config=cfg.data.validation_ds)
+        else:
+            model.setup_validation_data(val_data_config=cfg.data.validation_ds)
 
     logging.info(f'Model Device {model.device}')
     return trainer, model

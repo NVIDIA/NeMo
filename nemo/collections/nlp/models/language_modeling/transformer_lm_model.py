@@ -74,7 +74,14 @@ class TransformerLMModel(ModelPT):
         model_name = encoder_cfg_dict.pop('model_name', None)
         pretrained = encoder_cfg_dict.pop('pretrained', False)
         self.encoder = get_transformer(
-            library=library, model_name=model_name, pretrained=pretrained, config_dict=encoder_cfg_dict, encoder=True,
+            library=library,
+            model_name=model_name,
+            pretrained=pretrained,
+            config_dict=encoder_cfg_dict,
+            encoder=True,
+            pre_ln_final_layer_norm=encoder_cfg_dict.get(
+                'pre_ln_final_layer_norm', encoder_cfg_dict.get('pre_ln', True)
+            ),
         )
 
         self.log_softmax = TokenClassifier(
@@ -167,23 +174,22 @@ class TransformerLMModel(ModelPT):
     def eval_epoch_end(self, outputs, mode):
         eval_loss = self.eval_loss.compute()
         eval_ppl = self.eval_ppl.compute()
-        ans = {f"{mode}_loss": eval_loss, f"{mode}_ppl": eval_ppl}
-        ans['log'] = dict(ans)
+        self.log(f"{mode}_loss", eval_loss, sync_dist=True)
+        self.log(f"{mode}_PPL", eval_ppl, sync_dist=True)
         dataset_name = "Validation" if mode == 'val' else "Test"
         logging.info(f"\n\n\n\n{dataset_name} PPL: {np.round(eval_ppl.item(), 2)}")
-        return ans
 
     def validation_epoch_end(self, outputs):
         """
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
-        self.log_dict(self.eval_epoch_end(outputs, 'val'), sync_dist=True)
+        self.eval_epoch_end(outputs, 'val')
         self.eval_loss.reset()
         self.eval_ppl.reset()
 
     def test_epoch_end(self, outputs):
-        return self.eval_epoch_end(outputs, 'test')
+        self.eval_epoch_end(outputs, 'test')
 
     def setup_tokenizer(
         self, tokenizer_name=None, tokenizer_model=None, vocab_file=None, bpe_dropout=0.0,

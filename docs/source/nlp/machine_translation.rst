@@ -58,7 +58,7 @@ Data Format
 -----------
 
 Supervised machine translation models require parallel corpora which comprises many examples of sentences in a source language and 
-their corresponding translation in a target language. We use parallel data formatted as seperate text files for source and target 
+their corresponding translation in a target language. We use parallel data formatted as separate text files for source and target 
 languages where sentences in corresponding files are aligned like in the table below.
 
 .. list-table:: *Parallel Coprus*
@@ -85,12 +85,12 @@ We recommend applying the following steps to clean, normalize, and tokenize your
 
 #. Language ID filtering - This step filters out examples from your training dataset that aren't in the correct language. For example, 
    many datasets contain examples where source and target sentences are in the same language. You can use a pre-trained language ID 
-   classifier from `fastText <https://fasttext.cc/docs/en/language-identification.html>`__. You can then run our script using the 
+   classifier from `fastText <https://fasttext.cc/docs/en/language-identification.html>`__. Install fastText and then you can then run our script using the 
    ``lid.176.bin`` model downloaded from the fastText website.
 
    .. code ::
 
-       python NeMo/scripts/neural_machine_translation/filter_by_language.py \
+       python NeMo/scripts/neural_machine_translation/filter_langs_nmt.py \
          --input-src train.en \
          --input-tgt train.es \
          --output-src train_lang_filtered.en \
@@ -98,7 +98,7 @@ We recommend applying the following steps to clean, normalize, and tokenize your
          --source-lang en \
          --target-lang es \
          --removed-src train_noise.en \
-         --removed-tgt train_noise.de \
+         --removed-tgt train_noise.es \
          --fasttext-model lid.176.bin
 
 #. Length filtering - We filter out sentences from the data that are below a minimum length (1) or exceed a maximum length (250). We 
@@ -110,7 +110,7 @@ We recommend applying the following steps to clean, normalize, and tokenize your
 
        perl mosesdecoder/scripts/training/clean-corpus-n.perl -ratio 1.3 train en es train.filter 1 250
 
-#. Data cleaning - While language ID filtering can sometimes help with filtering out noisy sentences that contain too many puncutations, 
+#. Data cleaning - While language ID filtering can sometimes help with filtering out noisy sentences that contain too many punctuations, 
    it does not help in cases where the translations are potentially incorrect, disfluent,  or incomplete. We use `bicleaner <https://github.com/bitextor/bicleaner>`__ 
    a tool to identify such sentences. It trains a classifier based on many features included pre-trained language model fluency, word 
    alignment scores from a word-alignment model like `Giza++ <https://github.com/moses-smt/giza-pp>`__ etc. We use their available 
@@ -160,7 +160,7 @@ We recommend applying the following steps to clean, normalize, and tokenize your
 #. Tokenization and word segmentation for Chinese - Naturally written text often contains punctuation markers like commas, full-stops 
    and apostrophes that are attached to words. Tokenization by just splitting a string on spaces will result in separate token IDs for 
    very similar items like ``NeMo`` and ``NeMo.``. Tokenization splits punctuation from the word to create two separate tokens. In the 
-   previous example ``NeMo.`` becomes ``NeMo .`` which when split by space, results in two tokens and adressess the earlier problem. 
+   previous example ``NeMo.`` becomes ``NeMo .`` which when split by space, results in two tokens and addresses the earlier problem. 
    
    For example:
 
@@ -189,7 +189,7 @@ Training a BPE Tokenization
 ---------------------------
 
 Byte-pair encoding (BPE) :cite:`nlp-machine_translation-sennrich2015neural` is a sub-word tokenization algorithm that is commonly used 
-to reduce the large vocabulary size of datasets by splitting words into frequently occuring sub-words. Currently, mMachine translation 
+to reduce the large vocabulary size of datasets by splitting words into frequently occuring sub-words. Currently, Machine translation 
 only supports the `YouTokenToMe <https://github.com/VKCOM/YouTokenToMe>`__ BPE tokenizer. One can set the tokenization configuration 
 as follows:
 
@@ -272,13 +272,13 @@ Tarred datasets can be configured as follows:
 +-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
 | **model.{train_ds,validation_ds,test_ds}.metadata_file**              | str             | ``null``       | Path to JSON metadata file that contains only a single entry for the total number of batches in the dataset.   |
 +-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
-| **model.{train_ds,validation_ds,test_ds}.lines_per_dataset_fragment** | int             | ``1000000``    |                                                                                                                |
+| **model.{train_ds,validation_ds,test_ds}.lines_per_dataset_fragment** | int             | ``1000000``    | Number of lines to consider for bucketing and padding.                                                         |
 +-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
-| **model.{train_ds,validation_ds,test_ds}.num_batches_per_tarfile**    | int             | ``100``        | Maximum sequence to be used with the ``clean`` argument above.                                                 |
+| **model.{train_ds,validation_ds,test_ds}.num_batches_per_tarfile**    | int             | ``100``        | Number of batches (pickle files) within each tarfile.                                                          |
 +-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
-| **model.{train_ds,validation_ds,test_ds}.tar_shuffle_n**              | int             | ``100``        | Whether to cache IDs to avoid re-tokenizing data. This will be deprecated in favor of tarred datasets.         |
+| **model.{train_ds,validation_ds,test_ds}.tar_shuffle_n**              | int             | ``100``        | How many samples to look ahead and load to be shuffled.                                                        |
 +-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
-| **model.{train_ds,validation_ds,test_ds}.shard_strategy**             | str             | ``scatter``    | Whether to cache IDs in each of the nodes in multi-node training.                                              |
+| **model.{train_ds,validation_ds,test_ds}.shard_strategy**             | str             | ``scatter``    | How the shards are distributed between multiple workers.                                                       |
 +-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
 | **model.preproc_out_dir**                                             | str             | ``null``       | Path to folder that contains processed tar files or directory where new tar files are written.                 |
 +-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
@@ -377,10 +377,10 @@ options:
 | **model.{encoder,decoder}.pre_ln**                                | bool            | ``false``             | Whether to apply layer-normalization before (``true``) or after (``false``) a sub-layer.                        |
 +-------------------------------------------------------------------+-----------------+-----------------------+-----------------------------------------------------------------------------------------------------------------+
 
-Our pre-trained models are optimized with Adam, with a maximum learning of 0.0004, beta of (0.9, 0.98), an inverse square root learning 
+Our pre-trained models are optimized with Adam, with a maximum learning of 0.0004, beta of (0.9, 0.98), and inverse square root learning 
 rate schedule from :cite:`nlp-machine_translation-vaswani2017attention`. The **model.optim** section sets the optimization parameters.
 
-The following script creates tarred datasets based on the provided parallel corpus and train a model based on the ``base`` configuration 
+The following script creates tarred datasets based on the provided parallel corpus and trains a model based on the ``base`` configuration 
 from :cite:`nlp-machine_translation-vaswani2017attention`.
 
 .. code ::
@@ -410,7 +410,7 @@ from :cite:`nlp-machine_translation-vaswani2017attention`.
       ~model.test_ds \
 
 The trainer keeps track of the sacreBLEU score :cite:`nlp-machine_translation-post2018call` on the provided validation set and saves 
-the checkpoints that had the top 5 (by default) sacreBLEU scores.
+the checkpoints that have the top 5 (by default) sacreBLEU scores.
 
 At the end of training, a ``.nemo`` file is written to the result directory which allows to run inference on a test set.
 

@@ -44,8 +44,8 @@ import torch.nn.functional as F
 from torch.nn import AvgPool1d, Conv1d, Conv2d, ConvTranspose1d
 from torch.nn.utils import remove_weight_norm, spectral_norm, weight_norm
 
-from nemo.core.classes import NeuralModule
 from nemo.core.classes.common import typecheck
+from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType, VoidType
 from nemo.core.neural_types.neural_type import NeuralType
 
@@ -268,20 +268,21 @@ class Generator(NeuralModule):
 
 
 class DiscriminatorP(NeuralModule):
-    def __init__(self, period, kernel_size=5, stride=3, use_spectral_norm=False):
+    def __init__(self, period, kernel_size=5, stride=3, use_spectral_norm=False, debug=False):
         super().__init__()
         self.period = period
         norm_f = weight_norm if use_spectral_norm == False else spectral_norm
+        conv_ch = [32, 128, 512, 1024] if not debug else [8, 12, 32, 64]
         self.convs = nn.ModuleList(
             [
-                norm_f(Conv2d(1, 32, (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
-                norm_f(Conv2d(32, 128, (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
-                norm_f(Conv2d(128, 512, (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
-                norm_f(Conv2d(512, 1024, (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
-                norm_f(Conv2d(1024, 1024, (kernel_size, 1), 1, padding=(2, 0))),
+                norm_f(Conv2d(1, conv_ch[0], (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
+                norm_f(Conv2d(conv_ch[0], conv_ch[1], (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
+                norm_f(Conv2d(conv_ch[1], conv_ch[2], (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
+                norm_f(Conv2d(conv_ch[2], conv_ch[3], (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
+                norm_f(Conv2d(conv_ch[3], conv_ch[3], (kernel_size, 1), 1, padding=(2, 0))),
             ]
         )
-        self.conv_post = norm_f(Conv2d(1024, 1, (3, 1), 1, padding=(1, 0)))
+        self.conv_post = norm_f(Conv2d(conv_ch[3], 1, (3, 1), 1, padding=(1, 0)))
 
     @property
     def input_types(self):
@@ -320,10 +321,16 @@ class DiscriminatorP(NeuralModule):
 
 
 class MultiPeriodDiscriminator(NeuralModule):
-    def __init__(self):
+    def __init__(self, debug=False):
         super().__init__()
         self.discriminators = nn.ModuleList(
-            [DiscriminatorP(2), DiscriminatorP(3), DiscriminatorP(5), DiscriminatorP(7), DiscriminatorP(11),]
+            [
+                DiscriminatorP(2, debug=debug),
+                DiscriminatorP(3, debug=debug),
+                DiscriminatorP(5, debug=debug),
+                DiscriminatorP(7, debug=debug),
+                DiscriminatorP(11, debug=debug),
+            ]
         )
 
     @property
@@ -360,21 +367,22 @@ class MultiPeriodDiscriminator(NeuralModule):
 
 
 class DiscriminatorS(NeuralModule):
-    def __init__(self, use_spectral_norm=False):
+    def __init__(self, use_spectral_norm=False, debug=False):
         super().__init__()
         norm_f = weight_norm if use_spectral_norm == False else spectral_norm
+        conv_ch = [128, 256, 512, 1024] if not debug else [16, 32, 32, 64]
         self.convs = nn.ModuleList(
             [
-                norm_f(Conv1d(1, 128, 15, 1, padding=7)),
-                norm_f(Conv1d(128, 128, 41, 2, groups=4, padding=20)),
-                norm_f(Conv1d(128, 256, 41, 2, groups=16, padding=20)),
-                norm_f(Conv1d(256, 512, 41, 4, groups=16, padding=20)),
-                norm_f(Conv1d(512, 1024, 41, 4, groups=16, padding=20)),
-                norm_f(Conv1d(1024, 1024, 41, 1, groups=16, padding=20)),
-                norm_f(Conv1d(1024, 1024, 5, 1, padding=2)),
+                norm_f(Conv1d(1, conv_ch[0], 15, 1, padding=7)),
+                norm_f(Conv1d(conv_ch[0], conv_ch[0], 41, 2, groups=4, padding=20)),
+                norm_f(Conv1d(conv_ch[0], conv_ch[1], 41, 2, groups=16, padding=20)),
+                norm_f(Conv1d(conv_ch[1], conv_ch[2], 41, 4, groups=16, padding=20)),
+                norm_f(Conv1d(conv_ch[2], conv_ch[3], 41, 4, groups=16, padding=20)),
+                norm_f(Conv1d(conv_ch[3], conv_ch[3], 41, 1, groups=16, padding=20)),
+                norm_f(Conv1d(conv_ch[3], conv_ch[3], 5, 1, padding=2)),
             ]
         )
-        self.conv_post = norm_f(Conv1d(1024, 1, 3, 1, padding=1))
+        self.conv_post = norm_f(Conv1d(conv_ch[3], 1, 3, 1, padding=1))
 
     @property
     def input_types(self):
@@ -404,10 +412,14 @@ class DiscriminatorS(NeuralModule):
 
 
 class MultiScaleDiscriminator(NeuralModule):
-    def __init__(self):
+    def __init__(self, debug=False):
         super().__init__()
         self.discriminators = nn.ModuleList(
-            [DiscriminatorS(use_spectral_norm=True), DiscriminatorS(), DiscriminatorS(),]
+            [
+                DiscriminatorS(use_spectral_norm=True, debug=debug),
+                DiscriminatorS(debug=debug),
+                DiscriminatorS(debug=debug),
+            ]
         )
         self.meanpools = nn.ModuleList([AvgPool1d(4, 2, padding=2), AvgPool1d(4, 2, padding=2)])
 

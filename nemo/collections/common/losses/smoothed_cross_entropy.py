@@ -30,6 +30,7 @@ class SmoothedCrossEntropyLoss(Loss):
     1) excludes padding tokens from loss calculation
     2) allows to use label smoothing regularization
     3) allows to calculate loss for the desired number of last tokens
+    4) per_token_reduction - if False disables reduction per token
 
     Args:
         label_smoothing (float): label smoothing regularization coefficient
@@ -65,12 +66,14 @@ class SmoothedCrossEntropyLoss(Loss):
         label_smoothing: Optional[float] = 0.0,
         predict_last_k: Optional[int] = 0,
         eps: float = 1e-6,
+        per_token_reduction: bool = True,
     ):
         super().__init__()
         self._pad_id = pad_id
         self._eps = eps
         self._predict_last_k = predict_last_k
         self._label_smoothing = label_smoothing
+        self._per_token_reduction = per_token_reduction
 
     @typecheck()
     def forward(self, log_probs, labels, output_mask=None):
@@ -97,7 +100,12 @@ class SmoothedCrossEntropyLoss(Loss):
         neg_log_likelihood = (1.0 - smoothing) * target_log_probs + smoothing * smoothing_log_probs
         neg_log_likelihood = neg_log_likelihood[:, -self._predict_last_k :]
         output_mask = output_mask[:, -self._predict_last_k :]
-        neg_log_likelihood = -torch.sum(neg_log_likelihood * output_mask)
-        neg_log_likelihood = neg_log_likelihood / (output_mask.sum() + self._eps)
+
+        # when False avoid per token reduction
+        if self._per_token_reduction:
+            neg_log_likelihood = -torch.sum(neg_log_likelihood * output_mask)
+            neg_log_likelihood = neg_log_likelihood / (output_mask.sum() + self._eps)
+        else:
+            neg_log_likelihood = -(neg_log_likelihood * output_mask)
 
         return neg_log_likelihood

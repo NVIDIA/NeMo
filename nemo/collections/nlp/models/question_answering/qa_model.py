@@ -239,8 +239,8 @@ class QAModel(NLPModel):
             logits = torch.cat(all_logits)
             unique_ids = tensor2list(torch.cat(all_unique_ids))
             s, e = logits.split(dim=-1, split_size=1)
-            start_logits = tensor2list(s.squeeze())
-            end_logits = tensor2list(e.squeeze())
+            start_logits = tensor2list(s.squeeze(-1))
+            end_logits = tensor2list(e.squeeze(-1))
             (all_predictions, all_nbest, scores_diff) = infer_datalayer.dataset.get_predictions(
                 unique_ids=unique_ids,
                 start_logits=start_logits,
@@ -342,7 +342,7 @@ class QAModel(NLPModel):
             PretrainedModelInfo(
                 pretrained_model_name="qa_squadv1.1_bertbase",
                 location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/qa_squadv1_1_bertbase/versions/1.0.0rc1/files/qa_squadv1.1_bertbase.nemo",
-                description="Question answering model finetuned from NeMo BERT Base Uncased on SQuAD v1.1 dataset which obtains an exact match (EM) score of 82.78% and an F1 score of 82.78%.",
+                description="Question answering model finetuned from NeMo BERT Base Uncased on SQuAD v1.1 dataset which obtains an exact match (EM) score of 82.78% and an F1 score of 89.97%.",
             )
         )
 

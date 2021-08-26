@@ -87,6 +87,7 @@ model:
     vocab_file: null
     special_tokens: null
     training_sample_size: null # valid for sentencepiece tokenizer
+    r2l: false
 
   decoder_tokenizer:
     library: yttm
@@ -96,6 +97,7 @@ model:
     vocab_file: null
     special_tokens: null
     training_sample_size: null # valid for sentencepiece tokenizer
+    r2l: false
 
   encoder:
     library: nemo

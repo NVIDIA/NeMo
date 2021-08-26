@@ -15,9 +15,22 @@
 DECODE_CTX_SIZE = 3  # the size of the input context to be provided to the DuplexDecoderModel
 LABEL_PAD_TOKEN_ID = -100
 
+# Split names
+TRAIN, DEV, TEST = 'train', 'dev', 'test'
+SPLIT_NAMES = [TRAIN, DEV, TEST]
+
+# Languages
+ENGLISH = 'en'
+RUSSIAN = 'ru'
+GERMAN = 'de'
+MULTILINGUAL = 'multilingual'
+SUPPORTED_LANGS = [ENGLISH, RUSSIAN, GERMAN, MULTILINGUAL]
+
 # Task Prefixes
-ITN_PREFIX = str(0)
-TN_PREFIX = str(1)
+ITN_TASK = 0
+TN_TASK = 1
+ITN_PREFIX = str(ITN_TASK)
+TN_PREFIX = str(TN_TASK)
 
 # Tagger Labels Prefixes
 B_PREFIX = 'B-'  # Denote beginning
@@ -29,11 +42,15 @@ TN_MODE = 'tn'
 ITN_MODE = 'itn'
 JOINT_MODE = 'joint'
 MODES = [TN_MODE, ITN_MODE, JOINT_MODE]
+TASK_ID_TO_MODE = {ITN_TASK: ITN_MODE, TN_TASK: TN_MODE}
+MODE_TO_TASK_ID = {v: k for k, v in TASK_ID_TO_MODE.items()}
 
 # Instance Directions
 INST_BACKWARD = 'BACKWARD'
 INST_FORWARD = 'FORWARD'
 INST_DIRECTIONS = [INST_BACKWARD, INST_FORWARD]
+DIRECTIONS_TO_ID = {INST_BACKWARD: ITN_TASK, INST_FORWARD: TN_TASK}
+DIRECTIONS_ID_TO_NAME = {ITN_TASK: INST_BACKWARD, TN_TASK: INST_FORWARD}
 
 # TAGS
 SAME_TAG = 'SAME'  # Tag indicates that a token can be kept the same without any further transformation
@@ -47,15 +64,17 @@ ALL_TAG_LABELS = []
 for prefix in TAGGER_LABELS_PREFIXES:
     for tag in ALL_TAGS:
         ALL_TAG_LABELS.append(prefix + tag)
+
 ALL_TAG_LABELS.sort()
+LABEL_IDS = {l: idx for idx, l in enumerate(ALL_TAG_LABELS)}
 
 # Special Words
 SIL_WORD = 'sil'
 SELF_WORD = '<self>'
 SPECIAL_WORDS = [SIL_WORD, SELF_WORD]
 
-# Mappings for Greek Letters
-GREEK_TO_SPOKEN = {
+# Mappings for Greek Letters (English)
+EN_GREEK_TO_SPOKEN = {
     'Τ': 'tau',
     'Ο': 'omicron',
     'Δ': 'delta',
@@ -96,7 +115,7 @@ GREEK_TO_SPOKEN = {
     'ω': 'omega',
     'χ': 'chi',
 }
-SPOKEN_TO_GREEK = {v: k for k, v in GREEK_TO_SPOKEN.items()}
+EN_SPOKEN_TO_GREEK = {v: k for k, v in EN_GREEK_TO_SPOKEN.items()}
 
 # IDs for special tokens for encoding inputs of the decoder models
 EXTRA_ID_0 = '<extra_id_0>'
