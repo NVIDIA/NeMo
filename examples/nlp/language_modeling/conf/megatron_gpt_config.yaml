@@ -1,5 +1,5 @@
 trainer:
-  gpus: 1
+  gpus: 4
   num_nodes: 1
   accelerator: ddp
   precision: 16
@@ -9,24 +9,27 @@ trainer:
   max_epochs: null
   max_steps: 500000
   log_every_n_steps: 100
-  val_check_interval: 2000
+  val_check_interval: 100
   limit_val_batches: 50
   #gradient_clip_val: 1.0 # TODO: implement model parallel gradient clipping
 
 exp_manager:
-  # TODO: add always save nemo
+  explicit_log_dir: null
   exp_dir: /raid/nemo_experiments/
   name: megatron_gpt
   create_wandb_logger: True
   wandb_logger_kwargs:
     project: nemo_megatron_gpt_pretraining
     name: dev
+  resume_if_exists: True
+  resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
     monitor: val_loss
     save_top_k: 10
     mode: min
-    always_save_nemo: False
+    always_save_nemo: False # TODO: add support
+
 
 model:
   debug: False # logs debugging info
@@ -66,7 +69,7 @@ model:
   optim:
     name: adam
     lr: 0.0001
-    #weight_decay: 0.01
+    #weight_decay: 0.01 # TODO: add mp weight decay
     betas: 
     - 0.9
     - 0.98
