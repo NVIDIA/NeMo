@@ -7,7 +7,7 @@ model:
   len_pen: 0.6
   multilingual: False
   retrieval: False # train retrieval augmented model
-  max_generation_delta: 5
+  max_generation_delta: -1
   label_smoothing: 0.1
   shared_tokenizer: True # train tokenizer model across src and tgt train data
   preproc_out_dir: null # path to store data preprocessing outputs
