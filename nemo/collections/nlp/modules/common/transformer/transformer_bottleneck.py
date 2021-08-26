@@ -16,9 +16,7 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 
 from nemo.collections.nlp.modules.common.transformer.bridge_encoders import BridgeEncoder
-from nemo.collections.nlp.modules.common.transformer.perceiver_encoders import PerceiverEncoder, MaxPoolingPerceiverEncoder
-from nemo.collections.nlp.modules.common.transformer.compressor_encoders import CompressorEncoder
-from nemo.collections.nlp.modules.common.transformer.reduction_encoders import MaxPoolingEncoder
+from nemo.collections.nlp.modules.common.transformer.perceiver_encoders import PerceiverEncoder
 from nemo.collections.nlp.modules.common.transformer.transformer import (
     NeMoTransformerConfig,
     TransformerDecoderNM,
@@ -59,7 +57,7 @@ class NeMoTransformerBottleneckDecoderConfig(NeMoTransformerBottleneckConfig):
 
 class TransformerBottleneckEncoderNM(TransformerEncoderNM):
 
-    _SUPPORTED_ARCH = ["seq2seq", "bridge", "perceiver", "compressor", "max_pool", "max_pool_perceiver"]
+    _SUPPORTED_ARCH = ["seq2seq", "bridge", "perceiver"]
 
     def __init__(
         self,
@@ -153,57 +151,6 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
             )
         elif arch == "perceiver":
             encoder = PerceiverEncoder(
-                num_layers=kwargs["num_layers"],
-                hidden_size=kwargs["hidden_size"],
-                inner_size=kwargs["inner_size"],
-                num_attention_heads=kwargs["num_attention_heads"],
-                attn_score_dropout=kwargs["attn_score_dropout"],
-                attn_layer_dropout=kwargs["attn_layer_dropout"],
-                ffn_dropout=kwargs["ffn_dropout"],
-                hidden_act=kwargs["hidden_act"],
-                mask_future=kwargs["mask_future"],
-                pre_ln=kwargs["pre_ln"],
-                pre_ln_final_layer_norm=kwargs["pre_ln_final_layer_norm"],
-                hidden_steps=kwargs["hidden_steps"],
-                hidden_blocks=kwargs["hidden_blocks"],
-                hidden_init_method=kwargs["hidden_init_method"],
-            )
-        elif arch == "compressor":
-            encoder = CompressorEncoder(
-                num_layers=kwargs["num_layers"],
-                hidden_size=kwargs["hidden_size"],
-                inner_size=kwargs["inner_size"],
-                num_attention_heads=kwargs["num_attention_heads"],
-                attn_score_dropout=kwargs["attn_score_dropout"],
-                attn_layer_dropout=kwargs["attn_layer_dropout"],
-                ffn_dropout=kwargs["ffn_dropout"],
-                hidden_act=kwargs["hidden_act"],
-                mask_future=kwargs["mask_future"],
-                pre_ln=kwargs["pre_ln"],
-                pre_ln_final_layer_norm=kwargs["pre_ln_final_layer_norm"],
-                hidden_steps=kwargs["hidden_steps"],
-                hidden_blocks=kwargs["hidden_blocks"],
-                hidden_init_method=kwargs["hidden_init_method"],
-            )
-        elif arch == "max_pool":
-            encoder = MaxPoolingEncoder(
-                num_layers=kwargs["num_layers"],
-                hidden_size=kwargs["hidden_size"],
-                inner_size=kwargs["inner_size"],
-                num_attention_heads=kwargs["num_attention_heads"],
-                attn_score_dropout=kwargs["attn_score_dropout"],
-                attn_layer_dropout=kwargs["attn_layer_dropout"],
-                ffn_dropout=kwargs["ffn_dropout"],
-                hidden_act=kwargs["hidden_act"],
-                mask_future=kwargs["mask_future"],
-                pre_ln=kwargs["pre_ln"],
-                pre_ln_final_layer_norm=kwargs["pre_ln_final_layer_norm"],
-                hidden_steps=kwargs["hidden_steps"],
-                hidden_blocks=kwargs["hidden_blocks"],
-                hidden_init_method=kwargs["hidden_init_method"],
-            )
-        elif arch == "max_pool_perceiver":
-            encoder = MaxPoolingPerceiverEncoder(
                 num_layers=kwargs["num_layers"],
                 hidden_size=kwargs["hidden_size"],
                 inner_size=kwargs["inner_size"],
