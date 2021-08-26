@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Tuple
+
 __all__ = ['is_url', 'has_numbers']
 
 
@@ -26,7 +28,7 @@ def has_numbers(input_str: str):
     return any(char.isdigit() for char in input_str)
 
 
-def get_formatted_string(strs, str_max_len=10, space_len=2):
+def get_formatted_string(strs: Tuple[str], str_max_len: int = 10, space_len: int = 2):
     """ Get a nicely formatted string from a list of strings"""
     padded_strs = []
     for cur_str in strs:

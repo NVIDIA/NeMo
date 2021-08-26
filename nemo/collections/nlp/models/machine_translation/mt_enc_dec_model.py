@@ -139,7 +139,7 @@ class MTEncDecModel(EncDecNLPModel):
         model_name = encoder_cfg_dict.pop('model_name', None)
         pretrained = encoder_cfg_dict.pop('pretrained', False)
         checkpoint_file = encoder_cfg_dict.pop('checkpoint_file', None)
-        self._encoder = get_transformer(
+        self.encoder = get_transformer(
             library=library,
             model_name=model_name,
             pretrained=pretrained,
@@ -156,7 +156,7 @@ class MTEncDecModel(EncDecNLPModel):
         model_name = decoder_cfg_dict.pop('model_name', None)
         pretrained = decoder_cfg_dict.pop('pretrained', False)
         decoder_cfg_dict['hidden_size'] = self.encoder.hidden_size
-        self._decoder = get_transformer(
+        self.decoder = get_transformer(
             library=library,
             model_name=model_name,
             pretrained=pretrained,
@@ -584,10 +584,11 @@ class MTEncDecModel(EncDecNLPModel):
             sampler = pt_data.RandomSampler(dataset)
         else:
             sampler = pt_data.SequentialSampler(dataset)
+
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=1,
-            sampler=None if cfg.get("use_tarred_dataset", False) else sampler,
+            sampler=None if (cfg.get("use_tarred_dataset", False) or isinstance(dataset, ConcatDataset)) else sampler,
             num_workers=cfg.get("num_workers", 2),
             pin_memory=cfg.get("pin_memory", False),
             drop_last=cfg.get("drop_last", False),
