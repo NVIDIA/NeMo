@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 import copy
+
+import torch
 
 from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoder
 from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
@@ -205,10 +206,7 @@ class MaxPoolingPerceiverEncoder(PerceiverEncoder):
         )
 
         # pooling layer
-        self.max_pool = torch.nn.MaxPool1d(
-            kernel_size=2,
-            stride=2,
-        )
+        self.max_pool = torch.nn.MaxPool1d(kernel_size=2, stride=2,)
 
     def forward(self, encoder_states, encoder_mask):
         """
@@ -260,10 +258,9 @@ class MaxPoolingPerceiverEncoder(PerceiverEncoder):
                 residual = residual.permute(0, 2, 1)
 
                 # max pool mask
-                hidden_mask = self.max_pool(
-                    hidden_mask.unsqueeze(0).type_as(hidden_states)
-                    ).squeeze(0).type_as(hidden_mask)
-
+                hidden_mask = (
+                    self.max_pool(hidden_mask.unsqueeze(0).type_as(hidden_states)).squeeze(0).type_as(hidden_mask)
+                )
 
             # self-attention over hidden
             hidden_states = self_att(encoder_states=hidden_states, encoder_mask=hidden_mask,)
@@ -282,6 +279,5 @@ class MaxPoolingPerceiverEncoder(PerceiverEncoder):
             #     hidden_mask = self.max_pool(
             #         hidden_mask.unsqueeze(0).type_as(hidden_states)
             #         ).squeeze(0).type_as(hidden_mask)
-
 
         return hidden_states, hidden_mask
