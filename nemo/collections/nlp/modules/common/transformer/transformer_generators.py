@@ -123,11 +123,7 @@ class GreedySequenceGenerator:
         # is min(max_sequence_length, src_len + max_delta_length)
         if encoder_hidden_states is not None:
             batch_size, src_len, _ = encoder_hidden_states.size()
-<<<<<<< HEAD
             if (self.max_delta_len >= 0):
-=======
-            if self.max_delta_len > 0:
->>>>>>> 2e12d80e8c50e9be9fd980a7a352b23458474a50
                 max_seq_length = min(self.max_seq_length, src_len + self.max_delta_len)
             else:
                 max_seq_length = self.max_seq_length
@@ -518,11 +514,7 @@ class EnsembleBeamSearchSequenceGenerator:
         # is min(max_sequence_length, src_len + max_delta_length)
         if encoder_hidden_states is not None:
             batch_size, src_len, _ = encoder_hidden_states.size()
-<<<<<<< HEAD
             if (self.max_delta_len >= 0):
-=======
-            if self.max_delta_len > 0:
->>>>>>> 2e12d80e8c50e9be9fd980a7a352b23458474a50
                 max_seq_length = min(self.max_seq_length, src_len + self.max_delta_len)
             else:
                 max_seq_length = self.max_seq_length
