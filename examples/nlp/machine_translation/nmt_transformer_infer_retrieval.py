@@ -69,7 +69,7 @@ def main():
         src_text = []
         tgt_text = []
     else:
-        raise NotImplemented(f"Only support .nemo files, but got: {args.model}")
+        raise NotImplementedError(f"Only support .nemo files, but got: {args.model}")
 
     if torch.cuda.is_available():
         model = model.cuda()
