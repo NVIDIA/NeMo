@@ -210,7 +210,11 @@ class AbstractRNNTDecoding(ABC):
             )
 
     def rnnt_decoder_predictions_tensor(
-        self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor, return_hypotheses: bool = False
+        self,
+        encoder_output: torch.Tensor,
+        encoded_lengths: torch.Tensor,
+        return_hypotheses: bool = False,
+        states: Optional[torch.Tensor] = None,
     ) -> (List[str], Optional[List[List[str]]], Optional[Union[Hypothesis, NBestHypotheses]]):
         """
         Decode an encoder output by autoregressive decoding of the Decoder+Joint networks.

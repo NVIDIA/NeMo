@@ -36,7 +36,7 @@ from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.common.parts.rnn import label_collate
 from nemo.core.classes import Typing, typecheck
-from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
+from nemo.core.neural_types import AcousticEncodedRepresentation, ElementType, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
 
 
@@ -92,6 +92,7 @@ class _GreedyRNNTInfer(Typing):
         return {
             "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+            "states": [NeuralType((('D', 'B', 'D')), ElementType(), optional=True)],  # must always be last
         }
 
     @property
@@ -222,7 +223,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         )
 
     @typecheck()
-    def forward(self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor):
+    def forward(self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor, states: Optional[torch.Tensor] = None):
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
         Output token is generated auto-repressively.
 
@@ -269,12 +270,12 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         return (packed_result,)
 
     @torch.no_grad()
-    def _greedy_decode(self, x: torch.Tensor, out_len: torch.Tensor):
+    def _greedy_decode(self, x: torch.Tensor, out_len: torch.Tensor, states=None):
         # x: [T, 1, D]
         # out_len: [seq_len]
 
         # Initialize blank state and empty label set
-        hidden = None
+        hidden = states
         label = []
         timesteps = []
 
@@ -298,7 +299,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
             while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
                 # In the first timestep, we initialize the network with RNNT Blank
                 # In later timesteps, we provide previous predicted label as input.
-                last_label = self._SOS if label == [] else label[-1]
+                last_label = self._SOS if (label == [] and hidden is not None) else label[-1]
 
                 # Perform prediction network and joint network steps.
                 g, hidden_prime = self._pred_step(last_label, hidden)
@@ -389,7 +390,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             self._greedy_decode = self._greedy_decode_masked
 
     @typecheck()
-    def forward(self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor):
+    def forward(self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor, states: Optional[torch.Tensor] = None):
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
         Output token is generated auto-repressively.
 
@@ -427,7 +428,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
         return (packed_result,)
 
-    def _greedy_decode_blank_as_pad(self, x: torch.Tensor, out_len: torch.Tensor, device: torch.device):
+    def _greedy_decode_blank_as_pad(self, x: torch.Tensor, out_len: torch.Tensor, device: torch.device, states=None):
         with torch.no_grad():
             # x: [B, T, D]
             # out_len: [B]
@@ -578,7 +579,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         return label, timesteps, alignments
 
     @torch.no_grad()
-    def _greedy_decode_masked(self, x: torch.Tensor, out_len: torch.Tensor, device: torch.device):
+    def _greedy_decode_masked(self, x: torch.Tensor, out_len: torch.Tensor, device: torch.device, states=None):
         # x: [B, T, D]
         # out_len: [B]
         # device: torch.device
