@@ -138,7 +138,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "NVIDIA NeMo"
-copyright = "2021-, NVIDIA CORPORATION"
+copyright = "2021-, NVIDIA Corporation and Affiliates"
 author = "NVIDIA CORPORATION"
 
 # The version info for the project you're documenting, acts as replacement for
