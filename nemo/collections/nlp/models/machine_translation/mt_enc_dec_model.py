@@ -939,9 +939,10 @@ class MTEncDecModel(EncDecNLPModel):
                     tgt_ids = self.decoder_tokenizer.text_to_ids(txt_tgt)
                     ids += [self.encoder_tokenizer.bos_id] + src_ids + [self.encoder_tokenizer.eos_id]
                     ids += [self.encoder_tokenizer.bos_id] + tgt_ids + [self.encoder_tokenizer.eos_id]
-                if len(ids) > 510:
+                max_seq_length = self.cfg.get("max_seq_length", 512)
+                if len(ids) > max_seq_length:
                     print('length exceeded. truncating')
-                    ids = ids[:510]
+                    ids = ids[:max_seq_length]
                 inputs.append(ids)
             max_len = max(len(txt) for txt in inputs)
             src_ids_ = np.ones((len(inputs), max_len)) * self.encoder_tokenizer.pad_id
