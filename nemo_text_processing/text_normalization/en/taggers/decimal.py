@@ -85,10 +85,13 @@ class DecimalFst(GraphFst):
         point = pynutil.delete(".")
         optional_graph_negative = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
 
-        graph_fractional = pynutil.insert("fractional_part: \"") + self.graph + pynutil.insert("\"")
-        graph_integer = pynutil.insert("integer_part: \"") + cardinal_graph + pynutil.insert("\"")
+        self.graph_fractional = pynutil.insert("fractional_part: \"") + self.graph + pynutil.insert("\"")
+        self.graph_integer = pynutil.insert("integer_part: \"") + cardinal_graph + pynutil.insert("\"")
         final_graph_wo_sign = (
-            pynini.closure(graph_integer + pynutil.insert(" "), 0, 1) + point + pynutil.insert(" ") + graph_fractional
+            pynini.closure(self.graph_integer + pynutil.insert(" "), 0, 1)
+            + point
+            + pynutil.insert(" ")
+            + self.graph_fractional
         )
 
         self.final_graph_wo_negative = final_graph_wo_sign | get_quantity(

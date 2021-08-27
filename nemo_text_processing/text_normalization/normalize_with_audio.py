@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,8 +22,13 @@ from joblib import Parallel, delayed
 from nemo_text_processing.text_normalization.data_loader_utils import post_process_punctuation, pre_process
 from nemo_text_processing.text_normalization.normalize import Normalizer
 
-from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.asr.models import ASRModel
+try:
+    from nemo.collections.asr.metrics.wer import word_error_rate
+    from nemo.collections.asr.models import ASRModel
+
+    ASR_AVAILABLE = True
+except (ModuleNotFoundError, ImportError):
+    ASR_AVAILABLE = False
 
 try:
     import pynini
@@ -60,6 +65,8 @@ To run with a single audio file, specify path to audio and text with:
     
 To see possible normalization options for a text input without an audio file (could be used for debugging), run:
     python python normalize_with_audio.py --text "RAW TEXT"
+    
+Specify `--cache_dir` to generate .far grammars once and re-used them for faster inference
 """
 
 
@@ -71,15 +78,19 @@ class NormalizerWithAudio(Normalizer):
     Args:
         input_case: expected input capitalization
         lang: language
+        cache_dir: path to a dir with .far grammar file. Set to None to avoid using cache.
+        overwrite_cache: set to True to overwrite .far files
     """
 
-    def __init__(self, input_case: str, lang: str = 'en'):
-        super().__init__(input_case=input_case, lang=lang)
-        if lang == 'en':
-            from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
-            from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
-        self.tagger = ClassifyFst(input_case=input_case, deterministic=False)
-        self.verbalizer = VerbalizeFinalFst(deterministic=False)
+    def __init__(self, input_case: str, lang: str = 'en', cache_dir: str = None, overwrite_cache: bool = False):
+
+        super().__init__(
+            input_case=input_case,
+            lang=lang,
+            deterministic=False,
+            cache_dir=cache_dir,
+            overwrite_cache=overwrite_cache,
+        )
 
     def normalize(
         self,
@@ -112,14 +123,19 @@ class NormalizerWithAudio(Normalizer):
             return text
 
         text = pynini.escape(text)
+
         if n_tagged == -1:
             tagged_texts = rewrite.rewrites(text, self.tagger.fst)
         else:
             tagged_texts = rewrite.top_rewrites(text, self.tagger.fst, nshortest=n_tagged)
+        # non-deterministic Eng normalization uses tagger composed with verbalizer, no permutation in between
+        if self.lang == 'en':
+            normalized_texts = tagged_texts
+        else:
+            normalized_texts = []
+            for tagged_text in tagged_texts:
+                self._verbalize(tagged_text, normalized_texts)
 
-        normalized_texts = []
-        for tagged_text in tagged_texts:
-            self._verbalize(tagged_text, normalized_texts)
         if len(normalized_texts) == 0:
             raise ValueError()
         if punct_post_process:
@@ -140,17 +156,14 @@ class NormalizerWithAudio(Normalizer):
             tagged_text = pynini.escape(tagged_text)
             return rewrite.rewrites(tagged_text, self.verbalizer.fst)
 
-        try:
-            normalized_texts.extend(get_verbalized_text(tagged_text))
-        except pynini.lib.rewrite.Error:
-            self.parser(tagged_text)
-            tokens = self.parser.parse()
-            tags_reordered = self.generate_permutations(tokens)
-            for tagged_text_reordered in tags_reordered:
-                try:
-                    normalized_texts.extend(get_verbalized_text(tagged_text_reordered))
-                except pynini.lib.rewrite.Error:
-                    continue
+        self.parser(tagged_text)
+        tokens = self.parser.parse()
+        tags_reordered = self.generate_permutations(tokens)
+        for tagged_text_reordered in tags_reordered:
+            try:
+                normalized_texts.extend(get_verbalized_text(tagged_text_reordered))
+            except pynini.lib.rewrite.Error:
+                continue
 
     def select_best_match(
         self, normalized_texts: List[str], transcript: str, verbose: bool = False, remove_punct: bool = False
@@ -200,7 +213,7 @@ def calculate_cer(normalized_texts: List[str], transcript: str, remove_punct=Fal
     return normalized_options
 
 
-def get_asr_model(asr_model: ASRModel):
+def get_asr_model(asr_model):
     """
     Returns ASR Model
 
@@ -224,15 +237,15 @@ def parse_args():
     parser.add_argument(
         "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )
-    parser.add_argument("--language", help="language", choices=["en"], default="en", type=str)
-    parser.add_argument("--audio_data", help="path to an audio file or .json manifest")
+    parser.add_argument("--language", help="Select target language", choices=["en", "ru"], default="en", type=str)
+    parser.add_argument("--audio_data", default=None, help="path to an audio file or .json manifest")
     parser.add_argument(
         '--model', type=str, default='QuartzNet15x5Base-En', help='Pre-trained model name or path to model checkpoint'
     )
     parser.add_argument(
         "--n_tagged",
         type=int,
-        default=1000,
+        default=10000,
         help="number of tagged options to consider, -1 - return all possible tagged options",
     )
     parser.add_argument("--verbose", help="print info for debugging", action="store_true")
@@ -243,10 +256,17 @@ def parse_args():
     parser.add_argument(
         "--no_punct_post_process", help="set to True to disable punctuation post processing", action="store_true"
     )
+    parser.add_argument("--overwrite_cache", help="set to True to re-create .far grammar files", action="store_true")
+    parser.add_argument(
+        "--cache_dir",
+        help="path to a dir with .far grammar file. Set to None to avoid using cache",
+        default=None,
+        type=str,
+    )
     return parser.parse_args()
 
 
-def _normalize_line(normalizer: NormalizerWithAudio, line: str, asr_model: ASRModel = None):
+def _normalize_line(normalizer: NormalizerWithAudio, line: str, asr_model=None):
     line = json.loads(line)
     audio = line['audio_filepath']
     if 'transcript' in line:
@@ -272,7 +292,9 @@ def normalize_manifest(args):
     Args:
         args.audio_data: path to .json manifest file.
     """
-    normalizer = NormalizerWithAudio(input_case=args.input_case, lang=args.language)
+    normalizer = NormalizerWithAudio(
+        input_case=args.input_case, lang=args.language, cache_dir=args.cache_dir, overwrite_cache=args.overwrite_cache
+    )
     manifest_out = args.audio_data.replace('.json', '_normalized.json')
     asr_model = None
     with open(args.audio_data, 'r') as f:
@@ -293,9 +315,17 @@ def normalize_manifest(args):
 if __name__ == "__main__":
     args = parse_args()
 
+    if not ASR_AVAILABLE and args.audio_data:
+        raise ValueError("NeMo ASR collection is not installed.")
     start = time.time()
     if args.text:
-        normalizer = NormalizerWithAudio(input_case=args.input_case, lang=args.language)
+        normalizer = NormalizerWithAudio(
+            input_case=args.input_case,
+            lang=args.language,
+            cache_dir=args.cache_dir,
+            overwrite_cache=args.overwrite_cache,
+        )
+
         if os.path.exists(args.text):
             with open(args.text, 'r') as f:
                 args.text = f.read().strip()

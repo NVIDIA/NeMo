@@ -15,6 +15,17 @@
 DECODE_CTX_SIZE = 3  # the size of the input context to be provided to the DuplexDecoderModel
 LABEL_PAD_TOKEN_ID = -100
 
+# Split names
+TRAIN, DEV, TEST = 'train', 'dev', 'test'
+SPLIT_NAMES = [TRAIN, DEV, TEST]
+
+# Languages
+ENGLISH = 'en'
+RUSSIAN = 'ru'
+GERMANY = 'de'
+MULTILINGUAL = 'multilingual'
+SUPPORTED_LANGS = [ENGLISH, RUSSIAN, GERMANY, MULTILINGUAL]
+
 # Task Prefixes
 ITN_PREFIX = str(0)
 TN_PREFIX = str(1)
@@ -54,8 +65,8 @@ SIL_WORD = 'sil'
 SELF_WORD = '<self>'
 SPECIAL_WORDS = [SIL_WORD, SELF_WORD]
 
-# Mappings for Greek Letters
-GREEK_TO_SPOKEN = {
+# Mappings for Greek Letters (English)
+EN_GREEK_TO_SPOKEN = {
     'Τ': 'tau',
     'Ο': 'omicron',
     'Δ': 'delta',
@@ -96,7 +107,7 @@ GREEK_TO_SPOKEN = {
     'ω': 'omega',
     'χ': 'chi',
 }
-SPOKEN_TO_GREEK = {v: k for k, v in GREEK_TO_SPOKEN.items()}
+EN_SPOKEN_TO_GREEK = {v: k for k, v in EN_GREEK_TO_SPOKEN.items()}
 
 # IDs for special tokens for encoding inputs of the decoder models
 EXTRA_ID_0 = '<extra_id_0>'

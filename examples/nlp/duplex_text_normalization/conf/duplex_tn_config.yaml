@@ -1,5 +1,6 @@
 name: &name DuplexTextNormalization
 mode: joint      # Three possible choices ['tn', 'itn', 'joint']
+lang: ???        # Supported languages are ['en', 'ru', 'de', 'multilingual']
 
 # Pretrained Nemo Models
 tagger_pretrained_model: null
@@ -9,7 +10,7 @@ decoder_pretrained_model: null
 tagger_trainer:
   gpus: 1        # the number of gpus, 0 for CPU
   num_nodes: 1
-  max_epochs: 5  # the number of training epochs
+  max_epochs: 5  # the number of training epochs (for ru or de or multilingual, try 10)
   checkpoint_callback: false  # provided by exp_manager
   logger: false  # provided by exp_manager
   accumulate_grad_batches: 1 # accumulates grads every k batches
@@ -20,9 +21,10 @@ tagger_trainer:
 
 tagger_model:
   do_training: true
-  transformer: distilroberta-base
+  transformer: distilroberta-base # For ru, try cointegrated/rubert-tiny | For de, try bert-base-german-cased | For multilingual, try bert-base-multilingual-cased
   tokenizer: ${tagger_model.transformer}
   nemo_path: ${tagger_exp_manager.exp_dir}/tagger_model.nemo # exported .nemo path
+  lang: ${lang}
 
   optim:
     name: adamw
@@ -68,9 +70,15 @@ decoder_trainer:
 
 decoder_model:
   do_training: true
-  transformer: t5-base
+  transformer: t5-base  # For ru, try cointegrated/rut5-base | For de or multilingual, try google/mt5-base
   tokenizer: ${decoder_model.transformer}
   nemo_path: ${decoder_exp_manager.exp_dir}/decoder_model.nemo # exported .nemo path
+  lang: ${lang}
+
+  # Options related to covering grammars for TN
+  use_cg: false # Use covering grammars to avoid catastrophic errors
+  neural_confidence_threshold: 0.99 # If the neural model is not confident, then use the covering grammars
+  n_tagged: 1 # number of tagged options to consider, -1 - to get all possible tagged options
 
   optim:
     name: adamw
@@ -104,31 +112,40 @@ decoder_exp_manager:
 # Data
 data:
   base_dir: ??? # /path/to/data
+  use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up (especially when using multi GPUs)
 
   train_ds:
+    lang: ${lang}
     data_path: ${data.base_dir}/train.tsv
     batch_size: 64
     shuffle: true
     do_basic_tokenize: false
     max_decoder_len: 80
     mode: ${mode}
+    max_insts: -1 # Maximum number of instances (-1 means no limit)
     # Refer to the text_normalization doc for more information about data augmentation
-    tagger_data_augmentation: true
+    tagger_data_augmentation: false
     decoder_data_augmentation: true
+    use_cache: ${data.use_cache}
 
   validation_ds:
+    lang: ${lang}
     data_path: ${data.base_dir}/dev.tsv
     batch_size: 64
     shuffle: false
     do_basic_tokenize: false
     max_decoder_len: 80
     mode: ${mode}
+    use_cache: ${data.use_cache}
 
   test_ds:
+    lang: ${lang}
     data_path: ${data.base_dir}/test.tsv
     batch_size: 64
     shuffle: false
+    do_basic_tokenize: false
     mode: ${mode}
+    use_cache: ${data.use_cache}
 
 # Inference
 inference:

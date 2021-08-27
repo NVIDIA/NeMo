@@ -17,13 +17,20 @@ from copy import deepcopy
 from nltk import word_tokenize
 from tqdm import tqdm
 
+from nemo.collections.nlp.data.text_normalization import constants
+
 __all__ = ['read_data_file', 'normalize_str']
 
 
-def read_data_file(fp):
+def read_data_file(fp: str):
     """ Reading the raw data from a file of NeMo format
     For more info about the data format, refer to the
     `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`.
+
+    Args:
+        fp: file paths
+    Returns:
+        insts: List of sentences parsed as list of words
     """
     insts, w_words, s_words, classes = [], [], [], []
     # Read input file
@@ -42,9 +49,10 @@ def read_data_file(fp):
     return insts
 
 
-def normalize_str(input_str):
+def normalize_str(input_str, lang):
     """ Normalize an input string """
-    input_str = ' '.join(word_tokenize(input_str.strip().lower()))
+    input_str_tokens = basic_tokenize(input_str.strip().lower(), lang)
+    input_str = ' '.join(input_str_tokens)
     input_str = input_str.replace('  ', ' ')
     return input_str
 
@@ -52,3 +60,17 @@ def normalize_str(input_str):
 def remove_puncts(input_str):
     """ Remove punctuations from an input string """
     return input_str.translate(str.maketrans('', '', string.punctuation))
+
+
+def basic_tokenize(input_str, lang):
+    """
+    The function is used to do some basic tokenization
+
+    Args:
+        input_str: The input string
+        lang: Language of the input string
+    Return: a list of tokens of the input string
+    """
+    if lang == constants.ENGLISH:
+        return word_tokenize(input_str)
+    return input_str.strip().split(' ')

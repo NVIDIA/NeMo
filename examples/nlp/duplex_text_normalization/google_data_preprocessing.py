@@ -15,7 +15,7 @@
 """
 This script can be used to process the raw data files of the Google Text Normalization dataset
 to obtain data files of the format mentioned in the `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`.
-Note that the script also does some preprocessing on the spoken forms of the URLs. For example,
+For English, the script also does some preprocessing on the spoken forms of the URLs. For example,
 given the URL "Zimbio.com", the original expected spoken form in the Google dataset is
 "z_letter i_letter m_letter b_letter i_letter o_letter dot c_letter o_letter m_letter".
 However, our script will return a more concise output which is "zim bio dot com".
@@ -31,7 +31,8 @@ USAGE Example:
         --lang=en
 
 In this example, the final preprocessed files will be stored in the `preprocessed` folder.
-The folder should contain three files `train.tsv`, 'dev.tsv', and `test.tsv`.
+The folder should contain three files `train.tsv`, 'dev.tsv', and `test.tsv`. Similar steps
+can be used to preprocess the Russian subset.
 """
 
 from argparse import ArgumentParser
@@ -40,16 +41,12 @@ from os.path import isdir, isfile, join
 
 import wordninja
 from helpers import flatten
-from nltk import word_tokenize
 from tqdm import tqdm
 
-import nemo.collections.nlp.data.text_normalization.constants as constants
+from nemo.collections.nlp.data.text_normalization import constants
+from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize
 
 # Local Constants
-ENGLISH = 'en'
-SUPPORTED_LANGS = [ENGLISH]
-TRAIN, DEV, TEST = 'train', 'dev', 'test'
-SPLIT_NAMES = [TRAIN, DEV, TEST]
 MAX_DEV_SIZE = 25000
 
 # Helper Functions
@@ -60,7 +57,7 @@ def read_google_data(data_dir, lang):
 
     Args:
         data_dir: Path to the data directory. The directory should contain files of the form output-xxxxx-of-00100
-        lang: Selected language. Currently the only supported language is English.
+        lang: Selected language.
     Return:
         train: A list of examples in the training set.
         dev: A list of examples in the dev set
@@ -76,7 +73,11 @@ def read_google_data(data_dir, lang):
         with open(fp, 'r', encoding='utf-8') as f:
             # Determine the current split
             split_nb = int(fn.split('-')[1])
-            if split_nb == 0:
+            if split_nb < 5:
+                # For English, the train data is only from output-00000-of-00100
+                # For Russian, the train data is from output-00000-of-00100 to output-00004-of-00100
+                if split_nb > 0 and lang == constants.ENGLISH:
+                    continue
                 cur_split = train
             elif split_nb == 90:
                 cur_split = dev
@@ -88,8 +89,14 @@ def read_google_data(data_dir, lang):
             cur_classes, cur_tokens, cur_outputs = [], [], []
             for linectx, line in tqdm(enumerate(f)):
                 es = line.strip().split('\t')
-                if split_nb == 99 and linectx == 100002:
-                    break
+                if split_nb == 99:
+                    # For the results reported in the paper "RNN Approaches to Text Normalization: A Challenge":
+                    # + For English, the first 100,002 lines of output-00099-of-00100 are used for the test set
+                    # + For Russian, the first 100,007 lines of output-00099-of-00100 are used for the test set
+                    if lang == constants.ENGLISH and linectx == 100002:
+                        break
+                    if lang == constants.RUSSIAN and linectx == 100007:
+                        break
                 if len(es) == 2 and es[0] == '<eos>':
                     # Update cur_split
                     cur_outputs = process_url(cur_tokens, cur_outputs, lang)
@@ -97,6 +104,9 @@ def read_google_data(data_dir, lang):
                     # Reset
                     cur_classes, cur_tokens, cur_outputs = [], [], []
                     continue
+                # Remove _trans (for Russian)
+                if lang == constants.RUSSIAN:
+                    es[2] = es[2].replace('_trans', '')
                 # Update the current example
                 assert len(es) == 3
                 cur_classes.append(es[0])
@@ -115,11 +125,11 @@ def process_url(tokens, outputs, lang):
     Args:
         tokens: The tokens of the written form
         outputs: The expected outputs for the spoken form
-        lang: Selected language. Currently the only supported language is English.
+        lang: Selected language.
     Return:
         outputs: The outputs for the spoken form with preprocessed URLs.
     """
-    if lang == ENGLISH:
+    if lang == constants.ENGLISH:
         for i in range(len(tokens)):
             t, o = tokens[i], outputs[i]
             if o != constants.SIL_WORD and '_letter' in o:
@@ -159,7 +169,9 @@ if __name__ == '__main__':
     parser = ArgumentParser(description='Preprocess Google text normalization dataset')
     parser.add_argument('--data_dir', type=str, required=True, help='Path to folder with data')
     parser.add_argument('--output_dir', type=str, default='preprocessed', help='Path to folder with preprocessed data')
-    parser.add_argument('--lang', type=str, default=ENGLISH, choices=SUPPORTED_LANGS, help='Language')
+    parser.add_argument(
+        '--lang', type=str, default=constants.ENGLISH, choices=constants.SUPPORTED_LANGS, help='Language'
+    )
     args = parser.parse_args()
 
     # Create the output dir (if not exist)
@@ -168,14 +180,14 @@ if __name__ == '__main__':
 
     # Processing
     train, dev, test = read_google_data(args.data_dir, args.lang)
-    for split, data in zip(SPLIT_NAMES, [train, dev, test]):
+    for split, data in zip(constants.SPLIT_NAMES, [train, dev, test]):
         output_f = open(join(args.output_dir, f'{split}.tsv'), 'w+', encoding='utf-8')
         for inst in data:
             cur_classes, cur_tokens, cur_outputs = inst
             for c, t, o in zip(cur_classes, cur_tokens, cur_outputs):
-                t = ' '.join(word_tokenize(t))
+                t = ' '.join(basic_tokenize(t, args.lang))
                 if not o in constants.SPECIAL_WORDS:
-                    o_tokens = word_tokenize(o)
+                    o_tokens = basic_tokenize(o, args.lang)
                     o_tokens = [o_tok for o_tok in o_tokens if o_tok != constants.SIL_WORD]
                     o = ' '.join(o_tokens)
                 output_f.write(f'{c}\t{t}\t{o}\n')

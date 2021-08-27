@@ -22,8 +22,7 @@ from pytorch_lightning import Trainer
 from torch import nn
 from transformers import AutoModelForTokenClassification, AutoTokenizer, DataCollatorForTokenClassification
 
-import nemo.collections.nlp.data.text_normalization.constants as constants
-from nemo.collections.nlp.data.text_normalization import TextNormalizationTaggerDataset
+from nemo.collections.nlp.data.text_normalization import TextNormalizationTaggerDataset, constants
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.duplex_text_normalization.utils import has_numbers
 from nemo.collections.nlp.models.nlp_model import NLPModel
@@ -48,12 +47,19 @@ class DuplexTaggerModel(NLPModel):
         super().__init__(cfg=cfg, trainer=trainer)
         self.num_labels = len(constants.ALL_TAG_LABELS)
         self.model = AutoModelForTokenClassification.from_pretrained(cfg.transformer, num_labels=self.num_labels)
+        self.transformer_name = cfg.transformer
 
         # Loss Functions
         self.loss_fct = nn.CrossEntropyLoss(ignore_index=constants.LABEL_PAD_TOKEN_ID)
 
         # setup to track metrics
-        self.classification_report = ClassificationReport(self.num_labels, mode='micro', dist_sync_on_step=True)
+        label_ids = {l: idx for idx, l in enumerate(constants.ALL_TAG_LABELS)}
+        self.classification_report = ClassificationReport(
+            self.num_labels, label_ids, mode='micro', dist_sync_on_step=True
+        )
+
+        # Language
+        self.lang = cfg.get('lang', None)
 
     # Training
     def training_step(self, batch, batch_idx):
@@ -126,7 +132,7 @@ class DuplexTaggerModel(NLPModel):
     def _infer(self, sents: List[List[str]], inst_directions: List[str]):
         """ Main function for Inference
         Args:
-            sents: A list of inputs tokenized by a basic tokenizer (e.g., using nltk.word_tokenize()).
+            sents: A list of inputs tokenized by a basic tokenizer.
             inst_directions: A list of str where each str indicates the direction of the corresponding instance (i.e., INST_BACKWARD for ITN or INST_FORWARD for TN).
 
         Returns:
@@ -147,28 +153,27 @@ class DuplexTaggerModel(NLPModel):
             texts.append([prefix] + sent)
 
         # Apply the model
-        prefix = constants.TN_PREFIX
-        texts = [[prefix] + sent for sent in sents]
         encodings = self._tokenizer(
             texts, is_split_into_words=True, padding=True, truncation=True, return_tensors='pt'
         )
         logits = self.model(**encodings.to(self.device)).logits
         pred_indexes = torch.argmax(logits, dim=-1).tolist()
 
-        # Extract all_tag_preds
+        # Extract all_tag_preds for words
         all_tag_preds = []
         batch_size, max_len = encodings['input_ids'].size()
         for ix in range(batch_size):
-            raw_tag_preds = [constants.ALL_TAG_LABELS[p] for p in pred_indexes[ix][1:]]
+            raw_tag_preds = [
+                constants.ALL_TAG_LABELS[p] for p in pred_indexes[ix][2:]
+            ]  # remove first special token and task prefix token
             tag_preds, previous_word_idx = [], None
-            word_ids = encodings.word_ids(batch_index=ix)
+            word_ids = encodings.word_ids(batch_index=ix)[2:]
             for jx, word_idx in enumerate(word_ids):
                 if word_idx is None:
                     continue
-                elif word_idx != previous_word_idx:
-                    tag_preds.append(raw_tag_preds[jx - 1])
+                if word_idx != previous_word_idx:
+                    tag_preds.append(raw_tag_preds[jx])  # without special token at index 0
                 previous_word_idx = word_idx
-            tag_preds = tag_preds[1:]
             all_tag_preds.append(tag_preds)
 
         # Postprocessing
@@ -188,7 +193,7 @@ class DuplexTaggerModel(NLPModel):
         starts with I_TRANSFORM_TAG (instead of B_TRANSFORM_TAG).
 
         Args:
-            words: The words in the input text
+            words: The words in the input sentence
             inst_dir: The direction of the instance (i.e., INST_BACKWARD or INST_FORWARD).
             preds: The raw tag predictions
 
@@ -196,7 +201,7 @@ class DuplexTaggerModel(NLPModel):
         """
         final_preds = []
         for ix, p in enumerate(preds):
-            # a TRANSFORM span starts with I_TRANSFORM_TAG
+            # a TRANSFORM span starts with I_TRANSFORM_TAG, change to B_TRANSFORM_TAG
             if p == constants.I_PREFIX + constants.TRANSFORM_TAG:
                 if ix == 0 or (not constants.TRANSFORM_TAG in final_preds[ix - 1]):
                     final_preds.append(constants.B_PREFIX + constants.TRANSFORM_TAG)
@@ -206,6 +211,10 @@ class DuplexTaggerModel(NLPModel):
                 if has_numbers(words[ix]) and (not constants.TRANSFORM_TAG in p):
                     final_preds.append(constants.B_PREFIX + constants.TRANSFORM_TAG)
                     continue
+            # Convert B-TASK tag to B-SAME tag
+            if p == constants.B_PREFIX + constants.TASK_TAG:
+                final_preds.append(constants.B_PREFIX + constants.SAME_TAG)
+                continue
             # Default
             final_preds.append(p)
         return final_preds
@@ -273,16 +282,21 @@ class DuplexTaggerModel(NLPModel):
         start_time = perf_counter()
         logging.info(f'Creating {mode} dataset')
         input_file = cfg.data_path
+        tagger_data_augmentation = cfg.get('tagger_data_augmentation', False)
         dataset = TextNormalizationTaggerDataset(
             input_file,
             self._tokenizer,
+            self.transformer_name,
             cfg.mode,
-            cfg.get('do_basic_tokenize', False),
-            cfg.get('tagger_data_augmentation', False),
+            cfg.do_basic_tokenize,
+            tagger_data_augmentation,
+            cfg.lang,
+            cfg.get('use_cache', False),
+            cfg.get('max_insts', -1),
         )
         data_collator = DataCollatorForTokenClassification(self._tokenizer)
         dl = torch.utils.data.DataLoader(
-            dataset=dataset, batch_size=cfg.batch_size, shuffle=cfg.shuffle, collate_fn=data_collator,
+            dataset=dataset, batch_size=cfg.batch_size, shuffle=cfg.shuffle, collate_fn=data_collator
         )
         running_time = perf_counter() - start_time
         logging.info(f'Took {running_time} seconds')

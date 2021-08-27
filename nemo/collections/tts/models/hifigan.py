@@ -52,8 +52,8 @@ class HifiGanModel(Vocoder, Exportable):
         # 2. we need remove fmax limitation
         self.trg_melspec_fn = instantiate(cfg.preprocessor, highfreq=None, use_grads=True)
         self.generator = instantiate(cfg.generator)
-        self.mpd = MultiPeriodDiscriminator()
-        self.msd = MultiScaleDiscriminator()
+        self.mpd = MultiPeriodDiscriminator(debug=cfg.debug if "debug" in cfg else False)
+        self.msd = MultiScaleDiscriminator(debug=cfg.debug if "debug" in cfg else False)
         self.feature_loss = FeatureMatchingLoss()
         self.discriminator_loss = DiscriminatorLoss()
         self.generator_loss = GeneratorLoss()
@@ -174,7 +174,6 @@ class HifiGanModel(Vocoder, Exportable):
         sch2.step()
 
         metrics = {
-            "g_l1_loss": loss_mel,
             "g_loss_fm_mpd": loss_fm_mpd,
             "g_loss_fm_msd": loss_fm_msd,
             "g_loss_gen_mpd": loss_gen_mpd,
