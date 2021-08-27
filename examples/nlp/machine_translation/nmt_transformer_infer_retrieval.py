@@ -18,7 +18,8 @@ USAGE Example:
 1. Obtain text file in src language. You can use sacrebleu to obtain standard test sets like so:
     sacrebleu -t wmt14 -l de-en --echo src > wmt14-de-en.src
 2. Translate:
-    python nmt_transformer_infer.py --model=[Path to .nemo file] --srctext=wmt14-de-en.src --tgtout=wmt14-de-en.pre
+    python nmt_transformer_infer_retrieval.py --model=[Path to .nemo file] --srctext=wmt14-de-en.src --tgtout=wmt14-de-en.pre
+    --ret_src=<Path to file> --ret_tgt=<Path to file> --index_file=<Path to file>
 """
 
 
@@ -57,15 +58,6 @@ def main():
     parser.add_argument("--ret_src_add", type=str, help="Source sentences for additional index.")
     parser.add_argument("--ret_tgt_add", type=str, help="Target sentences for additional index.")
     parser.add_argument("--nns", type=int, default=2, help="Number of nearest neighbors to use.")
-
-#     parser.add_argument('--retrieval', default=False, action='store_true')
-    # parser.add_argument("--ret_src", type=str, default='/home/soumyes/nmt/retrieval/data/wmt/train.clean.en-de.tok.en.shuffled', help="")
-    # parser.add_argument("--ret_tgt", type=str, default='/home/soumyes/nmt/retrieval/data/wmt/train.clean.en-de.tok.de.shuffled', help="")
-    # parser.add_argument("--index_file", type=str, default='/home/soumyes/nmt/retrieval/data/bert-base-indices/newstest2019-en-de.npy', help="")
-    # parser.add_argument('--use_add_index', default=False, action='store_true')
-    # parser.add_argument("--ret_src_add", type=str, default='/home/soumyes/nmt/retrieval/data/wmt/newstest2019-en-de.src', help="")
-    # parser.add_argument("--ret_tgt_add", type=str, default='/home/soumyes/nmt/retrieval/data/wmt/newstest2019-en-de.ref', help="")
-    # parser.add_argument("--nns", type=int, default=2, help="")
 
     args = parser.parse_args()
     torch.set_grad_enabled(False)
@@ -134,7 +126,7 @@ def main():
                 tgt_text += res
                 src_text = []
             count += 1
-            if count % 300 == 0:
+            if count % 100 == 0:
                print(f"Translated {count} sentences")
         if len(src_text) > 0:
             tgt_text += model.translate_retrieval(ret_src, ret_tgt, text=src_text, source_lang=args.source_lang, target_lang=args.target_lang, nn_list=nn_list[start:])
