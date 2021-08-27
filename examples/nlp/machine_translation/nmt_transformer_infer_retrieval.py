@@ -19,7 +19,7 @@ USAGE Example:
     sacrebleu -t wmt14 -l de-en --echo src > wmt14-de-en.src
 2. Translate:
     python nmt_transformer_infer_retrieval.py --model=[Path to .nemo file] --srctext=wmt14-de-en.src --tgtout=wmt14-de-en.pre
-    --ret_src=<Path to file> --ret_tgt=<Path to file> --index_file=<Path to file>
+    --ret_src=<Path to file>.txt --ret_tgt=<Path to file>.txt --index_file=<Path to file>.npy
 """
 
 

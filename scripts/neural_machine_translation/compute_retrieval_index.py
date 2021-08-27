@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,7 +39,9 @@ def get_args():
         help='File with additional index src. Corresponds to embeddings_main_additional.',
     )
     parser.add_argument("--embeddings_main", type=str, help='Save path for the embeddings for the train file')
-    parser.add_argument("--embeddings_additional", type=str, help='Save path for the embeddings for the additional index')
+    parser.add_argument(
+        "--embeddings_additional", type=str, help='Save path for the embeddings for the additional index'
+    )
     parser.add_argument("--save_path", type=str, required=True, help='Path to save the indices file as .npy')
     return parser.parse_args()
 
