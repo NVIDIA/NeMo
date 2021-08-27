@@ -37,7 +37,7 @@ from nemo.collections.common.tokenizers.chinese_tokenizers import ChineseProcess
 from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaProcessor
 from nemo.collections.common.tokenizers.indic_tokenizers import IndicProcessor
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
-from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset, RetrievalTranslationDataset
+from nemo.collections.nlp.data import RetrievalTranslationDataset, TarredTranslationDataset, TranslationDataset
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.modules.common import TokenClassifier
@@ -586,7 +586,7 @@ class MTEncDecModel(EncDecNLPModel):
                         use_cache=cfg.get("use_cache", False),
                         reverse_lang_direction=cfg.get("reverse_lang_direction", False),
                         prepend_id=self.multilingual_ids[idx],
-                        number_nearest_neighbors=cfg.get("number_nearest_neighbors", 2)
+                        number_nearest_neighbors=cfg.get("number_nearest_neighbors", 2),
                     )
                 dataset.batchify(self.encoder_tokenizer, self.decoder_tokenizer)
                 datasets.append(dataset)
@@ -726,7 +726,7 @@ class MTEncDecModel(EncDecNLPModel):
                     use_cache=cfg.get("use_cache", False),
                     reverse_lang_direction=cfg.get("reverse_lang_direction", False),
                     prepend_id=self.multilingual_ids[prepend_idx] if self.multilingual else None,
-                    number_nearest_neighbors=cfg.get("number_nearest_neighbors", 3)
+                    number_nearest_neighbors=cfg.get("number_nearest_neighbors", 3),
                 )
                 dataset.batchify(self.encoder_tokenizer, self.decoder_tokenizer, val=True)
 
@@ -892,7 +892,9 @@ class MTEncDecModel(EncDecNLPModel):
 
     # TODO: We should drop source/target_lang arguments in favor of using self.src/tgt_language
     @torch.no_grad()
-    def translate_retrieval(self, ret_src, ret_tgt, text: List[str], source_lang: str = None, target_lang: str = None, nn_list=None) -> List[str]:
+    def translate_retrieval(
+        self, ret_src, ret_tgt, text: List[str], source_lang: str = None, target_lang: str = None, nn_list=None
+    ) -> List[str]:
         """
         Translates list of sentences from source language to target language.
         Should be regular text, this method performs its own tokenization/de-tokenization

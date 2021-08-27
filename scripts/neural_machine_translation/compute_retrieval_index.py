@@ -1,23 +1,48 @@
-from logging import error
-import faiss
-from sentence_transformers import SentenceTransformer
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+try:
+    import faiss
+except ImportError:
+    raise ImportError('Faiss not installed. Please install Faiss to use this script.')
+import os.path
+from argparse import ArgumentParser
+
 import numpy as np
 import torch
-from argparse import ArgumentParser
+from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
-import os.path
+
 
 def get_args():
     parser = ArgumentParser()
     parser.add_argument("--model", type=int, default=1, help="1: bert base indices, 2: paraphrase")
     parser.add_argument("--nns_to_save", type=int, default=10, help="Nearest neighbors to save in index")
-    parser.add_argument("--query", type=str, required=True, help='Query file for which nearest neighbors are computed.')
+    parser.add_argument(
+        "--query", type=str, required=True, help='Query file for which nearest neighbors are computed.'
+    )
     parser.add_argument("--index_src_main", type=str, help='File with index src. Corresponds to embeddings_main')
-    parser.add_argument("--index_src_additional", type=str, help='File with additional index src. Corresponds to embeddings_main_additional.')
-    parser.add_argument("--embeddings_main", type=str, help='Embeddings for the train file')
-    parser.add_argument("--embeddings_additional", type=str, help='Embeddings for the additional index')
+    parser.add_argument(
+        "--index_src_additional",
+        type=str,
+        help='File with additional index src. Corresponds to embeddings_main_additional.',
+    )
+    parser.add_argument("--embeddings_main", type=str, help='Save path for the embeddings for the train file')
+    parser.add_argument("--embeddings_additional", type=str, help='Save path for the embeddings for the additional index')
     parser.add_argument("--save_path", type=str, required=True, help='Path to save the indices file as .npy')
     return parser.parse_args()
+
 
 def compute_embeddings(model, file, save_path):
     line_ctr = 0
@@ -54,9 +79,11 @@ def compute_embeddings(model, file, save_path):
     np.save(save_path, embeddings)
     return embeddings
 
+
 def faiss_search_vanilla(gpu_index_flat, query, k):
     D, I = gpu_index_flat.search(query, k)
     return I
+
 
 if __name__ == '__main__':
     args = get_args()
@@ -74,7 +101,7 @@ if __name__ == '__main__':
     else:
         print('Computing embeddings')
         embeddings = compute_embeddings(model, args.index_src_main, args.embeddings_main)
-    
+
     if args.index_src_additional is not None:
         # Expand the index
         if os.path.isfile(args.embeddings_additional):
@@ -93,6 +120,7 @@ if __name__ == '__main__':
     # gpu_index_flat = faiss.index_cpu_to_all_gpus(index)
 
     gpu_index_flat = faiss.index_cpu_to_gpus_list(index, gpus=[0])
+    # TODO: Fix multi gpu
     # gpu_index_flat = faiss.index_cpu_to_gpus_list(index, gpus=[1,2,3])
     gpu_index_flat.add(embeddings)
     print(gpu_index_flat.ntotal)
@@ -101,11 +129,11 @@ if __name__ == '__main__':
 
     nn_list = []
     for i in tqdm(range(0, len(lines), 2000)):
-        reference = lines[i:i+2000]
+        reference = lines[i : i + 2000]
         query = model.encode(reference, show_progress_bar=False)
         selected_idxs = faiss_search_vanilla(gpu_index_flat, query, args.nns_to_save)
         nn_list.append(selected_idxs)
-    
+
     indexes = np.concatenate(nn_list, axis=0)
     print(indexes.shape)
 

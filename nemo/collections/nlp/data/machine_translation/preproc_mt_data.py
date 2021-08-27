@@ -27,7 +27,10 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
 from nemo.collections.nlp.data.language_modeling.sentence_dataset import SentenceDataset
-from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataset, RetrievalTranslationDataset
+from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import (
+    RetrievalTranslationDataset,
+    TranslationDataset,
+)
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer, get_tokenizer
 from nemo.utils import logging
@@ -215,11 +218,9 @@ class MTDataPreproc:
                             "Number of source files, target files, and multilingual language pairs must be the same."
                         )
                     if cfg.get('retrieval') and len(src_file_list) != len(retrieval_file_list):
-                        raise ValueError(
-                            "Number of source files, target files, and retrieval files must be the same."
-                        )
+                        raise ValueError("Number of source files, target files, and retrieval files must be the same.")
                     if not cfg.get('retrieval'):
-                        retrieval_file_list = [None]*len(src_file_list)
+                        retrieval_file_list = [None] * len(src_file_list)
 
                     # TODO: have to get tokenizers inside .preprocess_parallel because they can't be pickled
                     metadata_file_list = []
@@ -249,7 +250,7 @@ class MTDataPreproc:
                             world_size=self.world_size,
                             n_jobs=cfg.train_ds.get('n_preproc_jobs', -2),
                             tar_file_prefix=cfg.train_ds.get('tar_file_prefix', 'parallel'),
-                            nns=cfg.train_ds.get('number_nearest_neighbors', 2)
+                            nns=cfg.train_ds.get('number_nearest_neighbors', 2),
                         )
                         metadata_file_list.append(self.train_metadata_file)
                     # update config
@@ -388,7 +389,7 @@ class MTDataPreproc:
         world_size,
         n_jobs=-2,
         tar_file_prefix='parallel',
-        nns=2
+        nns=2,
     ):
         """Create tarred dataset from large paired translation data.
 
@@ -435,7 +436,9 @@ class MTDataPreproc:
                     single_fragment = True
 
                 # create a partition of lines that we can parallelize over
-                lines_partition = MTDataPreproc._get_lines_partition(num_src_lines, lines_per_dataset_fragment, single_fragment)
+                lines_partition = MTDataPreproc._get_lines_partition(
+                    num_src_lines, lines_per_dataset_fragment, single_fragment
+                )
                 logging.info(f"Found {len(lines_partition)} fragments to parallelize over.")
 
                 # create tarfiles for each fragment in parallel
@@ -583,7 +586,7 @@ class MTDataPreproc:
         decoder_model_name,
         decoder_tokenizer_r2l,
         fragment_index,
-        nns
+        nns,
     ):
         start = lines_indices[0]
         stop = lines_indices[1]
@@ -950,7 +953,7 @@ class MTDataPreproc:
         decoder_model_name,
         decoder_tokenizer_r2l,
         fragment_index,
-        nns
+        nns,
     ):
         """
         Writes current fragment of the overall parallel corpus to tarfiles by:
@@ -987,7 +990,7 @@ class MTDataPreproc:
                 cache_data_per_node=False,
                 use_cache=False,
                 dataset_retrieval=retrieval_filename,
-                number_nearest_neighbors=nns
+                number_nearest_neighbors=nns,
             )
 
         encoder_tokenizer, decoder_tokenizer = MTDataPreproc.get_enc_dec_tokenizers(

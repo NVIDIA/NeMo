@@ -23,9 +23,9 @@ from typing import Any, List, Optional
 
 import braceexpand
 import numpy as np
-from tqdm.auto import tqdm
 import webdataset as wd
 from torch.utils.data import IterableDataset
+from tqdm.auto import tqdm
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_ids
 from nemo.core import Dataset
@@ -68,7 +68,7 @@ class TranslationDataConfig:
     retrieval_file_name: Optional[Any] = None  # Any = str or List[str] # file with indices of nns to retrieve
     retrieval_src_file_name: Optional[Any] = None  # Any = str or List[str] # file with src of nns to retrieve
     retrieval_tgt_file_name: Optional[Any] = None  # Any = str or List[str] # file with tgt of nns to retrieve
-    number_nearest_neighbors: int = 2 # number of nearest neighbors to retrieve
+    number_nearest_neighbors: int = 2  # number of nearest neighbors to retrieve
 
 
 class TranslationDataset(Dataset):
@@ -301,6 +301,7 @@ class RetrievalTranslationDataset(TranslationDataset):
     """
     A dataset for retrieval models
     """
+
     def __init__(
         self,
         dataset_src: str,
@@ -319,7 +320,7 @@ class RetrievalTranslationDataset(TranslationDataset):
         use_cache: bool = False,
         reverse_lang_direction: bool = False,
         prepend_id: int = None,
-        number_nearest_neighbors: int = 3
+        number_nearest_neighbors: int = 3,
     ):
         super(RetrievalTranslationDataset, self).__init__(
             dataset_src=dataset_src,
@@ -334,16 +335,17 @@ class RetrievalTranslationDataset(TranslationDataset):
             cache_data_per_node=cache_data_per_node,
             use_cache=use_cache,
             reverse_lang_direction=reverse_lang_direction,
-            prepend_id=prepend_id)
-        
+            prepend_id=prepend_id,
+        )
+
         # Select only the number of nns specified
-        self.nn_list = np.load(dataset_retrieval)[:,:number_nearest_neighbors]
+        self.nn_list = np.load(dataset_retrieval)[:, :number_nearest_neighbors]
 
         if dataset_retrieval_src is None:
             self.dataset_retrieval_src = dataset_src
         else:
             self.dataset_retrieval_src = dataset_retrieval_src
-        
+
         if dataset_retrieval_tgt is None:
             self.dataset_retrieval_tgt = dataset_tgt
         else:
@@ -366,11 +368,11 @@ class RetrievalTranslationDataset(TranslationDataset):
         )
         if val:
             src_retrieval_ids = dataset_to_ids(
-            self.dataset_retrieval_src,
-            tokenizer_src,
-            cache_ids=self.cache_ids,
-            cache_data_per_node=self.cache_data_per_node,
-            use_cache=self.use_cache,
+                self.dataset_retrieval_src,
+                tokenizer_src,
+                cache_ids=self.cache_ids,
+                cache_data_per_node=self.cache_data_per_node,
+                use_cache=self.use_cache,
             )
             tgt_retrieval_ids = dataset_to_ids(
                 self.dataset_retrieval_tgt,
@@ -382,7 +384,7 @@ class RetrievalTranslationDataset(TranslationDataset):
         else:
             src_retrieval_ids = src_ids
             tgt_retrieval_ids = tgt_ids
-        
+
         src_ids_extended = []
         for i in tqdm(range(len(src_ids)), desc='Adding retrieved sentences to src'):
             to_add = []
@@ -397,10 +399,7 @@ class RetrievalTranslationDataset(TranslationDataset):
 
         if self.clean:
             src_ids, tgt_ids = self.clean_src_and_target(
-                src_ids,
-                tgt_ids,
-                max_tokens=self.max_seq_length,
-                min_tokens=self.min_seq_length,
+                src_ids, tgt_ids, max_tokens=self.max_seq_length, min_tokens=self.min_seq_length,
             )
         self.src_pad_id = tokenizer_src.pad_id
         self.tgt_pad_id = tokenizer_tgt.pad_id

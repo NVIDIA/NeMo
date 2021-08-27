@@ -25,8 +25,8 @@ USAGE Example:
 
 from argparse import ArgumentParser
 
-import torch
 import numpy as np
+import torch
 
 import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.modules.common.transformer import (
@@ -53,7 +53,9 @@ def main():
     # Retrieval specific parameters
     parser.add_argument("--ret_src", type=str, required=True, help="Source sentences of the retrieval index.")
     parser.add_argument("--ret_tgt", type=str, required=True, help="Target sentences of the retrieval index. ")
-    parser.add_argument("--index_file", type=str, required=True, help="Index file containing indices of the nearest neighbors")
+    parser.add_argument(
+        "--index_file", type=str, required=True, help="Index file containing indices of the nearest neighbors"
+    )
     parser.add_argument('--use_add_index', default=False, action='store_true', help='Use additional index.')
     parser.add_argument("--ret_src_add", type=str, help="Source sentences for additional index.")
     parser.add_argument("--ret_tgt_add", type=str, help="Target sentences for additional index.")
@@ -106,7 +108,7 @@ def main():
 
     logging.info(f"Translating: {args.srctext} using Retrievals.")
 
-    nn_list = np.load(args.index_file)[:,:args.nns]
+    nn_list = np.load(args.index_file)[:, : args.nns]
     ret_src = open(args.ret_src, 'r').readlines()
     ret_tgt = open(args.ret_tgt, 'r').readlines()
     if args.use_add_index:
@@ -119,21 +121,36 @@ def main():
         for line in src_f:
             src_text.append(line.strip())
             if len(src_text) == args.batch_size:
-                res = model.translate_retrieval(ret_src, ret_tgt, text=src_text, source_lang=args.source_lang, target_lang=args.target_lang, nn_list=nn_list[start:start+args.batch_size])
-                start=start+args.batch_size
+                res = model.translate_retrieval(
+                    ret_src,
+                    ret_tgt,
+                    text=src_text,
+                    source_lang=args.source_lang,
+                    target_lang=args.target_lang,
+                    nn_list=nn_list[start : start + args.batch_size],
+                )
+                start = start + args.batch_size
                 if len(res) != len(src_text):
                     raise ValueError(f"Expected {len(src_text)} translations, but got {len(res)}")
                 tgt_text += res
                 src_text = []
             count += 1
             if count % 100 == 0:
-               print(f"Translated {count} sentences")
+                print(f"Translated {count} sentences")
         if len(src_text) > 0:
-            tgt_text += model.translate_retrieval(ret_src, ret_tgt, text=src_text, source_lang=args.source_lang, target_lang=args.target_lang, nn_list=nn_list[start:])
+            tgt_text += model.translate_retrieval(
+                ret_src,
+                ret_tgt,
+                text=src_text,
+                source_lang=args.source_lang,
+                target_lang=args.target_lang,
+                nn_list=nn_list[start:],
+            )
 
     with open(args.tgtout, 'w') as tgt_f:
         for line in tgt_text:
             tgt_f.write(line + "\n")
+
 
 if __name__ == '__main__':
     main()  # noqa pylint: disable=no-value-for-parameter
