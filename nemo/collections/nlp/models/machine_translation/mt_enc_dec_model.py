@@ -897,9 +897,12 @@ class MTEncDecModel(EncDecNLPModel):
         Translates list of sentences from source language to target language.
         Should be regular text, this method performs its own tokenization/de-tokenization
         Args:
+            ret_src: list of source strings from the retrieval index
+            ret_tgt: list of target strings from the retrieval index
             text: list of strings to translate
             source_lang: if not None, corresponding MosesTokenizer and MosesPunctNormalizer will be run
             target_lang: if not None, corresponding MosesDecokenizer will be run
+            nn_list: list of nearest neighbors to be used for retrieval
         Returns:
             list of translated strings
         """

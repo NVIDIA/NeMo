@@ -50,20 +50,30 @@ def main():
     parser.add_argument("--lm_model", type=str, default=None, help="")
     parser.add_argument("--fusion_coef", type=float, default=0.0, help="")
     # Retrieval specific parameters
-    parser.add_argument('--retrieval', default=False, action='store_true')
-    parser.add_argument("--ret_src", type=str, default='/home/soumyes/nmt/retrieval/data/wmt/train.clean.en-de.tok.en.shuffled', help="")
-    parser.add_argument("--ret_tgt", type=str, default='/home/soumyes/nmt/retrieval/data/wmt/train.clean.en-de.tok.de.shuffled', help="")
-    parser.add_argument("--index_file", type=str, default='/home/soumyes/nmt/retrieval/data/bert-base-indices/newstest2019-en-de.npy', help="")
-    parser.add_argument('--use_add_index', default=False, action='store_true')
-    parser.add_argument("--ret_src_add", type=str, default='/home/soumyes/nmt/retrieval/data/wmt/newstest2019-en-de.src', help="")
-    parser.add_argument("--ret_tgt_add", type=str, default='/home/soumyes/nmt/retrieval/data/wmt/newstest2019-en-de.ref', help="")
-    parser.add_argument("--nns", type=int, default=2, help="")
+    parser.add_argument("--ret_src", type=str, required=True, help="Source sentences of the retrieval index.")
+    parser.add_argument("--ret_tgt", type=str, required=True, help="Target sentences of the retrieval index. ")
+    parser.add_argument("--index_file", type=str, required=True, help="Index file containing indices of the nearest neighbors")
+    parser.add_argument('--use_add_index', default=False, action='store_true', help='Use additional index.')
+    parser.add_argument("--ret_src_add", type=str, help="Source sentences for additional index.")
+    parser.add_argument("--ret_tgt_add", type=str, help="Target sentences for additional index.")
+    parser.add_argument("--nns", type=int, default=2, help="Number of nearest neighbors to use.")
+
+#     parser.add_argument('--retrieval', default=False, action='store_true')
+    # parser.add_argument("--ret_src", type=str, default='/home/soumyes/nmt/retrieval/data/wmt/train.clean.en-de.tok.en.shuffled', help="")
+    # parser.add_argument("--ret_tgt", type=str, default='/home/soumyes/nmt/retrieval/data/wmt/train.clean.en-de.tok.de.shuffled', help="")
+    # parser.add_argument("--index_file", type=str, default='/home/soumyes/nmt/retrieval/data/bert-base-indices/newstest2019-en-de.npy', help="")
+    # parser.add_argument('--use_add_index', default=False, action='store_true')
+    # parser.add_argument("--ret_src_add", type=str, default='/home/soumyes/nmt/retrieval/data/wmt/newstest2019-en-de.src', help="")
+    # parser.add_argument("--ret_tgt_add", type=str, default='/home/soumyes/nmt/retrieval/data/wmt/newstest2019-en-de.ref', help="")
+    # parser.add_argument("--nns", type=int, default=2, help="")
 
     args = parser.parse_args()
     torch.set_grad_enabled(False)
     if args.model.endswith(".nemo"):
         logging.info("Attempting to initialize from .nemo file")
         model = nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(restore_path=args.model)
+        if not hasattr(model, 'retrieval'):
+            raise ValueError("Retrieval is not supported for this NEMO models")
         src_text = []
         tgt_text = []
     else:
@@ -102,16 +112,14 @@ def main():
             max_delta_length=args.max_delta_length,
         )
 
-    logging.info(f"Translating: {args.srctext}")
+    logging.info(f"Translating: {args.srctext} using Retrievals.")
 
-    if args.retrieval:
-        logging.info('Doing Retrieval Translation')
-        nn_list = np.load(args.index_file)[:,:args.nns]
-        ret_src = open(args.ret_src, 'r').readlines()
-        ret_tgt = open(args.ret_tgt, 'r').readlines()
-        if args.use_add_index:
-            ret_src += open(args.ret_src_add, 'r').readlines()
-            ret_tgt += open(args.ret_tgt_add, 'r').readlines()
+    nn_list = np.load(args.index_file)[:,:args.nns]
+    ret_src = open(args.ret_src, 'r').readlines()
+    ret_tgt = open(args.ret_tgt, 'r').readlines()
+    if args.use_add_index:
+        ret_src += open(args.ret_src_add, 'r').readlines()
+        ret_tgt += open(args.ret_tgt_add, 'r').readlines()
 
     count = 0
     start = 0
@@ -119,11 +127,8 @@ def main():
         for line in src_f:
             src_text.append(line.strip())
             if len(src_text) == args.batch_size:
-                if args.retrieval:
-                    res = model.translate_retrieval(ret_src, ret_tgt, text=src_text, source_lang=args.source_lang, target_lang=args.target_lang, nn_list=nn_list[start:start+args.batch_size])
-                    start=start+args.batch_size
-                else:
-                    res = model.translate(text=src_text, source_lang=args.source_lang, target_lang=args.target_lang)
+                res = model.translate_retrieval(ret_src, ret_tgt, text=src_text, source_lang=args.source_lang, target_lang=args.target_lang, nn_list=nn_list[start:start+args.batch_size])
+                start=start+args.batch_size
                 if len(res) != len(src_text):
                     raise ValueError(f"Expected {len(src_text)} translations, but got {len(res)}")
                 tgt_text += res
@@ -132,15 +137,11 @@ def main():
             if count % 300 == 0:
                print(f"Translated {count} sentences")
         if len(src_text) > 0:
-            if args.retrieval:
-                tgt_text += model.translate_retrieval(ret_src, ret_tgt, text=src_text, source_lang=args.source_lang, target_lang=args.target_lang, nn_list=nn_list[start:])
-            else:
-                tgt_text += model.translate(text=src_text, source_lang=args.source_lang, target_lang=args.target_lang)
+            tgt_text += model.translate_retrieval(ret_src, ret_tgt, text=src_text, source_lang=args.source_lang, target_lang=args.target_lang, nn_list=nn_list[start:])
 
     with open(args.tgtout, 'w') as tgt_f:
         for line in tgt_text:
             tgt_f.write(line + "\n")
-
 
 if __name__ == '__main__':
     main()  # noqa pylint: disable=no-value-for-parameter
