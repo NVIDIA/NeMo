@@ -27,8 +27,7 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
 from nemo.collections.nlp.data.language_modeling.sentence_dataset import SentenceDataset
-from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataset
-from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import RetrievalTranslationDataset
+from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataset, RetrievalTranslationDataset
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer, get_tokenizer
 from nemo.utils import logging
@@ -182,6 +181,10 @@ class MTDataPreproc:
                         raise ValueError(
                             'src_file_name and tgt_file_name needed to create tarred dataset but could not be found.'
                         )
+                    if cfg.get('retrieval') and cfg.train_ds.get('retrieval_file_name') is None:
+                        raise ValueError(
+                            'retrieval_file_name needed to create tarred retrieval dataset with but could not be found.'
+                        )
                     # Preprocess data and cache for use during training
                     if self.global_rank == 0:
                         logging.info(
@@ -191,10 +194,14 @@ class MTDataPreproc:
                     if isinstance(cfg.train_ds.get('src_file_name'), str):
                         src_file_list = [cfg.train_ds.get('src_file_name')]
                         tgt_file_list = [cfg.train_ds.get('tgt_file_name')]
+                        if cfg.get('retrieval'):
+                            retrieval_file_list = [cfg.train_ds.get('retrieval_file_name')]
                         outdir_list = [cfg.get('preproc_out_dir')]
                     else:
                         src_file_list = cfg.train_ds.get('src_file_name')
                         tgt_file_list = cfg.train_ds.get('tgt_file_name')
+                        if cfg.get('retrieval'):
+                            retrieval_file_list = cfg.train_ds.get('retrieval_file_name')
                         if isinstance(cfg.get('src_language'), ListConfig):
                             langs = cfg.get('src_language')
                         elif isinstance(cfg.get('tgt_language'), ListConfig):
@@ -207,14 +214,21 @@ class MTDataPreproc:
                         raise ValueError(
                             "Number of source files, target files, and multilingual language pairs must be the same."
                         )
+                    if cfg.get('retrieval') and len(src_file_list) != len(retrieval_file_list):
+                        raise ValueError(
+                            "Number of source files, target files, and retrieval files must be the same."
+                        )
+                    if not cfg.get('retrieval'):
+                        retrieval_file_list = [None]*len(src_file_list)
 
-                    # TODO: have to get tokenizers instide .preprocess_parallel because they can't be pickled
+                    # TODO: have to get tokenizers inside .preprocess_parallel because they can't be pickled
                     metadata_file_list = []
                     for idx, src_file in enumerate(src_file_list):
                         self.train_tar_files, self.train_metadata_file = MTDataPreproc.preprocess_parallel_dataset(
                             clean=cfg.train_ds.clean,
                             src_fname=src_file,
                             tgt_fname=tgt_file_list[idx],
+                            retrieval_fname=retrieval_file_list[idx],
                             out_dir=outdir_list[idx],
                             encoder_tokenizer_name=cfg.encoder_tokenizer.get('library'),
                             encoder_model_name=cfg.encoder.get('model_name'),
@@ -235,6 +249,7 @@ class MTDataPreproc:
                             world_size=self.world_size,
                             n_jobs=cfg.train_ds.get('n_preproc_jobs', -2),
                             tar_file_prefix=cfg.train_ds.get('tar_file_prefix', 'parallel'),
+                            nns=cfg.train_ds.get('number_nearest_neighbors', 2)
                         )
                         metadata_file_list.append(self.train_metadata_file)
                     # update config
@@ -352,6 +367,7 @@ class MTDataPreproc:
         clean,
         src_fname,
         tgt_fname,
+        retrieval_fname,
         out_dir,
         encoder_tokenizer_name,
         encoder_tokenizer_model,
@@ -372,6 +388,7 @@ class MTDataPreproc:
         world_size,
         n_jobs=-2,
         tar_file_prefix='parallel',
+        nns=2
     ):
         """Create tarred dataset from large paired translation data.
 
@@ -379,6 +396,7 @@ class MTDataPreproc:
             clean (str): Cleans source and target sentences to get rid of noisy data.
             src_fname (str): path to source text data
             tgt_fname (str): path to target text data
+            retrieval_fname (str): path to indices of retrieved sentences for src else None
             out_dir (str): path to write tarred dataset
             encoder_tokenizer (Any): tokenizer for encoder 
             decoder_tokenizer (Any): tokenizer for decoder
@@ -389,6 +407,7 @@ class MTDataPreproc:
             num_batches_per_tarfile (int): number of batches (pickle files) within each tarfile
             tar_file_prefix (str) : add string prefix to tar files 
             n_jobs (int): number of processes to use for data processing (-2 to use all but 2)
+            nns : number of nearest neighbors to use for retrieval
         """
 
         os.makedirs(out_dir, exist_ok=True)
@@ -411,8 +430,12 @@ class MTDataPreproc:
                 logging.info(f'Found {num_src_lines} source lines and  {num_tgt_lines} target lines.')
                 assert num_src_lines == num_tgt_lines, 'Number of source lines should equal number of target lines.'
 
+                single_fragment = False
+                if retrieval_fname[0] is not None:
+                    single_fragment = True
+
                 # create a partition of lines that we can parallelize over
-                lines_partition = MTDataPreproc._get_lines_partition(num_src_lines, lines_per_dataset_fragment)
+                lines_partition = MTDataPreproc._get_lines_partition(num_src_lines, lines_per_dataset_fragment, single_fragment)
                 logging.info(f"Found {len(lines_partition)} fragments to parallelize over.")
 
                 # create tarfiles for each fragment in parallel
@@ -420,6 +443,7 @@ class MTDataPreproc:
                     delayed(MTDataPreproc._process_fragment)(
                         src_filename=src_fname,
                         tgt_filename=tgt_fname,
+                        retrieval_filename=retrieval_fname,
                         lines_indices=lines_indices,
                         out_dir=out_dir,
                         num_batches_per_tarfile=num_batches_per_tarfile,
@@ -438,6 +462,7 @@ class MTDataPreproc:
                         fragment_index=fragment_index,
                         encoder_tokenizer_r2l=encoder_tokenizer_r2l,
                         decoder_tokenizer_r2l=decoder_tokenizer_r2l,
+                        nns=nns,
                     )
                     for fragment_index, lines_indices in enumerate(lines_partition)
                 )
@@ -518,25 +543,28 @@ class MTDataPreproc:
         return i + 1
 
     @staticmethod
-    def _get_lines_partition(num_lines, lines_per_dataset_fragment):
+    def _get_lines_partition(num_lines, lines_per_dataset_fragment, single_fragment=False):
         # create partition based on fragment size
-        # if lines_per_dataset_fragment == -1:
-        #     fragment_indices =[0, num_lines]
         fragment_indices = []
-        for i in range(0, num_lines, lines_per_dataset_fragment):
-            fragment_indices.append([i, i + lines_per_dataset_fragment])
-        # modify last indices
-        # last_indices = fragment_indices.pop()
-        # last_indices[1] = -1
-        # fragment_indices.append(last_indices)
-        # if fragment_indices[-1][1] >= num_lines:
-        #     fragment_indices.pop()
+        if single_fragment:
+            # For retrieval datasets, we want to use the entire dataset as a single fragment
+            fragment_indices.append([0, num_lines])
+        else:
+            for i in range(0, num_lines, lines_per_dataset_fragment):
+                fragment_indices.append([i, i + lines_per_dataset_fragment])
+            # modify last indices
+            last_indices = fragment_indices.pop()
+            last_indices[1] = -1
+            fragment_indices.append(last_indices)
+            # if fragment_indices[-1][1] >= num_lines:
+            #     fragment_indices.pop()
         return fragment_indices
 
     @staticmethod
     def _process_fragment(
         src_filename,
         tgt_filename,
+        retrieval_filename,
         lines_indices,
         out_dir,
         num_batches_per_tarfile,
@@ -555,6 +583,7 @@ class MTDataPreproc:
         decoder_model_name,
         decoder_tokenizer_r2l,
         fragment_index,
+        nns
     ):
         start = lines_indices[0]
         stop = lines_indices[1]
@@ -581,6 +610,7 @@ class MTDataPreproc:
             min_seq_length=min_seq_length,
             src_fname=tmp_f_src.name,
             tgt_fname=tmp_f_tgt.name,
+            retrieval_filename=retrieval_filename,
             num_tokens=tokens_in_batch,
             encoder_tokenizer_name=encoder_tokenizer_name,
             encoder_tokenizer_model=encoder_tokenizer_model,
@@ -593,6 +623,7 @@ class MTDataPreproc:
             decoder_model_name=decoder_model_name,
             decoder_tokenizer_r2l=decoder_tokenizer_r2l,
             fragment_index=fragment_index,
+            nns=nns,
         )
 
         os.remove(tmp_f_src.name)
@@ -906,6 +937,7 @@ class MTDataPreproc:
         min_seq_length,
         src_fname,
         tgt_fname,
+        retrieval_filename,
         num_tokens,
         encoder_tokenizer_name,
         encoder_tokenizer_model,
@@ -918,6 +950,7 @@ class MTDataPreproc:
         decoder_model_name,
         decoder_tokenizer_r2l,
         fragment_index,
+        nns
     ):
         """
         Writes current fragment of the overall parallel corpus to tarfiles by:
@@ -926,35 +959,36 @@ class MTDataPreproc:
         (3) Adding pickle files to a tarfile until it reaches num_batches_per_tarfile.
         """
 
-        dataset = TranslationDataset(
-            dataset_src=src_fname,
-            dataset_tgt=tgt_fname,
-            tokens_in_batch=num_tokens,
-            clean=clean,
-            max_seq_length=max_seq_length,
-            min_seq_length=min_seq_length,
-            max_seq_length_diff=max_seq_length,
-            max_seq_length_ratio=max_seq_length,
-            cache_ids=False,
-            cache_data_per_node=False,
-            use_cache=False,
-        )
-
-        # dataset = RetrievalTranslationDataset(
-        #     dataset_src=src_fname,
-        #     dataset_tgt=tgt_fname,
-        #     dataset_retrieval='/home/soumyes/nmt/retrieval/data/bert-base-indices/train-en-de.npy',
-        #     tokens_in_batch=num_tokens,
-        #     clean=True,
-        #     max_seq_length=max_seq_length,
-        #     min_seq_length=min_seq_length,
-        #     max_seq_length_diff=max_seq_length,
-        #     max_seq_length_ratio=max_seq_length,
-        #     cache_ids=False,
-        #     cache_data_per_node=False,
-        #     use_cache=False,
-        #     number_nearest_neighbors=2
-        # )
+        if retrieval_filename is None:
+            dataset = TranslationDataset(
+                dataset_src=src_fname,
+                dataset_tgt=tgt_fname,
+                tokens_in_batch=num_tokens,
+                clean=clean,
+                max_seq_length=max_seq_length,
+                min_seq_length=min_seq_length,
+                max_seq_length_diff=max_seq_length,
+                max_seq_length_ratio=max_seq_length,
+                cache_ids=False,
+                cache_data_per_node=False,
+                use_cache=False,
+            )
+        else:
+            dataset = RetrievalTranslationDataset(
+                dataset_src=src_fname,
+                dataset_tgt=tgt_fname,
+                tokens_in_batch=num_tokens,
+                clean=True,
+                max_seq_length=max_seq_length,
+                min_seq_length=min_seq_length,
+                max_seq_length_diff=max_seq_length,
+                max_seq_length_ratio=max_seq_length,
+                cache_ids=False,
+                cache_data_per_node=False,
+                use_cache=False,
+                dataset_retrieval=retrieval_filename,
+                number_nearest_neighbors=nns
+            )
 
         encoder_tokenizer, decoder_tokenizer = MTDataPreproc.get_enc_dec_tokenizers(
             encoder_tokenizer_name=encoder_tokenizer_name,

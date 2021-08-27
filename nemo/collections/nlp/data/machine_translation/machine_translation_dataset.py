@@ -65,10 +65,10 @@ class TranslationDataConfig:
     concat_sampling_technique: Optional[str] = 'temperature'
     concat_sampling_temperature: Optional[int] = 5
     concat_sampling_probabilities: Optional[List[float]] = None
-    retrieval_file_name: Optional[Any] = None  # Any = str or List[str]
-    retrieval_src_file_name: Optional[Any] = None  # Any = str or List[str]
-    retrieval_tgt_file_name: Optional[Any] = None  # Any = str or List[str]
-    number_nearest_neighbors: int = 3
+    retrieval_file_name: Optional[Any] = None  # Any = str or List[str] # file with indices of nns to retrieve
+    retrieval_src_file_name: Optional[Any] = None  # Any = str or List[str] # file with src of nns to retrieve
+    retrieval_tgt_file_name: Optional[Any] = None  # Any = str or List[str] # file with tgt of nns to retrieve
+    number_nearest_neighbors: int = 2 # number of nearest neighbors to retrieve
 
 
 class TranslationDataset(Dataset):
@@ -335,6 +335,7 @@ class RetrievalTranslationDataset(TranslationDataset):
             use_cache=use_cache,
             reverse_lang_direction=reverse_lang_direction,
             prepend_id=prepend_id)
+        
         # Select only the number of nns specified
         self.nn_list = np.load(dataset_retrieval)[:,:number_nearest_neighbors]
 
@@ -388,7 +389,7 @@ class RetrievalTranslationDataset(TranslationDataset):
             to_add.extend(src_ids[i])
             for nn_id in self.nn_list[i].tolist():
                 if nn_id != i:
-                    # avoid adding the same sentence
+                    # avoid adding the same sentence if train and index set are the same
                     to_add.extend(src_retrieval_ids[nn_id])
                     to_add.extend(tgt_retrieval_ids[nn_id])
             src_ids_extended.append(to_add)
@@ -400,8 +401,6 @@ class RetrievalTranslationDataset(TranslationDataset):
                 tgt_ids,
                 max_tokens=self.max_seq_length,
                 min_tokens=self.min_seq_length,
-                # max_tokens_diff=self.max_seq_length_diff,
-                # max_tokens_ratio=self.max_seq_length_ratio,
             )
         self.src_pad_id = tokenizer_src.pad_id
         self.tgt_pad_id = tokenizer_tgt.pad_id

@@ -38,7 +38,7 @@ model:
     concat_sampling_technique: temperature # only used with ConcatTranslationDataset 
     concat_sampling_temperature: 5 # only used with ConcatTranslationDataset 
     concat_sampling_probabilities: null # only used with ConcatTranslationDataset
-    retrieval_file_name: null # only used with RetrievalTranslationDataset
+    retrieval_file_name: null # file with indices of nns to retrieve for train
 
   validation_ds:
     src_file_name: ???
@@ -51,7 +51,7 @@ model:
     drop_last: false
     pin_memory: false
     num_workers: 8
-    retrieval_file_name: null # only used with RetrievalTranslationDataset
+    retrieval_file_name: null # file with indices of nns to retrieve fro val
 
   test_ds:
     src_file_name: ???
@@ -64,7 +64,7 @@ model:
     drop_last: false
     pin_memory: false
     num_workers: 8
-    retrieval_file_name: null # only used with RetrievalTranslationDataset
+    retrieval_file_name: null
 
   optim:
     name: adam

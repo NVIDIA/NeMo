@@ -586,7 +586,7 @@ class MTEncDecModel(EncDecNLPModel):
                         use_cache=cfg.get("use_cache", False),
                         reverse_lang_direction=cfg.get("reverse_lang_direction", False),
                         prepend_id=self.multilingual_ids[idx],
-                        number_nearest_neighbors=cfg.get("number_nearest_neighbors", 3)
+                        number_nearest_neighbors=cfg.get("number_nearest_neighbors", 2)
                     )
                 dataset.batchify(self.encoder_tokenizer, self.decoder_tokenizer)
                 datasets.append(dataset)
