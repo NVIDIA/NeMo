@@ -36,7 +36,7 @@ model:
   # TODO: add validation generation config, size of context, max sequence length
   # needed to initialize megatron
   micro_batch_size: 8
-  tensor_model_parallel_size: 2
+  tensor_model_parallel_size: 1
   max_position_embeddings: 1024
   encoder_seq_length: 1024
   num_layers: 24
