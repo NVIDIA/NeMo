@@ -214,7 +214,7 @@ class AbstractRNNTDecoding(ABC):
         encoder_output: torch.Tensor,
         encoded_lengths: torch.Tensor,
         return_hypotheses: bool = False,
-        states: Optional[torch.Tensor] = None,
+        partial_hypotheses: Optional[List[Hypothesis]] = None,
     ) -> (List[str], Optional[List[List[str]]], Optional[Union[Hypothesis, NBestHypotheses]]):
         """
         Decode an encoder output by autoregressive decoding of the Decoder+Joint networks.
@@ -241,7 +241,7 @@ class AbstractRNNTDecoding(ABC):
         # Compute hypotheses
         with torch.no_grad():
             hypotheses_list = self.decoding(
-                encoder_output=encoder_output, encoded_lengths=encoded_lengths
+                encoder_output=encoder_output, encoded_lengths=encoded_lengths, partial_hypotheses=partial_hypotheses
             )  # type: [List[Hypothesis]]
 
             # extract the hypotheses

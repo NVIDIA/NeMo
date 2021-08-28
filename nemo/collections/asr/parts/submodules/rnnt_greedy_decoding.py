@@ -223,7 +223,12 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         )
 
     @typecheck()
-    def forward(self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor, states: Optional[torch.Tensor] = None):
+    def forward(
+        self,
+        encoder_output: torch.Tensor,
+        encoded_lengths: torch.Tensor,
+        partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
+    ):
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
         Output token is generated auto-repressively.
 
@@ -270,12 +275,14 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         return (packed_result,)
 
     @torch.no_grad()
-    def _greedy_decode(self, x: torch.Tensor, out_len: torch.Tensor, states=None):
+    def _greedy_decode(
+        self, x: torch.Tensor, out_len: torch.Tensor, partial_hypothesis: Optional[List[rnnt_utils.Hypothesis]] = None
+    ):
         # x: [T, 1, D]
         # out_len: [seq_len]
 
         # Initialize blank state and empty label set
-        hidden = states
+        hidden = None
         label = []
         timesteps = []
 
@@ -390,7 +397,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             self._greedy_decode = self._greedy_decode_masked
 
     @typecheck()
-    def forward(self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor, states: Optional[torch.Tensor] = None):
+    def forward(
+        self,
+        encoder_output: torch.Tensor,
+        encoded_lengths: torch.Tensor,
+        partial_hypothesis: Optional[List[rnnt_utils.Hypothesis]] = None,
+    ):
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
         Output token is generated auto-repressively.
 
@@ -416,7 +428,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             with self.decoder.as_frozen(), self.joint.as_frozen():
                 inseq = encoder_output  # [B, T, D]
-                hypotheses, timesteps, alignments = self._greedy_decode(inseq, logitlen, device=inseq.device)
+                hypotheses, timesteps, alignments = self._greedy_decode(
+                    inseq, logitlen, device=inseq.device, partial_hypothesis=partial_hypothesis
+                )
 
             # Pack the hypotheses results
             packed_result = pack_hypotheses(hypotheses, timesteps, logitlen, alignments=alignments)
@@ -428,7 +442,13 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
         return (packed_result,)
 
-    def _greedy_decode_blank_as_pad(self, x: torch.Tensor, out_len: torch.Tensor, device: torch.device, states=None):
+    def _greedy_decode_blank_as_pad(
+        self,
+        x: torch.Tensor,
+        out_len: torch.Tensor,
+        device: torch.device,
+        partial_hypothesis: Optional[List[rnnt_utils.Hypothesis]] = None,
+    ):
         with torch.no_grad():
             # x: [B, T, D]
             # out_len: [B]
@@ -579,7 +599,13 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         return label, timesteps, alignments
 
     @torch.no_grad()
-    def _greedy_decode_masked(self, x: torch.Tensor, out_len: torch.Tensor, device: torch.device, states=None):
+    def _greedy_decode_masked(
+        self,
+        x: torch.Tensor,
+        out_len: torch.Tensor,
+        device: torch.device,
+        partial_hypothesis: Optional[List[rnnt_utils.Hypothesis]] = None,
+    ):
         # x: [B, T, D]
         # out_len: [B]
         # device: torch.device

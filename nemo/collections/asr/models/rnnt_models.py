@@ -206,7 +206,11 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecJointModel):
 
     @torch.no_grad()
     def transcribe(
-        self, paths2audio_files: List[str], batch_size: int = 4, return_hypotheses: bool = False
+        self,
+        paths2audio_files: List[str],
+        batch_size: int = 4,
+        return_hypotheses: bool = False,
+        partial_hypothesis: Optional[List['Hypothesis']] = None,
     ) -> (List[str], Optional[List['Hypothesis']]):
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
