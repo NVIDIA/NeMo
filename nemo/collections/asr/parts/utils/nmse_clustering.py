@@ -126,14 +126,22 @@ def addAnchorEmb(emb, anchor_sample_n, anchor_spk_n, sigma):
     Add randomly generated synthetic embeddings to make eigen analysis more stable.
     We refer to these embeddings as anchor embeddings.
 
+    emb (float):
+        The input embedding from the emebedding extractor.
+
     anchor_sample_n (int):
-        The number of embedding samples per speaker
+        The number of embedding samples per speaker.
+        anchor_sample_n = 10 is recommended.
 
     anchor_spk_n (int):
-        The number of speakers for synthetic embedding
+        The number of speakers for synthetic embedding.
+        anchor_spk_n = 3 is recommended.
 
     sigma (int):
-        The amplitude of synthetic noise for each embedding vector
+        The amplitude of synthetic noise for each embedding vector.
+        If sigma value is too small, under-counting could happen.
+        If sigma value is too large, over-counting could happen.
+        sigma = 50 is recommended.
 
     """
     emb_dim = emb.shape[1]
@@ -487,7 +495,7 @@ def COSclustering(
     emb,
     oracle_num_speakers=None,
     max_num_speaker=8,
-    min_samples=6,
+    min_samples_for_NMESC=6,
     enhanced_count_thres=80,
     fixed_thres=None,
     cuda=False,
@@ -508,24 +516,33 @@ def COSclustering(
         max_num_speaker: (int)
             Maximum number of clusters to consider for each session
 
-        min_samples: (int)
+        min_samples_for_NMESC: (int)
             Minimum number of samples required for NME clustering, this avoids
             zero p_neighbour_lists. If the input has fewer segments than min_samples,
             it is directed to the enhanced speaker counting mode.
+
+        enhanced_count_thres: (int)
+            For short audio recordings under 60 seconds, clustering algorithm cannot
+            accumulate enough amount of speaker profile for each cluster.
+            Thus, getEnhancedSpeakerCount() employs anchor embeddings (dummy representations)
+            to mitigate the effect of cluster sparsity.
+            enhanced_count_thres = 80 is recommended.
+
     Returns:
         Y: (List[int])
             Speaker label for each segment.
     """
-
     if emb.shape[0] == 1:
         return np.array([0])
-    elif emb.shape[0] < enhanced_count_thres and oracle_num_speakers == None:
-        oracle_num_speakers = getEnhancedSpeakerCount(key, emb, cuda)
+    elif emb.shape[0] <= max(enhanced_count_thres, min_samples_for_NMESC) and oracle_num_speakers is None:
+        est_num_of_spk_enhanced = getEnhancedSpeakerCount(key, emb, cuda)
+    else:
+        est_num_of_spk_enhanced = None
 
-    max_num_speaker = oracle_num_speakers if oracle_num_speakers else max_num_speaker
+    if oracle_num_speakers:
+        max_num_speaker = oracle_num_speakers
 
     mat = getCosAffinityMatrix(emb)
-
     nmesc = NMESC(
         mat,
         max_num_speaker=max_num_speaker,
@@ -537,13 +554,16 @@ def COSclustering(
         cuda=cuda,
     )
 
-    if emb.shape[0] > min_samples:
+    if emb.shape[0] > min_samples_for_NMESC:
         est_num_of_spk, p_hat_value, best_g_p_value = nmesc.NMEanalysis()
         affinity_mat = getAffinityGraphMat(mat, p_hat_value)
     else:
         affinity_mat = mat
 
-    est_num_of_spk = oracle_num_speakers if oracle_num_speakers else est_num_of_spk
+    if oracle_num_speakers:
+        est_num_of_spk = oracle_num_speakers
+    elif est_num_of_spk_enhanced:
+        est_num_of_spk = est_num_of_spk_enhanced
 
     spectral_model = _SpectralClustering(n_clusters=est_num_of_spk, cuda=cuda)
     Y = spectral_model.predict(affinity_mat)
