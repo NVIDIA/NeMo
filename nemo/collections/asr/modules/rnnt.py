@@ -552,7 +552,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         return state_list
 
-    def batch_concat_state(
+    def batch_concat_states(
         self, batch_states: List[List[torch.Tensor]]
     ) -> List[torch.Tensor]:
         """Concatenate a batch of decoder state to a packed state.
@@ -566,6 +566,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
                 (L x B x H, L x B x H)
         """
         state_list = []
+
         for state_id in range(len(batch_states[0])):
             batch_list = []
             for sample_id in range(len(batch_states)):
@@ -573,13 +574,13 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
                 tensor = tensor.unsqueeze(0)  # [1, L, H]
                 batch_list.append(tensor)
 
-            state_tensor = torch.stack(batch_list)  # [B, L, H]
+            state_tensor = torch.cat(batch_list, 0)  # [B, L, H]
             state_tensor = state_tensor.transpose(1, 0)  # [L, B, H]
             state_list.append(state_tensor)
 
         return state_list
 
-    def batch_copy_state(
+    def batch_copy_states(
             self, old_states: List[torch.Tensor], new_states: List[torch.Tensor], ids: List[int],
             value: Optional[float] = None
     ) -> List[torch.Tensor]:

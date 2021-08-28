@@ -62,7 +62,7 @@ def _states_to_device(dec_state, device='cpu'):
         dec_state = dec_state.to(device)
 
     elif isinstance(dec_state, (list, tuple)):
-        dec_state = (_states_to_device(dec_i, device) for dec_i in dec_state)
+        dec_state = tuple(_states_to_device(dec_i, device) for dec_i in dec_state)
 
     return dec_state
 
@@ -260,7 +260,9 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                 for batch_idx in range(encoder_output.size(0)):
                     inseq = encoder_output[batch_idx, :, :].unsqueeze(1)  # [T, 1, D]
                     logitlen = encoded_lengths[batch_idx]
-                    hypothesis = self._greedy_decode(inseq, logitlen, partial_hypotheses=partial_hypotheses)
+
+                    partial_hypothesis = partial_hypotheses[batch_idx] if partial_hypotheses is not None else None
+                    hypothesis = self._greedy_decode(inseq, logitlen, partial_hypotheses=partial_hypothesis)
                     hypotheses.append(hypothesis)
 
             # Pack results into Hypotheses
@@ -273,13 +275,18 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
     @torch.no_grad()
     def _greedy_decode(
-        self, x: torch.Tensor, out_len: torch.Tensor, partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None
+        self, x: torch.Tensor, out_len: torch.Tensor, partial_hypotheses: Optional[rnnt_utils.Hypothesis] = None
     ):
         # x: [T, 1, D]
         # out_len: [seq_len]
 
         # Initialize blank state and empty label set in Hypothesis
         hypothesis = rnnt_utils.Hypothesis(score=-1.0, y_sequence=[], dec_state=None, timestep=[])
+
+        if partial_hypotheses is not None:
+            hypothesis.y_sequence.append(partial_hypotheses.y_sequence[-1].cpu().numpy())
+            hypothesis.dec_state = self.decoder.batch_concat_states([partial_hypotheses.dec_state])
+            hypothesis.dec_state = _states_to_device(hypothesis.dec_state, x.device)
 
         if self.preserve_alignments:
             # Alignments is a 2-dimensional dangling list representing T x U
@@ -349,6 +356,10 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
         # Unpack the hidden states
         hypothesis.dec_state = self.decoder.batch_select_state(hypothesis.dec_state, 0)
+
+        # Remove the original input label if partial hypothesis was provided
+        if partial_hypotheses is not None:
+            hypothesis.y_sequence = hypothesis.y_sequence[1:]
 
         return hypothesis
 
@@ -563,13 +574,13 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         # Recover prior state for all samples which predicted blank now/past
                         if hidden is not None:
                             # LSTM has 2 states
-                            hidden_prime = self.decoder.batch_copy_state(hidden_prime, hidden, blank_indices)
+                            hidden_prime = self.decoder.batch_copy_states(hidden_prime, hidden, blank_indices)
 
                         elif len(blank_indices) > 0 and hidden is None:
                             # Reset state if there were some blank and other non-blank predictions in batch
                             # Original state is filled with zeros so we just multiply
                             # LSTM has 2 states
-                            hidden_prime = self.decoder.batch_copy_state(hidden_prime, None, blank_indices, value=0.0)
+                            hidden_prime = self.decoder.batch_copy_states(hidden_prime, None, blank_indices, value=0.0)
 
                         # Recover prior predicted label for all samples which predicted blank now/past
                         k[blank_indices] = last_label[blank_indices, 0]
@@ -732,13 +743,13 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     # Recover prior state for all samples which predicted blank now/past
                     if hidden is not None:
                         # LSTM has 2 states
-                        hidden_prime = self.decoder.batch_copy_state(hidden_prime, hidden, blank_indices)
+                        hidden_prime = self.decoder.batch_copy_states(hidden_prime, hidden, blank_indices)
 
                     elif len(blank_indices) > 0 and hidden is None:
                         # Reset state if there were some blank and other non-blank predictions in batch
                         # Original state is filled with zeros so we just multiply
                         # LSTM has 2 states
-                        hidden_prime = self.decoder.batch_copy_state(hidden_prime, None, blank_indices, value=0.0)
+                        hidden_prime = self.decoder.batch_copy_states(hidden_prime, None, blank_indices, value=0.0)
 
                     # Recover prior predicted label for all samples which predicted blank now/past
                     k[blank_indices] = last_label[blank_indices, 0]

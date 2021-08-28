@@ -235,7 +235,7 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         """
         raise NotImplementedError()
 
-    def batch_concat_state(self, batch_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
+    def batch_concat_states(self, batch_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
         """Concatenate a batch of decoder state to a packed state.
 
         Args:
@@ -248,7 +248,7 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         """
         raise NotImplementedError()
 
-    def batch_copy_state(
+    def batch_copy_states(
         self,
         old_states: List[torch.Tensor],
         new_states: List[torch.Tensor],
