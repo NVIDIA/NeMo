@@ -44,6 +44,7 @@ scaler = MinMaxScaler(feature_range=(0, 1))
 
 try:
     from torch.linalg import eigh as eigh
+
     TORCH_EIGN = True
 
 except ImportError:
@@ -538,9 +539,9 @@ def COSclustering(
     else:
         est_num_of_spk_enhanced = None
 
-    if oracle_num_speakers: 
-        max_num_speaker = oracle_num_speakers 
-    
+    if oracle_num_speakers:
+        max_num_speaker = oracle_num_speakers
+
     mat = getCosAffinityMatrix(emb)
     nmesc = NMESC(
         mat,
@@ -558,9 +559,9 @@ def COSclustering(
         affinity_mat = getAffinityGraphMat(mat, p_hat_value)
     else:
         affinity_mat = mat
-    
+
     if oracle_num_speakers:
-        est_num_of_spk = oracle_num_speakers 
+        est_num_of_spk = oracle_num_speakers
     elif est_num_of_spk_enhanced:
         est_num_of_spk = est_num_of_spk_enhanced
 
