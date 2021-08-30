@@ -15,7 +15,7 @@
 """BERT model."""
 
 import torch
-from megatron import get_args, mpu
+from megatron import get_args
 from apex import mpu
 
 from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType
