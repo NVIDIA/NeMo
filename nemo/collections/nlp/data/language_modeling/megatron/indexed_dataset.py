@@ -35,7 +35,7 @@ from itertools import accumulate
 
 import numpy as np
 import torch
-from megatron import print_rank_0
+from nemo.utils import logging
 
 
 def __best_fitting_dtype(vocab_size=None):
@@ -398,18 +398,18 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
                 offset = stream.tell()
 
             if not skip_warmup:
-                print_rank_0("    warming up index mmap file...")
+                logging.info("    warming up index mmap file...")
                 _warmup_mmap_file(path)
 
             self._bin_buffer_mmap = np.memmap(path, mode='r', order='C')
             self._bin_buffer = memoryview(self._bin_buffer_mmap)
-            print_rank_0("    reading sizes...")
+            logging.info("    reading sizes...")
             self._sizes = np.frombuffer(self._bin_buffer, dtype=np.int32, count=self._len, offset=offset)
-            print_rank_0("    reading pointers...")
+            logging.info("    reading pointers...")
             self._pointers = np.frombuffer(
                 self._bin_buffer, dtype=np.int64, count=self._len, offset=offset + self._sizes.nbytes
             )
-            print_rank_0("    reading document index...")
+            logging.info("    reading document index...")
             self._doc_idx = np.frombuffer(
                 self._bin_buffer,
                 dtype=np.int64,
@@ -460,11 +460,11 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
         self._index = self.Index(index_file_path(self._path), skip_warmup)
 
         if not skip_warmup:
-            print_rank_0("    warming up data mmap file...")
+            logging.info("    warming up data mmap file...")
             _warmup_mmap_file(data_file_path(self._path))
-        print_rank_0("    creating numpy buffer of mmap...")
+        logging.info("    creating numpy buffer of mmap...")
         self._bin_buffer_mmap = np.memmap(data_file_path(self._path), mode='r', order='C')
-        print_rank_0("    creating memory view of numpy buffer...")
+        logging.info("    creating memory view of numpy buffer...")
         self._bin_buffer = memoryview(self._bin_buffer_mmap)
 
     def __del__(self):

@@ -37,7 +37,9 @@ import time
 
 import numpy as np
 import torch
-from megatron import get_args, mpu, print_rank_0
+from megatron import get_args
+from apex import mpu
+from nemo.utils import logging
 
 from nemo.collections.nlp.data.language_modeling.megatron import helpers
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
@@ -527,17 +529,17 @@ def _build_train_valid_test_datasets(
     splits = get_train_valid_test_split_(splits_string, total_num_of_documents)
 
     # Print stats about the splits.
-    print_rank_0(' > dataset split:')
+    logging.info(' > dataset split:')
 
     def print_split_stats(name, index):
-        print_rank_0('    {}:'.format(name))
-        print_rank_0(
+        logging.info('    {}:'.format(name))
+        logging.info(
             '     document indices in [{}, {}) total of {} '
             'documents'.format(splits[index], splits[index + 1], splits[index + 1] - splits[index])
         )
         start_index = indexed_dataset.doc_idx[splits[index]]
         end_index = indexed_dataset.doc_idx[splits[index + 1]]
-        print_rank_0(
+        logging.info(
             '     sentence indices in [{}, {}) total of {} '
             'sentences'.format(start_index, end_index, end_index - start_index)
         )
@@ -616,16 +618,16 @@ def _build_train_valid_test_datasets(
 
 def get_indexed_dataset_(data_prefix, data_impl, skip_warmup):
 
-    print_rank_0(' > building dataset index ...')
+    logging.info(' > building dataset index ...')
 
     start_time = time.time()
     indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup)
     assert indexed_dataset.sizes.shape[0] == indexed_dataset.doc_idx[-1]
-    print_rank_0(' > finished creating indexed dataset in {:4f} ' 'seconds'.format(time.time() - start_time))
+    logging.info(' > finished creating indexed dataset in {:4f} ' 'seconds'.format(time.time() - start_time))
 
-    print_rank_0(' > indexed dataset stats:')
-    print_rank_0('    number of documents: {}'.format(indexed_dataset.doc_idx.shape[0] - 1))
-    print_rank_0('    number of sentences: {}'.format(indexed_dataset.sizes.shape[0]))
+    logging.info(' > indexed dataset stats:')
+    logging.info('    number of documents: {}'.format(indexed_dataset.doc_idx.shape[0] - 1))
+    logging.info('    number of sentences: {}'.format(indexed_dataset.sizes.shape[0]))
 
     return indexed_dataset
 
@@ -695,7 +697,7 @@ def get_samples_mapping(
         # Build samples mapping
         verbose = torch.distributed.get_rank() == 0
         start_time = time.time()
-        print_rank_0(' > building samples index mapping for {} ...'.format(name))
+        logging.info(' > building samples index mapping for {} ...'.format(name))
         # First compile and then import.
 
         samples_mapping = helpers.build_mapping(
@@ -709,11 +711,11 @@ def get_samples_mapping(
             verbose,
             2 if binary_head else 1,
         )
-        print_rank_0(' > done building samples index maping')
+        logging.info(' > done building samples index maping')
         np.save(indexmap_filename, samples_mapping, allow_pickle=True)
-        print_rank_0(' > saved the index mapping in {}'.format(indexmap_filename))
+        logging.info(' > saved the index mapping in {}'.format(indexmap_filename))
         # Make sure all the ranks have built the mapping
-        print_rank_0(
+        logging.info(
             ' > elasped time to build and save samples mapping ' '(seconds): {:4f}'.format(time.time() - start_time)
         )
     # This should be a barrier but nccl barrier assumes
@@ -728,10 +730,10 @@ def get_samples_mapping(
     )
 
     # Load indexed dataset.
-    print_rank_0(' > loading indexed mapping from {}'.format(indexmap_filename))
+    logging.info(' > loading indexed mapping from {}'.format(indexmap_filename))
     start_time = time.time()
     samples_mapping = np.load(indexmap_filename, allow_pickle=True, mmap_mode='r')
-    print_rank_0('    loaded indexed file in {:3.3f} seconds'.format(time.time() - start_time))
-    print_rank_0('    total number of samples: {}'.format(samples_mapping.shape[0]))
+    logging.info('    loaded indexed file in {:3.3f} seconds'.format(time.time() - start_time))
+    logging.info('    total number of samples: {}'.format(samples_mapping.shape[0]))
 
     return samples_mapping

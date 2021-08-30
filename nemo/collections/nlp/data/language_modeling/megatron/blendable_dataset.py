@@ -18,7 +18,8 @@ import time
 
 import numpy as np
 import torch
-from apex import mpu, print_rank_0
+from apex import mpu
+from nemo.utils import logging
 
 from nemo.collections.nlp.data.language_modeling.megatron import helpers
 
@@ -54,7 +55,7 @@ class BlendableDataset(torch.utils.data.Dataset):
             self.size,
             torch.distributed.get_rank() == 0,
         )
-        print_rank_0(
+        logging.info(
             '> elapsed time for building blendable dataset indices: ' '{:.2f} (sec)'.format(time.time() - start_time)
         )
 
