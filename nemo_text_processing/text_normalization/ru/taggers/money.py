@@ -26,8 +26,8 @@ except (ModuleNotFoundError, ImportError):
 
 class MoneyFst(GraphFst):
     """
-    Finite state transducer for classifying money, suppletive aware, e.g. 
-        "5руб." -> money {  "пять рублей" }
+    Finite state transducer for classifying money, e.g.
+        "5руб." -> money { "пять рублей" }
 
     Args:
         cardinal: CardinalFst
@@ -38,7 +38,7 @@ class MoneyFst(GraphFst):
 
     def __init__(self, cardinal: GraphFst, decimal: GraphFst, deterministic: bool = True):
         super().__init__(name="money", kind="classify", deterministic=deterministic)
-        cardinal_graph = cardinal.cardinal_numbers
+        cardinal_graph = cardinal.cardinal_numbers_default
         decimal_graph = decimal.final_graph
 
         unit_singular = pynini.string_file(get_abs_path("data/currency/currency_singular.tsv"))
@@ -96,4 +96,6 @@ class MoneyFst(GraphFst):
         verbalizer_graph = (verbalizer_graph_cardinal | verbalizer_graph_decimal).optimize()
 
         self.final_graph = (tagger_graph @ verbalizer_graph).optimize()
-        self.fst = self.add_tokens(self.final_graph).optimize()
+        self.fst = self.add_tokens(
+            pynutil.insert("integer_part: \"") + self.final_graph + pynutil.insert("\"")
+        ).optimize()

@@ -80,9 +80,7 @@ class TestWaveGlow:
         model = model.cuda().half()
         typecheck.set_typecheck_enabled(enabled=False)
         with tempfile.TemporaryDirectory() as tmpdir, model.nemo_infer():
-            # Generate filename in the temporary directory.
-            # TODO: Change `waveglow.ts` to `waveglow.onnx` for > 21.05
-            tmp_file_name = os.path.join("waveglow.ts")
+            tmp_file_name = os.path.join(tmpdir, "waveglow.onnx")
 
             n_mels = 80
             # Test export.
@@ -95,13 +93,12 @@ class TestWaveGlow:
             WaveGlowModel.forward_for_export = forward_wrapper
             model.export(
                 tmp_file_name,
-                verbose=True,
+                verbose=False,
                 input_example=inp,
                 output_example=res1,
                 try_script=False,
                 check_trace=False,
                 do_constant_folding=True,
-                dynamic_axes={"spec": [0], "z": [0], "audio": [0]},
             )
 
 
