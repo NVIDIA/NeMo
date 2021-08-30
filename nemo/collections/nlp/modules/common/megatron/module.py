@@ -15,7 +15,8 @@
 """Megatron Module"""
 
 import torch
-from megatron import get_args, mpu
+from megatron import get_args
+from apex import mpu
 from torch.autograd import Variable
 from torch.nn.parameter import Parameter
 

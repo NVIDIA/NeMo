@@ -15,7 +15,8 @@
 """GPT-2 model."""
 
 import torch
-from megatron import get_args, mpu
+from megatron import get_args
+from apex import mpu
 
 from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model, parallel_lm_logits

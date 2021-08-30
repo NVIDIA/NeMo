@@ -16,7 +16,8 @@
 
 
 import torch
-from megatron import get_args, mpu
+from megatron import get_args
+from apex import mpu
 
 
 def build_pretraining_data_loader(dataset, consumed_samples):

@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import torch
-from megatron import fused_kernels, mpu
+from megatron import fused_kernels
+from apex import mpu
 from megatron.global_vars import get_args, get_tokenizer
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
