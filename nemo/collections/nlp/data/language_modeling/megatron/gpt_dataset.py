@@ -19,7 +19,8 @@ import time
 
 import numpy as np
 import torch
-from apex import mpu, print_rank_0
+from apex import mpu
+from nemo.utils import logging
 
 from nemo.collections.nlp.data.language_modeling.megatron import helpers
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
@@ -104,11 +105,11 @@ def _build_train_valid_test_datasets(
     splits = get_train_valid_test_split_(splits_string, total_num_of_documents)
 
     # Print stats about the splits.
-    print_rank_0(' > dataset split:')
+    logging.info(' > dataset split:')
 
     def print_split_stats(name, index):
-        print_rank_0('    {}:'.format(name))
-        print_rank_0(
+        logging.info('    {}:'.format(name))
+        logging.info(
             '     document indices in [{}, {}) total of {} '
             'documents'.format(splits[index], splits[index + 1], splits[index + 1] - splits[index])
         )
@@ -143,12 +144,12 @@ def _build_train_valid_test_datasets(
 
 def get_indexed_dataset_(data_prefix, data_impl, skip_warmup):
     """Build indexed dataset."""
-    print_rank_0(' > building dataset index ...')
+    logging.info(' > building dataset index ...')
 
     start_time = time.time()
     indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup)
-    print_rank_0(' > finished creating indexed dataset in {:4f} ' 'seconds'.format(time.time() - start_time))
-    print_rank_0('    number of documents: {}'.format(indexed_dataset.sizes.shape[0]))
+    logging.info(' > finished creating indexed dataset in {:4f} ' 'seconds'.format(time.time() - start_time))
+    logging.info('    number of documents: {}'.format(indexed_dataset.sizes.shape[0]))
 
     return indexed_dataset
 
@@ -231,7 +232,7 @@ def _build_index_mappings(name, data_prefix, documents, sizes, num_samples, seq_
             or (not os.path.isfile(shuffle_idx_filename))
         ):
 
-            print_rank_0(' > WARNING: could not find index map files, building ' 'the indices on rank 0 ...')
+            logging.info(' > WARNING: could not find index map files, building ' 'the indices on rank 0 ...')
 
             # For the last epoch, decide whether include the entire epoch
             # in the global shuffle or not.
@@ -274,7 +275,7 @@ def _build_index_mappings(name, data_prefix, documents, sizes, num_samples, seq_
             start_time = time.time()
             doc_idx = _build_doc_idx(documents, num_epochs, np_rng, separate_last_epoch)
             np.save(doc_idx_filename, doc_idx, allow_pickle=True)
-            print_rank_0(
+            logging.info(
                 ' > elasped time to build and save doc-idx mapping '
                 '(seconds): {:4f}'.format(time.time() - start_time)
             )
@@ -288,7 +289,7 @@ def _build_index_mappings(name, data_prefix, documents, sizes, num_samples, seq_
             # sample_idx = _build_sample_idx(sizes, doc_idx, seq_length,
             #                               num_epochs, tokens_per_epoch)
             np.save(sample_idx_filename, sample_idx, allow_pickle=True)
-            print_rank_0(
+            logging.info(
                 ' > elasped time to build and save sample-idx mapping '
                 '(seconds): {:4f}'.format(time.time() - start_time)
             )
@@ -302,7 +303,7 @@ def _build_index_mappings(name, data_prefix, documents, sizes, num_samples, seq_
                 num_samples_ = sample_idx.shape[0] - 1
             shuffle_idx = _build_shuffle_idx(num_samples_, sample_idx.shape[0] - 1, np_rng)
             np.save(shuffle_idx_filename, shuffle_idx, allow_pickle=True)
-            print_rank_0(
+            logging.info(
                 ' > elasped time to build and save shuffle-idx mapping'
                 ' (seconds): {:4f}'.format(time.time() - start_time)
             )
@@ -320,15 +321,15 @@ def _build_index_mappings(name, data_prefix, documents, sizes, num_samples, seq_
 
     # Load mappings.
     start_time = time.time()
-    print_rank_0(' > loading doc-idx mapping from {}'.format(doc_idx_filename))
+    logging.info(' > loading doc-idx mapping from {}'.format(doc_idx_filename))
     doc_idx = np.load(doc_idx_filename, allow_pickle=True, mmap_mode='r')
-    print_rank_0(' > loading sample-idx mapping from {}'.format(sample_idx_filename))
+    logging.info(' > loading sample-idx mapping from {}'.format(sample_idx_filename))
     sample_idx = np.load(sample_idx_filename, allow_pickle=True, mmap_mode='r')
-    print_rank_0(' > loading shuffle-idx mapping from {}'.format(shuffle_idx_filename))
+    logging.info(' > loading shuffle-idx mapping from {}'.format(shuffle_idx_filename))
     shuffle_idx = np.load(shuffle_idx_filename, allow_pickle=True, mmap_mode='r')
-    print_rank_0('    loaded indexed file in {:3.3f} seconds'.format(time.time() - start_time))
-    print_rank_0('    total number of samples: {}'.format(sample_idx.shape[0]))
-    print_rank_0('    total number of epochs: {}'.format(num_epochs))
+    logging.info('    loaded indexed file in {:3.3f} seconds'.format(time.time() - start_time))
+    logging.info('    total number of samples: {}'.format(sample_idx.shape[0]))
+    logging.info('    total number of epochs: {}'.format(num_epochs))
 
     return doc_idx, sample_idx, shuffle_idx
 
