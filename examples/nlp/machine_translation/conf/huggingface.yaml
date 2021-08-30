@@ -5,7 +5,7 @@ do_testing: False # set to True to run evaluation on test data after training
 model:
   beam_size: 4
   len_pen: 0.6
-  max_generation_delta: 5
+  max_generation_delta: -1
   label_smoothing: 0.1
   shared_tokenizer: false
   preproc_out_dir: null

@@ -156,7 +156,7 @@ class ModelPT(LightningModule, Model):
         self, config_path: str, src: str, verify_src_exists: bool = True,
     ):
         """ Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
-            when model.save_to("mymodel.nemo") is called.        
+            when model.save_to("mymodel.nemo") is called.
 
             How it works:
             1. It always returns existing absolute path which can be used during Model constructor call
@@ -174,7 +174,7 @@ class ModelPT(LightningModule, Model):
             Args:
                 config_path (str): Artifact key. Usually corresponds to the model config.
                 src (str): Path to artifact.
-                verify_src_exists (bool): If set to False, then the artifact is optional and register_artifact will return None even if 
+                verify_src_exists (bool): If set to False, then the artifact is optional and register_artifact will return None even if
                                           src is not found. Defaults to True.
                 save_restore_connector (SaveRestoreConnector): Can be overrided to add custom save and restore logic.
 
@@ -891,7 +891,10 @@ class ModelPT(LightningModule, Model):
                 # Check if model is being resumed or not - only works if `Trainer` is attached to model
                 if hasattr(self, 'trainer') and self.trainer is not None:
                     trainer = self.trainer
-                    if hasattr(trainer, 'resume_from_checkpoint') and trainer.resume_from_checkpoint is not None:
+                    if (
+                        hasattr(trainer, 'resume_from_checkpoint')
+                        and trainer.checkpoint_connector.resume_checkpoint_path is not None
+                    ):
                         logging.info(
                             "Model training is being resumed via Pytorch Lightning.\n"
                             "Initialization from pretrained model (via cloud) will be skipped."

@@ -200,9 +200,9 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         return spect
 
     def training_step(self, batch, batch_idx):
-        attn_prior, durs, speakers = None, None, None
+        attn_prior, durs = None, None
         if self.learn_alignment:
-            audio, audio_lens, text, text_lens, attn_prior, pitch = batch
+            audio, audio_lens, text, text_lens, attn_prior, pitch, speakers = batch
         else:
             audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
         mels, spec_len = self.preprocessor(input_signal=audio, length=audio_lens)
@@ -251,7 +251,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
                 self.global_step,
                 dataformats="HWC",
             )
-            spec_predict = mels_pred[0].data.cpu().numpy().T
+            spec_predict = mels_pred[0].data.cpu().numpy()
             self.tb_logger.add_image(
                 "train_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
             )
@@ -270,7 +270,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def validation_step(self, batch, batch_idx):
         attn_prior, durs, speakers = None, None, None
         if self.learn_alignment:
-            audio, audio_lens, text, text_lens, attn_prior, pitch = batch
+            audio, audio_lens, text, text_lens, attn_prior, pitch, speakers = batch
         else:
             audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
         mels, mel_lens = self.preprocessor(input_signal=audio, length=audio_lens)
@@ -324,7 +324,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         )
         spec_predict = spec_predict[0].data.cpu().numpy()
         self.tb_logger.add_image(
-            "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict.T), self.global_step, dataformats="HWC",
+            "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
         )
         self.log_train_images = True
 

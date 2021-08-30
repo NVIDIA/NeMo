@@ -475,6 +475,8 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
                 tokens, state=dec_states, add_sos=False, batch_size=batch
             )  # [B, 1, H], List([L, 1, H])
 
+            dec_states = tuple(state.to(dtype=dtype) for state in dec_states)
+
         # Update done states and cache shared by entire batch.
         j = 0
         for i in range(final_batch):
@@ -518,11 +520,17 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
                ([L x (B, H)], [L x (B, H)])
        """
         # LSTM has 2 states
+        new_states = [[] for _ in range(len(decoder_states[0]))]
         for layer in range(self.pred_rnn_layers):
-            for state_id in range(len(batch_states)):
-                batch_states[state_id][layer] = torch.stack([s[state_id][layer] for s in decoder_states])
+            for state_id in range(len(decoder_states[0])):
+                # batch_states[state_id][layer] = torch.stack([s[state_id][layer] for s in decoder_states])
+                new_state_for_layer = torch.stack([s[state_id][layer] for s in decoder_states])
+                new_states[state_id].append(new_state_for_layer)
 
-        return batch_states
+        for state_id in range(len(decoder_states[0])):
+            new_states[state_id] = torch.stack([state for state in new_states[state_id]])
+
+        return new_states
 
     def batch_select_state(self, batch_states: List[torch.Tensor], idx: int) -> List[List[torch.Tensor]]:
         """Get decoder state from batch of states, for given id.

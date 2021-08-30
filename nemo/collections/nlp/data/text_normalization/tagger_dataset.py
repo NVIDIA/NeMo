@@ -69,7 +69,10 @@ class TextNormalizationTaggerDataset(Dataset):
 
         # Get cache path
         data_dir, filename = os.path.split(input_file)
-        cached_data_file = os.path.join(data_dir, f'cached_tagger_{filename}_{tokenizer_name}_{lang}_{max_insts}.pkl')
+        tokenizer_name_normalized = tokenizer_name.replace('/', '_')
+        cached_data_file = os.path.join(
+            data_dir, f'cached_tagger_{filename}_{tokenizer_name_normalized}_{lang}_{max_insts}.pkl'
+        )
 
         if use_cache and os.path.exists(cached_data_file):
             logging.warning(
@@ -80,7 +83,7 @@ class TextNormalizationTaggerDataset(Dataset):
                 data = pickle.load(f)
                 self.insts, self.tag2id, self.encodings, self.labels = data
         else:
-            # Read the input raw data file
+            # Read the input raw data file, returns list of sentences parsed as list of class, w_words, s_words
             raw_insts = read_data_file(input_file)
             if max_insts >= 0:
                 raw_insts = raw_insts[:max_insts]
@@ -124,7 +127,13 @@ class TextNormalizationTaggerDataset(Dataset):
                     data = self.insts, self.tag2id, self.encodings, self.labels
                     pickle.dump(data, out_file, protocol=pickle.HIGHEST_PROTOCOL)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int):
+        """
+        Args:
+            idx: item index
+        Returns:
+            item: dictionary with input_ids and attention_mask as dictionary keys and the tensors at given idx as values
+        """
         item = {key: val[idx] for key, val in self.encodings.items()}
         item['labels'] = self.labels[idx]
         return item
@@ -164,8 +173,8 @@ class TaggerDataInstance:
     This class represents a data instance in a TextNormalizationTaggerDataset.
 
     Args:
-        w_words: List of words in the written form
-        s_words: List of words in the spoken form
+        w_words: List of words in a sentence in the written form
+        s_words: List of words in a sentence in the spoken form
         direction: Indicates the direction of the instance (i.e., INST_BACKWARD for ITN or INST_FORWARD for TN).
         do_basic_tokenize: a flag indicates whether to do some basic tokenization before using the tokenizer of the model
     """
