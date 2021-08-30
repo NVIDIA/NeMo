@@ -22,7 +22,7 @@ import tempfile
 from typing import Any, Dict, Optional, Union
 
 import torch
-from megatron import mpu
+from apex import mpu
 from megatron.checkpointing import get_checkpoint_version, set_checkpoint_version
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer

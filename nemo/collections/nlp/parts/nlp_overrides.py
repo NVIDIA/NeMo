@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import pytorch_lightning as pl
 import torch
-from megatron import mpu
+from apex import mpu
 from megatron.checkpointing import get_checkpoint_version, set_checkpoint_version
 from megatron.initialize import _set_random_seed
 from pytorch_lightning.core.lightning import LightningModule

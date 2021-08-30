@@ -18,7 +18,7 @@ import time
 
 import numpy as np
 import torch
-from megatron import mpu, print_rank_0
+from apex import mpu, print_rank_0
 
 from nemo.collections.nlp.data.language_modeling.megatron import helpers
 
