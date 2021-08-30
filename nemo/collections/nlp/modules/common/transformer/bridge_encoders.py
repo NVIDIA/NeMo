@@ -47,9 +47,6 @@ class BridgeEncoder(torch.nn.Module):
         if self._hidden_init_method == "default":
             self._hidden_init_method = "enc_shared"
 
-        if hidden_blocks < 1:
-            raise ValueError(f"hidden_blocks = {hidden_blocks} but is expected to be >= 1")
-
         if self.hidden_init_method not in self.supported_init_methods:
             raise ValueError(
                 "Unknown hidden_init_method = {hidden_init_method}, supported methods are {supported_init_methods}".format(
@@ -114,11 +111,17 @@ class BridgeEncoder(torch.nn.Module):
         """
         # self-attention over input
         if self.hidden_init_method == "enc_shared":
+            residual = encoder_states
             hidden_states = self.hidden_enc(encoder_states=encoder_states, encoder_mask=encoder_mask)
+            # residual connection
+            hidden_states += residual
         elif self.hidden_init_method == "identity":
             hidden_states = encoder_states
         elif self.hidden_init_method == "enc":
+            residual = encoder_states
             hidden_states = self.init_hidden_enc(encoder_states=encoder_states, encoder_mask=encoder_mask)
+            # residual connection
+            hidden_states += residual
 
         # project encoder states to a fixed steps hidden using k attention heads
         hidden_states = self.att_bridge(hidden=hidden_states, hidden_mask=encoder_mask)
@@ -130,6 +133,9 @@ class BridgeEncoder(torch.nn.Module):
 
         # apply self-attention over fixed-size hidden_states
         for block in range(self._hidden_blocks):
+            residual = hidden_states
             hidden_states = self.hidden_enc(encoder_states=hidden_states, encoder_mask=hidden_mask)
+            # residual connection
+            hidden_states += residual
 
         return hidden_states, hidden_mask
