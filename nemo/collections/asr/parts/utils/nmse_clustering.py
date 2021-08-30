@@ -44,6 +44,7 @@ scaler = MinMaxScaler(feature_range=(0, 1))
 
 try:
     from torch.linalg import eigh as eigh
+
     TORCH_EIGN = True
 
 except ImportError:
