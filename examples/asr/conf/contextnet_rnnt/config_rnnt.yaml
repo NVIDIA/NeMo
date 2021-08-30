@@ -188,8 +188,13 @@ model:
     beam:
       beam_size: 2
       score_norm: true
-      tsd_max_sym_exp: 50  # for Time Synchronous Decoding
-      alsd_max_target_len: 2.0  # for Alignment-Length Synchronous Decoding
+      softmax_temperature: 1.0  # scale the logits by some temperature prior to softmax
+      tsd_max_sym_exp: 10  # for Time Synchronous Decoding, int > 0
+      alsd_max_target_len: 5.0  # for Alignment-Length Synchronous Decoding, float > 1.0
+      maes_num_steps: 2  # for modified Adaptive Expansion Search, int > 0
+      maes_prefix_alpha: 1  # for modified Adaptive Expansion Search, int > 0
+      maes_expansion_beta: 2  # for modified Adaptive Expansion Search, int >= 0
+      maes_expansion_gamma: 2.3  # for modified Adaptive Expansion Search, float >= 0
 
   loss:
     loss_name: "default"
