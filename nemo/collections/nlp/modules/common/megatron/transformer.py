@@ -63,7 +63,12 @@ class ParallelMLP(MegatronModule):
 
         # Project to 4h.
         self.dense_h_to_4h = mpu.ColumnParallelLinear(
-            args.hidden_size, args.ffn_hidden_size, gather_output=False, init_method=init_method, skip_bias_add=True
+            args.hidden_size,
+            args.ffn_hidden_size,
+            gather_output=False,
+            init_method=init_method,
+            skip_bias_add=True,
+            use_cpu_initialization=args.use_cpu_initialization,
         )
 
         self.bias_gelu_fusion = args.bias_gelu_fusion
@@ -80,6 +85,7 @@ class ParallelMLP(MegatronModule):
             input_is_parallel=True,
             init_method=output_layer_init_method,
             skip_bias_add=True,
+            use_cpu_initialization=args.use_cpu_initialization,
         )
 
     def forward(self, hidden_states):
@@ -136,7 +142,11 @@ class ParallelAttention(MegatronModule):
         # Strided linear layer.
         if attention_type == AttnType.self_attn:
             self.query_key_value = mpu.ColumnParallelLinear(
-                args.hidden_size, 3 * projection_size, gather_output=False, init_method=init_method
+                args.hidden_size,
+                3 * projection_size,
+                gather_output=False,
+                init_method=init_method,
+                use_cpu_initialization=args.use_cpu_initialization,
             )
         else:
             assert attention_type == AttnType.cross_attn
@@ -176,6 +186,7 @@ class ParallelAttention(MegatronModule):
             input_is_parallel=True,
             init_method=output_layer_init_method,
             skip_bias_add=True,
+            use_cpu_initialization=args.use_cpu_initialization,
         )
 
     def forward(self, hidden_states, attention_mask, layer_past=None, get_key_value=False, encoder_output=None):

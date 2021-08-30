@@ -134,7 +134,12 @@ class Embedding(MegatronModule):
         args = get_args()
 
         # Word embeddings (parallel).
-        self.word_embeddings = mpu.VocabParallelEmbedding(vocab_size, self.hidden_size, init_method=self.init_method)
+        self.word_embeddings = mpu.VocabParallelEmbedding(
+            vocab_size,
+            self.hidden_size,
+            init_method=self.init_method,
+            use_cpu_initialization=args.use_cpu_initialization,
+        )
         self._word_embeddings_key = 'word_embeddings'
 
         # Position embedding (serial).
