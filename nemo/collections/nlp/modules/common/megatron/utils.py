@@ -17,7 +17,7 @@
 import math
 
 import torch
-from megatron import mpu
+from apex import mpu
 
 
 def init_method_normal(sigma):
