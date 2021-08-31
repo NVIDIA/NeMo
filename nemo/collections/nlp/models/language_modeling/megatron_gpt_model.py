@@ -34,7 +34,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_ltor_masks_and_position_ids,
 )
 from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector
-from nemo.utils import AppState, logging
+from nemo.utils import AppState, app_state, logging
 
 
 class MegatronGPTModel(NLPModel):
@@ -90,6 +90,7 @@ class MegatronGPTModel(NLPModel):
         self.log('reduced_train_loss', averaged_loss[0], prog_bar=True)
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr)
+        self.log('global_step', self.trainer.global_step, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -209,16 +210,26 @@ class MegatronGPTModel(NLPModel):
         )
 
     def setup(self, stage=None):
-        self._trainer.checkpoint_connector = NLPCheckpointConnector(self._trainer)
+        # TODO: figure out how to do this properly
+        _loaded_checkpoint = self.trainer.checkpoint_connector._loaded_checkpoint
+        self.trainer.checkpoint_connector = NLPCheckpointConnector(
+            self.trainer, resume_from_checkpoint=self.trainer.resume_from_checkpoint
+        )
+        self.trainer.checkpoint_connector._loaded_checkpoint = _loaded_checkpoint
+        # self.global_step = self.trainer.checkpoint_connector._loaded_checkpoint['global_step']
         self.build_train_valid_test_datasets()
         self.setup_training_data(self.cfg.data)
         self.setup_validation_data(self.cfg.data)
 
     def setup_training_data(self, cfg):
+        app_state = AppState()
         if hasattr(self, '_train_ds'):
-            consumed_samples = (
-                self.trainer.global_step
-            )  # TODO: calculate this correctly: steps * data parallel world size * micro batch size *
+            # TODO: calculate this correctly: steps * data parallel world size * micro batch size * accumulated batches
+            if self.trainer.checkpoint_connector._loaded_checkpoint:
+                global_step = self.trainer.checkpoint_connector._loaded_checkpoint['global_step']
+                consumed_samples = global_step * app_state.data_parallel_size * self.cfg.micro_batch_size
+            else:
+                consumed_samples = 0
             self._train_dl = self.build_pretraining_data_loader(self._train_ds, consumed_samples)
 
     def setup_validation_data(self, cfg):

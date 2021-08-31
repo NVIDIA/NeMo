@@ -354,10 +354,11 @@ def check_resume(
         else:
             raise NotFoundError(f"There were no checkpoints found in {checkpoint_dir}. Cannot resume.")
     elif len(last_checkpoints) > 1:
-        if 'mp_rank' in str(last_checkpoints[0]):
-            checkpoint = last_checkpoints[0]
-        else:
-            raise ValueError(f"Multiple checkpoints {last_checkpoints} that matches *last.ckpt.")
+        raise ValueError(f"Multiple checkpoints {last_checkpoints} that matches *last.ckpt.")
+        # if 'mp_rank' in str(last_checkpoints[0]):
+        #     checkpoint = last_checkpoints[0]
+        # else:
+        #     raise ValueError(f"Multiple checkpoints {last_checkpoints} that matches *last.ckpt.")
     else:
         logging.info(f"Resuming from {last_checkpoints[0]}")
         checkpoint = last_checkpoints[0]
@@ -724,6 +725,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         app_state = AppState()
         if app_state.model_parallel_size is not None:
             # filepath needs to be updated to include mp_rank
+            # TODO: figure out a good way to update these filepaths
             dirname = os.path.dirname(filepath)
             basename = os.path.basename(filepath)
             filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
