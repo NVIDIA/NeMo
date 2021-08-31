@@ -154,8 +154,8 @@ class ConformerEncoder(NeuralModule, Exportable):
             )
             self._feat_out = d_model
         else:
-            self._feat_out = d_model
             self.pre_encode = nn.Linear(feat_in, d_model)
+            self._feat_out = d_model
 
         if not untie_biases and self_attention_model == "rel_pos":
             d_head = d_model // n_heads
@@ -199,8 +199,8 @@ class ConformerEncoder(NeuralModule, Exportable):
             )
             self.layers.append(layer)
 
-        if feat_out > 0 and feat_out != self.output_dim:
-            self.out_proj = nn.Linear(self.feat_out, feat_out)
+        if feat_out > 0 and feat_out != self._feat_out:
+            self.out_proj = nn.Linear(self._feat_out, feat_out)
             self._feat_out = feat_out
         else:
             self.out_proj = None
