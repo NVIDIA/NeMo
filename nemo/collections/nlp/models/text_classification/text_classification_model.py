@@ -85,7 +85,7 @@ class TextClassificationModel(NLPModel, Exportable):
 
         # register the file containing the labels into the artifacts to get stored in the '.nemo' file later
         if 'class_labels' in cfg and 'class_labels_file' in cfg.class_labels and cfg.class_labels.class_labels_file:
-            self.register_artifact('class_labels', cfg.class_labels.class_labels_file)
+            self.register_artifact('class_labels.class_labels_file', cfg.class_labels.class_labels_file)
 
     def create_loss_module(self):
         # create the loss module if it is not yet created by the training data loader
