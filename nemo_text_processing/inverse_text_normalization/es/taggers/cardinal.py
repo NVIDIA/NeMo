@@ -74,7 +74,7 @@ class CardinalFst(GraphFst):
 
         graph_thousands = pynini.union(
             graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("mil"),
-            pynutil.insert("001") + pynutil.delete("mil"), # because we say 'mil', not 'un mil'
+            pynutil.insert("001") + pynutil.delete("mil"),  # because we say 'mil', not 'un mil'
             pynutil.insert("000", weight=0.1),
         )
 
@@ -82,15 +82,16 @@ class CardinalFst(GraphFst):
             graph_hundred_component_at_least_one_none_zero_digit
             + delete_space
             + (pynutil.delete("millones") | pynutil.delete("millón")),
-            pynutil.insert("000") + pynutil.delete("millones"), # to allow for 'mil millones'
-            
+            pynutil.insert("000") + pynutil.delete("millones"),  # to allow for 'mil millones'
         )
 
         graph_mil_millones = pynini.union(
             graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("mil"),
-            pynutil.insert("001") + pynutil.delete("mil"), # because we say 'mil', not 'un mil'
+            pynutil.insert("001") + pynutil.delete("mil"),  # because we say 'mil', not 'un mil'
         )
-        graph_mil_millones += delete_space + (graph_millones | pynutil.insert("000") + pynutil.delete("millones")) # allow for 'mil millones'
+        graph_mil_millones += delete_space + (
+            graph_millones | pynutil.insert("000") + pynutil.delete("millones")
+        )  # allow for 'mil millones'
         graph_mil_millones |= pynutil.insert("000000", weight=0.1)
 
         # also allow 'millardo' instead of 'mil millones'
@@ -108,11 +109,12 @@ class CardinalFst(GraphFst):
 
         graph_mil_billones = pynini.union(
             graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("mil"),
-            pynutil.insert("001") + pynutil.delete("mil"), # because we say 'mil', not 'un mil'
+            pynutil.insert("001") + pynutil.delete("mil"),  # because we say 'mil', not 'un mil'
         )
-        graph_mil_billones += delete_space + (graph_billones | pynutil.insert("000") + pynutil.delete("billones")) # allow for 'mil billones'
+        graph_mil_billones += delete_space + (
+            graph_billones | pynutil.insert("000") + pynutil.delete("billones")
+        )  # allow for 'mil billones'
         graph_mil_billones |= pynutil.insert("000000", weight=0.1)
-
 
         graph_trillones = pynini.union(
             graph_hundred_component_at_least_one_none_zero_digit
@@ -122,10 +124,12 @@ class CardinalFst(GraphFst):
 
         graph_mil_trillones = pynini.union(
             graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete("mil"),
-            pynutil.insert("001") + pynutil.delete("mil"), # because we say 'mil', not 'un mil'
+            pynutil.insert("001") + pynutil.delete("mil"),  # because we say 'mil', not 'un mil'
         )
-        graph_mil_trillones += delete_space + (graph_trillones | pynutil.insert("000") + pynutil.delete("trillones")) # allow for 'mil trillones'
-        graph_mil_trillones |= pynutil.insert("000000", weight=0.1)        
+        graph_mil_trillones += delete_space + (
+            graph_trillones | pynutil.insert("000") + pynutil.delete("trillones")
+        )  # allow for 'mil trillones'
+        graph_mil_trillones |= pynutil.insert("000000", weight=0.1)
 
         graph = pynini.union(
             (graph_mil_trillones | pynutil.insert("000", weight=0.1) + graph_trillones)
@@ -136,8 +140,8 @@ class CardinalFst(GraphFst):
                 graph_mil_millones,
                 pynutil.insert("000", weight=0.1) + graph_millones,
                 graph_millardo + graph_millones,
-                graph_millardo + pynutil.insert("000", weight=0.1)
-                )
+                graph_millardo + pynutil.insert("000", weight=0.1),
+            )
             + delete_space
             + graph_thousands
             + delete_space
@@ -152,10 +156,27 @@ class CardinalFst(GraphFst):
         # ignore "y" inside cardinal numbers
         graph = pynini.cdrewrite(pynutil.delete("y"), NEMO_SPACE, NEMO_SPACE, NEMO_SIGMA) @ graph
 
+        self.graph_no_exception = graph
+
+        # save self.numbers_up_to_thousand for use in DecimalFst
+        digits_up_to_thousand = NEMO_DIGIT | (NEMO_DIGIT ** 2) | (NEMO_DIGIT ** 3)
+        numbers_up_to_thousand = pynini.compose(graph, digits_up_to_thousand).optimize()
+        self.numbers_up_to_thousand = numbers_up_to_thousand
+
+        # save self.numbers_up_to_million for use in DecimalFst
+        digits_up_to_million = (
+            NEMO_DIGIT
+            | (NEMO_DIGIT ** 2)
+            | (NEMO_DIGIT ** 3)
+            | (NEMO_DIGIT ** 4)
+            | (NEMO_DIGIT ** 5)
+            | (NEMO_DIGIT ** 6)
+        )
+        numbers_up_to_million = pynini.compose(graph, digits_up_to_million).optimize()
+        self.numbers_up_to_million = numbers_up_to_million
+
         # don't convert cardinals from zero to ten inclusive
         graph_exception = pynini.project(pynini.union(graph_digit, graph_zero), 'input')
-
-        self.graph_no_exception = graph
 
         self.graph = (pynini.project(graph, "input") - graph_exception.arcsort()) @ graph
 

@@ -30,7 +30,7 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstLike') -> 'pynini.FstLike':
+def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_million: 'pynini.FstLike') -> 'pynini.FstLike':
     """
     Returns FST that transforms either a cardinal or decimal followed by a quantity into a numeral,
     e.g. one million -> integer_part: "1" quantity: "million"
@@ -40,7 +40,7 @@ def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstL
         decimal: decimal FST
         cardinal_up_to_hundred: cardinal FST
     """
-    numbers = cardinal_up_to_hundred @ (
+    numbers = cardinal_up_to_million @ (
         pynutil.delete(pynini.closure("0")) + pynini.difference(NEMO_DIGIT, "0") + pynini.closure(NEMO_DIGIT)
     )
 
@@ -65,7 +65,7 @@ def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstL
         + suffix
         + pynutil.insert("\"")
     )
-    res |= decimal + delete_extra_space + pynutil.insert("quantity: \"") + (suffix | "thousand") + pynutil.insert("\"")
+    res |= decimal + delete_extra_space + pynutil.insert("quantity: \"") + suffix + pynutil.insert("\"")
     return res
 
 
@@ -75,6 +75,10 @@ class DecimalFst(GraphFst):
         Decimal point is either "." or ",", determined by whether "punto" or "coma" is spoken.
             e.g. menos uno coma dos seis -> decimal { negative: "true" integer_part: "1" morphosyntactic_features: "," fractional_part: "26" }
             e.g. menos uno punto dos seis -> decimal { negative: "true" integer_part: "1" morphosyntactic_features: "." fractional_part: "26" }
+
+        This decimal rule assumes that decimals can be pronounced as:
+        (a cardinal) + ('coma' or 'punto') plus (any sequence of cardinals <1000, including 'zero')
+
         Also writes large numbers in shortened form, e.g. 
             e.g. uno coma dos seis millón -> decimal { negative: "false" integer_part: "1" morphosyntactic_features: "," fractional_part: "26" quantity: "millón" }
             e.g. dos millones -> decimal { negative: "false" integer_part: "2" quantity: "millones" }
@@ -87,15 +91,12 @@ class DecimalFst(GraphFst):
     def __init__(self, cardinal: GraphFst):
         super().__init__(name="decimal", kind="classify")
 
-        cardinal_graph = cardinal.graph_no_exception | pynini.string_file(get_abs_path("data/numbers/es/zero.tsv"))
-
-        graph_decimal = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
-        graph_decimal |= pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
-
+        # number after decimal point can be any series of cardinals <1000, including 'zero'
+        graph_decimal = cardinal.numbers_up_to_thousand
         graph_decimal = pynini.closure(graph_decimal + delete_space) + graph_decimal
-        graph_decimal |= cardinal_graph
         self.graph = graph_decimal
 
+        # decimal point can be denoted by 'coma' or 'punto'
         decimal_point = pynini.cross("coma", "morphosyntactic_features: \",\"")
         decimal_point |= pynini.cross("punto", "morphosyntactic_features: \".\"")
 
@@ -104,6 +105,8 @@ class DecimalFst(GraphFst):
         )
 
         graph_fractional = pynutil.insert("fractional_part: \"") + graph_decimal + pynutil.insert("\"")
+
+        cardinal_graph = cardinal.graph_no_exception | pynini.string_file(get_abs_path("data/numbers/es/zero.tsv"))
         graph_integer = pynutil.insert("integer_part: \"") + cardinal_graph + pynutil.insert("\"")
         final_graph_wo_sign = (
             pynini.closure(graph_integer + delete_extra_space, 0, 1)
@@ -114,10 +117,8 @@ class DecimalFst(GraphFst):
         final_graph = optional_graph_negative + final_graph_wo_sign
 
         self.final_graph_wo_negative = final_graph_wo_sign | get_quantity(
-            final_graph_wo_sign, cardinal.graph_hundred_component_at_least_one_none_zero_digit
+            final_graph_wo_sign, cardinal.numbers_up_to_million
         )
-        final_graph |= optional_graph_negative + get_quantity(
-            final_graph_wo_sign, cardinal.graph_hundred_component_at_least_one_none_zero_digit
-        )
+        final_graph |= optional_graph_negative + get_quantity(final_graph_wo_sign, cardinal.numbers_up_to_million)
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
