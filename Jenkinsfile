@@ -1280,7 +1280,7 @@ pipeline {
               model.encoder.model_name=null \
               model.encoder.pretrained=false \
               +model.encoder._target_=transformers.BertConfig \
-              +model.encoder.hidden_size=256 \
+              +model.encoder.hidden_size=48 \
               model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
               model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
