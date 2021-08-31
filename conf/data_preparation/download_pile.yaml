@@ -1,10 +1,13 @@
-download_the_pile: true
-file_numbers: "0"
-data_save_dir: "/mnt/nvdl/usr/mausin/bignlp-scripts/prepare_dataset/the_pile/"
-preprocess_data: true
+download_the_pile: True
+file_numbers: "0-1"
+data_save_dir: "/gpfs/fs1/mausin/bignlp-scripts/prepare_dataset/the_pile/"
+preprocess_data: True
 download_vocab_url: "https://huggingface.co/gpt2/resolve/main/vocab.json"
 download_merges_url: "https://huggingface.co/gpt2/resolve/main/merges.txt"
-vocab_save_dir: "/mnt/nvdl/usr/mausin/bignlp-scripts/prepare_dataset/bpe/"
-merges_save_dir: "/mnt/nvdl/usr/mausin/bignlp-scripts/prepare_dataset/bpe/"
+vocab_save_dir: "/gpfs/fs1/mausin/bignlp-scripts/prepare_dataset/bpe/"
+merges_save_dir: "/gpfs/fs1/mausin/bignlp-scripts/prepare_dataset/bpe/"
 blend_file_path: "./gpt3_blend.sh"
+partition: "batch" 
+time_limit: "2:00:00"
+nodes: 3
 
