@@ -28,7 +28,7 @@ except (ModuleNotFoundError, ImportError):
 class MeasureFst(GraphFst):
     """
     Finite state transducer for verbalizing measure, e.g.
-        measure { negative: "true" cardinal { integer: "12" } units: "kg" } -> -12 kg
+        measure { cardinal { negative: "true" integer: "12" } units: "kg" } -> -12 kg
 
     Args:
         decimal: DecimalFst
