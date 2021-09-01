@@ -45,6 +45,7 @@ class MegatronGPTModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
         self.cfg = cfg
+
         app_state = AppState()
         app_state.global_rank = trainer.global_rank
         app_state.world_size = trainer.world_size
@@ -91,12 +92,14 @@ class MegatronGPTModel(NLPModel):
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr)
         self.log('global_step', self.trainer.global_step, prog_bar=True)
+        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step), prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
         output_tensor = self(tokens, position_ids, attention_mask, labels)
         loss = self.loss_func(loss_mask, output_tensor)
+        # TODO: add text generation
         # take the first k tokens and then generate text - compare with ground truth (won't look similar in general)
         """
         k = num_context
@@ -113,6 +116,7 @@ class MegatronGPTModel(NLPModel):
     def validation_epoch_end(self, outputs):
         averaged_loss = average_losses_across_data_parallel_group(outputs)
         self.log('val_loss', averaged_loss[0], prog_bar=True)
+        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step))
 
     def loss_func(self, loss_mask, output_tensor):
         losses = output_tensor.float()
@@ -222,12 +226,10 @@ class MegatronGPTModel(NLPModel):
         self.setup_validation_data(self.cfg.data)
 
     def setup_training_data(self, cfg):
-        app_state = AppState()
         if hasattr(self, '_train_ds'):
-            # TODO: calculate this correctly: steps * data parallel world size * micro batch size * accumulated batches
             if self.trainer.checkpoint_connector._loaded_checkpoint:
                 global_step = self.trainer.checkpoint_connector._loaded_checkpoint['global_step']
-                consumed_samples = global_step * app_state.data_parallel_size * self.cfg.micro_batch_size
+                consumed_samples = self.compute_consumed_samples(global_step)
             else:
                 consumed_samples = 0
             self._train_dl = self.build_pretraining_data_loader(self._train_ds, consumed_samples)
@@ -236,6 +238,16 @@ class MegatronGPTModel(NLPModel):
         if hasattr(self, '_validation_ds'):
             consumed_samples = 0  # TODO: how to calculate this?
             self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples)
+
+    def compute_consumed_samples(self, global_step):
+        app_state = AppState()
+        consumed_samples = (
+            global_step
+            * app_state.data_parallel_size
+            * self.cfg.micro_batch_size
+            * self.trainer.accumulate_grad_batches
+        )
+        return consumed_samples
 
     def list_available_models():
         pass
