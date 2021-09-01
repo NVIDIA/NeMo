@@ -16,6 +16,7 @@
 try:
     from nemo.collections.common.losses.distillation_losses.cosine_embedding import CosineEmbeddingLossWrapper
     from nemo.collections.common.losses.distillation_losses.scaled_kld import ScaledKLDivLoss
+    from nemo.collections.common.losses.distillation_losses.nmt_scaled_kld import NMTScaledKLDivLoss
 except (ImportError, ModuleNotFoundError):
     from nemo.utils.exceptions import CheckInstall
 
@@ -23,4 +24,7 @@ except (ImportError, ModuleNotFoundError):
         pass
 
     class ScaledKLDivLoss(CheckInstall):
+        pass
+
+    class NMTScaledKLDivLoss(CheckInstall):
         pass
