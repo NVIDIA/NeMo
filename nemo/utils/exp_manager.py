@@ -362,7 +362,10 @@ def check_resume(
     else:
         logging.info(f"Resuming from {last_checkpoints[0]}")
         checkpoint = last_checkpoints[0]
-
+    # # remove mp_rank from checkpoint if necessary
+    # if checkpoint is not None:
+    #     if 'mp_rank' in str(checkpoint):
+    #         checkpoint = checkpoint.parent.parent.joinpath(checkpoint.name)
     trainer.checkpoint_connector.resume_checkpoint_path = str(checkpoint)
 
     if is_global_rank_zero():
@@ -749,6 +752,13 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             filepath = os.path.join(self.dirpath, f"{filepath}{self.FILE_EXTENSION}")
 
             self._save_model(trainer, filepath)
+
+            # TODO: figure out where self.last_model_path is being set
+            if self.last_model_path is not None:
+                if 'mp_rank' in self.last_model_path:
+                    last_model_path = Path(self.last_model_path)
+                    last_model_path = last_model_path.parent.parent.joinpath(last_model_path.name)
+                    self.last_model_path = str(last_model_path)
 
             # for model parallel we need to delete models for each model parallel rank
             if self.last_model_path and self.last_model_path != filepath and app_state.data_parallel_rank == 0:
