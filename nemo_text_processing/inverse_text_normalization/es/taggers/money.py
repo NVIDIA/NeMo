@@ -36,7 +36,7 @@ except (ModuleNotFoundError, ImportError):
 class MoneyFst(GraphFst):
     """
     Finite state transducer for classifying money
-        e.g. twelve dollars and five cents -> money { integer_part: "12" fractional_part: 05 currency: "$" }
+        e.g. doce dólares y cinco céntimos -> money { integer_part: "12" fractional_part: 05 currency: "$" }
 
     Args:
         cardinal: CardinalFst
@@ -67,8 +67,8 @@ class MoneyFst(GraphFst):
             + pynini.union(
                 pynutil.add_weight(((NEMO_SIGMA - "un") @ cardinal_graph), -0.7) @ add_leading_zero_to_double_digit
                 + delete_space
-                + pynutil.delete("centavos"),
-                pynini.cross("un", "01") + delete_space + pynutil.delete("centavo"),
+                + pynutil.delete(pynini.union("centavos", "céntimos")),
+                pynini.cross("un", "01") + delete_space + pynutil.delete(pynini.union("centavo", "céntimo")),
             )
             + pynutil.insert("\"")
         )
