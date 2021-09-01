@@ -24,8 +24,6 @@ from nemo.core.classes.mixins import DistillationMixin, DistillationType, distil
 from nemo.core.classes.mixins.distill_mixins import ScaledDistillationLossMixin
 from nemo.core.classes.modelPT import ModelPT
 from nemo.utils import logging, model_utils
-
-
 class DistillationModelPT(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         cfg = model_utils.convert_model_config_to_dict_config(cfg)

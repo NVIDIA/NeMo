@@ -99,7 +99,6 @@ class MTEncDecConfig(NemoConfig):
     trainer: Optional[TrainerConfig] = TrainerConfig()
     exp_manager: Optional[ExpManagerConfig] = ExpManagerConfig(name='MTEncDec', files_to_copy=[])
 
-
 @hydra_runner(config_path="conf", config_name="aayn_base_distill")
 def main(cfg: MTEncDecConfig) -> None:
     # merge default config with user specified config
