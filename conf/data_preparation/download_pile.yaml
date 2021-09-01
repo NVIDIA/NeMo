@@ -1,13 +1,11 @@
-download_the_pile: True
-file_numbers: "0-1"
-data_save_dir: "/gpfs/fs1/mausin/bignlp-scripts/prepare_dataset/the_pile/"
-preprocess_data: True
-download_vocab_url: "https://huggingface.co/gpt2/resolve/main/vocab.json"
-download_merges_url: "https://huggingface.co/gpt2/resolve/main/merges.txt"
+download_the_pile: True  # Whether to download the pile dataset from the internet.
+file_numbers: "0-29"  # The pile dataset consists of 30 files (0-29), choose which ones to download.
+data_save_dir: "/gpfs/fs1/mausin/bignlp-scripts/prepare_dataset/the_pile/" 
+preprocess_data: True  # True to proprocess the data using the megatron code, False otherwise.
+download_vocab_url: "https://huggingface.co/gpt2/resolve/main/vocab.json"  # URL to download the vocab from.
+download_merges_url: "https://huggingface.co/gpt2/resolve/main/merges.txt"  # URL to download the merges from.
 vocab_save_dir: "/gpfs/fs1/mausin/bignlp-scripts/prepare_dataset/bpe/"
 merges_save_dir: "/gpfs/fs1/mausin/bignlp-scripts/prepare_dataset/bpe/"
-blend_file_path: "./gpt3_blend.sh"
-partition: "batch" 
-time_limit: "2:00:00"
-nodes: 3
-
+partition: "batch"  # Partition in which the jobs will run inside the SLURM cluster.
+time_limit: "4:00:00"  # Time limit per job for the SLURM cluster.
+nodes: 30  # Nodes per job for the SLURM cluster.

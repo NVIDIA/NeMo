@@ -1,3 +1,9 @@
 defaults:
   - data_preparation: download_pile
   - training: 126m
+  - override hydra/job_logging: stdout
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null

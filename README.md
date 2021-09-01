@@ -12,12 +12,14 @@ since the downloaded datasets will be stored inside this repository.
 
 
 ## Dependencies:
-Clone the Megatron-LM repository as a submodule.
-Both the preprocessing and training need to run in the Megatron-LM repository.
-```
-cd bignlp_scripts
-git submodule update --init --recursive
-```
+
+1. Install dependencies: 
+        cd bignlp-scripts
+        pip install --user -r requirements.txt
+2. Clone the Megatron-LM repository as a submodule. Both the preprocessing and
+training need the Megatron-LM repository.
+        cd bignlp-scripts
+        git submodule update --init --recursive
 
 
 ## Download and Preprocess Training Dataset
@@ -26,38 +28,38 @@ Main directory: prepare_dataset
 
 #### Usage:
 ```
-cd bignlp-scripts/prepare_dataset
-bash prepare_training_data.sh
-```
+First, update the default config inside bignlp-scripts/conf/config.yaml, to
+decide which config to use for the data preparation part of your job. 
+More specifically, select or update the config inside 
+bignlp-scripts/conf/data_preparation to perform the tasks you need.  
+
+Once the config is set correctly, run:
+    cd prepare_dataset
+    python3 end_to_end_data_prep.py
+
+NOTE: This project uses Hydra config, so you can always override any of the
+configuration parameters from the CLI. See the hydra documentation for
+examples on how to do this.
+
+
 
 #### Tricks and Tips:
 ##### Using a Subset of the Training Data
 If you want to download only a subset of the training data, you can download
-any of the 30 files that comprise it. You can do this by changing the array
-information on the following scripts:
-```
-prepare_dataset/download/download_all_pile_files.sh
-prepare_dataset/extract/extract_all_pile_files.sh
-prepare_dataset/preprocess/preprocess_all_pile_files.sh
-```
-Set the #SBATCH --array=0-29 to the files you want to download, using any
+any of the 30 files that comprise it.
+
+Set the file_numbers: "0-29" to the files you want to download, using any
 numbers from 0 to 29, either separated by a comma or a dash.
 If you do this, you will also need to modify the gpt_blend.sh file to match the
-datasets to use for training.
+datasets to use for training later on.
 
 For example, to download only the 0th file:
-```
-#SBATCH --array=0
-```
-
+    file_numbers: "0"
 
 ##### Limiting the number of nodes in the cluster
-The easiest way to limit the number of nodes to add is to add a %N after the
-array directive. For example, to download all 30 files (0-29) using only N=4
-nodes, you can use:
-```
-#SBATCH --array=0-29%4
-```
+Use the nodes parameter in the data_preparation config file.
+For example, to use only 4 nodes per job, set:
+nodes: 4
 
 
 #### Result Dataset:
