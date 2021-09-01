@@ -103,7 +103,7 @@ class MTEncDecModel(EncDecNLPModel):
                 )
             elif isinstance(self.src_language, ListConfig):
                 for lng in self.src_language:
-                    self.multilingual_ids.append(self.encoder_tokenizer.token_to_id("<" + lng + ">"))
+                    self.multilingual_ids.append(None)
             elif isinstance(self.tgt_language, ListConfig):
                 for lng in self.tgt_language:
                     self.multilingual_ids.append(self.encoder_tokenizer.token_to_id("<" + lng + ">"))
@@ -211,8 +211,28 @@ class MTEncDecModel(EncDecNLPModel):
         ids[ids >= self.decoder_tokenizer.vocab_size] = self.decoder_tokenizer.unk_id
         return ids
 
+    def test_encoder_ids(self, ids, raise_error=False):
+        invalid_ids = (ids >= self.encoder_tokenizer.vocab_size).any()
+
+        if raise_error and invalid_ids:
+            raise ValueError("Encoder ids are out of range (tip: check encoder tokenizer)")
+
+        return not invalid_ids
+
+    def test_decoder_ids(self, ids, raise_error=False):
+        invalid_ids = (ids >= self.decoder_tokenizer.vocab_size).any()
+
+        if raise_error and invalid_ids:
+            raise ValueError("Decoder ids are out of range (tip: check decoder tokenizer)")
+
+        return not invalid_ids
+
     @typecheck()
     def forward(self, src, src_mask, tgt, tgt_mask):
+        # test src/tgt for id range (i.e., hellp in catching wrong tokenizer)
+        self.test_encoder_ids(src, raise_error=True)
+        self.test_decoder_ids(tgt, raise_error=True)
+
         src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
         tgt_hiddens = self.decoder(
             input_ids=tgt, decoder_mask=tgt_mask, encoder_embeddings=src_hiddens, encoder_mask=src_mask
@@ -564,10 +584,11 @@ class MTEncDecModel(EncDecNLPModel):
             sampler = pt_data.RandomSampler(dataset)
         else:
             sampler = pt_data.SequentialSampler(dataset)
+
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=1,
-            sampler=None if cfg.get("use_tarred_dataset", False) else sampler,
+            sampler=None if (cfg.get("use_tarred_dataset", False) or isinstance(dataset, ConcatDataset)) else sampler,
             num_workers=cfg.get("num_workers", 2),
             pin_memory=cfg.get("pin_memory", False),
             drop_last=cfg.get("drop_last", False),
@@ -773,7 +794,11 @@ class MTEncDecModel(EncDecNLPModel):
                 raise ValueError("Expect source_lang and target_lang to infer for multilingual model.")
             src_symbol = self.encoder_tokenizer.token_to_id('<' + source_lang + '>')
             tgt_symbol = self.encoder_tokenizer.token_to_id('<' + target_lang + '>')
-            prepend_ids = [src_symbol if src_symbol in self.multilingual_ids else tgt_symbol]
+            if src_symbol in self.multilingual_ids:
+                prepend_ids = [src_symbol]
+            elif tgt_symbol in self.multilingual_ids:
+                prepend_ids = [tgt_symbol]
+
         try:
             self.eval()
             src, src_mask = self.prepare_inference_batch(text, prepend_ids)

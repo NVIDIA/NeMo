@@ -11,6 +11,36 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# BSD 3-Clause License
+#
+# Copyright (c) 2021, NVIDIA Corporation
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# * Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+#
+# * Redistributions in binary form must reproduce the above copyright notice,
+#   this list of conditions and the following disclaimer in the documentation
+#     and/or other materials provided with the distribution.
+#
+# * Neither the name of the copyright holder nor the names of its
+#   contributors may be used to endorse or promote products derived from
+#     this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from enum import Enum
 from typing import Dict, Sequence
@@ -23,9 +53,21 @@ from numba import jit, prange
 from numpy import ndarray
 from pesq import pesq
 from pystoi import stoi
-from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.utils import logging
+
+try:
+    from pytorch_lightning.utilities import rank_zero_only
+except ModuleNotFoundError:
+    from functools import wraps
+
+    def rank_zero_only(fn):
+        @wraps(fn)
+        def wrapped_fn(*args, **kwargs):
+            logging.error(
+                f"Function {fn} requires lighting to be installed, but it was not found. Please install lightning first"
+            )
+            exit(1)
 
 
 class OperationMode(Enum):
@@ -360,3 +402,52 @@ def eval_tts_scores(
     ## fs was set 16,000, as pesq lib doesnt currently support felxible fs.
 
     return {'STOI': stoi_score, 'PESQ': pesq_score}
+
+
+def regulate_len(durations, enc_out, pace=1.0, mel_max_len=None):
+    """A function that takes predicted durations per encoded token, and repeats enc_out according to the duration.
+    NOTE: durations.shape[1] == enc_out.shape[1]
+
+    Args:
+        durations (torch.tensor): A tensor of shape (batch x enc_length) that represents how many times to repeat each
+            token in enc_out.
+        enc_out (torch.tensor): A tensor of shape (batch x enc_length x enc_hidden) that represents the encoded tokens.
+        pace (float): The pace of speaker. Higher values result in faster speaking pace. Defaults to 1.0.
+        max_mel_len (int): The maximum length above which the output will be removed. If sum(durations, dim=1) >
+            max_mel_len, the values after max_mel_len will be removed. Defaults to None, which has no max length.
+    """
+
+    dtype = enc_out.dtype
+    reps = durations.float() / pace
+    reps = (reps + 0.5).long()
+    dec_lens = reps.sum(dim=1)
+
+    max_len = dec_lens.max()
+    reps_cumsum = torch.cumsum(torch.nn.functional.pad(reps, (1, 0, 0, 0), value=0.0), dim=1)[:, None, :]
+    reps_cumsum = reps_cumsum.to(dtype)
+
+    range_ = torch.arange(max_len).to(enc_out.device)[None, :, None]
+    mult = (reps_cumsum[:, :, :-1] <= range_) & (reps_cumsum[:, :, 1:] > range_)
+    mult = mult.to(dtype)
+    enc_rep = torch.matmul(mult, enc_out)
+
+    if mel_max_len:
+        enc_rep = enc_rep[:, :mel_max_len]
+        dec_lens = torch.clamp_max(dec_lens, mel_max_len)
+
+    return enc_rep, dec_lens
+
+
+def split_view(tensor, split_size, dim=0):
+    if dim < 0:  # Support negative indexing
+        dim = len(tensor.shape) + dim
+    # If not divisible by split_size, we need to pad with 0
+    if tensor.shape[dim] % split_size != 0:
+        to_pad = split_size - (tensor.shape[dim] % split_size)
+        padding = [0] * len(tensor.shape) * 2
+        padding[dim * 2 + 1] = to_pad
+        padding.reverse()
+        tensor = torch.nn.functional.pad(tensor, padding)
+    cur_shape = tensor.shape
+    new_shape = cur_shape[:dim] + (tensor.shape[dim] // split_size, split_size) + cur_shape[dim + 1 :]
+    return tensor.reshape(*new_shape)

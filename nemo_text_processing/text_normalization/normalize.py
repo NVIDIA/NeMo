@@ -37,17 +37,38 @@ class Normalizer:
     Args:
         input_case: expected input capitalization
         lang: language specifying the TN rules, by default: English
+        cache_dir: path to a dir with .far grammar file. Set to None to avoid using cache.
+        overwrite_cache: set to True to overwrite .far files
     """
 
-    def __init__(self, input_case: str, lang: str = 'en'):
+    def __init__(
+        self,
+        input_case: str,
+        lang: str = 'en',
+        deterministic: bool = True,
+        cache_dir: str = None,
+        overwrite_cache: bool = False,
+    ):
         assert input_case in ["lower_cased", "cased"]
 
-        if lang == 'en':
+        if lang == 'en' and deterministic:
             from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
-        self.tagger = ClassifyFst(input_case=input_case, deterministic=True)
-        self.verbalizer = VerbalizeFinalFst(deterministic=True)
+        elif lang == 'en' and not deterministic:
+            from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_with_audio import ClassifyFst
+            from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
+        elif lang == 'ru':
+            # Ru TN only support non-deterministic cases and produces multiple normalization options
+            # use normalize_with_audio.py
+            from nemo_text_processing.text_normalization.ru.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.text_normalization.ru.verbalizers.verbalize_final import VerbalizeFinalFst
+
+        self.tagger = ClassifyFst(
+            input_case=input_case, deterministic=deterministic, cache_dir=cache_dir, overwrite_cache=overwrite_cache
+        )
+        self.verbalizer = VerbalizeFinalFst(deterministic=deterministic)
         self.parser = TokenParser()
+        self.lang = lang
 
     def normalize_list(self, texts: List[str], verbose=False) -> List[str]:
         """
@@ -101,6 +122,7 @@ class Normalizer:
         tags_reordered = self.generate_permutations(tokens)
         for tagged_text in tags_reordered:
             tagged_text = pynini.escape(tagged_text)
+
             verbalizer_lattice = self.find_verbalizer(tagged_text)
             if verbalizer_lattice.num_states() == 0:
                 continue
@@ -233,12 +255,19 @@ def parse_args():
     parser.add_argument(
         "--punct_pre_process", help="set to True to enable punctuation pre processing", action="store_true"
     )
+    parser.add_argument("--overwrite_cache", help="set to True to re-create .far grammar files", action="store_true")
+    parser.add_argument(
+        "--cache_dir",
+        help="path to a dir with .far grammar file. Set to None to avoid using cache",
+        default=None,
+        type=str,
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    normalizer = Normalizer(input_case=args.input_case)
+    normalizer = Normalizer(input_case=args.input_case, cache_dir=args.cache_dir, overwrite_cache=args.overwrite_cache)
     print(
         normalizer.normalize(
             args.input_string,
