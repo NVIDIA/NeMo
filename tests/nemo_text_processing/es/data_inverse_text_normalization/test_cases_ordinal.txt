@@ -1,10 +1,29 @@
-primero~1.º
+primero~primero
+tercera~tercera
+primer~primer
+tercer~tercer
+noveno~noveno
+novena~novena
+décimo~10.º
+décima~10.ª
+undécimo~11.º
+undécima~11.ª
+decimoprimero~11.º
+décimo primero~11.º
+decimoprimer~11.er
+décimo primer~11.er
+decimoprimera~11.ª
+décima primera~11.ª
+(technically ungrammatical) décimo primera~(technically ungrammatical) 11.ª
 decimotercero~13.º
 vigésimo primero~21.º
+vigésima primera~21.ª
+(technically ungrammatical) vigésimo primera~(technically ungrammatical) 21.ª
 vigésimo primer~21.er
+vigésimosegundo~22.º
+vigésimo segundo~22.º
+vigésimosegunda~22.ª
+vigésima segunda~22.ª
 vigésimo tercero~23.º
 centésimo undécimo~111.º
 centésimo trigésimo cuarto~134.º
-tercera~3.ª
-primer~1.er
-tercer~3.er

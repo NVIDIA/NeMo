@@ -175,7 +175,7 @@ class CardinalFst(GraphFst):
         numbers_up_to_million = pynini.compose(graph, digits_up_to_million).optimize()
         self.numbers_up_to_million = numbers_up_to_million
 
-        # don't convert cardinals from zero to ten inclusive
+        # don't convert cardinals from zero to nine inclusive
         graph_exception = pynini.project(pynini.union(graph_digit, graph_zero), 'input')
 
         self.graph = (pynini.project(graph, "input") - graph_exception.arcsort()) @ graph

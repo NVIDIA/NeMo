@@ -28,7 +28,15 @@ except (ImportError, ModuleNotFoundError):
 class OrdinalFst(GraphFst):
     """
     Finite state transducer for classifying ordinal
-        e.g. thirteenth -> ordinal { integer: "13" }
+        vigésimo primero -> ordinal { integer: "21" morphosyntactic_features: "o" }
+    This class converts ordinal up to "millesímo" (one thousandth) exclusive.
+
+    Cardinals below ten are not converted (in order to avoid 
+    e.g. "primero hice ..." -> "1.º hice...", "segunda guerra mundial" -> "2.ª guerra mundial"
+    and any other odd conversions.)
+
+    This FST also records the ending of the ordinal (called "morphosyntactic_features"):
+    either "o", "a", or "er".
 
     Args:
         cardinal: CardinalFst
@@ -54,13 +62,18 @@ class OrdinalFst(GraphFst):
         ordinal_graph_a = accept_a_endings @ ordinal_graph_union
         ordinal_graph_er = accept_er_endings @ ordinal_graph_union
 
-        # 'optional_numbers_in_front' with negative weight so we always
+        # 'optional_numbers_in_front' have negative weight so we always
         # include them if they're there
         optional_numbers_in_front = (pynutil.add_weight(ordinal_graph_union, -0.1) + delete_space.closure()).closure()
-
         graph_o_suffix = (optional_numbers_in_front + ordinal_graph_o) @ cardinal_graph
         graph_a_suffix = (optional_numbers_in_front + ordinal_graph_a) @ cardinal_graph
         graph_er_suffix = (optional_numbers_in_front + ordinal_graph_er) @ cardinal_graph
+
+        # don't convert ordinals from one to nine inclusive
+        graph_exception = pynini.project(pynini.union(graph_digit), 'input')
+        graph_o_suffix = (pynini.project(graph_o_suffix, "input") - graph_exception.arcsort()) @ graph_o_suffix
+        graph_a_suffix = (pynini.project(graph_a_suffix, "input") - graph_exception.arcsort()) @ graph_a_suffix
+        graph_er_suffix = (pynini.project(graph_er_suffix, "input") - graph_exception.arcsort()) @ graph_er_suffix
 
         graph = (
             pynutil.insert("integer: \"")
