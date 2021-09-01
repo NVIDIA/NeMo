@@ -284,9 +284,10 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         hypothesis = rnnt_utils.Hypothesis(score=-1.0, y_sequence=[], dec_state=None, timestep=[])
 
         if partial_hypotheses is not None:
-            hypothesis.y_sequence.append(partial_hypotheses.y_sequence[-1].cpu().numpy())
-            hypothesis.dec_state = self.decoder.batch_concat_states([partial_hypotheses.dec_state])
-            hypothesis.dec_state = _states_to_device(hypothesis.dec_state, x.device)
+            if len(partial_hypotheses.y_sequence) > 0:
+                hypothesis.y_sequence.append(partial_hypotheses.y_sequence[-1].cpu().numpy())
+                hypothesis.dec_state = self.decoder.batch_concat_states([partial_hypotheses.dec_state])
+                hypothesis.dec_state = _states_to_device(hypothesis.dec_state, x.device)
 
         if self.preserve_alignments:
             # Alignments is a 2-dimensional dangling list representing T x U
