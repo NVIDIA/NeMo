@@ -39,3 +39,6 @@ except ModuleNotFoundError:
 
     class ModelPT(CheckInstall):
         pass
+
+    class DistillationModelPT(CheckInstall):
+        pass
