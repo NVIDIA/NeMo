@@ -3,14 +3,14 @@ import os
 import subprocess
 
 import hydra
-from hydra.utils import get_original_cwd, to_absolute_path
 
-from utils import download_merges, download_vocab, download_single_file
+import utils
 
 
 def create_slurm_file(
     new_file_name,
     code_file_name,
+    log_path="./",
     flags="",
     depend=None,
     time="04:00:00",
@@ -34,7 +34,7 @@ def create_slurm_file(
             f.writelines("#SBATCH --exclusive\n")
         f.writelines(f"#SBATCH --time={time}\n")
         f.writelines(f"#SBATCH --array={file_numbers}%{nodes}\n")
-        f.writelines(f"#SBATCH -o log-{task}-%j_%a.out\n")
+        f.writelines(f"#SBATCH -o {log_path}/log-{task}-%j_%a.out\n")
         f.writelines("cd $SLURM_SUBMIT_DIR\n")
         f.writelines(f"srun {flags} python3 {path_to_code} &\n")
         f.writelines("wait\n")
@@ -53,14 +53,18 @@ def main(cfg):
     download_merges_url = data_cfg.get("download_merges_url")
     download_the_pile = data_cfg.get("download_the_pile")
     preprocess_data = data_cfg.get("preprocess_data")
+    log_path = data_cfg.get("log_path")
+
+    if not os.path.exists(log_path):
+        os.makedirs(log_path)
 
     # Download vocab
     if download_vocab_url is not None:
-        download_vocab(cfg=data_cfg)
+        utils.download_vocab(cfg=data_cfg)
 
     # Download merges
     if download_merges_url is not None:
-        download_merges(cfg=data_cfg)
+        utils.download_merges(cfg=data_cfg)
 
     dependency = None
     if download_the_pile:
@@ -69,6 +73,7 @@ def main(cfg):
         path_to_download_file = create_slurm_file(
             new_file_name=download_file_name,
             code_file_name="download.py",
+            log_path=log_path,
             time=time_limit,
             file_numbers=file_numbers,
             nodes=nodes,
@@ -86,6 +91,7 @@ def main(cfg):
         path_to_extract_file = create_slurm_file(
             new_file_name=extract_file_name,
             code_file_name="extract.py",
+            log_path=log_path,
             depend=dependency,
             time=time_limit,
             file_numbers=file_numbers,
@@ -111,6 +117,7 @@ def main(cfg):
         path_to_preprocess_file = create_slurm_file(
             new_file_name=preprocess_file_name,
             code_file_name=preprocess_code,
+            log_path=log_path,
             flags=flags,
             depend=dependency,
             time=time_limit,
