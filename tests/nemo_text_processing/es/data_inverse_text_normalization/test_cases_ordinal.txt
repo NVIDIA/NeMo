@@ -10,8 +10,8 @@ undécimo~11.º
 undécima~11.ª
 decimoprimero~11.º
 décimo primero~11.º
-decimoprimer~11.er
-décimo primer~11.er
+decimoprimer~11.ᵉʳ
+décimo primer~11.ᵉʳ
 decimoprimera~11.ª
 décima primera~11.ª
 (technically ungrammatical) décimo primera~(technically ungrammatical) 11.ª
@@ -19,7 +19,7 @@ decimotercero~13.º
 vigésimo primero~21.º
 vigésima primera~21.ª
 (technically ungrammatical) vigésimo primera~(technically ungrammatical) 21.ª
-vigésimo primer~21.er
+vigésimo primer~21.ᵉʳ
 vigésimosegundo~22.º
 vigésimo segundo~22.º
 vigésimosegunda~22.ª

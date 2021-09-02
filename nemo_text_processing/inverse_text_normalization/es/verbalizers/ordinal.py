@@ -27,7 +27,7 @@ except (ModuleNotFoundError, ImportError):
 class OrdinalFst(GraphFst):
     """
     Finite state transducer for verbalizing ordinal, e.g.
-       ordinal { integer: "13" } -> 13th
+        ordinal { integer: "13" morphosyntactic_features: "o" } -> 13.º
     """
 
     def __init__(self):
@@ -43,7 +43,7 @@ class OrdinalFst(GraphFst):
         replace_suffix = pynini.union(
             pynini.cross(" morphosyntactic_features: \"o\"", ".º"),
             pynini.cross(" morphosyntactic_features: \"a\"", ".ª"),
-            pynini.cross(" morphosyntactic_features: \"er\"", ".er"),
+            pynini.cross(" morphosyntactic_features: \"er\"", ".ᵉʳ"),
         )
 
         graph = graph + replace_suffix
