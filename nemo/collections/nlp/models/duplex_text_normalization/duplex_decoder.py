@@ -12,23 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+from collections import defaultdict
 from time import perf_counter
-from typing import List, Optional
+from typing import Dict, List, Optional, Union
 
 import nltk
 import torch
 import wordninja
-from nemo_text_processing.text_normalization.normalize_with_audio import PYNINI_AVAILABLE, NormalizerWithAudio
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
 
 from nemo.collections.nlp.data.text_normalization import TextNormalizationDecoderDataset, constants
-from nemo.collections.nlp.models.duplex_text_normalization.utils import is_url
+from nemo.collections.nlp.models.duplex_text_normalization.utils import get_formatted_string, is_url
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 from nemo.utils.decorators.experimental import experimental
+
+try:
+    from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
+
+    PYNINI_AVAILABLE = True
+except (ModuleNotFoundError, ImportError):
+    PYNINI_AVAILABLE = False
 
 nltk.download('punkt')
 
@@ -44,8 +52,12 @@ class DuplexDecoderModel(NLPModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self._tokenizer = AutoTokenizer.from_pretrained(cfg.tokenizer)
+
         super().__init__(cfg=cfg, trainer=trainer)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(cfg.transformer)
+        self.model_max_len = cfg.get('max_seq_length', 512)
+        self.mode = cfg.get('mode', 'joint')
+
         self.transformer_name = cfg.transformer
 
         # Language
@@ -99,12 +111,11 @@ class DuplexDecoderModel(NLPModel):
         return {'loss': train_loss, 'lr': lr}
 
     # Validation and Testing
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-
         # Apply Transformer
         outputs = self.model(
             input_ids=batch['input_ids'],
@@ -114,33 +125,142 @@ class DuplexDecoderModel(NLPModel):
         )
         val_loss = outputs.loss
 
-        return {'val_loss': val_loss}
+        labels_str = self._tokenizer.batch_decode(
+            torch.ones_like(batch['labels']) * ((batch['labels'] == -100) * 100) + batch['labels'],
+            skip_special_tokens=True,
+        )
+        generated_texts, _, _ = self._generate_predictions(
+            input_ids=batch['input_ids'], model_max_len=self.model_max_len
+        )
 
-    def validation_epoch_end(self, outputs):
+        input_centers = self._tokenizer.batch_decode(batch['input_center'], skip_special_tokens=True)
+
+        direction = [x.item() for x in batch['direction']]
+        direction_str = [constants.DIRECTIONS_ID_TO_NAME[x] for x in direction]
+        # apply post_processing
+        generated_texts = self.postprocess_output_spans(input_centers, generated_texts, direction_str)
+        results = defaultdict(int)
+        for idx, class_id in enumerate(batch['semiotic_class_id']):
+            direction = constants.TASK_ID_TO_MODE[batch['direction'][idx].item()]
+            class_name = self._val_id_to_class[dataloader_idx][class_id.item()]
+            results[f"correct_{class_name}_{direction}"] += torch.tensor(
+                labels_str[idx] == generated_texts[idx], dtype=torch.int
+            ).to(self.device)
+            results[f"total_{class_name}_{direction}"] += torch.tensor(1).to(self.device)
+
+        results["val_loss"] = val_loss
+        return results
+
+    def multi_validation_epoch_end(self, outputs: List, dataloader_idx=0):
         """
         Called at the end of validation to aggregate outputs.
-        :param outputs: list of individual outputs of each validation step.
+
+        Args:
+            outputs: list of individual outputs of each validation step.
         """
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        self.log('val_loss', avg_loss)
 
+        # create a dictionary to store all the results
+        results = {}
+        directions = [constants.TN_MODE, constants.ITN_MODE] if self.mode == constants.JOINT_MODE else [self.mode]
+        for class_name in self._val_class_to_id[dataloader_idx]:
+            for direction in directions:
+                results[f"correct_{class_name}_{direction}"] = 0
+                results[f"total_{class_name}_{direction}"] = 0
+
+        for key in results:
+            count = [x[key] for x in outputs if key in x]
+            count = torch.stack(count).sum() if len(count) > 0 else torch.tensor(0).to(self.device)
+            results[key] = count
+
+        all_results = defaultdict(list)
+
+        if torch.distributed.is_initialized():
+            world_size = torch.distributed.get_world_size()
+            for ind in range(world_size):
+                for key, v in results.items():
+                    all_results[key].append(torch.empty_like(v))
+            for key, v in results.items():
+                torch.distributed.all_gather(all_results[key], v)
+        else:
+            for key, v in results.items():
+                all_results[key].append(v)
+
+        if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+            val_name = self._validation_names[dataloader_idx].upper()
+            final_results = defaultdict(int)
+            for key, v in all_results.items():
+                for _v in v:
+                    final_results[key] += _v.item()
+
+            accuracies = defaultdict(dict)
+            for key, value in final_results.items():
+                if "total_" in key:
+                    _, class_name, mode = key.split('_')
+                    correct = final_results[f"correct_{class_name}_{mode}"]
+                    if value == 0:
+                        accuracies[mode][class_name] = (0, correct, value)
+                    else:
+                        acc = round(correct / value * 100, 3)
+                        accuracies[mode][class_name] = (acc, correct, value)
+
+            for mode, values in accuracies.items():
+                report = f"Accuracy {mode.upper()} task {val_name}:\n"
+                report += '\n'.join(
+                    [
+                        get_formatted_string((class_name, f'{v[0]}% ({v[1]}/{v[2]})'), str_max_len=24)
+                        for class_name, v in values.items()
+                    ]
+                )
+                # calculate average across all classes
+                all_total = 0
+                all_correct = 0
+                for _, class_values in values.items():
+                    _, correct, total = class_values
+                    all_correct += correct
+                    all_total += total
+                all_acc = round((all_correct / all_total) * 100, 3) if all_total > 0 else 0
+                report += '\n' + get_formatted_string(
+                    ('AVG', f'{all_acc}% ({all_correct}/{all_total})'), str_max_len=24
+                )
+                logging.info(report)
+                accuracies[mode]['AVG'] = [all_acc]
+
+        self.log('val_loss', avg_loss)
+        if self.trainer.is_global_zero:
+            for mode in accuracies:
+                for class_name, values in accuracies[mode].items():
+                    self.log(f'{val_name}_{mode.upper()}_acc_{class_name.upper()}', values[0], rank_zero_only=True)
         return {
             'val_loss': avg_loss,
         }
 
-    def test_step(self, batch, batch_idx):
+    def test_step(self, batch, batch_idx, dataloader_idx: int = 0):
         """
         Lightning calls this inside the test loop with the data from the test dataloader
         passed in as `batch`.
         """
-        return self.validation_step(batch, batch_idx)
+        return self.validation_step(batch, batch_idx, dataloader_idx)
 
-    def test_epoch_end(self, outputs):
+    def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         """
         Called at the end of test to aggregate outputs.
-        :param outputs: list of individual outputs of each test step.
+        outputs: list of individual outputs of each test step.
         """
-        return self.validation_epoch_end(outputs)
+        return self.multi_validation_epoch_end(outputs, dataloader_idx)
+
+    def _generate_predictions(self, input_ids: torch.Tensor, model_max_len: int = 512):
+        """
+        Generates predictions
+        """
+        outputs = self.model.generate(
+            input_ids, output_scores=True, return_dict_in_generate=True, max_length=model_max_len
+        )
+
+        generated_ids, sequence_toks_scores = outputs['sequences'], outputs['scores']
+        generated_texts = self._tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
+
+        return generated_texts, generated_ids, sequence_toks_scores
 
     # Functions for inference
     @torch.no_grad()
@@ -175,7 +295,11 @@ class DuplexDecoderModel(NLPModel):
         extra_id_0 = constants.EXTRA_ID_0
         extra_id_1 = constants.EXTRA_ID_1
 
-        # Build all_inputs
+        """
+        Build all_inputs - extracted spans to be transformed by the decoder model
+        Inputs for TN direction have "0" prefix, while the backward, ITN direction, has prefix "1"
+        "input_centers" - List[str] - ground-truth labels for the span #TODO: rename
+        """
         input_centers, input_dirs, all_inputs = [], [], []
         for ix, sent in enumerate(sents):
             cur_inputs = []
@@ -203,9 +327,10 @@ class DuplexDecoderModel(NLPModel):
         # Apply the decoding model
         batch = tokenizer(all_inputs, padding=True, return_tensors='pt')
         input_ids = batch['input_ids'].to(self.device)
-        outputs = model.generate(input_ids, output_scores=True, return_dict_in_generate=True, max_length=model_max_len)
-        generated_ids, sequence_toks_scores = outputs['sequences'], outputs['scores']
-        generated_texts = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
+
+        generated_texts, generated_ids, sequence_toks_scores = self._generate_predictions(
+            input_ids=input_ids, model_max_len=model_max_len
+        )
 
         # Use covering grammars (if enabled)
         if self.use_cg:
@@ -250,10 +375,21 @@ class DuplexDecoderModel(NLPModel):
 
         return final_texts
 
-    def postprocess_output_spans(self, input_centers, output_spans, input_dirs):
+    def postprocess_output_spans(self, input_centers: List[str], generated_spans: List[str], input_dirs: List[str]):
+        """
+        Post processing of the generated texts
+
+        Args:
+            input_centers: Input str (no special tokens or context)
+            generated_spans: Generated spans
+            input_dirs: task direction: constants.INST_BACKWARD or constants.INST_FORWARD
+
+        Returns:
+            Processing texts
+        """
         en_greek_writtens = list(constants.EN_GREEK_TO_SPOKEN.keys())
         en_greek_spokens = list(constants.EN_GREEK_TO_SPOKEN.values())
-        for ix, (_input, _output) in enumerate(zip(input_centers, output_spans)):
+        for ix, (_input, _output) in enumerate(zip(input_centers, generated_spans)):
             if self.lang == constants.ENGLISH:
                 # Handle URL
                 if is_url(_input):
@@ -266,18 +402,18 @@ class DuplexDecoderModel(NLPModel):
                     _output = _output.replace('%', ' percent ')
                     _output = _output.replace('www', ' w w w ')
                     _output = _output.replace('ftp', ' f t p ')
-                    output_spans[ix] = ' '.join(wordninja.split(_output))
+                    generated_spans[ix] = ' '.join(wordninja.split(_output))
                     continue
                 # Greek letters
                 if _input in en_greek_writtens:
                     if input_dirs[ix] == constants.INST_FORWARD:
-                        output_spans[ix] = constants.EN_GREEK_TO_SPOKEN[_input]
+                        generated_spans[ix] = constants.EN_GREEK_TO_SPOKEN[_input]
                 if _input in en_greek_spokens:
                     if input_dirs[ix] == constants.INST_FORWARD:
-                        output_spans[ix] = _input
+                        generated_spans[ix] = _input
                     if input_dirs[ix] == constants.INST_BACKWARD:
-                        output_spans[ix] = constants.EN_SPOKEN_TO_GREEK[_input]
-        return output_spans
+                        generated_spans[ix] = constants.EN_SPOKEN_TO_GREEK[_input]
+        return generated_spans
 
     # Functions for processing data
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
@@ -287,7 +423,9 @@ class DuplexDecoderModel(NLPModel):
             )
             self.train_dataset, self._train_dl = None, None
             return
-        self.train_dataset, self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, mode="train")
+        self.train_dataset, self._train_dl = self._setup_dataloader_from_config(
+            cfg=train_data_config, data_split="train"
+        )
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if not val_data_config or not val_data_config.data_path:
@@ -297,8 +435,13 @@ class DuplexDecoderModel(NLPModel):
             self.validation_dataset, self._validation_dl = None, None
             return
         self.validation_dataset, self._validation_dl = self._setup_dataloader_from_config(
-            cfg=val_data_config, mode="val"
+            cfg=val_data_config, data_split="val"
         )
+
+    def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict] = None):
+        if val_data_config is None:
+            val_data_config = self._cfg.validation_ds
+        return super().setup_multiple_validation_data(val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         if not test_data_config or test_data_config.data_path is None:
@@ -307,30 +450,50 @@ class DuplexDecoderModel(NLPModel):
             )
             self.test_dataset, self._test_dl = None, None
             return
-        self.test_dataset, self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, mode="test")
+        self.test_dataset, self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, data_split="test")
 
-    def _setup_dataloader_from_config(self, cfg: DictConfig, mode: str):
+    def _setup_dataloader_from_config(self, cfg: DictConfig, data_split: str):
         tokenizer, model = self._tokenizer, self.model
         start_time = perf_counter()
-        logging.info(f'Creating {mode} dataset')
+        logging.info(f'Creating {data_split} dataset')
+
         input_file = cfg.data_path
+        if not os.path.exists(input_file):
+            raise ValueError(f"{input_file} not found.")
+
         dataset = TextNormalizationDecoderDataset(
-            input_file,
-            tokenizer,
-            self.transformer_name,
-            cfg.mode,
-            cfg.get('max_decoder_len', tokenizer.model_max_length),
-            cfg.get('decoder_data_augmentation', False),
-            cfg.lang,
-            cfg.do_basic_tokenize,
-            cfg.get('use_cache', False),
-            cfg.get('max_insts', -1),
+            input_file=input_file,
+            tokenizer=tokenizer,
+            tokenizer_name=self.transformer_name,
+            mode=self.mode,
+            max_len=cfg.get('max_decoder_len', tokenizer.model_max_length),
+            decoder_data_augmentation=cfg.get('decoder_data_augmentation', False),
+            lang=self.lang,
+            do_basic_tokenize=cfg.do_basic_tokenize,
+            use_cache=cfg.get('use_cache', False),
+            max_insts=cfg.get('max_insts', -1),
         )
+
+        # create and save class names to class_ids mapping for validation
+        # (each validation set might have different classes)
+        if data_split in ['val', 'test']:
+            if not hasattr(self, "_val_class_to_id"):
+                self._val_class_to_id = []
+                self._val_id_to_class = []
+            self._val_class_to_id.append(dataset.label_ids_semiotic)
+            self._val_id_to_class.append({v: k for k, v in dataset.label_ids_semiotic.items()})
+
         data_collator = DataCollatorForSeq2Seq(
             tokenizer, model=model, label_pad_token_id=constants.LABEL_PAD_TOKEN_ID,
         )
         dl = torch.utils.data.DataLoader(
-            dataset=dataset, batch_size=cfg.batch_size, shuffle=cfg.shuffle, collate_fn=data_collator
+            dataset=dataset,
+            batch_size=cfg.batch_size,
+            shuffle=cfg.shuffle,
+            collate_fn=data_collator,
+            num_workers=cfg.get("num_workers", 3),
+            pin_memory=cfg.get("pin_memory", False),
+            drop_last=cfg.get("drop_last", False),
         )
         running_time = perf_counter() - start_time
         logging.info(f'Took {running_time} seconds')

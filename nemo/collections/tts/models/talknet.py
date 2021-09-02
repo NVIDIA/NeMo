@@ -370,19 +370,23 @@ class TalkNetSpectModel(SpectrogramGenerator, Exportable):
         Returns:
             List of available pre-trained models.
         """
-        list_of_models = []
-        model = PretrainedModelInfo(
-            pretrained_model_name="tts_en_talknet",
-            location=(
-                "https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_talknet/versions/1.0.0rc1/files"
-                "/talknet_spect.nemo"
-            ),
-            description=(
-                "This model is trained on LJSpeech sampled at 22050Hz, and can be used to generate female "
-                "English voices with an American accent."
-            ),
-            class_=cls,  # noqa
-            aliases=["TalkNet-22050Hz"],
-        )
-        list_of_models.append(model)
-        return list_of_models
+        # list_of_models = []
+        # model = PretrainedModelInfo(
+        #     pretrained_model_name="tts_en_talknet",
+        #     location=(
+        #         "https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_talknet/versions/1.0.0rc1/files"
+        #         "/talknet_spect.nemo"
+        #     ),
+        #     description=(
+        #         "This model is trained on LJSpeech sampled at 22050Hz, and can be used to generate female "
+        #         "English voices with an American accent."
+        #     ),
+        #     class_=cls,  # noqa
+        #     aliases=["TalkNet-22050Hz"],
+        # )
+        # list_of_models.append(model)
+        # return list_of_models
+
+        # NOTE: TalkNet loading is currently broken in main and newer. Please revert to r1.2.0 if interested in
+        # TalkNet.
+        pass
