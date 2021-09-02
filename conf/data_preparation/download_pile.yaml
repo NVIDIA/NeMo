@@ -1,4 +1,4 @@
-download_the_pile: False  # Whether to download the pile dataset from the internet.
+download_the_pile: True  # Whether to download the pile dataset from the internet.
 file_numbers: "0-29"  # The pile dataset consists of 30 files (0-29), choose which ones to download.
 data_save_dir: "/gpfs/fs1/mausin/bignlp-scripts/prepare_dataset/the_pile/" 
 preprocess_data: True  # True to proprocess the data using the megatron code, False otherwise.
