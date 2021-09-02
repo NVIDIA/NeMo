@@ -9,6 +9,7 @@ This is a guide explaining how to use NMT distillation, including Hinton-style, 
 
 Run
 
-```python enc_dec_nmt_distillation
+```
+python enc_dec_nmt_distillation
 
 ```
