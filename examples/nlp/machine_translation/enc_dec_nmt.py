@@ -40,13 +40,11 @@ Usage:
  
  2. Train a new tokenizer (or use pre-trained one):
     ```yttm bpe --data /mnt/D1/Data/NMT/wmt16_de_en/train.clean.en-de.shuffled.common --model tokenizer.BPE.8192.model --vocab_size 8192```
-
 (To use WANDB, optionally, do login first)
 ``wandb login [YOUR WANDB login]``
     
  3. Start training:
  
-
  (This example for "base" model on 2 GPUs for 150000 steps with batch size of 12500 tokens per GPU)
  
  python enc_dec_nmt.py \
@@ -124,10 +122,10 @@ def main(cfg: MTEncDecConfig) -> None:
     # everything needed to train translation models is encapsulated in the NeMo MTEncdDecModel
     mt_model = MTEncDecModel(cfg.model, trainer=trainer)
 
-    # logging.info("\n\n************** Model parameters and their sizes ***********")
-    # for name, param in mt_model.named_parameters():
-    #     print(name, param.size())
-    # logging.info("***********************************************************\n\n")
+    logging.info("\n\n************** Model parameters and their sizes ***********")
+    for name, param in mt_model.named_parameters():
+        print(name, param.size())
+    logging.info("***********************************************************\n\n")
 
     if cfg.do_training:
         trainer.fit(mt_model)

@@ -20,7 +20,6 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTDataPreproc
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
-from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.core.classes.distillation import DistillationModelPT
 from nemo.core.config import hydra_runner
 from nemo.core.config.modelPT import NemoConfig
@@ -45,19 +44,22 @@ Usage:
 ``wandb login [YOUR WANDB login]``
     
  3. Start training:
- 
 
- (This example for "base" model on 2 GPUs for 150000 steps with batch size of 12500 tokens per GPU)
+ (This example is for the "base_nmt_distill" model on 2 GPUs for 150000 steps with batch size of 12500 tokens per GPU.
+ To perform distillation, the pre-trained teacher 'model_path' must be specified. DistillationModelPT uses a triple loss that is a linear combination
+ of NLL loss, knowledge distillation loss, and cosine embedding loss. This example weights these losses by 1.0, 1.0, and 1.0, respectively, using a temperature of 1.0 and no DistilBERT initialization.
+ Note, if you only want to perform Hinton-style distillation, simply set the cosine loss weight to 0.0. According to Muller et al. 2020, if we are performing knowledge distillation,
+ label smoothing should not be used to train either the teacher or student.)
  
- python enc_dec_nmt.py \
+ python enc_dec_nmt_distillation.py \
       --config-path=conf \
-      --config-name=aayn_base \
+      --config-name=aayn_base_nmt_distill \
       trainer.gpus=[0,1] \
       ~trainer.max_epochs \
       +trainer.max_steps=150000 \
       model.beam_size=4 \
       model.max_generation_delta=5 \
-      model.label_smoothing=0.1 \
+      model.label_smoothing=0.0 \
       model.encoder_tokenizer.tokenizer_model=tokenizer.BPE.8192.model  \
       model.decoder_tokenizer.tokenizer_model=tokenizer.BPE.8192.model  \
       model.encoder.num_layers=6 \
@@ -70,6 +72,13 @@ Usage:
       model.decoder.inner_size=2048 \
       model.decoder.num_attention_heads=8 \
       model.decoder.ffn_dropout=0.1 \
+      model.distillation.model_path=/pretrained_teacher_model_path/AAYNBase.nemo \
+      model.distillation.distillation_loss_weight=1.0 \
+      model.distillation.student_train_loss_weight=1.0 \
+      model.distillation.cosine_loss_weight=1.0 \
+      model.distillation.temperature=1.0 \
+      model.distillation.distill_encoder=True \
+      model.distillation.distilbert_initialization=False \
       model.train_ds.src_file_name=/mnt/D1/Data/NMT/wmt16_de_en/train.clean.de.shuffled \
       model.train_ds.tgt_file_name=/mnt/D1/Data/NMT/wmt16_de_en/train.clean.en.shuffled \
       model.train_ds.tokens_in_batch=12500 \
