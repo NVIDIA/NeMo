@@ -61,7 +61,7 @@ parser.add_argument(
     default='',
     help='Additional symbols to use for \
     sentence split if eos sentence split resulted in sequence longer than --max_length. '
-    'Use "|" as a separator between symbols, for example: ";|:|" ',
+    'Use "|" as a separator between symbols, for example: ";|:" ',
 )
 parser.add_argument(
     '--use_nemo_normalization',
