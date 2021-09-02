@@ -319,6 +319,8 @@ def check_resume(
         NotFoundError: If resume is True, resume_ignore_no_checkpoint is False, and checkpoints could not be found.
         ValueError: If resume is True, and there were more than 1 checkpoint could found.
     """
+    app_state = AppState()
+
     if not log_dir:
         raise ValueError(f"Resuming requires the log_dir {log_dir} to be passed to exp_manager")
 
@@ -354,18 +356,15 @@ def check_resume(
         else:
             raise NotFoundError(f"There were no checkpoints found in {checkpoint_dir}. Cannot resume.")
     elif len(last_checkpoints) > 1:
-        raise ValueError(f"Multiple checkpoints {last_checkpoints} that matches *last.ckpt.")
-        # if 'mp_rank' in str(last_checkpoints[0]):
-        #     checkpoint = last_checkpoints[0]
-        # else:
-        #     raise ValueError(f"Multiple checkpoints {last_checkpoints} that matches *last.ckpt.")
+        if 'mp_rank' in str(last_checkpoints[0]):
+            # checkpoint = last_checkpoints[0].parent.parent.joinpath(last_checkpoints[0].name)
+            checkpoint = last_checkpoints[0]
+        else:
+            raise ValueError(f"Multiple checkpoints {last_checkpoints} that matches *last.ckpt.")
     else:
         logging.info(f"Resuming from {last_checkpoints[0]}")
         checkpoint = last_checkpoints[0]
-    # # remove mp_rank from checkpoint if necessary
-    # if checkpoint is not None:
-    #     if 'mp_rank' in str(checkpoint):
-    #         checkpoint = checkpoint.parent.parent.joinpath(checkpoint.name)
+
     trainer.checkpoint_connector.resume_checkpoint_path = str(checkpoint)
 
     if is_global_rank_zero():
