@@ -50,9 +50,7 @@ class MegatronGPTModel(NLPModel):
         app_state.global_rank = trainer.global_rank
         app_state.world_size = trainer.world_size
         app_state.model_parallel_size = cfg.get('tensor_model_parallel_size', 1)
-        app_state.model_parallel_rank = compute_model_parallel_rank(
-            app_state.global_rank, app_state.model_parallel_size
-        )
+        app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
 
         initialize_megatron_for_nemo(
             world_size=app_state.world_size,
@@ -214,13 +212,6 @@ class MegatronGPTModel(NLPModel):
         )
 
     def setup(self, stage=None):
-        # TODO: figure out how to do this properly
-        _loaded_checkpoint = self.trainer.checkpoint_connector._loaded_checkpoint
-        self.trainer.checkpoint_connector = NLPCheckpointConnector(
-            self.trainer, resume_from_checkpoint=self.trainer.resume_from_checkpoint
-        )
-        self.trainer.checkpoint_connector._loaded_checkpoint = _loaded_checkpoint
-        # self.global_step = self.trainer.checkpoint_connector._loaded_checkpoint['global_step']
         self.build_train_valid_test_datasets()
         self.setup_training_data(self.cfg.data)
         self.setup_validation_data(self.cfg.data)
