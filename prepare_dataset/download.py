@@ -2,7 +2,7 @@ import os
 
 import hydra
 
-from utils import download_single_file
+import utils
 
 
 @hydra.main(config_path="../conf", config_name="config")
@@ -13,7 +13,7 @@ def main(cfg):
     url = f"{PILE_URL_TRAIN}{file_number:02d}.jsonl.zst"
     data_save_dir = data_cfg["data_save_dir"]
     output_file = f"{file_number:02d}.jsonl.zst"
-    downloaded_path = download_single_file(url, data_save_dir, output_file)
+    downloaded_path = utils.download_single_file(url, data_save_dir, output_file)
 
 
 if __name__ == "__main__":

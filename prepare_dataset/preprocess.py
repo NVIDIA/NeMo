@@ -1,7 +1,5 @@
 import os
 
-from utils import extract_single_zst_file
-
 
 def main():
     data_save_dir = "/workspace/bignlp-scripts/prepare_dataset/the_pile"
