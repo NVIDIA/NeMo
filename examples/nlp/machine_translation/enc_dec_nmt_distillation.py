@@ -53,7 +53,7 @@ Usage:
  
  python enc_dec_nmt_distillation.py \
       --config-path=conf \
-      --config-name=aayn_base_nmt_distill \
+      --config-name=aayn_base_nmt_distillation \
       trainer.gpus=[0,1] \
       ~trainer.max_epochs \
       +trainer.max_steps=150000 \
