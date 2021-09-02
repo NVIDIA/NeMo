@@ -27,7 +27,6 @@ Main directory: prepare_dataset
 
 
 #### Usage:
-```
 First, update the default config inside bignlp-scripts/conf/config.yaml, to
 decide which config to use for the data preparation part of your job. 
 More specifically, select or update the config inside 
