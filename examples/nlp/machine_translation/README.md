@@ -323,4 +323,7 @@ Like sequence-level distillation, we need to generated the teacher-generated dat
 
 # Pipeline
 
+![pipeline](https://user-images.githubusercontent.com/35356586/131922482-852f4131-c4ef-470a-baf4-6dc16a38334e.png)
+
+
 # Low Data Regime
