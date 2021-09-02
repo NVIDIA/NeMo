@@ -14,10 +14,13 @@ since the downloaded datasets will be stored inside this repository.
 ## Dependencies:
 
 1. Install dependencies: 
+
         cd bignlp-scripts
         pip install --user -r requirements.txt
+
 2. Clone the Megatron-LM repository as a submodule. Both the preprocessing and
 training need the Megatron-LM repository.
+
         cd bignlp-scripts
         git submodule update --init --recursive
 
@@ -33,6 +36,7 @@ More specifically, select or update the config inside
 bignlp-scripts/conf/data_preparation to perform the tasks you need.  
 
 Once the config is set correctly, run:
+
     cd prepare_dataset
     python3 end_to_end_data_prep.py
 
