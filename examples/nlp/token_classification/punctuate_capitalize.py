@@ -102,8 +102,8 @@ def get_args():
         "--pretrained_name",
         "-p",
         help=f"The name of NGC pretrained model. No more than one of parameters `--pretrained_name`, `--model_path`"
-        f"should be provided. If neither of parameters `--pretrained_name` and `--model_path`, then the script is run "
-        f"with `--{default_model_parameter}={default_model}`.",
+        f"should be provided. If neither of parameters `--pretrained_name` and `--model_path` are provided, then the "
+        f"script is run with `--{default_model_parameter}={default_model}`.",
         choices=[m.pretrained_model_name for m in PunctuationCapitalizationModel.list_available_models()],
     )
     model.add_argument(
@@ -112,7 +112,7 @@ def get_args():
         type=Path,
         help=f"Path to .nemo checkpoint of punctuation and capitalization model. No more than one of parameters "
         f"`--pretrained_name` and `--model_path` should be provided. If neither of parameters `--pretrained_name` and "
-        f"`--model_path`, then the script is run with `--{default_model_parameter}={default_model}`.",
+        f"`--model_path` are provided, then the script is run with `--{default_model_parameter}={default_model}`.",
     )
     parser.add_argument(
         "--max_seq_length",
