@@ -667,6 +667,26 @@ pipeline {
             exp_manager=null'
           }
         }
+       stage('Test Restore with AlBERT') {
+          steps {
+            sh 'python examples/nlp/token_classification/punctuation_capitalization_evaluate.py \
+            pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_and_Capitalization_albert.nemo \
+            model.dataset.use_cache=false \
+            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            trainer.gpus=[1] \
+            exp_manager=null'
+          }
+        }
+        stage('Test Restore with RoBERTa') {
+          steps {
+            sh 'python examples/nlp/token_classification/punctuation_capitalization_evaluate.py \
+            pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_and_Capitalization_roberta.nemo \
+            model.dataset.use_cache=false \
+            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            trainer.gpus=[1] \
+            exp_manager=null'
+          }
+        }
       }
     }
 
