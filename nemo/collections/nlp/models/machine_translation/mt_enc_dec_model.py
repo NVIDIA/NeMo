@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 import numpy as np
+import os
 import torch
 import torch.distributed as dist
 import torch.utils.data as pt_data
@@ -503,6 +504,23 @@ class MTEncDecModel(EncDecNLPModel):
                 if tar_files_list is None:
                     tar_files = metadata.get('tar_files')
                     if tar_files is not None:
+                        # update absolute path of tar files based on metadata_file path
+                        valid_tar_files = []
+                        metadata_basedir = os.path.abspath(os.path.dirname(metadata_file))
+                        for fn in tar_files:
+                            # if a file does not exist, look in metadata file directory
+                            if os.path.exists(fn):
+                                valid_fn = fn
+                            else:
+                                valid_fn = os.path.join(metadata_basedir, os.path.basename(fn))
+                                if not os.path.exists(valid_fn):
+                                    raise RuntimeError(f"File in tarred dataset is missing from absolute and relative paths {fn}")
+
+
+                            valid_tar_files.append(valid_fn)
+
+                        tar_files = valid_tar_files
+
                         logging.info(f'Loading from tarred dataset {tar_files}')
                 else:
                     tar_files = tar_files_list[idx]
