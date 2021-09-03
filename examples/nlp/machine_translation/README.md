@@ -219,7 +219,8 @@ Finding the mode iscommensurately expensive so we approximate it with beam searc
 $$ --> 
 
 <div align="center"><img style="background: transparent;width:600px;" src="https://render.githubusercontent.com/render/math?math=\color{gray}%5Cmathcal%7BL%7D_%7B%5Ctext%7BSEQ-KD%7D%7D%5Capprox%20-%5Csum_%7Bt%5Cin%5Cmathcal%7BT%7D%7D%5Cmathbb%7B1%7D%5C%7B%5Cbf%20y%3D%5Chat%7B%5Cbf%20y%7D%5C%7D%5Clog%20p(%5Cbf%20y%7C%5Cbf%20x)%5C%5C%0D%0A%3D-%5Clog%20p(%5Cbf%20y%20%3D%20%5Chat%7B%5Cbf%20y%7D%7C%20%5Cbf%20x)%0D"></div>
-for <!-- $\hat{\bf y}$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}%5Chat%7B%5Cbf%20y%7D"> the output of beam search. The pipeline for sequence-level distillation is straightforward:
+
+for $\bf \hat y$ the output of beam search. The pipeline for sequence-level distillation is straightforward:
 
 1. Train the teacher model.
 
