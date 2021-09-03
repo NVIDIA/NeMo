@@ -31,8 +31,7 @@ for <!-- $\mathcal{V}$ --> <img style="transform: translateY(0.1em); background:
 q_{k}:=q(y=k|\bf x; \theta_T)=\frac{\exp(z_k)}{\sum_{j=1}^{|\mathcal{V}|}\exp(z_j)}
 $$ --> 
 
-<div align="center"><img style="background: transparent; width:400px;" src="https://render.githubusercontent.com/render/math?math=\color{gray}q_%7Bk%7D%3A%3Dq(y%3Dk%7C%5Cbf%20x%3B%20%5Ctheta_T)%3D%5Cfrac%7B%5Cexp(z_k)%7D%7B%5Csum_%7Bj%3D1%7D%5E%7B%7C%5Cmathcal%7BV%7D%7C%7D%5Cexp(z_j)%7D%0D"></div>
-for <!-- $z_k$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}z_k"> the teacher's logit for class <!-- $k$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}k">
+<div align="center"><img style="background: transparent; width:400px;" src="https://render.githubusercontent.com/render/math?math=\color{gray}q_%7Bk%7D%3A%3Dq(y%3Dk%7C%5Cbf%20x%3B%20%5Ctheta_T)%3D%5Cfrac%7B%5Cexp(z_k)%7D%7B%5Csum_%7Bj%3D1%7D%5E%7B%7C%5Cmathcal%7BV%7D%7C%7D%5Cexp(z_j)%7D%0D"></div> for <!-- $z_k$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}z_k"> the teacher's logit for class <!-- $k$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}k">
 and
 
 <!-- $$
@@ -220,7 +219,7 @@ $$ -->
 
 <div align="center"><img style="background: transparent;width:600px;" src="https://render.githubusercontent.com/render/math?math=\color{gray}%5Cmathcal%7BL%7D_%7B%5Ctext%7BSEQ-KD%7D%7D%5Capprox%20-%5Csum_%7Bt%5Cin%5Cmathcal%7BT%7D%7D%5Cmathbb%7B1%7D%5C%7B%5Cbf%20y%3D%5Chat%7B%5Cbf%20y%7D%5C%7D%5Clog%20p(%5Cbf%20y%7C%5Cbf%20x)%5C%5C%0D%0A%3D-%5Clog%20p(%5Cbf%20y%20%3D%20%5Chat%7B%5Cbf%20y%7D%7C%20%5Cbf%20x)%0D"></div>
 
-for $\bf \hat y$ the output of beam search. The pipeline for sequence-level distillation is straightforward:
+for <!-- $\bf \hat y$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}%5Cbf%20%5Chat%20y"> the output of beam search. The pipeline for sequence-level distillation is straightforward:
 
 1. Train the teacher model.
 
