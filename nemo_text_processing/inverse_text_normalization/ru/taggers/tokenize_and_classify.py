@@ -114,7 +114,6 @@ class ClassifyFst(GraphFst):
 
             graph = delete_space + graph + delete_space
             self.fst = graph.optimize()
-            generator_main(far_file, {"tokenize_and_classify": self.fst})
 
             if far_file:
                 generator_main(far_file, {"tokenize_and_classify": self.fst})

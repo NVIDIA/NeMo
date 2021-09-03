@@ -57,6 +57,7 @@ echo "OVERWRITE_CACHE = $OVERWRITE_CACHE"
 
 if [[ ${OVERWRITE_CACHE,,} == "true" ]]; then
   OVERWRITE_CACHE="--overwrite_cache "
+  else OVERWRITE_CACHE=""
 fi
 
 python pynini_export.py --output_dir=. --grammars=${GRAMMARS} --input_case=${INPUT_CASE} --language=${LANGUAGE} --cache_dir=${CACHE_DIR} ${OVERWRITE_CACHE}|| exit 1

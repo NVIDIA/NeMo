@@ -87,7 +87,7 @@ class RivaTranslateServicer(nmtsrv.RivaTranslateServicer):
         # If lang direction is provided for one model, it must be provided for all of them.
 
         if len(self._lang_directions) != 0:
-            if len(self._lang_directions) == len(self._model_paths):
+            if len(self._lang_directions) != len(self._model_paths):
                 raise ValueError(
                     f"Found a different number of models ({len(self._model_paths)}) and language directions ({len(self._lang_directions)})"
                 )
@@ -96,8 +96,12 @@ class RivaTranslateServicer(nmtsrv.RivaTranslateServicer):
             assert os.path.exists(model_path)
             logging.info(f"Loading model {model_path}")
             if len(self._lang_directions) > 0:
-                src_language = self._lang_directions.split('-')[0]
-                tgt_language = self._lang_directions.split('-')[1]
+                if len(self._lang_directions[idx].split('-')) != 2:
+                    raise ValueError(
+                        f"Language direction must of the form lang1-lang2, got {self._lang_directions[idx]}"
+                    )
+                src_language = self._lang_directions[idx].split('-')[0]
+                tgt_language = self._lang_directions[idx].split('-')[1]
             else:
                 src_language, tgt_language = None, None
             self._load_model(model_path, src_language, tgt_language)
@@ -198,6 +202,7 @@ def serve():
         len_pen=args.len_pen,
         batch_size=args.batch_size,
         max_delta_length=args.max_delta_length,
+        lang_directions=args.lang_directions,
     )
     nmtsrv.add_RivaTranslateServicer_to_server(servicer, server)
     server.add_insecure_port('[::]:' + str(args.port))
