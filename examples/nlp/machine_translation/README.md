@@ -26,11 +26,9 @@ $$ -->
 <div align="center"><img style="background: transparent;  width:900px;" src="https://render.githubusercontent.com/render/math?math=\color{gray}%5Cmathcal%7BL%7D_%7B%5Ctext%7BWORD-KD%7D%7D%3D-%5Cfrac%7B1%7D%7BN%7D%5Csum_%7Bn%3D1%7D%5EN%20%5Csum_%7Bt%3D1%7D%5E%7B%7C%5Cmathcal%7BT%7D%7C%7D%5Csum_%7Bk%3D1%7D%5E%7B%7C%5Cmathcal%7BV%7D%7C%7D%20%5Cbf%7Bq%7D(y_t%5E%7B(n)%7D%3Dk%7C%5Cbf%20x%5E%7B(n)%7D%2C%20%5Cbf%20y_%7B%3Ct%7D%5E%7B(n)%7D)%20%5Clog%20p(y_t%5E%7B%7B(n)%7D%7D%3Dk%7Cx%5E%7B(n)%7D%2C%20%5Cbf%20y_%7B%3Ct%7D%5E%7B(n)%7D)%0D"></div>
 
 for <!-- $\mathcal{V}$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}%5Cmathcal%7BV%7D"> the vocabulary (classes) set, <!-- $\mathcal{T}$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}%5Cmathcal%7BT%7D"> the set of all possible target sequences, and $N$ the number of examples in the parallel transfer dataset (usually smaller than the original training dataset). In the case of NMT, we use compute a softmax of the logits over the vocabulary to determine this probability, namely (ignoring reference to the time step): 
-
 <!-- $$
 q_{k}:=q(y=k|\bf x; \theta_T)=\frac{\exp(z_k)}{\sum_{j=1}^{|\mathcal{V}|}\exp(z_j)}
 $$ --> 
-
 <div align="center"><img style="background: transparent; width:400px;" src="https://render.githubusercontent.com/render/math?math=\color{gray}q_%7Bk%7D%3A%3Dq(y%3Dk%7C%5Cbf%20x%3B%20%5Ctheta_T)%3D%5Cfrac%7B%5Cexp(z_k)%7D%7B%5Csum_%7Bj%3D1%7D%5E%7B%7C%5Cmathcal%7BV%7D%7C%7D%5Cexp(z_j)%7D%0D"></div> for <!-- $z_k$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}z_k"> the teacher's logit for class <!-- $k$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}k"> and
 <!-- $$
 p_{k}:=p(y=k|\bf x; \theta)=\frac{\exp(w_k)}{\sum_{j=1}^{|\mathcal{V}|}\exp(w_j)}
