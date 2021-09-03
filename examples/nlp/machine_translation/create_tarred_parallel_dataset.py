@@ -43,6 +43,8 @@ if __name__ == '__main__':
     parser.add_argument(
         '--encoder_tokenizer_r2l', action="store_true", help='Whether to return encoded sequence from right to left'
     )
+    parser.add_argument('--encoder_tokenizer_coverage', type=float, default=0.999, help='BPE character coverage [0-1]')
+    parser.add_argument('--decoder_tokenizer_coverage', type=float, default=0.999, help='BPE character coverage [0-1]')
     parser.add_argument(
         '--decoder_tokenizer_model', type=str, default='None', help='Path to pre-trained decoder tokenizer model'
     )
@@ -60,7 +62,6 @@ if __name__ == '__main__':
     parser.add_argument('--max_seq_length', type=int, default=512, help='Max Sequence Length')
     parser.add_argument('--min_seq_length', type=int, default=1, help='Min Sequence Length')
     parser.add_argument('--tokens_in_batch', type=int, default=16000, help='# Tokens per batch per GPU')
-    parser.add_argument('--coverage', type=float, default=0.999, help='BPE character coverage [0-1]')
     parser.add_argument(
         '--lines_per_dataset_fragment',
         type=int,
@@ -108,7 +109,7 @@ if __name__ == '__main__':
             encoder_tokenizer_coverage=args.encoder_tokenizer_coverage,
             decoder_tokenizer_name=args.decoder_tokenizer_name,
             decoder_tokenizer_vocab_size=args.decoder_tokenizer_vocab_size,
-            decoder_tokenizer_coverage=args.decoder_tokenizer_coverage,
+            decoder_tokenizer_coverage=args.encoder_tokenizer_coverage,
             global_rank=0,
         )
     else:
