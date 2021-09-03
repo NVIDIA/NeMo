@@ -38,9 +38,7 @@ $$ -->
 
 <div align="center"><img style="background: transparent;width:400px;" src="https://render.githubusercontent.com/render/math?math=\color{gray}p_%7Bk%7D%3A%3Dp(y%3Dk%7C%5Cbf%20x%3B%20%5Ctheta)%3D%5Cfrac%7B%5Cexp(w_k)%7D%7B%5Csum_%7Bj%3D1%7D%5E%7B%7C%5Cmathcal%7BV%7D%7C%7D%5Cexp(w_j)%7D%0D"></div>
 
-for <!-- $w_k$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}w_k"> the student's logit for class <!-- $k$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}k">. 
-
-Assuming the pre-trained teacher is parameterized by <!-- $\theta_T$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}%5Ctheta_T"> and the student is parameterized by $\theta$, then we interpolate between NLL and word-level KD with a mixing parameter $\alpha$:
+for <!-- $w_k$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}w_k"> the student's logit for class <!-- $k$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}k">. Assuming the pre-trained teacher is parameterized by <!-- $\theta_T$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}%5Ctheta_T"> and the student is parameterized by $\theta$, then we interpolate between NLL and word-level KD with a mixing parameter $\alpha$:
 
 <!-- $$
 \mathcal{L}(\theta;\theta_T)=(1-\alpha)\mathcal{L}_{\text{NLL}}(\theta)+\alpha\mathcal{L}_{\text{WORD-KD}}(\theta; \theta_T)
