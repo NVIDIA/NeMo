@@ -525,3 +525,5 @@ python enc_dec_nmt_distillation.py \
 
 # Low Data Regime
 Hinton et. al proposed that "soft targets allow the student to generalize well from only 3% of the training set". Using only 5% of ground labels and pseudo labels (with a 1:2 mixture) at a temperature of 1 with hybriid distillation, we saw similar performance to training on the entire transfer dataset and teacher-generated dataset. This leads us to propose the heuristic illustrated below, whereby you can use a large (unlabeled) monolingual corpus to get pseudo-labels from the teacher. Then you can concatenate this with a small (labeled) parallel dataset to obtain a "noisy" parallel dataset. Then we can train the student on this augmented dataset with word-level (or sequence-level NLL since they are equivalent) as well as word-level distillation using the teacher model.
+
+![low_data](https://user-images.githubusercontent.com/35356586/131950223-a224f112-50d7-44df-87a6-47615801a70b.png)
