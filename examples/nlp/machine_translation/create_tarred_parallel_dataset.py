@@ -109,7 +109,7 @@ if __name__ == '__main__':
             encoder_tokenizer_coverage=args.encoder_tokenizer_coverage,
             decoder_tokenizer_name=args.decoder_tokenizer_name,
             decoder_tokenizer_vocab_size=args.decoder_tokenizer_vocab_size,
-            decoder_tokenizer_coverage=args.encoder_tokenizer_coverage,
+            decoder_tokenizer_coverage=args.decoder_tokenizer_coverage,
             global_rank=0,
         )
     else:
