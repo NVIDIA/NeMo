@@ -667,6 +667,26 @@ pipeline {
             exp_manager=null'
           }
         }
+       stage('Test Restore with AlBERT') {
+          steps {
+            sh 'python examples/nlp/token_classification/punctuation_capitalization_evaluate.py \
+            pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_and_Capitalization_albert.nemo \
+            model.dataset.use_cache=false \
+            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            trainer.gpus=[1] \
+            exp_manager=null'
+          }
+        }
+        stage('Test Restore with RoBERTa') {
+          steps {
+            sh 'python examples/nlp/token_classification/punctuation_capitalization_evaluate.py \
+            pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_and_Capitalization_roberta.nemo \
+            model.dataset.use_cache=false \
+            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            trainer.gpus=[1] \
+            exp_manager=null'
+          }
+        }
       }
     }
 
@@ -1246,7 +1266,7 @@ pipeline {
               model.shared_tokenizer=False \
               model.encoder_tokenizer.library=huggingface \
               model.encoder.library=huggingface \
-              model.encoder.model_name=bert-base-cased \
+              model.encoder.model_name=distilbert-base-cased \
               model.encoder.pretrained=true \
               model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
@@ -1254,7 +1274,12 @@ pipeline {
               model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.train_ds.tokens_in_batch=128 \
+              model.validation_ds.tokens_in_batch=128 \
+              model.test_ds.tokens_in_batch=128 \
               model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              model.decoder.hidden_size=128 \
+              model.decoder.inner_size=256 \
               trainer.gpus=[0] \
               +trainer.fast_dev_run=true \
               exp_manager=null \
@@ -1275,14 +1300,19 @@ pipeline {
               model.encoder.model_name=null \
               model.encoder.pretrained=false \
               +model.encoder._target_=transformers.BertConfig \
-              +model.encoder.hidden_size=1536 \
+              +model.encoder.hidden_size=48 \
               model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
               model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.train_ds.tokens_in_batch=128 \
+              model.validation_ds.tokens_in_batch=128 \
+              model.test_ds.tokens_in_batch=128 \
               model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              model.decoder.hidden_size=128 \
+              model.decoder.inner_size=256 \
               trainer.gpus=[1] \
               +trainer.fast_dev_run=true \
               exp_manager=null \

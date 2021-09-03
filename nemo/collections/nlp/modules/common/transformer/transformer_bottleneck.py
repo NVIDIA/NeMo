@@ -56,6 +56,9 @@ class NeMoTransformerBottleneckDecoderConfig(NeMoTransformerBottleneckConfig):
 
 
 class TransformerBottleneckEncoderNM(TransformerEncoderNM):
+
+    _SUPPORTED_ARCH = ["seq2seq", "bridge", "perceiver"]
+
     def __init__(
         self,
         vocab_size: int,
@@ -191,7 +194,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
 
     @property
     def supported_arch(self):
-        return ["seq2seq", "bridge", "perceiver"]
+        return self._SUPPORTED_ARCH
 
     @property
     def arch(self):
@@ -219,6 +222,8 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
 
 
 class TransformerBottleneckDecoderNM(TransformerDecoderNM):
+    _SUPPORTED_ARCH = ["seq2seq"]
+
     def __init__(
         self,
         vocab_size: int,
@@ -292,7 +297,7 @@ class TransformerBottleneckDecoderNM(TransformerDecoderNM):
 
     @property
     def supported_arch(self):
-        return ["seq2seq"]
+        return _SUPPORTED_ARCH
 
     @property
     def arch(self):
