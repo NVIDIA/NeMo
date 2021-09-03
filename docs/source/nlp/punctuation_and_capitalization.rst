@@ -248,7 +248,7 @@ Required Arguments for Training
 Inference
 ---------
 
-Inference is performed by script `examples/nlp/token_classification/punctuate_capitalize.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuate_capitalize.py>`_
+Inference is performed by a script `examples/nlp/token_classification/punctuate_capitalize.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuate_capitalize.py>`_
 
 .. code::
 
@@ -260,32 +260,33 @@ Inference is performed by script `examples/nlp/token_classification/punctuate_ca
         --margin 16 \
         --step 8
 
-:code:`<PATH_TO_INPUT_MANIFEST>` is a path to NeMo :ref:`ASR manifest <_LibriSpeech_dataset>` which contains input text for
-restoring punctuation and capitalization. If manifest contains :code:`'pred_text'` key, than :code:`'pred_text'` elements
+:code:`<PATH_TO_INPUT_MANIFEST>` is a path to NeMo :ref:`ASR manifest <_LibriSpeech_dataset>` with text in which you need to
+restore punctuation and capitalization. If manifest contains :code:`'pred_text'` key, then :code:`'pred_text'` elements
 will be processed. Otherwise, punctuation and capitalization will be restored in :code:`'text'` elements.
 
-:code:`<PATH_TO_OUTPUT_MANIFEST>` is a path to NeMo ASR manifest into which result will be saved. Text with restored
-punctuation and capitalization are saved into under :code:`'pred_text'` key if :code:`'pred_text'` key is present in
-input manifest. Otherwise result will be saved under :code:`'text'` key.
+:code:`<PATH_TO_OUTPUT_MANIFEST>` is a path to NeMo ASR manifest into which result will be saved. The text with restored
+punctuation and capitalization is saved into :code:`'pred_text'` elements if :code:`'pred_text'` key is present in
+input manifest. Otherwise result will be saved into :code:`'text'` elements.
 
-Alternatively you can pass text for restoring punctuation and capitalization as plain text. See help for script
+Alternatively you can pass data for restoring punctuation and capitalization as plain text. See help for parameters :code:`--input_text`
+and :code:`--output_text` of the script
 `punctuate_capitalize.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuate_capitalize.py>`_.
 
 The script `punctuate_capitalize.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuate_capitalize.py>`_
 can restore punctuation and capitalization in a text of arbitrary length. Long sequences are split into segments
-:code:`--max_seq_length - 2` input tokens each. This each segments starts and ends with :code:`[CLS]` and :code:`[SEP]`
-tokens correspondingly. Consequent segments are shifted by :code:`--step` tokens to each other. For example, if
-every character is a token, :code:`--max_seq_length=5`, :code:`--step=2`, than text :code:`"hello"` will be split into
+:code:`--max_seq_length - 2` tokens each. Each segment starts and ends with :code:`[CLS]` and :code:`[SEP]`
+tokens correspondingly. Every segment is offset to the previous one by :code:`--step` tokens. For example, if
+every character is a token, :code:`--max_seq_length=5`, :code:`--step=2`, then text :code:`"hello"` will be split into
 segments :code:`[['[CLS]', 'h', 'e', 'l', '[SEP]'], ['[CLS]', 'l', 'l', 'o', '[SEP]']]`.
 
-If segments overlap than predicted probabilities for a token present in several segments are multiplied before
+If segments overlap, then predicted probabilities for a token present in several segments are multiplied before
 before selecting the best candidate.
 
-Splitting leads pour performance of a model edges of segments. Use parameter :code:`--margin` to discard :code:`--margin`
-probabilities near split. For example, if
-every character is a token, :code:`--max_seq_length=5`, :code:`--step=1`, :code:`--margin=1`, than text :code:`"hello"` will be split into
+Splitting leads to pour performance of a model near edges of segments. Use parameter :code:`--margin` to discard :code:`--margin`
+probabilities predicted for :code:`--margin` tokens near segment edges. For example, if
+every character is a token, :code:`--max_seq_length=5`, :code:`--step=1`, :code:`--margin=1`, then text :code:`"hello"` will be split into
 segments :code:`[['[CLS]', 'h', 'e', 'l', '[SEP]'], ['[CLS]', 'e', 'l', 'l', '[SEP]'], ['[CLS]', 'l', 'l', 'o', '[SEP]']]`.
-Before calculating actual predictions, probabilities for tokens marked by asterisk are removed: :code:`[['[CLS]', 'h', 'e', 'l'*, '[SEP]'*], ['[CLS]'*, 'e'*, 'l', 'l'*, '[SEP]'*], ['[CLS]'*, 'l'*, 'l', 'o', '[SEP]']]`
+Before calculating final predictions, probabilities for tokens marked by asterisk are removed: :code:`[['[CLS]', 'h', 'e', 'l'*, '[SEP]'*], ['[CLS]'*, 'e'*, 'l', 'l'*, '[SEP]'*], ['[CLS]'*, 'l'*, 'l', 'o', '[SEP]']]`
 
 
 Model Evaluation

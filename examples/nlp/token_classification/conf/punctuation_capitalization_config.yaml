@@ -58,16 +58,6 @@ model:
     pin_memory: false
     drop_last: false
 
-    # required for inference
-    # For inference text is split into overlapping sequences of subtokens of length `max_seq_length` with step `step`.
-    # For example, if every character is a subtoken, max_seq_length=3 and step=2, than the string "abcdef" for
-    # inference will be split into ["abc", "bcd", "cde", "def"]
-    step: 32
-    # You may use margin if input sequence is longer than `max_seq_length`. If margin is not equal to zero than
-    # `margin` subtokens predictions at the start or the end of a segment (if it is not the start or the end of entire
-    # input sequence) are not used for punctuation and capitalization prediction.
-    margin: 8
-
   train_ds:
     text_file: text_train.txt
     labels_file: labels_train.txt
