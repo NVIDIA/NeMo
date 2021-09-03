@@ -31,6 +31,7 @@ from transformers import TRANSFORMERS_CACHE
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
+from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import VOCAB_FILE_NAME
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder import MegatronEncoderModule
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
@@ -110,13 +111,12 @@ class NLPModel(ModelPT, Exportable):
         vocab_file = None
         if cfg.vocab_file:
             vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file)
-        tokenizer = get_tokenizer(
+        self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
             vocab_file=vocab_file,
             special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
             tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
         )
-        self.tokenizer = tokenizer
 
         if vocab_file is None:
             # when there is no vocab file we try to get the vocab from the tokenizer and register it
@@ -165,12 +165,14 @@ class NLPModel(ModelPT, Exportable):
                 with open(vocab_json_src, 'w', encoding='utf-8') as f:
                     f.write(json.dumps(vocab_dict, indent=2, sort_keys=True) + '\n')
                 self.register_artifact(config_path=vocab_dict_config_path, src=vocab_json_src)
-                # create vocab file
-                vocab_file_src = os.path.join(hash_path, vocab_file_config_path)
-                with open(vocab_file_src, 'w', encoding='utf-8') as f:
-                    for key in vocab_dict:
-                        f.write(key + '\n')
 
+                tokenizer_name = self.tokenizer.tokenizer.__class__.__name__
+                # save vocab file
+                # depending on the HuggingFace model, vocab file could mean different things, see VOCAB_FILE_NAME
+                self.tokenizer.save_vocabulary(hash_path)
+
+                # create vocab file
+                vocab_file_src = os.path.join(hash_path, VOCAB_FILE_NAME[tokenizer_name])
                 cfg.vocab_file = vocab_file_src
                 self.register_artifact(config_path=vocab_file_config_path, src=vocab_file_src)
             else:
