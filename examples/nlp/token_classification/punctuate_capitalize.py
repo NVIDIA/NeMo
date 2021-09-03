@@ -597,7 +597,7 @@ def add_punctuation_capitalization(
         for all_preds, acc_probs in [(all_punct_preds, acc_punct_probs), (all_capit_preds, acc_capit_probs)]:
             for q_i, (pred, prob) in enumerate(zip(all_preds, acc_probs)):
                 if prob is not None:
-                    all_preds[q_i], acc_probs[q_i] = move_acc_probs_to_token_preds(model, pred, prob, len(prob))
+                    all_preds[q_i], acc_probs[q_i] = move_acc_probs_to_token_preds(pred, prob, len(prob))
         for i, query in enumerate(queries):
             result.append(apply_punct_capit_predictions(model._cfg, query, all_punct_preds[i], all_capit_preds[i]))
     finally:
