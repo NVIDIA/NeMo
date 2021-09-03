@@ -35,17 +35,34 @@ except (ModuleNotFoundError, ImportError):
 class TimeFst(GraphFst):
     """
     Finite state transducer for classifying time
-        e.g. twelve thirty -> time { hours: "12" minutes: "30" }
-        e.g. twelve past one -> time { minutes: "12" hours: "1" }
-        e.g. two o clock a m -> time { hours: "2" suffix: "a.m." }
-        e.g. quarter to two -> time { hours: "1" minutes: "45" }
-        e.g. quarter past two -> time { hours: "2" minutes: "15" }
-        e.g. half past two -> time { hours: "2" minutes: "30" }
+    Time formats that it converts:
+    - <hour> + <minutes>
+        e.g. la una diez -> time { hours: "la 1" minutes: "10" }
+    - <hour> + " y " + <minutes>
+        e.g. la una y diez -> time { hours: "la 1" minutes: "10" }
+    - <hour> + " con " + <minutes>
+        e.g. la una con diez -> time { hours: "la 1" minutes: "10" }
+    - <hour> + " menos " + <minutes>
+        e.g. las dos menos cuarto -> time { hours: "la 1" minutes: "45" }
+    - "(un) cuarto para " + <hour>
+        e.g. cuarto para las dos -> time { minutes: "45" hours: "la 1" }
+
+    Note that times on the hour (e.g. "las dos" i.e. "two o'clock") do not get
+    converted into a time format. This is to avoid converting phrases that are 
+    not part of a time phrase (e.g. "las dos personas" i.e. "the two people")
+        e.g. las dos -> tokens { name: "las" } tokens { name: "dos" }
+    However, if a time on the hour is followed by a suffix (indicating 'a.m.' 
+    or 'p.m.'), it will be converted.
+        e.g. las dos pe eme -> time { hours: "las 2" minutes: "00" suffix: "p.m." }
+
+    Note that although the TimeFst verbalizer can accept 'zone' (timezone) fields, 
+    so far the rules have not been added to the TimeFst tagger to process
+    timezones (to keep the rules simple, and because timezones are not very
+    often specified in Spanish.)
     """
 
     def __init__(self):
         super().__init__(name="time", kind="classify")
-        # hours, minutes, seconds, suffix, zone, style, speak_period
 
         suffix_graph = pynini.string_file(get_abs_path("data/time/time_suffix.tsv"))
         time_to_graph = pynini.string_file(get_abs_path("data/time/time_to.tsv"))
@@ -63,7 +80,7 @@ class TimeFst(GraphFst):
             (graph_ties + pynutil.delete(" y ") + graph_digit),
         )
 
-        # note that making graph_hours starting from 2 hours
+        # note that graph_hour will start from 2 hours
         # "1 o'clock" will be treated differently because it
         # is singular
         digits_2_to_23 = [str(digits) for digits in range(2, 24)]
@@ -85,6 +102,11 @@ class TimeFst(GraphFst):
 
         final_suffix = pynutil.insert("suffix: \"") + convert_space(suffix_graph) + pynutil.insert("\"")
         final_suffix_optional = pynini.closure(delete_space + insert_space + final_suffix, 0, 1)
+
+        # las nueve a eme (only convert on-the-hour times if they are followed by a suffix)
+        graph_hsuffix = (
+            final_graph_hour + delete_extra_space + pynutil.insert("minutes: \"00\"") + insert_space + final_suffix
+        )
 
         # las nueve y veinticinco
         graph_hm = final_graph_hour + delete_extra_space + final_graph_minute
@@ -119,7 +141,9 @@ class TimeFst(GraphFst):
             )
             + pynutil.insert("\"")
         )
-        final_graph = ((graph_hm | graph_mh | graph_time_to) + final_suffix_optional).optimize()
+        final_graph = pynini.union(
+            (graph_hm | graph_mh | graph_time_to) + final_suffix_optional, graph_hsuffix
+        ).optimize()
 
         final_graph = self.add_tokens(final_graph)
 

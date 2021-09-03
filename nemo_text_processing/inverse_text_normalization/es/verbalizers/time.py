@@ -32,10 +32,9 @@ except (ModuleNotFoundError, ImportError):
 
 class TimeFst(GraphFst):
     """
-    Finite state transducer for verbalizing time, e.g.
-        time { hours: "12" minutes: "30" } -> 12:30
-        time { hours: "1" minutes: "12" } -> 01:12
-        time { hours: "2" suffix: "a.m." } -> 02:00 a.m.
+    Finite state transducer for verbalizing time,
+        e.g. time { hours: "la 1" minutes: "10" } -> la 1:10
+        e.g. time { hours: "la 1" minutes: "45" } -> la 1:45
     """
 
     def __init__(self):
