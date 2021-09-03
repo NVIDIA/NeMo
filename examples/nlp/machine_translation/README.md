@@ -31,16 +31,14 @@ for <!-- $\mathcal{V}$ --> <img style="transform: translateY(0.1em); background:
 q_{k}:=q(y=k|\bf x; \theta_T)=\frac{\exp(z_k)}{\sum_{j=1}^{|\mathcal{V}|}\exp(z_j)}
 $$ --> 
 
-<div align="center"><img style="background: transparent; width:400px;" src="https://render.githubusercontent.com/render/math?math=\color{gray}q_%7Bk%7D%3A%3Dq(y%3Dk%7C%5Cbf%20x%3B%20%5Ctheta_T)%3D%5Cfrac%7B%5Cexp(z_k)%7D%7B%5Csum_%7Bj%3D1%7D%5E%7B%7C%5Cmathcal%7BV%7D%7C%7D%5Cexp(z_j)%7D%0D"></div> for <!-- $z_k$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}z_k"> the teacher's logit for class <!-- $k$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}k">
-and
-
+<div align="center"><img style="background: transparent; width:400px;" src="https://render.githubusercontent.com/render/math?math=\color{gray}q_%7Bk%7D%3A%3Dq(y%3Dk%7C%5Cbf%20x%3B%20%5Ctheta_T)%3D%5Cfrac%7B%5Cexp(z_k)%7D%7B%5Csum_%7Bj%3D1%7D%5E%7B%7C%5Cmathcal%7BV%7D%7C%7D%5Cexp(z_j)%7D%0D"></div> for <!-- $z_k$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}z_k"> the teacher's logit for class <!-- $k$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}k"> and
 <!-- $$
 p_{k}:=p(y=k|\bf x; \theta)=\frac{\exp(w_k)}{\sum_{j=1}^{|\mathcal{V}|}\exp(w_j)}
 $$ --> 
 
 <div align="center"><img style="background: transparent;width:400px;" src="https://render.githubusercontent.com/render/math?math=\color{gray}p_%7Bk%7D%3A%3Dp(y%3Dk%7C%5Cbf%20x%3B%20%5Ctheta)%3D%5Cfrac%7B%5Cexp(w_k)%7D%7B%5Csum_%7Bj%3D1%7D%5E%7B%7C%5Cmathcal%7BV%7D%7C%7D%5Cexp(w_j)%7D%0D"></div>
 
-for <!-- $w_k$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}w_k"> the student's logit for class <!-- $k$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}k">.
+for <!-- $w_k$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}w_k"> the student's logit for class <!-- $k$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}k">. 
 
 Assuming the pre-trained teacher is parameterized by <!-- $\theta_T$ --> <img style="transform: translateY(0.1em); background: transparent;" src="https://render.githubusercontent.com/render/math?math=\color{gray}%5Ctheta_T"> and the student is parameterized by $\theta$, then we interpolate between NLL and word-level KD with a mixing parameter $\alpha$:
 
