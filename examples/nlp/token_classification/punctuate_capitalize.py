@@ -51,6 +51,8 @@ For more details on this script usage look in argparse help.
 
 
 def get_args():
+    default_model_parameter = "pretrained_name"
+    default_model = "punctuation_en_bert"
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description="The script is for restoring punctuation and capitalization in text. Long strings are split into "
@@ -83,10 +85,10 @@ def get_args():
         "--output_manifest",
         "-M",
         type=Path,
-        help="Path to output NeMo manifest. Text with punctuation and capitalization will be under 'pred_text' key "
-        "if 'pred_text' key is present in the first element of input manifest. Otherwise text with restored "
-        "punctuation and capitalization will be under 'text' key. Exactly one parameter of `--output_manifest` and "
-        "`--output_text` should be provided.",
+        help="Path to output NeMo manifest. Text with restored punctuation and capitalization will be saved in "
+        "'pred_text' elements if 'pred_text' key is present in the input manifest. Otherwise text with restored "
+        "punctuation and capitalization will be saved in 'text' elements. Exactly one parameter of `--output_manifest` "
+        "and `--output_text` should be provided.",
     )
     output.add_argument(
         "--output_text",
@@ -99,38 +101,25 @@ def get_args():
     model.add_argument(
         "--pretrained_name",
         "-p",
-        help="The name of NGC pretrained model. No more than one of parameters `--pretrained_name`, `--model_path`"
-        "should be provided.",
+        help=f"The name of NGC pretrained model. No more than one of parameters `--pretrained_name`, `--model_path`"
+        f"should be provided. If neither of parameters `--pretrained_name` and `--model_path`, then the script is run "
+        f"with `--{default_model_parameter}={default_model}`.",
         choices=[m.pretrained_model_name for m in PunctuationCapitalizationModel.list_available_models()],
     )
     model.add_argument(
         "--model_path",
         "-P",
         type=Path,
-        help="Path to .nemo checkpoint of punctuation and capitalization model. No more than one of parameters "
-        "`--pretrained_name` and `--model_path` should be provided.",
+        help=f"Path to .nemo checkpoint of punctuation and capitalization model. No more than one of parameters "
+        f"`--pretrained_name` and `--model_path` should be provided. If neither of parameters `--pretrained_name` and "
+        f"`--model_path`, then the script is run with `--{default_model_parameter}={default_model}`.",
     )
     parser.add_argument(
         "--max_seq_length",
         "-L",
         type=int,
         default=64,
-        help="Maximum length of segments into which queries are split. `max_seq_length` includes [CLS] and [SEP] "
-        "tokens.",
-    )
-    parser.add_argument(
-        "--margin",
-        "-g",
-        type=int,
-        default=16,
-        help="number of subtokens in the beginning and the end of segments which are not used for prediction "
-        "computation. The first segment does not have left margin and the last segment does not have right margin. For "
-        "example, if input sequence is tokenized into characters, ``max_seq_length=5``, ``step=1``, and ``margin=1``, "
-        "then query 'hello' will be tokenized into segments ``[['[CLS]', 'h', 'e', 'l', '[SEP]'], ['[CLS]', 'e', 'l', "
-        "'l', '[SEP]'], ['[CLS]', 'l', 'l', 'o', '[SEP]']]``. These segments are passed to the model. Before final "
-        "predictions computation, margins are removed. In the next list, subtokens which logits are not used for final "
-        "predictions computation are marked with asterisk: ``[['[CLS]'*, 'h', 'e', 'l'*, '[SEP]'*], ['[CLS]'*, 'e'*, "
-        "'l', 'l'*, '[SEP]'*], ['[CLS]'*, 'l'*, 'l', 'o', '[SEP]'*]]``.",
+        help="Length of segments into which queries are split. `--max_seq_length` includes [CLS] and [SEP] tokens.",
     )
     parser.add_argument(
         "--step",
@@ -138,9 +127,23 @@ def get_args():
         type=int,
         default=8,
         help="Relative shift of consequent segments into which long queries are split. Long queries are split into "
-        "segments which can overlap. Parameter ``step`` controls such overlapping. Imagine that queries are "
-        "tokenized into characters, ``max_seq_length=5``, and ``step=2``. In such a case query 'hello' is tokenized "
-        "into segments ``[['[CLS]', 'h', 'e', 'l', '[SEP]'], ['[CLS]', 'l', 'l', 'o', '[SEP]']]``.",
+        "segments which can overlap. Parameter `step` controls such overlapping. Imagine that queries are "
+        "tokenized into characters, `max_seq_length=5`, and `step=2`. In such a case query 'hello' is tokenized "
+        "into segments `[['[CLS]', 'h', 'e', 'l', '[SEP]'], ['[CLS]', 'l', 'l', 'o', '[SEP]']]`.",
+    )
+    parser.add_argument(
+        "--margin",
+        "-g",
+        type=int,
+        default=16,
+        help="A number of subtokens in the beginning and the end of segments which output probabilities are not used "
+        "for prediction computation. The first segment does not have left margin and the last segment does not have "
+        "right margin. For example, if input sequence is tokenized into characters, `max_seq_length=5`, `step=1`, "
+        "and `margin=1`, then query 'hello' will be tokenized into segments `[['[CLS]', 'h', 'e', 'l', '[SEP]'], "
+        "['[CLS]', 'e', 'l', 'l', '[SEP]'], ['[CLS]', 'l', 'l', 'o', '[SEP]']]`. These segments are passed to the "
+        "model. Before final predictions computation, margins are removed. In the next list, subtokens which logits "
+        "are not used for final predictions computation are marked with asterisk: `[['[CLS]'*, 'h', 'e', 'l'*, "
+        "'[SEP]'*], ['[CLS]'*, 'e'*, 'l', 'l'*, '[SEP]'*], ['[CLS]'*, 'l'*, 'l', 'o', '[SEP]'*]]`.",
     )
     parser.add_argument(
         "--batch_size", "-b", type=int, default=128, help="Number of segments which are processed simultaneously.",
@@ -149,7 +152,7 @@ def get_args():
     if args.input_manifest is None and args.output_manifest is not None:
         parser.error("--output_manifest requires --input_manifest")
     if args.pretrained_name is None and args.model_path is None:
-        args.pretrained_name = "punctuation_en_bert"
+        setattr(args, default_model_parameter, default_model)
     for name in ["input_manifest", "input_text", "output_manifest", "output_text", "model_path"]:
         if getattr(args, name) is not None:
             setattr(args, name, getattr(args, name).expanduser())
