@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 import copy
+
+import torch
 
 from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoder
 from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
@@ -73,10 +74,7 @@ class MaxPoolingEncoder(torch.nn.Module):
         )
         self.self_att_layers = torch.nn.ModuleList([copy.deepcopy(layer) for _ in range(hidden_blocks)])
 
-        self.max_pool = torch.nn.MaxPool1d(
-            kernel_size=2,
-            stride=2,
-        )
+        self.max_pool = torch.nn.MaxPool1d(kernel_size=2, stride=2,)
 
     @property
     def supported_init_methods(self):
@@ -121,8 +119,8 @@ class MaxPoolingEncoder(torch.nn.Module):
                 hidden_states = hidden_states.permute(0, 2, 1)
 
                 # max pool mask
-                hidden_mask = self.max_pool(
-                    hidden_mask.unsqueeze(0).type_as(hidden_states)
-                    ).squeeze(0).type_as(hidden_mask)
+                hidden_mask = (
+                    self.max_pool(hidden_mask.unsqueeze(0).type_as(hidden_states)).squeeze(0).type_as(hidden_mask)
+                )
 
         return hidden_states, hidden_mask
