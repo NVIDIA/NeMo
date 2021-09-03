@@ -28,10 +28,7 @@ from nemo.utils import logging
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--model_dir",
-        required=True,
-        type=str,
-        help="Path to a folder containing .nemo translation model files.",
+        "--model_dir", required=True, type=str, help="Path to a folder containing .nemo translation model files.",
     )
     parser.add_argument(
         "--punctuation_model",
@@ -59,13 +56,7 @@ class RivaTranslateServicer(nmtsrv.RivaTranslateServicer):
     """Provides methods that implement functionality of route guide server."""
 
     def __init__(
-        self,
-        model_dir,
-        punctuation_model_path,
-        beam_size=1,
-        len_pen=0.6,
-        max_delta_length=5,
-        batch_size=256,
+        self, model_dir, punctuation_model_path, beam_size=1, len_pen=0.6, max_delta_length=5, batch_size=256,
     ):
         self._models = {}
         self._beam_size = beam_size
@@ -114,7 +105,7 @@ class RivaTranslateServicer(nmtsrv.RivaTranslateServicer):
         else:
             raise NotImplemented(f"Only support .nemo files, but got: {model_path}")
 
-        if (not hasattr(model, "src_language") or not hasattr(model, "tgt_language")):
+        if not hasattr(model, "src_language") or not hasattr(model, "tgt_language"):
             raise ValueError(
                 f"Could not find src_language and tgt_language in model attributes. If using NeMo rc1 checkpoints, please edit the config files to add model.src_language and model.tgt_language"
             )
