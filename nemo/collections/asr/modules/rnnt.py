@@ -545,12 +545,15 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             (tuple): decoder states for given id
                 ([L x (1, H)], [L x (1, H)])
         """
-        state_list = []
-        for state_id in range(len(batch_states)):
-            states = [batch_states[state_id][layer][idx] for layer in range(self.pred_rnn_layers)]
-            state_list.append(states)
+        if batch_states is not None:
+            state_list = []
+            for state_id in range(len(batch_states)):
+                states = [batch_states[state_id][layer][idx] for layer in range(self.pred_rnn_layers)]
+                state_list.append(states)
 
-        return state_list
+            return state_list
+        else:
+            return None
 
     def batch_concat_states(
         self, batch_states: List[List[torch.Tensor]]
