@@ -16,10 +16,11 @@ import argparse
 import itertools
 import json
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
+from omegaconf import DictConfig
 from torch.nn.utils.rnn import pad_sequence
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -159,7 +160,7 @@ def get_args():
     return args
 
 
-def load_manifest(manifest):
+def load_manifest(manifest: Path):
     result = []
     with manifest.open() as f:
         for i, line in enumerate(f):
@@ -168,22 +169,18 @@ def load_manifest(manifest):
     return result
 
 
-def find_idx_of_first_nonzero(stm, start, max_, left):
-    if left:
-        end = start - max_
-        step = -1
-    else:
-        end = start + max_
-        step = 1
-    result = None
-    for i in range(start, end, step):
-        if stm[i]:
-            result = i
-            break
-    return result
-
-
-def get_subtokens_and_subtokens_mask(query, tokenizer):
+def _get_subtokens_and_subtokens_mask(query: str, tokenizer: TokenizerSpec) -> Tuple[List[str], List[int]]:
+    """
+    Tokenizes input query into subtokens and creates subtokens mask. Subtokens mask is an array of the same length as
+    subtokens array and contains zeros and ones in which. If element of mask equals 1, then corresponding subtoken in
+    subtokens array is first subtoken in some word
+    Args:
+        query: a string that will be tokenized
+        tokenizer: an instance of tokenizer
+    Returns:
+        subtokens: list of subtokens
+        subtokens_mask: list of ints
+    """
     words = query.strip().split()
     subtokens = []
     subtokens_mask = []
@@ -195,7 +192,22 @@ def get_subtokens_and_subtokens_mask(query, tokenizer):
     return subtokens, subtokens_mask
 
 
-def check_max_seq_length_and_margin_and_step(max_seq_length, margin, step):
+def _check_max_seq_length_and_margin_and_step(max_seq_length: int, margin: int, step: int):
+    """
+    Checks values of ``max_seq_length``, ``margin``, and ``step``.
+    Args:
+        max_seq_length: a segment length with ``[CLS]`` and ``[SEP]`` tokens
+        margin: a number of input tokens near edges of segments which are not used in punctuation and capitalization
+            prediction.
+        step: offset of consequent segments.
+    Returns:
+        None
+    """
+    if max_seq_length < 3:
+        raise ValueError(
+            f"Parameter `max_seq_length={max_seq_length}` cannot be less than 3 because `max_seq_length` is a length "
+            f"of a segment with [CLS] and [SEP] tokens."
+        )
     if margin >= (max_seq_length - 2) // 2 and margin > 0 or margin < 0:
         raise ValueError(
             f"Parameter `margin` has to be not negative and less than `(max_seq_length - 2) // 2`. Don't forget about "
@@ -217,7 +229,16 @@ def get_features_infer(
     max_seq_length: int = 64,
     step: Optional[int] = 8,
     margin: Optional[int] = 16,
-):
+) -> Tuple[
+    List[List[int]],
+    List[List[int]],
+    List[List[int]],
+    List[List[int]],
+    List[int],
+    List[int],
+    List[bool],
+    List[bool],
+]:
     """
     Processes the data and returns features.
 
@@ -240,8 +261,8 @@ def get_features_infer(
             ['[CLS]'*, 'e'*, 'l', 'l'*, '[SEP]'*], ['[CLS]'*, 'l'*, 'l', 'o', '[SEP]'*]]``.
 
     Returns:
-        all_input_ids: input ids for all tokens
-        all_segment_ids: token type ids
+        all_input_ids: list of input ids of all segments
+        all_segment_ids: token type ids of all segments
         all_input_mask: attention mask to use for BERT model
         all_subtokens_mask: masks out all subwords besides the first one
         all_quantities_of_preceding_words: number of words in query preceding a segment. Used for joining
@@ -254,11 +275,11 @@ def get_features_infer(
     stm = []
     sent_lengths = []
     for i, query in enumerate(queries):
-        subtokens, subtokens_mask = get_subtokens_and_subtokens_mask(query, tokenizer)
+        subtokens, subtokens_mask = _get_subtokens_and_subtokens_mask(query, tokenizer)
         sent_lengths.append(len(subtokens))
         st.append(subtokens)
         stm.append(subtokens_mask)
-    check_max_seq_length_and_margin_and_step(max_seq_length, margin, step)
+    _check_max_seq_length_and_margin_and_step(max_seq_length, margin, step)
     max_seq_length = min(max_seq_length, max(sent_lengths) + 2)
     logging.info(f'Max length: {max_seq_length}')
     # Maximum number of word subtokens in segment. The first and the last tokens in segment are CLS and EOS
@@ -368,19 +389,30 @@ class BertPunctuationCapitalizationInferLongDataset(Dataset):
         features = get_features_infer(
             queries=queries, max_seq_length=max_seq_length, tokenizer=tokenizer, step=step, margin=margin
         )
-        self.all_input_ids = features[0]
-        self.all_segment_ids = features[1]
-        self.all_input_mask = features[2]
-        self.all_subtokens_mask = features[3]
-        self.all_quantities_of_preceding_words = features[4]
-        self.all_query_ids = features[5]
-        self.all_is_first = features[6]
-        self.all_is_last = features[7]
+        self.all_input_ids: List[List[int]] = features[0]
+        self.all_segment_ids: List[List[int]] = features[1]
+        self.all_input_mask: List[List[int]] = features[2]
+        self.all_subtokens_mask: List[List[int]] = features[3]
+        self.all_quantities_of_preceding_words: List[int] = features[4]
+        self.all_query_ids: List[int] = features[5]
+        self.all_is_first: List[bool] = features[6]
+        self.all_is_last: List[bool] = features[7]
 
     def __len__(self) -> int:
         return len(self.all_input_ids)
 
-    def collate_fn(self, batch):
+    def collate_fn(
+        self, batch: List[Tuple[np.nddarray, np.ndarray, np.ndarray, np.ndarray, int, int, bool, bool]]
+    ) -> Tuple[
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        Tuple[int],
+        Tuple[int],
+        Tuple[bool],
+        Tuple[bool]
+    ]:
         inp_ids, segment_ids, inp_mask, st_mask, n_preceding, query_ids, is_first, is_last = zip(*batch)
         return (
             pad_sequence([torch.tensor(x) for x in inp_ids], batch_first=True, padding_value=0),
@@ -393,7 +425,7 @@ class BertPunctuationCapitalizationInferLongDataset(Dataset):
             is_last,
         )
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Tuple[np.nddarray, np.ndarray, np.ndarray, np.ndarray, int, int, bool, bool]:
         return (
             np.array(self.all_input_ids[idx]),
             np.array(self.all_segment_ids[idx]),
@@ -406,14 +438,27 @@ class BertPunctuationCapitalizationInferLongDataset(Dataset):
         )
 
 
-def setup_infer_dataloader(model, queries, batch_size, max_seq_length, step, margin):
+def setup_infer_long_dataloader(
+    model: PunctuationCapitalizationModel,
+    queries: List[str],
+    batch_size: int,
+    max_seq_length: int,
+    step: int,
+    margin: int
+) -> torch.utils.data.DataLoader:
     """
     Setup function for a infer data loader.
 
     Args:
+        model: a ``PunctuationCapitalizationModel`` instance for which data loader is created.
         queries: lower cased text without punctuation
         batch_size: batch size to use during inference
-        max_seq_length: maximum sequence length after tokenization
+        max_seq_length: length of segments into which queries are split. ``max_seq_length`` includes ``[CLS]`` and
+            ``[SEP]`` so every segment contains at most ``max_seq_length-2`` tokens from input a query.
+        step: number of tokens by which a segment is offset to a previous segment. Parameter ``step`` cannot be greater
+            than ``max_seq_length-2``.
+        margin: number of tokens near the edge of a segment which label probabilities are not used in final prediction
+            computation.
     Returns:
         A pytorch DataLoader.
     """
@@ -427,7 +472,6 @@ def setup_infer_dataloader(model, queries, batch_size, max_seq_length, step, mar
     dataset = BertPunctuationCapitalizationInferLongDataset(
         tokenizer=model.tokenizer, queries=queries, max_seq_length=max_seq_length, step=step, margin=margin
     )
-
     return torch.utils.data.DataLoader(
         dataset=dataset,
         collate_fn=dataset.collate_fn,
@@ -439,7 +483,21 @@ def setup_infer_dataloader(model, queries, batch_size, max_seq_length, step, mar
     )
 
 
-def move_acc_probs_to_token_preds(pred, acc_prob, number_of_probs_to_move):
+def _move_acc_probs_to_token_preds(
+    pred: List[int], acc_prob: np.ndarray, number_of_probs_to_move: int
+) -> Tuple[List[int], np.ndarray]:
+    """
+    ``number_of_probs_to_move`` rows in the beginning are removed from ``acc_prob``. From every remove row the label
+    with the largest probability is selected and appended to ``pred``.
+    Args:
+        pred: list with ready label indices for a query
+        acc_prob: numpy array of shape ``[number_of_words_for_which_probabilities_are_accumulated, number_of_labels]``
+        number_of_probs_to_move: int
+    Returns:
+        pred: list with ready label indices for a query
+        acc_prob: numpy array of shape
+            ``[number_of_words_for_which_probabilities_are_accumulated - number_of_probs_to_move, number_of_labels]``
+    """
     if number_of_probs_to_move > acc_prob.shape[0]:
         raise ValueError(
             f"Not enough accumulated probabilities. Number_of_probs_to_move={number_of_probs_to_move} "
@@ -451,13 +509,20 @@ def move_acc_probs_to_token_preds(pred, acc_prob, number_of_probs_to_move):
     return pred, acc_prob
 
 
-def update_accumulated_probabilities(acc_prob, update):
+def _update_accumulated_probabilities(acc_prob: np.ndarray, update: np.ndarray) -> np.ndarray:
+    """
+    Args:
+        acc_prob: numpy array of shape ``[A, L]``
+        update: numpy array of shape ``[A + N, L]``
+    Returns:
+        numpy array of shape ``[A + N, L]``
+    """
     acc_prob *= update[: acc_prob.shape[0]]
     acc_prob = np.concatenate([acc_prob, update[acc_prob.shape[0] :]], axis=0)
     return acc_prob
 
 
-def remove_margins(tensor, margin_size, keep_left, keep_right):
+def _remove_margins(tensor, margin_size, keep_left, keep_right):
     if not keep_left:
         tensor = tensor[margin_size + 1 :]  # remove left margin and CLS token
     if not keep_right:
@@ -465,7 +530,17 @@ def remove_margins(tensor, margin_size, keep_left, keep_right):
     return tensor
 
 
-def apply_punct_capit_predictions(cfg, query, punct_preds, capit_preds):
+def apply_punct_capit_predictions(cfg: DictConfig, query: str, punct_preds: List[int], capit_preds: List[int]) -> str:
+    """
+    Restores punctuation and capitalization in ``query``.
+    Args:
+        cfg: config for ``nemo.collections.nlp.models.PunctuationCapitalizationModel``
+        query: a string without punctuation and capitalization
+        punct_preds: ids of predicted punctuation labels
+        capit_preds: ids of predicted capitalization labels
+    Returns:
+        a query with restored punctuation and capitalization
+    """
     query = query.strip().split()
     assert len(query) == len(
         punct_preds
@@ -489,21 +564,49 @@ def apply_punct_capit_predictions(cfg, query, punct_preds, capit_preds):
     return query_with_punct_and_capit[:-1]
 
 
-def transform_logit_to_prob_and_remove_margins_and_extract_word_probs(
-    punct_logits, capit_logits, subtokens_mask, start_word_ids, margin, is_first, is_last, query_ids
-):
+def _transform_logit_to_prob_and_remove_margins_and_extract_word_probs(
+    punct_logits: torch.Tensor,
+    capit_logits: torch.Tensor,
+    subtokens_mask: torch.Tensor,
+    start_word_ids: Tuple[int],
+    margin: int,
+    is_first: Tuple[bool],
+    is_last: Tuple[bool],
+) -> Tuple[List[np.ndarray], List[np.ndarray], List[int]]:
+    """
+    Applies softmax to get punctuation and capitalization probabilities, applies ``subtokens_mask`` to extract
+    probabilities for words from probabilities for tokens, removes ``margin`` probabilities near edges of a segment.
+    Left margin of the first segment in a query and right margin of the last segment in a query are not removed.
+    Calculates new ``start_word_ids`` taking into the account the margins. If the left margin of a segment is removed
+    corresponding start word index is increased by number of words (number of nonzero values in corresponding
+    ``subtokens_mask``) in the margin.
+    Args:
+        punct_logits: a float tensor of shape ``[batch_size, segment_length, number_of_punctuation_labels]``
+        capit_logits: a float tensor of shape ``[batch_size, segment_length, number_of_capitalization_labels]``
+        subtokens_mask: a float tensor of shape ``[batch_size, segment_length]``
+        start_word_ids: indices of segment first words in a query
+        margin: number of tokens near edges of a segment which probabilities are discarded
+        is_first: is segment the first segment in a query
+        is_last: is segment the last segment in a query
+    Returns:
+        b_punct_probs: list containing ``batch_size`` numpy arrays. The numpy arrays have shapes
+            ``[number_of_word_in_this_segment, number_of_punctuation_labels]``. Word punctuation probabilities for
+            segments in the batch.
+        b_capit_probs: list containing ``batch_size`` numpy arrays. The numpy arrays have shapes
+            ``[number_of_word_in_this_segment, number_of_capitalization_labels]``. Word capitalization probabilities for
+            segments in the batch.
+        new_start_word_ids: indices of segment first words in a query after margin removal
+    """
     new_start_word_ids = list(start_word_ids)
     subtokens_mask = subtokens_mask > 0.5
     b_punct_probs, b_capit_probs = [], []
-    for i, (first, last, q_i, pl, cl, stm) in enumerate(
-        zip(is_first, is_last, query_ids, punct_logits, capit_logits, subtokens_mask)
-    ):
+    for i, (first, last, pl, cl, stm) in enumerate(zip(is_first, is_last, punct_logits, capit_logits, subtokens_mask)):
         if not first:
             new_start_word_ids[i] += torch.count_nonzero(stm[: margin + 1]).numpy()  # + 1 is for [CLS] token
-        stm = remove_margins(stm, margin, keep_left=first, keep_right=last)
+        stm = _remove_margins(stm, margin, keep_left=first, keep_right=last)
         for b_probs, logits in [(b_punct_probs, pl), (b_capit_probs, cl)]:
             p = torch.nn.functional.softmax(
-                remove_margins(logits, margin, keep_left=first, keep_right=last)[stm], dim=-1,
+                _remove_margins(logits, margin, keep_left=first, keep_right=last)[stm], dim=-1,
             )
             b_probs.append(p.detach().cpu().numpy())
     return b_punct_probs, b_capit_probs, new_start_word_ids
@@ -516,7 +619,7 @@ def add_punctuation_capitalization(
     max_seq_length: int = 64,
     step: int = 8,
     margin: int = 16,
-):
+) -> List[str]:
     """
     Adds punctuation and capitalization to the queries. Use this method for inference.
 
@@ -555,32 +658,33 @@ def add_punctuation_capitalization(
     if batch_size is None:
         batch_size = len(queries)
         logging.info(f'Using batch size {batch_size} for inference')
-    result = []
+    result: List[str] = []
     mode = model.training
     d = 'cuda' if torch.cuda.is_available() else 'cpu'
     try:
         model.eval()
         model = model.to(d)
-        infer_datalayer = setup_infer_dataloader(model, queries, batch_size, max_seq_length, step, margin)
-
+        infer_datalayer = setup_infer_long_dataloader(model, queries, batch_size, max_seq_length, step, margin)
         # Predicted labels for queries. List of labels for every query
-        all_punct_preds, all_capit_preds = [[] for _ in queries], [[] for _ in queries]
+        all_punct_preds: List[List[int]] = [[] for _ in queries]
+        all_capit_preds: List[List[int]] = [[] for _ in queries]
         # Accumulated probabilities (or product of probabilities acquired from different segments) of punctuation
-        # and capitalization. Probabilities for words in query are extracted using `subtokens_mask`.Probabilities
+        # and capitalization. Probabilities for words in a query are extracted using `subtokens_mask`. Probabilities
         # for newly processed words are appended to the accumulated probabilities. If probabilities for a word are
-        # already present in `acc_probs`, old probabilities are replaced with multiplication of old probabilities
-        # and probabilities acquired from new segment. Segments are processed in the order they are present in an
-        # input query. When all segments with a word are processed, the label with highest probability is chosen
-        # and appended to an appropriate list in `all_preds`. After adding prediction to `all_preds`,
-        # probabilities for a word are removed from `acc_probs`
-        acc_punct_probs, acc_capit_probs = [None for _ in queries], [None for _ in queries]
+        # already present in `acc_probs`, old probabilities are replaced with a product of old probabilities
+        # and probabilities acquired from new segment. Segments are processed in an order they appear in an
+        # input query. When all segments with a word are processed, a label with the highest probability
+        # (or product of probabilities) is chosen and appended to an appropriate list in `all_preds`. After adding
+        # prediction to `all_preds`, probabilities for a word are removed from `acc_probs`.
+        acc_punct_probs: List[Optional[np.ndarray]] = [None for _ in queries]
+        acc_capit_probs: List[Optional[np.ndarray]] = [None for _ in queries]
         for batch_i, batch in enumerate(infer_datalayer):
             inp_ids, inp_type_ids, inp_mask, subtokens_mask, start_word_ids, query_ids, is_first, is_last = batch
             punct_logits, capit_logits = model.forward(
                 input_ids=inp_ids.to(d), token_type_ids=inp_type_ids.to(d), attention_mask=inp_mask.to(d),
             )
-            _res = transform_logit_to_prob_and_remove_margins_and_extract_word_probs(
-                punct_logits, capit_logits, subtokens_mask, start_word_ids, margin, is_first, is_last, query_ids
+            _res = _transform_logit_to_prob_and_remove_margins_and_extract_word_probs(
+                punct_logits, capit_logits, subtokens_mask, start_word_ids, margin, is_first, is_last
             )
             punct_probs, capit_probs, start_word_ids = _res
             for i, (q_i, start_word_id, bpp_i, bcp_i) in enumerate(
@@ -593,14 +697,14 @@ def add_punctuation_capitalization(
                     if acc_probs[q_i] is None:
                         acc_probs[q_i] = b_probs_i
                     else:
-                        all_preds[q_i], acc_probs[q_i] = move_acc_probs_to_token_preds(
+                        all_preds[q_i], acc_probs[q_i] = _move_acc_probs_to_token_preds(
                             all_preds[q_i], acc_probs[q_i], start_word_id - len(all_preds[q_i]),
                         )
-                        acc_probs[q_i] = update_accumulated_probabilities(acc_probs[q_i], b_probs_i)
+                        acc_probs[q_i] = _update_accumulated_probabilities(acc_probs[q_i], b_probs_i)
         for all_preds, acc_probs in [(all_punct_preds, acc_punct_probs), (all_capit_preds, acc_capit_probs)]:
             for q_i, (pred, prob) in enumerate(zip(all_preds, acc_probs)):
                 if prob is not None:
-                    all_preds[q_i], acc_probs[q_i] = move_acc_probs_to_token_preds(pred, prob, len(prob))
+                    all_preds[q_i], acc_probs[q_i] = _move_acc_probs_to_token_preds(pred, prob, len(prob))
         for i, query in enumerate(queries):
             result.append(apply_punct_capit_predictions(model._cfg, query, all_punct_preds[i], all_capit_preds[i]))
     finally:
