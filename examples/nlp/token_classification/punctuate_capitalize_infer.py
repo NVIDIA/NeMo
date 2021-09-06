@@ -230,14 +230,7 @@ def get_features_infer(
     step: Optional[int] = 8,
     margin: Optional[int] = 16,
 ) -> Tuple[
-    List[List[int]],
-    List[List[int]],
-    List[List[int]],
-    List[List[int]],
-    List[int],
-    List[int],
-    List[bool],
-    List[bool],
+    List[List[int]], List[List[int]], List[List[int]], List[List[int]], List[int], List[int], List[bool], List[bool],
 ]:
     """
     Processes the data and returns features.
@@ -404,14 +397,7 @@ class BertPunctuationCapitalizationInferLongDataset(Dataset):
     def collate_fn(
         self, batch: List[Tuple[np.nddarray, np.ndarray, np.ndarray, np.ndarray, int, int, bool, bool]]
     ) -> Tuple[
-        torch.Tensor,
-        torch.Tensor,
-        torch.Tensor,
-        torch.Tensor,
-        Tuple[int],
-        Tuple[int],
-        Tuple[bool],
-        Tuple[bool]
+        torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, Tuple[int], Tuple[int], Tuple[bool], Tuple[bool]
     ]:
         inp_ids, segment_ids, inp_mask, st_mask, n_preceding, query_ids, is_first, is_last = zip(*batch)
         return (
@@ -444,7 +430,7 @@ def setup_infer_long_dataloader(
     batch_size: int,
     max_seq_length: int,
     step: int,
-    margin: int
+    margin: int,
 ) -> torch.utils.data.DataLoader:
     """
     Setup function for a infer data loader.
