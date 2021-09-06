@@ -62,7 +62,8 @@ def get_args():
         "consequent segments. Model outputs for tokens near the borders of tensors are less accurate and can be "
         "discarded before final predictions computation. Parameter `--margin` is number of discarded outputs near "
         "segments borders. Probabilities of tokens in overlapping parts of segments multiplied before selecting the "
-        "best prediction.",
+        "best prediction. Default values of parameters `--max_seq_length`, `--step`, and `--margin` are optimal for "
+        "IWSLT 2019 test dataset.",
     )
     input_ = parser.add_mutually_exclusive_group(required=True)
     input_.add_argument(
