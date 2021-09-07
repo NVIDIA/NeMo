@@ -40,10 +40,18 @@ class ElectronicFst(GraphFst):
             | pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
             | pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
         )
+
+        symbols = pynini.string_file(get_abs_path("data/electronic/symbols.tsv")).invert()
+
+        accepted_username = alpha_num | symbols
+
+
         username = (
             pynutil.insert("username: \"")
+            + alpha_num
+            + delete_extra_space
             + pynini.closure(
-                alpha_num + delete_extra_space + pynini.closure(pynini.cross("dot", '.') + delete_extra_space, 0, 1)
+                accepted_username + delete_extra_space
             )
             + alpha_num
             + pynutil.insert("\"")
