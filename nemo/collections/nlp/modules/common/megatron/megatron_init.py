@@ -15,7 +15,7 @@
 import os
 
 from megatron.initialize import initialize_megatron
-from megatron.mpu.initialize import (
+from apex.mpu.initialize import (
     set_pipeline_model_parallel_rank,
     set_pipeline_model_parallel_world_size,
     set_tensor_model_parallel_rank,

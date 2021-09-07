@@ -15,7 +15,8 @@
 from abc import ABC, abstractmethod
 
 import torch
-from megatron import get_args, mpu
+from megatron import get_args
+from apex import mpu
 from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
 
 from .module import MegatronModule

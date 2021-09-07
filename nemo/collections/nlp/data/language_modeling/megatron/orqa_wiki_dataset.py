@@ -20,7 +20,9 @@ from abc import ABC
 
 import numpy as np
 import torch
-from megatron import get_args, get_tokenizer, mpu, print_rank_0
+from megatron import get_args, get_tokenizer
+from apex import mpu
+from nemo.utils import logging
 from torch.utils.data import Dataset
 
 from nemo.collections.nlp.data.language_modeling.megatron.biencoder_dataset_utils import make_attention_mask
@@ -137,9 +139,9 @@ class OpenRetrievalEvidenceDataset(ABC, Dataset):
         self.dataset_name = dataset_name
         self.tokenizer = tokenizer
         self.max_seq_length = max_seq_length
-        print_rank_0(' > building {} dataset for {}:'.format(self.task_name, self.dataset_name))
+        logging.info(' > building {} dataset for {}:'.format(self.task_name, self.dataset_name))
         # Process the files.
-        print_rank_0(datapath)
+        logging.info(datapath)
         self.samples, self.id2text = self.process_samples_from_single_path(datapath)
 
         args = get_args()
@@ -147,7 +149,7 @@ class OpenRetrievalEvidenceDataset(ABC, Dataset):
             k = int(len(self.samples) * args.sample_rate)
             self.samples = random.sample(self.samples, k)
 
-        print_rank_0('  >> total number of samples: {}'.format(len(self.samples)))
+        logging.info('  >> total number of samples: {}'.format(len(self.samples)))
 
     def __len__(self):
         return len(self.samples)
@@ -164,7 +166,7 @@ class OpenRetrievalEvidenceDataset(ABC, Dataset):
 
     @staticmethod
     def process_samples_from_single_path(filename):
-        print_rank_0(' > Processing {} ...'.format(filename))
+        logging.info(' > Processing {} ...'.format(filename))
         total = 0
 
         rows = []
@@ -186,7 +188,7 @@ class OpenRetrievalEvidenceDataset(ABC, Dataset):
 
                 total += 1
                 if total % 100000 == 0:
-                    print_rank_0('  > processed {} rows so far ...'.format(total))
+                    logging.info('  > processed {} rows so far ...'.format(total))
 
-        print_rank_0(' >> processed {} samples.'.format(len(rows)))
+        logging.info(' >> processed {} samples.'.format(len(rows)))
         return rows, id2text

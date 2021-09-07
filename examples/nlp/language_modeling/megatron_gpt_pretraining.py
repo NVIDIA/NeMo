@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from omegaconf.omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
+from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector, NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -29,7 +31,21 @@ def main(cfg) -> None:
 
     trainer = Trainer(plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes)], **cfg.trainer)
 
+    # TODO: possibly add model parallel size arg to exp_manager
     exp_manager(trainer, cfg.exp_manager)
+
+    # update resume from checkpoint found by exp_manager
+    resume_from_checkpoint = trainer.resume_from_checkpoint
+    if resume_from_checkpoint is not None:
+        mp_rank = compute_model_parallel_rank(trainer.local_rank, cfg.model.tensor_model_parallel_size)
+        resume_from_checkpoint = Path(resume_from_checkpoint)
+        resume_from_checkpoint = resume_from_checkpoint.parent.parent.joinpath(f'mp_rank_{mp_rank:02d}').joinpath(
+            resume_from_checkpoint.name
+        )
+        resume_from_checkpoint = str(resume_from_checkpoint)
+        logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
+
+    trainer.checkpoint_connector = NLPCheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
 
     model = MegatronGPTModel(cfg.model, trainer)
 

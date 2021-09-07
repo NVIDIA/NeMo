@@ -16,7 +16,8 @@
 
 import torch
 import torch.nn.functional as F
-from megatron import get_args, mpu
+from megatron import get_args
+from apex import mpu
 
 from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
@@ -133,7 +134,12 @@ class Embedding(MegatronModule):
         args = get_args()
 
         # Word embeddings (parallel).
-        self.word_embeddings = mpu.VocabParallelEmbedding(vocab_size, self.hidden_size, init_method=self.init_method)
+        self.word_embeddings = mpu.VocabParallelEmbedding(
+            vocab_size,
+            self.hidden_size,
+            init_method=self.init_method,
+            use_cpu_initialization=args.use_cpu_initialization,
+        )
         self._word_embeddings_key = 'word_embeddings'
 
         # Position embedding (serial).

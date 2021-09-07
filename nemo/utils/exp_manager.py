@@ -319,6 +319,8 @@ def check_resume(
         NotFoundError: If resume is True, resume_ignore_no_checkpoint is False, and checkpoints could not be found.
         ValueError: If resume is True, and there were more than 1 checkpoint could found.
     """
+    app_state = AppState()
+
     if not log_dir:
         raise ValueError(f"Resuming requires the log_dir {log_dir} to be passed to exp_manager")
 
@@ -355,6 +357,7 @@ def check_resume(
             raise NotFoundError(f"There were no checkpoints found in {checkpoint_dir}. Cannot resume.")
     elif len(last_checkpoints) > 1:
         if 'mp_rank' in str(last_checkpoints[0]):
+            # checkpoint = last_checkpoints[0].parent.parent.joinpath(last_checkpoints[0].name)
             checkpoint = last_checkpoints[0]
         else:
             raise ValueError(f"Multiple checkpoints {last_checkpoints} that matches *last.ckpt.")
@@ -646,7 +649,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         for _ in range(models_to_delete):
             model = best_k_models.pop(-1)
             self.best_k_models.pop(model)
-            self._del_model(model)
+            self._del_model_without_trainer(model)
             logging.debug(f"Removed checkpoint: {model}")
 
         self.kth_best_model_path = best_k_models[-1]
@@ -720,6 +723,21 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         else:
             return super()._del_model(trainer, filepath)
 
+    def _del_model_without_trainer(self, filepath: str) -> None:
+        app_state = AppState()
+        if app_state.model_parallel_size is not None:
+            # filepath needs to be updated to include mp_rank
+            # TODO: figure out a good way to update these filepaths
+            dirname = os.path.dirname(filepath)
+            basename = os.path.basename(filepath)
+            filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
+
+        # each model parallel rank needs to remove its model
+        if app_state.data_parallel_rank is None or app_state.data_parallel_rank == 0:
+            if self._fs.exists(filepath):
+                self._fs.rm(filepath)
+                logging.info(f"Removed checkpoint: {filepath}")
+
     def _save_last_checkpoint(self, trainer: 'pl.Trainer', monitor_candidates: Dict[str, _METRIC]) -> None:
         """ Overrides PTL method to account for model parallel checkpoints.
             Checks for data parallel rank 0 rather than global rank 0.
@@ -733,6 +751,13 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             filepath = os.path.join(self.dirpath, f"{filepath}{self.FILE_EXTENSION}")
 
             self._save_model(trainer, filepath)
+
+            # TODO: figure out where self.last_model_path is being set
+            if self.last_model_path is not None:
+                if 'mp_rank' in self.last_model_path:
+                    last_model_path = Path(self.last_model_path)
+                    last_model_path = last_model_path.parent.parent.joinpath(last_model_path.name)
+                    self.last_model_path = str(last_model_path)
 
             # for model parallel we need to delete models for each model parallel rank
             if self.last_model_path and self.last_model_path != filepath and app_state.data_parallel_rank == 0:
@@ -761,7 +786,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 and self.best_model_path != filepath
                 and app_state.data_parallel_rank == 0
             ):
-                self._del_model(self.best_model_path)
+                self._del_model(trainer, self.best_model_path)
 
             self.best_model_path = filepath
         else:

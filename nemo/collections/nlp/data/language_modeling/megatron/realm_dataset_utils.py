@@ -17,7 +17,9 @@ import time
 
 import numpy as np
 import torch
-from megatron import get_args, get_tokenizer, mpu, print_rank_0
+from megatron import get_args, get_tokenizer
+from apex import mpu
+from nemo.utils import logging
 
 
 def get_one_epoch_dataloader(dataset, micro_batch_size=None):
@@ -164,7 +166,7 @@ def get_block_samples_mapping(
         # Build samples mapping
         verbose = torch.distributed.get_rank() == 0
         start_time = time.time()
-        print_rank_0(' > building samples index mapping for {} ...'.format(name))
+        logging.info(' > building samples index mapping for {} ...'.format(name))
 
         from nemo.collections.nlp.data.language_modeling.megatron import helpers
 
@@ -180,11 +182,11 @@ def get_block_samples_mapping(
             use_one_sent_docs,
         )
 
-        print_rank_0(' > done building samples index mapping')
+        logging.info(' > done building samples index mapping')
         np.save(indexmap_filename, mapping_array, allow_pickle=True)
-        print_rank_0(' > saved the index mapping in {}'.format(indexmap_filename))
+        logging.info(' > saved the index mapping in {}'.format(indexmap_filename))
         # Make sure all the ranks have built the mapping
-        print_rank_0(
+        logging.info(
             ' > elapsed time to build and save samples mapping ' '(seconds): {:4f}'.format(time.time() - start_time)
         )
 
@@ -196,13 +198,13 @@ def get_block_samples_mapping(
     assert counts[0].item() == torch.distributed.get_world_size(group=mpu.get_data_parallel_group())
 
     # Load indexed dataset.
-    print_rank_0(' > loading indexed mapping from {}'.format(indexmap_filename))
+    logging.info(' > loading indexed mapping from {}'.format(indexmap_filename))
     start_time = time.time()
 
     mapping_array = np.load(indexmap_filename, allow_pickle=True, mmap_mode='r')
     samples_mapping = BlockSamplesMapping(mapping_array)
 
-    print_rank_0('    loaded indexed file in {:3.3f} seconds'.format(time.time() - start_time))
-    print_rank_0('    total number of samples: {}'.format(mapping_array.shape[0]))
+    logging.info('    loaded indexed file in {:3.3f} seconds'.format(time.time() - start_time))
+    logging.info('    total number of samples: {}'.format(mapping_array.shape[0]))
 
     return samples_mapping
