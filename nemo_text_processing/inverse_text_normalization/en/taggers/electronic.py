@@ -49,9 +49,7 @@ class ElectronicFst(GraphFst):
             pynutil.insert("username: \"")
             + alpha_num
             + delete_extra_space
-            + pynini.closure(
-                accepted_username + delete_extra_space
-            )
+            + pynini.closure(accepted_username + delete_extra_space)
             + alpha_num
             + pynutil.insert("\"")
         )
@@ -69,19 +67,27 @@ class ElectronicFst(GraphFst):
         )
         graph = username + delete_extra_space + pynutil.delete("at") + insert_space + delete_extra_space + domain_graph
 
-
-
         ############# url ###
         protocol_end = pynini.cross(pynini.union("w w w", "www"), "www")
-        protocol_start = (pynini.cross("h t t p", "http") | pynini.cross("h t t p s", "https")) + pynini.cross(" colon slash slash ", "://")
-        # .com, 
-        ending =  delete_extra_space + symbols + delete_extra_space + (domain| pynini.closure(
-                accepted_username + delete_extra_space,
-            ) + accepted_username)
+        protocol_start = (pynini.cross("h t t p", "http") | pynini.cross("h t t p s", "https")) + pynini.cross(
+            " colon slash slash ", "://"
+        )
+        # .com,
+        ending = (
+            delete_extra_space
+            + symbols
+            + delete_extra_space
+            + (domain | pynini.closure(accepted_username + delete_extra_space,) + accepted_username)
+        )
 
-        protocol = pynini.closure(protocol_start, 0, 1) + protocol_end +  delete_extra_space + process_dot + pynini.closure( delete_extra_space 
-                + accepted_username, 1
-            ) + pynini.closure(ending, 1)
+        protocol = (
+            pynini.closure(protocol_start, 0, 1)
+            + protocol_end
+            + delete_extra_space
+            + process_dot
+            + pynini.closure(delete_extra_space + accepted_username, 1)
+            + pynini.closure(ending, 1)
+        )
         protocol = pynutil.insert("protocol: \"") + protocol + pynutil.insert("\"")
         graph |= protocol
         ########

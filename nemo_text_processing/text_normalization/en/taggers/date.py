@@ -175,9 +175,9 @@ class DateFst(GraphFst):
         year_graph = pynutil.insert("year: \"") + year_graph + pynutil.insert("\"")
         graph_year = pynini.closure(pynutil.delete(","), 0, 1) + delete_extra_space + year_graph
         optional_graph_year = pynini.closure(graph_year, 0, 1)
-        graph_mdy = (
-            month_graph + ( (delete_extra_space + day_graph)| graph_year | (delete_extra_space + day_graph + graph_year)
-        ))
+        graph_mdy = month_graph + (
+            (delete_extra_space + day_graph) | graph_year | (delete_extra_space + day_graph + graph_year)
+        )
 
         delete_sep = pynutil.delete(pynini.union("-", "/", "."))
         graph_mdy |= (
@@ -191,12 +191,7 @@ class DateFst(GraphFst):
             + (year_graph | two_digit_year)
         )
 
-        graph_dmy = (
-            day_graph
-            + delete_extra_space
-            + month_graph
-            + optional_graph_year
-        )
+        graph_dmy = day_graph + delete_extra_space + month_graph + optional_graph_year
         graph_ymd = (
             (year_graph | two_digit_year)
             + delete_sep

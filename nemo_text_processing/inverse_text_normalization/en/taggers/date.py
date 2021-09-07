@@ -136,12 +136,16 @@ class DateFst(GraphFst):
 
         day_graph = pynutil.insert("day: \"") + pynutil.add_weight(ordinal_graph, -0.7) + pynutil.insert("\"")
         optional_day_graph = pynini.closure(delete_extra_space + day_graph, 0, 1)
-        graph_year = delete_extra_space+ pynutil.insert("year: \"") + pynutil.add_weight(year_graph, -YEAR_WEIGHT)+ pynutil.insert("\"")
-        optional_graph_year = pynini.closure(graph_year,
-            0,
-            1,
+        graph_year = (
+            delete_extra_space
+            + pynutil.insert("year: \"")
+            + pynutil.add_weight(year_graph, -YEAR_WEIGHT)
+            + pynutil.insert("\"")
         )
-        graph_mdy = month_graph + ((delete_extra_space + day_graph) |  graph_year | (delete_extra_space + day_graph + graph_year )) 
+        optional_graph_year = pynini.closure(graph_year, 0, 1,)
+        graph_mdy = month_graph + (
+            (delete_extra_space + day_graph) | graph_year | (delete_extra_space + day_graph + graph_year)
+        )
         graph_dmy = (
             pynutil.delete("the")
             + delete_space

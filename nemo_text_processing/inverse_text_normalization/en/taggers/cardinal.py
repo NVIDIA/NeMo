@@ -119,9 +119,13 @@ class CardinalFst(GraphFst):
         labels_exception = [num_to_word(x) for x in range(0, 13)]
         graph_exception = pynini.union(*labels_exception)
 
-        graph = pynini.cdrewrite(pynutil.delete("and"), NEMO_SPACE, NEMO_SPACE, NEMO_SIGMA) @ (NEMO_ALPHA + NEMO_SIGMA)  @ graph 
+        graph = (
+            pynini.cdrewrite(pynutil.delete("and"), NEMO_SPACE, NEMO_SPACE, NEMO_SIGMA)
+            @ (NEMO_ALPHA + NEMO_SIGMA)
+            @ graph
+        )
 
-        self.graph_no_exception = graph 
+        self.graph_no_exception = graph
 
         self.graph = (pynini.project(graph, "input") - graph_exception.arcsort()) @ graph
 
