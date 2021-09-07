@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
 from typing import Optional
 
 from transformers import AutoTokenizer as AUTOTOKENIZER
@@ -227,3 +226,7 @@ class AutoTokenizer(TokenizerSpec):
     @property
     def name(self):
         return type(self.tokenizer).__name__
+
+    def save_vocabulary(self, save_directory: str, filename_prefix: str = None):
+        """Saves tokenizer's vocabulary and other artifacts to the specified directory"""
+        return self.tokenizer.save_vocabulary(save_directory=save_directory, filename_prefix=filename_prefix)
