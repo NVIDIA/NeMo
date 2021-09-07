@@ -507,13 +507,14 @@ class MTEncDecModel(EncDecNLPModel):
                         # update absolute path of tar files based on metadata_file path
                         valid_tar_files = []
                         metadata_basedir = os.path.abspath(os.path.dirname(metadata_file))
+                        updated_fn = 0
                         for fn in tar_files:
                             # if a file does not exist, look in metadata file directory
                             if os.path.exists(fn):
                                 valid_fn = fn
                             else:
+                                updated_fn += 1
                                 valid_fn = os.path.join(metadata_basedir, os.path.basename(fn))
-                                logging.debug(f'Updating {fn} --> {valid_fn}')
                                 if not os.path.exists(valid_fn):
                                     raise RuntimeError(
                                         f"File in tarred dataset is missing from absolute and relative paths {fn}"
@@ -523,6 +524,7 @@ class MTEncDecModel(EncDecNLPModel):
 
                         tar_files = valid_tar_files
 
+                        logging.info(f'Updated the path of {updated_fn} tarred files')
                         logging.info(f'Loading from tarred dataset {tar_files}')
                 else:
                     tar_files = tar_files_list[idx]
