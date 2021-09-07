@@ -513,6 +513,7 @@ class MTEncDecModel(EncDecNLPModel):
                                 valid_fn = fn
                             else:
                                 valid_fn = os.path.join(metadata_basedir, os.path.basename(fn))
+                                logging.debug(f'Updating {fn} --> {valid_fn}')
                                 if not os.path.exists(valid_fn):
                                     raise RuntimeError(
                                         f"File in tarred dataset is missing from absolute and relative paths {fn}"
