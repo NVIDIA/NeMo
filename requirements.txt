@@ -1,0 +1,4 @@
+hydra-core==1.1.1
+requests==2.26.0
+tqdm==4.62.2
+zstandard==0.15.2
