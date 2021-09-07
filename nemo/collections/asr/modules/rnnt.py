@@ -687,9 +687,6 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
         self._vocab_size = num_classes
         self._num_classes = num_classes + 1  # add 1 for blank symbol
 
-        self._fuse_loss_wer = fuse_loss_wer
-        self._fused_batch_size = fused_batch_size
-
         if experimental_fuse_loss_wer is not None:
             # TODO: Deprecate in 1.6
             logging.warning(
@@ -697,6 +694,9 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
             )
             # Override fuse_loss_wer from deprecated argument
             fuse_loss_wer = experimental_fuse_loss_wer
+
+        self._fuse_loss_wer = fuse_loss_wer
+        self._fused_batch_size = fused_batch_size
 
         if fuse_loss_wer and (fused_batch_size is None):
             raise ValueError("If `fuse_loss_wer` is set, then `fused_batch_size` cannot be None!")
