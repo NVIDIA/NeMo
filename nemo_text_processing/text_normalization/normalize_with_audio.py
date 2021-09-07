@@ -21,6 +21,7 @@ from typing import List, Tuple
 from joblib import Parallel, delayed
 from nemo_text_processing.text_normalization.data_loader_utils import post_process_punctuation, pre_process
 from nemo_text_processing.text_normalization.normalize import Normalizer
+from tqdm import tqdm
 
 try:
     from nemo.collections.asr.metrics.wer import word_error_rate
@@ -295,14 +296,17 @@ def normalize_manifest(args):
     with open(args.audio_data, 'r') as f:
         lines = f.readlines()
 
-        print(f'Normalizing {args.audio_data}...')
-        normalized_lines = Parallel(n_jobs=-2, backend="threading")(
-            delayed(_normalize_line)(normalizer, line) for line in lines
-        )
-
+        print(f'Normalizing {len(lines)}lines of {args.audio_data}...')
         with open(manifest_out, 'w') as f_out:
-            for line in normalized_lines:
-                f_out.write(json.dumps(line, ensure_ascii=False) + '\n')
+            # to save intermediate results to a file
+            batch = max(round(len(lines) / 10), 1000)
+            for i in range(0, len(lines), batch):
+                print(f'Processing batch {i} out of {round(len(lines)/batch)}.')
+                normalized_lines = Parallel(n_jobs=-2)(
+                    delayed(_normalize_line)(normalizer, line) for line in tqdm(lines[i : i + batch])
+                )
+                for line in normalized_lines:
+                    f_out.write(json.dumps(line, ensure_ascii=False) + '\n')
     print(f'Normalized version saved at {manifest_out}')
 
 
