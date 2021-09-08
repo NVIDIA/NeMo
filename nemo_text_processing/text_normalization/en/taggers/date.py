@@ -20,7 +20,6 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     TO_LOWER,
     GraphFst,
     delete_extra_space,
-    delete_space,
     insert_space,
 )
 from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
@@ -167,7 +166,6 @@ class DateFst(GraphFst):
             + ((pynini.union("1", "2", "3") + NEMO_DIGIT) | NEMO_DIGIT) @ cardinal_graph
             + pynutil.insert("\"")
         )
-        optional_day_graph = pynini.closure(delete_extra_space + day_graph, 0, 1)
 
         two_digit_year = NEMO_DIGIT ** (2) @ (cardinal.single_digits_graph | cardinal_graph)
         two_digit_year = pynutil.insert("year: \"") + two_digit_year + pynutil.insert("\"")
