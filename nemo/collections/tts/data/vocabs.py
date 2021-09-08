@@ -17,7 +17,7 @@ import itertools
 import string
 from typing import List
 
-from nemo.collections.tts.data.g2p_modules import english_word_tokenize, english_text_preprocessing
+from nemo.collections.tts.data.g2p_modules import english_text_preprocessing, english_word_tokenize
 
 
 class Base(abc.ABC):
@@ -75,8 +75,14 @@ class EnglishChars(Base):
     # fmt: on
 
     def __init__(
-        self, punct=True, spaces=False, apostrophe=True, add_blank_at="last_but_one", pad_with_space=False,
-        non_default_punct_list=None, text_preprocessing_func=english_text_preprocessing,
+        self,
+        punct=True,
+        spaces=False,
+        apostrophe=True,
+        add_blank_at="last_but_one",
+        pad_with_space=False,
+        non_default_punct_list=None,
+        text_preprocessing_func=english_text_preprocessing,
         word_tokenize_func=english_word_tokenize,
     ):
         labels = []

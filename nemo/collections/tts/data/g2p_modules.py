@@ -27,6 +27,7 @@ from nemo.utils.get_rank import is_global_rank_zero
 
 _words_re = re.compile("([a-z]+(?:[a-z-']*[a-z]+)*)|([^a-z]+)")
 
+
 def english_text_preprocessing(text):
     text = unicode(text)
     text = ''.join(char for char in unicodedata.normalize('NFD', text) if unicodedata.category(char) != 'Mn')
@@ -46,7 +47,7 @@ class BaseG2p(abc.ABC):
         phoneme_dict=None,
         text_preprocessing_func=lambda x: x,
         word_tokenize_func=lambda x: x,
-        apply_to_oov_word=None
+        apply_to_oov_word=None,
     ):
         self.phoneme_dict = phoneme_dict
         self.text_preprocessing_func = text_preprocessing_func
@@ -67,7 +68,7 @@ class EnglishG2p(BaseG2p):
         apply_to_oov_word=None,
         ignore_ambiguous_words=True,
         heteronyms=None,
-        encoding='latin-1'
+        encoding='latin-1',
     ):
         phoneme_dict = (
             self._parse_as_cmu_dict(phoneme_dict, encoding)
@@ -79,7 +80,7 @@ class EnglishG2p(BaseG2p):
             phoneme_dict=phoneme_dict,
             text_preprocessing_func=text_preprocessing_func,
             word_tokenize_func=word_tokenize_func,
-            apply_to_oov_word=apply_to_oov_word
+            apply_to_oov_word=apply_to_oov_word,
         )
 
         self.ignore_ambiguous_words = ignore_ambiguous_words
@@ -120,7 +121,6 @@ class EnglishG2p(BaseG2p):
                     "rank wakes from sleep prior to rank 0 finishing downloading, errors might result."
                 )
                 time.sleep(60)
-
 
             logging.warning("phoneme_dict_path=None, English g2p_dict will be used from nltk.corpus.cmudict.dict()")
 
