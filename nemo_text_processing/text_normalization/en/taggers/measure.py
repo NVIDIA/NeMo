@@ -140,6 +140,14 @@ class MeasureFst(GraphFst):
         )
 
         decimal_times = (
+            pynutil.insert("cardinal { integer: \"")
+            + decimal.final_graph_wo_negative
+            + pynutil.insert(" } units: \"")
+            + pynini.cross(pynini.union('x', "X"), 'x')
+            + pynutil.insert("\"")
+        )
+
+        cardinal_times = (
             pynutil.insert("decimal { ")
             + decimal.final_graph_wo_negative
             + pynutil.insert(" } units: \"")
