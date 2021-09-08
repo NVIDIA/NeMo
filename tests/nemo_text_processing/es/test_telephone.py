@@ -19,11 +19,13 @@ from nemo_text_processing.text_normalization.normalize import Normalizer
 from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
 from parameterized import parameterized
 
-from ..utils import PYNINI_AVAILABLE, parse_test_case_file
+from ..utils import CACHE_DIR, PYNINI_AVAILABLE, parse_test_case_file
 
 
 class TestTelephone:
-    inverse_normalizer_es = InverseNormalizer(lang='es') if PYNINI_AVAILABLE else None
+    inverse_normalizer_es = (
+        InverseNormalizer(lang='es', cache_dir=CACHE_DIR, overwrite_cache=False) if PYNINI_AVAILABLE else None
+    )
 
     @parameterized.expand(parse_test_case_file('es/data_inverse_text_normalization/test_cases_telephone.txt'))
     @pytest.mark.skipif(

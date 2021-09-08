@@ -15,7 +15,7 @@
 
 import os
 
-from nemo_text_processing.inverse_text_normalization.es.graph_utils import GraphFst, delete_extra_space, delete_space
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, delete_extra_space, delete_space
 from nemo_text_processing.inverse_text_normalization.es.taggers.cardinal import CardinalFst
 from nemo_text_processing.inverse_text_normalization.es.taggers.date import DateFst
 from nemo_text_processing.inverse_text_normalization.es.taggers.decimal import DecimalFst
