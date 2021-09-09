@@ -16,7 +16,7 @@
 import json
 import pickle
 from pathlib import Path
-from typing import Dict, Optional, List, Callable, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import librosa
 import torch
@@ -32,15 +32,7 @@ from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 
 CONSTANT = 1e-5
-VALID_SUPPLEMENTARY_DATA_TYPES = set(
-    [
-        'mel',
-        'durations',
-        'duration_prior',
-        'pitch',
-        'energy'
-    ]
-)
+VALID_SUPPLEMENTARY_DATA_TYPES = set(['mel', 'durations', 'duration_prior', 'pitch', 'energy'])
 
 
 class TTSDataset(Dataset):
@@ -63,7 +55,7 @@ class TTSDataset(Dataset):
         n_mels=64,
         lowfreq=0,
         highfreq=None,
-        **kwargs
+        **kwargs,
     ):
         super().__init__()
 
@@ -99,7 +91,7 @@ class TTSDataset(Dataset):
                         "audio_filepath": item["audio_filepath"],
                         "mel_filepath": item["mel_filepath"] if "mel_filepath" in item else None,
                         "duration": item["duration"] if "duration" in item else None,
-                        "text_tokens": None
+                        "text_tokens": None,
                     }
 
                     # Parse text
@@ -136,7 +128,7 @@ class TTSDataset(Dataset):
             # Prune data according to min/max_duration & the ignore file
             if total_duration is not None:
                 if (min_duration and item["duration"] < min_duration) or (
-                        max_duration and item["duration"] > max_duration
+                    max_duration and item["duration"] > max_duration
                 ):
                     pruned_duration += item["duration"]
                     pruned_items += 1
@@ -167,12 +159,9 @@ class TTSDataset(Dataset):
         self.hop_len = self.hop_length or self.n_fft // 4
         self.fb = torch.tensor(
             librosa.filters.mel(
-                self.sample_rate,
-                self.n_fft,
-                n_mels=self.n_mels,
-                fmin=self.lowfreq,
-                fmax=self.highfreq
-            ), dtype=torch.float
+                self.sample_rate, self.n_fft, n_mels=self.n_mels, fmin=self.lowfreq, fmax=self.highfreq
+            ),
+            dtype=torch.float,
         ).unsqueeze(0)
 
         window_fn = {
@@ -326,7 +315,18 @@ class TTSDataset(Dataset):
 
             print(energy.shape)
 
-        return text, text_length, audio, audio_length, log_mel, log_mel_length, durations, duration_prior, pitch, energy
+        return (
+            text,
+            text_length,
+            audio,
+            audio_length,
+            log_mel,
+            log_mel_length,
+            durations,
+            duration_prior,
+            pitch,
+            energy,
+        )
 
     def __len__(self):
         return len(self.data)
@@ -337,7 +337,18 @@ class TTSDataset(Dataset):
         return item
 
     def _collate_fn(self, batch):
-        _, tokens_lengths, _, audio_lengths, _, log_mel_lengths, durations_list, duration_priors_list, pitches, energies = zip(*batch)
+        (
+            _,
+            tokens_lengths,
+            _,
+            audio_lengths,
+            _,
+            log_mel_lengths,
+            durations_list,
+            duration_priors_list,
+            pitches,
+            energies,
+        ) = zip(*batch)
 
         max_tokens_len = max(tokens_lengths).item()
         max_audio_len = max(audio_lengths).item()
@@ -350,15 +361,30 @@ class TTSDataset(Dataset):
             log_mel_pad = torch.finfo(batch[0][2].dtype).tiny
 
         # Define empty lists to be batched
-        duration_priors = torch.zeros(
-            len(duration_priors_list),
-            max([prior_i.shape[0] for prior_i in duration_priors_list]),
-            max([prior_i.shape[1] for prior_i in duration_priors_list]),
-        ) if "duration_prior" in self.sup_data_types_set else []
+        duration_priors = (
+            torch.zeros(
+                len(duration_priors_list),
+                max([prior_i.shape[0] for prior_i in duration_priors_list]),
+                max([prior_i.shape[1] for prior_i in duration_priors_list]),
+            )
+            if "duration_prior" in self.sup_data_types_set
+            else []
+        )
         tokens, audios, log_mels, durations_list, pitches, energies = [], [], [], [], [], []
 
         for i, sample_tuple in enumerate(batch):
-            token, token_len, audio, audio_len, log_mel, log_mel_len, durations, duration_prior, pitch, energy = sample_tuple
+            (
+                token,
+                token_len,
+                audio,
+                audio_len,
+                log_mel,
+                log_mel_len,
+                durations,
+                duration_prior,
+                pitch,
+                energy,
+            ) = sample_tuple
 
             token = self.general_padding(token, token_len.item(), max_tokens_len, pad_value=self.text_parser_pad_id)
             tokens.append(token)
