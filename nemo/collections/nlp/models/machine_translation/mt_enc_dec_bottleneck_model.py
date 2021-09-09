@@ -284,8 +284,7 @@ class MTBottleneckModel(MTEncDecModel):
         return z, z_mean, z_logv, z_mask, tgt_log_probs
 
     @torch.no_grad()
-    def batch_translate(self, src: torch.LongTensor, src_mask: torch.LongTensor,
-                        return_beam_scores: bool = False):
+    def batch_translate(self, src: torch.LongTensor, src_mask: torch.LongTensor, return_beam_scores: bool = False):
         """
         Translates a minibatch of inputs from source language to target language.
         Args:
@@ -310,7 +309,9 @@ class MTBottleneckModel(MTEncDecModel):
             context_hiddens = self.latent2hidden(z)
 
             best_translations = self.beam_search(
-                encoder_hidden_states=context_hiddens, encoder_input_mask=enc_mask, return_beam_scores=return_beam_scores
+                encoder_hidden_states=context_hiddens,
+                encoder_input_mask=enc_mask,
+                return_beam_scores=return_beam_scores,
             )
             if return_beam_scores:
                 all_translations, scores, best_translations = best_translations
