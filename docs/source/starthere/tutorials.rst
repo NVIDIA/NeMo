@@ -3,7 +3,7 @@
 Tutorials
 =========
 
-The best way to get started with NeMo is to start wtih one of our tutorials.
+The best way to get started with NeMo is to start with one of our tutorials.
 
 Most NeMo tutorials can be run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.
 
