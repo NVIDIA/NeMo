@@ -300,7 +300,7 @@ pipeline {
 
         stage('Speaker Recognition') {
           steps {
-            sh 'python examples/speaker_recognition/speaker_reco.py \
+            sh 'python examples/speaker_tasks/recognition/speaker_reco.py \
             model.train_ds.batch_size=10 \
             model.validation_ds.batch_size=2 \
             model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json \
@@ -308,21 +308,21 @@ pipeline {
             model.test_ds.manifest_filepath=/home/TestData/an4_speaker/test.json \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
-            exp_manager.exp_dir=examples/speaker_recognition/speaker_recognition_results'
-            sh 'rm -rf examples/speaker_recognition/speaker_recognition_results'
+            exp_manager.exp_dir=examples/speaker_tasks/recognition/speaker_recognition_results'
+            sh 'rm -rf examples/speaker_tasks/recognition/speaker_recognition_results'
           }
         }
 
         stage('Speaker Diarization Inference') {
           steps {
-            sh 'python examples/speaker_recognition/speaker_diarize.py \
+            sh 'python examples/speaker_tasks/diarization/speaker_diarize.py \
             diarizer.oracle_num_speakers=2 \
             diarizer.paths2audio_files=/home/TestData/an4_diarizer/audio_files.scp \
             diarizer.path2groundtruth_rttm_files=/home/TestData/an4_diarizer/rttm_files.scp \
             diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
             diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
-            diarizer.out_dir=examples/speaker_recognition/speaker_diarization_results'
-            sh 'rm -rf examples/speaker_recognition/speaker_diarization_results'
+            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
+            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
           }
         }
 
