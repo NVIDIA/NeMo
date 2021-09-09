@@ -25,20 +25,31 @@ import torch
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
-_words_re = re.compile("([a-z]+(?:[a-z-']*[a-z]+)*)|([^a-z]+)")
+_words_re = re.compile("([a-zA-Z]+(?:[a-zA-Z-']*[a-zA-Z]+)*)|(\|[^|]*\|)|([^a-zA-Z|]+)")
 
 
 def english_text_preprocessing(text):
     text = unicode(text)
     text = ''.join(char for char in unicodedata.normalize('NFD', text) if unicodedata.category(char) != 'Mn')
-    text = text.lower()
     return text
 
 
 def english_word_tokenize(text):
     words = _words_re.findall(text)
-    words = [re.sub(r'\s(\d)', r'\1', word[1].upper()) if word[0] == '' else word[0] for word in words]
-    return words
+    result = []
+    for word in words:
+        maybe_word, maybe_without_changes, maybe_punct = word
+
+        if maybe_word != '':
+            without_changes = False
+            result.append((maybe_word.lower(), without_changes))
+        elif maybe_punct != '':
+            without_changes = False
+            result.append((re.sub(r'\s(\d)', r'\1', maybe_punct.upper()), without_changes))
+        elif maybe_without_changes != '':
+            without_changes = True
+            result.append((maybe_without_changes[1:-1], without_changes))
+    return result
 
 
 class BaseG2p(abc.ABC):
@@ -198,7 +209,11 @@ class EnglishG2p(BaseG2p):
         words = self.word_tokenize_func(text)
 
         prons = []
-        for word in words:
+        for word, without_changes in words:
+            if without_changes:
+                prons.extend(word.split(" "))
+                continue
+
             word_by_hyphen = word.split("-")
 
             pron, is_handled = self.parse_one_word(word)

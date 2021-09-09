@@ -16,7 +16,7 @@
 import json
 import pickle
 from pathlib import Path
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Callable, Union
 
 import librosa
 import torch
@@ -47,15 +47,28 @@ class TTSDataset(Dataset):
     def __init__(
         self,
         manifest_filepath: str,
+        sample_rate: int,
+        text_parser: Callable[[str], List[int]],
+        text_parser_pad_id: int,
         sup_data_types: List[str] = None,
-        sup_data_folder: Path = None,
+        sup_data_folder: Union[Path, str] = None,
+        max_duration: Optional[float] = None,
+        min_duration: Optional[float] = None,
+        ignore_file: Optional[str] = None,
+        trim: bool = False,
+        n_fft=1024,
+        win_length=None,
+        hop_length=None,
+        window="hann",
+        n_mels=64,
+        lowfreq=0,
+        highfreq=None,
         **kwargs
     ):
         super().__init__()
 
-        # TODO(Oktai): parser!
-        self.parser = make_parser(name="en", do_tokenize=tokenize_text)
-        self.pad_id = self.parser._blank_id
+        self.text_parser = text_parser
+        self.text_parser_pad_id = text_parser_pad_id
 
         if isinstance(manifest_filepath, str):
             manifest_filepath = [manifest_filepath]
@@ -65,27 +78,13 @@ class TTSDataset(Dataset):
             Path(sup_data_folder).mkdir(parents=True, exist_ok=True)
             self.sup_data_folder = sup_data_folder
 
-        self.sup_data_types = set(sup_data_types) if sup_data_types is not None else None
+        self.sup_data_types = sup_data_types if sup_data_types is not None else []
+        self.sup_data_types_set = set(sup_data_types)
 
-        self.add_audio_and_transcript(**kwargs)
-        self.add_mel(**kwargs)
-
-        for data_type in self.sup_data_types:
-            if data_type not in VALID_SUPPLEMENTARY_DATA_TYPES:
-                raise NotImplementedError(f"Current implementation of TTSDataset doesn't support {data_type} type.")
-
-            getattr(self, f"add_{data_type}")(**kwargs)
-            setattr(self, data_type, True)
-
-    def add_audio_and_transcript(self, **kwargs):
-        ignore_file = kwargs.pop("ignore_file", None)
-        min_duration = kwargs.pop("min_duration", None)
-        max_duration = kwargs.pop("max_duration", None)
-
-        self.sample_rate = kwargs.pop("sample_rate")
-        self.trim = kwargs.pop("trim", False)
-
+        self.sample_rate = sample_rate
+        self.trim = trim
         self.featurizer = WaveformFeaturizer(sample_rate=self.sample_rate)
+        self.data = []
 
         audio_files = []
         total_duration = 0
@@ -106,7 +105,7 @@ class TTSDataset(Dataset):
                     # Parse text
                     if "text" in item:
                         text = item["text"]
-                        text_tokens = self.parser(text)
+                        text_tokens = self.text_parser(text)
                         file_info["text_tokens"] = text_tokens
                     audio_files.append(file_info)
 
@@ -128,7 +127,6 @@ class TTSDataset(Dataset):
             with open(Path(ignore_file).expanduser(), "rb") as f:
                 wavs_to_ignore = set(pickle.load(f))
 
-        self.data = []
         pruned_duration = 0 if total_duration is not None else None
         pruned_items = 0
         for item in audio_files:
@@ -159,16 +157,13 @@ class TTSDataset(Dataset):
                 f"{(total_duration - pruned_duration) / 3600:.2f} hours."
             )
 
-    def add_mel(self, **kwargs):
-        self.n_fft = kwargs.pop("n_fft")
-        self.n_mels = kwargs.pop("n_mels")
-
-        self.lowfreq = kwargs.pop("lowfreq", 0)
-        self.highfreq = kwargs.pop("highfreq", None)
-        self.window = kwargs.pop("window", None)
-        self.win_length = kwargs.pop("win_length", None) or self.n_fft
-        self.hop_length = kwargs.pop("hop_length", None)
-
+        self.n_fft = n_fft
+        self.n_mels = n_mels
+        self.lowfreq = lowfreq
+        self.highfreq = highfreq
+        self.window = window
+        self.win_length = win_length or self.n_fft
+        self.hop_length = hop_length
         self.hop_len = self.hop_length or self.n_fft // 4
         self.fb = torch.tensor(
             librosa.filters.mel(
@@ -196,9 +191,30 @@ class TTSDataset(Dataset):
             window=window_fn(self.win_length, periodic=False).to(torch.float) if window_fn else None,
         )
 
-    def add_durations(self, **kwargs):
-        # TODO(Oktai): implement
+        for data_type in self.sup_data_types:
+            if data_type not in VALID_SUPPLEMENTARY_DATA_TYPES:
+                raise NotImplementedError(f"Current implementation of TTSDataset doesn't support {data_type} type.")
+
+            getattr(self, f"add_{data_type}")(**kwargs)
+
+    def add_mel(self, **kwargs):
         pass
+
+    def add_durations(self, **kwargs):
+        durs_file = kwargs.pop('durs_file')
+        durs_type = kwargs.pop('durs_type')
+
+        audio_stem2durs = torch.load(durs_file)
+        self.durs = []
+
+        for tag in [Path(d["audio_filepath"]).stem for d in self.data]:
+            durs = audio_stem2durs[tag]
+            if durs_type == "aligner-based":
+                self.durs.append(durs)
+            else:
+                raise NotImplementedError(
+                    f"{durs_type} duration type is not supported. Only align-based is supported at this moment."
+                )
 
     def add_duration_prior(self, **kwargs):
         pass
@@ -212,19 +228,20 @@ class TTSDataset(Dataset):
     def add_energy(self, **kwargs):
         pass
 
-    def get_log_mel(self, audio):
-        # disable autocast to get full range of stft values
+    def get_spec(self, audio):
         with torch.cuda.amp.autocast(enabled=False):
             spec = self.stft(audio)
-
             # guard is needed for sqrt if grads are passed through
             guard = CONSTANT  # TODO: Enable 0 if not self.use_grads else CONSTANT
             if spec.dtype in [torch.cfloat, torch.cdouble]:
                 spec = torch.view_as_real(spec)
             spec = torch.sqrt(spec.pow(2).sum(-1) + guard)
+        return spec
 
+    def get_log_mel(self, audio):
+        with torch.cuda.amp.autocast(enabled=False):
+            spec = self.get_spec(audio)
             mel = torch.matmul(self.fb.to(spec.dtype), spec)
-
             log_mel = torch.log(torch.clamp(mel, min=torch.finfo(mel.dtype).tiny))
         return log_mel
 
@@ -232,22 +249,14 @@ class TTSDataset(Dataset):
         sample = self.data[index]
         audio_stem = Path(sample["audio_filepath"]).stem
 
-        # audio, audio_length, text, text_length
         features = self.featurizer.process(sample["audio_filepath"], trim=self.trim)
         audio, audio_length = features, torch.tensor(features.shape[0]).long()
 
-        # TODO(Oktai): parser
-        if isinstance(sample["text_tokens"], str):
-            # If tokenize_text is False for Phone dataset
-            text = sample["text_tokens"]
-            text_length = None
-        else:
-            text = torch.tensor(sample["text_tokens"]).long()
-            text_length = torch.tensor(len(sample["text_tokens"])).long()
+        text = torch.tensor(sample["text_tokens"]).long()
+        text_length = torch.tensor(len(sample["text_tokens"])).long()
 
-        # mel, mel_length (if mel in sup_data_types)
         log_mel, log_mel_length = None, None
-        if getattr(self, "mel", False):
+        if "mel" in self.sup_data_types_set:
             mel_path = sample["mel_filepath"]
 
             if mel_path is not None and Path(mel_path).exists():
@@ -264,24 +273,24 @@ class TTSDataset(Dataset):
             log_mel = log_mel.squeeze(0)
             log_mel_length = torch.tensor(log_mel.shape[1]).long()
 
-        # duration_prior (if duration_prior in sup_data_types)
+        durations = None
+        if "durations" in self.sup_data_types_set:
+            durations = self.durs[index]
+
         duration_prior = None
-        # TODO(Oktai): parser
-        if getattr(self, "duration_prior", False):
-            if text_length is not None:
-                prior_path = Path(self.sup_data_folder) / f"pr_{audio_stem}.pt"
+        if "duration_prior" in self.sup_data_types_set:
+            prior_path = Path(self.sup_data_folder) / f"pr_{audio_stem}.pt"
 
-                if prior_path.exists():
-                    duration_prior = torch.load(prior_path)
-                else:
-                    log_mel_length = torch.tensor(self.get_log_mel(audio).squeeze(0).shape[1]).long()
-                    duration_prior = beta_binomial_prior_distribution(text_length, log_mel_length)
-                    duration_prior = torch.from_numpy(duration_prior)
-                    torch.save(duration_prior, prior_path)
+            if prior_path.exists():
+                duration_prior = torch.load(prior_path)
+            else:
+                log_mel_length = torch.tensor(self.get_log_mel(audio).squeeze(0).shape[1]).long()
+                duration_prior = beta_binomial_prior_distribution(text_length, log_mel_length)
+                duration_prior = torch.from_numpy(duration_prior)
+                torch.save(duration_prior, prior_path)
 
-        # pitch (if pitch in sup_data_types)
         pitch = None
-        if getattr(self, "pitch", False):
+        if "pitch" in self.sup_data_types_set:
             pitch_path = (
                 Path(self.sup_data_folder)
                 / f"{audio_stem}_pitch_pyin_fmin{self.pitch_fmin}_fmax{self.pitch_fmax}_fl{self.win_length}_hs{self.hop_len}.pt"
@@ -305,102 +314,87 @@ class TTSDataset(Dataset):
             pitch[pitch == -self.pitch_avg] = 0.0  # Zero out values that were perviously zero
             pitch /= self.pitch_std
 
-        # energy (if energy in sup_data_types)
         energy = None
-        if getattr(self, "energy", False):
+        if "energy" in self.sup_data_types_set:
             energy_path = Path(self.sup_data_folder) / f"{audio_stem}_energy_wl{self.win_length}_hs{self.hop_len}.pt"
             if energy_path.exists():
                 energy = torch.load(energy_path)
             else:
-                spec = self.stft(audio)
+                spec = self.get_spec(audio)
                 energy = torch.linalg.norm(spec.squeeze(0), axis=0)
                 torch.save(energy, energy_path)
 
-        return text, text_length, log_mel, log_mel_length, audio, audio_length, duration_prior, pitch, energy
+            print(energy.shape)
+
+        return text, text_length, audio, audio_length, log_mel, log_mel_length, durations, duration_prior, pitch, energy
 
     def __len__(self):
         return len(self.data)
 
-    def _collate_fn(self, batch):
-        log_mel_pad = torch.finfo(batch[0][2].dtype).tiny
+    def general_padding(self, item, item_len, max_len, pad_value=0):
+        if item_len < max_len:
+            item = torch.nn.functional.pad(item, (0, max_len - item_len), value=pad_value)
+        return item
 
-        _, tokens_lengths, _, log_mel_lengths, _, audio_lengths, duration_priors_list, pitches, energies = zip(*batch)
+    def _collate_fn(self, batch):
+        _, tokens_lengths, _, audio_lengths, _, log_mel_lengths, durations_list, duration_priors_list, pitches, energies = zip(*batch)
 
         max_tokens_len = max(tokens_lengths).item()
-        max_log_mel_len = max(log_mel_lengths)
         max_audio_len = max(audio_lengths).item()
-        max_pitches_len = max([len(i) for i in pitches])
-        max_energies_len = max([len(i) for i in energies])
-        if max_pitches_len != max_energies_len or max_pitches_len != max_log_mel_len:
-            logging.warning(
-                f"max_pitches_len: {max_pitches_len} != max_energies_len: {max_energies_len} != "
-                f"max_mel_len:{max_log_mel_len}. Your training run will error out!"
-            )
+        max_log_mel_len = max(log_mel_lengths) if "mel" in self.sup_data_types_set else None
+        max_durations_len = max([len(i) for i in durations_list]) if "durations" in self.sup_data_types_set else None
+        max_pitches_len = max([len(i) for i in pitches]) if "pitch" in self.sup_data_types_set else None
+        max_energies_len = max([len(i) for i in energies]) if "energy" in self.sup_data_types_set else None
+
+        if "mel" in self.sup_data_types_set:
+            log_mel_pad = torch.finfo(batch[0][2].dtype).tiny
 
         # Define empty lists to be batched
         duration_priors = torch.zeros(
             len(duration_priors_list),
             max([prior_i.shape[0] for prior_i in duration_priors_list]),
             max([prior_i.shape[1] for prior_i in duration_priors_list]),
-        )
-        audios, tokens, log_mels, pitches, energies = [], [], [], [], []
+        ) if "duration_prior" in self.sup_data_types_set else []
+        tokens, audios, log_mels, durations_list, pitches, energies = [], [], [], [], [], []
+
         for i, sample_tuple in enumerate(batch):
-            token, token_len, log_mel, log_mel_len, audio, audio_len, duration_prior, pitch, energy = sample_tuple
-            # Pad text tokens
-            token_len = token_len.item()
-            if token_len < max_tokens_len:
-                pad = (0, max_tokens_len - token_len)
-                token = torch.nn.functional.pad(token, pad, value=self.pad_id)
+            token, token_len, audio, audio_len, log_mel, log_mel_len, durations, duration_prior, pitch, energy = sample_tuple
+
+            token = self.general_padding(token, token_len.item(), max_tokens_len, pad_value=self.text_parser_pad_id)
             tokens.append(token)
-            # Pad mel
-            log_mel_len = log_mel_len
-            if log_mel_len < max_log_mel_len:
-                pad = (0, max_log_mel_len - log_mel_len)
-                log_mel = torch.nn.functional.pad(log_mel, pad, value=log_mel_pad)
-            log_mels.append(log_mel)
-            # Pad audio
-            audio_len = audio_len.item()
-            if audio_len < max_audio_len:
-                pad = (0, max_audio_len - audio_len)
-                audio = torch.nn.functional.pad(audio, pad)
+
+            audio = self.general_padding(audio, audio_len.item(), max_audio_len)
             audios.append(audio)
-            # Pad duration_prior
-            duration_priors[i, : duration_prior.shape[0], : duration_prior.shape[1]] = duration_prior
-            # Pad pitch
-            if len(pitch) < max_pitches_len:
-                pad = (0, max_pitches_len - len(pitch))
-                pitch = torch.nn.functional.pad(pitch, pad)
-            pitches.append(pitch)
-            # Pad energy
-            if len(energy) < max_energies_len:
-                pad = (0, max_energies_len - len(energy))
-                energy = torch.nn.functional.pad(energy, pad)
-            energies.append(energy)
 
-        audios = torch.stack(audios)
-        audio_lengths = torch.stack(audio_lengths)
-        tokens = torch.stack(tokens)
-        tokens_lengths = torch.stack(tokens_lengths)
-        log_mels = torch.stack(log_mels)
-        log_mel_lengths = torch.stack(log_mel_lengths)
-        pitches = torch.stack(pitches)
-        energies = torch.stack(energies)
+            if "mel" in self.sup_data_types_set:
+                log_mels.append(self.general_padding(log_mel, log_mel_len, max_log_mel_len, pad_value=log_mel_pad))
+            if "durations" in self.sup_data_types_set:
+                durations_list.append(self.general_padding(durations, len(durations), max_durations_len))
+            if "duration_prior" in self.sup_data_types_set:
+                duration_priors[i, : duration_prior.shape[0], : duration_prior.shape[1]] = duration_prior
+            if "pitch" in self.sup_data_types_set:
+                pitches.append(self.general_padding(pitch, len(pitch), max_pitches_len))
+            if "energy" in self.sup_data_types_set:
+                energies.append(self.general_padding(energy, len(energy), max_energies_len))
 
-        logging.debug(f"audios: {audios.shape}")
-        logging.debug(f"audio_lengths: {audio_lengths.shape}")
-        logging.debug(f"tokens: {tokens.shape}")
-        logging.debug(f"tokens_lengths: {tokens_lengths.shape}")
-        logging.debug(f"log_mels: {log_mels.shape}")
-        logging.debug(f"log_mel_lengths: {log_mel_lengths.shape}")
-        logging.debug(f"duration_priors: {duration_priors.shape}")
-        logging.debug(f"pitches: {pitches.shape}")
-        logging.debug(f"energies: {energies.shape}")
+        result = [torch.stack(tokens), torch.stack(tokens_lengths), torch.stack(audios), torch.stack(audio_lengths)]
+        for sup_data_type in self.sup_data_types:
+            if sup_data_type == "mel":
+                result.extend([torch.stack(log_mels), torch.stack(log_mel_lengths)])
+            elif sup_data_type == "durations":
+                result.append(torch.stack(durations_list))
+            elif sup_data_type == "duration_prior":
+                result.append(duration_priors)
+            elif sup_data_type == "pitch":
+                result.append(torch.stack(pitches))
+            elif sup_data_type == "energy":
+                result.append(torch.stack(energies))
 
-        return (tokens, tokens_lengths, log_mels, log_mel_lengths, duration_priors, pitches, energies)
+        return tuple(result)
 
     def decode(self, tokens):
         assert len(tokens.squeeze().shape) in [0, 1]
-        return self.parser.decode(tokens)
+        return self.text_parser(tokens)
 
 
 class CharMelAudioDataset(Dataset):
