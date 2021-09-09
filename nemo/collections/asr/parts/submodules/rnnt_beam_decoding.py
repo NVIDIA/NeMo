@@ -121,8 +121,7 @@ class BeamRNNTInfer(Typing):
         nsc_prefix_alpha: Unused int.
 
         # mAES flags
-        maes_num_steps: Number of adaptive steps to take. From the paper, 2 steps is generally sufficient,
-            and can be reduced to 1 to improve decoding speed while sacrificing some accuracy. int > 0.
+        maes_num_steps: Number of adaptive steps to take. From the paper, 2 steps is generally sufficient. int > 1.
 
         maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to keep this as 1
             in order to reduce expensive beam search cost later. int >= 0.
@@ -248,8 +247,8 @@ class BeamRNNTInfer(Typing):
         if self.maes_prefix_alpha < 0:
             raise ValueError("`maes_prefix_alpha` must be a positive integer.")
 
-        if self.maes_num_steps < 1:
-            raise ValueError("`maes_num_steps` must be greater than 0.")
+        if self.maes_num_steps < 2:
+            raise ValueError("`maes_num_steps` must be greater than 1.")
 
         if softmax_temperature != 1.0 and language_model is not None:
             logging.warning(
