@@ -180,8 +180,8 @@ class DuplexTextNormalizationModel(nn.Module):
                 "class_accuracy": log_class_accuracies,
             }
             # Write errors to log file
-            for _input, tag_pred, final_pred, target in zip(
-                cur_inputs, cur_tag_preds, cur_final_preds, cur_targets_sent
+            for _input, tag_pred, final_pred, target, classes in zip(
+                cur_inputs, cur_tag_preds, cur_final_preds, cur_targets_sent, cur_classes
             ):
                 if not TextNormalizationTestDataset.is_same(final_pred, target, direction, self.lang):
                     if direction == constants.INST_BACKWARD:
@@ -192,9 +192,11 @@ class DuplexTextNormalizationModel(nn.Module):
                         tn_error_ctx += 1
                     formatted_input_str = get_formatted_string(basic_tokenize(_input, lang=self.lang))
                     formatted_tag_pred_str = get_formatted_string(tag_pred)
+                    class_str = " ".join(classes)
                     error_f.write(f'Original Input : {_input}\n')
                     error_f.write(f'Input          : {formatted_input_str}\n')
                     error_f.write(f'Predicted Tags : {formatted_tag_pred_str}\n')
+                    error_f.write(f'Ground Classes : {class_str}\n')
                     error_f.write(f'Predicted Str  : {final_pred}\n')
                     error_f.write(f'Ground-Truth   : {target}\n')
                     error_f.write('\n')
@@ -214,10 +216,16 @@ class DuplexTextNormalizationModel(nn.Module):
 
     # Functions for inference
     def _infer(self, sents: List[str], inst_directions: List[str]):
-        """ Main function for Inference
+        """
+        Main function for Inference
+
+        If the 'joint' mode is used, "sents" will include both spoken and written forms on each input sentence,
+        and "inst_directions" will include both constants.INST_BACKWARD and constants.INST_FORWARD
+
         Args:
             sents: A list of input texts.
-            inst_directions: A list of str where each str indicates the direction of the corresponding instance (i.e., INST_BACKWARD for ITN or INST_FORWARD for TN).
+            inst_directions: A list of str where each str indicates the direction of the corresponding instance \
+            (i.e., constants.INST_BACKWARD for ITN or constants.INST_FORWARD for TN).
 
         Returns:
             tag_preds: A list of lists where the inner list contains the tag predictions from the tagger for each word in the input text.
@@ -228,9 +236,11 @@ class DuplexTextNormalizationModel(nn.Module):
         sents = self.input_preprocessing(list(sents))
 
         # Tagging
+        # span_ends included
         tag_preds, nb_spans, span_starts, span_ends = self.tagger._infer(sents, inst_directions)
         output_spans = self.decoder._infer(sents, nb_spans, span_starts, span_ends, inst_directions)
-        # Preprare final outputs
+
+        # Prepare final outputs
         final_outputs = []
         for ix, (sent, tags) in enumerate(zip(sents, tag_preds)):
             cur_words, jx, span_idx = [], 0, 0

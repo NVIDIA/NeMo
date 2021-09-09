@@ -85,6 +85,28 @@ class AbstractRNNTDecoding(ABC):
                         By default, a float of 2.0 is used so that a target sequence can be at most twice
                         as long as the acoustic model output length T.
 
+                maes_num_steps: Number of adaptive steps to take. From the paper, 2 steps is generally sufficient,
+                    and can be reduced to 1 to improve decoding speed while sacrificing some accuracy. int > 0.
+
+                maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to keep this as 1
+                    in order to reduce expensive beam search cost later. int >= 0.
+
+                maes_expansion_beta: Maximum number of prefix expansions allowed, in addition to the beam size.
+                    Effectively, the number of hypothesis = beam_size + maes_expansion_beta. Must be an int >= 0,
+                    and affects the speed of inference since large values will perform large beam search in the next step.
+
+                maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
+                    The default (2.3) is selected from the paper. It performs a comparison (max_log_prob - gamma <= log_prob[v])
+                    where v is all vocabulary indices in the Vocab set and max_log_prob is the "most" likely token to be
+                    predicted. Gamma therefore provides a margin of additional tokens which can be potential candidates for
+                    expansion apart from the "most likely" candidate.
+                    Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
+                    but hurting accuracy). Higher values will increase the number of expansions (by reducing pruning-by-value,
+                    thereby reducing speed but potentially improving accuracy). This is a hyper parameter to be experimentally
+                    tuned on a validation set.
+
+                softmax_temperature: Scales the logits of the joint prior to computing log_softmax.
+
         decoder: The Decoder/Prediction network module.
         joint: The Joint network module.
         blank_id: The id of the RNNT blank token.
@@ -97,7 +119,7 @@ class AbstractRNNTDecoding(ABC):
         self.compute_hypothesis_token_set = self.cfg.get("compute_hypothesis_token_set", False)
         self.preserve_alignments = self.cfg.get('preserve_alignments', False)
 
-        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd']
+        possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes']
         if self.cfg.strategy not in possible_strategies:
             raise ValueError(f"Decoding strategy must be one of {possible_strategies}")
 
@@ -106,7 +128,9 @@ class AbstractRNNTDecoding(ABC):
                 decoder_model=decoder,
                 joint_model=joint,
                 blank_index=self.blank_id,
-                max_symbols_per_step=self.cfg.greedy.get('max_symbols', None),
+                max_symbols_per_step=(
+                    self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                ),
                 preserve_alignments=self.preserve_alignments,
             )
 
@@ -115,7 +139,9 @@ class AbstractRNNTDecoding(ABC):
                 decoder_model=decoder,
                 joint_model=joint,
                 blank_index=self.blank_id,
-                max_symbols_per_step=self.cfg.greedy.get('max_symbols', None),
+                max_symbols_per_step=(
+                    self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
+                ),
                 preserve_alignments=self.preserve_alignments,
             )
 
@@ -128,6 +154,7 @@ class AbstractRNNTDecoding(ABC):
                 return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
                 search_type='default',
                 score_norm=self.cfg.beam.get('score_norm', True),
+                softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
                 preserve_alignments=self.preserve_alignments,
             )
 
@@ -140,7 +167,8 @@ class AbstractRNNTDecoding(ABC):
                 return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
                 search_type='tsd',
                 score_norm=self.cfg.beam.get('score_norm', True),
-                tsd_max_sym_exp_per_step=self.cfg.beam.get('tsd_max_sym_exp', 50),
+                tsd_max_sym_exp_per_step=self.cfg.beam.get('tsd_max_sym_exp', 10),
+                softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
                 preserve_alignments=self.preserve_alignments,
             )
 
@@ -154,7 +182,31 @@ class AbstractRNNTDecoding(ABC):
                 search_type='alsd',
                 score_norm=self.cfg.beam.get('score_norm', True),
                 alsd_max_target_len=self.cfg.beam.get('alsd_max_target_len', 2),
+                softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
                 preserve_alignments=self.preserve_alignments,
+            )
+
+        elif self.cfg.strategy == 'maes':
+            self.decoding = beam_decode.BeamRNNTInfer(
+                decoder_model=decoder,
+                joint_model=joint,
+                beam_size=self.cfg.beam.beam_size,
+                return_best_hypothesis=decoding_cfg.beam.get('return_best_hypothesis', True),
+                search_type='maes',
+                score_norm=self.cfg.beam.get('score_norm', True),
+                maes_num_steps=self.cfg.beam.get('maes_num_steps', 2),
+                maes_prefix_alpha=self.cfg.beam.get('maes_prefix_alpha', 1),
+                maes_expansion_gamma=self.cfg.beam.get('maes_expansion_gamma', 2.3),
+                maes_expansion_beta=self.cfg.beam.get('maes_expansion_beta', 2.0),
+                softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
+                preserve_alignments=self.preserve_alignments,
+            )
+
+        else:
+
+            raise ValueError(
+                f"Incorrect decoding strategy supplied. Must be one of {possible_strategies}\n"
+                f"but was provided {self.cfg.strategy}"
             )
 
     def rnnt_decoder_predictions_tensor(

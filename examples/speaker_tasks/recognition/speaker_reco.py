@@ -15,7 +15,7 @@
 import os
 
 import pytorch_lightning as pl
-from omegaconf import ListConfig, OmegaConf
+from omegaconf import OmegaConf
 from pytorch_lightning import seed_everything
 
 from nemo.collections.asr.models import EncDecSpeakerLabelModel
@@ -36,7 +36,7 @@ python ./speaker_reco.py --config-path='conf' --config-name='SpeakerNet_recognit
     exp_manager.name=$EXP_NAME +exp_manager.use_datetime_version=False \
     exp_manager.exp_dir='./speaker_exps'
 
-See https://github.com/NVIDIA/NeMo/blob/main/tutorials/speaker_recognition/Speaker_Recognition_Verification.ipynb for notebook tutorial
+See https://github.com/NVIDIA/NeMo/blob/main/tutorials/speaker_tasks/Speaker_Recognition_Verification.ipynb for notebook tutorial
 
 Optional: Use tarred dataset to speech up data loading.
    Prepare ONE manifest that contains all training data you would like to include. Validation should use non-tarred dataset.

@@ -27,7 +27,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 
@@ -71,14 +71,15 @@ class Hypothesis:
 
     score: float
     y_sequence: Union[List[int], torch.Tensor]
-    dec_state: Optional[Union[List[List[torch.Tensor]], List[torch.Tensor]]] = None
     text: Optional[str] = None
+    dec_out: Optional[List[torch.Tensor]] = None
+    dec_state: Optional[Union[List[List[torch.Tensor]], List[torch.Tensor]]] = None
     timestep: Union[List[int], torch.Tensor] = field(default_factory=list)
     alignments: Optional[Union[List[int], List[List[int]]]] = None
-    length: int = 0
+    length: Union[int, torch.Tensor] = 0
     y: List[torch.tensor] = None
-    lm_state: Union[Dict[str, Any], List[Any]] = None
-    lm_scores: torch.Tensor = None
+    lm_state: Optional[Union[Dict[str, Any], List[Any]]] = None
+    lm_scores: Optional[torch.Tensor] = None
     tokens: Optional[Union[List[int], torch.Tensor]] = None
 
 
@@ -87,3 +88,67 @@ class NBestHypotheses:
     """List of N best hypotheses"""
 
     n_best_hypotheses: Optional[List[Hypothesis]]
+
+
+def is_prefix(x: List[int], pref: List[int]) -> bool:
+    """
+    Obtained from https://github.com/espnet/espnet.
+
+    Check if pref is a prefix of x.
+
+    Args:
+        x: Label ID sequence.
+        pref: Prefix label ID sequence.
+
+    Returns:
+        : Whether pref is a prefix of x.
+    """
+    if len(pref) >= len(x):
+        return False
+
+    for i in range(len(pref)):
+        if pref[i] != x[i]:
+            return False
+
+    return True
+
+
+def select_k_expansions(
+    hyps: List[Hypothesis], logps: torch.Tensor, beam_size: int, gamma: float, beta: int,
+) -> List[Tuple[int, Hypothesis]]:
+    """
+    Obtained from https://github.com/espnet/espnet
+
+    Return K hypotheses candidates for expansion from a list of hypothesis.
+    K candidates are selected according to the extended hypotheses probabilities
+    and a prune-by-value method. Where K is equal to beam_size + beta.
+
+    Args:
+        hyps: Hypotheses.
+        beam_logp: Log-probabilities for hypotheses expansions.
+        beam_size: Beam size.
+        gamma: Allowed logp difference for prune-by-value method.
+        beta: Number of additional candidates to store.
+
+    Return:
+        k_expansions: Best K expansion hypotheses candidates.
+    """
+    k_expansions = []
+
+    for i, hyp in enumerate(hyps):
+        hyp_i = [(int(k), hyp.score + float(logp)) for k, logp in enumerate(logps[i])]
+        k_best_exp_val = max(hyp_i, key=lambda x: x[1])
+
+        k_best_exp_idx = k_best_exp_val[0]
+        k_best_exp = k_best_exp_val[1]
+
+        expansions = sorted(filter(lambda x: (k_best_exp - gamma) <= x[1], hyp_i), key=lambda x: x[1],)[
+            : beam_size + beta
+        ]
+
+        if len(expansions) > 0:
+            k_expansions.append(expansions)
+        else:
+            k_expansions.append([(k_best_exp_idx, k_best_exp)])
+
+    return k_expansions
