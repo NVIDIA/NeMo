@@ -17,10 +17,7 @@ from typing import Dict, Optional
 
 from nemo.collections.nlp.modules.common.transformer.bridge_encoders import BridgeEncoder
 from nemo.collections.nlp.modules.common.transformer.perceiver_encoders import PerceiverEncoder
-from nemo.collections.nlp.modules.common.transformer.reduction_encoders import (
-    MaxPoolingEncoder,
-    AveragePoolingEncoder,
-)
+from nemo.collections.nlp.modules.common.transformer.reduction_encoders import AveragePoolingEncoder, MaxPoolingEncoder
 from nemo.collections.nlp.modules.common.transformer.transformer import (
     NeMoTransformerConfig,
     TransformerDecoderNM,
@@ -217,7 +214,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         input_types = super().input_types
         input_types.update(
-            {"return_mask": NeuralType((), BoolType(), True), }
+            {"return_mask": NeuralType((), BoolType(), True),}
         )
 
         return input_types
@@ -226,7 +223,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         output_types = super().output_types
         output_types.update(
-            {"hidden_mask": NeuralType(('B', 'T'), MaskType(), True), }
+            {"hidden_mask": NeuralType(('B', 'T'), MaskType(), True),}
         )
         return output_types
 
