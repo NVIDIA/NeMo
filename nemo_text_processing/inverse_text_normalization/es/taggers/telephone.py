@@ -27,11 +27,11 @@ except (ModuleNotFoundError, ImportError):
 class TelephoneFst(GraphFst):
     """
     Finite state transducer for classifying telephone numbers, e.g. 
-        one two three one two three five six seven eight -> { number_part: "123-123-5678" }.
+        uno dos tres uno dos tres cinco seis siete ocho -> { number_part: "123-123-5678" }.
         If 10 digits are spoken, they are grouped as 3+3+4 (eg. 123-456-7890).
         If 9 digits are spoken, they are grouped as 3+3+3 (eg. 123-456-789).
         If 8 digits are spoken, they are grouped as 4+4 (eg. 1234-5678).
-        In Spanish, digits can be spoken individually, or as 2-digit numbers,
+        In Spanish, digits are generally spoken individually, or as 2-digit numbers,
         eg. "one twenty three" = "123",
             "twelve thirty four" = "1234".
 
