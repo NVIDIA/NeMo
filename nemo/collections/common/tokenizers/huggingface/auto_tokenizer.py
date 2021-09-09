@@ -70,6 +70,7 @@ class AutoTokenizer(TokenizerSpec):
         self,
         pretrained_model_name: str,
         vocab_file: Optional[str] = None,
+        merges_file: Optional[str] = None,
         mask_token: Optional[str] = None,
         bos_token: Optional[str] = None,
         eos_token: Optional[str] = None,
@@ -102,7 +103,10 @@ class AutoTokenizer(TokenizerSpec):
                 if use_fast:
                     message += f'{vocab_file} is ignored in "fast" tokenizers, using a "slow" version'
                 self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                    pretrained_model_name_or_path=pretrained_model_name, vocab_file=vocab_file, use_fast=False
+                    pretrained_model_name_or_path=pretrained_model_name,
+                    vocab_file=vocab_file,
+                    merges_file=merges_file,
+                    use_fast=False
                 )
             else:
                 self.tokenizer = AUTOTOKENIZER.from_pretrained(
