@@ -264,6 +264,7 @@ def parse_args():
         default=None,
         type=str,
     )
+    parser.add_argument("--n_jobs", default=-2, type=int, help="The maximum number of concurrently running jobs")
     return parser.parse_args()
 
 
@@ -302,7 +303,7 @@ def normalize_manifest(args):
             batch = max(round(len(lines) / 10), 1000)
             for i in range(0, len(lines), batch):
                 print(f'Processing batch {i} out of {round(len(lines)/batch)}.')
-                normalized_lines = Parallel(n_jobs=-2)(
+                normalized_lines = Parallel(n_jobs=args.n_jobs)(
                     delayed(_normalize_line)(normalizer, line) for line in tqdm(lines[i : i + batch])
                 )
                 for line in normalized_lines:
