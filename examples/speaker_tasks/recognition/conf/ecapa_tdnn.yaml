@@ -1,4 +1,4 @@
-name: "SpeakerNet"
+name: "ECAPA_TDNN"
 
 model:
 
@@ -46,6 +46,14 @@ model:
     dither: 0.00001
     stft_conv: false
 
+  spec_augment:
+    _target_: nemo.collections.asr.modules.SpectrogramAugmentation
+    freq_masks: 3
+    freq_width: 4
+    time_masks: 5
+    time_width: 0.03
+
+
   encoder:
     _target_: nemo.collections.asr.modules.ECAPAEncoder
     feat_in: ${model.preprocessor.features}
@@ -69,7 +77,7 @@ model:
 
   optim:
     name: sgd
-    lr: 0.008
+    lr: 0.08
     weight_decay: 0.0002
 
     # scheduler setup
@@ -79,8 +87,8 @@ model:
       min_lr: 0.0001
 
 trainer:
-  gpus: 1 # number of gpus (trained on single node - 8 gpus)
-  max_epochs: 200
+  gpus: 1 # number of gpus (trained on four nodes - each node has 8 gpus)
+  max_epochs: 250
   max_steps: null # computed at runtime if not set
   num_nodes: 1
   accelerator: ddp
