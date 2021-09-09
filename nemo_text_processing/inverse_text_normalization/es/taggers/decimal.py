@@ -38,7 +38,7 @@ def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_million: 'pynini.FstL
 
     Args: 
         decimal: decimal FST
-        cardinal_up_to_hundred: cardinal FST
+        cardinal_up_to_million: cardinal FST
     """
     numbers = cardinal_up_to_million @ (
         pynutil.delete(pynini.closure("0")) + pynini.difference(NEMO_DIGIT, "0") + pynini.closure(NEMO_DIGIT)
