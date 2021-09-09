@@ -29,7 +29,7 @@ oracle_num_speakers:
 
 path2groundtruth_rttm_files [Optional]:
   - To evaluate the diarizer system with known rttm files, One needs to provide a txt file (path2groundtruth_rttm_files) for groundtruth label files.
-  use above mentioned ``find`` command to get all reference rttm files (use '*.rttm' as search pattern)
+  use above mentioned ``find`` command to get all reference rttm files (use '\*.rttm' as search pattern)
 
 Each groundtruth label file should be in NIST Rich Transcription Time Marked (RTTM) format. Take one line from a RTTM file for example:
 
