@@ -14,7 +14,6 @@
 
 import os
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, delete_extra_space, delete_space
 from nemo_text_processing.inverse_text_normalization.es.taggers.cardinal import CardinalFst
 from nemo_text_processing.inverse_text_normalization.es.taggers.date import DateFst
 from nemo_text_processing.inverse_text_normalization.es.taggers.decimal import DecimalFst
@@ -27,6 +26,7 @@ from nemo_text_processing.inverse_text_normalization.es.taggers.telephone import
 from nemo_text_processing.inverse_text_normalization.es.taggers.time import TimeFst
 from nemo_text_processing.inverse_text_normalization.es.taggers.whitelist import WhiteListFst
 from nemo_text_processing.inverse_text_normalization.es.taggers.word import WordFst
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, delete_extra_space, delete_space
 
 from nemo.utils import logging
 

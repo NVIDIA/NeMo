@@ -12,12 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_CHAR,
-    NEMO_SIGMA,
-    GraphFst,
-    delete_space,
-)
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_CHAR, NEMO_SIGMA, GraphFst, delete_space
 
 try:
     import pynini
