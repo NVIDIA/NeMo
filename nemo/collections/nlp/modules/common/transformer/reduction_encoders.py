@@ -18,7 +18,7 @@ import torch
 
 from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
 
-__all__ = ["MaxPoolingEncoder"]
+__all__ = ["MaxPoolingEncoder", "AveragePoolingEncoder"]
 
 
 class MaxPoolingEncoder(torch.nn.Module):
@@ -72,7 +72,14 @@ class MaxPoolingEncoder(torch.nn.Module):
         )
         self.self_att_layers = torch.nn.ModuleList([copy.deepcopy(layer) for _ in range(hidden_blocks)])
 
-        self.max_pool = torch.nn.MaxPool1d(kernel_size=2, stride=2,)
+        self.pooling = self._build_pooling_module()
+
+    def _build_pooling_module(self):
+        """
+        Returns pooling module.
+        Allows to override for child classes.
+        """
+        return torch.nn.MaxPool1d(kernel_size=2, stride=2)
 
     @property
     def supported_init_methods(self):
@@ -113,12 +120,55 @@ class MaxPoolingEncoder(torch.nn.Module):
             if hidden_states.shape[1] >= self.hidden_steps:
                 # max pool hidden states
                 hidden_states = hidden_states.permute(0, 2, 1)
-                hidden_states = self.max_pool(hidden_states)
+                hidden_states = self.pooling(hidden_states)
                 hidden_states = hidden_states.permute(0, 2, 1)
 
                 # max pool mask
                 hidden_mask = (
-                    self.max_pool(hidden_mask.unsqueeze(0).type_as(hidden_states)).squeeze(0).type_as(hidden_mask)
+                    self.pooling(hidden_mask.unsqueeze(0).type_as(hidden_states)).squeeze(0).type_as(hidden_mask)
                 )
 
         return hidden_states, hidden_mask
+
+
+class AveragePoolingEncoder(torch.nn.Module):
+    def __init__(
+        self,
+        num_layers: int,
+        hidden_size: int,
+        inner_size: int,
+        mask_future: bool = False,
+        num_attention_heads: int = 1,
+        attn_score_dropout: float = 0.0,
+        attn_layer_dropout: float = 0.0,
+        ffn_dropout: float = 0.0,
+        hidden_act: str = "relu",
+        pre_ln: bool = False,
+        pre_ln_final_layer_norm: bool = True,
+        hidden_steps: int = 4,
+        hidden_init_method: str = "default",
+        hidden_blocks: int = 2,
+    ):
+        super().__init__(
+            num_layers=num_layers,
+            hidden_size=hidden_size,
+            inner_size=inner_size,
+            mask_future=mask_future,
+            num_attention_heads=num_attention_heads,
+            attn_score_dropout=attn_score_dropout,
+            attn_layer_dropout=attn_layer_dropout,
+            ffn_dropout=ffn_dropout,
+            hidden_act=hidden_act,
+            pre_ln=pre_ln,
+            pre_ln_final_layer_norm=pre_ln_final_layer_norm,
+            hidden_steps=hidden_steps,
+            hidden_init_method=hidden_init_method,
+            hidden_blocks=hidden_blocks,
+        )
+
+    def _build_pooling_module(self):
+        """
+        Returns pooling module.
+        Allows to override for child classes.
+        """
+        return torch.nn.AvgPool1d(kernel_size=2, stride=2)
