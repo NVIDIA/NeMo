@@ -22,13 +22,14 @@ from nemo.collections.nlp.data.text_normalization import constants
 __all__ = ['read_data_file', 'normalize_str']
 
 
-def read_data_file(fp: str):
+def read_data_file(fp: str, max_insts: int = -1):
     """ Reading the raw data from a file of NeMo format
     For more info about the data format, refer to the
     `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`.
 
     Args:
         fp: file paths
+        max_insts: Maximum number of instances (-1 means no limit)
     Returns:
         insts: List of sentences parsed as list of words
     """
@@ -42,6 +43,9 @@ def read_data_file(fp: str):
                 insts.append(inst)
                 # Reset
                 w_words, s_words, classes = [], [], []
+
+                if max_insts > 0 and len(insts) >= max_insts:
+                    break
             else:
                 classes.append(es[0])
                 w_words.append(es[1])

@@ -43,7 +43,7 @@ class TimeFst(GraphFst):
         increment_hour_cardinal = pynini.string_file(get_abs_path("data/time/increment_hour_cardinal.tsv"))
         convert_hour = pynini.string_file(get_abs_path("data/time/time_convert.tsv"))
 
-        number = pynini.closure(pynini.cross("0", ""), 0, 1) + number_names['nominative_up_to_thousand_names']
+        number = pynini.closure(pynini.cross("0", ""), 0, 1) + number_names['cardinal_names_nominative']
         hour_options = pynini.project(increment_hour_ordinal, "input")
         hour_options = hour_options | pynini.project(convert_hour, "output")
 
