@@ -212,10 +212,7 @@ class MTEncDecModel(EncDecNLPModel):
         return ids
 
     def test_encoder_ids(self, ids, raise_error=False):
-        invalid_ids = torch.logical_or(
-            (ids >= self.encoder_tokenizer.vocab_size).any(),
-            (ids < 0).any(),
-        )
+        invalid_ids = torch.logical_or((ids >= self.encoder_tokenizer.vocab_size).any(), (ids < 0).any(),)
 
         if raise_error and invalid_ids:
             raise ValueError("Encoder ids are out of range (tip: check encoder tokenizer)")
@@ -223,10 +220,7 @@ class MTEncDecModel(EncDecNLPModel):
         return not invalid_ids
 
     def test_decoder_ids(self, ids, raise_error=False):
-        invalid_ids = torch.logical_or(
-            (ids >= self.decoder_tokenizer.vocab_size).any(),
-            (ids < 0).any(),
-        )
+        invalid_ids = torch.logical_or((ids >= self.decoder_tokenizer.vocab_size).any(), (ids < 0).any(),)
 
         if raise_error and invalid_ids:
             raise ValueError("Decoder ids are out of range (tip: check decoder tokenizer)")
