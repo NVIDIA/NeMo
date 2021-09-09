@@ -76,6 +76,9 @@ class MTBottleneckModel(MTEncDecModel):
         self.non_recon_warmup_batches: int = cfg.get("non_recon_warmup_batches", 200000)
         self.recon_per_token: bool = cfg.get("recon_per_token", True)
 
+        # if True, translation uses the mean of latent for VAE and MIM
+        self.deterministic_translate = True
+
         # latent_size -1 will take value of encoder.hidden_size
         if self.latent_size < 0:
             self.latent_size = self.encoder.hidden_size
@@ -300,7 +303,10 @@ class MTBottleneckModel(MTEncDecModel):
             enc_hiddens, enc_mask = self.encoder(input_ids=src, encoder_mask=src_mask, return_mask=True)
 
             # build posterior distribution q(x|z)
-            z, _, _ = self.encode_latent(hidden=enc_hiddens)
+            z, z_mean, _ = self.encode_latent(hidden=enc_hiddens)
+
+            if getattr(self, "deterministic_translate", True):
+                z = z_mean
 
             # decoding cross attention context
             context_hiddens = self.latent2hidden(z)
