@@ -212,7 +212,10 @@ class MTEncDecModel(EncDecNLPModel):
         return ids
 
     def test_encoder_ids(self, ids, raise_error=False):
-        invalid_ids = (ids >= self.encoder_tokenizer.vocab_size).any()
+        invalid_ids = torch.logical_or(
+            (ids >= self.encoder_tokenizer.vocab_size).any(),
+            (ids < 0).any(),
+        )
 
         if raise_error and invalid_ids:
             raise ValueError("Encoder ids are out of range (tip: check encoder tokenizer)")
@@ -220,7 +223,10 @@ class MTEncDecModel(EncDecNLPModel):
         return not invalid_ids
 
     def test_decoder_ids(self, ids, raise_error=False):
-        invalid_ids = (ids >= self.decoder_tokenizer.vocab_size).any()
+        invalid_ids = torch.logical_or(
+            (ids >= self.decoder_tokenizer.vocab_size).any(),
+            (ids < 0).any(),
+        )
 
         if raise_error and invalid_ids:
             raise ValueError("Decoder ids are out of range (tip: check decoder tokenizer)")
@@ -710,14 +716,14 @@ class MTEncDecModel(EncDecNLPModel):
 
     @torch.no_grad()
     def batch_translate(self, src: torch.LongTensor, src_mask: torch.LongTensor, return_beam_scores: bool = False):
-        """	
-        Translates a minibatch of inputs from source language to target language.	
-        Args:	
-            src: minibatch of inputs in the src language (batch x seq_len)	
-            src_mask: mask tensor indicating elements to be ignored (batch x seq_len)	
-        Returns:	
-            translations: a list strings containing detokenized translations	
-            inputs: a list of string containing detokenized inputs	
+        """
+        Translates a minibatch of inputs from source language to target language.
+        Args:
+            src: minibatch of inputs in the src language (batch x seq_len)
+            src_mask: mask tensor indicating elements to be ignored (batch x seq_len)
+        Returns:
+            translations: a list strings containing detokenized translations
+            inputs: a list of string containing detokenized inputs
         """
         mode = self.training
         try:

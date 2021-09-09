@@ -43,6 +43,16 @@ class SentencePieceTokenizer(TokenizerSpec):
             raise ValueError(f"model_path: {model_path} is invalid")
         self.tokenizer = sentencepiece.SentencePieceProcessor()
         self.tokenizer.Load(model_path)
+        # validate no token is negative
+        negative_tokens = []
+        for n in ["eos_id", "bos_id", "unk_id", "pad_id"]:
+            v = getattr(self.tokenizer, n)()
+            if v < 0:
+                negative_tokens.append(f"{n}={v}")
+
+        if negative_tokens:
+            raise ValueError(f"sentencepiece has invalid negative special tokens = {negative_tokens}")
+
         self.original_vocab_size = self.tokenizer.get_piece_size()
         self.vocab_size = self.tokenizer.get_piece_size()
         self.legacy = legacy
