@@ -35,17 +35,17 @@ This file contains all the utility functions required for speaker embeddings par
 
 def audio_rttm_map(audio_file_list, rttm_file_list=None):
     """
-    Returns a AUDIO_TO_RTTM dictionary thats maps all the unique file names with 
+    Returns a AUDIO_TO_RTTM dictionary thats maps all the unique file names with
     audio file paths and corresponding ground truth rttm files calculated from audio
     file list and rttm file list
 
-    Args: 
+    Args:
     audio_file_list(list,str): either list of audio file paths or file containing paths to audio files (required)
-    rttm_file_list(lisr,str): either list of rttm file paths or file containing paths to rttm files (optional) 
+    rttm_file_list(lisr,str): either list of rttm file paths or file containing paths to rttm files (optional)
     [Required if DER needs to be calculated]
     Returns:
-    AUDIO_RTTM_MAP (dict): dictionary thats maps all the unique file names with 
-    audio file paths and corresponding ground truth rttm files 
+    AUDIO_RTTM_MAP (dict): dictionary thats maps all the unique file names with
+    audio file paths and corresponding ground truth rttm files
     """
     rttm_notfound = False
     if type(audio_file_list) in [list, ListConfig]:
@@ -228,14 +228,14 @@ def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rt
     """
     performs spectral clustering on embeddings with time stamps generated from VAD output
     Args:
-    
+
     embeddings (dict): Embeddings with key as unique_id
     time_stamps (dict): time stamps list for each audio recording
     speakers (dict): number of speaker for each audio recording 
     audio_rttm_map (dict): AUDIO_RTTM_MAP for mapping unique id with audio file path and rttm path
     out_rttm_dir (str): Path to write predicted rttms
     max_num_speakers (int): maximum number of speakers to consider for spectral clustering. Will be ignored if speakers['key'] is not None
-    
+
     Returns:
     all_reference (list[Annotation]): reference annotations for score calculation
     all_hypothesis (list[Annotation]): hypothesis annotations for score calculation
@@ -284,7 +284,7 @@ def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rt
     return all_reference, all_hypothesis
 
 
-def get_DER(all_reference, all_hypothesis):
+def get_DER(all_reference, all_hypothesis, collar=0.5, skip_overlap=True):
     """
     calculates DER, CER, FA and MISS
 
@@ -304,10 +304,12 @@ def get_DER(all_reference, all_hypothesis):
     collar in md-eval.pl, 0.5s should be applied for pyannote.metrics.
 
     """
-    metric = DiarizationErrorRate(collar=0.5, skip_overlap=True, uem=None)
+    metric = DiarizationErrorRate(collar=collar, skip_overlap=skip_overlap, uem=None)
 
-    for reference, hypothesis in zip(all_reference, all_hypothesis):
+    mapping_dict = {}
+    for k, (reference, hypothesis) in enumerate(zip(all_reference, all_hypothesis)):
         metric(reference, hypothesis, detailed=True)
+        mapping_dict[k] = metric.optimal_mapping(reference, hypothesis)
 
     DER = abs(metric)
     CER = metric['confusion'] / metric['total']
@@ -316,7 +318,7 @@ def get_DER(all_reference, all_hypothesis):
 
     metric.reset()
 
-    return DER, CER, FA, MISS
+    return DER, CER, FA, MISS, mapping_dict
 
 
 def perform_diarization(
@@ -333,7 +335,7 @@ def perform_diarization(
     )
 
     if len(all_reference) and len(all_hypothesis):
-        DER, CER, FA, MISS = get_DER(all_reference, all_hypothesis)
+        DER, CER, FA, MISS, _ = get_DER(all_reference, all_hypothesis)
         logging.info(
             "Cumulative results of all the files:  \n FA: {:.4f}\t MISS {:.4f}\t \
                 Diarization ER: {:.4f}\t, Confusion ER:{:.4f}".format(
@@ -407,9 +409,9 @@ def segments_manifest_to_subsegments_manifest(
         segments_manifest file (str): path to segments manifest file, typically from VAD output
         subsegments_manifest_file (str): path to output subsegments manifest file (default (None) : writes to current working directory)
         window (float): window length for segments to subsegments length
-        shift (float): hop length for subsegments shift 
+        shift (float): hop length for subsegments shift
         min_subsegments_duration (float): exclude subsegments smaller than this duration value
-    
+
     output:
         returns path to subsegment manifest file
     """

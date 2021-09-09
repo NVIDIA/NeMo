@@ -24,7 +24,7 @@ in finetune config file make sure to change
 - learning rate
 - num of epochs
 
-for finetuning tips see: https://github.com/NVIDIA/NeMo/blob/main/tutorials/speaker_recognition/Speaker_Recognition_Verification.ipynb
+for finetuning tips see: https://github.com/NVIDIA/NeMo/blob/main/tutorials/speaker_tasks/Speaker_Recognition_Verification.ipynb
 """
 
 
