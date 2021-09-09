@@ -16,11 +16,13 @@ import argparse
 import json
 import logging
 import os
+import random
 
 import librosa as l
 from sklearn.model_selection import StratifiedShuffleSplit
 from tqdm import tqdm
 
+random.seed(42)
 
 """
 This scipt converts a scp file where each line contains  
@@ -33,7 +35,37 @@ Args:
 --split: True / False if you would want to split the  manifest file for training purposes
         you may not need this for test set. output file names is <out>_<train/dev>.json
         Defaults to False
+--create_chunks: bool if you would want to chunk each manifest line to chunks of 3 sec or less
+        you may not need this for test set, Defaults to False
 """
+
+MIN_DURATIONS = [1.5, 2, 3]
+
+
+def filter_manifest_line(manifest_line, signal, sr=16000):
+    split_manifest = []
+    speakers = []
+    audio_path = manifest_line['audio_filepath']
+    start = manifest_line.get('offset', 0)
+    dur = manifest_line['duration']
+    SPKR = manifest_line['label']
+
+    if dur >= 1.5:
+        remaining_dur = dur
+        temp_dur = random.choice(MIN_DURATIONS)
+        remaining_dur = remaining_dur - temp_dur
+        while remaining_dur >= 0:
+            segment_audio = signal[int(start * sr) : int(start * sr + temp_dur * sr)]
+            if l.feature.rms(segment_audio).mean() > 0.01:
+                meta = {'audio_filepath': audio_path, 'offset': start, 'duration': temp_dur, 'label': SPKR}
+                split_manifest.append(meta)
+                speakers.append(SPKR)
+
+            start = start + temp_dur
+            temp_dur = random.choice(MIN_DURATIONS)
+            remaining_dur = remaining_dur - temp_dur
+
+    return split_manifest, speakers
 
 
 def write_file(name, lines, idx):
@@ -45,27 +77,29 @@ def write_file(name, lines, idx):
     logging.info("wrote", name)
 
 
-def main(scp, id, out, split=False):
+def main(scp, id, out, split=False, create_chunks=False):
     if os.path.exists(out):
         os.remove(out)
     scp_file = open(scp, 'r').readlines()
+    scp_file = sorted(scp_file)
 
     lines = []
     speakers = []
-    with open(out, 'w') as outfile:
-        for line in tqdm(scp_file):
-            line = line.strip()
-            y, sr = l.load(line, sr=None)
-            dur = l.get_duration(y=y, sr=sr)
-            speaker = line.split('/')[id]
-            speaker = list(speaker)
-            speaker = ''.join(speaker)
-            speakers.append(speaker)
-            meta = {"audio_filepath": line, "offset": 0, "duration": float(dur), "label": speaker}
-            lines.append(meta)
-            json.dump(meta, outfile)
-            outfile.write("\n")
+    for line in tqdm(scp_file):
+        line = line.strip()
+        y, sr = l.load(line, sr=None)
+        dur = l.get_duration(y=y, sr=sr)
+        speaker = line.split('/')[id]
+        speaker = list(speaker)
+        speaker = ''.join(speaker)
+        meta = [{"audio_filepath": line, "offset": 0, "duration": float(dur), "label": speaker}]
+        speaker = [speaker]
+        if create_chunks:
+            meta, speaker = filter_manifest_line(meta[0], signal=y, sr=sr)
+        lines.extend(meta)
+        speakers.extend(speaker)
 
+    write_file(out, lines, range(len(lines)))
     path = os.path.dirname(out)
     if split:
         sss = StratifiedShuffleSplit(n_splits=1, test_size=0.1, random_state=42)
@@ -91,6 +125,12 @@ if __name__ == "__main__":
         required=False,
         action='store_true',
     )
+    parser.add_argument(
+        "--create_chunks",
+        help="bool if you would want to chunk each manifest line to chunks of 3 sec or less",
+        required=False,
+        action='store_true',
+    )
     args = parser.parse_args()
 
-    main(args.scp, args.id, args.out, args.split)
+    main(args.scp, args.id, args.out, args.split, args.create_chunks)
