@@ -102,3 +102,10 @@ cd bignlp-scripts/eval_scripts
 sbatch eval
 ```
 
+## Benchmark multinode inference
+(Only tested on selene)
+
+```
+cd bignlp-scripts/infer_scripts
+bash multi_node_infer.sh
+```
