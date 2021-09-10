@@ -169,32 +169,32 @@ pipeline {
             sh 'rm -rf /home/TestData/nlp/text_denorm/output/*'
           }
         }
-        stage('L2: TN with Audio (audio and raw text)') {
-          steps {
-            sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-17 --text "The total amounts to \\$4.76." \
-            --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt 2>&1 && \
-            cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
-            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt'
-          }
-        }
-        stage('L2: TN with Audio (audio and text file)') {
-          steps {
-            sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-17 --text /home/TestData/nlp/text_norm/audio_based/text.txt \
-            --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_file.txt 2>&1 && \
-            cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_file.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
-            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_file.txt'
-          }
-        }
-        stage('L2: TN with Audio (manifest)') {
-          steps {
-            sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-17 && \
-            cmp --silent /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json /home/TestData/nlp/text_norm/audio_based/manifest_result.json || exit 1'
-            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json'
-          }
-        }
+//        stage('L2: TN with Audio (audio and raw text)') {
+//          steps {
+//            sh 'cd nemo_text_processing/text_normalization && \
+//            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-17 --text "The total amounts to \\$4.76." \
+//            --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt 2>&1 && \
+//            cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
+//            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt'
+//          }
+//        }
+//        stage('L2: TN with Audio (audio and text file)') {
+//          steps {
+//            sh 'cd nemo_text_processing/text_normalization && \
+//            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-17 --text /home/TestData/nlp/text_norm/audio_based/text.txt \
+//            --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_file.txt 2>&1 && \
+//            cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_file.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
+//            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_file.txt'
+//          }
+//        }
+//        stage('L2: TN with Audio (manifest)') {
+//          steps {
+//            sh 'cd nemo_text_processing/text_normalization && \
+//            python normalize_with_audio.py --language=en --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-17 && \
+//            cmp --silent /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json /home/TestData/nlp/text_norm/audio_based/manifest_result.json || exit 1'
+//            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json'
+//          }
+//        }
       }
     }
 
@@ -300,7 +300,7 @@ pipeline {
 
         stage('Speaker Recognition') {
           steps {
-            sh 'python examples/speaker_recognition/speaker_reco.py \
+            sh 'python examples/speaker_tasks/recognition/speaker_reco.py \
             model.train_ds.batch_size=10 \
             model.validation_ds.batch_size=2 \
             model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json \
@@ -308,21 +308,21 @@ pipeline {
             model.test_ds.manifest_filepath=/home/TestData/an4_speaker/test.json \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
-            exp_manager.exp_dir=examples/speaker_recognition/speaker_recognition_results'
-            sh 'rm -rf examples/speaker_recognition/speaker_recognition_results'
+            exp_manager.exp_dir=examples/speaker_tasks/recognition/speaker_recognition_results'
+            sh 'rm -rf examples/speaker_tasks/recognition/speaker_recognition_results'
           }
         }
 
         stage('Speaker Diarization Inference') {
           steps {
-            sh 'python examples/speaker_recognition/speaker_diarize.py \
+            sh 'python examples/speaker_tasks/diarization/speaker_diarize.py \
             diarizer.oracle_num_speakers=2 \
             diarizer.paths2audio_files=/home/TestData/an4_diarizer/audio_files.scp \
             diarizer.path2groundtruth_rttm_files=/home/TestData/an4_diarizer/rttm_files.scp \
             diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
             diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
-            diarizer.out_dir=examples/speaker_recognition/speaker_diarization_results'
-            sh 'rm -rf examples/speaker_recognition/speaker_diarization_results'
+            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
+            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
           }
         }
 
