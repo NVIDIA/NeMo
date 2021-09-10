@@ -17,22 +17,22 @@ import itertools
 import string
 from typing import List
 
-from nemo.collections.tts.data.g2p_modules import english_text_preprocessing, english_word_tokenize
+from nemo.collections.tts.data.g2ps import english_text_preprocessing, english_word_tokenize
 
 
-class Base(abc.ABC):
-    """Vocabulary for turning str text to list of int tokens."""
+class BaseTokenizer(abc.ABC):
+    """Tokenizer for turning str text to list of int tokens."""
 
     PAD, BLANK, OOV = '<pad>', '<blank>', '<oov>'
 
-    def __init__(self, labels, *, pad=PAD, blank=BLANK, oov=OOV, sep='', add_blank_at="last_but_one"):
+    def __init__(self, labels, *, pad=PAD, blank=BLANK, oov=OOV, sep='', add_blank_at=None):
         super().__init__()
 
         labels = list(labels)
         self.pad, labels = len(labels), labels + [pad]  # Padding
 
         if add_blank_at is not None:
-            self.blank, labels = len(labels), labels + [blank]  # Reserved for blank from QN
+            self.blank, labels = len(labels), labels + [blank]  # Reserved for blank from asr-model
         else:
             # use add_blank_at=None only for ASR where blank is added automatically
             self.blank = -1
@@ -63,8 +63,8 @@ class Base(abc.ABC):
         return self.sep.join(self._id2label[t] for t in tokens if t not in self._util_ids)
 
 
-class EnglishChars(Base):
-    """English char-based vocabulary."""
+class EnglishCharsTokenizer(BaseTokenizer):
+    """English char-based tokenizer."""
 
     # fmt: off
     PUNCT_LIST = (  # Derived from LJSpeech and "/" additionally
@@ -79,7 +79,7 @@ class EnglishChars(Base):
         punct=True,
         spaces=False,
         apostrophe=True,
-        add_blank_at="last_but_one",
+        add_blank_at=None,
         pad_with_space=False,
         non_default_punct_list=None,
         text_preprocessing_func=english_text_preprocessing,
@@ -135,8 +135,8 @@ class EnglishChars(Base):
         return [self._label2id[p] for p in cs]
 
 
-class EnglishPhonemes(Base):
-    """English phoneme-based vocabulary."""
+class EnglishPhonemesTokenizer(BaseTokenizer):
+    """English phoneme-based tokenizer."""
 
     # fmt: off
     PUNCT_LIST = (  # Derived from LJSpeech and "/" additionally
@@ -169,9 +169,9 @@ class EnglishPhonemes(Base):
         space=' ',
         silence=None,
         apostrophe=True,
-        oov=Base.OOV,
+        oov=BaseTokenizer.OOV,
         sep='|',  # To be able to distinguish between 2/3 letters codes.
-        add_blank_at="last_but_one",
+        add_blank_at=None,
         pad_with_space=False,
     ):
         labels = []

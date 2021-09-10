@@ -1,0 +1,44 @@
+tts_dataset:
+  _target_: "nemo.collections.tts.torch.data.TTSDataset"
+  manifest_filepath: "val_manifest.json"
+  sample_rate: 22050
+  sup_data_folder: "test_sup_data_1"
+  sup_data_types: ["pitch", "duration_prior", "mel", "energy"]
+  n_fft: 1024
+  win_length: 1024
+  hop_length: 256
+  window: "hann"
+  n_mels: 80
+  lowfreq: 0
+  highfreq: 8000
+  max_duration: 20.0
+  min_duration: 0.1
+  ignore_file: null
+  trim: False
+  pitch_fmin: 80
+  pitch_fmax: 640
+
+  text_normalizer:
+    _target_: "nemo_text_processing.text_normalization.normalize.Normalizer"
+    lang: "en"
+    input_case: 'cased'
+
+  text_normalizer_call_args:
+    verbose: False
+    punct_pre_process: True
+    punct_post_process: True
+
+  text_tokenizer:
+    _target_: "nemo.collections.tts.data.tokenizers.EnglishPhonemesTokenizer"
+    punct: True
+    stresses: True
+    spaces: True
+    chars: True
+    space: ' '
+    silence: null
+    apostrophe: True
+    sep: '|'
+    add_blank_at: null
+    pad_with_space: False
+    g2p:
+      _target_: "nemo.collections.tts.data.g2ps.EnglishG2p"
