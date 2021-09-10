@@ -39,6 +39,7 @@ class TTSDataset(Dataset):
         manifest_filepath: str,
         sample_rate: int,
         text_tokenizer: Union[BaseTokenizer, Callable[[str], List[int]]],
+        tokens: List[str] = None,
         text_normalizer: Union[Normalizer, Callable[[str], str]] = None,
         text_normalizer_call_args: Dict = None,
         text_tokenizer_pad_id: int = None,
@@ -69,10 +70,16 @@ class TTSDataset(Dataset):
 
         if isinstance(self.text_tokenizer, BaseTokenizer):
             self.text_tokenizer_pad_id = text_tokenizer.pad
+            self.tokens = text_tokenizer.labels
         else:
             if text_tokenizer_pad_id is None:
                 raise ValueError(f"text_tokenizer_pad_id must be specified if text_tokenizer is not BaseTokenizer")
+
+            if tokens is None:
+                raise ValueError(f"tokens must be specified if text_tokenizer is not BaseTokenizer")
+
             self.text_tokenizer_pad_id = text_tokenizer_pad_id
+            self.tokens = tokens
 
         if isinstance(manifest_filepath, str):
             manifest_filepath = [manifest_filepath]
