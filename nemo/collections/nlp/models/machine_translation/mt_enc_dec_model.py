@@ -77,7 +77,6 @@ class MTEncDecModel(EncDecNLPModel):
 
         self.validate_input_ids = cfg.get("validate_input_ids", True)
 
-
         # Instantiates tokenizers and register to be saved with NeMo Model archive
         # After this call, ther will be self.encoder_tokenizer and self.decoder_tokenizer
         # Which can convert between tokens and token_ids for SRC and TGT languages correspondingly.
@@ -450,7 +449,7 @@ class MTEncDecModel(EncDecNLPModel):
         for tok_name, tok_library, tok_model in [
             ("encoder_tokenizer", encoder_tokenizer_library, self.encoder_tokenizer),
             ("decoder_tokenizer", decoder_tokenizer_library, self.decoder_tokenizer),
-            ]:
+        ]:
             if tok_library == 'sentencepiece':
                 negative_tokens = []
                 for n in ["eos_id", "bos_id", "unk_id", "pad_id"]:
@@ -459,8 +458,9 @@ class MTEncDecModel(EncDecNLPModel):
                         negative_tokens.append(f"{n}={v}")
 
                 if negative_tokens:
-                    raise ValueError(f"{tok_name}=sentencepiece has invalid negative special tokens = {negative_tokens}")
-
+                    raise ValueError(
+                        f"{tok_name}=sentencepiece has invalid negative special tokens = {negative_tokens}"
+                    )
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
