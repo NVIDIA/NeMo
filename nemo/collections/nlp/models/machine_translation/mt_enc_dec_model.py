@@ -75,7 +75,7 @@ class MTEncDecModel(EncDecNLPModel):
         self.encoder_tokenizer_library = cfg.encoder_tokenizer.get('library', 'yttm')
         self.decoder_tokenizer_library = cfg.decoder_tokenizer.get('library', 'yttm')
 
-        self.validate_input_ids =  = cfg.get("validate_input_ids", True)
+        self.validate_input_ids = cfg.get("validate_input_ids", True)
 
 
         # Instantiates tokenizers and register to be saved with NeMo Model archive
