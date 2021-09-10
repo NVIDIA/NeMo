@@ -446,6 +446,22 @@ class MTEncDecModel(EncDecNLPModel):
             r2l=decoder_r2l,
         )
 
+        # validate no token is negative for sentencepiece tokenizers
+        for tok_name, tok_library, tok_model in zip([
+            ("encoder_tokenizer", encoder_tokenizer_library, self.encoder_tokenizer),
+            ("decoder_tokenizer", decoder_tokenizer_library, self.decoder_tokenizer),
+            ]):
+            if tok_library == 'sentencepiece':
+                negative_tokens = []
+                for n in ["eos_id", "bos_id", "unk_id", "pad_id"]:
+                    v = getattr(tok_model.tokenizer, n)()
+                    if v < 0:
+                        negative_tokens.append(f"{n}={v}")
+
+                if negative_tokens:
+                    raise ValueError(f"{tok_name}=sentencepiece has invalid negative special tokens = {negative_tokens}")
+
+
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
