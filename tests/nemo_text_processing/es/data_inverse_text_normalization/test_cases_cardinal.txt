@@ -7,6 +7,8 @@ una~una
 dos~dos
 nueve~nueve
 diez~10
+, uno~, uno
+, diez~, 10
 menos veintitrés~-23
 cien~100
 ciento uno~101

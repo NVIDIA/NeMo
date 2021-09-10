@@ -15,6 +15,7 @@
 
 from nemo_text_processing.inverse_text_normalization.es.utils import get_abs_path
 from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_ALPHA,
     NEMO_DIGIT,
     NEMO_SIGMA,
     NEMO_SPACE,
@@ -153,7 +154,11 @@ class CardinalFst(GraphFst):
         )
 
         # ignore "y" inside cardinal numbers
-        graph = pynini.cdrewrite(pynutil.delete("y"), NEMO_SPACE, NEMO_SPACE, NEMO_SIGMA) @ graph
+        graph = (
+            pynini.cdrewrite(pynutil.delete("y"), NEMO_SPACE, NEMO_SPACE, NEMO_SIGMA)
+            @ (NEMO_ALPHA + NEMO_SIGMA)
+            @ graph
+        )        
 
         self.graph_no_exception = graph
 
