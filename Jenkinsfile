@@ -169,32 +169,32 @@ pipeline {
             sh 'rm -rf /home/TestData/nlp/text_denorm/output/*'
           }
         }
-        stage('L2: TN with Audio (audio and raw text)') {
-          steps {
-            sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/9-8 --text "The total amounts to \\$4.76." \
-            --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt 2>&1 && \
-            cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
-            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt'
-          }
-        }
-        stage('L2: TN with Audio (audio and text file)') {
-          steps {
-            sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/9-8 --text /home/TestData/nlp/text_norm/audio_based/text.txt \
-            --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_file.txt 2>&1 && \
-            cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_file.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
-            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_file.txt'
-          }
-        }
-        stage('L2: TN with Audio (manifest)') {
-          steps {
-            sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/9-8 && \
-            cmp --silent /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json /home/TestData/nlp/text_norm/audio_based/manifest_result.json || exit 1'
-            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json'
-          }
-        }
+//        stage('L2: TN with Audio (audio and raw text)') {
+//          steps {
+//            sh 'cd nemo_text_processing/text_normalization && \
+//            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-17 --text "The total amounts to \\$4.76." \
+//            --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt 2>&1 && \
+//            cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
+//            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt'
+//          }
+//        }
+//        stage('L2: TN with Audio (audio and text file)') {
+//          steps {
+//            sh 'cd nemo_text_processing/text_normalization && \
+//            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-17 --text /home/TestData/nlp/text_norm/audio_based/text.txt \
+//            --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_file.txt 2>&1 && \
+//            cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_file.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
+//            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_file.txt'
+//          }
+//        }
+//        stage('L2: TN with Audio (manifest)') {
+//          steps {
+//            sh 'cd nemo_text_processing/text_normalization && \
+//            python normalize_with_audio.py --language=en --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-17 && \
+//            cmp --silent /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json /home/TestData/nlp/text_norm/audio_based/manifest_result.json || exit 1'
+//            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json'
+//          }
+//        }
       }
     }
 

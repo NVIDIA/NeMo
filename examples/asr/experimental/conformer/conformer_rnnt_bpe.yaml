@@ -123,7 +123,7 @@ model:
     log_softmax: null  # 'null' would set it automatically according to CPU/GPU device
 
     # fused mode
-    experimental_fuse_loss_wer: true
+    fuse_loss_wer: true
     fused_batch_size: 16
 
     jointnet:

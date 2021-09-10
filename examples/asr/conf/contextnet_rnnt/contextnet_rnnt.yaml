@@ -394,7 +394,7 @@ model:
     # An optimal ratio of fused_batch_size : *_ds.batch_size is 1:1.
     # However, to preserve memory, this ratio can be 1:8 or even 1:16.
     # Extreme case of 1:B (i.e. fused_batch_size=1) should be avoided as training speed would be very slow.
-    experimental_fuse_loss_wer: true
+    fuse_loss_wer: true
     fused_batch_size: 16
 
     jointnet:
