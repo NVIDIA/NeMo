@@ -447,10 +447,10 @@ class MTEncDecModel(EncDecNLPModel):
         )
 
         # validate no token is negative for sentencepiece tokenizers
-        for tok_name, tok_library, tok_model in zip([
+        for tok_name, tok_library, tok_model in [
             ("encoder_tokenizer", encoder_tokenizer_library, self.encoder_tokenizer),
             ("decoder_tokenizer", decoder_tokenizer_library, self.decoder_tokenizer),
-            ]):
+            ]:
             if tok_library == 'sentencepiece':
                 negative_tokens = []
                 for n in ["eos_id", "bos_id", "unk_id", "pad_id"]:
