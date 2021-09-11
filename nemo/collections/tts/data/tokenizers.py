@@ -25,30 +25,30 @@ class BaseTokenizer(abc.ABC):
 
     PAD, BLANK, OOV = '<pad>', '<blank>', '<oov>'
 
-    def __init__(self, labels, *, pad=PAD, blank=BLANK, oov=OOV, sep='', add_blank_at=None):
+    def __init__(self, tokens, *, pad=PAD, blank=BLANK, oov=OOV, sep='', add_blank_at=None):
         super().__init__()
 
-        labels = list(labels)
-        self.pad, labels = len(labels), labels + [pad]  # Padding
+        tokens = list(tokens)
+        self.pad, tokens = len(tokens), tokens + [pad]  # Padding
 
         if add_blank_at is not None:
-            self.blank, labels = len(labels), labels + [blank]  # Reserved for blank from asr-model
+            self.blank, tokens = len(tokens), tokens + [blank]  # Reserved for blank from asr-model
         else:
-            # use add_blank_at=None only for ASR where blank is added automatically
-            self.blank = -1
+            # use add_blank_at=None only for ASR where blank is added automatically, disable blank here
+            self.blank = None
 
-        self.oov, labels = len(labels), labels + [oov]  # Out Of Vocabulary
+        self.oov, tokens = len(tokens), tokens + [oov]  # Out Of Vocabulary
 
         if add_blank_at == "last":
-            labels[-1], labels[-2] = labels[-2], labels[-1]
+            tokens[-1], tokens[-2] = tokens[-2], tokens[-1]
             self.oov, self.blank = self.blank, self.oov
 
-        self.labels = labels
+        self.tokens = tokens
         self.sep = sep
 
         self._util_ids = {self.pad, self.blank, self.oov}
-        self._label2id = {l: i for i, l in enumerate(labels)}
-        self._id2label = labels
+        self._token2id = {l: i for i, l in enumerate(tokens)}
+        self._id2token = tokens
 
     def __call__(self, text: str) -> List[int]:
         return self.encode(text)
@@ -60,7 +60,7 @@ class BaseTokenizer(abc.ABC):
 
     def decode(self, tokens: List[int]) -> str:
         """Turns ints tokens into str text."""
-        return self.sep.join(self._id2label[t] for t in tokens if t not in self._util_ids)
+        return self.sep.join(self._id2token[t] for t in tokens if t not in self._util_ids)
 
 
 class EnglishCharsTokenizer(BaseTokenizer):
@@ -85,18 +85,18 @@ class EnglishCharsTokenizer(BaseTokenizer):
         text_preprocessing_func=english_text_preprocessing,
         word_tokenize_func=english_word_tokenize,
     ):
-        labels = []
-        self.space, labels = len(labels), labels + [' ']  # Space
-        labels.extend(string.ascii_lowercase)
+        tokens = []
+        self.space, tokens = len(tokens), tokens + [' ']  # Space
+        tokens.extend(string.ascii_lowercase)
         if apostrophe:
-            labels.append("'")  # Apostrophe for saving "don't" and "Joe's"
+            tokens.append("'")  # Apostrophe for saving "don't" and "Joe's"
 
         if punct:
             if non_default_punct_list is not None:
                 self.PUNCT_LIST = non_default_punct_list
-            labels.extend(self.PUNCT_LIST)
+            tokens.extend(self.PUNCT_LIST)
 
-        super().__init__(labels, add_blank_at=add_blank_at)
+        super().__init__(tokens, add_blank_at=add_blank_at)
 
         self.punct = punct
         self.spaces = spaces
@@ -108,7 +108,7 @@ class EnglishCharsTokenizer(BaseTokenizer):
 
     def encode(self, text):
         """See base class."""
-        cs, space, labels = [], self.labels[self.space], set(self.labels)
+        cs, space, tokens = [], self.tokens[self.space], set(self.tokens)
 
         for c in "".join(self.word_tokenize_func(self.text_preprocessing_func((text)))):  # noqa
             # Add space if last one isn't one
@@ -116,7 +116,7 @@ class EnglishCharsTokenizer(BaseTokenizer):
                 cs.append(c)
 
             # Add next char
-            if (c.isalnum() or c == "'") and c in labels:
+            if (c.isalnum() or c == "'") and c in tokens:
                 cs.append(c)
 
             # Add punct and remove space if needed
@@ -132,7 +132,7 @@ class EnglishCharsTokenizer(BaseTokenizer):
         if self.pad_with_space:
             cs = [space] + cs + [space]
 
-        return [self._label2id[p] for p in cs]
+        return [self._token2id[p] for p in cs]
 
 
 class EnglishPhonemesTokenizer(BaseTokenizer):
@@ -174,31 +174,31 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
         add_blank_at=None,
         pad_with_space=False,
     ):
-        labels = []
-        self.space, labels = len(labels), labels + [space]  # Space
+        tokens = []
+        self.space, tokens = len(tokens), tokens + [space]  # Space
 
         if silence is not None:
-            self.silence, labels = len(labels), labels + [silence]  # Silence
+            self.silence, tokens = len(tokens), tokens + [silence]  # Silence
 
-        labels.extend(self.CONSONANTS)
+        tokens.extend(self.CONSONANTS)
         vowels = list(self.VOWELS)
 
         if stresses:
             vowels = [f'{p}{s}' for p, s in itertools.product(vowels, (0, 1, 2))]
-        labels.extend(vowels)
+        tokens.extend(vowels)
 
         if chars:
-            labels.extend(string.ascii_lowercase)
+            tokens.extend(string.ascii_lowercase)
 
         if apostrophe:
-            labels.append("'")  # Apostrophe
+            tokens.append("'")  # Apostrophe
 
         if punct:
             if non_default_punct_list is not None:
                 self.PUNCT_LIST = non_default_punct_list
-            labels.extend(self.PUNCT_LIST)
+            tokens.extend(self.PUNCT_LIST)
 
-        super().__init__(labels, oov=oov, sep=sep, add_blank_at=add_blank_at)
+        super().__init__(tokens, oov=oov, sep=sep, add_blank_at=add_blank_at)
 
         self.punct = punct
         self.stresses = stresses
@@ -209,7 +209,7 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
 
     def encode(self, text):
         """See base class."""
-        ps, space, labels = [], self.labels[self.space], set(self.labels)
+        ps, space, tokens = [], self.tokens[self.space], set(self.tokens)
 
         for p in self.g2p(text):  # noqa
             # Remove stress
@@ -221,7 +221,7 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
                 ps.append(p)
 
             # Add next phoneme
-            if (p.isalnum() or p == "'") and p in labels:
+            if (p.isalnum() or p == "'") and p in tokens:
                 ps.append(p)
 
             # Add punct and remove space if needed
@@ -237,4 +237,4 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
         if self.pad_with_space:
             ps = [space] + ps + [space]
 
-        return [self._label2id[p] for p in ps]
+        return [self._token2id[p] for p in ps]
