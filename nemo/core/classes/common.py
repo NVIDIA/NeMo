@@ -451,6 +451,7 @@ class Serialization(ABC):
         else:
             instance = None
             imported_cls_tb = None
+            instance_init_error = None
             # Attempt class path resolution from config `target` class (if it exists)
             if 'target' in config:
                 target_cls = config["target"]  # No guarantee that this is a omegaconf class
@@ -470,8 +471,9 @@ class Serialization(ABC):
 
                     try:
                         instance = imported_cls(cfg=config)
-                    except Exception:
+                    except Exception as e:
                         imported_cls_tb = traceback.format_exc()
+                        instance_init_error = str(e)
                         instance = None
 
             # target class resolution was unsuccessful, fall back to current `cls`
@@ -482,7 +484,13 @@ class Serialization(ABC):
                         f"Falling back to `cls`.\n"
                         f"{imported_cls_tb}"
                     )
-                instance = cls(cfg=config)
+                try:
+                    instance = cls(cfg=config)
+                except Exception as e:
+                    if imported_cls_tb is not None:
+                        logging.error(f"Instance failed restore_from due to: {instance_init_error}")
+                        logging.error(f"{imported_cls_tb}")
+                    raise e
 
         if not hasattr(instance, '_cfg'):
             instance._cfg = config

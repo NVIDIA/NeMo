@@ -61,7 +61,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         model = PretrainedModelInfo(
             pretrained_model_name="speakerrecognition_speakernet",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/speakerrecognition_speakernet/versions/1.0.0rc1/files/speakerrecognition_speakernet.nemo",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerrecognition_speakernet",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerrecognition_speakernet, NOTE: this model would be removed for next release and use only single speakernet and ecapa_tdnn models",
         )
         result.append(model)
 
@@ -75,7 +75,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         model = PretrainedModelInfo(
             pretrained_model_name="speakerdiarization_speakernet",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/speakerdiarization_speakernet/versions/1.0.0rc1/files/speakerdiarization_speakernet.nemo",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerdiarization_speakernet",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerdiarization_speakernet, NOTE: this model would be removed for next release and use only single speakernet and ecapa_tdnn model",
         )
         result.append(model)
 

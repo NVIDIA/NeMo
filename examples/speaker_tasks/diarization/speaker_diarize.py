@@ -31,7 +31,7 @@ Usage:
   diarizer.out_dir="demo"
 
 Check out whole parameters in ./conf/speaker_diarization.yaml and their meanings.
-For details, have a look at <NeMo_git_root>/tutorials/speaker_recognition/Speaker_Diarization_Inference.ipynb
+For details, have a look at <NeMo_git_root>/tutorials/speaker_tasks/Speaker_Diarization_Inference.ipynb
 """
 
 seed_everything(42)

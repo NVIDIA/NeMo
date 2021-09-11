@@ -68,7 +68,6 @@ def lens_to_mask(lens: List[int], max_len: int, device: str = None):
         num_values: sum of mask values for each feature (useful for computing statistics later)
     """
     lens_mat = torch.arange(max_len).to(device)
-    lens = lens * max_len
     mask = lens_mat[:max_len].unsqueeze(0) < lens.unsqueeze(1)
     mask = mask.unsqueeze(1)
     num_values = torch.sum(mask, dim=2, keepdim=True)

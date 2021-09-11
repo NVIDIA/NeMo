@@ -169,32 +169,32 @@ pipeline {
             sh 'rm -rf /home/TestData/nlp/text_denorm/output/*'
           }
         }
-        stage('L2: TN with Audio (audio and raw text)') {
-          steps {
-            sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-17 --text "The total amounts to \\$4.76." \
-            --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt 2>&1 && \
-            cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
-            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt'
-          }
-        }
-        stage('L2: TN with Audio (audio and text file)') {
-          steps {
-            sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-17 --text /home/TestData/nlp/text_norm/audio_based/text.txt \
-            --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_file.txt 2>&1 && \
-            cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_file.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
-            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_file.txt'
-          }
-        }
-        stage('L2: TN with Audio (manifest)') {
-          steps {
-            sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-17 && \
-            cmp --silent /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json /home/TestData/nlp/text_norm/audio_based/manifest_result.json || exit 1'
-            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json'
-          }
-        }
+//        stage('L2: TN with Audio (audio and raw text)') {
+//          steps {
+//            sh 'cd nemo_text_processing/text_normalization && \
+//            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-17 --text "The total amounts to \\$4.76." \
+//            --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt 2>&1 && \
+//            cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
+//            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt'
+//          }
+//        }
+//        stage('L2: TN with Audio (audio and text file)') {
+//          steps {
+//            sh 'cd nemo_text_processing/text_normalization && \
+//            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-17 --text /home/TestData/nlp/text_norm/audio_based/text.txt \
+//            --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_file.txt 2>&1 && \
+//            cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_file.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
+//            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_file.txt'
+//          }
+//        }
+//        stage('L2: TN with Audio (manifest)') {
+//          steps {
+//            sh 'cd nemo_text_processing/text_normalization && \
+//            python normalize_with_audio.py --language=en --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/8-17 && \
+//            cmp --silent /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json /home/TestData/nlp/text_norm/audio_based/manifest_result.json || exit 1'
+//            sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json'
+//          }
+//        }
       }
     }
 
@@ -300,7 +300,7 @@ pipeline {
 
         stage('Speaker Recognition') {
           steps {
-            sh 'python examples/speaker_recognition/speaker_reco.py \
+            sh 'python examples/speaker_tasks/recognition/speaker_reco.py \
             model.train_ds.batch_size=10 \
             model.validation_ds.batch_size=2 \
             model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json \
@@ -308,21 +308,21 @@ pipeline {
             model.test_ds.manifest_filepath=/home/TestData/an4_speaker/test.json \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
-            exp_manager.exp_dir=examples/speaker_recognition/speaker_recognition_results'
-            sh 'rm -rf examples/speaker_recognition/speaker_recognition_results'
+            exp_manager.exp_dir=examples/speaker_tasks/recognition/speaker_recognition_results'
+            sh 'rm -rf examples/speaker_tasks/recognition/speaker_recognition_results'
           }
         }
 
         stage('Speaker Diarization Inference') {
           steps {
-            sh 'python examples/speaker_recognition/speaker_diarize.py \
+            sh 'python examples/speaker_tasks/diarization/speaker_diarize.py \
             diarizer.oracle_num_speakers=2 \
             diarizer.paths2audio_files=/home/TestData/an4_diarizer/audio_files.scp \
             diarizer.path2groundtruth_rttm_files=/home/TestData/an4_diarizer/rttm_files.scp \
             diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
             diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
-            diarizer.out_dir=examples/speaker_recognition/speaker_diarization_results'
-            sh 'rm -rf examples/speaker_recognition/speaker_diarization_results'
+            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
+            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
           }
         }
 
@@ -664,6 +664,26 @@ pipeline {
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
             model.language_model.pretrained_model_name=albert-base-v1 \
+            exp_manager=null'
+          }
+        }
+       stage('Test Restore with AlBERT') {
+          steps {
+            sh 'python examples/nlp/token_classification/punctuation_capitalization_evaluate.py \
+            pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_and_Capitalization_albert.nemo \
+            model.dataset.use_cache=false \
+            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            trainer.gpus=[1] \
+            exp_manager=null'
+          }
+        }
+        stage('Test Restore with RoBERTa') {
+          steps {
+            sh 'python examples/nlp/token_classification/punctuation_capitalization_evaluate.py \
+            pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_and_Capitalization_roberta.nemo \
+            model.dataset.use_cache=false \
+            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            trainer.gpus=[1] \
             exp_manager=null'
           }
         }
@@ -1193,6 +1213,7 @@ pipeline {
         }
       }
     }
+
     stage('L2: NMT Attention is All You Need Inference') {
       when {
         anyOf {
@@ -1246,7 +1267,7 @@ pipeline {
               model.shared_tokenizer=False \
               model.encoder_tokenizer.library=huggingface \
               model.encoder.library=huggingface \
-              model.encoder.model_name=bert-base-cased \
+              model.encoder.model_name=distilbert-base-cased \
               model.encoder.pretrained=true \
               model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
@@ -1254,7 +1275,12 @@ pipeline {
               model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.train_ds.tokens_in_batch=128 \
+              model.validation_ds.tokens_in_batch=128 \
+              model.test_ds.tokens_in_batch=128 \
               model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              model.decoder.hidden_size=128 \
+              model.decoder.inner_size=256 \
               trainer.gpus=[0] \
               +trainer.fast_dev_run=true \
               exp_manager=null \
@@ -1275,14 +1301,19 @@ pipeline {
               model.encoder.model_name=null \
               model.encoder.pretrained=false \
               +model.encoder._target_=transformers.BertConfig \
-              +model.encoder.hidden_size=1536 \
+              +model.encoder.hidden_size=48 \
               model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
               model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.train_ds.tokens_in_batch=128 \
+              model.validation_ds.tokens_in_batch=128 \
+              model.test_ds.tokens_in_batch=128 \
               model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              model.decoder.hidden_size=128 \
+              model.decoder.inner_size=256 \
               trainer.gpus=[1] \
               +trainer.fast_dev_run=true \
               exp_manager=null \
@@ -1378,6 +1409,215 @@ pipeline {
         }
       }
     }
+
+    // stage('L2: NMT Bottleneck Fallback') {
+    //   when {
+    //     anyOf {
+    //       branch 'main'
+    //       changeRequest target: 'main'
+    //     }
+    //   }
+    //   failFast true
+    //   parallel {
+    //     stage('L2: seq2seq (no bottleneck)') {
+    //         steps {
+    //           sh 'cd examples/nlp/machine_translation && \
+    //           enc_dec_nmt-bottleneck.py \
+    //           --config-path=conf \
+    //           --config-name=aayn_bottleneck \
+    //           do_testing=true \
+    //           model.model_type=nll \
+    //           model.encoder.arch=seq2seq \
+    //           model.encoder.hidden_steps=1 \
+    //           model.encoder.hidden_blocks=1 \
+    //           model.encoder.hidden_init_method=params \
+    //           model.encoder.hidden_size=64 \
+    //           model.encoder.inner_size=128 \
+    //           model.encoder.num_attention_heads=2 \
+    //           model.encoder.num_layers=2 \
+    //           model.decoder.hidden_size=64 \
+    //           model.decoder.inner_size=128 \
+    //           model.decoder.num_attention_heads=2 \
+    //           model.decoder.num_layers=2 \
+    //           model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src \
+    //           model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref \
+    //           model.validation_ds.src_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.src,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.src] \
+    //           model.validation_ds.tgt_file_name=[/home/TestData/nlp/nmt/toy_data/wmt13-en-de.ref,/home/TestData/nlp/nmt/toy_data/wmt14-en-de.ref] \
+    //           model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt13-en-de.src \
+    //           model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt13-en-de.ref \
+    //           model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+    //           model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+    //           trainer.gpus=[0] \
+    //           +trainer.fast_dev_run=true \
+    //           +trainer.limit_test_batches=2 \
+    //           exp_manager=null \
+    //           '
+    //         }
+    //     }
+    //   }
+    // }
+    // stage('L2: NMT Bottleneck Architecture') {
+    //   when {
+    //     anyOf {
+    //       branch 'main'
+    //       changeRequest target: 'main'
+    //     }
+    //   }
+    //   failFast true
+    //   parallel {
+    //     stage('Bridge Encoder (identity)') {
+    //         steps {
+    //           sh 'cd examples/nlp/machine_translation && \
+    //           enc_dec_nmt-bottleneck.py \
+    //           --config-path=conf \
+    //           --config-name=aayn_bottleneck \
+    //           do_testing=true \
+    //           model.model_type=nll \
+    //           model.encoder.arch=bridge \
+    //           model.encoder.hidden_steps=1 \
+    //           model.encoder.hidden_blocks=1 \
+    //           model.encoder.hidden_init_method=identity \
+    //           model.encoder.hidden_size=64 \
+    //           model.encoder.inner_size=128 \
+    //           model.encoder.num_attention_heads=2 \
+    //           model.encoder.num_layers=2 \
+    //           model.decoder.hidden_size=64 \
+    //           model.decoder.inner_size=128 \
+    //           model.decoder.num_attention_heads=2 \
+    //           model.decoder.num_layers=2 \
+    //           model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    //           model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+    //           model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    //           model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    //           model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    //           model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    //           model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+    //           model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+    //           trainer.gpus=[0] \
+    //           +trainer.fast_dev_run=true \
+    //           +trainer.limit_test_batches=2 \
+    //           exp_manager=null \
+    //           '
+    //         }
+    //     }
+    //     stage('Perceiver Encoder (params)') {
+    //         steps {
+    //           sh 'cd examples/nlp/machine_translation && \
+    //           enc_dec_nmt-bottleneck.py \
+    //           --config-path=conf \
+    //           --config-name=aayn_bottleneck \
+    //           do_testing=true \
+    //           model.model_type=nll \
+    //           model.encoder.arch=perceiver \
+    //           model.encoder.hidden_steps=1 \
+    //           model.encoder.hidden_blocks=1 \
+    //           model.encoder.hidden_init_method=params \
+    //           model.encoder.hidden_size=64 \
+    //           model.encoder.inner_size=128 \
+    //           model.encoder.num_attention_heads=2 \
+    //           model.encoder.num_layers=2 \
+    //           model.decoder.hidden_size=64 \
+    //           model.decoder.inner_size=128 \
+    //           model.decoder.num_attention_heads=2 \
+    //           model.decoder.num_layers=2 \
+    //           model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    //           model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+    //           model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    //           model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    //           model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    //           model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    //           model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+    //           model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+    //           trainer.gpus=[1] \
+    //           +trainer.fast_dev_run=true \
+    //           +trainer.limit_test_batches=2 \
+    //           exp_manager=null \
+    //           '
+    //         }
+    //     }
+    //   }
+    // }
+    // stage('L2: NMT Bottleneck LVM') {
+    //   when {
+    //     anyOf {
+    //       branch 'main'
+    //       changeRequest target: 'main'
+    //     }
+    //   }
+    //   failFast true
+    //   parallel {
+    //     stage('VAE') {
+    //         steps {
+    //           sh 'cd examples/nlp/machine_translation && \
+    //           enc_dec_nmt-bottleneck.py \
+    //           --config-path=conf \
+    //           --config-name=aayn_bottleneck \
+    //           do_testing=true \
+    //           model.model_type=vae \
+    //           model.encoder.arch=perceiver \
+    //           model.encoder.hidden_steps=1 \
+    //           model.encoder.hidden_blocks=1 \
+    //           model.encoder.hidden_init_method=params \
+    //           model.encoder.hidden_size=64 \
+    //           model.encoder.inner_size=128 \
+    //           model.encoder.num_attention_heads=2 \
+    //           model.encoder.num_layers=2 \
+    //           model.decoder.hidden_size=64 \
+    //           model.decoder.inner_size=128 \
+    //           model.decoder.num_attention_heads=2 \
+    //           model.decoder.num_layers=2 \
+    //           model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    //           model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+    //           model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    //           model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    //           model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    //           model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    //           model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+    //           model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+    //           trainer.gpus=[0] \
+    //           +trainer.fast_dev_run=true \
+    //           +trainer.limit_test_batches=2 \
+    //           exp_manager=null \
+    //           '
+    //         }
+    //     }
+    //     stage('MIM') {
+    //         steps {
+    //           sh 'cd examples/nlp/machine_translation && \
+    //           enc_dec_nmt-bottleneck.py \
+    //           --config-path=conf \
+    //           --config-name=aayn_bottleneck \
+    //           do_testing=true \
+    //           model.model_type=mim \
+    //           model.encoder.arch=perceiver \
+    //           model.encoder.hidden_steps=1 \
+    //           model.encoder.hidden_blocks=1 \
+    //           model.encoder.hidden_init_method=params \
+    //           model.encoder.hidden_size=64 \
+    //           model.encoder.inner_size=128 \
+    //           model.encoder.num_attention_heads=2 \
+    //           model.encoder.num_layers=2 \
+    //           model.decoder.hidden_size=64 \
+    //           model.decoder.inner_size=128 \
+    //           model.decoder.num_attention_heads=2 \
+    //           model.decoder.num_layers=2 \
+    //           model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    //           model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+    //           model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    //           model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    //           model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    //           model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+    //           model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+    //           model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+    //           trainer.gpus=[1] \
+    //           +trainer.fast_dev_run=true \
+    //           +trainer.limit_test_batches=2 \
+    //           exp_manager=null \
+    //           '
+    //         }
+    //     }
+    //   }
+    // }
 
     stage('L2: TTS Fast dev runs 1') {
       when {
