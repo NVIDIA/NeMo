@@ -21,7 +21,7 @@ best candidates. The beam search decoders in NeMo support language models traine
 `https://github.com/kpu/kenlm <https://github.com/kpu/kenlm>`__).
 The beam search decoders and KenLM library are not installed by default in NeMo, and you need to install them to be
 able to use beam search decoding and N-gram LM.
-Please refer to `scripts/ngram_lm/install_beamsearch_decoders.sh` on how to install them.
+Please refer to `scripts/asr_language_modeling/ngram_lm/install_beamsearch_decoders.sh` on how to install them.
 
 NeMo supports both character-based and BPE-based models for N-gram LMs. An N-gram LM can be used with beam search
 decoders on top of the ASR models to produce more accurate candidates. The beam search decoder would incorporate
@@ -107,7 +107,7 @@ You may evaluate an ASR model as the following:
                                          --acoustic_batch_size <batch size for calculating log probabilities> \
                                          --beam_width <list of the beam widths> \
                                          --beam_alpha <list of the beam alphas> \
-                                         --beam_width <list of the beam betas> \
+                                         --beam_beta <list of the beam betas> \
                                          --preds_output_folder <optional folder to store the predictions> \
                                          --decoding_mode beam_search_ngram
 
@@ -203,7 +203,9 @@ Train Neural Rescorer
 =====================
 
 An example script to train such a language model with Transformer can be found at `examples/nlp/language_modeling/transformer_lm.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/language_modeling/transformer_lm.py>`__.
-It trains a TransformerLMModel which can be used as a neural rescorer for an ASR system.
+It trains a ``TransformerLMModel`` which can be used as a neural rescorer for an ASR system. Full documentation on language models training is available at:
+
+:doc:`../nlp/language_modeling`
 
 
 Evaluation

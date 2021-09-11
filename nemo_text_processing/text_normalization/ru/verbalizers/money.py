@@ -18,6 +18,7 @@ from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA
 
 try:
     import pynini
+    from pynini.lib import pynutil
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -39,5 +40,5 @@ class MoneyFst(GraphFst):
         super().__init__(name="money", kind="verbalize", deterministic=deterministic)
 
         graph = pynini.closure(RU_ALPHA | " ")
-        delete_tokens = self.delete_tokens(graph)
+        delete_tokens = self.delete_tokens(pynutil.delete("integer_part: \"") + graph + pynutil.delete("\""))
         self.fst = delete_tokens.optimize()

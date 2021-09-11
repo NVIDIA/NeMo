@@ -5,7 +5,7 @@ sample_rate: 16000
 batch_size: 64
 
 diarizer:
-  oracle_num_speakers: ??? # oracle number of speakers or pass null if not known. [int or path to file containing uniq-id with num of speakers of that session]
+  oracle_num_speakers: null # oracle number of speakers or pass null if not known. [int or path to file containing uniq-id with num of speakers of that session]
   max_num_speakers: 20 # max number of speakers for each recording. If oracle num speakers is passed this value is ignored.
   out_dir: ???
   paths2audio_files: ??? #file containing paths to audio files for inference

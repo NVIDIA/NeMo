@@ -61,9 +61,9 @@ def add_transcript_to_manifest(
         with open(manifest_updated, 'w', encoding='utf8') as f_updated:
             for i, line in enumerate(f):
                 info = json.loads(line)
-                info['transcript'] = transcripts[i].strip()
-                info['WER'] = round(word_error_rate([info['transcript']], [info['text']]) * 100, 2)
-                info['CER'] = round(word_error_rate([info['transcript']], [info['text']], use_cer=True) * 100, 2)
+                info['pred_text'] = transcripts[i].strip()
+                info['WER'] = round(word_error_rate([info['pred_text']], [info['text']]) * 100, 2)
+                info['CER'] = round(word_error_rate([info['pred_text']], [info['text']], use_cer=True) * 100, 2)
                 json.dump(info, f_updated, ensure_ascii=False)
                 f_updated.write('\n')
 
@@ -190,14 +190,14 @@ def process_alignment(alignment_file: str, args):
 
                     wavfile.write(audio_filepath, sampling_rate, segment)
 
-                    transcript = 'n/a'  # asr_model.transcribe(paths2audio_files=[audio_filepath], batch_size=1)[0]
+                    transcript = 'n/a'
                     info = {
                         'audio_filepath': audio_filepath,
                         'duration': duration,
                         'text': text_processed,
                         'text_no_preprocessing': text_no_preprocessing,
                         'score': round(score, 2),
-                        'transcript': transcript.strip(),
+                        'pred_text': transcript.strip(),
                     }
                     json.dump(info, file_to_write, ensure_ascii=False)
                     file_to_write.write('\n')
@@ -233,7 +233,7 @@ def process_alignment(alignment_file: str, args):
                 duration = len(segment) / sampling_rate
                 del_duration += duration
                 deleted.append((begin, st))
-                transcript = 'n/a'  # asr_model.transcribe(paths2audio_files=[audio_filepath], batch_size=1)[0]
+                transcript = 'n/a'
                 info = {'audio_filepath': audio_filepath, 'duration': duration, 'text': transcript}
                 json.dump(info, f, ensure_ascii=False)
                 f.write('\n')

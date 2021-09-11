@@ -189,7 +189,7 @@ Training a BPE Tokenization
 ---------------------------
 
 Byte-pair encoding (BPE) :cite:`nlp-machine_translation-sennrich2015neural` is a sub-word tokenization algorithm that is commonly used 
-to reduce the large vocabulary size of datasets by splitting words into frequently occuring sub-words. Currently, mMachine translation 
+to reduce the large vocabulary size of datasets by splitting words into frequently occuring sub-words. Currently, Machine translation 
 only supports the `YouTokenToMe <https://github.com/VKCOM/YouTokenToMe>`__ BPE tokenizer. One can set the tokenization configuration 
 as follows:
 
@@ -272,13 +272,13 @@ Tarred datasets can be configured as follows:
 +-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
 | **model.{train_ds,validation_ds,test_ds}.metadata_file**              | str             | ``null``       | Path to JSON metadata file that contains only a single entry for the total number of batches in the dataset.   |
 +-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
-| **model.{train_ds,validation_ds,test_ds}.lines_per_dataset_fragment** | int             | ``1000000``    |                                                                                                                |
+| **model.{train_ds,validation_ds,test_ds}.lines_per_dataset_fragment** | int             | ``1000000``    | Number of lines to consider for bucketing and padding.                                                         |
 +-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
-| **model.{train_ds,validation_ds,test_ds}.num_batches_per_tarfile**    | int             | ``100``        | Maximum sequence to be used with the ``clean`` argument above.                                                 |
+| **model.{train_ds,validation_ds,test_ds}.num_batches_per_tarfile**    | int             | ``100``        | Number of batches (pickle files) within each tarfile.                                                          |
 +-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
-| **model.{train_ds,validation_ds,test_ds}.tar_shuffle_n**              | int             | ``100``        | Whether to cache IDs to avoid re-tokenizing data. This will be deprecated in favor of tarred datasets.         |
+| **model.{train_ds,validation_ds,test_ds}.tar_shuffle_n**              | int             | ``100``        | How many samples to look ahead and load to be shuffled.                                                        |
 +-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
-| **model.{train_ds,validation_ds,test_ds}.shard_strategy**             | str             | ``scatter``    | Whether to cache IDs in each of the nodes in multi-node training.                                              |
+| **model.{train_ds,validation_ds,test_ds}.shard_strategy**             | str             | ``scatter``    | How the shards are distributed between multiple workers.                                                       |
 +-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
 | **model.preproc_out_dir**                                             | str             | ``null``       | Path to folder that contains processed tar files or directory where new tar files are written.                 |
 +-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
@@ -377,10 +377,10 @@ options:
 | **model.{encoder,decoder}.pre_ln**                                | bool            | ``false``             | Whether to apply layer-normalization before (``true``) or after (``false``) a sub-layer.                        |
 +-------------------------------------------------------------------+-----------------+-----------------------+-----------------------------------------------------------------------------------------------------------------+
 
-Our pre-trained models are optimized with Adam, with a maximum learning of 0.0004, beta of (0.9, 0.98), an inverse square root learning 
+Our pre-trained models are optimized with Adam, with a maximum learning of 0.0004, beta of (0.9, 0.98), and inverse square root learning 
 rate schedule from :cite:`nlp-machine_translation-vaswani2017attention`. The **model.optim** section sets the optimization parameters.
 
-The following script creates tarred datasets based on the provided parallel corpus and train a model based on the ``base`` configuration 
+The following script creates tarred datasets based on the provided parallel corpus and trains a model based on the ``base`` configuration 
 from :cite:`nlp-machine_translation-vaswani2017attention`.
 
 .. code ::
@@ -410,7 +410,7 @@ from :cite:`nlp-machine_translation-vaswani2017attention`.
       ~model.test_ds \
 
 The trainer keeps track of the sacreBLEU score :cite:`nlp-machine_translation-post2018call` on the provided validation set and saves 
-the checkpoints that had the top 5 (by default) sacreBLEU scores.
+the checkpoints that have the top 5 (by default) sacreBLEU scores.
 
 At the end of training, a ``.nemo`` file is written to the result directory which allows to run inference on a test set.
 
