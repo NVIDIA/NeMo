@@ -1,7 +1,7 @@
 
 |status| |documentation| |license| |lgtm_grade| |lgtm_alerts| |black|
 
-f vv 
+ 
 
 
 .. |status| image:: http://www.repostatus.org/badges/latest/active.svg
