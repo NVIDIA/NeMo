@@ -3,7 +3,7 @@
 Tutorials
 =========
 
-The best way to get started with NeMo is to start wtih one of our tutorials.
+The best way to get started with NeMo is to start with one of our tutorials.
 
 Most NeMo tutorials can be run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.
 
@@ -33,31 +33,37 @@ To run a tutorial:
      - `NeMo Models <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/01_NeMo_Models.ipynb>`_
    * - ASR
      - ASR with NeMo
-     - `ASR with NeMo <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/01_ASR_with_NeMo.ipynb>`_
+     - `ASR with NeMo <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_with_NeMo.ipynb>`_
    * - ASR
      - ASR with Subword Tokenization
-     - `ASR with Subword Tokenization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/08_ASR_with_Subword_Tokenization.ipynb>`_
+     - `ASR with Subword Tokenization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_with_Subword_Tokenization.ipynb>`_
    * - ASR
      - Offline ASR Inference with Beam Search and External Language Model Rescoring
      - `Offline ASR <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Offline_ASR.ipynb>`_
    * - ASR
      - Online ASR inference with Microphone
-     - `Online ASR Microphone <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/02_Online_ASR_Microphone_Demo.ipynb>`_
+     - `Online ASR Microphone <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Online_ASR_Microphone_Demo.ipynb>`_
    * - ASR
      - Fine-tuning CTC Models on New Languages
-     - `ASR CTC Language Fine-Tuning <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/10_ASR_CTC_Language_Finetuning.ipynb>`_
+     - `ASR CTC Language Fine-Tuning <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_CTC_Language_Finetuning.ipynb>`_
+   * - ASR
+     - Intro to Transducers
+     - `Intro to Transducers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Intro_to_Transducers.ipynb>`_
+   * - ASR
+     - ASR with Transducers
+     - `ASR with Transducers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_with_Transducers.ipynb>`_
    * - ASR
      - Speech Commands
-     - `Speech Commands <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/03_Speech_Commands.ipynb>`_
+     - `Speech Commands <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Speech_Commands.ipynb>`_
    * - ASR
      - Online and Offline Speech Commands Inference
-     - `Online Offline Microphone Speech Commands <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/04_Online_Offline_Speech_Commands_Demo.ipynb>`_
+     - `Online Offline Microphone Speech Commands <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Online_Offline_Speech_Commands_Demo.ipynb>`_
    * - ASR
      - Voice Activity Detection (VAD)
-     - `Voice Activity Detection <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/06_Voice_Activity_Detection.ipynb>`_
+     - `Voice Activity Detection <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Voice_Activity_Detection.ipynb>`_
    * - ASR
      - Online and Offline VAD Inference
-     - `Online Offline Microphone VAD <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/07_Online_Offline_Microphone_VAD_Demo.ipynb>`_
+     - `Online Offline Microphone VAD <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Online_Offline_Microphone_VAD_Demo.ipynb>`_
    * - ASR
      - Speaker Recognition and Verification
      - `Speaker Recognition and Verification <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/speaker_recognition/Speaker_Recognition_Verification.ipynb>`_
@@ -69,7 +75,7 @@ To run a tutorial:
      - `ASR with Speaker Diarization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/speaker_recognition/ASR_with_SpeakerDiarization.ipynb>`_
    * - ASR
      - Online Noise Augmentation
-     - `Online Noise Augmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
+     - `Online Noise Augmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Online_Noise_Augmentation.ipynb>`_
    * - ASR
      - ASR for Telephony Speech
      - `ASR for Telephony Speech <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_for_telephony_speech.ipynb>`_

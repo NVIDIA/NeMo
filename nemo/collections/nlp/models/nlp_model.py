@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import glob
 import hashlib
 import json
 import os
@@ -32,14 +31,15 @@ from transformers import TRANSFORMERS_CACHE
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
+from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import VOCAB_FILE_NAME
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder import MegatronEncoderModule
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import AppState, logging
-from nemo.utils.exp_manager import configure_checkpointing
 from nemo.utils.get_rank import is_global_rank_zero
 
 __all__ = ['NLPModel']
@@ -57,7 +57,9 @@ class NLPModel(ModelPT, Exportable):
         super().__init__(cfg, trainer)
         self.set_world_size(trainer)
 
-    def register_artifact(self, config_path: str, src: str, verify_src_exists: bool = False):
+    def register_artifact(
+        self, config_path: str, src: str, verify_src_exists: bool = False,
+    ):
         """ Overrides ModelPT register_artifact default behavior. NLP models usually need artifacts that are optional."""
         return super().register_artifact(config_path, src, verify_src_exists=verify_src_exists)
 
@@ -109,13 +111,12 @@ class NLPModel(ModelPT, Exportable):
         vocab_file = None
         if cfg.vocab_file:
             vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file)
-        tokenizer = get_tokenizer(
+        self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
             vocab_file=vocab_file,
             special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
             tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
         )
-        self.tokenizer = tokenizer
 
         if vocab_file is None:
             # when there is no vocab file we try to get the vocab from the tokenizer and register it
@@ -164,12 +165,14 @@ class NLPModel(ModelPT, Exportable):
                 with open(vocab_json_src, 'w', encoding='utf-8') as f:
                     f.write(json.dumps(vocab_dict, indent=2, sort_keys=True) + '\n')
                 self.register_artifact(config_path=vocab_dict_config_path, src=vocab_json_src)
-                # create vocab file
-                vocab_file_src = os.path.join(hash_path, vocab_file_config_path)
-                with open(vocab_file_src, 'w', encoding='utf-8') as f:
-                    for key in vocab_dict:
-                        f.write(key + '\n')
 
+                tokenizer_name = self.tokenizer.tokenizer.__class__.__name__
+                # save vocab file
+                # depending on the HuggingFace model, vocab file could mean different things, see VOCAB_FILE_NAME
+                self.tokenizer.save_vocabulary(hash_path)
+
+                # create vocab file
+                vocab_file_src = os.path.join(hash_path, VOCAB_FILE_NAME[tokenizer_name])
                 cfg.vocab_file = vocab_file_src
                 self.register_artifact(config_path=vocab_file_config_path, src=vocab_file_src)
             else:
@@ -335,6 +338,7 @@ class NLPModel(ModelPT, Exportable):
         strict: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
+        save_restore_connector: SaveRestoreConnector = None,
     ):
         """
         Restores model instance (weights and configuration) from .nemo file.
@@ -359,6 +363,9 @@ class NLPModel(ModelPT, Exportable):
         Returns:
             An instance of type cls or its underlying config (if return_config is set).
         """
+        if save_restore_connector is None:
+            save_restore_connector = SaveRestoreConnector()
+
         if not os.path.exists(restore_path):
             raise FileNotFoundError(f"Can't find {restore_path}")
 
@@ -420,13 +427,21 @@ class NLPModel(ModelPT, Exportable):
             model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
             app_state.model_parallel_rank = model_parallel_rank
 
-            restored_model = cls._default_restore_from(
-                restore_path, override_config_path, map_location, strict, return_config
+            cls.update_save_restore_connector(save_restore_connector)
+            restored_model = cls._save_restore_connector.restore_from(
+                cls, app_state.model_restore_path, override_config_path, map_location, strict, return_config
             )
             restored_model.set_trainer(trainer)
             return restored_model
         else:
-            return super().restore_from(restore_path, override_config_path, map_location, strict, return_config)
+            return super().restore_from(
+                app_state.model_restore_path,
+                override_config_path,
+                map_location,
+                strict,
+                return_config,
+                save_restore_connector=save_restore_connector,
+            )
 
     @rank_zero_only
     def register_megatron_checkpoint_version(self):

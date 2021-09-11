@@ -53,7 +53,7 @@ if __name__ == "__main__":
     # Example usage:
     # python run_evaluate.py --input=<INPUT> --cat=<CATEGORY> --filter
     args = parse_args()
-    if args.lang == 'en':
+    if args.language == 'en':
         from nemo_text_processing.text_normalization.en.clean_eval_data import filter_loaded_data
     file_path = args.input
     normalizer = Normalizer(input_case=args.input_case, lang=args.language)

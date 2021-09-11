@@ -14,6 +14,7 @@
 
 import itertools
 import json
+import os
 import random
 from multiprocessing import Value
 from pathlib import Path
@@ -75,6 +76,8 @@ class MTEncDecModel(EncDecNLPModel):
         self.encoder_tokenizer_library = cfg.encoder_tokenizer.get('library', 'yttm')
         self.decoder_tokenizer_library = cfg.decoder_tokenizer.get('library', 'yttm')
 
+        self.validate_input_ids = cfg.get("validate_input_ids", True)
+
         # Instantiates tokenizers and register to be saved with NeMo Model archive
         # After this call, ther will be self.encoder_tokenizer and self.decoder_tokenizer
         # Which can convert between tokens and token_ids for SRC and TGT languages correspondingly.
@@ -103,7 +106,7 @@ class MTEncDecModel(EncDecNLPModel):
                 )
             elif isinstance(self.src_language, ListConfig):
                 for lng in self.src_language:
-                    self.multilingual_ids.append(self.encoder_tokenizer.token_to_id("<" + lng + ">"))
+                    self.multilingual_ids.append(None)
             elif isinstance(self.tgt_language, ListConfig):
                 for lng in self.tgt_language:
                     self.multilingual_ids.append(self.encoder_tokenizer.token_to_id("<" + lng + ">"))
@@ -211,8 +214,29 @@ class MTEncDecModel(EncDecNLPModel):
         ids[ids >= self.decoder_tokenizer.vocab_size] = self.decoder_tokenizer.unk_id
         return ids
 
+    def test_encoder_ids(self, ids, raise_error=False):
+        invalid_ids = torch.logical_or((ids >= self.encoder_tokenizer.vocab_size).any(), (ids < 0).any(),)
+
+        if raise_error and invalid_ids:
+            raise ValueError("Encoder ids are out of range (tip: check encoder tokenizer)")
+
+        return not invalid_ids
+
+    def test_decoder_ids(self, ids, raise_error=False):
+        invalid_ids = torch.logical_or((ids >= self.decoder_tokenizer.vocab_size).any(), (ids < 0).any(),)
+
+        if raise_error and invalid_ids:
+            raise ValueError("Decoder ids are out of range (tip: check decoder tokenizer)")
+
+        return not invalid_ids
+
     @typecheck()
     def forward(self, src, src_mask, tgt, tgt_mask):
+        if self.validate_input_ids:
+            # test src/tgt for id range (i.e., hellp in catching wrong tokenizer)
+            self.test_encoder_ids(src, raise_error=True)
+            self.test_decoder_ids(tgt, raise_error=True)
+
         src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
         tgt_hiddens = self.decoder(
             input_ids=tgt, decoder_mask=tgt_mask, encoder_embeddings=src_hiddens, encoder_mask=src_mask
@@ -422,6 +446,23 @@ class MTEncDecModel(EncDecNLPModel):
             r2l=decoder_r2l,
         )
 
+        # validate no token is negative for sentencepiece tokenizers
+        for tok_name, tok_library, tok_model in [
+            ("encoder_tokenizer", encoder_tokenizer_library, self.encoder_tokenizer),
+            ("decoder_tokenizer", decoder_tokenizer_library, self.decoder_tokenizer),
+        ]:
+            if tok_library == 'sentencepiece':
+                negative_tokens = []
+                for n in ["eos_id", "bos_id", "unk_id", "pad_id"]:
+                    v = getattr(tok_model.tokenizer, n)()
+                    if v < 0:
+                        negative_tokens.append(f"{n}={v}")
+
+                if negative_tokens:
+                    raise ValueError(
+                        f"{tok_name}=sentencepiece has invalid negative special tokens = {negative_tokens}"
+                    )
+
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
@@ -483,6 +524,27 @@ class MTEncDecModel(EncDecNLPModel):
                 if tar_files_list is None:
                     tar_files = metadata.get('tar_files')
                     if tar_files is not None:
+                        # update absolute path of tar files based on metadata_file path
+                        valid_tar_files = []
+                        metadata_basedir = os.path.abspath(os.path.dirname(metadata_file))
+                        updated_fn = 0
+                        for fn in tar_files:
+                            # if a file does not exist, look in metadata file directory
+                            if os.path.exists(fn):
+                                valid_fn = fn
+                            else:
+                                updated_fn += 1
+                                valid_fn = os.path.join(metadata_basedir, os.path.basename(fn))
+                                if not os.path.exists(valid_fn):
+                                    raise RuntimeError(
+                                        f"File in tarred dataset is missing from absolute and relative paths {fn}"
+                                    )
+
+                            valid_tar_files.append(valid_fn)
+
+                        tar_files = valid_tar_files
+
+                        logging.info(f'Updated the path of {updated_fn} tarred files')
                         logging.info(f'Loading from tarred dataset {tar_files}')
                 else:
                     tar_files = tar_files_list[idx]
@@ -564,10 +626,11 @@ class MTEncDecModel(EncDecNLPModel):
             sampler = pt_data.RandomSampler(dataset)
         else:
             sampler = pt_data.SequentialSampler(dataset)
+
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=1,
-            sampler=None if cfg.get("use_tarred_dataset", False) else sampler,
+            sampler=None if (cfg.get("use_tarred_dataset", False) or isinstance(dataset, ConcatDataset)) else sampler,
             num_workers=cfg.get("num_workers", 2),
             pin_memory=cfg.get("pin_memory", False),
             drop_last=cfg.get("drop_last", False),
@@ -689,14 +752,14 @@ class MTEncDecModel(EncDecNLPModel):
 
     @torch.no_grad()
     def batch_translate(self, src: torch.LongTensor, src_mask: torch.LongTensor, return_beam_scores: bool = False):
-        """	
-        Translates a minibatch of inputs from source language to target language.	
-        Args:	
-            src: minibatch of inputs in the src language (batch x seq_len)	
-            src_mask: mask tensor indicating elements to be ignored (batch x seq_len)	
-        Returns:	
-            translations: a list strings containing detokenized translations	
-            inputs: a list of string containing detokenized inputs	
+        """
+        Translates a minibatch of inputs from source language to target language.
+        Args:
+            src: minibatch of inputs in the src language (batch x seq_len)
+            src_mask: mask tensor indicating elements to be ignored (batch x seq_len)
+        Returns:
+            translations: a list strings containing detokenized translations
+            inputs: a list of string containing detokenized inputs
         """
         mode = self.training
         try:
@@ -773,7 +836,11 @@ class MTEncDecModel(EncDecNLPModel):
                 raise ValueError("Expect source_lang and target_lang to infer for multilingual model.")
             src_symbol = self.encoder_tokenizer.token_to_id('<' + source_lang + '>')
             tgt_symbol = self.encoder_tokenizer.token_to_id('<' + target_lang + '>')
-            prepend_ids = [src_symbol if src_symbol in self.multilingual_ids else tgt_symbol]
+            if src_symbol in self.multilingual_ids:
+                prepend_ids = [src_symbol]
+            elif tgt_symbol in self.multilingual_ids:
+                prepend_ids = [tgt_symbol]
+
         try:
             self.eval()
             src, src_mask = self.prepare_inference_batch(text, prepend_ids)

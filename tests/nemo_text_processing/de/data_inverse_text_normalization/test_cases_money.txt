@@ -1,0 +1,7 @@
+zwei dollar~$2
+ein cent~€0,01
+zwanzig cent~€0,20
+hundert cent~100 cent
+zwei dollar zwanzig~$2,20
+zwei dollar und zwanzig cent~$2,20
+zwei euro und zwanzig cent~€2,20

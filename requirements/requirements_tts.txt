@@ -1,7 +1,2 @@
-matplotlib
-pypinyin
-attrdict
-pystoi
-pesq
-g2p_en
+librosa
 nltk

@@ -35,17 +35,17 @@ This file contains all the utility functions required for speaker embeddings par
 
 def audio_rttm_map(audio_file_list, rttm_file_list=None):
     """
-    Returns a AUDIO_TO_RTTM dictionary thats maps all the unique file names with 
+    Returns a AUDIO_TO_RTTM dictionary thats maps all the unique file names with
     audio file paths and corresponding ground truth rttm files calculated from audio
     file list and rttm file list
 
-    Args: 
+    Args:
     audio_file_list(list,str): either list of audio file paths or file containing paths to audio files (required)
-    rttm_file_list(lisr,str): either list of rttm file paths or file containing paths to rttm files (optional) 
+    rttm_file_list(lisr,str): either list of rttm file paths or file containing paths to rttm files (optional)
     [Required if DER needs to be calculated]
     Returns:
-    AUDIO_RTTM_MAP (dict): dictionary thats maps all the unique file names with 
-    audio file paths and corresponding ground truth rttm files 
+    AUDIO_RTTM_MAP (dict): dictionary thats maps all the unique file names with
+    audio file paths and corresponding ground truth rttm files
     """
     rttm_notfound = False
     if type(audio_file_list) in [list, ListConfig]:
@@ -169,7 +169,7 @@ def rttm_to_labels(rttm_filename):
     return labels
 
 
-def get_time_stamps(embeddings_file, reco2num, manifest_path, sample_rate, window, shift):
+def get_time_stamps(embeddings_file, reco2num, manifest_path):
     """
     Loads embedding file and generates time stamps based on window and shift for speaker embeddings 
     clustering.
@@ -217,16 +217,9 @@ def get_time_stamps(embeddings_file, reco2num, manifest_path, sample_rate, windo
             if audio not in time_stamps:
                 time_stamps[audio] = []
             start = offset
-            slice_end = start + duration
-            base = math.ceil((duration - window) / shift)
-            slices = 1 if base < 0 else base + 1
-            for slice_id in range(slices):
-                end = start + window
-                if end > slice_end:
-                    end = slice_end
-                stamp = '{:.3f} {:.3f} '.format(start, end)
-                time_stamps[audio].append(stamp)
-                start = offset + (slice_id + 1) * shift
+            end = start + duration
+            stamp = '{:.3f} {:.3f} '.format(start, end)
+            time_stamps[audio].append(stamp)
 
     return embeddings, time_stamps, speakers
 
@@ -235,14 +228,14 @@ def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rt
     """
     performs spectral clustering on embeddings with time stamps generated from VAD output
     Args:
-    
+
     embeddings (dict): Embeddings with key as unique_id
     time_stamps (dict): time stamps list for each audio recording
     speakers (dict): number of speaker for each audio recording 
     audio_rttm_map (dict): AUDIO_RTTM_MAP for mapping unique id with audio file path and rttm path
     out_rttm_dir (str): Path to write predicted rttms
     max_num_speakers (int): maximum number of speakers to consider for spectral clustering. Will be ignored if speakers['key'] is not None
-    
+
     Returns:
     all_reference (list[Annotation]): reference annotations for score calculation
     all_hypothesis (list[Annotation]): hypothesis annotations for score calculation
@@ -252,9 +245,8 @@ def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rt
     all_reference = []
     no_references = False
 
-    if torch.cuda.is_available():
-        cuda = True
-    else:
+    cuda = True
+    if not torch.cuda.is_available():
         logging.warning("cuda=False, using CPU for Eigen decompostion. This might slow down the clustering process.")
         cuda = False
 
@@ -292,7 +284,7 @@ def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rt
     return all_reference, all_hypothesis
 
 
-def get_DER(all_reference, all_hypothesis):
+def get_DER(all_reference, all_hypothesis, collar=0.5, skip_overlap=True):
     """
     calculates DER, CER, FA and MISS
 
@@ -312,10 +304,12 @@ def get_DER(all_reference, all_hypothesis):
     collar in md-eval.pl, 0.5s should be applied for pyannote.metrics.
 
     """
-    metric = DiarizationErrorRate(collar=0.5, skip_overlap=True)
+    metric = DiarizationErrorRate(collar=collar, skip_overlap=skip_overlap, uem=None)
 
-    for reference, hypothesis in zip(all_reference, all_hypothesis):
+    mapping_dict = {}
+    for k, (reference, hypothesis) in enumerate(zip(all_reference, all_hypothesis)):
         metric(reference, hypothesis, detailed=True)
+        mapping_dict[k] = metric.optimal_mapping(reference, hypothesis)
 
     DER = abs(metric)
     CER = metric['confusion'] / metric['total']
@@ -324,34 +318,24 @@ def get_DER(all_reference, all_hypothesis):
 
     metric.reset()
 
-    return DER, CER, FA, MISS
+    return DER, CER, FA, MISS, mapping_dict
 
 
 def perform_diarization(
-    embeddings_file=None,
-    reco2num=2,
-    manifest_path=None,
-    sample_rate=16000,
-    window=1.5,
-    shift=0.75,
-    audio_rttm_map=None,
-    out_rttm_dir=None,
-    max_num_speakers=8,
+    embeddings_file=None, reco2num=2, manifest_path=None, audio_rttm_map=None, out_rttm_dir=None, max_num_speakers=8,
 ):
     """
     Performs diarization with embeddings generated based on VAD time stamps with recording 2 num of speakers (reco2num)
     for spectral clustering 
     """
-    embeddings, time_stamps, speakers = get_time_stamps(
-        embeddings_file, reco2num, manifest_path, sample_rate, window, shift
-    )
+    embeddings, time_stamps, speakers = get_time_stamps(embeddings_file, reco2num, manifest_path)
     logging.info("Performing Clustering")
     all_reference, all_hypothesis = perform_clustering(
         embeddings, time_stamps, speakers, audio_rttm_map, out_rttm_dir, max_num_speakers
     )
 
     if len(all_reference) and len(all_hypothesis):
-        DER, CER, FA, MISS = get_DER(all_reference, all_hypothesis)
+        DER, CER, FA, MISS, _ = get_DER(all_reference, all_hypothesis)
         logging.info(
             "Cumulative results of all the files:  \n FA: {:.4f}\t MISS {:.4f}\t \
                 Diarization ER: {:.4f}\t, Confusion ER:{:.4f}".format(
@@ -409,6 +393,77 @@ def write_rttm2manifest(paths2audio_files, paths2rttm_files, manifest_file):
             outfile.write("\n")
             f.close()
     return manifest_file
+
+
+def segments_manifest_to_subsegments_manifest(
+    segments_manifest_file: str,
+    subsegments_manifest_file: str = None,
+    window: float = 1.5,
+    shift: float = 0.75,
+    min_subsegment_duration: float = 0.05,
+):
+    """
+    Generate subsegments manifest from segments manifest file
+    Args
+    input:
+        segments_manifest file (str): path to segments manifest file, typically from VAD output
+        subsegments_manifest_file (str): path to output subsegments manifest file (default (None) : writes to current working directory)
+        window (float): window length for segments to subsegments length
+        shift (float): hop length for subsegments shift
+        min_subsegments_duration (float): exclude subsegments smaller than this duration value
+
+    output:
+        returns path to subsegment manifest file
+    """
+    if subsegments_manifest_file is None:
+        pwd = os.getcwd()
+        subsegments_manifest_file = os.path.join(pwd, 'subsegments.json')
+
+    with open(segments_manifest_file, 'r') as segments_manifest, open(
+        subsegments_manifest_file, 'w'
+    ) as subsegments_manifest:
+        segments = segments_manifest.readlines()
+        for segment in segments:
+            segment = segment.strip()
+            dic = json.loads(segment)
+            audio, offset, duration, label = dic['audio_filepath'], dic['offset'], dic['duration'], dic['label']
+            subsegments = get_subsegments(offset=offset, window=window, shift=shift, duration=duration)
+
+            for subsegment in subsegments:
+                start, dur = subsegment
+                if dur > min_subsegment_duration:
+                    meta = {"audio_filepath": audio, "offset": start, "duration": dur, "label": label}
+                    json.dump(meta, subsegments_manifest)
+                    subsegments_manifest.write("\n")
+
+    return subsegments_manifest_file
+
+
+def get_subsegments(offset: float, window: float, shift: float, duration: float):
+    """
+    return subsegments from a segment of audio file
+    Args
+    input:
+        offset (float): start time of audio segment
+        window (float): window length for segments to subsegments length
+        shift (float): hop length for subsegments shift 
+        duration (float): duration of segment
+    output:
+        subsegments (List[tuple[float, float]]): subsegments generated for the segments as list of tuple of start and duration of each subsegment
+    """
+    subsegments = []
+    start = offset
+    slice_end = start + duration
+    base = math.ceil((duration - window) / shift)
+    slices = 1 if base < 0 else base + 1
+    for slice_id in range(slices):
+        end = start + window
+        if end > slice_end:
+            end = slice_end
+        subsegments.append((start, end - start))
+        start = offset + (slice_id + 1) * shift
+
+    return subsegments
 
 
 def embedding_normalize(embs, use_std=False, eps=1e-10):
