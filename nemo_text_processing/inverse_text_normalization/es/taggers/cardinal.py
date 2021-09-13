@@ -158,7 +158,7 @@ class CardinalFst(GraphFst):
             pynini.cdrewrite(pynutil.delete("y"), NEMO_SPACE, NEMO_SPACE, NEMO_SIGMA)
             @ (NEMO_ALPHA + NEMO_SIGMA)
             @ graph
-        )        
+        )
 
         self.graph_no_exception = graph
 
