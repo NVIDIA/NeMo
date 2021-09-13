@@ -75,10 +75,6 @@ def is_dali_supported(min_version: str, verbose: bool = False) -> bool:
 
         return False
 
-    # TODO: Remove post 21.09
-    cuda_available = torch.cuda.is_available()
-    module_available = module_available and cuda_available
-
     return module_available
 
 
@@ -179,6 +175,8 @@ class _AudioTextDALIDataset(Iterator):
             raise ValueError(
                 f"{self} received an unexpected device argument {device}. Supported values are: 'cpu', 'gpu'"
             )
+
+        device_id = device_id if device == 'gpu' else None
 
         self.batch_size = batch_size  # Used by NeMo
 
