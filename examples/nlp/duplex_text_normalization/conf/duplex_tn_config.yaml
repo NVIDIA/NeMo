@@ -128,6 +128,8 @@ data:
     num_workers: 3
     pin_memory: false
     drop_last: false
+    use_tarred_dataset: False # if true metadata_file will be used
+    tar_metadata_file: null # metadata for tarred dataset a .json file containing the list of tar_files in "tar_files" field
 
   validation_ds:
     data_path: dev.tsv # provide the full path to the file. Provide multiple paths to run evaluation on multiple datasets

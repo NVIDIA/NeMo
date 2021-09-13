@@ -167,7 +167,7 @@ class ConcatDataset(IterableDataset):
     def random_generator(datasets, **kwargs):
         p = kwargs.get('p')
         if not p:
-            raise ValueError("Random generator expects a 'p' keyowrd argument for sampling probabilities.")
+            raise ValueError("Random generator expects a 'p' keyword argument for sampling probabilities.")
 
         num = len(datasets)
         if len(p) != num:

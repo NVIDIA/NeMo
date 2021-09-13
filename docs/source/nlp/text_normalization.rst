@@ -55,6 +55,29 @@ However, our script will return a more concise output which is "zim bio dot com"
 
 More information about the Google text normalization dataset can be found in the paper `RNN Approaches to Text Normalization: A Challenge <https://arxiv.org/ftp/arxiv/papers/1611/1611.00068.pdf>`__ :cite:`nlp-textnorm-Sproat2016RNNAT`.
 
+Tarred Dataset
+--------------
+
+When training with ``DistributedDataParallel``, each process has its own copy of the dataset. For large datasets, this may not always
+fit in CPU memory. `Webdatasets <https://github.com/tmbdev/webdataset>`__ circumvents this problem by efficiently iterating over
+tar files stored on disk. Each tar file can contain hundreds to thousands of pickle files, each containing a single minibatch.
+
+Tarred datasets can be created as follows:
+
+.. code::
+
+    python create_tarred_tn_dataset.py \
+        --input_files = "</PATH_TO/output-00099-of-00100>" \
+        --input_files = "</PATH_TO/output-00098-of-00100>" \
+        --out_dir="<TARRED_DATA_OUTPUT_DIR>"
+
+To use the tarred version of the data with the model, set `data.train_ds.use_tarred_dataset` to `True` and provide \
+path to the `metadata.json` file that is going to be created during the tarred dataset construction and stored at `<TARRED_DATA_OUTPUT_DIR>`, as follows:
+
+.. code::
+
+    data.train_ds.use_tarred_dataset=True \
+    data.train_ds.tar_metadata_file=\PATH_TO\<TARRED_DATA_OUTPUT_DIR>\metadata.json
 
 Model Training
 --------------
