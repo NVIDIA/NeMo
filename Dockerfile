@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:21.06-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:21.08-py3
 
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
@@ -37,8 +37,9 @@ RUN pip uninstall -y sacrebleu torchtext
 
 # build torchaudio (change latest release version to match pytorch)
 WORKDIR /tmp/torchaudio_build
-RUN git clone --depth 1 --branch release/0.7 https://github.com/pytorch/audio.git && \
+RUN git clone --depth 1 --branch release/0.9 https://github.com/pytorch/audio.git && \
     cd audio && \
+    git submodule update --init --recursive && \
     BUILD_SOX=1 python setup.py install && \
     cd .. && rm -r audio
 
@@ -74,7 +75,7 @@ COPY . .
 
 # start building the final container
 FROM nemo-deps as nemo
-ARG NEMO_VERSION=1.3.0
+ARG NEMO_VERSION=1.4.0
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes
