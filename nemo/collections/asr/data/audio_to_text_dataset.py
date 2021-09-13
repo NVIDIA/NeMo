@@ -21,7 +21,7 @@ from nemo.collections.asr.data import audio_to_text, audio_to_text_dali
 from nemo.utils import logging
 
 
-def inject_dataloader_value_from_model_config(model_cfg: dict, dataloader_cfg: dict, key: str):
+def inject_dataloader_value_from_model_config(model_cfg: dict, dataloader_cfg: DictConfig, key: str):
     """
     Extracts the label set provided at the top level of the model, and propagates it to the dataloader
     config.
@@ -37,6 +37,9 @@ def inject_dataloader_value_from_model_config(model_cfg: dict, dataloader_cfg: d
             f"Model level config does not container `{key}`, please explicitly provide `{key}` to the dataloaders."
         )
         return
+
+    if not isinstance(dataloader_cfg, DictConfig):
+        dataloader_cfg = DictConfig(dataloader_cfg)
 
     # If key exists in the data loader config (either set explicitly or as a placeholder (via None))
     if key in dataloader_cfg:
