@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ from nemo.utils import logging
 
 
 """
-The script build tar files for Tarred TextNormalizationDecoderDataset
+The script builds tar files for Tarred TextNormalizationDecoderDataset
 
 See `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`
 for more details on data format.
@@ -129,6 +129,7 @@ def _write_batches_to_tarfiles(
         use_cache=False,
         max_insts=-1,
         do_tokenize=False,
+        initial_shufle=True,
     )
     dataset.batchify(batch_size)
     file_name = os.path.basename(input_file)
@@ -222,18 +223,6 @@ if __name__ == '__main__':
         )
         for input_file in args.input_files
     )
-    #
-    # results_list = _write_batches_to_tarfiles(
-    #         input_file=args.input_files[0],
-    #         tokenizer=tokenizer,
-    #         tokenizer_name=args.transformer_name,
-    #         mode=args.mode,
-    #         batch_size=args.batch_size,
-    #         max_seq_len=args.max_seq_length,
-    #         decoder_data_augmentation=args.decoder_data_augmentation,
-    #         out_dir=args.out_dir,
-    #         num_batches_per_tarfile=args.num_batches_per_tarfile
-    # )
 
     total_batches = sum([batch_count for batch_count, _ in results_list])
 

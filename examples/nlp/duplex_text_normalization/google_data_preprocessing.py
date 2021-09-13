@@ -113,9 +113,6 @@ def read_google_data(data_dir: str, lang: str):
     dev = dev[:MAX_DEV_SIZE]
     train_sz, dev_sz, test_sz = len(train), len(dev), len(test)
     print(f'train_sz: {train_sz} | dev_sz: {dev_sz} | test_sz: {test_sz}')
-    import pdb
-
-    pdb.set_trace()
     return train, dev, test
 
 

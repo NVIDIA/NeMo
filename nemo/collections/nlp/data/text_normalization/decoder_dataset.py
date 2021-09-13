@@ -21,6 +21,7 @@ from typing import List, Optional, Tuple
 
 import braceexpand
 import numpy as np
+import torch
 import webdataset as wd
 from torch.utils.data import IterableDataset
 from tqdm import tqdm
@@ -39,9 +40,7 @@ __all__ = ['TextNormalizationDecoderDataset']
 class TextNormalizationDecoderDataset(Dataset):
     """
     Creates dataset to use to train a DuplexDecoderModel.
-
     Converts from raw data to an instance that can be used by Dataloader.
-
     For dataset to use to do end-to-end inference, see TextNormalizationTestDataset.
 
     Args:
@@ -184,7 +183,7 @@ class TextNormalizationDecoderDataset(Dataset):
                             end_idx=ix + 1 + noise_right,
                             semiotic_class=_class,
                             lang=self.lang,
-                            do_basic_tokenize=self.do_basic_tokenize,
+                            do_basic_tokenize=do_basic_tokenize,
                         )
                         insts.append(inst)
 
@@ -263,13 +262,18 @@ class TextNormalizationDecoderDataset(Dataset):
 
     def __getitem__(self, idx):
         """
+        Returns a dataset item
+
+        Args:
+            idx: ID of the item
         Returns:
-            'input_ids': input ids
-            'attention_mask': attention mask
-            'labels': ground truth labels
-            'semiotic_class_id': id of the semiotic class of the example
-            'direction': id of the TN/ITN tast (see constants for the values)
-            'inputs_center': ids of input center (only semiotic span, no special tokens and context)
+            A dictionary that represents the item, the dictionary contains the following fields:
+            input_ids: input ids
+            attention_mask: attention mask
+            labels: ground truth labels
+            semiotic_class_id: id of the semiotic class of the example
+            direction: id of the TN/ITN tast (see constants for the values)
+            inputs_center: ids of input center (only semiotic span, no special tokens and context)
         """
         example = self.examples[idx]
         item = {key: val[0] for key, val in example.items()}
@@ -279,6 +283,12 @@ class TextNormalizationDecoderDataset(Dataset):
         return len(self.examples)
 
     def batchify(self, batch_size: int):
+        """
+        Creates a batch
+
+        Args:
+            batch_size: the size of the batch
+        """
         logging.info("Padding the data and creating batches...")
 
         long_examples_filtered = 0
@@ -308,7 +318,7 @@ class TextNormalizationDecoderDataset(Dataset):
                 inputs_center = [inst.input_center_str.strip() for inst in batch]
                 targets = [inst.output_str.strip() for inst in batch]
 
-                # TODO use class map
+                # Here we assume that every input_file contains examples from every semiotic class
                 classes = [[self.label_ids_semiotic[inst.semiotic_class]] for inst in batch]
                 directions = [[constants.DIRECTIONS_TO_ID[inst.direction]] for inst in batch]
 
@@ -533,19 +543,6 @@ class TarredTextNormalizationDecoderDataset(IterableDataset):
         pkl_file = io.BytesIO(pkl_file)
         data = pickle.load(pkl_file)  # loads np.int64 vector
         pkl_file.close()
-
-        # input_ids = data["input_ids"]
-        # attention_mask = data["attention_mask"]
-        # labels = data["labels"]
-        # semiotic_class_ids = data["semiotic_class_id"]
-        # direction_id = data["direction_id"]
-        # inputs_center = data["inputs_center"]
-        # return input_ids, attention_mask, labels, semiotic_class_ids, direction_id, inputs_center
-        # print('dec', [len(x) for x in data['decoder_input_ids']])
-        # print('lab', [len(x) for x in data['labels']])
-        # print()
-        import torch
-
         data = {k: torch.tensor(v) for k, v in data.items()}
         return data
 

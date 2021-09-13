@@ -71,13 +71,6 @@ Tarred datasets can be created as follows:
         --input_files = "</PATH_TO/output-00098-of-00100>" \
         --out_dir="<TARRED_DATA_OUTPUT_DIR>"
 
-To use the tarred version of the data with the model, set `data.train_ds.use_tarred_dataset` to `True` and provide \
-path to the `metadata.json` file that is going to be created during the tarred dataset construction and stored at `<TARRED_DATA_OUTPUT_DIR>`, as follows:
-
-.. code::
-
-    data.train_ds.use_tarred_dataset=True \
-    data.train_ds.tar_metadata_file=\PATH_TO\<TARRED_DATA_OUTPUT_DIR>\metadata.json
 
 Model Training
 --------------
@@ -131,6 +124,15 @@ Or you can also train only a decoder (without training a tagger):
         data.base_dir=PATH_TO_DATASET_DIR \
         mode={tn,itn,joint} \
         tagger_model.do_training=false
+
+To use the tarred version of the data with the decoder model, set `data.train_ds.use_tarred_dataset` to `True` and provide \
+path to the `metadata.json` file. The metadata file is created during the tarred dataset construction and stored at `<TARRED_DATA_OUTPUT_DIR>`.
+To enable training with the tarred dataset, add the following arguments:
+
+.. code::
+
+    data.train_ds.use_tarred_dataset=True \
+    data.train_ds.tar_metadata_file=\PATH_TO\<TARRED_DATA_OUTPUT_DIR>\metadata.json
 
 
 Model Architecture

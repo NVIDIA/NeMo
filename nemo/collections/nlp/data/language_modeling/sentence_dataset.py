@@ -80,9 +80,7 @@ class SentenceDataset(Dataset):
         into batches to minimize the use of padding tokens. Returns a list of
         batches where each batch contains indices of sentences included into it
         """
-        import pdb
 
-        pdb.set_trace()
         # create buckets sorted by the number of src tokens
         # each bucket is also sorted by the number of tgt tokens
         buckets = {}
