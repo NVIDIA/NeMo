@@ -21,6 +21,7 @@ from typing import List, Tuple
 from joblib import Parallel, delayed
 from nemo_text_processing.text_normalization.data_loader_utils import post_process_punctuation, pre_process
 from nemo_text_processing.text_normalization.normalize import Normalizer
+from tqdm import tqdm
 
 try:
     from nemo.collections.asr.metrics.wer import word_error_rate
@@ -42,19 +43,19 @@ except (ModuleNotFoundError, ImportError):
 The script provides multiple normalization options and chooses the best one that minimizes CER of the ASR output
 (most of the semiotic classes use deterministic=False flag).
 
-To run this script with a .json manifest file:
-    python normalize_with_audio.py \
-           --audio_data PATH/TO/MANIFEST.JSON \
-           --language en \
-           --model QuartzNet15x5Base-En \
-           --verbose
+To run this script with a .json manifest file, the manifest file should contain the following fields:
+    "audio_filepath" - path to the audio file
+    "text" - raw text
+    "pred_text" - ASR model prediction
     
-    The manifest file should contain the following fields:
-        "audio_filepath" - path to the audio file
-        "text" - raw text
-        "transcript" - ASR model prediction (optional)
-
-
+    See https://github.com/NVIDIA/NeMo/blob/main/examples/asr/transcribe_speech.py on how to add ASR predictions
+        
+    When the manifest is ready, run:
+        python normalize_with_audio.py \
+               --audio_data PATH/TO/MANIFEST.JSON \
+               --language en 
+     
+        
 To run with a single audio file, specify path to audio and text with:
     python normalize_with_audio.py \
            --audio_data PATH/TO/AUDIO.WAV \
@@ -166,21 +167,21 @@ class NormalizerWithAudio(Normalizer):
                 continue
 
     def select_best_match(
-        self, normalized_texts: List[str], transcript: str, verbose: bool = False, remove_punct: bool = False
+        self, normalized_texts: List[str], pred_text: str, verbose: bool = False, remove_punct: bool = False
     ):
         """
         Selects the best normalization option based on the lowest CER
 
         Args:
             normalized_texts: normalized text options
-            transcript: ASR model transcript of the audio file corresponding to the normalized text
+            pred_text: ASR model transcript of the audio file corresponding to the normalized text
             verbose: whether to print intermediate meta information
             remove_punct: whether to remove punctuation before calculating CER
 
         Returns:
             normalized text with the lowest CER and CER value
         """
-        normalized_texts = calculate_cer(normalized_texts, transcript, remove_punct)
+        normalized_texts = calculate_cer(normalized_texts, pred_text, remove_punct)
         normalized_texts = sorted(normalized_texts, key=lambda x: x[1])
         normalized_text, cer = normalized_texts[0]
 
@@ -192,13 +193,13 @@ class NormalizerWithAudio(Normalizer):
         return normalized_text, cer
 
 
-def calculate_cer(normalized_texts: List[str], transcript: str, remove_punct=False) -> List[Tuple[str, float]]:
+def calculate_cer(normalized_texts: List[str], pred_text: str, remove_punct=False) -> List[Tuple[str, float]]:
     """
     Calculates character error rate (CER)
 
     Args:
         normalized_texts: normalized text options
-        transcript: ASR model output
+        pred_text: ASR model output
 
     Returns: normalized options with corresponding CER
     """
@@ -208,7 +209,7 @@ def calculate_cer(normalized_texts: List[str], transcript: str, remove_punct=Fal
         if remove_punct:
             for punct in "!?:;,.-()*+-/<=>@^_":
                 text_clean = text_clean.replace(punct, "")
-        cer = round(word_error_rate([transcript], [text_clean], use_cer=True) * 100, 2)
+        cer = round(word_error_rate([pred_text], [text_clean], use_cer=True) * 100, 2)
         normalized_options.append((text, cer))
     return normalized_options
 
@@ -263,16 +264,13 @@ def parse_args():
         default=None,
         type=str,
     )
+    parser.add_argument("--n_jobs", default=-2, type=int, help="The maximum number of concurrently running jobs")
     return parser.parse_args()
 
 
-def _normalize_line(normalizer: NormalizerWithAudio, line: str, asr_model=None):
+def _normalize_line(normalizer: NormalizerWithAudio, line: str):
     line = json.loads(line)
-    audio = line['audio_filepath']
-    if 'transcript' in line:
-        transcript = line['transcript']
-    else:
-        transcript = asr_model.transcribe([audio])[0]
+    pred_text = line['pred_text']
 
     normalized_texts = normalizer.normalize(
         text=line['text'],
@@ -281,7 +279,7 @@ def _normalize_line(normalizer: NormalizerWithAudio, line: str, asr_model=None):
         punct_pre_process=not args.no_punct_pre_process,
         punct_post_process=not args.no_punct_post_process,
     )
-    normalized_text, cer = normalizer.select_best_match(normalized_texts, transcript, args.verbose, args.remove_punct)
+    normalized_text, cer = normalizer.select_best_match(normalized_texts, pred_text, args.verbose, args.remove_punct)
     line['nemo_normalized'] = normalized_text
     line['CER_nemo_normalized'] = cer
     return line
@@ -296,19 +294,20 @@ def normalize_manifest(args):
         input_case=args.input_case, lang=args.language, cache_dir=args.cache_dir, overwrite_cache=args.overwrite_cache
     )
     manifest_out = args.audio_data.replace('.json', '_normalized.json')
-    asr_model = None
     with open(args.audio_data, 'r') as f:
-        with open(manifest_out, 'w') as f_out:
-            lines = f.readlines()
-            first_line = json.loads(lines[0])
-            if 'transcript' not in first_line:
-                asr_model = get_asr_model(args.model)
-            normalized_lines = Parallel(n_jobs=-1)(
-                delayed(_normalize_line)(normalizer, line, asr_model) for line in lines
-            )
+        lines = f.readlines()
 
-            for line in normalized_lines:
-                f_out.write(json.dumps(line, ensure_ascii=False) + '\n')
+        print(f'Normalizing {len(lines)}lines of {args.audio_data}...')
+        with open(manifest_out, 'w') as f_out:
+            # to save intermediate results to a file
+            batch = max(round(len(lines) / 10), 1000)
+            for i in range(0, len(lines), batch):
+                print(f'Processing batch {i} out of {round(len(lines)/batch)}.')
+                normalized_lines = Parallel(n_jobs=args.n_jobs)(
+                    delayed(_normalize_line)(normalizer, line) for line in tqdm(lines[i : i + batch])
+                )
+                for line in normalized_lines:
+                    f_out.write(json.dumps(line, ensure_ascii=False) + '\n')
     print(f'Normalized version saved at {manifest_out}')
 
 
@@ -338,11 +337,11 @@ if __name__ == "__main__":
         )
         if args.audio_data:
             asr_model = get_asr_model(args.model)
-            transcript = asr_model.transcribe([args.audio_data])[0]
+            pred_text = asr_model.transcribe([args.audio_data])[0]
             normalized_text, cer = normalizer.select_best_match(
-                normalized_texts, transcript, args.verbose, args.remove_punct
+                normalized_texts, pred_text, args.verbose, args.remove_punct
             )
-            print(f'Transcript: {transcript}')
+            print(f'Transcript: {pred_text}')
             print(f'Normalized: {normalized_text}')
         else:
             print('Normalization options:')
