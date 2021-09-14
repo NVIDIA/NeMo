@@ -174,11 +174,7 @@ def main():
         for item in manifest:
             texts.append(item[text_key])
     processed_texts = model.add_punctuation_capitalization(
-        texts,
-        batch_size=args.batch_size,
-        max_seq_length=args.max_seq_length,
-        step=args.step,
-        margin=args.margin,
+        texts, batch_size=args.batch_size, max_seq_length=args.max_seq_length, step=args.step, margin=args.margin,
     )
     if args.output_manifest is None:
         with args.output_text.open('w') as f:
