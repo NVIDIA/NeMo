@@ -248,11 +248,11 @@ Required Arguments for Training
 Inference
 ---------
 
-Inference is performed by a script `examples/nlp/token_classification/punctuate_capitalize.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuate_capitalize.py>`_
+Inference is performed by a script `examples/nlp/token_classification/punctuate_capitalize_infer.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuate_capitalize_infer.py>`_
 
 .. code::
 
-    python punctuate_capitalize.py \
+    python punctuate_capitalize_infer.py \
         --input_manifest <PATH_TO_INPUT_MANIFEST> \
         --output_manifest <PATH_TO_OUTPUT_MANIFEST> \
         --pretrained_name punctuation_en_bert \
@@ -270,9 +270,9 @@ input manifest. Otherwise result will be saved into :code:`'text'` elements.
 
 Alternatively you can pass data for restoring punctuation and capitalization as plain text. See help for parameters :code:`--input_text`
 and :code:`--output_text` of the script
-`punctuate_capitalize.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuate_capitalize.py>`_.
+`punctuate_capitalize_infer.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuate_capitalize_infer.py>`_.
 
-The script `punctuate_capitalize.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuate_capitalize.py>`_
+The script `punctuate_capitalize_infer.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuate_capitalize_infer.py>`_
 can restore punctuation and capitalization in a text of arbitrary length. Long sequences are split into segments
 :code:`--max_seq_length - 2` tokens each. Each segment starts and ends with :code:`[CLS]` and :code:`[SEP]`
 tokens correspondingly. Every segment is offset to the previous one by :code:`--step` tokens. For example, if
