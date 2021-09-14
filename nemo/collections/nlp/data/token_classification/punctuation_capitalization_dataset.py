@@ -667,7 +667,7 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
             is_last,
         )
 
-    def __getitem__(self, idx: int) -> Tuple[np.nddarray, np.ndarray, np.ndarray, np.ndarray, int, int, bool, bool]:
+    def __getitem__(self, idx: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, int, bool, bool]:
         return (
             np.array(self.all_input_ids[idx]),
             np.array(self.all_segment_ids[idx]),
