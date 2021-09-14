@@ -17,16 +17,13 @@
 import argparse
 import json
 import multiprocessing
-import os
 import sys
 import time
 
 import torch
-from megatron.data import indexed_dataset
-from megatron.tokenizer import build_tokenizer
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
-
+from nemo.collections.nlp.data.language_modeling.megatron import indexed_dataset
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
 try:
     import nltk
@@ -34,7 +31,6 @@ try:
     nltk_available = True
 except ImportError:
     nltk_available = False
-
 
 # https://stackoverflow.com/questions/33139531/preserve-empty-lines-with-nltks-punkt-tokenizer
 class CustomLanguageVars(nltk.tokenize.punkt.PunktLanguageVars):
@@ -61,7 +57,13 @@ class Encoder(object):
 
     def initializer(self):
         # Use Encoder class as a container for global data
-        Encoder.tokenizer = build_tokenizer(self.args)
+        Encoder.tokenizer = get_nmt_tokenizer(
+            library=self.args.tokenizer_library,
+            model_name=self.args.tokenizer_type,
+            tokenizer_model=self.args.tokenizer_model,
+            vocab_file=self.args.vocab_file,
+            merges_file=self.args.merge_file
+        )
         if self.args.split_sentences:
             if not nltk_available:
                 print("NLTK is not available to split sentences.")
@@ -85,11 +87,11 @@ class Encoder(object):
             text = data[key]
             doc_ids = []
             for sentence in Encoder.splitter.tokenize(text):
-                sentence_ids = Encoder.tokenizer.tokenize(sentence)
+                sentence_ids = Encoder.tokenizer.text_to_ids(sentence)
                 if len(sentence_ids) > 0:
                     doc_ids.append(sentence_ids)
             if len(doc_ids) > 0 and self.args.append_eod:
-                doc_ids[-1].append(Encoder.tokenizer.eod)
+                doc_ids[-1].append(Encoder.tokenizer.eos_id)
             ids[key] = doc_ids
         return ids, len(json_line)
 
@@ -106,11 +108,23 @@ def get_args():
 
     group = parser.add_argument_group(title='tokenizer')
     group.add_argument(
-        '--tokenizer-type',
+        '--tokenizer-library',
         type=str,
         required=True,
-        choices=['BertWordPieceLowerCase', 'BertWordPieceCase', 'GPT2BPETokenizer'],
+        choices=['yttm', 'sentencepiece', 'megatron', 'huggingface'],
+        help='What tokenizer library to use.',
+    )
+    group.add_argument(
+        '--tokenizer-type',
+        type=str,
+        default=None,
         help='What type of tokenizer to use.',
+    )
+    group.add_argument(
+        '--tokenizer-model',
+        type=str,
+        default=None,
+        help='Path to tokenizer model.',
     )
     group.add_argument('--vocab-file', type=str, default=None, help='Path to the vocab file')
     group.add_argument('--merge-file', type=str, default=None, help='Path to the BPE merge file (if necessary).')
@@ -126,7 +140,7 @@ def get_args():
     args = parser.parse_args()
     args.keep_empty = False
 
-    if args.tokenizer_type.lower().startswith('bert'):
+    if args.tokenizer_type is not None and args.tokenizer_type.lower().startswith('bert'):
         if not args.split_sentences:
             print("Bert tokenizer detected, are you sure you don't want to split sentences?")
 
@@ -135,7 +149,8 @@ def get_args():
     args.make_vocab_size_divisible_by = 128
     args.tensor_model_parallel_size = 1
     args.vocab_extra_ids = 0
-
+    # TODO: There are dependencies b/w libraries and model files / tokenizer type strings to check.
+    assert args.tokenizer_type is not None or args.tokenizer_model is not None
     return args
 
 
@@ -150,7 +165,14 @@ def main():
         nltk.download("punkt", quiet=True)
 
     encoder = Encoder(args)
-    tokenizer = build_tokenizer(args)
+
+    tokenizer = get_nmt_tokenizer(
+        library=args.tokenizer_library,
+        model_name=args.tokenizer_type,
+        tokenizer_model=args.tokenizer_model,
+        vocab_file=args.vocab_file,
+        merges_file=args.merge_file
+    )
     pool = multiprocessing.Pool(args.workers, initializer=encoder.initializer)
     encoded_docs = pool.imap(encoder.encode, fin, 25)
     # encoded_docs = map(encoder.encode, fin)
