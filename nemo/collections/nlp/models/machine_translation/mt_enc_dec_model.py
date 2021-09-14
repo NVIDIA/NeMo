@@ -73,11 +73,26 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
         self.multilingual = cfg.get("multilingual", False)
         self.multilingual_ids = []
+        self.special_tokens = {}
 
         self.encoder_tokenizer_library = cfg.encoder_tokenizer.get('library', 'yttm')
         self.decoder_tokenizer_library = cfg.decoder_tokenizer.get('library', 'yttm')
 
         self.validate_input_ids = cfg.get("validate_input_ids", True)
+        if self.multilingual:
+            if isinstance(self.src_language, ListConfig) and isinstance(self.tgt_language, ListConfig):
+                raise ValueError(
+                    "cfg.src_language and cfg.tgt_language cannot both be lists. We only support many-to-one or one-to-many multilingual models."
+                )
+            elif isinstance(self.src_language, ListConfig):
+                pass
+            elif isinstance(self.tgt_language, ListConfig):
+                for lng in self.tgt_language:
+                    self.special_tokens["<" + lng + ">"] = "<" + lng + ">"
+            else:
+                raise ValueError(
+                    "Expect either cfg.src_language or cfg.tgt_language to be a list when multilingual=True."
+                )
 
         # Instantiates tokenizers and register to be saved with NeMo Model archive
         # After this call, ther will be self.encoder_tokenizer and self.decoder_tokenizer
@@ -98,23 +113,16 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             else 0.0,
             decoder_model_name=cfg.decoder.get('model_name') if hasattr(cfg.decoder, 'model_name') else None,
             decoder_r2l=cfg.decoder_tokenizer.get('r2l', False),
+            special_tokens=self.special_tokens,
         )
 
         if self.multilingual:
-            if isinstance(self.src_language, ListConfig) and isinstance(self.tgt_language, ListConfig):
-                raise ValueError(
-                    "cfg.src_language and cfg.tgt_language cannot both be lists. We only support many-to-one or one-to-many multilingual models."
-                )
-            elif isinstance(self.src_language, ListConfig):
+            if isinstance(self.src_language, ListConfig):
                 for lng in self.src_language:
                     self.multilingual_ids.append(None)
-            elif isinstance(self.tgt_language, ListConfig):
+            else:
                 for lng in self.tgt_language:
                     self.multilingual_ids.append(self.encoder_tokenizer.token_to_id("<" + lng + ">"))
-            else:
-                raise ValueError(
-                    "Expect either cfg.src_language or cfg.tgt_language to be a list when multilingual=True."
-                )
 
             if isinstance(self.src_language, ListConfig):
                 self.tgt_language = [self.tgt_language] * len(self.src_language)
@@ -435,6 +443,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         decoder_bpe_dropout=0.0,
         decoder_model_name=None,
         decoder_r2l=False,
+        special_tokens={},
     ):
 
         supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece', 'megatron', 'byte-level']
@@ -450,7 +459,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             bpe_dropout=encoder_bpe_dropout,
             model_name=encoder_model_name,
             vocab_file=self.register_artifact("encoder_tokenizer.vocab_file", encoder_tokenizer_vocab_file),
-            special_tokens=None,
+            special_tokens=special_tokens,
             use_fast=False,
             r2l=encoder_r2l,
         )
@@ -460,7 +469,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             bpe_dropout=decoder_bpe_dropout,
             model_name=decoder_model_name,
             vocab_file=None,
-            special_tokens=None,
+            special_tokens=special_tokens,
             use_fast=False,
             r2l=decoder_r2l,
         )
@@ -737,7 +746,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         """
         self.source_processor, self.target_processor = None, None
 
-        if self.encoder_tokenizer_library == 'byte-level':
+        if self.encoder_tokenizer_library == 'byte-level2':
             self.source_processor = ByteLevelProcessor()
         elif (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
             self.source_processor = EnJaProcessor(source_lang)
@@ -750,7 +759,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         elif source_lang == 'ignore':
             self.source_processor = None
 
-        if self.decoder_tokenizer_library == 'byte-level':
+        if self.decoder_tokenizer_library == 'byte-level2':
             self.target_processor = ByteLevelProcessor()
         elif (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
             self.target_processor = EnJaProcessor(target_lang)

@@ -144,6 +144,7 @@ class TranslationDataset(Dataset):
         labels = tgt[:, 1:]
         tgt_ids = tgt[:, :-1]
         if self.prepend_id:
+            # src_ids = np.append(np.ones((src_ids.shape[0], 7), dtype=int)*self.prepend_id, src_ids, axis=-1)
             src_ids = np.insert(src_ids, 0, self.prepend_id, axis=-1)
         src_mask = (src_ids != self.src_pad_id).astype(np.int32)
         tgt_mask = (tgt_ids != self.tgt_pad_id).astype(np.int32)
@@ -433,6 +434,7 @@ class TarredTranslationDataset(IterableDataset):
         labels = tgt[:, 1:]
         tgt_ids = tgt[:, :-1]
         if self.prepend_id:
+            # src_ids = np.append(np.ones((src_ids.shape[0], 7), dtype=int)*self.prepend_id, src_ids, axis=-1)
             src_ids = np.insert(src_ids, 0, self.prepend_id, axis=-1)
         src_mask = (src_ids != self.src_pad_id).astype(np.int32)
         tgt_mask = (tgt_ids != self.tgt_pad_id).astype(np.int32)
