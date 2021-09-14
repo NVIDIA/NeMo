@@ -40,6 +40,7 @@ class BertDataset(torch.utils.data.Dataset):
         short_seq_prob,
         seed,
         binary_head,
+        tokenizer
     ):
 
         # Params to store.
@@ -66,13 +67,12 @@ class BertDataset(torch.utils.data.Dataset):
         )
 
         # Vocab stuff.
-        tokenizer = get_tokenizer()
         self.vocab_id_list = list(tokenizer.inv_vocab.keys())
         self.vocab_id_to_token_dict = tokenizer.inv_vocab
-        self.cls_id = tokenizer.cls
-        self.sep_id = tokenizer.sep
-        self.mask_id = tokenizer.mask
-        self.pad_id = tokenizer.pad
+        self.cls_id = tokenizer.cls_id
+        self.sep_id = tokenizer.sep_id
+        self.mask_id = tokenizer.mask_id
+        self.pad_id = tokenizer.pad_id
 
     def __len__(self):
         return self.samples_mapping.shape[0]

@@ -15,7 +15,7 @@
 import torch
 from megatron import fused_kernels
 from apex import mpu
-from megatron.global_vars import get_args, get_tokenizer
+from megatron.global_vars import get_args
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -29,6 +29,7 @@ from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPT
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_megatron_for_nemo
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_ltor_masks_and_position_ids,
@@ -64,8 +65,8 @@ class MegatronGPTModel(NLPModel):
             num_attention_heads=cfg.get('num_attention_heads', 1),
             max_position_embeddings=cfg.get('max_position_embeddings', 512),
             tokenizer_type='GPT2BPETokenizer',
-            vocab_file=cfg.vocab_file,
-            merge_file=cfg.merge_file,
+            vocab_file=cfg.tokenizer.vocab_file,
+            merge_file=cfg.tokenizer.merge_file,
         )
         args = get_args()
 
@@ -73,6 +74,14 @@ class MegatronGPTModel(NLPModel):
 
         self.model = GPTModel(
             num_tokentypes=0, parallel_output=True, pre_process=cfg.pre_process, post_process=cfg.post_process
+        )
+
+        self.tokenizer = get_nmt_tokenizer(
+            library=self.cfg.tokenizer.library,
+            model_name=self.cfg.tokenizer.type,
+            tokenizer_model=self.register_artifact("tokenizer_model", self.cfg.tokenizer.model),
+            vocab_file=self.register_artifact("vocab_file", self.cfg.tokenizer.vocab_file),
+            merges_file=self.register_artifact("merges_file", self.cfg.tokenizer.merge_file),
         )
 
     def forward(self, tokens, position_ids, attention_mask, labels):
@@ -125,7 +134,6 @@ class MegatronGPTModel(NLPModel):
 
     def process_batch(self, batch):
         args = get_args()
-        tokenizer = get_tokenizer()
 
         # Items and their type.
         keys = ['text']
@@ -143,12 +151,12 @@ class MegatronGPTModel(NLPModel):
             logging.info('debugging')
             tokens_list = tokens.detach().tolist()[0]
             labels_list = labels.detach().tolist()[0]
-            logging.info(f'detokenize tokens: {tokenizer.detokenize(tokens_list)}')
-            logging.info(f'detokenize labels: {tokenizer.detokenize(labels_list)}')
+            logging.info(f'detokenize tokens: {self.tokenizer.ids_to_text(tokens_list)}')
+            logging.info(f'detokenize labels: {self.tokenizer.ids_to_text(labels_list)}')
 
         # Get the masks and postition ids.
         attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
-            tokens, tokenizer.eod, args.reset_position_ids, args.reset_attention_mask, args.eod_mask_loss
+            tokens, self.tokenizer.eos_id, args.reset_position_ids, args.reset_attention_mask, args.eod_mask_loss
         )
 
         return tokens, labels, loss_mask, attention_mask, position_ids

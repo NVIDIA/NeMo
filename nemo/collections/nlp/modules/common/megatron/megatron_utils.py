@@ -46,6 +46,14 @@ MEGATRON_CACHE = os.path.join(torch_home, "megatron")
 CONFIGS = {"345m": {"hidden_size": 1024, "num_attention_heads": 16, "num_layers": 24, "max_position_embeddings": 512}}
 
 MEGATRON_CONFIG_MAP = {
+    "megatron-gpt-345m": {
+        "config": CONFIGS["345m"],
+        "checkpoint": "models/nvidia/megatron_lm_345m/versions/v0.0/files/release/mp_rank_00/model_optim_rng.pt",
+        "vocab": "https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-vocab.json",
+        "merges_file": "https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-merges.txt",
+        "do_lower_case": False,
+        "tokenizer_name": "gpt2",
+    },
     "megatron-bert-345m-uncased": {
         "config": CONFIGS["345m"],
         "checkpoint": "https://api.ngc.nvidia.com/v2/models/nvidia/megatron_bert_345m/versions/v0.0/files/release/mp_rank_00/model_optim_rng.pt",
@@ -97,6 +105,7 @@ def get_megatron_lm_model(
     config_file: Optional[str] = None,
     checkpoint_file: Optional[str] = None,
     vocab_file: Optional[str] = None,
+    merges_file: Optional[str] = None
 ) -> Tuple[MegatronBertEncoder, str]:
     """
     Returns MegatronBertEncoder and a default or user specified path to the checkpoint file
@@ -144,6 +153,9 @@ def get_megatron_lm_model(
 
     if not vocab_file:
         vocab_file = get_megatron_vocab_file(pretrained_model_name)
+    
+    if not merges_file:
+        merges_file = get_megatron_merge_file(pretrained_model_name)
 
     app_state = AppState()
     if app_state.model_parallel_size is not None and app_state.model_parallel_rank is not None:
@@ -235,6 +247,25 @@ def get_megatron_vocab_file(pretrained_model_name: str) -> str:
     url = MEGATRON_CONFIG_MAP[pretrained_model_name]["vocab"]
 
     path = os.path.join(MEGATRON_CACHE, pretrained_model_name + "_vocab")
+    path = _download(path, url)
+    return path
+
+def get_megatron_merges_file(pretrained_model_name: str) -> str:
+    """
+    Gets merge file from cache or downloads it
+
+    Args:
+        pretrained_model_name: pretrained model name
+
+    Returns:
+        path: path to the vocab file
+    """
+    if 'gpt' not in pretrained_model_name.lower():
+        return None
+    _check_megatron_name(pretrained_model_name)
+    url = MEGATRON_CONFIG_MAP[pretrained_model_name]["merges_file"]
+
+    path = os.path.join(MEGATRON_CACHE, pretrained_model_name + "_merges")
     path = _download(path, url)
     return path
 
