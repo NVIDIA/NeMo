@@ -110,7 +110,8 @@ class DuplexDecoderModel(NLPModel):
         """
         # tarred dataset contains batches, and the first dimension of size 1 added by the DataLoader
         # (batch_size is set to 1) is redundant
-        batch = {k: v.squeeze(dim=0) for k, v in batch.items() if v.ndim == 3}
+        if batch['input_ids'].ndim == 3:
+            batch = {k: v.squeeze(dim=0) for k, v in batch.items()}
 
         # Apply Transformer
         outputs = self.model(
@@ -165,7 +166,7 @@ class DuplexDecoderModel(NLPModel):
             results[f"total_{class_name}_{direction}"] += torch.tensor(1).to(self.device)
 
         results["val_loss"] = val_loss
-        return results
+        return dict(results)
 
     def multi_validation_epoch_end(self, outputs: List, dataloader_idx=0):
         """
@@ -265,6 +266,7 @@ class DuplexDecoderModel(NLPModel):
         """
         return self.multi_validation_epoch_end(outputs, dataloader_idx)
 
+    @torch.no_grad()
     def _generate_predictions(self, input_ids: torch.Tensor, model_max_len: int = 512):
         """
         Generates predictions
