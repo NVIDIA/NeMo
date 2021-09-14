@@ -20,7 +20,6 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     TO_LOWER,
     GraphFst,
     delete_extra_space,
-    delete_space,
     insert_space,
 )
 from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
@@ -138,7 +137,7 @@ class DateFst(GraphFst):
         month_graph |= (TO_LOWER + pynini.closure(NEMO_CHAR)) @ month_graph
         month_abbr_graph = pynini.string_file(get_abs_path("data/months/abbr.tsv")).optimize()
         month_abbr_graph = (
-            month_abbr_graph | (TO_LOWER + pynini.closure(NEMO_CHAR)) @ month_abbr_graph
+            month_abbr_graph | ((TO_LOWER + pynini.closure(NEMO_CHAR)) @ month_abbr_graph)
         ) + pynini.closure(pynutil.delete("."), 0, 1)
         month_graph |= month_abbr_graph
 
@@ -167,19 +166,15 @@ class DateFst(GraphFst):
             + ((pynini.union("1", "2", "3") + NEMO_DIGIT) | NEMO_DIGIT) @ cardinal_graph
             + pynutil.insert("\"")
         )
-        optional_day_graph = pynini.closure(delete_extra_space + day_graph, 0, 1)
 
         two_digit_year = NEMO_DIGIT ** (2) @ (cardinal.single_digits_graph | cardinal_graph)
         two_digit_year = pynutil.insert("year: \"") + two_digit_year + pynutil.insert("\"")
 
         year_graph = pynutil.insert("year: \"") + year_graph + pynutil.insert("\"")
-        optional_graph_year = pynini.closure(delete_extra_space + year_graph, 0, 1,)
-        graph_mdy = (
-            month_graph
-            + optional_day_graph
-            + delete_space
-            + pynini.closure(pynutil.delete(","), 0, 1)
-            + optional_graph_year
+        graph_year = pynini.closure(pynutil.delete(","), 0, 1) + delete_extra_space + year_graph
+        optional_graph_year = pynini.closure(graph_year, 0, 1)
+        graph_mdy = month_graph + (
+            (delete_extra_space + day_graph) | graph_year | (delete_extra_space + day_graph + graph_year)
         )
 
         delete_sep = pynutil.delete(pynini.union("-", "/", "."))
@@ -194,13 +189,7 @@ class DateFst(GraphFst):
             + (year_graph | two_digit_year)
         )
 
-        graph_dmy = (
-            day_graph
-            + delete_extra_space
-            + month_graph
-            + pynini.closure(pynutil.delete(","), 0, 1)
-            + optional_graph_year
-        )
+        graph_dmy = day_graph + delete_extra_space + month_graph + optional_graph_year
         graph_ymd = (
             (year_graph | two_digit_year)
             + delete_sep
