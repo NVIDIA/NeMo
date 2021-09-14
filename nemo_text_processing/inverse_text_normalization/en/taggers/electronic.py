@@ -48,9 +48,7 @@ class ElectronicFst(GraphFst):
         username = (
             pynutil.insert("username: \"")
             + alpha_num
-            + delete_extra_space
-            + pynini.closure(accepted_username + delete_extra_space)
-            + alpha_num
+            + pynini.closure(delete_extra_space + accepted_username)
             + pynutil.insert("\"")
         )
         single_alphanum = pynini.closure(alpha_num + delete_extra_space) + alpha_num
