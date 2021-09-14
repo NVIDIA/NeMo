@@ -36,8 +36,8 @@ can be used to preprocess the Russian subset.
 """
 
 from argparse import ArgumentParser
-from os import listdir, mkdir
-from os.path import isdir, isfile, join
+from os import mkdir
+from os.path import isdir, join
 
 from tqdm import tqdm
 
