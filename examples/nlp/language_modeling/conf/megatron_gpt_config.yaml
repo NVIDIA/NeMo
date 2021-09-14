@@ -44,8 +44,13 @@ model:
   num_layers: 24
   hidden_size: 1024
   num_attention_heads: 16
-  vocab_file: /raid/data/gpt/vocab.json
-  merge_file: /raid/data/gpt/merges.txt
+  tokenizer:
+    library: 'megatron'
+    type: 'GPT2BPETokenizer'
+    model: null
+    vocab_file: /raid/data/gpt/vocab.json
+    merge_file: /raid/data/gpt/merges.txt
+
   seed: 1234
 
   # GPT
