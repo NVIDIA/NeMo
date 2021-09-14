@@ -26,7 +26,7 @@
 #                                         --beam_alpha <list of the beam alphas> \
 #                                         --beam_beta <list of the beam betas> \
 #                                         --preds_output_folder <optional folder to store the predictions> \
-#                                         --decoding_mode beam_search_ngram
+#                                         --decoding_mode beamsearch_ngram
 #                                         ...
 #
 # You may find more info on how to use this script at:

@@ -14,6 +14,7 @@
 
 import itertools
 import json
+import os
 import random
 from multiprocessing import Value
 from pathlib import Path
@@ -75,6 +76,8 @@ class MTEncDecModel(EncDecNLPModel):
         self.retrieval = cfg.get("retrieval", False)
         self.encoder_tokenizer_library = cfg.encoder_tokenizer.get('library', 'yttm')
         self.decoder_tokenizer_library = cfg.decoder_tokenizer.get('library', 'yttm')
+
+        self.validate_input_ids = cfg.get("validate_input_ids", True)
 
         # Instantiates tokenizers and register to be saved with NeMo Model archive
         # After this call, ther will be self.encoder_tokenizer and self.decoder_tokenizer
@@ -213,7 +216,7 @@ class MTEncDecModel(EncDecNLPModel):
         return ids
 
     def test_encoder_ids(self, ids, raise_error=False):
-        invalid_ids = (ids >= self.encoder_tokenizer.vocab_size).any()
+        invalid_ids = torch.logical_or((ids >= self.encoder_tokenizer.vocab_size).any(), (ids < 0).any(),)
 
         if raise_error and invalid_ids:
             raise ValueError("Encoder ids are out of range (tip: check encoder tokenizer)")
@@ -221,7 +224,7 @@ class MTEncDecModel(EncDecNLPModel):
         return not invalid_ids
 
     def test_decoder_ids(self, ids, raise_error=False):
-        invalid_ids = (ids >= self.decoder_tokenizer.vocab_size).any()
+        invalid_ids = torch.logical_or((ids >= self.decoder_tokenizer.vocab_size).any(), (ids < 0).any(),)
 
         if raise_error and invalid_ids:
             raise ValueError("Decoder ids are out of range (tip: check decoder tokenizer)")
@@ -230,9 +233,10 @@ class MTEncDecModel(EncDecNLPModel):
 
     @typecheck()
     def forward(self, src, src_mask, tgt, tgt_mask):
-        # test src/tgt for id range (i.e., hellp in catching wrong tokenizer)
-        self.test_encoder_ids(src, raise_error=True)
-        self.test_decoder_ids(tgt, raise_error=True)
+        if self.validate_input_ids:
+            # test src/tgt for id range (i.e., hellp in catching wrong tokenizer)
+            self.test_encoder_ids(src, raise_error=True)
+            self.test_decoder_ids(tgt, raise_error=True)
 
         src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
         tgt_hiddens = self.decoder(
@@ -443,6 +447,23 @@ class MTEncDecModel(EncDecNLPModel):
             r2l=decoder_r2l,
         )
 
+        # validate no token is negative for sentencepiece tokenizers
+        for tok_name, tok_library, tok_model in [
+            ("encoder_tokenizer", encoder_tokenizer_library, self.encoder_tokenizer),
+            ("decoder_tokenizer", decoder_tokenizer_library, self.decoder_tokenizer),
+        ]:
+            if tok_library == 'sentencepiece':
+                negative_tokens = []
+                for n in ["eos_id", "bos_id", "unk_id", "pad_id"]:
+                    v = getattr(tok_model.tokenizer, n)()
+                    if v < 0:
+                        negative_tokens.append(f"{n}={v}")
+
+                if negative_tokens:
+                    raise ValueError(
+                        f"{tok_name}=sentencepiece has invalid negative special tokens = {negative_tokens}"
+                    )
+
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
@@ -504,6 +525,27 @@ class MTEncDecModel(EncDecNLPModel):
                 if tar_files_list is None:
                     tar_files = metadata.get('tar_files')
                     if tar_files is not None:
+                        # update absolute path of tar files based on metadata_file path
+                        valid_tar_files = []
+                        metadata_basedir = os.path.abspath(os.path.dirname(metadata_file))
+                        updated_fn = 0
+                        for fn in tar_files:
+                            # if a file does not exist, look in metadata file directory
+                            if os.path.exists(fn):
+                                valid_fn = fn
+                            else:
+                                updated_fn += 1
+                                valid_fn = os.path.join(metadata_basedir, os.path.basename(fn))
+                                if not os.path.exists(valid_fn):
+                                    raise RuntimeError(
+                                        f"File in tarred dataset is missing from absolute and relative paths {fn}"
+                                    )
+
+                            valid_tar_files.append(valid_fn)
+
+                        tar_files = valid_tar_files
+
+                        logging.info(f'Updated the path of {updated_fn} tarred files')
                         logging.info(f'Loading from tarred dataset {tar_files}')
                 else:
                     tar_files = tar_files_list[idx]
@@ -787,14 +829,14 @@ class MTEncDecModel(EncDecNLPModel):
 
     @torch.no_grad()
     def batch_translate(self, src: torch.LongTensor, src_mask: torch.LongTensor, return_beam_scores: bool = False):
-        """	
-        Translates a minibatch of inputs from source language to target language.	
-        Args:	
-            src: minibatch of inputs in the src language (batch x seq_len)	
-            src_mask: mask tensor indicating elements to be ignored (batch x seq_len)	
-        Returns:	
-            translations: a list strings containing detokenized translations	
-            inputs: a list of string containing detokenized inputs	
+        """
+        Translates a minibatch of inputs from source language to target language.
+        Args:
+            src: minibatch of inputs in the src language (batch x seq_len)
+            src_mask: mask tensor indicating elements to be ignored (batch x seq_len)
+        Returns:
+            translations: a list strings containing detokenized translations
+            inputs: a list of string containing detokenized inputs
         """
         mode = self.training
         try:

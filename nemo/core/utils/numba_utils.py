@@ -23,7 +23,8 @@ from nemo.utils import model_utils
 cuda_logger = pylogger.getLogger('numba.cuda.cudadrv.driver')
 cuda_logger.setLevel(pylogger.ERROR)  # only show error
 
-__NUMBA_MINIMUM_VERSION__ = "0.53.0"
+__NUMBA_DEFAULT_MINIMUM_VERSION__ = "0.53.0"
+__NUMBA_MINIMUM_VERSION__ = os.environ.get("NEMO_NUMBA_MINVER", __NUMBA_DEFAULT_MINIMUM_VERSION__)
 
 
 NUMBA_INSTALLATION_MESSAGE = (
