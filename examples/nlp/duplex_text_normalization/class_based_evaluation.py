@@ -27,6 +27,8 @@ python class_based_evaluation.py
         lang={en,ru,de}
 """
 
+from collections import defaultdict
+
 import numpy as np
 from helpers import DECODER_MODEL, TAGGER_MODEL, instantiate_model_and_trainer
 from omegaconf import DictConfig, OmegaConf
@@ -50,17 +52,29 @@ def print_class_based_stats(class2stats):
     print()
 
 
+def print_errors(errors):
+    for class_name, class_errors in errors.items():
+        for i, pred, target in class_errors:
+            formatted_str = class_name + "\t" + i
+            print(formatted_str)
+            formatted_str = class_name + "\t" + pred
+            print(formatted_str)
+            formatted_str = class_name + "\t" + target
+            print(formatted_str)
+        print()
+
+
 @hydra_runner(config_path="conf", config_name="duplex_tn_config")
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config Params: {OmegaConf.to_yaml(cfg)}')
     lang, batch_size = cfg.lang, cfg.data.test_ds.batch_size
-    tagger_trainer, tagger_model = instantiate_model_and_trainer(cfg, TAGGER_MODEL, False)
+    # tagger_trainer, tagger_model = instantiate_model_and_trainer(cfg, TAGGER_MODEL, False)
     decoder_trainer, decoder_model = instantiate_model_and_trainer(cfg, DECODER_MODEL, False)
 
     # Evaluating the tagger
     print('Evaluating the tagger')
-    tagger_model.setup_test_data(cfg.data.test_ds)
-    tagger_trainer.test(model=tagger_model, verbose=False)
+    # tagger_model.setup_test_data(cfg.data.test_ds)
+    # tagger_trainer.test(model=tagger_model, verbose=False)
 
     # Evaluating the decoder
     print('Evaluating the decoder')
@@ -74,6 +88,7 @@ def main(cfg: DictConfig) -> None:
     test_dataset, test_dl = decoder_model.test_dataset, decoder_model._test_dl
     # Inference
     itn_class2stats, tn_class2stats = {}, {}
+    errors_tn_stats, errors_itn_stats = defaultdict(list), defaultdict(list)
 
     for ix, examples in tqdm(enumerate(test_dl)):
         # Extract infos of the current batch
@@ -90,18 +105,24 @@ def main(cfg: DictConfig) -> None:
         batch_preds = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
         batch_preds = decoder_model.postprocess_output_spans(batch_input_centers, batch_preds, batch_dirs)
         # Update itn_class2stats and tn_class2stats
-        for direction, _class, pred, target in zip(batch_dirs, batch_classes, batch_preds, batch_targets):
+        for input, direction, _class, pred, target in zip(
+            batch_input_centers, batch_dirs, batch_classes, batch_preds, batch_targets
+        ):
             correct = TextNormalizationTestDataset.is_same(pred, target, direction, lang)
             stats = itn_class2stats if direction == constants.INST_BACKWARD else tn_class2stats
+            errors = errors_itn_stats if direction == constants.INST_BACKWARD else errors_tn_stats
             if not _class in stats:
                 stats[_class] = []
             stats[_class].append(int(correct))
+            if not correct:
+                errors[_class].append((input, pred, target))
 
     # Print out stats
     print('ITN (Backward Direction)')
     print_class_based_stats(itn_class2stats)
     print('TN (Forward Direction)')
     print_class_based_stats(tn_class2stats)
+    print_errors(errors_tn_stats)
 
 
 if __name__ == '__main__':

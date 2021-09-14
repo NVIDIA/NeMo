@@ -281,9 +281,10 @@ class DecoderDataInstance:
                 s_right[jx] = w_right[jx]
         for jx in range(len(c_s_words)):
             if c_s_words[jx] == constants.SIL_WORD:
-                c_s_words[jx] = ''
+                c_s_words[jx] = c_w_words[jx]
                 if inst_dir == constants.INST_BACKWARD:
                     c_w_words[jx] = ''
+                    c_s_words[jx] = ''
             if c_s_words[jx] == constants.SELF_WORD:
                 c_s_words[jx] = c_w_words[jx]
 
@@ -307,3 +308,4 @@ class DecoderDataInstance:
         self.output_str = ' '.join(output_words)
         self.direction = inst_dir
         self.semiotic_class = semiotic_class
+

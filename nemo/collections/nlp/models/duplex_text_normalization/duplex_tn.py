@@ -236,7 +236,7 @@ class DuplexTextNormalizationModel(nn.Module):
         sents = self.input_preprocessing(list(sents))
 
         # Tagging
-        # span_ends included
+        # span_ends included, returns index wrt to words in input without aux words
         tag_preds, nb_spans, span_starts, span_ends = self.tagger._infer(sents, inst_directions)
         output_spans = self.decoder._infer(sents, nb_spans, span_starts, span_ends, inst_directions)
 
@@ -248,9 +248,6 @@ class DuplexTextNormalizationModel(nn.Module):
             while jx < len(sent):
                 tag, word = tags[jx], sent[jx]
                 if constants.SAME_TAG in tag:
-                    cur_words.append(word)
-                    jx += 1
-                elif constants.PUNCT_TAG in tag:
                     cur_words.append(word)
                     jx += 1
                 else:

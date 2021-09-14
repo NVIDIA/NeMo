@@ -253,9 +253,6 @@ class TextNormalizationTestDataset:
                 if constants.SAME_TAG in tag:
                     cur_words[class_idx].append(word)
                     jx += 1
-                elif constants.PUNCT_TAG in tag:
-                    cur_words[class_idx].append(word)
-                    jx += 1
                 else:
                     jx += 1
                     tmp = cur_spans[span_idx]
