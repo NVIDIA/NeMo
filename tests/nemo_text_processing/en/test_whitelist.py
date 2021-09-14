@@ -38,7 +38,7 @@ class TestWhitelist:
         assert pred == expected
 
     normalizer_en = (
-        Normalizer(input_case='lower_cased', cache_dir=CACHE_DIR, overwrite_cache=False) if PYNINI_AVAILABLE else None
+        Normalizer(input_case='cased', cache_dir=CACHE_DIR, overwrite_cache=False) if PYNINI_AVAILABLE else None
     )
     normalizer_with_audio_en = (
         NormalizerWithAudio(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False)

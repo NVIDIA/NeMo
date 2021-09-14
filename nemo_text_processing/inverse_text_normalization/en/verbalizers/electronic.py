@@ -46,6 +46,16 @@ class ElectronicFst(GraphFst):
             + pynutil.delete("\"")
         )
 
+        protocol = (
+            pynutil.delete("protocol:")
+            + delete_space
+            + pynutil.delete("\"")
+            + pynini.closure(NEMO_NOT_QUOTE, 1)
+            + pynutil.delete("\"")
+        )
+
         graph = user_name + delete_space + pynutil.insert("@") + domain
+        graph |= protocol
+
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
