@@ -336,12 +336,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         )
 
     def _setup_infer_dataloader(
-            self,
-            queries: List[str],
-            batch_size: int,
-            max_seq_length: int,
-            step: int,
-            margin: int,
+        self, queries: List[str], batch_size: int, max_seq_length: int, step: int, margin: int,
     ) -> torch.utils.data.DataLoader:
         """
         Setup function for a infer data loader.
@@ -382,20 +377,20 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
     @staticmethod
     def _remove_margins(tensor, margin_size, keep_left, keep_right):
         if not keep_left:
-            tensor = tensor[margin_size + 1:]  # remove left margin and CLS token
+            tensor = tensor[margin_size + 1 :]  # remove left margin and CLS token
         if not keep_right:
             tensor = tensor[: tensor.shape[0] - margin_size - 1]  # remove right margin and SEP token
         return tensor
 
     def _transform_logit_to_prob_and_remove_margins_and_extract_word_probs(
-            self,
-            punct_logits: torch.Tensor,
-            capit_logits: torch.Tensor,
-            subtokens_mask: torch.Tensor,
-            start_word_ids: Tuple[int],
-            margin: int,
-            is_first: Tuple[bool],
-            is_last: Tuple[bool],
+        self,
+        punct_logits: torch.Tensor,
+        capit_logits: torch.Tensor,
+        subtokens_mask: torch.Tensor,
+        start_word_ids: Tuple[int],
+        margin: int,
+        is_first: Tuple[bool],
+        is_last: Tuple[bool],
     ) -> Tuple[List[np.ndarray], List[np.ndarray], List[int]]:
         """
         Applies softmax to get punctuation and capitalization probabilities, applies ``subtokens_mask`` to extract
@@ -425,7 +420,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         subtokens_mask = subtokens_mask > 0.5
         b_punct_probs, b_capit_probs = [], []
         for i, (first, last, pl, cl, stm) in enumerate(
-                zip(is_first, is_last, punct_logits, capit_logits, subtokens_mask)):
+            zip(is_first, is_last, punct_logits, capit_logits, subtokens_mask)
+        ):
             if not first:
                 new_start_word_ids[i] += torch.count_nonzero(stm[: margin + 1]).numpy()  # + 1 is for [CLS] token
             stm = self._remove_margins(stm, margin, keep_left=first, keep_right=last)
@@ -475,9 +471,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         acc_prob = np.concatenate([acc_prob, update[acc_prob.shape[0]:]], axis=0)
         return acc_prob
 
-    def apply_punct_capit_predictions(
-        self, query: str, punct_preds: List[int], capit_preds: List[int]
-    ) -> str:
+    def apply_punct_capit_predictions(self, query: str, punct_preds: List[int], capit_preds: List[int]) -> str:
         """
         Restores punctuation and capitalization in ``query``.
         Args:
@@ -510,12 +504,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         return query_with_punct_and_capit[:-1]
 
     def add_punctuation_capitalization(
-        self,
-        queries: List[str],
-        batch_size: int = None,
-        max_seq_length: int = 64,
-        step: int = 8,
-        margin: int = 16,
+        self, queries: List[str], batch_size: int = None, max_seq_length: int = 64, step: int = 8, margin: int = 16,
     ) -> List[str]:
         """
         Adds punctuation and capitalization to the queries. Use this method for inference.
@@ -585,7 +574,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 )
                 punct_probs, capit_probs, start_word_ids = _res
                 for i, (q_i, start_word_id, bpp_i, bcp_i) in enumerate(
-                        zip(query_ids, start_word_ids, punct_probs, capit_probs)
+                    zip(query_ids, start_word_ids, punct_probs, capit_probs)
                 ):
                     for all_preds, acc_probs, b_probs_i in [
                         (all_punct_preds, acc_punct_probs, bpp_i),
