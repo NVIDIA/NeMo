@@ -16,6 +16,7 @@
 
 from nemo_text_processing.inverse_text_normalization.en.utils import get_abs_path, num_to_word
 from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_ALPHA,
     NEMO_DIGIT,
     NEMO_SIGMA,
     NEMO_SPACE,
@@ -118,7 +119,11 @@ class CardinalFst(GraphFst):
         labels_exception = [num_to_word(x) for x in range(0, 13)]
         graph_exception = pynini.union(*labels_exception)
 
-        graph = pynini.cdrewrite(pynutil.delete("and"), NEMO_SPACE, NEMO_SPACE, NEMO_SIGMA) @ graph
+        graph = (
+            pynini.cdrewrite(pynutil.delete("and"), NEMO_SPACE, NEMO_SPACE, NEMO_SIGMA)
+            @ (NEMO_ALPHA + NEMO_SIGMA)
+            @ graph
+        )
 
         self.graph_no_exception = graph
 
