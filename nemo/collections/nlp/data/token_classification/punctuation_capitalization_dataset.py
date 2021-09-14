@@ -651,7 +651,7 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
         return len(self.all_input_ids)
 
     def collate_fn(
-        self, batch: List[Tuple[np.nddarray, np.ndarray, np.ndarray, np.ndarray, int, int, bool, bool]]
+        self, batch: List[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, int, bool, bool]]
     ) -> Tuple[
         torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, Tuple[int], Tuple[int], Tuple[bool], Tuple[bool]
     ]:
