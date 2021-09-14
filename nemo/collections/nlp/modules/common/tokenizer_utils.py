@@ -31,6 +31,12 @@ from nemo.utils import logging
 __all__ = ['get_tokenizer', 'get_tokenizer_list']
 
 
+megatron_tokenizer_model_map = {
+    'BertWordPieceLowerCase': 'megatron-bert-345m-uncased',
+    'BertWordPieceCase': 'megatron-bert-345m-cased',
+    'GPT2BPETokenizer': 'megatron-gpt-345m'
+}
+
 def get_tokenizer_list() -> List[str]:
     """
     Returns all all supported tokenizer names
@@ -146,7 +152,7 @@ def get_nmt_tokenizer(
             pretrained_model_name=model_name, vocab_file=vocab_file, merges_file=merges_file, **special_tokens_dict, use_fast=use_fast
         )
     elif library == 'sentencepiece':
-        logging.info(f'Getting SentencePiece with model: {model_name}')
+        logging.info(f'Getting SentencePiece with model: {tokenizer_model}')
         return nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
             model_path=tokenizer_model, special_tokens=special_tokens_dict
         )
@@ -154,6 +160,8 @@ def get_nmt_tokenizer(
         logging.info(f'Using byte-level tokenization')
         return ByteLevelTokenizer()
     elif library == 'megatron':
+        if model_name in megatron_tokenizer_model_map:
+            model_name = megatron_tokenizer_model_map[model_name]
         logging.info(
             f'Getting Megatron tokenizer for pretrained model name: {model_name} and custom vocab file: {vocab_file}'
         )

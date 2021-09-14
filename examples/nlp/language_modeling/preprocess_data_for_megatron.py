@@ -32,13 +32,6 @@ try:
 except ImportError:
     nltk_available = False
 
-tokenizer_model_map = {
-    'BertWordPieceLowerCase': 'megatron-bert-345m-uncased',
-    'BertWordPieceCase': 'megatron-bert-345m-cased',
-    'GPT2BPETokenizer': 'megatron-gpt-345m'
-}
-
-
 # https://stackoverflow.com/questions/33139531/preserve-empty-lines-with-nltks-punkt-tokenizer
 class CustomLanguageVars(nltk.tokenize.punkt.PunktLanguageVars):
 
@@ -64,11 +57,9 @@ class Encoder(object):
 
     def initializer(self):
         # Use Encoder class as a container for global data
-        model_name = tokenizer_model_map[self.args.tokenizer_type] \
-            if self.args.tokenizer_type in tokenizer_model_map else self.args.tokenizer_type
         Encoder.tokenizer = get_nmt_tokenizer(
             library=self.args.tokenizer_library,
-            model_name=model_name,
+            model_name=self.args.tokenizer_type,
             tokenizer_model=self.args.tokenizer_model,
             vocab_file=self.args.vocab_file,
             merges_file=self.args.merge_file
@@ -174,12 +165,10 @@ def main():
         nltk.download("punkt", quiet=True)
 
     encoder = Encoder(args)
-    model_name = tokenizer_model_map[args.tokenizer_type] \
-        if args.tokenizer_type in tokenizer_model_map else args.tokenizer_type
 
     tokenizer = get_nmt_tokenizer(
         library=args.tokenizer_library,
-        model_name=model_name,
+        model_name=args.tokenizer_type,
         tokenizer_model=args.tokenizer_model,
         vocab_file=args.vocab_file,
         merges_file=args.merge_file
