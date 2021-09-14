@@ -85,7 +85,7 @@ class BeamScoresDataset(torch.utils.data.Dataset):
         elif self.tokenizer.eos_id is not None:
             self.pad_id = self.tokenizer.eos_id
         else:
-            logging.warning(f"Using 0 as pad_id as the tokenizer has no pad_id or eod_id.")
+            logging.warning(f"Using 0 as pad_id as the tokenizer has no pad_id or eos_id.")
             self.pad_id = 0
 
     def __len__(self):
@@ -176,7 +176,7 @@ def main():
         "--lm_model_file",
         type=str,
         required=True,
-        help="path to LM model .nemo file or the name of a HuggingFace pretrained model like 'transfo-xl-wt103' or 'gpt2'",
+        help="path to LM model .nemo file or the name of a HuggingFace pretrained models like 'transfo-xl-wt103' or 'gpt2'",
     )
     parser.add_argument("--beams_file", type=str, required=True, help="path to beams .tsv file")
     parser.add_argument(

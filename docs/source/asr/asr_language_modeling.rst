@@ -205,7 +205,7 @@ Train Neural Rescorer
 An example script to train a language model with Transformer can be found at `examples/nlp/language_modeling/transformer_lm.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/language_modeling/transformer_lm.py>`__.
 It trains a TransformerLMModel which can be used as a neural rescorer for an ASR system.
 You may also use a pretrained language model from HuggingFace (HF) library like Transformer-XL and GPT instead of training your model.
-Model like BERT and RoBERTa are not supported by this script as they are trained as a Masked Language Model and are not efficient and effective to score sentences out of the box.
+Models like BERT and RoBERTa are not supported by this script as they are trained as a Masked Language Model and are not efficient and effective to score sentences out of the box.
 
 
 Evaluation
