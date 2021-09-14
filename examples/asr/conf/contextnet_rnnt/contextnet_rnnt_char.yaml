@@ -9,12 +9,15 @@ model:
   sample_rate: &sample_rate 16000
   compute_eval_loss: false  # eval samples can be very long and exhause memory. Disable computation of transducer loss during validation/testing with this flag.
 
+  labels: [ " ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'" ]
+
   train_ds:
     manifest_filepath: ???
     sample_rate: ${model.sample_rate}
     batch_size: 32
     trim_silence: false
     max_duration: 16.7
+    labels: ${model.labels}
     shuffle: true
     is_tarred: false
     tarred_audio_filepaths: null
@@ -28,6 +31,7 @@ model:
     sample_rate: ${model.sample_rate}
     batch_size: 32
     shuffle: false
+    labels: ${model.labels}
     use_start_end_token: false
     num_workers: 16
     pin_memory: true
@@ -37,6 +41,7 @@ model:
     sample_rate: ${model.sample_rate}
     batch_size: 32
     shuffle: false
+    labels: ${model.labels}
     use_start_end_token: false
     num_workers: 16
     pin_memory: true
@@ -53,10 +58,6 @@ model:
     enc_hidden: 640
     pred_hidden: 640
     joint_hidden: 640
-
-  tokenizer:
-    dir: ???  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (for wpe)
-    type: ???  # Can be either bpe or wpe
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
