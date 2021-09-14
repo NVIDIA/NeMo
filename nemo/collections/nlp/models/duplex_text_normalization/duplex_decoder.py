@@ -149,7 +149,7 @@ class DuplexDecoderModel(NLPModel):
             results[f"total_{class_name}_{direction}"] += torch.tensor(1).to(self.device)
 
         results["val_loss"] = val_loss
-        return results
+        return dict(results)
 
     def multi_validation_epoch_end(self, outputs: List, dataloader_idx=0):
         """
