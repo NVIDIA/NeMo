@@ -647,7 +647,7 @@ def compute_max_steps(
 ):
     _round = math.floor if drop_last else math.ceil
 
-    sampler_num_samples = math.ceil(num_samples / num_workers)
+    sampler_num_samples = math.ceil(num_samples / max(1, num_workers))
 
     if drop_last and num_workers > 1:
         logging.warning(
