@@ -15,7 +15,6 @@
 import os
 
 import pytest
-import torch
 
 from nemo.collections.tts.data.datalayers import FastSpeech2Dataset
 
