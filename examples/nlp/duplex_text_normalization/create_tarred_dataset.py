@@ -16,6 +16,7 @@ import argparse
 import json
 import os
 import pickle
+import random
 import tarfile
 from glob import glob
 from typing import List, Tuple
@@ -193,6 +194,9 @@ if __name__ == '__main__':
     parser.add_argument(
         '--batch_size', type=int, default=16, help='Batch size, i.e., number of examples in a single pickle file'
     )
+    parser.add_argument(
+        '--factor', default=8, type=int, help='The final number of tar files will be divisible by the "factor" value'
+    )
 
     args = parser.parse_args()
 
@@ -251,17 +255,27 @@ if __name__ == '__main__':
 
     # log the number of batches remaining as they will be discarded
     num_batches_discarded = len(remainder_tar_file_ptr.getmembers())
-    total_batches -= num_batches_discarded
-    logging.info(f'Number of batches discarded: {num_batches_discarded}, total batches kept: {total_batches}')
     remainder_tar_file_ptr.close()
     os.remove(remainder_tar_file_path)
+
+    tar_file_paths = glob(f'{args.out_dir}/*.tar')
+    if args.factor != 1:
+        num_tar_files = len(tar_file_paths)
+        num_tars_to_drop = num_tar_files % args.factor
+        num_batches_discarded += num_tars_to_drop * args.num_batches_per_tarfile
+
+        random.shuffle(tar_file_paths)
+        for _ in range(num_tars_to_drop):
+            os.remove(tar_file_paths.pop(-1))
+
+    total_batches -= num_batches_discarded
+    logging.info(f'Number of batches discarded: {num_batches_discarded}, total batches kept: {total_batches}')
 
     # dump metadata to json
     metadata = {}
     metadata['num_batches'] = total_batches
 
     # rename tar files so they can be more easily used with CLI and YAML
-    tar_file_paths = glob(f'{args.out_dir}/*.tar')
     file_name = f'{args.mode}.{args.batch_size}_bs.{args.num_batches_per_tarfile}_b_per_tar.{args.max_seq_length}_len'
     for index, path in enumerate(tar_file_paths):
         os.rename(path, os.path.join(args.out_dir, f'{file_name}.{index}.tar'))

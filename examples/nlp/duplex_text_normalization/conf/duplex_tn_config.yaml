@@ -69,6 +69,9 @@ decoder_trainer:
   amp_level: O0 # O1/O2 for mixed precision
   precision: 32 # Should be set to 16 for O1 and O2 to enable the AMP.
   accelerator: ddp
+  log_every_n_steps: 1  # Interval of logging.
+  val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+  resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
 
 decoder_model:
   do_training: true
@@ -110,8 +113,6 @@ decoder_exp_manager:
     save_top_k: 3
     monitor: "val_loss"
     mode: "min"
-    save_best_model: true
-    always_save_nemo: true
 
 # Data
 data:
@@ -129,7 +130,7 @@ data:
     pin_memory: false
     drop_last: false
     use_tarred_dataset: False # if true tar_metadata_file will be used
-    tar_metadata_file: null # metadata for tarred dataset a .json file containing the list of tar_files in "tar_files" field
+    tar_metadata_file: null # metadata for tarred dataset. A JSON file containing the list of tar_files in "tar_files" field
     tar_shuffle_n: 100 # How many samples to look ahead and load to be shuffled
 
   validation_ds:
