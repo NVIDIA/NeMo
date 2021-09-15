@@ -36,8 +36,8 @@ can be used to preprocess the Russian subset.
 """
 
 from argparse import ArgumentParser
-from os import mkdir
-from os.path import isdir, join
+from os import listdir, mkdir
+from os.path import isdir, isfile, join
 
 from tqdm import tqdm
 
@@ -48,7 +48,7 @@ from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize, p
 MAX_DEV_SIZE = 25000
 
 # Helper Functions
-def read_google_data(fname: str, lang: str):
+def read_google_data(data_dir: str, lang: str):
     """
     The function can be used to read the raw data files of the Google Text Normalization
     dataset (which can be downloaded from https://www.kaggle.com/google-nlu/text-normalization)
@@ -61,28 +61,59 @@ def read_google_data(fname: str, lang: str):
         dev: A list of examples in the dev set
         test: A list of examples in the test set
     """
-    cur_split = []
-    with open(fname, 'r', encoding='utf-8') as f:
-        # Loop through each line of the file
-        cur_classes, cur_tokens, cur_outputs = [], [], []
-        for linectx, line in tqdm(enumerate(f)):
-            es = line.strip().split('\t')
-            if len(es) == 2 and es[0] == '<eos>':
-                # Update cur_split
-                cur_outputs = process_url(cur_tokens, cur_outputs, lang)
-                cur_split.append((cur_classes, cur_tokens, cur_outputs))
-                # Reset
-                cur_classes, cur_tokens, cur_outputs = [], [], []
+    train, dev, test = [], [], []
+    for fn in listdir(data_dir):
+        fp = join(data_dir, fn)
+        if not isfile(fp):
+            continue
+        if not fn.startswith('output'):
+            continue
+        with open(fp, 'r', encoding='utf-8') as f:
+            # Determine the current split
+            split_nb = int(fn.split('-')[1])
+            if split_nb < 5:
+                # For English, the train data is only from output-00000-of-00100
+                # For Russian, the train data is from output-00000-of-00100 to output-00004-of-00100
+                if split_nb > 0 and lang == constants.ENGLISH:
+                    continue
+                cur_split = train
+            elif split_nb == 90:
+                cur_split = dev
+            elif split_nb == 99:
+                cur_split = test
+            else:
                 continue
-            # Remove _trans (for Russian)
-            if lang == constants.RUSSIAN:
-                es[2] = es[2].replace('_trans', '')
-            # Update the current example
-            assert len(es) == 3
-            cur_classes.append(es[0])
-            cur_tokens.append(es[1])
-            cur_outputs.append(es[2])
-    return cur_split
+            # Loop through each line of the file
+            cur_classes, cur_tokens, cur_outputs = [], [], []
+            for linectx, line in tqdm(enumerate(f)):
+                es = line.strip().split('\t')
+                if split_nb == 99:
+                    # For the results reported in the paper "RNN Approaches to Text Normalization: A Challenge":
+                    # + For English, the first 100,002 lines of output-00099-of-00100 are used for the test set
+                    # + For Russian, the first 100,007 lines of output-00099-of-00100 are used for the test set
+                    if lang == constants.ENGLISH and linectx == 100002:
+                        break
+                    if lang == constants.RUSSIAN and linectx == 100007:
+                        break
+                if len(es) == 2 and es[0] == '<eos>':
+                    # Update cur_split
+                    cur_outputs = process_url(cur_tokens, cur_outputs, lang)
+                    cur_split.append((cur_classes, cur_tokens, cur_outputs))
+                    # Reset
+                    cur_classes, cur_tokens, cur_outputs = [], [], []
+                    continue
+                # Remove _trans (for Russian)
+                if lang == constants.RUSSIAN:
+                    es[2] = es[2].replace('_trans', '')
+                # Update the current example
+                assert len(es) == 3
+                cur_classes.append(es[0])
+                cur_tokens.append(es[1])
+                cur_outputs.append(es[2])
+    dev = dev[:MAX_DEV_SIZE]
+    train_sz, dev_sz, test_sz = len(train), len(dev), len(test)
+    print(f'train_sz: {train_sz} | dev_sz: {dev_sz} | test_sz: {test_sz}')
+    return train, dev, test
 
 
 # Main code
