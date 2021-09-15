@@ -256,6 +256,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         super().__init__()
 
     def save_to(self, model, save_path: str):
+        # TODO: make save_to work with always_save_nemo for model parallel
         app_state = AppState()
         if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
 
