@@ -454,8 +454,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 f"acc_prob.shape={acc_prob.shape}"
             )
         if number_of_probs_to_move > 0:
-            pred = pred + list(np.argmax(acc_prob[:number_of_probs_to_move], axis=-1))
-        acc_prob = acc_prob[number_of_probs_to_move:]
+            pred = pred + list(np.argmax(acc_prob[: number_of_probs_to_move], axis=-1))
+        acc_prob = acc_prob[number_of_probs_to_move :]
         return pred, acc_prob
 
     @staticmethod
@@ -468,7 +468,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             numpy array of shape ``[A + N, L]``
         """
         acc_prob *= update[: acc_prob.shape[0]]
-        acc_prob = np.concatenate([acc_prob, update[acc_prob.shape[0]:]], axis=0)
+        acc_prob = np.concatenate([acc_prob, update[acc_prob.shape[0]: ]], axis=0)
         return acc_prob
 
     def apply_punct_capit_predictions(self, query: str, punct_preds: List[int], capit_preds: List[int]) -> str:
