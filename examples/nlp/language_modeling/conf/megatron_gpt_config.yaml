@@ -12,7 +12,7 @@ trainer:
   val_check_interval: 100
   limit_val_batches: 50
   accumulate_grad_batches: 1
-  #gradient_clip_val: 1.0 # TODO: implement model parallel gradient clipping
+  gradient_clip_val: 1.0 # TODO: implement model parallel gradient clipping
 
 exp_manager:
   explicit_log_dir: null
@@ -71,10 +71,10 @@ model:
   optim:
     name: adam
     lr: 0.0001
-    #weight_decay: 0.01 # TODO: add mp weight decay
+    weight_decay: 0.01 
     betas: 
     - 0.9
     - 0.98
     sched:
-      name: CosineAnnealing
-      warmup_ratio: .01
+      name: WarmupAnnealing
+      warmup_steps: 10000

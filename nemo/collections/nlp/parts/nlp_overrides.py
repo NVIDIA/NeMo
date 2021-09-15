@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import shutil
+import tarfile
+from nemo.utils.get_rank import is_global_rank_zero
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 import os
 from typing import Any, Dict, List, Optional, Union
 
@@ -166,7 +170,7 @@ class NLPDDPPlugin(DDPPlugin):
         if app_state.model_parallel_size is not None:
             if torch.distributed.is_initialized():
                 mpu.initialize_model_parallel(app_state.model_parallel_size)
-                app_state.model_parallel_group = mpu.get_model_parallel_group()
+                app_state.model_parallel_group = mpu.get_tensor_model_parallel_group()
                 app_state.data_parallel_group = mpu.get_data_parallel_group()
                 app_state.model_parallel_rank = mpu.get_tensor_model_parallel_rank()
                 app_state.data_parallel_rank = mpu.get_data_parallel_rank()
@@ -241,3 +245,66 @@ class NLPCheckpointConnector(CheckpointConnector):
                 self.trainer.accelerator.save_checkpoint(_checkpoint, filepath)
         else:
             super().save_checkpoint(filepath, weights_only)
+
+
+class NLPSaveRestoreConnector(SaveRestoreConnector):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def save_to(self, model, save_path: str):
+        app_state = AppState()
+        if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+            # each model parallel rank creates a .nemo file
+            # after all .nemo files are created, each rank
+            # will add their checkpoint to global rank 0
+
+            base_dir = os.path.dirname(save_path)  # use the directory to merge mp_rank .nemo files into one
+
+            # update save_path based on model parallel_rank
+            base_path = os.path.splitext(save_path)[0]  # everything except the extension
+
+            mp_save_path = f'{base_path}_mp_rank_{app_state.model_parallel_rank:02d}.nemo'
+
+            # first we save .nemo file for each model parallel rank
+            if app_state.data_parallel_rank == 0:
+                super().save_to(model, mp_save_path)
+
+            # we need a barrier for data_parallel_rank 0 when using model parallel so that all processes have finished writing their weights before creating .nemo file
+            # torch.distributed.barrier(group=mpu.get_tensor_model_parallel_group())
+            # torch.distributed.barrier()
+
+            if is_global_rank_zero():
+                # extract all tar files
+                for mp_rank in range(app_state.model_parallel_size):
+                    mp_tar_path = f'{base_path}_mp_rank_{mp_rank:02d}.nemo'
+                    mp_tar = tarfile.open(mp_tar_path, 'r:gz')
+                    mp_tar.extractall(path=os.path.join(base_dir, f'mp_rank_{mp_rank:02d}'))
+                    mp_tar.close()
+                    os.remove(mp_tar_path)
+
+                # move rank 0 .nemo extract to base_path
+                shutil.move(os.path.join(base_dir, 'mp_rank_00'), base_path)
+
+                # move mp_rank_00 checkpoint to mp_rank_00 directory inside base_path
+                os.mkdir(os.path.join(base_path, 'mp_rank_00'))
+                shutil.move(os.path.join(base_path, 'model_weights.ckpt'), os.path.join(base_path, 'mp_rank_00'))
+
+                # move other mp_rank checkpoints from base_dir to base_path
+                for mp_rank in range(1, app_state.model_parallel_size):
+                    os.mkdir(os.path.join(base_path, f'mp_rank_{mp_rank:02d}'))
+                    shutil.move(
+                        os.path.join(base_dir, f'mp_rank_{mp_rank:02d}', 'model_weights.ckpt'),
+                        os.path.join(base_path, f'mp_rank_{mp_rank:02d}'),
+                    )
+                    # clean up leftover directory
+                    shutil.rmtree(os.path.join(base_dir, f'mp_rank_{mp_rank:02d}'))
+
+                # create tar file from base_path
+                self._make_nemo_file_from_folder(save_path, base_path)
+
+                # clean up base_path
+                shutil.rmtree(base_path)
+
+        else:
+            return super().save_to(model, save_path)
+

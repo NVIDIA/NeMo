@@ -32,6 +32,7 @@ from nemo.core.classes.common import Model
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import logging, model_utils
+from nemo.utils import app_state
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
 
@@ -201,7 +202,6 @@ class ModelPT(LightningModule, Model):
 
         return self._save_restore_connector.register_artifact(self, config_path, src, verify_src_exists)
 
-    @rank_zero_only
     def save_to(self, save_path: str):
         """
         Saves model instance (weights and configuration) into .nemo file
@@ -215,12 +215,18 @@ class ModelPT(LightningModule, Model):
             save_path: Path to .nemo file where model instance should be saved
         """
 
+        app_state = AppState()
         # Add NeMo rank check as well
-        if not is_global_rank_zero():
-            return
-        else:
+        if app_state.model_parallel_size is not None:
             save_path = os.path.abspath(os.path.expanduser(save_path))
+            # connector checks for ranks properly, no need to check here
             self._save_restore_connector.save_to(self, save_path)
+        else:
+            if not is_global_rank_zero():
+                return
+            else:
+                save_path = os.path.abspath(os.path.expanduser(save_path))
+                self._save_restore_connector.save_to(self, save_path)
 
     @classmethod
     def restore_from(
