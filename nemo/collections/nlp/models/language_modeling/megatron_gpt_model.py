@@ -64,6 +64,7 @@ class MegatronGPTModel(NLPModel):
             hidden_size=cfg.get('hidden_size', 16),
             num_attention_heads=cfg.get('num_attention_heads', 1),
             max_position_embeddings=cfg.get('max_position_embeddings', 512),
+            init_method_std=cfg.get('init_method_std', 0.02),
             tokenizer_type='GPT2BPETokenizer',
             vocab_file=cfg.tokenizer.vocab_file,
             merge_file=cfg.tokenizer.merge_file,
