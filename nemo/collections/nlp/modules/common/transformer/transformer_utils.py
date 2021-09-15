@@ -88,7 +88,7 @@ def get_nemo_transformer(
                 pre_ln_final_layer_norm=pre_ln_final_layer_norm,
                 num_token_types=cfg.get('num_token_types', 2),
             )
-        elif arch in ["seq2seq", "bridge", "perceiver"]:
+        elif arch in TransformerBottleneckEncoderNM._SUPPORTED_ARCH:
             model = TransformerBottleneckEncoderNM(
                 vocab_size=cfg.get('vocab_size'),
                 hidden_size=cfg.get('hidden_size'),

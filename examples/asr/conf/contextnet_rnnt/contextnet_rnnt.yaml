@@ -7,7 +7,7 @@ name: &name "ContextNet-8x-Stride-RNNT"
 
 model:
   sample_rate: &sample_rate 16000
-  compute_eval_loss: false  # eval samples can be very long and exhause memory. Disable computation of transducer loss during validation/testing with this flag.
+  compute_eval_loss: false  # eval samples can be very long and exhaust memory. Disable computation of transducer loss during validation/testing with this flag.
 
   train_ds:
     manifest_filepath: ???
@@ -394,7 +394,7 @@ model:
     # An optimal ratio of fused_batch_size : *_ds.batch_size is 1:1.
     # However, to preserve memory, this ratio can be 1:8 or even 1:16.
     # Extreme case of 1:B (i.e. fused_batch_size=1) should be avoided as training speed would be very slow.
-    experimental_fuse_loss_wer: true
+    fuse_loss_wer: true
     fused_batch_size: 16
 
     jointnet:

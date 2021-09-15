@@ -50,7 +50,7 @@ if [[ -z $MODEL_NAME_OR_PATH ]] || [[ -z $DATA_DIR ]] || [[ -z $OUTPUT_DIR ]]; t
   --MAX_SEGMENT_LEN=[max number of characters of the text segment for alignment (Optional)]
   --ADDITIONAL_SPLIT_SYMBOLS=[Additional symbols to use for
     sentence split if eos sentence split resulted in sequence longer than --max_length.
-    Use '|' as a separator between symbols, for example: ';|:|' (Optional)]
+    Use '|' as a separator between symbols, for example: ';|:' (Optional)]
   --AUDIO_FORMAT=[choose from ['.mp3', '.wav'], input audio files format
   --USE_NEMO_NORMALIZATION Set to 'True' to use NeMo Normalization tool to convert
     numbers from written to spoken format. By default num2words package will be used. (Optional)"

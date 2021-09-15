@@ -487,7 +487,13 @@ class DuplexDecoderModel(NLPModel):
             tokenizer, model=model, label_pad_token_id=constants.LABEL_PAD_TOKEN_ID,
         )
         dl = torch.utils.data.DataLoader(
-            dataset=dataset, batch_size=cfg.batch_size, shuffle=cfg.shuffle, collate_fn=data_collator
+            dataset=dataset,
+            batch_size=cfg.batch_size,
+            shuffle=cfg.shuffle,
+            collate_fn=data_collator,
+            num_workers=cfg.get("num_workers", 3),
+            pin_memory=cfg.get("pin_memory", False),
+            drop_last=cfg.get("drop_last", False),
         )
         running_time = perf_counter() - start_time
         logging.info(f'Took {running_time} seconds')
