@@ -512,7 +512,7 @@ class DuplexDecoderModel(NLPModel):
                 tokenizer=self._tokenizer,
                 tokenizer_name=self.transformer_name,
                 mode=self.mode,
-                max_len=cfg.get('max_decoder_len', self._tokenizer.model_max_length),
+                max_len=self._cfg.get('max_sequence_len', self._tokenizer.model_max_length),
                 decoder_data_augmentation=cfg.get('decoder_data_augmentation', False)
                 if data_split == "train"
                 else False,
