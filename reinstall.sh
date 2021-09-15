@@ -34,8 +34,8 @@ bash nemo_text_processing/setup.sh > /dev/null 2>&1 && echo "nemo_text_processin
 
 if [ -x "$(command -v conda)" ]; then
   # we need at least numba .53, and .54 breaks the PyTorch 21.06 container
-  echo 'Installing numba=0.54.0'
-  conda install -y -c numba numba=0.54.0
+  echo 'Installing numba=0.53.1'
+  conda install -y -c numba numba=0.53.
   # echo 'Attempting update to numba installation via conda'
   # conda update -c numba numba -y >  /dev/null 2>&1 && echo "Numba updated!" || echo "Numba could not be updated!"
 fi
