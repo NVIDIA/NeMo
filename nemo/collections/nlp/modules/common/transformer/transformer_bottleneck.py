@@ -17,7 +17,7 @@ from typing import Dict, Optional
 
 from nemo.collections.nlp.modules.common.transformer.bridge_encoders import BridgeEncoder
 from nemo.collections.nlp.modules.common.transformer.perceiver_encoders import PerceiverEncoder
-from nemo.collections.nlp.modules.common.transformer.reduction_encoders import AveragePoolingEncoder, MaxPoolingEncoder
+from nemo.collections.nlp.modules.common.transformer.reduction_encoders import PoolingEncoder
 from nemo.collections.nlp.modules.common.transformer.transformer import (
     NeMoTransformerConfig,
     TransformerDecoderNM,
@@ -168,7 +168,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
                 hidden_init_method=kwargs["hidden_init_method"],
             )
         elif arch == "max_pool":
-            encoder = MaxPoolingEncoder(
+            encoder = PoolingEncoder(
                 num_layers=kwargs["num_layers"],
                 hidden_size=kwargs["hidden_size"],
                 inner_size=kwargs["inner_size"],
@@ -183,9 +183,10 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
                 hidden_steps=kwargs["hidden_steps"],
                 hidden_blocks=kwargs["hidden_blocks"],
                 hidden_init_method=kwargs["hidden_init_method"],
+                pooling_type="max",
             )
         elif arch == "avg_pool":
-            encoder = AveragePoolingEncoder(
+            encoder = PoolingEncoder(
                 num_layers=kwargs["num_layers"],
                 hidden_size=kwargs["hidden_size"],
                 inner_size=kwargs["inner_size"],
@@ -200,6 +201,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
                 hidden_steps=kwargs["hidden_steps"],
                 hidden_blocks=kwargs["hidden_blocks"],
                 hidden_init_method=kwargs["hidden_init_method"],
+                pooling_type="avg",
             )
         else:
             raise ValueError(

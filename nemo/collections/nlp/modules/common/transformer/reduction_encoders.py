@@ -18,10 +18,13 @@ import torch
 
 from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
 
-__all__ = ["MaxPoolingEncoder", "AveragePoolingEncoder"]
+__all__ = ["PoolingEncoder"]
 
 
-class MaxPoolingEncoder(torch.nn.Module):
+class PoolingEncoder(torch.nn.Module):
+
+    _SUPPORTED_ARCH = ["max", "avg"]
+
     def __init__(
         self,
         num_layers: int,
@@ -38,6 +41,7 @@ class MaxPoolingEncoder(torch.nn.Module):
         hidden_steps: int = 4,
         hidden_init_method: str = "default",
         hidden_blocks: int = 2,
+        pooling_type: str = "max",
     ):
         super().__init__()
 
@@ -45,6 +49,7 @@ class MaxPoolingEncoder(torch.nn.Module):
         self._hidden_steps = hidden_steps
         self._hidden_init_method = hidden_init_method
         self._hidden_blocks = hidden_blocks
+        self._pooling_type = pooling_type
 
         if self._hidden_steps < 2:
             raise ValueError("Expected hidden_steps >= 2 but received hidden_steps = {self._hidden_steps}")
@@ -55,6 +60,9 @@ class MaxPoolingEncoder(torch.nn.Module):
                     hidden_init_method=self.hidden_init_method, supported_init_methods=self.supported_init_methods,
                 )
             )
+
+        if self._pooling_type not in self.supported_arch():
+            raise ValueError(f"Unknown pooling_type = {pooling_type}. Available values = {self.supported_arch()}")
 
         # self-attention encoder
         layer = TransformerEncoder(
@@ -79,7 +87,16 @@ class MaxPoolingEncoder(torch.nn.Module):
         Returns pooling module.
         Allows to override for child classes.
         """
-        return torch.nn.MaxPool1d(kernel_size=2, stride=2)
+        if self._pooling_type == "max":
+            pooling = torch.nn.MaxPool1d(kernel_size=2, stride=2)
+        elif self._pooling_type == "avg":
+            pooling = torch.nn.AvgPool1d(kernel_size=2, stride=2)
+
+        return pooling
+
+    @property
+    def supported_arch(self):
+        return self._SUPPORTED_ARCH
 
     @property
     def supported_init_methods(self):
@@ -129,46 +146,3 @@ class MaxPoolingEncoder(torch.nn.Module):
                 )
 
         return hidden_states, hidden_mask
-
-
-class AveragePoolingEncoder(torch.nn.Module):
-    def __init__(
-        self,
-        num_layers: int,
-        hidden_size: int,
-        inner_size: int,
-        mask_future: bool = False,
-        num_attention_heads: int = 1,
-        attn_score_dropout: float = 0.0,
-        attn_layer_dropout: float = 0.0,
-        ffn_dropout: float = 0.0,
-        hidden_act: str = "relu",
-        pre_ln: bool = False,
-        pre_ln_final_layer_norm: bool = True,
-        hidden_steps: int = 4,
-        hidden_init_method: str = "default",
-        hidden_blocks: int = 2,
-    ):
-        super().__init__(
-            num_layers=num_layers,
-            hidden_size=hidden_size,
-            inner_size=inner_size,
-            mask_future=mask_future,
-            num_attention_heads=num_attention_heads,
-            attn_score_dropout=attn_score_dropout,
-            attn_layer_dropout=attn_layer_dropout,
-            ffn_dropout=ffn_dropout,
-            hidden_act=hidden_act,
-            pre_ln=pre_ln,
-            pre_ln_final_layer_norm=pre_ln_final_layer_norm,
-            hidden_steps=hidden_steps,
-            hidden_init_method=hidden_init_method,
-            hidden_blocks=hidden_blocks,
-        )
-
-    def _build_pooling_module(self):
-        """
-        Returns pooling module.
-        Allows to override for child classes.
-        """
-        return torch.nn.AvgPool1d(kernel_size=2, stride=2)
