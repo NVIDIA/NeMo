@@ -61,8 +61,8 @@ class PoolingEncoder(torch.nn.Module):
                 )
             )
 
-        if self._pooling_type not in self.supported_arch():
-            raise ValueError(f"Unknown pooling_type = {pooling_type}. Available values = {self.supported_arch()}")
+        if self._pooling_type not in self.supported_arch:
+            raise ValueError(f"Unknown pooling_type = {pooling_type}. Available values = {self.supported_arch}")
 
         # self-attention encoder
         layer = TransformerEncoder(
