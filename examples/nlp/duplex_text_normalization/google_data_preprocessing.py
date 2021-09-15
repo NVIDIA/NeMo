@@ -20,7 +20,6 @@ given the URL "Zimbio.com", the original expected spoken form in the Google data
 "z_letter i_letter m_letter b_letter i_letter o_letter dot c_letter o_letter m_letter".
 However, our script will return a more concise output which is "zim bio dot com".
 
-
 USAGE Example:
 1. Download the Google TN dataset from https://www.kaggle.com/google-nlu/text-normalization
 2. Unzip the English subset (e.g., by running `tar zxvf  en_with_types.tgz`). Then there will a folder named `en_with_types`.
