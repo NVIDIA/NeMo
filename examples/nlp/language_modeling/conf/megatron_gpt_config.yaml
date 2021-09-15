@@ -12,7 +12,7 @@ trainer:
   val_check_interval: 100
   limit_val_batches: 50
   accumulate_grad_batches: 1
-  gradient_clip_val: 1.0 # TODO: implement model parallel gradient clipping
+  #gradient_clip_val: 1.0 # TODO: implement model parallel gradient clipping
 
 exp_manager:
   explicit_log_dir: null
@@ -29,7 +29,7 @@ exp_manager:
     monitor: val_loss
     save_top_k: 10
     mode: min
-    always_save_nemo: False # TODO: add support
+    always_save_nemo: False # TODO: add support for model parallel
     filename: 'megatron_gpt--{val_loss:.2f}-{step}'
 
 
@@ -81,5 +81,5 @@ model:
     - 0.9
     - 0.98
     sched:
-      name: WarmupAnnealing
+      name: CosineAnnealing
       warmup_steps: 10000
