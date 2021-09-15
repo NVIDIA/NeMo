@@ -18,7 +18,7 @@ from omegaconf.omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector, NLPDDPPlugin
+from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector, NLPDDPPlugin, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -48,6 +48,8 @@ def main(cfg) -> None:
     trainer.checkpoint_connector = NLPCheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
 
     model = MegatronGPTModel(cfg.model, trainer)
+
+    model._save_restore_connector = NLPSaveRestoreConnector()
 
     trainer.fit(model)
 

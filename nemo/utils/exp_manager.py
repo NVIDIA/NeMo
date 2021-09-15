@@ -712,13 +712,11 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.best_model_path = best_k_models[0]
         self.best_model_score = self.best_k_models[self.best_model_path]
 
-    @rank_zero_only
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
+        # output = None
         output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
-
         if not self.always_save_nemo:
             return output
-
         # Load the best model and then re-save it
         app_state = AppState()
         # since we are creating tarfile artifacts we need to update .nemo path
@@ -745,7 +743,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             pl_module.save_to(save_path=app_state.model_restore_path)
         return output
 
-    @rank_zero_only
     def on_train_end(self, trainer, pl_module):
         if trainer.fast_dev_run:
             return None
@@ -753,7 +750,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         if app_state.model_parallel_size is not None:
             return None
 
-        # TODO: make this work for model parallel, need to call on data parallel rank 0 and update best_model_path
         # Load the best model and then re-save it
         if self.save_best_model:
             trainer.checkpoint_connector.restore(self.best_model_path)
