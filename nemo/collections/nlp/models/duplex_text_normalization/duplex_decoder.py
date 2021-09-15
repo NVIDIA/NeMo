@@ -123,7 +123,6 @@ class DuplexDecoderModel(NLPModel):
         lr = self._optimizer.param_groups[0]['lr']
         self.log('train_loss', train_loss)
         self.log('lr', lr, prog_bar=True)
-        torch.cuda.empty_cache()
         return {'loss': train_loss, 'lr': lr}
 
     # Validation and Testing
@@ -520,6 +519,7 @@ class DuplexDecoderModel(NLPModel):
                 do_basic_tokenize=cfg.do_basic_tokenize,
                 use_cache=cfg.get('use_cache', False),
                 max_insts=cfg.get('max_insts', -1),
+                do_tokenize=True,
             )
 
             # create and save class names to class_ids mapping for validation
@@ -543,6 +543,7 @@ class DuplexDecoderModel(NLPModel):
                 pin_memory=cfg.get("pin_memory", False),
                 drop_last=cfg.get("drop_last", False),
             )
+
         return dataset, dl
 
     @classmethod

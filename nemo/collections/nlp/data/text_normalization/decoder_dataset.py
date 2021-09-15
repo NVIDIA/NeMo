@@ -447,16 +447,12 @@ class TarredTextNormalizationDecoderDataset(IterableDataset):
     even split among workers. If it is not divisible, logging will give a warning but training will proceed.
     Additionally, please note that the len() of this DataLayer is assumed to be the number of tokens
     of the text data. An incorrect manifest length may lead to some DataLoader issues down the line.
+
     Args:
-        text_tar_filepaths: Either a list of tokenized text tarball filepaths, or a
-            string (can be brace-expandable).
-        metadata_path (str): Path to the metadata manifest.
-        encoder_tokenizer: Autokenizer wrapped BPE tokenizer model, such as YTTM
-        decoder_tokenizer: Autokenizer wrapped BPE tokenizer model, such as YTTM
-        shuffle_n (int): How many samples to look ahead and load to be shuffled.
-            See WebDataset documentation for more details.
-            Defaults to 0.
-        shard_strategy (str): Tarred dataset shard distribution strategy chosen as a str value during ddp.
+        text_tar_filepaths: Either a list of tokenized text tarball filepaths, or a string (can be brace-expandable).
+        num_batches: total number of batches
+        shuffle_n: How many samples to look ahead and load to be shuffled.See WebDataset documentation for more details.
+        shard_strategy: Tarred dataset shard distribution strategy chosen as a str value during ddp.
             -   `scatter`: The default shard strategy applied by WebDataset, where each node gets
                 a unique set of shards, which are permanently pre-allocated and never changed at runtime.
             -   `replicate`: Optional shard strategy, where each node gets all of the set of shards
@@ -467,17 +463,15 @@ class TarredTextNormalizationDecoderDataset(IterableDataset):
                 and therefore more than one node may sample the same tarfile, and even sample the same
                 data points! As such, there is no assured guarantee that all samples in the dataset will be
                 sampled at least once during 1 epoch.
-        global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
-        world_size (int): Total number of processes, used for partitioning shards. Defaults to 1.
-        reverse_lang_direction (bool): When True, swaps the source and target directions when returning minibatches.
-        prepend_id (int): Prepends the specificed token id to the start of every source sentence. Defaults to None.
+        global_rank: Worker rank, used for partitioning shards.
+        world_size: Total number of processes, used for partitioning shards.
     """
 
     def __init__(
         self,
         text_tar_filepaths: str,
         num_batches: int,
-        shuffle_n: int = 1,
+        shuffle_n: int = 0,
         shard_strategy: str = "scatter",
         global_rank: int = 0,
         world_size: int = 1,

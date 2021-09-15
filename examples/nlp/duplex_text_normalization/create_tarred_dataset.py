@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ for more details on data format.
 
 To run the script, use:
 
-    python create_tarred_tn_dataset.py \
+    python create_tarred_dataset.py \
         --input_files = "/PATH_TO/output-00099-of-00100" \
         --input_files = "/PATH_TO/output-00098-of-00100" \
         --out_dir="FOLDER_NAME"
@@ -98,7 +98,7 @@ def _write_batches_to_tarfiles(
     """
     Creates tar files for the input file, i.e.:
         1. Creates a TextNormalizationDecoderDataset from the input file
-        2. Constructs batchces of size `batch_size`
+        2. Constructs batches of size `batch_size`
         3. Saves each created batch to a pickle file and then adds `num_batches_per_tarfile`
             of the pickle files to a tarfile.
 
