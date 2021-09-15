@@ -55,12 +55,9 @@ def print_class_based_stats(class2stats):
 def print_errors(errors):
     for class_name, class_errors in errors.items():
         for i, pred, target in class_errors:
-            formatted_str = class_name + "\t" + i
-            print(formatted_str)
-            formatted_str = class_name + "\t" + pred
-            print(formatted_str)
-            formatted_str = class_name + "\t" + target
-            print(formatted_str)
+            print(class_name + "\t" + i)
+            print(class_name + "\t" + pred)
+            print(class_name + "\t" + target)
         print()
 
 
@@ -68,13 +65,13 @@ def print_errors(errors):
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config Params: {OmegaConf.to_yaml(cfg)}')
     lang, batch_size = cfg.lang, cfg.data.test_ds.batch_size
-    # tagger_trainer, tagger_model = instantiate_model_and_trainer(cfg, TAGGER_MODEL, False)
+    tagger_trainer, tagger_model = instantiate_model_and_trainer(cfg, TAGGER_MODEL, False)
     decoder_trainer, decoder_model = instantiate_model_and_trainer(cfg, DECODER_MODEL, False)
 
     # Evaluating the tagger
     print('Evaluating the tagger')
-    # tagger_model.setup_test_data(cfg.data.test_ds)
-    # tagger_trainer.test(model=tagger_model, verbose=False)
+    tagger_model.setup_test_data(cfg.data.test_ds)
+    tagger_trainer.test(model=tagger_model, verbose=False)
 
     # Evaluating the decoder
     print('Evaluating the decoder')
@@ -117,12 +114,16 @@ def main(cfg: DictConfig) -> None:
             if not correct:
                 errors[_class].append((input, pred, target))
 
+    # Print out errors
+    print('ITN (Backward Direction)')
+    print_errors(errors_itn_stats)
+    print('TN (Forward Direction)')
+    print_errors(errors_tn_stats)
     # Print out stats
     print('ITN (Backward Direction)')
     print_class_based_stats(itn_class2stats)
     print('TN (Forward Direction)')
     print_class_based_stats(tn_class2stats)
-    print_errors(errors_tn_stats)
 
 
 if __name__ == '__main__':

@@ -308,4 +308,3 @@ class DecoderDataInstance:
         self.output_str = ' '.join(output_words)
         self.direction = inst_dir
         self.semiotic_class = semiotic_class
-

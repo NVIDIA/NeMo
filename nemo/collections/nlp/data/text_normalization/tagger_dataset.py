@@ -198,7 +198,7 @@ class TaggerDataInstance:
             # Update input_words and labels
             if s_word == constants.SIL_WORD and direction == constants.INST_BACKWARD:
                 continue
-            
+
             if s_word in constants.SPECIAL_WORDS:
                 input_words.append(w_word)
                 labels.append(constants.SAME_TAG)
