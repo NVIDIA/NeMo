@@ -7,7 +7,7 @@ name: &name "ContextNet-8x-Stride-RNNT"
 
 model:
   sample_rate: &sample_rate 16000
-  compute_eval_loss: false  # eval samples can be very long and exhause memory. Disable computation of transducer loss during validation/testing with this flag.
+  compute_eval_loss: false  # eval samples can be very long and exhaust memory. Disable computation of transducer loss during validation/testing with this flag.
 
   train_ds:
     manifest_filepath: ???
