@@ -88,7 +88,7 @@ class TextNormalizationDecoderDataset(Dataset):
                 data = pickle.load(f)
                 self.insts, self.inputs, self.examples, self.tn_count, self.itn_count, self.label_ids_semiotic = data
         else:
-            raw_insts = read_data_file(fp=input_file, max_insts=max_insts)
+            raw_insts = read_data_file(fp=input_file, lang=lang, max_insts=max_insts)
             all_semiotic_classes = set([])
             # Convert raw instances to TaggerDataInstance
             insts = []

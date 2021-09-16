@@ -84,7 +84,7 @@ class TextNormalizationTaggerDataset(Dataset):
                 self.insts, self.tag2id, self.encodings, self.labels = data
         else:
             # Read the input raw data file, returns list of sentences parsed as list of class, w_words, s_words
-            raw_insts = read_data_file(input_file)
+            raw_insts = read_data_file(input_file, lang=lang)
             if max_insts >= 0:
                 raw_insts = raw_insts[:max_insts]
 

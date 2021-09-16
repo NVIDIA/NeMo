@@ -40,7 +40,7 @@ class TextNormalizationTestDataset:
 
     def __init__(self, input_file: str, mode: str, lang: str):
         self.lang = lang
-        insts = read_data_file(input_file)
+        insts = read_data_file(input_file, lang=lang)
 
         # Build inputs and targets
         self.directions, self.inputs, self.targets, self.classes, self.nb_spans, self.span_starts, self.span_ends = (
@@ -74,7 +74,7 @@ class TextNormalizationTestDataset:
                             continue
                         elif s_word == constants.SELF_WORD:
                             processed_s_words.append(w_word)
-                        elif not s_word in constants.SPECIAL_WORDS:
+                        else:
                             processed_s_words.append(s_word)
 
                         processed_nb_spans += 1
@@ -113,15 +113,9 @@ class TextNormalizationTestDataset:
                     for cls, w_word, s_word in zip(classes, w_words, s_words):
 
                         # TN forward mode
-                        if s_word == constants.SIL_WORD:
-
-                            if cls == constants.PUNCT_TAG:
-                                processed_s_words.append(w_word)
-                            else:
-                                continue
-                        elif s_word == constants.SELF_WORD:
+                        if s_word in constants.SPECIAL_WORDS:
                             processed_s_words.append(w_word)
-                        elif not s_word in constants.SPECIAL_WORDS:
+                        else:
                             processed_s_words.append(s_word)
 
                         w_span_starts.append(w_word_idx)

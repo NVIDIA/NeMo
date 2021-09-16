@@ -137,10 +137,10 @@ class DuplexTaggerModel(NLPModel):
             inst_directions: A list of str where each str indicates the direction of the corresponding instance (i.e., INST_BACKWARD for ITN or INST_FORWARD for TN).
 
         Returns:
-            all_tag_preds: A list of list where each list contains the raw tag predictions for the corresponding input word in sents.
-            nb_spans: A list of ints where each int indicates the number of semiotic spans in each input word.
-            span_starts: A list of lists where each list contains the starting locations of semiotic spans in an input word.
-            span_ends: A list of lists where each list contains the ending locations of semiotic spans in an input word.
+            all_tag_preds: A list of list where each list contains the raw tag predictions for the corresponding input words in sents.
+            nb_spans: A list of ints where each int indicates the number of semiotic spans in input words.
+            span_starts: A list of lists where each list contains the starting locations of semiotic spans in input words.
+            span_ends: A list of lists where each list contains the ending locations of semiotic spans in input words.
         """
         self.eval()
 
