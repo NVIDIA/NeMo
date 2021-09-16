@@ -16,40 +16,13 @@ import abc
 import pathlib
 import re
 import time
-import unicodedata
-from builtins import str as unicode
 
 import nltk
 import torch
 
+from nemo.collections.tts.torch.tts_tokenizers import english_text_preprocessing, english_word_tokenize
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
-
-_words_re = re.compile("([a-zA-Z]+(?:[a-zA-Z-']*[a-zA-Z]+)*)|(\|[^|]*\|)|([^a-zA-Z|]+)")
-
-
-def english_text_preprocessing(text):
-    text = unicode(text)
-    text = ''.join(char for char in unicodedata.normalize('NFD', text) if unicodedata.category(char) != 'Mn')
-    return text
-
-
-def english_word_tokenize(text):
-    words = _words_re.findall(text)
-    result = []
-    for word in words:
-        maybe_word, maybe_without_changes, maybe_punct = word
-
-        if maybe_word != '':
-            without_changes = False
-            result.append((maybe_word.lower(), without_changes))
-        elif maybe_punct != '':
-            without_changes = False
-            result.append((re.sub(r'\s(\d)', r'\1', maybe_punct.upper()), without_changes))
-        elif maybe_without_changes != '':
-            without_changes = True
-            result.append((maybe_without_changes[1:-1], without_changes))
-    return result
 
 
 class BaseG2p(abc.ABC):
@@ -60,6 +33,13 @@ class BaseG2p(abc.ABC):
         word_tokenize_func=lambda x: x,
         apply_to_oov_word=None,
     ):
+        """Abstract class for creating an arbitrary module to convert grapheme words to phoneme sequences (or leave unchanged or use apply_to_oov_word).
+        Args:
+            phoneme_dict: Arbitrary representation of dictionary (phoneme -> grapheme) for known words.
+            text_preprocessing_func: Function for preprocessing raw text.
+            word_tokenize_func: Function for tokenizing text to words.
+            apply_to_oov_word: Function that will be applied to out of phoneme_dict word.
+        """
         self.phoneme_dict = phoneme_dict
         self.text_preprocessing_func = text_preprocessing_func
         self.word_tokenize_func = word_tokenize_func
@@ -81,6 +61,19 @@ class EnglishG2p(BaseG2p):
         heteronyms=None,
         encoding='latin-1',
     ):
+        """English G2P module. This module converts words from grapheme to phoneme representation using phoneme_dict in CMU dict format.
+         Optionally, it can ignore words which are heteronyms, ambiguous or marked as untouchable by word_tokenize_func (see code).
+         Ignored words are left unchanged or passed through apply_to_oov_word.
+        Args:
+            phoneme_dict (str, Path, Dict): Path to file in CMU dict format or dictionary in CMU dict.
+            text_preprocessing_func: Function for preprocessing raw text to preprocessed text.
+            word_tokenize_func: Function for tokenizing text to words. It has to return list of tuples where every tuple consists of word representation and flag whether to leave unchanged or not.
+            It is useful to mark word as untouchable which is already in phoneme representation.
+            apply_to_oov_word: Function that will be applied to out of phoneme_dict word.
+            ignore_ambiguous_words: Whether to not handle word via phoneme_dict with ambiguous phoneme sequences. Defaults to True.
+            heteronyms (str, Path, List): Path to file with heteronyms (every line is new word) or list of words.
+            encoding: Encoding type.
+        """
         phoneme_dict = (
             self._parse_as_cmu_dict(phoneme_dict, encoding)
             if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path)
@@ -211,7 +204,8 @@ class EnglishG2p(BaseG2p):
         prons = []
         for word, without_changes in words:
             if without_changes:
-                prons.extend(word.split(" "))
+                # word has to be list of string here (should be handled by self.word_tokenize_func)
+                prons.extend(word)
                 continue
 
             word_by_hyphen = word.split("-")

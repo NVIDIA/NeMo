@@ -14,18 +14,65 @@
 
 import abc
 import itertools
+import re
 import string
+import unicodedata
+from builtins import str as unicode
 from typing import List
 
-from nemo.collections.tts.data.g2ps import english_text_preprocessing, english_word_tokenize
+# Example of parsing by groups via _words_re.
+# Groups:
+# 1st group -- valid english words,
+# 2nd group -- any substring starts from | to | (mustn't be nested), useful when you want to leave sequence unchanged,
+# 3rd group -- punctuation marks.
+# Text (first line) and mask of groups for every char (second line).
+# config file must contain |EY1 EY1|, B, C, D, E, F, and G.
+# 111111311113111131111111322222222233133133133133133111313
+_words_re = re.compile("([a-zA-Z]+(?:[a-zA-Z-']*[a-zA-Z]+)*)|(\|[^|]*\|)|([^a-zA-Z|]+)")
+
+
+def english_text_preprocessing(text):
+    text = unicode(text)
+    text = ''.join(char for char in unicodedata.normalize('NFD', text) if unicodedata.category(char) != 'Mn')
+    return text
+
+
+def english_word_tokenize(text):
+    """
+    Convert text to list of tuples where every tuple consists of word representation and flag whether to leave unchanged or not.
+    Word can be valid english word, any substring starts from | to | (untouchable word) or punctuation marks.
+    """
+    words = _words_re.findall(text)
+    result = []
+    for word in words:
+        maybe_word, maybe_without_changes, maybe_punct = word
+
+        if maybe_word != '':
+            without_changes = False
+            result.append((maybe_word.lower(), without_changes))
+        elif maybe_punct != '':
+            without_changes = False
+            result.append((re.sub(r'\s(\d)', r'\1', maybe_punct.upper()), without_changes))
+        elif maybe_without_changes != '':
+            without_changes = True
+            result.append((maybe_without_changes[1:-1].split(" "), without_changes))
+    return result
 
 
 class BaseTokenizer(abc.ABC):
-    """Tokenizer for turning str text to list of int tokens."""
-
     PAD, BLANK, OOV = '<pad>', '<blank>', '<oov>'
 
     def __init__(self, tokens, *, pad=PAD, blank=BLANK, oov=OOV, sep='', add_blank_at=None):
+        """Abstract class for creating an arbitrary tokenizer to convert string to list of int tokens.
+        Args:
+            tokens: List of tokens.
+            pad: Pad token as string.
+            blank: Blank token as string.
+            oov: OOV token as string.
+            sep: Separation token as string.
+            add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
+             if None then no blank in labels.
+        """
         super().__init__()
 
         tokens = list(tokens)
@@ -64,8 +111,6 @@ class BaseTokenizer(abc.ABC):
 
 
 class EnglishCharsTokenizer(BaseTokenizer):
-    """English char-based tokenizer."""
-
     # fmt: off
     PUNCT_LIST = (  # Derived from LJSpeech and "/" additionally
         ',', '.', '!', '?', '-',
@@ -85,6 +130,19 @@ class EnglishCharsTokenizer(BaseTokenizer):
         text_preprocessing_func=english_text_preprocessing,
         word_tokenize_func=english_word_tokenize,
     ):
+        """English char-based tokenizer.
+        Args:
+            punct: Whether to reserve grapheme for basic punctuation or not.
+            spaces: Whether to prepend spaces to every punctuation symbol or not.
+            apostrophe: Whether to use apostrophe or not.
+            add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
+             if None then no blank in labels.
+            pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
+            non_default_punct_list: List of punctuation marks which will be used instead default.
+            text_preprocessing_func: Function for preprocessing raw text.
+            word_tokenize_func: Function for tokenizing text to words.
+        """
+
         tokens = []
         self.space, tokens = len(tokens), tokens + [' ']  # Space
         tokens.extend(string.ascii_lowercase)
@@ -110,7 +168,11 @@ class EnglishCharsTokenizer(BaseTokenizer):
         """See base class."""
         cs, space, tokens = [], self.tokens[self.space], set(self.tokens)
 
-        for c in "".join(self.word_tokenize_func(self.text_preprocessing_func((text)))):  # noqa
+        words = [
+            word[0] if isinstance(word, tuple) else word
+            for word in self.word_tokenize_func(self.text_preprocessing_func((text)))
+        ]
+        for c in "".join(words):  # noqa
             # Add space if last one isn't one
             if c == space and len(cs) > 0 and cs[-1] != space:
                 cs.append(c)
@@ -136,8 +198,6 @@ class EnglishCharsTokenizer(BaseTokenizer):
 
 
 class EnglishPhonemesTokenizer(BaseTokenizer):
-    """English phoneme-based tokenizer."""
-
     # fmt: off
     PUNCT_LIST = (  # Derived from LJSpeech and "/" additionally
         ',', '.', '!', '?', '-',
@@ -174,6 +234,24 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
         add_blank_at=None,
         pad_with_space=False,
     ):
+        """English phoneme-based tokenizer.
+        Args:
+            g2p: Grapheme to phoneme module.
+            punct: Whether to reserve grapheme for basic punctuation or not.
+            non_default_punct_list: List of punctuation marks which will be used instead default.
+            stresses: Whether to use phonemes codes with stresses (0-2) or not.
+            spaces: Whether to prepend spaces to every punctuation symbol or not.
+            chars: Whether to additionally use chars together with phonemes. It is useful if g2p module can return chars too.
+            space: Space token as string.
+            silence: Silence token as string (will be disabled if it is None).
+            apostrophe: Whether to use apostrophe or not.
+            oov: OOV token as string.
+            sep: Separation token as string.
+            add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
+             if None then no blank in labels.
+            pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
+        """
+
         tokens = []
         self.space, tokens = len(tokens), tokens + [space]  # Space
 
@@ -200,6 +278,7 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
 
         super().__init__(tokens, oov=oov, sep=sep, add_blank_at=add_blank_at)
 
+        self.chars = chars
         self.punct = punct
         self.stresses = stresses
         self.spaces = spaces

@@ -1,9 +1,9 @@
 tts_dataset:
   _target_: "nemo.collections.tts.torch.data.TTSDataset"
-  manifest_filepath: "train.json"
-  sample_rate: 44100
-  sup_data_path: "pitch_duration_prior"
-  sup_data_types: ["pitch", "duration_prior"]
+  manifest_filepath: "manifest.json"
+  sample_rate: 22050
+  sup_data_path: "sup_folder"
+  sup_data_types: ["pitch"]
   n_fft: 1024
   win_length: 1024
   hop_length: 256
@@ -18,18 +18,18 @@ tts_dataset:
   pitch_fmin: 65.40639132514966
   pitch_fmax: 2093.004522404789
 
-#  text_normalizer:
-#    _target_: "nemo_text_processing.text_normalization.normalize.Normalizer"
-#    lang: "en"
-#    input_case: 'cased'
-#
-#  text_normalizer_call_args:
-#    verbose: False
-#    punct_pre_process: True
-#    punct_post_process: True
+  text_normalizer:
+    _target_: "nemo_text_processing.text_normalization.normalize.Normalizer"
+    lang: "en"
+    input_case: "cased"
+
+  text_normalizer_call_args:
+    verbose: False
+    punct_pre_process: True
+    punct_post_process: True
 
   text_tokenizer:
-    _target_: "nemo.collections.tts.data.tokenizers.EnglishPhonemesTokenizer"
+    _target_: "nemo.collections.tts.data.tts_tokenizers.EnglishPhonemesTokenizer"
     punct: True
     stresses: True
     spaces: True
