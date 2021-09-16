@@ -29,7 +29,7 @@ tts_dataset:
     punct_post_process: True
 
   text_tokenizer:
-    _target_: "nemo.collections.tts.data.tts_tokenizers.EnglishPhonemesTokenizer"
+    _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
     punct: True
     stresses: True
     spaces: True
@@ -41,4 +41,4 @@ tts_dataset:
     add_blank_at: null
     pad_with_space: True
     g2p:
-      _target_: "nemo.collections.tts.data.g2ps.EnglishG2p"
+      _target_: "nemo.collections.tts.torch.g2ps.EnglishG2p"
