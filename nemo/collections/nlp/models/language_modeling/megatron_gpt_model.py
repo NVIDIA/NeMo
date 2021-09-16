@@ -28,10 +28,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import bui
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_megatron_for_nemo
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import (
-    compute_data_parallel_rank,
-    compute_model_parallel_rank,
-)
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
@@ -55,7 +52,6 @@ class MegatronGPTModel(NLPModel):
         app_state.world_size = trainer.world_size
         app_state.model_parallel_size = cfg.get('tensor_model_parallel_size', 1)
         app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
-        app_state.data_parallel_rank = compute_data_parallel_rank(trainer.global_rank, app_state.model_parallel_size)
 
         initialize_megatron_for_nemo(
             world_size=app_state.world_size,

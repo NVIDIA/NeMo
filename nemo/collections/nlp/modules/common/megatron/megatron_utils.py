@@ -206,10 +206,6 @@ def compute_model_parallel_rank(local_rank, model_parallel_size):
     return local_rank % model_parallel_size
 
 
-def compute_data_parallel_rank(global_rank, model_parallel_size):
-    return int(global_rank / model_parallel_size)
-
-
 def get_megatron_lm_models_list() -> List[str]:
     """
     Returns the list of supported Megatron-LM models

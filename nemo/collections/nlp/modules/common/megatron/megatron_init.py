@@ -16,7 +16,6 @@ import os
 
 from megatron.initialize import _set_random_seed, initialize_megatron
 from apex.mpu.initialize import (
-    get_data_parallel_rank,
     set_pipeline_model_parallel_rank,
     set_pipeline_model_parallel_world_size,
     set_tensor_model_parallel_rank,
@@ -61,6 +60,8 @@ def initialize_megatron_for_nemo(
         micro_batch_size, tensor_model_parallel_size, encoder_seq_length, init_method_std
     )
 
+    app_state = AppState()
+
     set_tensor_model_parallel_world_size(tensor_model_parallel_size)
     set_tensor_model_parallel_rank(tensor_model_parallel_rank)
 
@@ -72,7 +73,6 @@ def initialize_megatron_for_nemo(
 
     initialize_megatron(extra_args_provider=extra_args_provider, args_defaults=args_defaults, ignore_unknown_args=True)
     logging.info(f"Initialized Megatron ...")
-    app_state = AppState()
     app_state._is_megatron_initialized = True
 
 
