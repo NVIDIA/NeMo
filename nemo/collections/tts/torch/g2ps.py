@@ -76,7 +76,7 @@ class EnglishG2p(BaseG2p):
         """
         phoneme_dict = (
             self._parse_as_cmu_dict(phoneme_dict, encoding)
-            if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path)
+            if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path) or phoneme_dict is None
             else phoneme_dict
         )
 
@@ -165,7 +165,7 @@ class EnglishG2p(BaseG2p):
             return list(word), True
 
         # heteronym
-        if word in self.heteronyms:
+        if self.heteronyms is not None and word in self.heteronyms:
             return word, True
 
         # `'s` suffix
