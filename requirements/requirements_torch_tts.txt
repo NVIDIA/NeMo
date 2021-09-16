@@ -4,3 +4,4 @@ attrdict
 pystoi
 pesq
 pandas
+inflect
