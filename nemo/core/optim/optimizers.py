@@ -22,6 +22,7 @@ from omegaconf import DictConfig, OmegaConf
 from torch.optim import adadelta, adagrad, adamax, rmsprop, rprop
 from torch.optim.optimizer import Optimizer
 
+
 from nemo.core.config import OptimizerParams, get_optimizer_config, register_optimizer_params
 from nemo.core.optim.novograd import Novograd
 from nemo.utils import logging
@@ -41,10 +42,12 @@ AVAILABLE_OPTIMIZERS = {
 
 try:
     from apex.optimizers import FusedLAMB
+    from apex.optimizers import FusedAdam
 
     AVAILABLE_OPTIMIZERS['lamb'] = FusedLAMB
+    AVAILABLE_OPTIMIZERS['fused_adam'] = FusedAdam
 except ModuleNotFoundError:
-    logging.warning("Apex was not found. Using the lamb optimizer will error out.")
+    logging.warning("Apex was not found. Using the lamb or fused_adam optimizer will error out.")
 
 __all__ = ['get_optimizer', 'register_optimizer', 'parse_optimizer_args']
 

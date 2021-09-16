@@ -84,3 +84,4 @@ model:
     sched:
       name: CosineAnnealing
       warmup_steps: 10000
+      min_lr: 0.00001
