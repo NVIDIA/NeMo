@@ -105,7 +105,7 @@ def get_megatron_lm_model(
     config_file: Optional[str] = None,
     checkpoint_file: Optional[str] = None,
     vocab_file: Optional[str] = None,
-    merges_file: Optional[str] = None
+    merges_file: Optional[str] = None,
 ) -> Tuple[MegatronBertEncoder, str]:
     """
     Returns MegatronBertEncoder and a default or user specified path to the checkpoint file
@@ -153,7 +153,7 @@ def get_megatron_lm_model(
 
     if not vocab_file:
         vocab_file = get_megatron_vocab_file(pretrained_model_name)
-    
+
     if not merges_file:
         merges_file = get_megatron_merge_file(pretrained_model_name)
 
@@ -206,6 +206,10 @@ def compute_model_parallel_rank(local_rank, model_parallel_size):
     return local_rank % model_parallel_size
 
 
+def compute_data_parallel_rank(global_rank, model_parallel_size):
+    return int(global_rank / model_parallel_size)
+
+
 def get_megatron_lm_models_list() -> List[str]:
     """
     Returns the list of supported Megatron-LM models
@@ -249,6 +253,7 @@ def get_megatron_vocab_file(pretrained_model_name: str) -> str:
     path = os.path.join(MEGATRON_CACHE, pretrained_model_name + "_vocab")
     path = _download(path, url)
     return path
+
 
 def get_megatron_merges_file(pretrained_model_name: str) -> str:
     """

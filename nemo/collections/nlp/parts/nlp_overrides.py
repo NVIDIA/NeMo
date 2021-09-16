@@ -179,7 +179,7 @@ class NLPDDPPlugin(DDPPlugin):
                 logging.info(f'dp_rank: {app_state.data_parallel_rank}')
                 seed = os.environ.get("PL_GLOBAL_SEED", 1234)
                 # random seed must be set for megatron model parallel init
-                _set_random_seed(seed)
+                # _set_random_seed(seed)
 
     def save_checkpoint(self, checkpoint: Dict[str, Any], filepath: str) -> None:
         """Save model/training states as a checkpoint file through state-dump and file-write.
