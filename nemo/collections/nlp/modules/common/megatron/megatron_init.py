@@ -14,8 +14,9 @@
 
 import os
 
-from megatron.initialize import initialize_megatron
+from megatron.initialize import _set_random_seed, initialize_megatron
 from apex.mpu.initialize import (
+    get_data_parallel_rank,
     set_pipeline_model_parallel_rank,
     set_pipeline_model_parallel_world_size,
     set_tensor_model_parallel_rank,
@@ -39,7 +40,7 @@ def initialize_megatron_for_nemo(
     tokenizer_type=None,
     vocab_file=None,
     merge_file=None,
-    use_cpu_initialization=True,
+    use_cpu_initialization=False,
     init_method_std=0.02,
 ):
     os.environ["WORLD_SIZE"] = str(world_size)
@@ -55,19 +56,19 @@ def initialize_megatron_for_nemo(
     args_defaults['merge_file'] = merge_file
     args_defaults['lazy_mpu_init'] = True
     args_defaults['use_cpu_initialization'] = use_cpu_initialization  # need to change this to use gpu init
-    args_defaults['init_method_std'] = init_method_std
 
     extra_args_provider = get_extra_args_provider(
         micro_batch_size, tensor_model_parallel_size, encoder_seq_length, init_method_std
     )
 
-    # tensor model parallelism
     set_tensor_model_parallel_world_size(tensor_model_parallel_size)
     set_tensor_model_parallel_rank(tensor_model_parallel_rank)
 
     # pipeline model parallelism not implemented in NeMo yet
     set_pipeline_model_parallel_rank(0)
     set_pipeline_model_parallel_world_size(1)
+
+    _set_random_seed(1234)
 
     initialize_megatron(extra_args_provider=extra_args_provider, args_defaults=args_defaults, ignore_unknown_args=True)
     logging.info(f"Initialized Megatron ...")
