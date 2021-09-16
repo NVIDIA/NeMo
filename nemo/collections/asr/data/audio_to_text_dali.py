@@ -305,7 +305,7 @@ class _AudioTextDALIDataset(Iterator):
                     f"{self} received {self.mag_power} for the mag_power parameter." f" It must be either 1.0 or 2.0."
                 )
 
-            self.pad_to = params['pad_to'] if 'pad_to' in params else 16
+            self.pad_to = max(params['pad_to'], 1) if 'pad_to' in params else 16
             self.pad_value = params['pad_value'] if 'pad_value' in params else 0.0
 
         with self.pipe:
