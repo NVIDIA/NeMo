@@ -22,6 +22,7 @@ python combine_processed_datasets.py
         --input_dirs=PATH_TO_ENGLISH_DATASET_FOLDER
         --input_dirs=PATH_TO_RUSSIAN_DATASET_FOLDER
         --output_dir=PATH_TO_COMBINED_DATASET_FOLDER
+        --language=en
 """
 
 from argparse import ArgumentParser
@@ -33,6 +34,7 @@ from nemo.collections.nlp.data.text_normalization.utils import read_data_file
 
 if __name__ == '__main__':
     parser = ArgumentParser(description='Combine multiple processed datasets (e.g., for multilingual training)')
+    parser.add_argument('--language', type=str, help='language', default="en")
     parser.add_argument('--input_dirs', action='append', help='Paths to folders of processed datasets', required=True)
     parser.add_argument('--output_dir', type=str, default='combined', help='Path to the output folder')
     args = parser.parse_args()
@@ -53,7 +55,7 @@ if __name__ == '__main__':
         # Loop through each input directory
         for input_dir in args.input_dirs:
             input_fp = join(input_dir, f'{split_name}.tsv')
-            insts = read_data_file(input_fp)
+            insts = read_data_file(input_fp, lang=args.language)
             cur_data.extend(insts)
     print('After combining the datasets:')
     print(f'len(train): {len(train)}')
