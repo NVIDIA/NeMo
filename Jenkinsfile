@@ -752,6 +752,28 @@ pipeline {
             exp_manager=null'
           }
         }
+       stage('Duplex Text Normalization with Tarred dataset') {
+          steps {
+            sh 'cd examples/nlp/duplex_text_normalization && \
+            python duplex_text_normalization_train.py \
+            data.validation_ds.data_path=/home/TestData/nlp/duplex_text_norm/small_test.tsv \
+            mode=tn \
+            lang=en \
+            tagger_model.do_training=false \
+            decoder_model.transformer=t5-small \
+            data.validation_ds.batch_size=2 \
+            data.train_ds.use_cache=false \
+            data.validation_ds.use_cache=false \
+            data.test_ds.batch_size=2 \
+            data.train_ds.decoder_data_augmentation=false \
+            data.train_ds.num_workers=2 \
+            decoder_trainer.gpus=[0,1] \
+            data.train_ds.use_tarred_dataset=true \
+            +decoder_trainer.fast_dev_run=true \
+            decoder_exp_manager.create_checkpoint_callback=false \
+            data.train_ds.tar_metadata_file=/home/TestData/nlp/duplex_text_norm/tarred_small/metadata.json'
+          }
+        }
       }
     }
     // Runs out of memory on the 12G TITAN V (GPU 0 on main CI)
