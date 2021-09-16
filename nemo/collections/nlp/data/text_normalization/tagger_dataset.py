@@ -57,6 +57,7 @@ class TextNormalizationTaggerDataset(Dataset):
         do_basic_tokenize: bool,
         tagger_data_augmentation: bool,
         lang: str,
+        max_seq_length: int,
         use_cache: bool = False,
         max_insts: int = -1,
     ):
@@ -71,7 +72,7 @@ class TextNormalizationTaggerDataset(Dataset):
         data_dir, filename = os.path.split(input_file)
         tokenizer_name_normalized = tokenizer_name.replace('/', '_')
         cached_data_file = os.path.join(
-            data_dir, f'cached_tagger_{filename}_{tokenizer_name_normalized}_{lang}_{max_insts}.pkl'
+            data_dir, f'cached_tagger_{filename}_{tokenizer_name_normalized}_{lang}_{max_insts}_{max_seq_length}.pkl'
         )
 
         if use_cache and os.path.exists(cached_data_file):
@@ -96,6 +97,18 @@ class TextNormalizationTaggerDataset(Dataset):
                         continue
                     if inst_dir == constants.INST_FORWARD and mode == constants.ITN_MODE:
                         continue
+
+                    # filter out examples that are longer than the maximum sequence length value
+                    if (
+                        len(tokenizer(w_words, is_split_into_words=True, padding=False, truncation=True)['input_ids'])
+                        >= max_seq_length
+                        or len(
+                            tokenizer(s_words, is_split_into_words=True, padding=False, truncation=True)['input_ids']
+                        )
+                        >= max_seq_length
+                    ):
+                        continue
+
                     # Create a new TaggerDataInstance
                     inst = TaggerDataInstance(w_words, s_words, inst_dir, do_basic_tokenize)
                     insts.append(inst)
