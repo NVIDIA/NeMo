@@ -12,7 +12,7 @@ trainer:
   val_check_interval: 100
   limit_val_batches: 50
   accumulate_grad_batches: 1
-  #gradient_clip_val: 1.0 # TODO: implement model parallel gradient clipping
+  gradient_clip_val: 1.0 # TODO: implement model parallel gradient clipping
 
 exp_manager:
   explicit_log_dir: null
