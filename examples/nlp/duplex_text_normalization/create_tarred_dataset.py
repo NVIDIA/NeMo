@@ -130,7 +130,7 @@ def _write_batches_to_tarfiles(
         use_cache=False,
         max_insts=-1,
         do_tokenize=False,
-        initial_shufle=True,
+        initial_shuffle=True,
     )
     dataset.batchify(batch_size)
     file_name = os.path.basename(input_file)

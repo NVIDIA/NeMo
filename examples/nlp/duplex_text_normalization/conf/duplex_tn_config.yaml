@@ -130,7 +130,7 @@ data:
     pin_memory: false
     drop_last: false
     use_tarred_dataset: False # if true tar_metadata_file will be used
-    tar_metadata_file: null # metadata for tarred dataset. A JSON file containing the list of tar_files in "tar_files" field
+    tar_metadata_file: null # metadata for tarred dataset. A JSON file containing the list of tar_files in "text_tar_filepaths" field
     tar_shuffle_n: 100 # How many samples to look ahead and load to be shuffled
 
   validation_ds:

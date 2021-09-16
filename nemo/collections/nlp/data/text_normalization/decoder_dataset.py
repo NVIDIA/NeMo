@@ -79,7 +79,7 @@ class TextNormalizationDecoderDataset(Dataset):
         use_cache: bool = False,
         max_insts: int = -1,
         do_tokenize: bool = True,
-        initial_shufle: bool = False,
+        initial_shuffle: bool = False,
     ):
         assert mode in constants.MODES
         assert lang in constants.SUPPORTED_LANGS
@@ -112,7 +112,7 @@ class TextNormalizationDecoderDataset(Dataset):
             else:
                 raw_instances = raw_instances[:max_insts]
 
-            if initial_shufle:
+            if initial_shuffle:
                 random.shuffle(raw_instances)
 
             logging.info(f"Converting raw instances to DecoderDataInstance for {input_file}...")
