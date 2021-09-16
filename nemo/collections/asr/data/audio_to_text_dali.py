@@ -176,6 +176,8 @@ class _AudioTextDALIDataset(Iterator):
                 f"{self} received an unexpected device argument {device}. Supported values are: 'cpu', 'gpu'"
             )
 
+        device_id = device_id if device == 'gpu' else None
+
         self.batch_size = batch_size  # Used by NeMo
 
         self.device = device
