@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 from collections import defaultdict
-from time import perf_counter
 from typing import Dict, List, Optional, Union
 
 import nltk
@@ -24,7 +24,11 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
 
-from nemo.collections.nlp.data.text_normalization import TextNormalizationDecoderDataset, constants
+import nemo.collections.nlp.data.text_normalization.constants as constants
+from nemo.collections.nlp.data.text_normalization.decoder_dataset import (
+    TarredTextNormalizationDecoderDataset,
+    TextNormalizationDecoderDataset,
+)
 from nemo.collections.nlp.models.duplex_text_normalization.utils import get_formatted_string, is_url
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
@@ -51,6 +55,12 @@ class DuplexDecoderModel(NLPModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
+        # Global_rank and local_rank is set by LightningModule in Lightning 1.2.0
+        self.world_size = 1
+        if trainer is not None:
+            self.world_size = trainer.num_nodes * trainer.num_gpus
+
         self._tokenizer = AutoTokenizer.from_pretrained(cfg.tokenizer)
 
         super().__init__(cfg=cfg, trainer=trainer)
@@ -96,6 +106,11 @@ class DuplexDecoderModel(NLPModel):
         Lightning calls this inside the training loop with the data from the training dataloader
         passed in as `batch`.
         """
+        # tarred dataset contains batches, and the first dimension of size 1 added by the DataLoader
+        # (batch_size is set to 1) is redundant
+        if batch['input_ids'].ndim == 3:
+            batch = {k: v.squeeze(dim=0) for k, v in batch.items()}
+
         # Apply Transformer
         outputs = self.model(
             input_ids=batch['input_ids'],
@@ -134,22 +149,21 @@ class DuplexDecoderModel(NLPModel):
         )
 
         input_centers = self._tokenizer.batch_decode(batch['input_center'], skip_special_tokens=True)
-
-        direction = [x.item() for x in batch['direction']]
+        direction = [x[0].item() for x in batch['direction']]
         direction_str = [constants.DIRECTIONS_ID_TO_NAME[x] for x in direction]
         # apply post_processing
         generated_texts = self.postprocess_output_spans(input_centers, generated_texts, direction_str)
         results = defaultdict(int)
         for idx, class_id in enumerate(batch['semiotic_class_id']):
-            direction = constants.TASK_ID_TO_MODE[batch['direction'][idx].item()]
-            class_name = self._val_id_to_class[dataloader_idx][class_id.item()]
+            direction = constants.TASK_ID_TO_MODE[batch['direction'][idx][0].item()]
+            class_name = self._val_id_to_class[dataloader_idx][class_id[0].item()]
             results[f"correct_{class_name}_{direction}"] += torch.tensor(
                 labels_str[idx] == generated_texts[idx], dtype=torch.int
             ).to(self.device)
             results[f"total_{class_name}_{direction}"] += torch.tensor(1).to(self.device)
 
         results["val_loss"] = val_loss
-        return results
+        return dict(results)
 
     def multi_validation_epoch_end(self, outputs: List, dataloader_idx=0):
         """
@@ -249,6 +263,7 @@ class DuplexDecoderModel(NLPModel):
         """
         return self.multi_validation_epoch_end(outputs, dataloader_idx)
 
+    @torch.no_grad()
     def _generate_predictions(self, input_ids: torch.Tensor, model_max_len: int = 512):
         """
         Generates predictions
@@ -453,50 +468,82 @@ class DuplexDecoderModel(NLPModel):
         self.test_dataset, self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, data_split="test")
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, data_split: str):
-        tokenizer, model = self._tokenizer, self.model
-        start_time = perf_counter()
-        logging.info(f'Creating {data_split} dataset')
+        logging.info(f"Creating {data_split} dataset")
 
-        input_file = cfg.data_path
-        if not os.path.exists(input_file):
-            raise ValueError(f"{input_file} not found.")
+        shuffle = cfg["shuffle"]
 
-        dataset = TextNormalizationDecoderDataset(
-            input_file=input_file,
-            tokenizer=tokenizer,
-            tokenizer_name=self.transformer_name,
-            mode=self.mode,
-            max_len=cfg.get('max_decoder_len', tokenizer.model_max_length),
-            decoder_data_augmentation=cfg.get('decoder_data_augmentation', False),
-            lang=self.lang,
-            do_basic_tokenize=cfg.do_basic_tokenize,
-            use_cache=cfg.get('use_cache', False),
-            max_insts=cfg.get('max_insts', -1),
-        )
+        if cfg.get("use_tarred_dataset", False):
+            logging.info('Tarred dataset')
+            metadata_file = cfg["tar_metadata_file"]
+            if metadata_file is None or not os.path.exists(metadata_file):
+                raise FileNotFoundError(f"Trying to use tarred dataset but could not find {metadata_file}.")
 
-        # create and save class names to class_ids mapping for validation
-        # (each validation set might have different classes)
-        if data_split in ['val', 'test']:
-            if not hasattr(self, "_val_class_to_id"):
-                self._val_class_to_id = []
-                self._val_id_to_class = []
-            self._val_class_to_id.append(dataset.label_ids_semiotic)
-            self._val_id_to_class.append({v: k for k, v in dataset.label_ids_semiotic.items()})
+            with open(metadata_file, "r") as f:
+                metadata = json.load(f)
+                num_batches = metadata["num_batches"]
+                tar_files = os.path.join(os.path.dirname(metadata_file), metadata["text_tar_filepaths"])
+            logging.info(f"Loading {tar_files}")
 
-        data_collator = DataCollatorForSeq2Seq(
-            tokenizer, model=model, label_pad_token_id=constants.LABEL_PAD_TOKEN_ID,
-        )
-        dl = torch.utils.data.DataLoader(
-            dataset=dataset,
-            batch_size=cfg.batch_size,
-            shuffle=cfg.shuffle,
-            collate_fn=data_collator,
-            num_workers=cfg.get("num_workers", 3),
-            pin_memory=cfg.get("pin_memory", False),
-            drop_last=cfg.get("drop_last", False),
-        )
-        running_time = perf_counter() - start_time
-        logging.info(f'Took {running_time} seconds')
+            dataset = TarredTextNormalizationDecoderDataset(
+                text_tar_filepaths=tar_files,
+                num_batches=num_batches,
+                shuffle_n=cfg.get("tar_shuffle_n", 4 * cfg['batch_size']) if shuffle else 0,
+                shard_strategy=cfg.get("shard_strategy", "scatter"),
+                global_rank=self.global_rank,
+                world_size=self.world_size,
+            )
+
+            dl = torch.utils.data.DataLoader(
+                dataset=dataset,
+                batch_size=1,
+                sampler=None,
+                num_workers=cfg.get("num_workers", 2),
+                pin_memory=cfg.get("pin_memory", False),
+                drop_last=cfg.get("drop_last", False),
+            )
+        else:
+            input_file = cfg.data_path
+            if not os.path.exists(input_file):
+                raise ValueError(f"{input_file} not found.")
+
+            dataset = TextNormalizationDecoderDataset(
+                input_file=input_file,
+                tokenizer=self._tokenizer,
+                tokenizer_name=self.transformer_name,
+                mode=self.mode,
+                max_len=self._cfg.get('max_sequence_len', self._tokenizer.model_max_length),
+                decoder_data_augmentation=cfg.get('decoder_data_augmentation', False)
+                if data_split == "train"
+                else False,
+                lang=self.lang,
+                do_basic_tokenize=cfg.do_basic_tokenize,
+                use_cache=cfg.get('use_cache', False),
+                max_insts=cfg.get('max_insts', -1),
+                do_tokenize=True,
+            )
+
+            # create and save class names to class_ids mapping for validation
+            # (each validation set might have different classes)
+            if data_split in ['val', 'test']:
+                if not hasattr(self, "_val_class_to_id"):
+                    self._val_class_to_id = []
+                    self._val_id_to_class = []
+                self._val_class_to_id.append(dataset.label_ids_semiotic)
+                self._val_id_to_class.append({v: k for k, v in dataset.label_ids_semiotic.items()})
+
+            data_collator = DataCollatorForSeq2Seq(
+                self._tokenizer, model=self.model, label_pad_token_id=constants.LABEL_PAD_TOKEN_ID, padding=True
+            )
+            dl = torch.utils.data.DataLoader(
+                dataset=dataset,
+                batch_size=cfg.batch_size,
+                shuffle=shuffle,
+                collate_fn=data_collator,
+                num_workers=cfg.get("num_workers", 3),
+                pin_memory=cfg.get("pin_memory", False),
+                drop_last=cfg.get("drop_last", False),
+            )
+
         return dataset, dl
 
     @classmethod

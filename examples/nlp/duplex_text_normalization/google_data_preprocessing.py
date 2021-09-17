@@ -20,7 +20,6 @@ given the URL "Zimbio.com", the original expected spoken form in the Google data
 "z_letter i_letter m_letter b_letter i_letter o_letter dot c_letter o_letter m_letter".
 However, our script will return a more concise output which is "zim bio dot com".
 
-
 USAGE Example:
 1. Download the Google TN dataset from https://www.kaggle.com/google-nlu/text-normalization
 2. Unzip the English subset (e.g., by running `tar zxvf  en_with_types.tgz`). Then there will a folder named `en_with_types`.
@@ -39,18 +38,16 @@ from argparse import ArgumentParser
 from os import listdir, mkdir
 from os.path import isdir, isfile, join
 
-import wordninja
-from helpers import flatten
 from tqdm import tqdm
 
 from nemo.collections.nlp.data.text_normalization import constants
-from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize
+from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize, process_url
 
 # Local Constants
 MAX_DEV_SIZE = 25000
 
 # Helper Functions
-def read_google_data(data_dir, lang):
+def read_google_data(data_dir: str, lang: str):
     """
     The function can be used to read the raw data files of the Google Text Normalization
     dataset (which can be downloaded from https://www.kaggle.com/google-nlu/text-normalization)
@@ -116,52 +113,6 @@ def read_google_data(data_dir, lang):
     train_sz, dev_sz, test_sz = len(train), len(dev), len(test)
     print(f'train_sz: {train_sz} | dev_sz: {dev_sz} | test_sz: {test_sz}')
     return train, dev, test
-
-
-def process_url(tokens, outputs, lang):
-    """
-    The function is used to process the spoken form of every URL in an example
-
-    Args:
-        tokens: The tokens of the written form
-        outputs: The expected outputs for the spoken form
-        lang: Selected language.
-    Return:
-        outputs: The outputs for the spoken form with preprocessed URLs.
-    """
-    if lang == constants.ENGLISH:
-        for i in range(len(tokens)):
-            t, o = tokens[i], outputs[i]
-            if o != constants.SIL_WORD and '_letter' in o:
-                o_tokens = o.split(' ')
-                all_spans, cur_span = [], []
-                for j in range(len(o_tokens)):
-                    if len(o_tokens[j]) == 0:
-                        continue
-                    if o_tokens[j] == '_letter':
-                        all_spans.append(cur_span)
-                        all_spans.append([' '])
-                        cur_span = []
-                    else:
-                        o_tokens[j] = o_tokens[j].replace('_letter', '')
-                        cur_span.append(o_tokens[j])
-                if len(cur_span) > 0:
-                    all_spans.append(cur_span)
-                o_tokens = flatten(all_spans)
-
-                o = ''
-                for o_token in o_tokens:
-                    if len(o_token) > 1:
-                        o += ' ' + o_token + ' '
-                    else:
-                        o += o_token
-                o = o.strip()
-                o_tokens = wordninja.split(o)
-                o = ' '.join(o_tokens)
-
-                outputs[i] = o
-
-    return outputs
 
 
 # Main code

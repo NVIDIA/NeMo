@@ -141,7 +141,7 @@ class ConcatDataset(IterableDataset):
     def temperature_generator(datasets, **kwargs):
         temp = kwargs.get('temperature')
         if not temp:
-            raise ValueError("Temperature generator expects a 'temperature' keyowrd argument.")
+            raise ValueError("Temperature generator expects a 'temperature' keyword argument.")
 
         lengths = []
         num = len(datasets)
