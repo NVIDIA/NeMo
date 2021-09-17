@@ -179,12 +179,11 @@ class WarmupAnnealHoldPolicy(_LRScheduler):
         *,
         warmup_steps=None,
         warmup_ratio=None,
+        constant_steps=None,
+        constant_ratio=None,
         max_steps=None,
         min_lr=0.0,
         last_epoch=-1,
-        constant_steps=None,
-        constant_ratio=None,
-        max_lr=None,
     ):
         assert not (
             warmup_steps is not None and warmup_ratio is not None
@@ -194,7 +193,6 @@ class WarmupAnnealHoldPolicy(_LRScheduler):
         # It is necessary to assign all attributes *before* __init__,
         # as class is wrapped by an inner class.
         self.max_steps = max_steps
-        self.max_lr = max_lr
 
         if warmup_steps is not None:
             self.warmup_steps = warmup_steps
@@ -213,9 +211,6 @@ class WarmupAnnealHoldPolicy(_LRScheduler):
             self.constant_steps = int(constant_ratio * max_steps)
             self.decay_steps = max_steps - (self.constant_steps + self.warmup_steps)
             assert self.decay_steps > 0
-        else:
-            self.decay_steps = 0
-            self.constant_steps = 0
 
         self.min_lr = min_lr
         super().__init__(optimizer, last_epoch)
@@ -328,8 +323,8 @@ class SquareRootAnnealing(WarmupPolicy):
 
 
 class CosineAnnealing(WarmupAnnealHoldPolicy):
-    def __init__(self, optimizer, *, max_steps, min_lr=0, last_epoch=-1, max_lr=None, **kwargs):
-        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, min_lr=min_lr, max_lr=max_lr, **kwargs)
+    def __init__(self, optimizer, *, max_steps, min_lr=0, last_epoch=-1, **kwargs):
+        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, min_lr=min_lr, **kwargs)
 
     def _get_lr(self, step):
         for initial_lr in self.base_lrs:
@@ -351,7 +346,7 @@ class CosineAnnealing(WarmupAnnealHoldPolicy):
         else:
             new_lrs = [
                 _linear_warmup_with_cosine_annealing(
-                    max_lr=self.max_lr,
+                    max_lr=self.base_lrs[0],
                     warmup_steps=self.warmup_steps,
                     step=step,
                     decay_steps=self.decay_steps,

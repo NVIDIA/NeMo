@@ -52,15 +52,12 @@ class WarmupHoldSchedulerParams(WarmupSchedulerParams):
 
 
 @dataclass
-class WarmupAnnealingHoldSchedulerParams(SchedulerParams):
+class WarmupAnnealingHoldSchedulerParams(WarmupHoldSchedulerParams):
     """
     Base configuration for all schedulers.
     It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
     """
 
-    max_steps: int = 0
-    warmup_steps: Optional[float] = None
-    warmup_ratio: Optional[float] = None
     constant_steps: Optional[float] = None
     constant_ratio: Optional[float] = None
 
@@ -93,7 +90,6 @@ class CosineAnnealingParams(WarmupAnnealingHoldSchedulerParams):
     """
 
     min_lr: float = 0.0
-    max_lr: float = 2.5e-4
 
 
 @dataclass
