@@ -139,6 +139,14 @@ class MeasureFst(GraphFst):
             + pynutil.insert("\"")
         )
 
+        decimal_times = (
+            pynutil.insert("decimal { ")
+            + decimal.final_graph_wo_negative
+            + pynutil.insert(" } units: \"")
+            + pynini.cross(pynini.union('x', "X"), 'x')
+            + pynutil.insert("\"")
+        )
+
         alpha_dash_decimal = (
             pynutil.insert("units: \"")
             + pynini.closure(NEMO_ALPHA, 1)
@@ -166,6 +174,7 @@ class MeasureFst(GraphFst):
             | cardinal_dash_alpha
             | alpha_dash_cardinal
             | decimal_dash_alpha
+            | decimal_times
             | alpha_dash_decimal
             | subgraph_fraction
             | address

@@ -55,37 +55,33 @@ def get_number_names():
     assert rewrite.top_rewrite("230", fg) == "(+ 200 30 +)"
 
     # Compiles lexicon transducers (L).
-    cardinal_name_nominative = pynini.string_file(
-        get_abs_path("data/numbers/1_cardinals_nominative_именительный.tsv")
-    ).optimize()
-    cardinal_name_genitive = pynini.string_file(
-        get_abs_path("data/numbers/2_cardinals_genitive_родительный.tsv")
-    ).optimize()
-    cardinal_name_dative = pynini.string_file(get_abs_path("data/numbers/3_cardinals_dative_датильный.tsv")).optimize()
-    cardinal_name_accusative = pynini.string_file(
-        get_abs_path("data/numbers/4_cardinals_accusative_винительный.tsv")
-    ).optimize()
+    cardinal_name_nominative = pynini.string_file(get_abs_path("data/numbers/1_cardinals_nominative.tsv")).optimize()
+    cardinal_name_genitive = pynini.string_file(get_abs_path("data/numbers/2_cardinals_genitive.tsv")).optimize()
+    cardinal_name_dative = pynini.string_file(get_abs_path("data/numbers/3_cardinals_dative.tsv")).optimize()
+    cardinal_name_accusative = pynini.string_file(get_abs_path("data/numbers/4_cardinals_accusative.tsv")).optimize()
     cardinal_name_instrumental = pynini.string_file(
-        get_abs_path("data/numbers/5_cardinals_instrumental_творительный.tsv")
+        get_abs_path("data/numbers/5_cardinals_instrumental.tsv")
     ).optimize()
     cardinal_name_prepositional = pynini.string_file(
-        get_abs_path("data/numbers/6_cardinals_prepositional_предложный.tsv")
+        get_abs_path("data/numbers/6_cardinals_prepositional.tsv")
     ).optimize()
 
-    cardinal_l = (pynini.closure(cardinal_name_nominative + pynini.accep(" ")) + cardinal_name_nominative).optimize()
+    cardinal_name_nominative = (
+        pynini.closure(cardinal_name_nominative + pynini.accep(" ")) + cardinal_name_nominative
+    ).optimize()
+    cardinal_l = pynutil.add_weight(cardinal_name_nominative, -0.1)
     for case in [
-        cardinal_name_genitive,
-        cardinal_name_dative,
-        cardinal_name_accusative,
-        cardinal_name_instrumental,
-        cardinal_name_prepositional,
+        pynutil.add_weight(cardinal_name_genitive, 0.1).optimize(),
+        pynutil.add_weight(cardinal_name_dative, 0.1).optimize(),
+        pynutil.add_weight(cardinal_name_accusative, 0.1).optimize(),
+        pynutil.add_weight(cardinal_name_instrumental, 0.1).optimize(),
+        pynutil.add_weight(cardinal_name_prepositional, 0.1).optimize(),
     ]:
         cardinal_l |= (pynini.closure(case + pynini.accep(" ")) + case).optimize()
 
-    # Numbers up to 1000 in nominative case (to use, for example, with telephone)
-    nominative_up_to_thousand_name = pynini.string_file(get_abs_path("data/numbers/cardinals_nominative_case.tsv"))
-    nominative_up_to_thousand_name_l = (
-        pynini.closure(nominative_up_to_thousand_name + pynini.accep(" ")) + nominative_up_to_thousand_name
+    # Numbers in nominative case (to use, for example, with telephone or serial_graph (in cardinals))
+    cardinal_names_nominative_l = (
+        pynini.closure(cardinal_name_nominative + pynini.accep(" ")) + cardinal_name_nominative
     ).optimize()
 
     # Convert e.g. "(* 5 1000 *)" back to  "5000" so complex ordinals will be formed correctly,
@@ -99,7 +95,7 @@ def get_number_names():
 
     complex_numbers = (
         NEMO_SIGMA + pynutil.add_weight(complex_numbers, -1) + pynini.closure(pynini.union(" ", ")", "(", "+", "*"))
-    )
+    ).optimize()
     fg_ordinal = pynutil.add_weight(pynini.compose(fg, complex_numbers), -1) | fg
     ordinal_name = pynini.string_file(get_abs_path("data/numbers/ordinals.tsv"))
     ordinal_l = (pynini.closure(cardinal_name_nominative + pynini.accep(" ")) + ordinal_name).optimize()
@@ -109,7 +105,7 @@ def get_number_names():
     number_names = {}
     number_names['ordinal_number_names'] = (fg_ordinal @ (p @ ordinal_l)).optimize()
     number_names['cardinal_number_names'] = (fg @ (p @ cardinal_l)).optimize()
-    number_names['nominative_up_to_thousand_names'] = (fg @ (p @ nominative_up_to_thousand_name_l)).optimize()
+    number_names['cardinal_names_nominative'] = (fg @ (p @ cardinal_names_nominative_l)).optimize()
     return number_names
 
 
@@ -126,6 +122,9 @@ def get_alternative_formats():
 
     one_thousand_alternative = pynini.cdrewrite(one_thousand_map, "[BOS]", "", NEMO_SIGMA)
 
+    # Adapted from
+    # https://github.com/google/TextNormalizationCoveringGrammars/blob/master/src/universal/thousands_punct.grm
+    # Specifies common ways of delimiting thousands in digit strings.
     t = pynini.Far(get_abs_path('data/utils/universal_thousands_punct.far'))
     separators = (
         pynutil.add_weight(t['dot_thousands'], 0.1)
@@ -133,8 +132,8 @@ def get_alternative_formats():
         | pynutil.add_weight(t['space_thousands'], 0.1)
     )
     alternative_formats = {}
-    alternative_formats['one_thousand_alternative'] = one_thousand_alternative
-    alternative_formats['separators'] = separators
+    alternative_formats['one_thousand_alternative'] = one_thousand_alternative.optimize()
+    alternative_formats['separators'] = separators.optimize()
     return alternative_formats
 
 

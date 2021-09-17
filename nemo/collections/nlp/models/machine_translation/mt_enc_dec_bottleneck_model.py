@@ -76,6 +76,9 @@ class MTBottleneckModel(MTEncDecModel):
         self.non_recon_warmup_batches: int = cfg.get("non_recon_warmup_batches", 200000)
         self.recon_per_token: bool = cfg.get("recon_per_token", True)
 
+        # if True, translation uses the mean of latent for VAE and MIM
+        self.deterministic_translate = True
+
         # latent_size -1 will take value of encoder.hidden_size
         if self.latent_size < 0:
             self.latent_size = self.encoder.hidden_size
@@ -89,7 +92,7 @@ class MTBottleneckModel(MTEncDecModel):
             raise ValueError(f"Unknown model_type = {self.model_type}")
 
         # project bridge dimension back to decoder hidden dimensions
-        self.latent2hidden = build_linear_or_identity(self.latent_size, self.encoder.hidden_size)
+        self.latent2hidden = build_linear_or_identity(self.latent_size, self.decoder.hidden_size)
 
         # project dimension of encoder hidden to latent dimension
         self.hidden2latent_mean = build_linear_or_identity(self.encoder.hidden_size, self.latent_size)
@@ -240,6 +243,7 @@ class MTBottleneckModel(MTEncDecModel):
             loss = -(log_p_x_given_z + warmup_coef * loss_terms)
 
             info_dict["log_q_z_given_x"] = log_q_z_given_x.detach().cpu()
+            info_dict["log_var_q_z_given_x"] = z_logv.detach().cpu()
             info_dict["log_p_z"] = log_p_z.detach().cpu()
             info_dict["kl_div_q_p"] = (log_q_z_given_x - log_p_z).detach().cpu()
 
@@ -257,9 +261,10 @@ class MTBottleneckModel(MTEncDecModel):
         return_info - if True, returns loss, info_dict with additional information
                       regarding the loss that can be logged
         """
-        # test src/tgt for id range (i.e., hellp in catching wrong tokenizer)
-        self.test_encoder_ids(src, raise_error=True)
-        self.test_decoder_ids(tgt, raise_error=True)
+        if self.validate_input_ids:
+            # test src/tgt for id range (i.e., hellp in catching wrong tokenizer)
+            self.test_encoder_ids(src, raise_error=True)
+            self.test_decoder_ids(tgt, raise_error=True)
 
         enc_hiddens, enc_mask = self.encoder(input_ids=src, encoder_mask=src_mask, return_mask=True,)
 
@@ -280,9 +285,7 @@ class MTBottleneckModel(MTEncDecModel):
         return z, z_mean, z_logv, z_mask, tgt_log_probs
 
     @torch.no_grad()
-    def batch_translate(
-        self, src: torch.LongTensor, src_mask: torch.LongTensor,
-    ):
+    def batch_translate(self, src: torch.LongTensor, src_mask: torch.LongTensor, return_beam_scores: bool = False):
         """
         Translates a minibatch of inputs from source language to target language.
         Args:
@@ -295,32 +298,42 @@ class MTBottleneckModel(MTEncDecModel):
         mode = self.training
         try:
             self.eval()
-
             enc_hiddens, enc_mask = self.encoder(input_ids=src, encoder_mask=src_mask, return_mask=True)
 
             # build posterior distribution q(x|z)
-            z, _, _ = self.encode_latent(hidden=enc_hiddens)
+            z, z_mean, _ = self.encode_latent(hidden=enc_hiddens)
+
+            if getattr(self, "deterministic_translate", True):
+                z = z_mean
 
             # decoding cross attention context
             context_hiddens = self.latent2hidden(z)
 
-            beam_results = self.beam_search(encoder_hidden_states=context_hiddens, encoder_input_mask=enc_mask)
+            best_translations = self.beam_search(
+                encoder_hidden_states=context_hiddens,
+                encoder_input_mask=enc_mask,
+                return_beam_scores=return_beam_scores,
+            )
+            if return_beam_scores:
+                all_translations, scores, best_translations = best_translations
+                scores = scores.view(-1)
+                all_translations = self.ids_to_postprocessed_text(
+                    all_translations, self.decoder_tokenizer, self.target_processor, filter_beam_ids=True
+                )
 
-            beam_results = self.filter_predicted_ids(beam_results)
+            best_translations = self.ids_to_postprocessed_text(
+                best_translations, self.decoder_tokenizer, self.target_processor, filter_beam_ids=True
+            )
+            inputs = self.ids_to_postprocessed_text(
+                src, self.encoder_tokenizer, self.source_processor, filter_beam_ids=False
+            )
 
-            translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
-            inputs = [self.encoder_tokenizer.ids_to_text(inp) for inp in src.cpu().numpy()]
-            if self.target_processor is not None:
-                translations = [
-                    self.target_processor.detokenize(translation.split(' ')) for translation in translations
-                ]
-
-            if self.source_processor is not None:
-                inputs = [self.source_processor.detokenize(item.split(' ')) for item in inputs]
         finally:
             self.train(mode=mode)
+        if return_beam_scores:
+            return inputs, all_translations, scores.data.cpu().numpy().tolist(), best_translations
 
-        return inputs, translations
+        return inputs, best_translations
 
     def training_step(self, batch, batch_idx):
         """

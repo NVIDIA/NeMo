@@ -32,11 +32,12 @@ USAGE Example:
 
 The script also supports the `interactive` mode where a user can just make the model
 run on any input text:
-# python duplex_text_normalization_test.py
-        tagger_pretrained_model=PATH_TO_TRAINED_TAGGER
-        decoder_pretrained_model=PATH_TO_TRAINED_DECODER
-        mode={tn,itn,joint}
-        lang={en,ru,de}
+# python duplex_text_normalization_test.py \
+        data.test_ds.data_path=PATH_TO_TEST_FILE \
+        tagger_pretrained_model=PATH_TO_TRAINED_TAGGER \
+        decoder_pretrained_model=PATH_TO_TRAINED_DECODER \
+        mode={tn,itn,joint} \
+        lang={en,ru,de} \
         inference.interactive=true
 
 This script uses the `/examples/nlp/duplex_text_normalization/conf/duplex_tn_config.yaml`
@@ -71,7 +72,7 @@ def main(cfg: DictConfig) -> None:
 
     if not cfg.inference.interactive:
         # Setup test_dataset
-        test_dataset = TextNormalizationTestDataset(cfg.data.test_ds.data_path, cfg.data.test_ds.mode, lang)
+        test_dataset = TextNormalizationTestDataset(cfg.data.test_ds.data_path, cfg.mode, lang)
         results = tn_model.evaluate(test_dataset, cfg.data.test_ds.batch_size, cfg.inference.errors_log_fp)
         print(f'\nTest results: {results}')
     else:

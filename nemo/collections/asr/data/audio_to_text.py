@@ -656,6 +656,7 @@ class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
             'text_len': NeuralType(('B',), LengthsType()),
             'attn_prior': NeuralType(('B', 'T', 'D'), ProbsType()),
             'pitch': NeuralType(('B', 'T'), RegressionValuesType()),
+            'speakers': NeuralType(('B',), Index(), optional=True),
         }
 
     def __init__(self, sup_data_path, pitch_fmin, pitch_fmax, n_window_size, pitch_avg, pitch_std, **kwargs):
@@ -690,19 +691,30 @@ class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
         pitch[pitch == -self.pitch_avg] = 0.0  # Zero out values that were perviously zero
         pitch /= self.pitch_std
 
-        return audio, audio_len, text, text_len, attn_prior, torch.tensor(pitch)
+        speaker = None
+        if self.manifest_processor.collection[item].speaker is not None:
+            speaker = torch.zeros_like(text_len).fill_(self.manifest_processor.collection[item].speaker)
+
+        return audio, audio_len, text, text_len, attn_prior, torch.tensor(pitch), speaker
 
     def _collate_fn(self, batch):
         batch = list(zip(*batch))
         audio, audio_len, text, text_len, attn_prior = super()._collate_fn(list(zip(*batch[:5])))
         pitch_list = batch[5]
+        speaker_list = batch[6]
 
         pitch = torch.zeros(len(pitch_list), max([pitch.shape[0] for pitch in pitch_list]))
 
         for i, pitch_i in enumerate(pitch_list):
             pitch[i, : pitch_i.shape[0]] = pitch_i
 
-        return audio, audio_len, text, text_len, attn_prior, pitch
+        speakers = []
+        for i, speaker_i in enumerate(speaker_list):
+            speakers.append(speaker_i)
+
+        speakers = torch.stack(speakers).to(text_len.dtype) if speakers[0] is not None else None
+
+        return audio, audio_len, text, text_len, attn_prior, pitch, speakers
 
 
 class FastPitchDataset(_AudioTextDataset):
@@ -737,8 +749,9 @@ class FastPitchDataset(_AudioTextDataset):
         return (audio, audio_len, text, text_len, torch.load(durs_path), torch.load(pitch_path), speaker, audio_path)
 
     def _collate_fn(self, batch):
+        pad_id = self.manifest_processor.pad_id
         asr_batch = list(zip(*batch))[:4]
-        asr_batch = _speech_collate_fn(list(zip(*asr_batch)), pad_id=self.pad_id)
+        asr_batch = _speech_collate_fn(list(zip(*asr_batch)), pad_id=pad_id)
         audio, audio_len, text, text_len = asr_batch
 
         max_tokens_len = text.size(1)
@@ -747,8 +760,8 @@ class FastPitchDataset(_AudioTextDataset):
             pad = (0, max_tokens_len - tokens_i_len.item())
             assert len(durs_i) == len(pitch_i), f"{len(durs_i)}, {len(pitch_i)}: {path_i}"
             assert len(durs_i) == tokens_i_len, f"{len(durs_i)}, {tokens_i_len}:  {path_i}"
-            durs.append(F.pad(durs_i, pad, value=self.pad_id))
-            pitch.append(F.pad(pitch_i, pad, value=self.pad_id))
+            durs.append(F.pad(durs_i, pad, value=pad_id))
+            pitch.append(F.pad(pitch_i, pad, value=pad_id))
             speakers.append(speaker_i)
 
         return (

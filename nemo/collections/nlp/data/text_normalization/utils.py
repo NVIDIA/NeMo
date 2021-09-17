@@ -13,22 +13,30 @@
 # limitations under the License.
 import string
 from copy import deepcopy
+from typing import List
 
+import wordninja
 from nltk import word_tokenize
 from tqdm import tqdm
 
 from nemo.collections.nlp.data.text_normalization import constants
 
-__all__ = ['read_data_file', 'normalize_str']
+__all__ = ['read_data_file', 'normalize_str', 'flatten', 'process_url']
 
 
-def read_data_file(fp: str):
+def flatten(l):
+    """ flatten a list of lists """
+    return [item for sublist in l for item in sublist]
+
+
+def read_data_file(fp: str, max_insts: int = -1):
     """ Reading the raw data from a file of NeMo format
     For more info about the data format, refer to the
     `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`.
 
     Args:
         fp: file paths
+        max_insts: Maximum number of instances (-1 means no limit)
     Returns:
         insts: List of sentences parsed as list of words
     """
@@ -42,11 +50,63 @@ def read_data_file(fp: str):
                 insts.append(inst)
                 # Reset
                 w_words, s_words, classes = [], [], []
+
+                if max_insts > 0 and len(insts) >= max_insts:
+                    break
             else:
                 classes.append(es[0])
                 w_words.append(es[1])
                 s_words.append(es[2])
     return insts
+
+
+def process_url(tokens: List[str], outputs: List[str], lang: str):
+    """
+    The function is used to process the spoken form of every URL in an example.
+    E.g., "dot h_letter  _letter t_letter  _letter m_letter  _letter l_letter" ->
+          "dot h t m l"
+
+    Args:
+        tokens: The tokens of the written form
+        outputs: The expected outputs for the spoken form
+        lang: Selected language.
+    Return:
+        outputs: The outputs for the spoken form with preprocessed URLs.
+    """
+    if lang != constants.ENGLISH:
+        return outputs
+
+    for i in range(len(tokens)):
+        t, o = tokens[i], outputs[i]
+        if o != constants.SIL_WORD and '_letter' in o:
+            o_tokens = o.split(' ')
+            all_spans, cur_span = [], []
+            for j in range(len(o_tokens)):
+                if len(o_tokens[j]) == 0:
+                    continue
+                if o_tokens[j] == '_letter':
+                    all_spans.append(cur_span)
+                    all_spans.append([' '])
+                    cur_span = []
+                else:
+                    o_tokens[j] = o_tokens[j].replace('_letter', '')
+                    cur_span.append(o_tokens[j])
+            if len(cur_span) > 0:
+                all_spans.append(cur_span)
+            o_tokens = flatten(all_spans)
+
+            o = ''
+            for o_token in o_tokens:
+                if len(o_token) > 1:
+                    o += ' ' + o_token + ' '
+                else:
+                    o += o_token
+            o = o.strip()
+            o_tokens = wordninja.split(o)
+            o = ' '.join(o_tokens)
+
+            outputs[i] = o
+    return outputs
 
 
 def normalize_str(input_str, lang):
