@@ -100,7 +100,7 @@ def main():
     parser.add_argument('--experiment_base_dir_hifi', type=str, default="/home/pneekhara/ExperimentsHiFiFinetuning/")
     parser.add_argument('--num_val', type=int, default=50)
     parser.add_argument('--use_finetuned_vocoder', type=int, default=0)
-    parser.add_argument('--out_dir', type=str, default="/home/pneekhara/synthesized_samples_universalvoc/")
+    parser.add_argument('--out_dir', type=str, default="/home/pneekhara/synthesized_samples_FINAL/")
     parser.add_argument('--fastpitch_cfg_path', type=str, default="/home/pneekhara/NeMo/examples/tts/conf/fastpitch_align_44100.yaml")
     args = parser.parse_args()
 
@@ -113,8 +113,8 @@ def main():
                             'mel_fmin': 0, 'mel_fmax': None, 'mel_freq': 80}}}
     
     vocoder_gl = TwoStagesModel(cfg).eval().cuda()
-    # vocoder_universal = HifiGanModel.load_from_checkpoint("/home/pneekhara/PreTrainedModels/HifiGan--val_loss=0.08-epoch=899.ckpt")
-    vocoder_universal = HifiGanModel.load_from_checkpoint("/home/pneekhara/PreTrainedModels/HiFiMix_No_92_6097.ckpt")
+    vocoder_universal = HifiGanModel.load_from_checkpoint("/home/pneekhara/PreTrainedModels/HifiGan--val_loss=0.08-epoch=899.ckpt")
+    # vocoder_universal = HifiGanModel.load_from_checkpoint("/home/pneekhara/PreTrainedModels/HiFiMix_No_92_6097.ckpt")
     vocoder_universal.eval().cuda()
 
     data_dir = args.data_dir
@@ -219,10 +219,12 @@ def main():
                 else:
                     _, last_ckpt = get_best_ckpt(experiment_base_dir, speaker, duration_mins, mixing, 8051)
                     _, last_ckpt_vocoder = get_best_ckpt(args.experiment_base_dir_hifi, speaker, duration_mins, mixing, 8051)
+                    
                     if last_ckpt_vocoder is not None and args.use_finetuned_vocoder == 1:
-                        print ("Loading finetuned vocoder")
+                        
                         vocoder = HifiGanModel.load_from_checkpoint(last_ckpt_vocoder)
                         vocoder.eval().cuda()
+                        print ("Loading finetuned vocoder")
                     else:
                         vocoder = vocoder_universal
                 if last_ckpt is None:
