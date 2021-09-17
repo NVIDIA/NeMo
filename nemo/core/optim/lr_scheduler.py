@@ -168,6 +168,9 @@ class WarmupAnnealHoldPolicy(_LRScheduler):
         warmup_ratio: Ratio of warmup steps to total steps
         max_steps: Total number of steps while training or `None` for
             infinite training
+        min_lr: Minimum lr to hold the learning rate after decay at.
+        constant_steps: Number of steps to keep lr constant at.
+        constant_ratio: Ratio of steps to keep lr constant.
     """
 
     def __init__(
@@ -200,9 +203,7 @@ class WarmupAnnealHoldPolicy(_LRScheduler):
         else:
             self.warmup_steps = 0
 
-        # Constant steps is only for Linear Warmup with Cosine Annealing
-        if constant_steps is not None or constant_ratio is not None:
-            assert max_steps is not None
+        assert constant_steps is not None or constant_ratio is not None
 
         if constant_steps is not None:
             self.constant_steps = constant_steps
@@ -274,7 +275,7 @@ def _linear_warmup_with_cosine_annealing(max_lr, warmup_steps, step, decay_steps
 
     # If we are done with the warmup period, use the decay style.
     num_steps_ = step - warmup_steps
-    decay_steps_ = decay_steps - warmup_steps
+    decay_steps_ = decay_steps
     decay_ratio = float(num_steps_) / float(decay_steps_)
     assert decay_ratio >= 0.0
     assert decay_ratio <= 1.0
@@ -326,9 +327,9 @@ class SquareRootAnnealing(WarmupPolicy):
         return new_lrs
 
 
-class CosineAnnealing(WarmupPolicy):
-    def __init__(self, optimizer, *, max_steps, min_lr=0, last_epoch=-1, **kwargs):
-        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, min_lr=min_lr, **kwargs)
+class CosineAnnealing(WarmupAnnealHoldPolicy):
+    def __init__(self, optimizer, *, max_steps, min_lr=0, last_epoch=-1, max_lr=None, **kwargs):
+        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, min_lr=min_lr, max_lr=max_lr, **kwargs)
 
     def _get_lr(self, step):
         for initial_lr in self.base_lrs:
