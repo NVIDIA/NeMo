@@ -79,6 +79,13 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         )
         result.append(model)
 
+        model = PretrainedModelInfo(
+            pretrained_model_name="ecapa_tdnn",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/ecapa_tdnn/versions/v1/files/ecapa_tdnn.nemo",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:ecapa_tdnn",
+        )
+        result.append(model)
+
         return result
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
