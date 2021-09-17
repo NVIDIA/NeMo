@@ -133,7 +133,7 @@ def _write_batches_to_tarfiles(
         initial_shuffle=True,
     )
     dataset.batchify(batch_size)
-    file_name = os.path.basename(input_file)
+    file_name = os.path.splitext(os.path.basename(input_file))[0].replace(".", "_")
     tar_file_ctr = 0
     tar_file_path = os.path.join(
         out_dir, '%s-batches.%d.%d.%d.tar' % (file_name, batch_size, max_seq_len, tar_file_ctr)
