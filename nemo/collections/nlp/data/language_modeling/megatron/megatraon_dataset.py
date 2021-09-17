@@ -42,6 +42,7 @@ class MegatronDataset(torch.utils.data.Dataset):
             initialize_megatron_for_nemo(
                 world_size=app_state.world_size,
                 global_rank=app_state.global_rank,
+                fp16=cfg.get('fp16', True),
                 micro_batch_size=cfg.get('micro_batch_size', 1),
                 tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
                 tensor_model_parallel_rank=app_state.model_parallel_rank,

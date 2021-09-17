@@ -19,7 +19,9 @@ import torch.nn.functional as F
 from megatron import get_args
 from apex import mpu
 
-from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, LayerType
+from megatron.model.enums import AttnMaskType, LayerType
+
+# from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
