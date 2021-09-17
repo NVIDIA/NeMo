@@ -12,8 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.nlp.data.language_modeling import megatron
 import shutil
 import tarfile
+from pytorch_lightning.utilities.enums import GradClipAlgorithmType
+from torch.nn.modules.module import Module
+
+from torch.optim.optimizer import Optimizer
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 import os
@@ -22,12 +27,14 @@ from typing import Any, Dict, List, Optional, Union
 import pytorch_lightning as pl
 import torch
 from apex import mpu
+from megatron.optimizer.clip_grads import clip_grad_norm_fp32
 from megatron.checkpointing import get_checkpoint_version, set_checkpoint_version
 from megatron.initialize import _set_random_seed
 from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
+from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 from pytorch_lightning.utilities import rank_zero_warn
 from pytorch_lightning.utilities.cloud_io import atomic_save
@@ -309,3 +316,24 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         else:
             return super().save_to(model, save_path)
 
+
+class NLPNativeMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def clip_gradients(
+        self,
+        optimizer: Optimizer,
+        clip_val: Union[int, float],
+        gradient_clip_algorithm: GradClipAlgorithmType,
+        model: Optional[Module],
+    ) -> None:
+        """Override PTL gradient clipping"""
+        app_state = AppState()
+        if app_state.model_parallel_size is not None:
+            parameters = model.parameters()
+            clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
+        else:
+            return super().clip_gradients(
+                optimizer, clip_val, gradient_clip_algorithm=gradient_clip_algorithm, model=model
+            )
