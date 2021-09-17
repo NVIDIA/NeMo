@@ -62,13 +62,15 @@ class EnglishG2p(BaseG2p):
         encoding='latin-1',
     ):
         """English G2P module. This module converts words from grapheme to phoneme representation using phoneme_dict in CMU dict format.
-         Optionally, it can ignore words which are heteronyms, ambiguous or marked as untouchable by word_tokenize_func (see code).
-         Ignored words are left unchanged or passed through apply_to_oov_word.
+        Optionally, it can ignore words which are heteronyms, ambiguous or marked as unchangeable by word_tokenize_func (see code for details).
+        Ignored words are left unchanged or passed through apply_to_oov_word.
         Args:
             phoneme_dict (str, Path, Dict): Path to file in CMU dict format or dictionary in CMU dict.
             text_preprocessing_func: Function for preprocessing raw text to preprocessed text.
-            word_tokenize_func: Function for tokenizing text to words. It has to return list of tuples where every tuple consists of word representation and flag whether to leave unchanged or not.
-            It is useful to mark word as untouchable which is already in phoneme representation.
+            word_tokenize_func: Function for tokenizing text to words.
+                It has to return List[Tuple[Union[str, List[str]], bool]] where every tuple denotes word representation and flag whether to leave unchanged or not.
+                It is expected that unchangeable word representation will be represented as List[str], other cases are represented as str.
+                It is useful to mark word as unchangeable which is already in phoneme representation.
             apply_to_oov_word: Function that will be applied to out of phoneme_dict word.
             ignore_ambiguous_words: Whether to not handle word via phoneme_dict with ambiguous phoneme sequences. Defaults to True.
             heteronyms (str, Path, List): Path to file with heteronyms (every line is new word) or list of words.
@@ -204,7 +206,6 @@ class EnglishG2p(BaseG2p):
         prons = []
         for word, without_changes in words:
             if without_changes:
-                # word has to be list of string here (should be handled by self.word_tokenize_func)
                 prons.extend(word)
                 continue
 

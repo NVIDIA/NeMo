@@ -39,8 +39,10 @@ def english_text_preprocessing(text):
 
 def english_word_tokenize(text):
     """
-    Convert text to list of tuples where every tuple consists of word representation and flag whether to leave unchanged or not.
-    Word can be valid english word, any substring starts from | to | (untouchable word) or punctuation marks.
+    Convert text (str) to List[Tuple[Union[str, List[str]], bool]] where every tuple denotes word representation and flag whether to leave unchanged or not.
+    Word can be one of: valid english word, any substring starts from | to | (unchangeable word) or punctuation marks.
+    This function expects that unchangeable word is carefully divided by spaces (e.g. HH AH L OW).
+    Unchangeable word will be splitted by space and represented as List[str], other cases are represented as str.
     """
     words = _words_re.findall(text)
     result = []
@@ -170,7 +172,7 @@ class EnglishCharsTokenizer(BaseTokenizer):
 
         words = [
             word[0] if isinstance(word, tuple) else word
-            for word in self.word_tokenize_func(self.text_preprocessing_func((text)))
+            for word in self.word_tokenize_func(self.text_preprocessing_func(text))
         ]
         for c in "".join(words):  # noqa
             # Add space if last one isn't one

@@ -1,8 +1,8 @@
 tts_dataset:
   _target_: "nemo.collections.tts.torch.data.TTSDataset"
-  manifest_filepath: "/home/otatanov/data/datasets/lj_speech/val_manifest.json"
+  manifest_filepath: "manifest.json"
   sample_rate: 22050
-  sup_data_path: "/home/otatanov/data/datasets/lj_speech/test_sup"
+  sup_data_path: "test_sup_data"
   sup_data_types: ["pitch"]
   n_fft: 1024
   win_length: 1024
