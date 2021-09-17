@@ -37,11 +37,19 @@ class InverseNormalizer(Normalizer):
             from nemo_text_processing.inverse_text_normalization.en.verbalizers.verbalize_final import (
                 VerbalizeFinalFst,
             )
+
+        elif lang == 'es':
+            from nemo_text_processing.inverse_text_normalization.es.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.inverse_text_normalization.es.verbalizers.verbalize_final import (
+                VerbalizeFinalFst,
+            )
+
         elif lang == 'ru':
             from nemo_text_processing.inverse_text_normalization.ru.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.inverse_text_normalization.ru.verbalizers.verbalize_final import (
                 VerbalizeFinalFst,
             )
+
         elif lang == 'de':
             from nemo_text_processing.inverse_text_normalization.de.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.inverse_text_normalization.de.verbalizers.verbalize_final import (
@@ -81,7 +89,7 @@ class InverseNormalizer(Normalizer):
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("input_string", help="input string", type=str)
-    parser.add_argument("--language", help="language", choices=['en', 'de', 'ru'], default="en", type=str)
+    parser.add_argument("--language", help="language", choices=['en', 'de', 'es', 'ru'], default="en", type=str)
     parser.add_argument("--verbose", help="print info for debugging", action='store_true')
     parser.add_argument("--overwrite_cache", help="set to True to re-create .far grammar files", action="store_true")
     parser.add_argument(
