@@ -66,6 +66,7 @@ class MegatronGPTModel(NLPModel):
             tokenizer_type='GPT2BPETokenizer',
             vocab_file=cfg.tokenizer.vocab_file,
             merge_file=cfg.tokenizer.merge_file,
+            fp16=cfg.get('fp16', True),
         )
         args = get_args()
 
