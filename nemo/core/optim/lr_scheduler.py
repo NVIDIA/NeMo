@@ -170,7 +170,19 @@ class WarmupAnnealHoldPolicy(_LRScheduler):
             infinite training
     """
 
-    def __init__(self, optimizer, *, warmup_steps=None, warmup_ratio=None, max_steps=None, min_lr=0.0, last_epoch=-1, constant_steps=None, constant_ratio=None, max_lr=None):
+    def __init__(
+        self,
+        optimizer,
+        *,
+        warmup_steps=None,
+        warmup_ratio=None,
+        max_steps=None,
+        min_lr=0.0,
+        last_epoch=-1,
+        constant_steps=None,
+        constant_ratio=None,
+        max_lr=None,
+    ):
         assert not (
             warmup_steps is not None and warmup_ratio is not None
         ), "Either use particular number of step or ratio"
@@ -272,6 +284,7 @@ def _linear_warmup_with_cosine_annealing(max_lr, warmup_steps, step, decay_steps
 
     return min_lr + coeff * delta_lr
 
+
 def _poly_decay(initial_lr, step, decay_steps, power, min_lr, cycle):
     if cycle:
         multiplier = 1.0 if step == 0 else math.ceil(step / decay_steps)
@@ -341,7 +354,7 @@ class CosineAnnealing(WarmupPolicy):
                     warmup_steps=self.warmup_steps,
                     step=step,
                     decay_steps=self.decay_steps,
-                    min_lr=self.min_lr
+                    min_lr=self.min_lr,
                 )
                 for _ in self.base_lrs
             ]
