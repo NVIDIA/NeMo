@@ -45,6 +45,7 @@ model:
   hidden_size: 1024
   num_attention_heads: 16
   init_method_std: 0.02
+  fp16: True
   tokenizer:
     library: 'megatron'
     type: 'GPT2BPETokenizer'
