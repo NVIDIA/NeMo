@@ -151,7 +151,7 @@ class DuplexTextNormalizationModel(nn.Module):
                 cur_final_preds, cur_targets_sent, cur_dirs, self.lang
             )
             class_accuracy = TextNormalizationTestDataset.compute_class_accuracy(
-                self.input_preprocessing(list(cur_inputs)),
+                [basic_tokenize(x, lang=self.lang) for x in cur_inputs],
                 cur_targets,
                 cur_tag_preds,
                 cur_dirs,
@@ -232,11 +232,11 @@ class DuplexTextNormalizationModel(nn.Module):
             output_spans: A list of lists where each list contains the decoded semiotic spans from the decoder for an input text.
             final_outputs: A list of str where each str is the final output text for an input text.
         """
-        # Preprocessing
-        sents = self.input_preprocessing(list(sents))
+        # Separate into words
+        sents = [basic_tokenize(x, lang=self.lang) for x in sents]
 
         # Tagging
-        # span_ends included
+        # span_ends included, returns index wrt to words in input without aux words
         tag_preds, nb_spans, span_starts, span_ends = self.tagger._infer(sents, inst_directions)
         output_spans = self.decoder._infer(sents, nb_spans, span_starts, span_ends, inst_directions)
 
@@ -250,8 +250,6 @@ class DuplexTextNormalizationModel(nn.Module):
                 if constants.SAME_TAG in tag:
                     cur_words.append(word)
                     jx += 1
-                elif constants.PUNCT_TAG in tag:
-                    jx += 1
                 else:
                     jx += 1
                     cur_words.append(cur_spans[span_idx])
@@ -262,31 +260,3 @@ class DuplexTextNormalizationModel(nn.Module):
             cur_output_str = ' '.join(basic_tokenize(cur_output_str, self.lang))
             final_outputs.append(cur_output_str)
         return tag_preds, output_spans, final_outputs
-
-    def input_preprocessing(self, sents):
-        """ Function for preprocessing the input texts. The function first does
-        some basic tokenization. For English, it then also processes Greek letters
-        such as Δ or λ (if any).
-
-        Args:
-            sents: A list of input texts.
-
-        Returns: A list of preprocessed input texts.
-        """
-        # Basic Preprocessing and Tokenization
-        if self.lang == constants.ENGLISH:
-            for ix, sent in enumerate(sents):
-                sents[ix] = sents[ix].replace('+', ' plus ')
-                sents[ix] = sents[ix].replace('=', ' equals ')
-                sents[ix] = sents[ix].replace('@', ' at ')
-                sents[ix] = sents[ix].replace('*', ' times ')
-        sents = [basic_tokenize(sent, self.lang) for sent in sents]
-
-        # Greek letters processing
-        if self.lang == constants.ENGLISH:
-            for ix, sent in enumerate(sents):
-                for jx, tok in enumerate(sent):
-                    if tok in constants.EN_GREEK_TO_SPOKEN:
-                        sents[ix][jx] = constants.EN_GREEK_TO_SPOKEN[tok]
-
-        return sents

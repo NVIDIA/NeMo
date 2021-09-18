@@ -32,7 +32,7 @@
 
 GRAMMARS="itn_grammars" # tn_grammars
 INPUT_CASE="cased" # lower_cased, only for tn_grammars
-LANGUAGE="en" # language, 'en' supports both TN and ITN, {'de', 'ru'} supports ITN only
+LANGUAGE="en" # language, 'en' supports both TN and ITN, {'de', 'ru', 'es'} supports ITN only
 MODE="export"
 CACHE_DIR="None" # path to cache dir with .far files (to speed the export)
 OVERWRITE_CACHE="True" # Set to False to re-use .far files
