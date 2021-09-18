@@ -23,6 +23,7 @@ tagger_model:
   do_training: true
   transformer: distilroberta-base # For ru, try cointegrated/rubert-tiny | For de, try bert-base-german-cased | For multilingual, try bert-base-multilingual-cased
   tokenizer: ${tagger_model.transformer}
+  max_sequence_len: 128
   nemo_path: ${tagger_exp_manager.exp_dir}/tagger_model.nemo # exported .nemo path
   lang: ${lang}
   mode: ${mode}
@@ -68,11 +69,14 @@ decoder_trainer:
   amp_level: O0 # O1/O2 for mixed precision
   precision: 32 # Should be set to 16 for O1 and O2 to enable the AMP.
   accelerator: ddp
+  log_every_n_steps: 1  # Interval of logging.
+  val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+  resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
 
 decoder_model:
   do_training: true
   transformer: t5-base  # For ru, try cointegrated/rut5-base | For de or multilingual, try google/mt5-base
-  max_sequence_len: 512
+  max_sequence_len: 80
   tokenizer: ${decoder_model.transformer}
   nemo_path: ${decoder_exp_manager.exp_dir}/decoder_model.nemo # exported .nemo path
   lang: ${lang}
@@ -109,8 +113,6 @@ decoder_exp_manager:
     save_top_k: 3
     monitor: "val_loss"
     mode: "min"
-    save_best_model: true
-    always_save_nemo: true
 
 # Data
 data:
@@ -119,7 +121,6 @@ data:
     batch_size: 64
     shuffle: true
     do_basic_tokenize: false
-    max_decoder_len: 80
     max_insts: -1 # Maximum number of instances (-1 means no limit)
     # Refer to the text_normalization doc for more information about data augmentation
     tagger_data_augmentation: false
@@ -128,13 +129,15 @@ data:
     num_workers: 3
     pin_memory: false
     drop_last: false
+    use_tarred_dataset: False # if true tar_metadata_file will be used
+    tar_metadata_file: null # metadata for tarred dataset. A JSON file containing the list of tar_files in "text_tar_filepaths" field
+    tar_shuffle_n: 100 # How many samples to look ahead and load to be shuffled
 
   validation_ds:
     data_path: dev.tsv # provide the full path to the file. Provide multiple paths to run evaluation on multiple datasets
     batch_size: 64
     shuffle: false
     do_basic_tokenize: false
-    max_decoder_len: 80
     max_insts: -1 # Maximum number of instances (-1 means no limit)
     use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up (especially when using multi GPUs)
     num_workers: 3

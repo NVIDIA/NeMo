@@ -69,7 +69,6 @@ class DuplexTaggerModel(NLPModel):
         passed in as `batch`.
         """
         num_labels = self.num_labels
-
         # Apply Transformer
         tag_logits = self.model(batch['input_ids'], batch['attention_mask']).logits
 
@@ -137,10 +136,10 @@ class DuplexTaggerModel(NLPModel):
             inst_directions: A list of str where each str indicates the direction of the corresponding instance (i.e., INST_BACKWARD for ITN or INST_FORWARD for TN).
 
         Returns:
-            all_tag_preds: A list of list where each list contains the raw tag predictions for the corresponding input.
-            nb_spans: A list of ints where each int indicates the number of semiotic spans in each input.
-            span_starts: A list of lists where each list contains the starting locations of semiotic spans in an input.
-            span_ends: A list of lists where each list contains the ending locations of semiotic spans in an input.
+            all_tag_preds: A list of list where each list contains the raw tag predictions for the corresponding input words in sents.
+            nb_spans: A list of ints where each int indicates the number of semiotic spans in input words.
+            span_starts: A list of lists where each list contains the starting locations of semiotic spans in input words.
+            span_ends: A list of lists where each list contains the ending locations of semiotic spans in input words.
         """
         self.eval()
 
@@ -225,12 +224,12 @@ class DuplexTaggerModel(NLPModel):
         input texts.
 
         Args:
-            tag_preds: A list of list where each list contains the raw tag predictions for the corresponding input.
+            tag_preds: A list of list where each list contains the raw tag predictions for the corresponding input words.
 
         Returns:
             nb_spans: A list of ints where each int indicates the number of semiotic spans in each input.
-            span_starts: A list of lists where each list contains the starting locations of semiotic spans in an input.
-            span_ends: A list of lists where each list contains the ending locations of semiotic spans in an input.
+            span_starts: A list of lists where each list contains the starting locations of semiotic spans in an input words.
+            span_ends: A list of lists where each list contains the inclusive ending locations of semiotic spans in an input words.
         """
         nb_spans, span_starts, span_ends = [], [], []
         for i, preds in enumerate(tag_preds):
@@ -284,15 +283,16 @@ class DuplexTaggerModel(NLPModel):
         input_file = cfg.data_path
         tagger_data_augmentation = cfg.get('tagger_data_augmentation', False)
         dataset = TextNormalizationTaggerDataset(
-            input_file,
-            self._tokenizer,
-            self.transformer_name,
-            self.mode,
-            cfg.do_basic_tokenize,
-            tagger_data_augmentation,
-            self.lang,
-            cfg.get('use_cache', False),
-            cfg.get('max_insts', -1),
+            input_file=input_file,
+            tokenizer=self._tokenizer,
+            tokenizer_name=self.transformer_name,
+            mode=self.mode,
+            do_basic_tokenize=cfg.do_basic_tokenize,
+            tagger_data_augmentation=tagger_data_augmentation,
+            lang=self.lang,
+            max_seq_length=self._cfg.get('max_sequence_len', self._tokenizer.model_max_length),
+            use_cache=cfg.get('use_cache', False),
+            max_insts=cfg.get('max_insts', -1),
         )
         data_collator = DataCollatorForTokenClassification(self._tokenizer)
         dl = torch.utils.data.DataLoader(

@@ -55,6 +55,22 @@ However, our script will return a more concise output which is "zim bio dot com"
 
 More information about the Google text normalization dataset can be found in the paper `RNN Approaches to Text Normalization: A Challenge <https://arxiv.org/ftp/arxiv/papers/1611/1611.00068.pdf>`__ :cite:`nlp-textnorm-Sproat2016RNNAT`.
 
+Tarred Dataset
+--------------
+
+When training with ``DistributedDataParallel``, each process has its own copy of the dataset. For large datasets, this may not always
+fit in CPU memory. `Webdatasets <https://github.com/tmbdev/webdataset>`__ circumvents this problem by efficiently iterating over
+tar files stored on disk. Each tar file can contain hundreds to thousands of pickle files, each containing a single minibatch.
+
+Tarred datasets can be created as follows:
+
+.. code::
+
+    python examples/nlp/duplex_text_normalization/create_tarred_dataset.py \
+        --input_files = "</PATH_TO/output-00099-of-00100>" \
+        --input_files = "</PATH_TO/output-00098-of-00100>" \
+        --out_dir="<TARRED_DATA_OUTPUT_DIR>"
+
 
 Model Training
 --------------
@@ -108,6 +124,15 @@ Or you can also train only a decoder (without training a tagger):
         data.base_dir=PATH_TO_DATASET_DIR \
         mode={tn,itn,joint} \
         tagger_model.do_training=false
+
+To use the tarred version of the data with the decoder model, set `data.train_ds.use_tarred_dataset` to `True` and provide \
+path to the `metadata.json` file. The metadata file is created during the tarred dataset construction and stored at `<TARRED_DATA_OUTPUT_DIR>`.
+To enable training with the tarred dataset, add the following arguments:
+
+.. code::
+
+    data.train_ds.use_tarred_dataset=True \
+    data.train_ds.tar_metadata_file=\PATH_TO\<TARRED_DATA_OUTPUT_DIR>\metadata.json
 
 
 Model Architecture

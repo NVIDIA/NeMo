@@ -27,6 +27,8 @@ python class_based_evaluation.py
         lang={en,ru,de}
 """
 
+from collections import defaultdict
+
 import numpy as np
 from helpers import DECODER_MODEL, TAGGER_MODEL, instantiate_model_and_trainer
 from omegaconf import DictConfig, OmegaConf
@@ -48,6 +50,15 @@ def print_class_based_stats(class2stats):
         formatted_str = get_formatted_string((class_name, class_acc), str_max_len=20)
         print(formatted_str)
     print()
+
+
+def print_errors(errors):
+    for class_name, class_errors in errors.items():
+        for i, pred, target in class_errors:
+            print(class_name + "\t" + i)
+            print(class_name + "\t" + pred)
+            print(class_name + "\t" + target)
+        print()
 
 
 @hydra_runner(config_path="conf", config_name="duplex_tn_config")
@@ -74,6 +85,7 @@ def main(cfg: DictConfig) -> None:
     test_dataset, test_dl = decoder_model.test_dataset, decoder_model._test_dl
     # Inference
     itn_class2stats, tn_class2stats = {}, {}
+    errors_tn_stats, errors_itn_stats = defaultdict(list), defaultdict(list)
 
     for ix, examples in tqdm(enumerate(test_dl)):
         # Extract infos of the current batch
@@ -90,13 +102,23 @@ def main(cfg: DictConfig) -> None:
         batch_preds = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
         batch_preds = decoder_model.postprocess_output_spans(batch_input_centers, batch_preds, batch_dirs)
         # Update itn_class2stats and tn_class2stats
-        for direction, _class, pred, target in zip(batch_dirs, batch_classes, batch_preds, batch_targets):
+        for input, direction, _class, pred, target in zip(
+            batch_input_centers, batch_dirs, batch_classes, batch_preds, batch_targets
+        ):
             correct = TextNormalizationTestDataset.is_same(pred, target, direction, lang)
             stats = itn_class2stats if direction == constants.INST_BACKWARD else tn_class2stats
+            errors = errors_itn_stats if direction == constants.INST_BACKWARD else errors_tn_stats
             if not _class in stats:
                 stats[_class] = []
             stats[_class].append(int(correct))
+            if not correct:
+                errors[_class].append((input, pred, target))
 
+    # Print out errors
+    print('ITN (Backward Direction)')
+    print_errors(errors_itn_stats)
+    print('TN (Forward Direction)')
+    print_errors(errors_tn_stats)
     # Print out stats
     print('ITN (Backward Direction)')
     print_class_based_stats(itn_class2stats)

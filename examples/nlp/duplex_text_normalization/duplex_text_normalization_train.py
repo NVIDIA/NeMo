@@ -103,9 +103,14 @@ def main(cfg: DictConfig) -> None:
         )
         logging.info('Starting training tagger...')
         tagger_trainer, tagger_model = instantiate_model_and_trainer(cfg, TAGGER_MODEL, True)
-        exp_manager(tagger_trainer, cfg.get('tagger_exp_manager', None))
+        tagger_exp_manager = cfg.get('tagger_exp_manager', None)
+        exp_manager(tagger_trainer, tagger_exp_manager)
         tagger_trainer.fit(tagger_model)
-        if cfg.tagger_model.nemo_path:
+        if (
+            tagger_exp_manager
+            and tagger_exp_manager.get('create_checkpoint_callback', False)
+            and cfg.tagger_model.nemo_path
+        ):
             tagger_model.to(tagger_trainer.accelerator.root_device)
             tagger_model.save_to(cfg.tagger_model.nemo_path)
         logging.info('Training finished!')
@@ -117,9 +122,14 @@ def main(cfg: DictConfig) -> None:
         )
         logging.info('Starting training decoder...')
         decoder_trainer, decoder_model = instantiate_model_and_trainer(cfg, DECODER_MODEL, True)
-        exp_manager(decoder_trainer, cfg.get('decoder_exp_manager', None))
+        decoder_exp_manager = cfg.get('decoder_exp_manager', None)
+        exp_manager(decoder_trainer, decoder_exp_manager)
         decoder_trainer.fit(decoder_model)
-        if cfg.decoder_model.nemo_path:
+        if (
+            decoder_exp_manager
+            and decoder_exp_manager.get('create_checkpoint_callback', False)
+            and cfg.decoder_model.nemo_path
+        ):
             decoder_model.to(decoder_trainer.accelerator.root_device)
             decoder_model.save_to(cfg.decoder_model.nemo_path)
         logging.info('Training finished!')

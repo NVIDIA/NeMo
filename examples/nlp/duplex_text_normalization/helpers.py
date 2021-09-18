@@ -80,8 +80,3 @@ def instantiate_model_and_trainer(cfg: DictConfig, model_name: str, do_training:
 
     logging.info(f'Model Device {model.device}')
     return trainer, model
-
-
-def flatten(l):
-    """ flatten a list of lists """
-    return [item for sublist in l for item in sublist]

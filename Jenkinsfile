@@ -86,7 +86,7 @@ pipeline {
 
     stage('L0: Unit Tests GPU') {
       steps {
-        sh 'NEMO_NUMBA_MINVER=0.55 pytest -m "not pleasefixme and not torch_tts" --with_downloads --relax_numba_compat'
+        sh 'NEMO_NUMBA_MINVER=0.55 pytest -m "not pleasefixme and not torch_tts" --with_downloads'
       }
     }
 
@@ -127,6 +127,11 @@ pipeline {
             sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/de -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/9-13'
           }
         }
+        stage('Spanish ITN') {
+          steps {
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/es -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/Spanish/9-13'
+          }
+        } 
         stage('Create En non-deterministic TN & Run all En TN/ITN tests') {
           steps {
             sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/9-13'
@@ -425,47 +430,48 @@ pipeline {
     //   }
     // }
 
-    stage('L2: ASR RNNT dev run') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      parallel {
-        stage('Speech to Text - RNNT') {
-          steps {
-            sh 'STRICT_NUMBA_COMPAT_CHECK=false python examples/asr/speech_to_text_rnnt.py \
-            --config-path="conf/contextnet_rnnt/" --config-name="config_rnnt.yaml" \
-            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-            model.train_ds.batch_size=2 \
-            model.validation_ds.batch_size=2 \
-            trainer.gpus=[0] \
-            +trainer.fast_dev_run=True \
-            exp_manager.exp_dir=examples/asr/speech_to_text_rnnt_results'
-            sh 'rm -rf examples/asr/speech_to_text_rnnt_results'
-          }
-        }
-        stage('L2: Speech to Text RNNT WPE') {
-          steps {
-            sh 'STRICT_NUMBA_COMPAT_CHECK=false python examples/asr/speech_to_text_rnnt_bpe.py \
-            --config-path="conf/contextnet_rnnt/" --config-name="config_rnnt_bpe.yaml" \
-            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
-            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-            model.train_ds.batch_size=2 \
-            model.validation_ds.batch_size=2 \
-            model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
-            model.tokenizer.type="wpe" \
-            trainer.gpus=[0] \
-            +trainer.fast_dev_run=True \
-            exp_manager.exp_dir=examples/asr/speech_to_text_rnnt_wpe_results'
-            sh 'rm -rf examples/asr/speech_to_text_rnnt_wpe_results'
-          }
-        }
-      }
-    }
+    // TODO: Add back once CI is updated
+    // stage('L2: ASR RNNT dev run') {
+    //   when {
+    //     anyOf {
+    //       branch 'main'
+    //       changeRequest target: 'main'
+    //     }
+    //   }
+    //   failFast true
+    //   parallel {
+    //     stage('Speech to Text - RNNT') {
+    //       steps {
+    //         sh 'STRICT_NUMBA_COMPAT_CHECK=false python examples/asr/speech_to_text_rnnt.py \
+    //         --config-path="conf/contextnet_rnnt/" --config-name="config_rnnt.yaml" \
+    //         model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+    //         model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+    //         model.train_ds.batch_size=2 \
+    //         model.validation_ds.batch_size=2 \
+    //         trainer.gpus=[0] \
+    //         +trainer.fast_dev_run=True \
+    //         exp_manager.exp_dir=examples/asr/speech_to_text_rnnt_results'
+    //         sh 'rm -rf examples/asr/speech_to_text_rnnt_results'
+    //       }
+    //     }
+    //     stage('L2: Speech to Text RNNT WPE') {
+    //       steps {
+    //         sh 'STRICT_NUMBA_COMPAT_CHECK=false python examples/asr/speech_to_text_rnnt_bpe.py \
+    //         --config-path="conf/contextnet_rnnt/" --config-name="config_rnnt_bpe.yaml" \
+    //         model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+    //         model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+    //         model.train_ds.batch_size=2 \
+    //         model.validation_ds.batch_size=2 \
+    //         model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
+    //         model.tokenizer.type="wpe" \
+    //         trainer.gpus=[0] \
+    //         +trainer.fast_dev_run=True \
+    //         exp_manager.exp_dir=examples/asr/speech_to_text_rnnt_wpe_results'
+    //         sh 'rm -rf examples/asr/speech_to_text_rnnt_wpe_results'
+    //       }
+    //     }
+    //   }
+    // }
 
     stage('L2: ASR Multi-dataloader dev run') {
       when {
@@ -744,6 +750,28 @@ pipeline {
             trainer.amp_level=O1 \
             trainer.gpus=[1] \
             exp_manager=null'
+          }
+        }
+       stage('Duplex Text Normalization with Tarred dataset') {
+          steps {
+            sh 'cd examples/nlp/duplex_text_normalization && \
+            python duplex_text_normalization_train.py \
+            data.validation_ds.data_path=/home/TestData/nlp/duplex_text_norm/small_test.tsv \
+            mode=tn \
+            lang=en \
+            tagger_model.do_training=false \
+            decoder_model.transformer=t5-small \
+            data.validation_ds.batch_size=2 \
+            data.train_ds.use_cache=false \
+            data.validation_ds.use_cache=false \
+            data.test_ds.batch_size=2 \
+            data.train_ds.decoder_data_augmentation=false \
+            data.train_ds.num_workers=2 \
+            decoder_trainer.gpus=[0,1] \
+            data.train_ds.use_tarred_dataset=true \
+            +decoder_trainer.fast_dev_run=true \
+            decoder_exp_manager.create_checkpoint_callback=false \
+            data.train_ds.tar_metadata_file=/home/TestData/nlp/duplex_text_norm/tarred_small/metadata.json'
           }
         }
       }
