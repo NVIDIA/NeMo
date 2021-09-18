@@ -213,22 +213,16 @@ class TransformerDecoderNM(DecoderModule, Exportable):
 
     @typecheck()
     def forward(
-        self,
-        input_ids,
-        decoder_mask,
-        encoder_embeddings,
-        encoder_mask,
-        decoder_mems=None,
-        return_mems=False,
-        return_list=True,
+        self, input_ids, decoder_mask, encoder_embeddings, encoder_mask, decoder_mems=None, return_mems=False,
     ):
         self.return_mems = return_mems
-        decoder_embeddings = self._embedding(input_ids=input_ids)
+        start_pos = 0
         if decoder_mems != None:
-            decoder_embeddings = decoder_embeddings[:, -1:, :]
+            start_pos = input_ids.shape[1] - 1
+            input_ids = input_ids[:, -1:]
             decoder_mask = decoder_mask[:, -1:]
-            if not return_list:
-                decoder_mems = torch.transpose(decoder_mems, 0, 1)
+            decoder_mems = torch.transpose(decoder_mems, 0, 1)
+        decoder_embeddings = self._embedding(input_ids=input_ids, start_pos=start_pos)
         decoder_hidden_states = self._decoder(
             decoder_states=decoder_embeddings,
             decoder_mask=decoder_mask,
@@ -236,9 +230,9 @@ class TransformerDecoderNM(DecoderModule, Exportable):
             encoder_mask=encoder_mask,
             decoder_mems_list=decoder_mems,
             return_mems=return_mems,
-            return_list=return_list,
+            return_list=False,
         )
-        if return_mems and not return_list:
+        if return_mems:
             decoder_hidden_states = torch.transpose(decoder_hidden_states, 0, 1)
         return decoder_hidden_states
 
@@ -273,7 +267,7 @@ class TransformerDecoderNM(DecoderModule, Exportable):
         encoder_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
         mem_size = [2, self.num_states, 15, self._hidden_size]
         decoder_mems = torch.rand(mem_size, device=sample.device)
-        return tuple([input_ids, encoder_mask, self._embedding(input_ids), encoder_mask, decoder_mems, True, False])
+        return tuple([input_ids, encoder_mask, self._embedding(input_ids), encoder_mask, decoder_mems, True])
 
     def _prepare_for_export(self, **kwargs):
         self._decoder.diagonal = None
