@@ -20,8 +20,8 @@ from typing import Callable, Dict, List, Optional, Union
 
 import librosa
 import torch
-from nemo_text_processing.text_normalization.normalize import Normalizer
 from tqdm import tqdm
+from transformers import AlbertTokenizer
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.common.parts.patch_utils import stft_patch
@@ -36,10 +36,12 @@ from nemo.collections.tts.torch.tts_data_types import (
     LogMel,
     Pitch,
     WithLens,
+    NLPTokens
 )
-from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer
+from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishPhonemesTokenizer, EnglishCharsTokenizer
 from nemo.core.classes import Dataset
 from nemo.utils import logging
+from nemo_text_processing.text_normalization.normalize import Normalizer
 
 
 class TTSDataset(Dataset):
@@ -515,5 +517,110 @@ class TTSDataset(Dataset):
 
     def _collate_fn(self, batch):
         data_dict = self.general_collate_fn(batch)
+        joined_data = self.join_data(data_dict)
+        return joined_data
+
+
+
+class MixerTTSDataset(TTSDataset):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def _albert(self, without_matching):
+        nlp_model_tokenizer = AlbertTokenizer.from_pretrained('albert-base-v2')
+        self.nlp_padding_value = nlp_model_tokenizer._convert_token_to_id('<pad>')
+        self.id2nlp_tokens = {}
+
+        space_value = nlp_model_tokenizer._convert_token_to_id('▁')
+        for i, d in enumerate(self.data):
+            raw_text = d["raw_text"]
+            enc_text = d["text_tokens"]
+
+            if without_matching:
+                assert isinstance(self.text_tokenizer, EnglishPhonemesTokenizer)
+                assert self.text_tokenizer.chars and self.text_tokenizer.spaces
+
+                preprocess_text_as_tts_input = self.text_tokenizer.g2p.text_preprocessing_func(raw_text)
+                nlp_tokens_as_ids = nlp_model_tokenizer.encode(preprocess_text_as_tts_input,
+                                                               add_special_tokens=False)
+
+                if self.text_tokenizer.pad_with_space:
+                    nlp_tokens_as_ids = [space_value] + nlp_tokens_as_ids + [space_value]
+
+                self.id2nlp_tokens[i] = nlp_tokens_as_ids
+            else:
+                assert isinstance(self.text_tokenizer, EnglishCharsTokenizer)
+                assert self.text_tokenizer.pad_with_space and self.text_tokenizer.spaces
+
+                tts_tokens = [self.text_tokenizer._id2token[t] for t in enc_text if
+                              t not in self.text_tokenizer._util_ids]
+                tts_tokens_as_str = "".join(tts_tokens)
+                nlp_tokens_as_ids = nlp_model_tokenizer.encode(tts_tokens_as_str, add_special_tokens=False)
+
+                nlp_tokens_as_ids = [space_value] + nlp_tokens_as_ids + [space_value]
+
+                nlp_tokens = nlp_model_tokenizer.tokenize(tts_tokens_as_str)
+                nlp_tokens = [
+                    s_t.replace("▁", "") if j == 0 and len(s_t) > 1 else s_t.replace("▁", " ")
+                    for j, s_t in enumerate(nlp_tokens)
+                ]
+                nlp_tokens = [" "] + nlp_tokens + [" "]
+
+                self.id2nlp_tokens[i] = self.match_nlp_tokens_to_tts_tokens(nlp_tokens, tts_tokens,
+                                                                            nlp_tokens_as_ids)
+
+    @staticmethod
+    def match_nlp_tokens_to_tts_tokens(nlp_tokens, tts_tokens, nlp_tokens_as_ids):
+        matched_nlp_token_ids = []
+        i, cur_nlp_t_idx, cur_nlp_t_pos = 0, 0, 0
+        while i < len(tts_tokens):
+            tts_token = tts_tokens[i]
+            tts_token_size = len(tts_token)
+            cur_nlp_token_suffix = nlp_tokens[cur_nlp_t_idx][cur_nlp_t_pos : cur_nlp_t_pos + tts_token_size]
+
+            if len(cur_nlp_token_suffix) != tts_token_size or cur_nlp_token_suffix != tts_token:
+                cur_nlp_t_idx, cur_nlp_t_pos = cur_nlp_t_idx + 1, 0
+                continue
+
+            matched_nlp_token_ids.append(nlp_tokens_as_ids[cur_nlp_t_idx])
+
+            if cur_nlp_t_pos + tts_token_size < len(nlp_tokens[cur_nlp_t_idx]):
+                cur_nlp_t_pos = cur_nlp_t_pos + tts_token_size
+            else:
+                cur_nlp_t_idx, cur_nlp_t_pos = cur_nlp_t_idx + 1, 0
+            i += 1
+
+        return matched_nlp_token_ids
+
+    def add_nlp_tokens(self, **kwargs):
+        nlp_model = kwargs.pop('nlp_model')
+        without_matching = kwargs.pop('without_matching')
+
+        if nlp_model == "albert":
+            self._albert(without_matching)
+        else:
+            raise NotImplementedError(f"{nlp_model} nlp model is not supported. Only albert is supported at this moment.")
+
+    def __getitem__(self, item):
+        nlp_tokens = None
+        if NLPTokens in self.sup_data_types_set:
+            nlp_tokens = torch.tensor(self.id2nlp_tokens[item]).long()
+        return *super().__getitem__(item), nlp_tokens
+
+    def _collate_fn(self, batch):
+        batch = list(zip(*batch))
+        data_dict = self.general_collate_fn(list(zip(*batch[:12])))
+        nlp_tokens_list = batch[12]
+
+        if NLPTokens in self.sup_data_types_set:
+            nlp_tokens = torch.full(
+                (len(nlp_tokens_list), max([nlp_tokens.shape[0] for nlp_tokens in nlp_tokens_list])),
+                fill_value=self.nlp_padding_value
+            )
+            for i, nlp_tokens_i in enumerate(nlp_tokens_list):
+                nlp_tokens[i, : nlp_tokens_i.shape[0]] = nlp_tokens_i
+
+            data_dict[NLPTokens.name] = nlp_tokens
+
         joined_data = self.join_data(data_dict)
         return joined_data
