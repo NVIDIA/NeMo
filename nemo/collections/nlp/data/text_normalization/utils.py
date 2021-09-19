@@ -29,13 +29,40 @@ def flatten(l):
     return [item for sublist in l for item in sublist]
 
 
-def read_data_file(fp: str, max_insts: int = -1):
+def input_preprocessing(sent: str, lang: str):
+    """ Function for preprocessing the input texts. The function first does
+    some basic tokenization. For English, it then also processes Greek letters
+    such as Δ or λ (if any).
+
+    Args:
+        sents: input text.
+        lang: language
+
+    Returns: preprocessed input text.
+    """
+    # Basic Preprocessing and Tokenization
+    if lang == constants.ENGLISH:
+        sent = sent.replace('+', ' plus ')
+        sent = sent.replace('=', ' equals ')
+        sent = sent.replace('@', ' at ')
+        sent = sent.replace('*', ' times ')
+
+    # Greek letters processing
+    if lang == constants.ENGLISH:
+        for jx, tok in enumerate(sent):
+            if tok in constants.EN_GREEK_TO_SPOKEN:
+                sent = sent[:jx] + constants.EN_GREEK_TO_SPOKEN[tok] + sent[jx + 1 :]
+    return sent
+
+
+def read_data_file(fp: str, lang: str, max_insts: int = -1):
     """ Reading the raw data from a file of NeMo format
     For more info about the data format, refer to the
     `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`.
 
     Args:
         fp: file paths
+        lang: language
         max_insts: Maximum number of instances (-1 means no limit)
     Returns:
         insts: List of sentences parsed as list of words
@@ -44,7 +71,7 @@ def read_data_file(fp: str, max_insts: int = -1):
     # Read input file
     with open(fp, 'r', encoding='utf-8') as f:
         for line in tqdm(f):
-            es = [e.strip() for e in line.strip().split('\t')]
+            es = [e.strip() for e in input_preprocessing(line.strip(), lang=lang).split('\t')]
             if es[0] == '<eos>':
                 inst = (deepcopy(classes), deepcopy(w_words), deepcopy(s_words))
                 insts.append(inst)

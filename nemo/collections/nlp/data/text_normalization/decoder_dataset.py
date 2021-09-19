@@ -108,7 +108,7 @@ class TextNormalizationDecoderDataset(Dataset):
                 self.insts, self.inputs, self.examples, self.tn_count, self.itn_count, self.label_ids_semiotic = data
         else:
             if raw_instances is None:
-                raw_instances = read_data_file(fp=input_file, max_insts=max_insts)
+                raw_instances = read_data_file(fp=input_file, lang=self.lang, max_insts=max_insts)
             else:
                 raw_instances = raw_instances[:max_insts]
 
@@ -401,9 +401,10 @@ class DecoderDataInstance:
                 s_right[jx] = w_right[jx]
         for jx in range(len(c_s_words)):
             if c_s_words[jx] == constants.SIL_WORD:
-                c_s_words[jx] = ''
+                c_s_words[jx] = c_w_words[jx]
                 if inst_dir == constants.INST_BACKWARD:
                     c_w_words[jx] = ''
+                    c_s_words[jx] = ''
             if c_s_words[jx] == constants.SELF_WORD:
                 c_s_words[jx] = c_w_words[jx]
 
