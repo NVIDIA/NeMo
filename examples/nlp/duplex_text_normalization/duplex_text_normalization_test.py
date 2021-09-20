@@ -128,9 +128,13 @@ def main(cfg: DictConfig) -> None:
                 done = True
             if not done:
                 test_input = ' '.join(basic_tokenize(test_input, lang))
-                outputs = tn_model._infer([test_input, test_input], [constants.INST_BACKWARD, constants.INST_FORWARD])[
-                    -1
-                ]
+                outputs = tn_model._infer(
+                    [test_input, test_input],
+                    [
+                        constants.DIRECTIONS_TO_MODE[constants.ITN_MODE],
+                        constants.DIRECTIONS_TO_MODE[constants.TN_MODE],
+                    ],
+                )[-1]
                 if cfg.mode in ['joint', 'itn']:
                     print(f'Prediction (ITN): {outputs[0]}')
                 if cfg.mode in ['joint', 'tn']:
