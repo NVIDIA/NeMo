@@ -38,7 +38,6 @@ class TestTTSDataset:
             text_tokenizer=EnglishPhonemesTokenizer(
                 punct=True,
                 stresses=True,
-                spaces=True,
                 chars=True,
                 space=' ',
                 apostrophe=True,
