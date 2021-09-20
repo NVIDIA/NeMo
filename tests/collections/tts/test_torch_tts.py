@@ -17,10 +17,12 @@ import os
 import pytest
 import torch
 
-from nemo.collections.tts.torch.data import CharMelAudioDataset
+from nemo.collections.tts.torch.data import TTSDataset
+from nemo.collections.tts.torch.g2ps import EnglishG2p
+from nemo.collections.tts.torch.tts_tokenizers import EnglishPhonemesTokenizer
 
 
-class TestCharDataset:
+class TestTTSDataset:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     @pytest.mark.torch_tts
@@ -28,27 +30,21 @@ class TestCharDataset:
         manifest_path = os.path.join(test_data_dir, 'tts/mini_ljspeech/manifest.json')
         sup_path = os.path.join(test_data_dir, 'tts/mini_ljspeech/sup')
 
-        dataset = CharMelAudioDataset(
-            manifest_filepath=manifest_path, sample_rate=22050, supplementary_folder=sup_path
+        dataset = TTSDataset(
+            manifest_filepath=manifest_path,
+            sample_rate=22050,
+            sup_data_types=["pitch"],
+            sup_data_path=sup_path,
+            text_tokenizer=EnglishPhonemesTokenizer(
+                punct=True,
+                stresses=True,
+                chars=True,
+                space=' ',
+                apostrophe=True,
+                pad_with_space=True,
+                g2p=EnglishG2p(),
+            ),
         )
 
         dataloader = torch.utils.data.DataLoader(dataset, 2, collate_fn=dataset._collate_fn)
-
-        data, _, _, _, _, _, _ = next(iter(dataloader))
-
-
-class TestPhoneDataset:
-    @pytest.mark.run_only_on('CPU')
-    @pytest.mark.unit
-    @pytest.mark.torch_tts
-    def test_dataset(self, test_data_dir):
-        manifest_path = os.path.join(test_data_dir, 'tts/mini_ljspeech/manifest.json')
-        sup_path = os.path.join(test_data_dir, 'tts/mini_ljspeech/sup')
-
-        dataset = CharMelAudioDataset(
-            manifest_filepath=manifest_path, sample_rate=22050, supplementary_folder=sup_path
-        )
-
-        dataloader = torch.utils.data.DataLoader(dataset, 2, collate_fn=dataset._collate_fn)
-
-        _, _, _, _, _, _, _ = next(iter(dataloader))
+        data, _, _, _, _, _ = next(iter(dataloader))
