@@ -20,6 +20,7 @@ from typing import Callable, Dict, List, Optional, Union
 
 import librosa
 import torch
+from nemo_text_processing.text_normalization.normalize import Normalizer
 from tqdm import tqdm
 from transformers import AlbertTokenizer
 
@@ -34,14 +35,13 @@ from nemo.collections.tts.torch.tts_data_types import (
     Durations,
     Energy,
     LogMel,
+    NLPTokens,
     Pitch,
     WithLens,
-    NLPTokens
 )
-from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishPhonemesTokenizer, EnglishCharsTokenizer
+from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishCharsTokenizer, EnglishPhonemesTokenizer
 from nemo.core.classes import Dataset
 from nemo.utils import logging
-from nemo_text_processing.text_normalization.normalize import Normalizer
 
 
 class TTSDataset(Dataset):
@@ -521,7 +521,6 @@ class TTSDataset(Dataset):
         return joined_data
 
 
-
 class MixerTTSDataset(TTSDataset):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -541,8 +540,7 @@ class MixerTTSDataset(TTSDataset):
                 assert self.text_tokenizer.chars and self.text_tokenizer.spaces
 
                 preprocess_text_as_tts_input = self.text_tokenizer.g2p.text_preprocessing_func(raw_text)
-                nlp_tokens_as_ids = nlp_model_tokenizer.encode(preprocess_text_as_tts_input,
-                                                               add_special_tokens=False)
+                nlp_tokens_as_ids = nlp_model_tokenizer.encode(preprocess_text_as_tts_input, add_special_tokens=False)
 
                 if self.text_tokenizer.pad_with_space:
                     nlp_tokens_as_ids = [space_value] + nlp_tokens_as_ids + [space_value]
@@ -552,8 +550,9 @@ class MixerTTSDataset(TTSDataset):
                 assert isinstance(self.text_tokenizer, EnglishCharsTokenizer)
                 assert self.text_tokenizer.pad_with_space and self.text_tokenizer.spaces
 
-                tts_tokens = [self.text_tokenizer._id2token[t] for t in enc_text if
-                              t not in self.text_tokenizer._util_ids]
+                tts_tokens = [
+                    self.text_tokenizer._id2token[t] for t in enc_text if t not in self.text_tokenizer._util_ids
+                ]
                 tts_tokens_as_str = "".join(tts_tokens)
                 nlp_tokens_as_ids = nlp_model_tokenizer.encode(tts_tokens_as_str, add_special_tokens=False)
 
@@ -566,8 +565,7 @@ class MixerTTSDataset(TTSDataset):
                 ]
                 nlp_tokens = [" "] + nlp_tokens + [" "]
 
-                self.id2nlp_tokens[i] = self.match_nlp_tokens_to_tts_tokens(nlp_tokens, tts_tokens,
-                                                                            nlp_tokens_as_ids)
+                self.id2nlp_tokens[i] = self.match_nlp_tokens_to_tts_tokens(nlp_tokens, tts_tokens, nlp_tokens_as_ids)
 
     @staticmethod
     def match_nlp_tokens_to_tts_tokens(nlp_tokens, tts_tokens, nlp_tokens_as_ids):
@@ -599,13 +597,15 @@ class MixerTTSDataset(TTSDataset):
         if nlp_model == "albert":
             self._albert(without_matching)
         else:
-            raise NotImplementedError(f"{nlp_model} nlp model is not supported. Only albert is supported at this moment.")
+            raise NotImplementedError(
+                f"{nlp_model} nlp model is not supported. Only albert is supported at this moment."
+            )
 
     def __getitem__(self, item):
         nlp_tokens = None
         if NLPTokens in self.sup_data_types_set:
             nlp_tokens = torch.tensor(self.id2nlp_tokens[item]).long()
-        return *super().__getitem__(item), nlp_tokens
+        return tuple([*super().__getitem__(item), nlp_tokens])
 
     def _collate_fn(self, batch):
         batch = list(zip(*batch))
@@ -615,7 +615,7 @@ class MixerTTSDataset(TTSDataset):
         if NLPTokens in self.sup_data_types_set:
             nlp_tokens = torch.full(
                 (len(nlp_tokens_list), max([nlp_tokens.shape[0] for nlp_tokens in nlp_tokens_list])),
-                fill_value=self.nlp_padding_value
+                fill_value=self.nlp_padding_value,
             )
             for i, nlp_tokens_i in enumerate(nlp_tokens_list):
                 nlp_tokens[i, : nlp_tokens_i.shape[0]] = nlp_tokens_i

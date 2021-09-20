@@ -1,9 +1,9 @@
 tts_dataset:
-  _target_: "nemo.collections.tts.torch.data.MixerTTSDataset"
-  manifest_filepath: "/home/otatanov/data/datasets/lj_speech/train_manifest.json"
+  _target_: "nemo.collections.tts.torch.data.TTSDataset"
+  manifest_filepath: "manifest.json"
   sample_rate: 22050
-  sup_data_path: "/home/otatanov/data/datasets/lj_speech/mixer_tts_ds_pitch_duration_prior"
-  sup_data_types: ["pitch", "duration_prior", "nlp_tokens"]
+  sup_data_path: "test_sup_data"
+  sup_data_types: ["pitch"]
   n_fft: 1024
   win_length: 1024
   hop_length: 256
@@ -18,27 +18,29 @@ tts_dataset:
   pitch_fmin: 65.40639132514966
   pitch_fmax: 2093.004522404789
 
-  nlp_model: "albert"
-  without_matching: true
+  text_normalizer:
+    _target_: "nemo_text_processing.text_normalization.normalize.Normalizer"
+    lang: "en"
+    input_case: "cased"
 
-#  text_normalizer:
-#    _target_: "nemo_text_processing.text_normalization.normalize.Normalizer"
-#    lang: "en"
-#    input_case: 'cased'
-#
-#  text_normalizer_call_args:
-#    verbose: False
-#    punct_pre_process: True
-#    punct_post_process: True
+  text_normalizer_call_args:
+    verbose: False
+    punct_pre_process: True
+    punct_post_process: True
 
   text_tokenizer:
     _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
     punct: True
+    stresses: True
     spaces: True
+    chars: True
+    space: ' '
+    silence: null
     apostrophe: True
+    sep: '|'
     add_blank_at: null
     pad_with_space: True
     g2p:
       _target_: "nemo.collections.tts.torch.g2ps.EnglishG2p"
-      phoneme_dict: "/home/otatanov/projects/NeMo/my_scripts/adlr_tts_text_processing/cmudict-0.7b-030921"
-      heteronyms: "/home/otatanov/projects/NeMo/my_scripts/adlr_tts_text_processing/heteronyms-030921"
+      phoneme_dict: "scripts/tts_dataset_files/cmudict-0.7b-030921"
+      heteronyms: "scripts/tts_dataset_files/heteronyms-030921"

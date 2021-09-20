@@ -85,7 +85,9 @@ class MixerTTSModel(SpectrogramGenerator):
                 self.nlp_emb = instantiate(cfg.nlp_emb, in_channels=self.nlp_model_text_proj.weight.shape[1])
 
             if self.extract_nlp_features_via_nlp_aligner:
-                self.nlp_aligner = instantiate(cfg.nlp_aligner, n_nlp_channels=self.nlp_model_text_proj.weight.shape[1])
+                self.nlp_aligner = instantiate(
+                    cfg.nlp_aligner, n_nlp_channels=self.nlp_model_text_proj.weight.shape[1]
+                )
 
         self.encoder = instantiate(cfg.encoder, num_tokens=num_tokens, padding_idx=self.tokenizer.pad)
         self.symbol_emb = self.encoder.to_embed
@@ -105,13 +107,17 @@ class MixerTTSModel(SpectrogramGenerator):
         if nlp_model == "albert":
             return transformers.AlbertModel.from_pretrained('albert-base-v2').embeddings.word_embeddings
         else:
-            raise NotImplementedError(f"{nlp_model} nlp model is not supported. Only albert is supported at this moment.")
+            raise NotImplementedError(
+                f"{nlp_model} nlp model is not supported. Only albert is supported at this moment."
+            )
 
     def _get_nlp_padding_value(self, nlp_model):
         if nlp_model == "albert":
             return transformers.AlbertTokenizer.from_pretrained('albert-base-v2')._convert_token_to_id('<pad>')
         else:
-            raise NotImplementedError(f"{nlp_model} nlp model is not supported. Only albert is supported at this moment.")
+            raise NotImplementedError(
+                f"{nlp_model} nlp model is not supported. Only albert is supported at this moment."
+            )
 
     def _metrics(
         self,
@@ -171,9 +177,7 @@ class MixerTTSModel(SpectrogramGenerator):
 
         return loss, durs_loss, acc, acc_dist_1, acc_dist_3, pitch_loss, mel_loss, ctc_loss, bin_loss
 
-    def forward(
-        self, text, text_len, pitch=None, spect=None, spect_len=None, attn_prior=None, nlp_tokens=None
-    ):
+    def forward(self, text, text_len, pitch=None, spect=None, spect_len=None, attn_prior=None, nlp_tokens=None):
         if self.training:
             assert pitch is not None
 
@@ -361,16 +365,7 @@ class MixerTTSModel(SpectrogramGenerator):
         pitch = (pitch - self.pitch_mean) / self.pitch_std
         pitch[zero_pitch_idx] = 0.0
 
-        (
-            pred_spect,
-            _,
-            pred_log_durs,
-            pred_pitch,
-            attn_soft,
-            attn_logprob,
-            attn_hard,
-            attn_hard_dur,
-        ) = self(
+        (pred_spect, _, pred_log_durs, pred_pitch, attn_soft, attn_logprob, attn_hard, attn_hard_dur,) = self(
             text=text,
             text_len=text_len,
             pitch=pitch,
@@ -380,17 +375,7 @@ class MixerTTSModel(SpectrogramGenerator):
             nlp_tokens=nlp_tokens,
         )
 
-        (
-            loss,
-            durs_loss,
-            acc,
-            acc_dist_1,
-            acc_dist_3,
-            pitch_loss,
-            mel_loss,
-            ctc_loss,
-            bin_loss,
-        ) = self._metrics(
+        (loss, durs_loss, acc, acc_dist_1, acc_dist_3, pitch_loss, mel_loss, ctc_loss, bin_loss,) = self._metrics(
             pred_durs=pred_log_durs,
             pred_pitch=pred_pitch,
             true_durs=attn_hard_dur,
@@ -436,16 +421,7 @@ class MixerTTSModel(SpectrogramGenerator):
         pitch = (pitch - self.pitch_mean) / self.pitch_std
         pitch[zero_pitch_idx] = 0.0
 
-        (
-            pred_spect,
-            _,
-            pred_log_durs,
-            pred_pitch,
-            attn_soft,
-            attn_logprob,
-            attn_hard,
-            attn_hard_dur,
-        ) = self(
+        (pred_spect, _, pred_log_durs, pred_pitch, attn_soft, attn_logprob, attn_hard, attn_hard_dur,) = self(
             text=text,
             text_len=text_len,
             pitch=pitch,
@@ -455,17 +431,7 @@ class MixerTTSModel(SpectrogramGenerator):
             nlp_tokens=nlp_tokens,
         )
 
-        (
-            loss,
-            durs_loss,
-            acc,
-            acc_dist_1,
-            acc_dist_3,
-            pitch_loss,
-            mel_loss,
-            ctc_loss,
-            bin_loss,
-        ) = self._metrics(
+        (loss, durs_loss, acc, acc_dist_1, acc_dist_3, pitch_loss, mel_loss, ctc_loss, bin_loss,) = self._metrics(
             pred_durs=pred_log_durs,
             pred_pitch=pred_pitch,
             true_durs=attn_hard_dur,
