@@ -165,7 +165,7 @@ def main():
         model_stride_in_secs,
         asr_model.device,
     )
-    logging.info(f"WER is {round(wer, 6)} when decoded with a delay of {round(delay * model_stride_in_secs, 6)}s")
+    logging.info(f"WER is {round(wer, 6)} when decoded with a delay of {round(mid_delay * model_stride_in_secs, 6)}s")
 
     if args.output_path is not None:
 
