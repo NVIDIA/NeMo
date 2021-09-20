@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pytorch_lightning.plugins.precision.precision_plugin import PrecisionPlugin
 from nemo.collections.nlp.data.language_modeling import megatron
 import shutil
 import tarfile
@@ -337,3 +338,26 @@ class NLPNativeMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
             return super().clip_gradients(
                 optimizer, clip_val, gradient_clip_algorithm=gradient_clip_algorithm, model=model
             )
+
+
+class NLPPrecisionPlugin(PrecisionPlugin):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def clip_gradients(
+        self,
+        optimizer: Optimizer,
+        clip_val: Union[int, float],
+        gradient_clip_algorithm: GradClipAlgorithmType,
+        model: Optional[Module],
+    ) -> None:
+        """Override PTL gradient clipping"""
+        app_state = AppState()
+        if app_state.model_parallel_size is not None:
+            parameters = model.parameters()
+            clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
+        else:
+            return super().clip_gradients(
+                optimizer, clip_val, gradient_clip_algorithm=gradient_clip_algorithm, model=model
+            )
+

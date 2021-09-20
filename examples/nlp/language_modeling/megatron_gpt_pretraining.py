@@ -22,6 +22,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     NLPCheckpointConnector,
     NLPDDPPlugin,
     NLPNativeMixedPrecisionPlugin,
+    NLPPrecisionPlugin,
     NLPSaveRestoreConnector,
 )
 from nemo.core.config import hydra_runner
@@ -34,9 +35,12 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
-    trainer = Trainer(
-        plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes), NLPNativeMixedPrecisionPlugin()], **cfg.trainer
-    )
+    if cfg.model.fp16:
+        trainer = Trainer(
+            plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes), NLPNativeMixedPrecisionPlugin()], **cfg.trainer
+        )
+    else:
+        trainer = Trainer(plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes), NLPPrecisionPlugin()], **cfg.trainer)
 
     # TODO: possibly add model parallel size arg to exp_manager
     exp_manager(trainer, cfg.exp_manager)
