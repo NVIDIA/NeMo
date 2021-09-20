@@ -124,7 +124,6 @@ class EnglishCharsTokenizer(BaseTokenizer):
     def __init__(
         self,
         punct=True,
-        spaces=False,
         apostrophe=True,
         add_blank_at=None,
         pad_with_space=False,
@@ -135,7 +134,6 @@ class EnglishCharsTokenizer(BaseTokenizer):
         """English char-based tokenizer.
         Args:
             punct: Whether to reserve grapheme for basic punctuation or not.
-            spaces: Whether to prepend spaces to every punctuation symbol or not.
             apostrophe: Whether to use apostrophe or not.
             add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
              if None then no blank in labels.
@@ -159,8 +157,6 @@ class EnglishCharsTokenizer(BaseTokenizer):
         super().__init__(tokens, add_blank_at=add_blank_at)
 
         self.punct = punct
-        self.spaces = spaces
-
         self.pad_with_space = pad_with_space
 
         self.text_preprocessing_func = text_preprocessing_func
@@ -183,10 +179,8 @@ class EnglishCharsTokenizer(BaseTokenizer):
             if (c.isalnum() or c == "'") and c in tokens:
                 cs.append(c)
 
-            # Add punct and remove space if needed
+            # Add punct
             if (c in self.PUNCT_LIST) and self.punct:
-                if not self.spaces and len(cs) > 0 and cs[-1] == space:
-                    cs.pop()
                 cs.append(c)
 
         # Remove trailing spaces
@@ -225,7 +219,6 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
         punct=True,
         non_default_punct_list=None,
         stresses=False,
-        spaces=True,
         chars=False,
         *,
         space=' ',
@@ -242,7 +235,6 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
             punct: Whether to reserve grapheme for basic punctuation or not.
             non_default_punct_list: List of punctuation marks which will be used instead default.
             stresses: Whether to use phonemes codes with stresses (0-2) or not.
-            spaces: Whether to prepend spaces to every punctuation symbol or not.
             chars: Whether to additionally use chars together with phonemes. It is useful if g2p module can return chars too.
             space: Space token as string.
             silence: Silence token as string (will be disabled if it is None).
@@ -283,7 +275,6 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
         self.chars = chars
         self.punct = punct
         self.stresses = stresses
-        self.spaces = spaces
         self.pad_with_space = pad_with_space
 
         self.g2p = g2p
@@ -305,10 +296,8 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
             if (p.isalnum() or p == "'") and p in tokens:
                 ps.append(p)
 
-            # Add punct and remove space if needed
+            # Add punct
             if (p in self.PUNCT_LIST) and self.punct:
-                if not self.spaces and len(ps) > 0 and ps[-1] == space:
-                    ps.pop()
                 ps.append(p)
 
         # Remove trailing spaces
