@@ -217,8 +217,9 @@ class MTEncDecModel(EncDecNLPModel):
         hidden_size.
         """
         if encoder_cfg_dict['hidden_size'] != decoder_cfg_dict['hidden_size']:
-            raise ValueError("Class does not support encoder.hidden_size != decoder.hidden_size. Please use bottleneck architecture instead (i.e., model.encoder.arch = 'seq2seq' in config)")
-
+            raise ValueError(
+                "Class does not support encoder.hidden_size != decoder.hidden_size. Please use bottleneck architecture instead (i.e., model.encoder.arch = 'seq2seq' in config)"
+            )
 
     def filter_predicted_ids(self, ids):
         ids[ids >= self.decoder_tokenizer.vocab_size] = self.decoder_tokenizer.unk_id
