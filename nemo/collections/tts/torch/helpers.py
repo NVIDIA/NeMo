@@ -13,7 +13,14 @@
 # limitations under the License.
 
 import numpy as np
+import torch
 from scipy.stats import betabinom
+
+
+def general_padding(item, item_len, max_len, pad_value=0):
+    if item_len < max_len:
+        item = torch.nn.functional.pad(item, (0, max_len - item_len), value=pad_value)
+    return item
 
 
 def beta_binomial_prior_distribution(phoneme_count, mel_count, scaling_factor=1.0):
