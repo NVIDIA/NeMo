@@ -124,7 +124,6 @@ class EnglishCharsTokenizer(BaseTokenizer):
     def __init__(
         self,
         punct=True,
-        spaces=False,
         apostrophe=True,
         add_blank_at=None,
         pad_with_space=False,
