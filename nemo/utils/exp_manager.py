@@ -729,10 +729,12 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
 
         # each model parallel rank needs to remove its model
-        if app_state.data_parallel_rank is None or app_state.data_parallel_rank == 0:
-            if self._fs.exists(filepath):
+        if is_global_rank_zero() or (app_state.model_parallel_size is not None and app_state.data_parallel_rank == 0):
+            try:
                 self._fs.rm(filepath)
                 logging.info(f"Removed checkpoint: {filepath}")
+            except:
+                logging.info(f"Tried to remove checkpoint: {filepath} but failed.")
 
     def _save_last_checkpoint(self, trainer: 'pl.Trainer', monitor_candidates: Dict[str, _METRIC]) -> None:
         """ Overrides PTL method to account for model parallel checkpoints.
