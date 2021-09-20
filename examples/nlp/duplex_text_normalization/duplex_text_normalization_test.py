@@ -20,25 +20,36 @@ DuplexTaggerModel and DuplexDecoderModel. Therefore, two trained NeMo models
 should be specified before evaluation (one is a trained DuplexTaggerModel
 and the other is a trained DuplexDecoderModel).
 
-USAGE Example:
-1. Obtain a processed test data file (refer to the `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`)
-2.
-# python duplex_text_normalization_test.py
-        tagger_pretrained_model=PATH_TO_TRAINED_TAGGER
-        decoder_pretrained_model=PATH_TO_TRAINED_DECODER
-        data.test_ds.data_path=PATH_TO_TEST_FILE
-        mode={tn,itn,joint}
-        lang={en,ru,de}
+This script can perform inference for 3 settings:
+1. inference from a raw file (no labels required). Each line of the file represents a single example for inference.
+    Specify in inference.from_file and inference.batch_size parameters.
 
-The script also supports the `interactive` mode where a user can just make the model
-run on any input text:
-# python duplex_text_normalization_test.py \
-        data.test_ds.data_path=PATH_TO_TEST_FILE \
+    python duplex_text_normalization_test.py \
+        tagger_pretrained_model=PATH_TO_TRAINED_TAGGER \
+        decoder_pretrained_model=PATH_TO_TRAINED_DECODER \
+        mode={tn,itn,joint} \
+        lang={en,ru,de} \
+        inference.from_file=PATH_TO_RAW_TEXT_FILE
+
+    During the step, the redictions of the model will be stored in "_norm" and "_denorm" files
+
+2. Interactive inference (one query at a time), set inference.interactive to True to enter the interactive mode
+    python duplex_text_normalization_test.py \
         tagger_pretrained_model=PATH_TO_TRAINED_TAGGER \
         decoder_pretrained_model=PATH_TO_TRAINED_DECODER \
         mode={tn,itn,joint} \
         lang={en,ru,de} \
         inference.interactive=true
+
+3. Inference from the data.test_ds, more details on the data format refer to the
+    `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`
+
+    python duplex_text_normalization_test.py \
+        tagger_pretrained_model=PATH_TO_TRAINED_TAGGER \
+        decoder_pretrained_model=PATH_TO_TRAINED_DECODER \
+        data.test_ds.data_path=PATH_TO_TEST_FILE \
+        mode={tn,itn,joint} \
+        lang={en,ru,de}
 
 This script uses the `/examples/nlp/duplex_text_normalization/conf/duplex_tn_config.yaml`
 config file by default. The other option is to set another config file via command
@@ -48,9 +59,11 @@ Note that when evaluating a DuplexTextNormalizationModel on a labeled dataset,
 the script will automatically generate a file for logging the errors made
 by the model. The location of this file is determined by the argument
 `inference.errors_log_fp`.
-
 """
 
+
+import os
+from typing import List
 
 from helpers import DECODER_MODEL, TAGGER_MODEL, instantiate_model_and_trainer
 from omegaconf import DictConfig, OmegaConf
@@ -70,22 +83,58 @@ def main(cfg: DictConfig) -> None:
     decoder_trainer, decoder_model = instantiate_model_and_trainer(cfg, DECODER_MODEL, False)
     tn_model = DuplexTextNormalizationModel(tagger_model, decoder_model, lang)
 
-    if not cfg.inference.interactive:
+    if cfg.inference.get("from_file", False):
+        text_file = cfg.inference.from_file
+        if not os.path.exists(text_file):
+            raise ValueError(f'{text_file} not found.')
+
+        with open(text_file, 'r') as f:
+            lines = f.readlines()
+
+        def _get_predictions(lines: List[str], mode: str, batch_size: int, text_file: str):
+            """ Runs inference on a batch data without labels and saved predictions to a file. """
+            file_name, extension = os.path.splitext(text_file)
+            batch, all_preds = [], []
+            for i, line in enumerate(lines):
+                batch.append(line.strip())
+                if len(batch) == batch_size or i == len(lines) - 1:
+                    outputs = tn_model._infer(batch, [constants.DIRECTIONS_TO_MODE[mode]] * len(batch))
+                    all_preds.extend([x for x in outputs[-1]])
+                    batch = []
+            assert len(all_preds) == len(lines)
+            with open(f'{file_name}_{mode}{extension}', 'w') as f_out:
+                f_out.write("\n".join(all_preds))
+
+        batch_size = cfg.inference.get("batch_size", 8)
+        if cfg.mode in ['tn', 'joint']:
+            # TN mode
+            _get_predictions(lines, 'tn', batch_size, text_file)
+        if cfg.mode in ['itn', 'joint']:
+            # ITN mode
+            _get_predictions(lines, 'itn', batch_size, text_file)
+
+    elif not cfg.inference.interactive:
         # Setup test_dataset
         test_dataset = TextNormalizationTestDataset(cfg.data.test_ds.data_path, cfg.mode, lang)
         results = tn_model.evaluate(test_dataset, cfg.data.test_ds.batch_size, cfg.inference.errors_log_fp)
         print(f'\nTest results: {results}')
     else:
-        while True:
+        print('Entering interactive mode.')
+        done = False
+        while not done:
+            print('Type "STOP" to exit.')
             test_input = input('Input a test input:')
-            test_input = ' '.join(basic_tokenize(test_input, lang))
-            outputs = tn_model._infer([test_input, test_input], [constants.INST_BACKWARD, constants.INST_FORWARD])[-1]
-            print(f'Prediction (ITN): {outputs[0]}')
-            print(f'Prediction (TN): {outputs[1]}')
-
-            should_continue = input('\nContinue (y/n): ').strip().lower()
-            if should_continue.startswith('n'):
-                break
+            if test_input == "STOP":
+                done = True
+            if not done:
+                test_input = ' '.join(basic_tokenize(test_input, lang))
+                outputs = tn_model._infer([test_input, test_input], [constants.INST_BACKWARD, constants.INST_FORWARD])[
+                    -1
+                ]
+                if cfg.mode in ['joint', 'itn']:
+                    print(f'Prediction (ITN): {outputs[0]}')
+                if cfg.mode in ['joint', 'tn']:
+                    print(f'Prediction (TN): {outputs[1]}')
 
 
 if __name__ == '__main__':

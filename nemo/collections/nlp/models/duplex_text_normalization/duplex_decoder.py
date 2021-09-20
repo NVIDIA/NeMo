@@ -25,6 +25,7 @@ from pytorch_lightning import Trainer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
 
 import nemo.collections.nlp.data.text_normalization.constants as constants
+from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 from nemo.collections.nlp.data.text_normalization.decoder_dataset import (
     TarredTextNormalizationDecoderDataset,
     TextNormalizationDecoderDataset,
@@ -79,6 +80,9 @@ class DuplexDecoderModel(NLPModel):
         self.use_cg = cfg.get('use_cg', False) and self.lang == constants.ENGLISH
         if self.use_cg:
             self.setup_cgs(cfg)
+
+        # setup processor for detokenization
+        self.processor = MosesProcessor(lang_id=self.lang)
 
     # Setup covering grammars (if enabled)
     def setup_cgs(self, cfg: DictConfig):

@@ -256,7 +256,6 @@ class DuplexTextNormalizationModel(nn.Module):
                     span_idx += 1
                     while jx < len(sent) and tags[jx] == constants.I_PREFIX + constants.TRANSFORM_TAG:
                         jx += 1
-            cur_output_str = ' '.join(cur_words)
-            cur_output_str = ' '.join(basic_tokenize(cur_output_str, self.lang))
+            cur_output_str = self.decoder.processor.detokenize(cur_words)
             final_outputs.append(cur_output_str)
         return tag_preds, output_spans, final_outputs
