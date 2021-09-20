@@ -210,7 +210,7 @@ class MTEncDecModel(EncDecNLPModel):
         )
         self.eval_loss_fn = NLLLoss(ignore_index=self.decoder_tokenizer.pad_id)
 
-    def _validate_encoder_decoder_hidden_size(encoder_cfg_dict, decoder_cfg_dict):
+    def _validate_encoder_decoder_hidden_size(self, encoder_cfg_dict, decoder_cfg_dict):
         """
         Validate encoder and decoder hidden sizes, and enforce same size.
         Can be overridden by child classes to support encoder/decoder different
