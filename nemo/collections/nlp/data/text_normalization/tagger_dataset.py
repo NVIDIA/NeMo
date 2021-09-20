@@ -85,7 +85,7 @@ class TextNormalizationTaggerDataset(Dataset):
                 self.insts, self.tag2id, self.encodings, self.labels = data
         else:
             # Read the input raw data file, returns list of sentences parsed as list of class, w_words, s_words
-            raw_insts = read_data_file(input_file)
+            raw_insts = read_data_file(input_file, lang=lang)
             if max_insts >= 0:
                 raw_insts = raw_insts[:max_insts]
 
@@ -211,12 +211,10 @@ class TaggerDataInstance:
             # Update input_words and labels
             if s_word == constants.SIL_WORD and direction == constants.INST_BACKWARD:
                 continue
-            if s_word == constants.SELF_WORD:
+
+            if s_word in constants.SPECIAL_WORDS:
                 input_words.append(w_word)
                 labels.append(constants.SAME_TAG)
-            elif s_word == constants.SIL_WORD:
-                input_words.append(w_word)
-                labels.append(constants.PUNCT_TAG)
             else:
                 if direction == constants.INST_BACKWARD:
                     input_words.append(s_word)
