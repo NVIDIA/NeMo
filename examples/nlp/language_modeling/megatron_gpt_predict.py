@@ -39,7 +39,7 @@ def main(cfg) -> None:
     app_state = AppState()
     app_state.model_parallel_size = cfg.model.tensor_model_parallel_size
 
-    if cfg.model.fp16:
+    if cfg.trainer.precision == 16:
         trainer = Trainer(
             plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes), NLPNativeMixedPrecisionPlugin()], **cfg.trainer
         )
@@ -67,6 +67,8 @@ def main(cfg) -> None:
         trainer=trainer,
         save_restore_connector=NLPSaveRestoreConnector(),
     )
+
+    model.cfg.data.splits_string = cfg.model.data.splits_string
 
     trainer.test(model)
 
