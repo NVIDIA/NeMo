@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,13 +14,12 @@
 
 
 """
-This script contains an example on how to evaluate a DuplexTextNormalizationModel.
-Note that DuplexTextNormalizationModel is essentially a wrapper class around
-DuplexTaggerModel and DuplexDecoderModel. Therefore, two trained NeMo models
-should be specified before evaluation (one is a trained DuplexTaggerModel
-and the other is a trained DuplexDecoderModel).
+This script contains an example on how to run inference with the DuplexTextNormalizationModel.
+DuplexTextNormalizationModel is essentially a wrapper class around DuplexTaggerModel and DuplexDecoderModel.
+Therefore, two trained NeMo models should be specified to run the joint evaluation
+(one is a trained DuplexTaggerModel and the other is a trained DuplexDecoderModel).
 
-This script can perform inference for 3 settings:
+This script can perform inference for 2 settings:
 1. inference from a raw file (no labels required). Each line of the file represents a single example for inference.
     Specify in inference.from_file and inference.batch_size parameters.
 
@@ -31,7 +30,7 @@ This script can perform inference for 3 settings:
         lang={en,ru,de} \
         inference.from_file=PATH_TO_RAW_TEXT_FILE
 
-    During the step, the redictions of the model will be stored in "_norm" and "_denorm" files
+    The predictions will be saved at "_norm" and "_denorm" files.
 
 2. Interactive inference (one query at a time), set inference.interactive to True to enter the interactive mode
     python duplex_text_normalization_test.py \
@@ -41,24 +40,9 @@ This script can perform inference for 3 settings:
         lang={en,ru,de} \
         inference.interactive=true
 
-3. Inference from the data.test_ds, more details on the data format refer to the
-    `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`
-
-    python duplex_text_normalization_test.py \
-        tagger_pretrained_model=PATH_TO_TRAINED_TAGGER \
-        decoder_pretrained_model=PATH_TO_TRAINED_DECODER \
-        data.test_ds.data_path=PATH_TO_TEST_FILE \
-        mode={tn,itn,joint} \
-        lang={en,ru,de}
-
 This script uses the `/examples/nlp/duplex_text_normalization/conf/duplex_tn_config.yaml`
 config file by default. The other option is to set another config file via command
 line arguments by `--config-name=CONFIG_FILE_PATH'.
-
-Note that when evaluating a DuplexTextNormalizationModel on a labeled dataset,
-the script will automatically generate a file for logging the errors made
-by the model. The location of this file is determined by the argument
-`inference.errors_log_fp`.
 """
 
 
@@ -68,7 +52,7 @@ from typing import List
 from helpers import DECODER_MODEL, TAGGER_MODEL, instantiate_model_and_trainer
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset, constants
+from nemo.collections.nlp.data.text_normalization import constants
 from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize
 from nemo.collections.nlp.models import DuplexTextNormalizationModel
 from nemo.core.config import hydra_runner
@@ -79,12 +63,16 @@ from nemo.utils import logging
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config Params: {OmegaConf.to_yaml(cfg)}')
     lang = cfg.lang
+
+    if cfg.decoder_pretrained_model is None or cfg.tagger_pretrained_model is None:
+        raise ValueError("Both pre-trained models (DuplexTaggerModel and DuplexDecoderModel) should be provided.")
     tagger_trainer, tagger_model = instantiate_model_and_trainer(cfg, TAGGER_MODEL, False)
     decoder_trainer, decoder_model = instantiate_model_and_trainer(cfg, DECODER_MODEL, False)
     tn_model = DuplexTextNormalizationModel(tagger_model, decoder_model, lang)
 
     if cfg.inference.get("from_file", False):
         text_file = cfg.inference.from_file
+        logging.info(f'Running inference on {text_file}...')
         if not os.path.exists(text_file):
             raise ValueError(f'{text_file} not found.')
 
@@ -102,8 +90,10 @@ def main(cfg: DictConfig) -> None:
                     all_preds.extend([x for x in outputs[-1]])
                     batch = []
             assert len(all_preds) == len(lines)
-            with open(f'{file_name}_{mode}{extension}', 'w') as f_out:
+            out_file = f'{file_name}_{mode}{extension}'
+            with open(f'{out_file}', 'w') as f_out:
                 f_out.write("\n".join(all_preds))
+            logging.info(f'Predictions for {mode} save to {out_file}.')
 
         batch_size = cfg.inference.get("batch_size", 8)
         if cfg.mode in ['tn', 'joint']:
@@ -113,11 +103,6 @@ def main(cfg: DictConfig) -> None:
             # ITN mode
             _get_predictions(lines, 'itn', batch_size, text_file)
 
-    elif not cfg.inference.interactive:
-        # Setup test_dataset
-        test_dataset = TextNormalizationTestDataset(cfg.data.test_ds.data_path, cfg.mode, lang)
-        results = tn_model.evaluate(test_dataset, cfg.data.test_ds.batch_size, cfg.inference.errors_log_fp)
-        print(f'\nTest results: {results}')
     else:
         print('Entering interactive mode.')
         done = False

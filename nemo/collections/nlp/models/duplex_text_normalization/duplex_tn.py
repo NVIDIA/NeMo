@@ -211,7 +211,7 @@ class DuplexTextNormalizationModel(nn.Module):
 
         # Close log file
         error_f.close()
-
+        logging.info(f'Errors are saved at {errors_log_fp}.')
         return results
 
     # Functions for inference
