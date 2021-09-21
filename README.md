@@ -16,7 +16,7 @@ since the downloaded datasets will be stored inside this repository.
 1. Install dependencies: 
 
         cd bignlp-scripts
-        pip install --user -r requirements.txt
+        pip3 install --user -r requirements.txt
 
 2. Clone the Megatron-LM repository as a submodule. Both the preprocessing and
 training need the Megatron-LM repository.
