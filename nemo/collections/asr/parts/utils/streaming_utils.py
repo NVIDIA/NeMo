@@ -16,6 +16,7 @@ import copy
 
 import numpy as np
 import soundfile as sf
+import librosa
 import torch
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
@@ -125,12 +126,11 @@ class AudioBuffersDataLayer(IterableDataset):
 
 def get_samples(audio_file, target_sr=16000):
     with sf.SoundFile(audio_file, 'r') as f:
-        dtype = 'int16'
+        dtype = 'float32'
         sample_rate = f.samplerate
         samples = f.read(dtype=dtype)
         if sample_rate != target_sr:
             samples = librosa.core.resample(samples, sample_rate, target_sr)
-        samples = samples.astype('float32') / 32768
         samples = samples.transpose()
         return samples
 
