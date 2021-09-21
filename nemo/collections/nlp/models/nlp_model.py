@@ -35,7 +35,7 @@ from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder import MegatronEncoderModule
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
-from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector
+from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector, NLPSaveRestoreConnector
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
@@ -225,120 +225,6 @@ class NLPModel(ModelPT, Exportable):
                 set_checkpoint_version(checkpoint['checkpoint_version'])
                 logging.info(f"Setting Megatron checkpoint version: {checkpoint['checkpoint_version']}")
         return None
-
-    @classmethod
-    def restore_from(
-        cls,
-        restore_path: str,
-        override_config_path: Optional[Union[OmegaConf, str]] = None,
-        map_location: Optional[torch.device] = None,
-        strict: bool = True,
-        return_config: bool = False,
-        trainer: Trainer = None,
-        save_restore_connector: SaveRestoreConnector = None,
-    ):
-        """
-        Restores model instance (weights and configuration) from .nemo file.
-
-        Args:
-            restore_path: path to .nemo file from which model should be instantiated
-            override_config_path: path to a yaml config that will override the internal
-                config file or an OmegaConf / DictConfig object representing the model config.
-            map_location: Optional torch.device() to map the instantiated model to a device.
-                By default (None), it will select a GPU if available, falling back to CPU otherwise.
-            strict: Passed to load_state_dict. Set to True by default.
-            return_config: If set to true, will return just the underlying config of the restored
-                model as an OmegaConf DictConfig object without instantiating the model.
-            trainer: PyTorch Lightning trainer. Must be passed in order to use model parallel .nemo
-
-            Example:
-                ```
-                model = nemo.collections.nlp.models.TokenClassificationModel.restore_from('token_classification.nemo')
-                assert isinstance(model, nemo.collections.nlp.models.TokenClassificationModel)
-                ```
-
-        Returns:
-            An instance of type cls or its underlying config (if return_config is set).
-        """
-        if save_restore_connector is None:
-            save_restore_connector = SaveRestoreConnector()
-
-        if not os.path.exists(restore_path):
-            raise FileNotFoundError(f"Can't find {restore_path}")
-
-        app_state = AppState()
-        app_state.model_restore_path = os.path.abspath(os.path.expanduser(restore_path))
-
-        # detect if we have a model parallel .nemo file
-        with tempfile.TemporaryDirectory() as tmpdir:
-            cwd = os.getcwd()
-            os.chdir(tmpdir)
-            # detect if model parallel from tarfile
-            tar = tarfile.open(app_state.model_restore_path, "r:gz")
-            names = tar.getnames()
-            mp_ranks = []
-            for name in names:
-                if 'mp_rank' in name:
-                    mp_ranks.append(name)
-            if mp_ranks:
-                app_state.model_parallel_size = len(mp_ranks) // 2  # directory and file are included in getnames()
-
-                # get checkpoint version
-                checkpoint_version_member = None
-                for member in tar.getmembers():
-                    if 'megatron_checkpoint_version.json' in member.name:
-                        checkpoint_version_member = member
-                tar.extract(checkpoint_version_member, tmpdir)
-                with open(checkpoint_version_member.name, 'r') as f:
-                    checkpoint_version = json.load(f).get('checkpoint_version', None)
-                logging.info(
-                    (
-                        f'Detected model parallel .nemo file: {restore_path}. '
-                        f'Assuming megatron model parallelism with '
-                        f'model_parallel_size: {app_state.model_parallel_size} '
-                        f'and checkpoint version: {checkpoint_version}'
-                    )
-                )
-            tar.close()
-            os.chdir(cwd)
-
-        if app_state.model_parallel_size is not None:
-            if not isinstance(trainer, Trainer):
-                raise ValueError("trainer must be a PyTorch Lightning Trainer to restore model parallel .nemo files.")
-
-            if checkpoint_version is None:
-                raise ValueError(
-                    "Restoring from megatron model parallel .nemo but could not find megatron checkpoint version."
-                )
-            else:
-                logging.info(f"Setting megatron checkpoint version: {checkpoint_version}")
-                set_checkpoint_version(checkpoint_version)
-
-            app_state.world_size = trainer.num_gpus * trainer.num_nodes
-
-            if trainer.local_rank is not None:
-                app_state.local_rank = trainer.local_rank
-            else:
-                raise ValueError("trainer.local_rank is None. local_rank needed to restore model parallel models.")
-
-            model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
-            app_state.model_parallel_rank = model_parallel_rank
-
-            cls.update_save_restore_connector(save_restore_connector)
-            restored_model = cls._save_restore_connector.restore_from(
-                cls, app_state.model_restore_path, override_config_path, map_location, strict, return_config
-            )
-            restored_model.set_trainer(trainer)
-            return restored_model
-        else:
-            return super().restore_from(
-                app_state.model_restore_path,
-                override_config_path,
-                map_location,
-                strict,
-                return_config,
-                save_restore_connector=save_restore_connector,
-            )
 
     @rank_zero_only
     def register_megatron_checkpoint_version(self):

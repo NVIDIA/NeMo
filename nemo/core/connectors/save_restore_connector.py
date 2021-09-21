@@ -19,6 +19,7 @@ import tarfile
 import tempfile
 import uuid
 from typing import Optional, Union
+from pytorch_lightning.trainer.trainer import Trainer
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -66,6 +67,7 @@ class SaveRestoreConnector:
         map_location: Optional[torch.device] = None,
         strict: bool = True,
         return_config: bool = False,
+        trainer: Trainer = None,
     ):
         """
 		Restores model instance (weights and configuration) into .nemo file
@@ -133,7 +135,7 @@ class SaveRestoreConnector:
                 os.chdir(cwd)
                 # get the class
                 calling_cls._set_model_restore_state(is_being_restored=True, folder=tmpdir)
-                instance = calling_cls.from_config_dict(config=conf)
+                instance = calling_cls.from_config_dict(config=conf, trainer=trainer)
                 instance = instance.to(map_location)
                 # add load_state_dict override
                 instance.load_state_dict(

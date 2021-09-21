@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
+import tempfile
+from omegaconf.omegaconf import OmegaConf
 from pytorch_lightning.plugins.precision.precision_plugin import PrecisionPlugin
+from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.nlp.data.language_modeling import megatron
 import shutil
 import tarfile
