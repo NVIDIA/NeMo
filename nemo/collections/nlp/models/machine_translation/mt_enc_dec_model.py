@@ -218,7 +218,7 @@ class MTEncDecModel(EncDecNLPModel):
         """
         if encoder_cfg_dict['hidden_size'] != decoder_cfg_dict['hidden_size']:
             raise ValueError(
-                f"Class does not support encoder.hidden_size ({encoder_cfg_dict['hidden_size']}) != decoder.hidden_size ({decoder_cfg_dict['hidden_size']}). Please use bottleneck architecture instead (i.e., model.encoder.arch = 'seq2seq' in config)"
+                f"Class does not support encoder.hidden_size ({encoder_cfg_dict['hidden_size']}) != decoder.hidden_size ({decoder_cfg_dict['hidden_size']}). Please use bottleneck architecture instead (i.e., model.encoder.arch = 'seq2seq' in conf/aayn_bottleneck.yaml)"
             )
 
     def filter_predicted_ids(self, ids):
