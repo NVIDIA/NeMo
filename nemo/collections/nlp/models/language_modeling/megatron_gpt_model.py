@@ -129,7 +129,8 @@ class MegatronGPTModel(NLPModel):
         return self.validation_step(batch, batch_idx)
 
     def test_epoch_end(self, outputs):
-        self.validation_epoch_end(outputs)
+        averaged_loss = average_losses_across_data_parallel_group(outputs)
+        logging.info(f'test_loss: {averaged_loss[0]}')
 
     def loss_func(self, loss_mask, output_tensor):
         losses = output_tensor.float()
@@ -171,7 +172,7 @@ class MegatronGPTModel(NLPModel):
         logging.info('Building GPT datasets.')
         global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size / self.cfg.tensor_model_parallel_size
         eval_iters = (self.trainer.max_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
-        test_iters = 0
+        test_iters = self.trainer.limit_test_batches
         train_valid_test_num_samples = [
             self.trainer.max_steps * global_batch_size,
             eval_iters * global_batch_size,

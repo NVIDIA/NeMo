@@ -35,7 +35,7 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
-    if cfg.model.fp16:
+    if cfg.trainer.precision == 16:
         trainer = Trainer(
             plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes), NLPNativeMixedPrecisionPlugin()], **cfg.trainer
         )
