@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List, Optional
+
 import numpy as np
 import omegaconf
 import torch
@@ -23,6 +25,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from torch import nn
 from torch.nn import functional as F
+from transformers import AlbertTokenizer
 
 from nemo.collections.tts.helpers.helpers import (
     binarize_attention_parallel,
@@ -33,6 +36,7 @@ from nemo.collections.tts.helpers.helpers import (
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import average_pitch, regulate_len
+from nemo.collections.tts.torch.data import MixerTTSDataset
 from nemo.core.classes import typecheck
 from nemo.utils import logging
 
@@ -280,6 +284,7 @@ class MixerTTSModel(SpectrogramGenerator):
         attn_hard_dur = None
         if use_gt_durs and spect is not None and spect_len is not None and attn_prior is not None:
             if attn_prior.shape[1] != spect.shape[2]:
+                # TODO(Oktai): need to delete it?
                 logging.warning(f"bad attn prior is detected: atth_prior shape: {attn_prior}, spect shape: {spect}")
                 spect = spect[:, :, : attn_prior.shape[1]]
                 spect_len[...] = attn_prior.shape[1]
@@ -522,13 +527,92 @@ class MixerTTSModel(SpectrogramGenerator):
 
             self.logger.experiment.log({"specs": specs, "pitches": pitches})
 
-    def generate_spectrogram(self, tokens, tokens_len=None, nlp_tokens=None, raw_texts=None, **kwargs):
+    def nlp_model_tokenizer(self):
+        if getattr(self, "_nlp_model_tokenizer", None) is not None:
+            return self._nlp_model_tokenizer
+
+        if self._train_dl is not None and self._train_dl.dataset is not None:
+            self._nlp_model_tokenizer = self._train_dl.dataset.nlp_model_tokenizer
+
+        # TODO(Oktai): rewrite it
+        self._nlp_model_tokenizer = AlbertTokenizer.from_pretrained('albert-base-v2')
+
+        return self._nlp_model_tokenizer
+
+    def generate_spectrogram(
+        self,
+        tokens: Optional[torch.Tensor] = None,
+        tokens_len: Optional[torch.Tensor] = None,
+        nlp_tokens: Optional[torch.Tensor] = None,
+        raw_texts: Optional[List[str]] = None,
+        without_matching: bool = True,
+        **kwargs,
+    ):
+        if tokens is not None:
+            if tokens_len is None:
+                # it is assumed that padding is consecutive and only at the end
+                tokens_len = (tokens != self.tokenizer.pad).sum(dim=-1)
+        else:
+            if raw_texts is None:
+                logging.error("raw_texts must be specified if tokens is None")
+
+            t_seqs = [self.tokenizer(t) for t in raw_texts]
+            tokens = torch.nn.utils.rnn.pad_sequence(
+                sequences=[torch.tensor(t, dtype=torch.long, device=self.device) for t in t_seqs],
+                batch_first=True,
+                padding_value=self.tokenizer.pad,
+            )
+            tokens_len = torch.tensor([len(t) for t in t_seqs], dtype=torch.long, device=tokens.device)
+
         if self.is_cond_on_nlp and nlp_tokens is None:
             if raw_texts is None:
                 logging.error("raw_texts must be specified if nlp_tokens is None")
 
-            # TODO(Oktai): implement it via raw_texts (use property nlp tokenizer as fast_pitch vocab)
-            raise NotImplementedError
+            nlp_model_tokenizer = self.nlp_model_tokenizer()
+            nlp_padding_value = nlp_model_tokenizer._convert_token_to_id('<pad>')
+            nlp_space_value = nlp_model_tokenizer._convert_token_to_id('▁')
+
+            if without_matching:
+                preprocess_texts_as_tts_input = [self.tokenizer.g2p.text_preprocessing_func(t) for t in raw_texts]
+                nlp_tokens_as_ids_list = [
+                    nlp_model_tokenizer.encode(t, add_special_tokens=False) for t in preprocess_texts_as_tts_input
+                ]
+
+                if self.tokenizer.pad_with_space:
+                    nlp_tokens_as_ids_list = [
+                        [nlp_space_value] + t + [nlp_space_value] for t in nlp_tokens_as_ids_list
+                    ]
+            else:
+                nlp_tokens_as_ids_list = []
+                for raw_text in raw_texts:
+                    enc_text = self.tokenizer(raw_text)
+                    tts_tokens = [self.tokenizer._id2token[t] for t in enc_text if t not in self.tokenizer._util_ids]
+                    tts_tokens_as_str = "".join(tts_tokens)
+                    nlp_tokens_as_ids = nlp_model_tokenizer.encode(tts_tokens_as_str, add_special_tokens=False)
+
+                    if self.tokenizer.pad_with_space:
+                        nlp_tokens_as_ids = [nlp_space_value] + nlp_tokens_as_ids + [nlp_space_value]
+
+                    nlp_tokens = nlp_model_tokenizer.tokenize(tts_tokens_as_str)
+                    nlp_tokens = [
+                        s_t.replace("▁", "") if j == 0 and len(s_t) > 1 else s_t.replace("▁", " ")
+                        for j, s_t in enumerate(nlp_tokens)
+                    ]
+
+                    if self.tokenizer.pad_with_space:
+                        nlp_tokens = [" "] + nlp_tokens + [" "]
+
+                    nlp_tokens_as_ids_list.append(
+                        MixerTTSDataset.match_nlp_tokens_to_tts_tokens(nlp_tokens, tts_tokens, nlp_tokens_as_ids)
+                    )
+
+            nlp_tokens = torch.full(
+                (len(nlp_tokens_as_ids_list), max([len(t) for t in nlp_tokens_as_ids_list])),
+                fill_value=nlp_padding_value,
+                device=tokens.device,
+            )
+            for i, nlp_tokens_i in enumerate(nlp_tokens_as_ids_list):
+                nlp_tokens[i, : len(nlp_tokens_i)] = torch.tensor(nlp_tokens_i, device=tokens.device)
 
         pred_spect = self.infer(tokens, tokens_len, nlp_tokens=nlp_tokens)
         return pred_spect

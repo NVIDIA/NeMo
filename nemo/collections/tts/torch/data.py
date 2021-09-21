@@ -526,21 +526,22 @@ class MixerTTSDataset(TTSDataset):
         super().__init__(**kwargs)
 
     def _albert(self, without_matching):
-        nlp_model_tokenizer = AlbertTokenizer.from_pretrained('albert-base-v2')
-        self.nlp_padding_value = nlp_model_tokenizer._convert_token_to_id('<pad>')
-        self.id2nlp_tokens = {}
+        self.nlp_model_tokenizer = AlbertTokenizer.from_pretrained('albert-base-v2')
+        self.nlp_padding_value = self.nlp_model_tokenizer._convert_token_to_id('<pad>')
+        space_value = self.nlp_model_tokenizer._convert_token_to_id('▁')
 
-        space_value = nlp_model_tokenizer._convert_token_to_id('▁')
+        self.id2nlp_tokens = {}
         for i, d in enumerate(self.data):
             raw_text = d["raw_text"]
             enc_text = d["text_tokens"]
 
             if without_matching:
                 assert isinstance(self.text_tokenizer, EnglishPhonemesTokenizer)
-                assert self.text_tokenizer.chars and self.text_tokenizer.spaces
 
                 preprocess_text_as_tts_input = self.text_tokenizer.g2p.text_preprocessing_func(raw_text)
-                nlp_tokens_as_ids = nlp_model_tokenizer.encode(preprocess_text_as_tts_input, add_special_tokens=False)
+                nlp_tokens_as_ids = self.nlp_model_tokenizer.encode(
+                    preprocess_text_as_tts_input, add_special_tokens=False
+                )
 
                 if self.text_tokenizer.pad_with_space:
                     nlp_tokens_as_ids = [space_value] + nlp_tokens_as_ids + [space_value]
@@ -548,17 +549,17 @@ class MixerTTSDataset(TTSDataset):
                 self.id2nlp_tokens[i] = nlp_tokens_as_ids
             else:
                 assert isinstance(self.text_tokenizer, EnglishCharsTokenizer)
-                assert self.text_tokenizer.pad_with_space and self.text_tokenizer.spaces
+                assert self.text_tokenizer.pad_with_space
 
                 tts_tokens = [
                     self.text_tokenizer._id2token[t] for t in enc_text if t not in self.text_tokenizer._util_ids
                 ]
                 tts_tokens_as_str = "".join(tts_tokens)
-                nlp_tokens_as_ids = nlp_model_tokenizer.encode(tts_tokens_as_str, add_special_tokens=False)
+                nlp_tokens_as_ids = self.nlp_model_tokenizer.encode(tts_tokens_as_str, add_special_tokens=False)
 
                 nlp_tokens_as_ids = [space_value] + nlp_tokens_as_ids + [space_value]
 
-                nlp_tokens = nlp_model_tokenizer.tokenize(tts_tokens_as_str)
+                nlp_tokens = self.nlp_model_tokenizer.tokenize(tts_tokens_as_str)
                 nlp_tokens = [
                     s_t.replace("▁", "") if j == 0 and len(s_t) > 1 else s_t.replace("▁", " ")
                     for j, s_t in enumerate(nlp_tokens)

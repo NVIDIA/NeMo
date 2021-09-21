@@ -20,6 +20,8 @@ import unicodedata
 from builtins import str as unicode
 from typing import List
 
+from nemo.utils import logging
+
 # Example of parsing by groups via _words_re.
 # Groups:
 # 1st group -- valid english words,
@@ -174,14 +176,19 @@ class EnglishCharsTokenizer(BaseTokenizer):
             # Add space if last one isn't one
             if c == space and len(cs) > 0 and cs[-1] != space:
                 cs.append(c)
+                continue
 
             # Add next char
             if (c.isalnum() or c == "'") and c in tokens:
                 cs.append(c)
+                continue
 
             # Add punct
             if (c in self.PUNCT_LIST) and self.punct:
                 cs.append(c)
+                continue
+
+            logging.warning(f"symbol {c} was skipped in {words}")
 
         # Remove trailing spaces
         while cs[-1] == space:
@@ -291,14 +298,19 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
             # Add space if last one isn't one
             if p == space and len(ps) > 0 and ps[-1] != space:
                 ps.append(p)
+                continue
 
-            # Add next phoneme
+            # Add next phoneme or char (if chars=True)
             if (p.isalnum() or p == "'") and p in tokens:
                 ps.append(p)
+                continue
 
             # Add punct
             if (p in self.PUNCT_LIST) and self.punct:
                 ps.append(p)
+                continue
+
+            logging.warning(f"symbol {p} was skipped in {text}")
 
         # Remove trailing spaces
         while ps[-1] == space:
