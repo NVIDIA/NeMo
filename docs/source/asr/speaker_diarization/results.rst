@@ -21,7 +21,7 @@ Load Speaker Embedding model
 
 .. code-block:: bash
 
-  pretrained_speaker_model='/path/to/speakerdiarization_speakernet.nemo' # local .nemo or pretrained speakernet model name
+  pretrained_speaker_model='/path/to/ecapa_tdnn.nemo' # local .nemo or pretrained speakernet model name
   ...
   # pass with hydra config
   config.diarizer.speaker_embeddings.model_path=pretrained_speaker_model
@@ -59,7 +59,7 @@ In general, you can load models with model name in the following format,
 .. code-block:: python
 
   pretrained_vad_model='vad_telephony_marblenet' 
-  pretrained_speaker_model='speakerdiarization_speakernet' 
+  pretrained_speaker_model='ecapa_tdnn' 
   ...
   config.diarizer.vad.model_path=retrained_vad_model \
   config.diarizer.speaker_embeddings.model_path=pretrained_speaker_model

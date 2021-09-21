@@ -1,4 +1,4 @@
 Model Name,Model Base Class,Model Card
 vad_marblenet,EncDecClassificationModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:vad_marblenet"
 vad_telephony_marblenet,EncDecClassificationModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:vad_telephony_marblenet"
-speakerdiarization_speakernet,EncDecSpeakerLabelModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerdiarization_speakernet"
+ecapa_tdnn,EncDecSpeakerLabelModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:ecapa_tdnn"

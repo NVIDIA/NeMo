@@ -32,7 +32,7 @@ Diarization Error Rate (DER) table of `ecapa_tdnn.nemo` model on well known eval
 ```bash
 python speaker_diarize.py \
     diarizer.paths2audio_files='my_wav.list' \
-    diarizer.speaker_embeddings.model_path='speakerdiarization_speakernet' \
+    diarizer.speaker_embeddings.model_path='ecapa_tdnn' \
     diarizer.oracle_num_speakers=null \
     diarizer.vad.model_path='vad_telephony_marblenet' 
 ```
@@ -42,7 +42,7 @@ If you have oracle VAD files and groundtruth RTTM files for evaluation:
 ```bash
 python speaker_diarize.py \
     diarizer.paths2audio_files='my_wav.list' \
-    diarizer.speaker_embeddings.model_path='path/to/speakerdiarization_speakernet.nemo' \
+    diarizer.speaker_embeddings.model_path='path/to/ecapa_tdnn.nemo' \
     diarizer.oracle_num_speakers= null \
     diarizer.speaker_embeddings.oracle_vad_manifest='oracle_vad.manifest' \
     diarizer.path2groundtruth_rttm_files='my_wav_rttm.list' 
@@ -82,13 +82,13 @@ my_audio3 5
 
 - **`diarizer.speaker_embeddings.model_path`: speaker embedding model name**
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  Specify the name of speaker embedding model, then the script will download the model from NGC. Currently, we have 'speakerdiarization_speakernet' and 'speakerverification_speakernet'.
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  Specify the name of speaker embedding model, then the script will download the model from NGC. Currently, we have 'ecapa_tdnn' and 'speakerverification_speakernet'.
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `diarizer.speaker_embeddings.model_path='speakerdiarization_speakernet'`
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `diarizer.speaker_embeddings.model_path='ecapa_tdnn'`
 
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; You could also download *.nemo files from [this link](https://ngc.nvidia.com/catalog/models?orderBy=scoreDESC&pageNumber=0&query=SpeakerNet&quickFilter=&filters=) and specify the full path name to the speaker embedding model file (`*.nemo`).
 
- &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `diarizer.speaker_embeddings.model_path='path/to/speakerdiarization_speakernet.nemo'` 
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `diarizer.speaker_embeddings.model_path='path/to/ecapa_tdnn.nemo'` 
  
 - **`diarizer.vad.model_path`: voice activity detection modle name or path to the model**
 
@@ -132,14 +132,14 @@ Currently, asr_with_diarization only supports QuartzNet English model ([`QuartzN
 
 ```bash
 python asr_with_diarization.py \
-    --pretrained_speaker_model='speakerdiarization_speakernet' \
+    --pretrained_speaker_model='ecapa_tdnn' \
     --audiofile_list_path='my_wav.list' \
 ```
 If you have reference rttm files or oracle number of speaker information, you can provide those files as in the following example.
 
 ```bash
 python asr_with_diarization.py \
-    --pretrained_speaker_model='speakerdiarization_speakernet' \
+    --pretrained_speaker_model='ecapa_tdnn' \
     --audiofile_list_path='my_wav.list' \
     --reference_rttmfile_list_path='my_wav_rttm.list'\
     --oracle_num_speakers=number_of_speakers.list
