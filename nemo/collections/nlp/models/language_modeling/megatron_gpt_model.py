@@ -125,6 +125,12 @@ class MegatronGPTModel(NLPModel):
         self.log('val_loss', averaged_loss[0], prog_bar=True)
         self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step))
 
+    def test_step(self, batch, batch_idx):
+        return self.validation_step(batch, batch_idx)
+
+    def test_epoch_end(self, outputs):
+        self.validation_epoch_end(outputs)
+
     def loss_func(self, loss_mask, output_tensor):
         losses = output_tensor.float()
         loss_mask = loss_mask.view(-1).float()
@@ -226,6 +232,7 @@ class MegatronGPTModel(NLPModel):
         self.build_train_valid_test_datasets()
         self.setup_training_data(self.cfg.data)
         self.setup_validation_data(self.cfg.data)
+        self.setup_test_data(self.cfg.data)
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
@@ -238,8 +245,13 @@ class MegatronGPTModel(NLPModel):
 
     def setup_validation_data(self, cfg):
         if hasattr(self, '_validation_ds'):
-            consumed_samples = 0  # TODO: how to calculate this?
+            consumed_samples = 0
             self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples)
+
+    def setup_test_data(self, cfg):
+        if hasattr(self, '_test_ds'):
+            consumed_samples = 0
+            self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
 
     def compute_consumed_samples(self, global_step):
         app_state = AppState()

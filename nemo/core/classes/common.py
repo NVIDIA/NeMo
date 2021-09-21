@@ -429,7 +429,7 @@ class Typing(ABC):
 
 class Serialization(ABC):
     @classmethod
-    def from_config_dict(cls, config: 'DictConfig'):
+    def from_config_dict(cls, config: 'DictConfig', trainer=None):
         """Instantiates object using DictConfig-based configuration"""
         # Resolve the config dict
         if _HAS_HYDRA:
@@ -484,13 +484,7 @@ class Serialization(ABC):
                         f"Falling back to `cls`.\n"
                         f"{imported_cls_tb}"
                     )
-                try:
-                    instance = cls(cfg=config)
-                except Exception as e:
-                    if imported_cls_tb is not None:
-                        logging.error(f"Instance failed restore_from due to: {instance_init_error}")
-                        logging.error(f"{imported_cls_tb}")
-                    raise e
+                instance = cls(cfg=config, trainer=trainer)
 
         if not hasattr(instance, '_cfg'):
             instance._cfg = config
