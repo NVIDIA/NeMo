@@ -78,7 +78,13 @@ class MegatronGPTModel(NLPModel):
         fused_kernels.load(args)
 
         self.model = GPTModel(
-            num_tokentypes=0, parallel_output=True, pre_process=cfg.pre_process, post_process=cfg.post_process
+            num_tokentypes=0,
+            parallel_output=True,
+            pre_process=cfg.pre_process,
+            post_process=cfg.post_process,
+            init_method_std=cfg.get('init_method_std', 0.02),
+            num_layers=cfg.get('num_layers', 1),
+            fp16_lm_cross_entropy=cfg.get('fp16_lm_cross_entropy', False),
         )
 
         self.tokenizer = get_nmt_tokenizer(

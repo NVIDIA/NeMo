@@ -15,11 +15,11 @@
 """GPT-2 model."""
 
 import torch
-from megatron import get_args
-from megatron.model.enums import AttnMaskType
+
+# from megatron import get_args
 from apex import mpu
 
-# from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType
+from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model, parallel_lm_logits
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal, scaled_init_method_normal
@@ -59,21 +59,30 @@ def post_language_model_processing(
 class GPTModel(MegatronModule):
     """GPT-2 Language model."""
 
-    def __init__(self, num_tokentypes=0, parallel_output=True, pre_process=True, post_process=True):
+    def __init__(
+        self,
+        num_tokentypes=0,
+        parallel_output=True,
+        pre_process=True,
+        post_process=True,
+        init_method_std=0.02,
+        num_layers=1,
+        fp16_lm_cross_entropy=False,
+    ):
         super(GPTModel, self).__init__()
-        args = get_args()
+        # args = get_args()
 
         self.parallel_output = parallel_output
         self.pre_process = pre_process
         self.post_process = post_process
-        self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
+        self.fp16_lm_cross_entropy = fp16_lm_cross_entropy
 
         self.language_model, self._language_model_key = get_language_model(
             num_tokentypes=num_tokentypes,
             add_pooler=False,
             encoder_attn_mask_type=AttnMaskType.causal,
-            init_method=init_method_normal(args.init_method_std),
-            scaled_init_method=scaled_init_method_normal(args.init_method_std, args.num_layers),
+            init_method=init_method_normal(init_method_std),
+            scaled_init_method=scaled_init_method_normal(init_method_std, num_layers),
             pre_process=self.pre_process,
             post_process=self.post_process,
         )
