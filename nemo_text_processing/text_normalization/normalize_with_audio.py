@@ -31,6 +31,7 @@ try:
 except (ModuleNotFoundError, ImportError):
     ASR_AVAILABLE = False
 
+
 try:
     import pynini
     from pynini.lib import rewrite
@@ -141,6 +142,10 @@ class NormalizerWithAudio(Normalizer):
             raise ValueError()
         if punct_post_process:
             normalized_texts = [post_process_punctuation(t) for t in normalized_texts]
+
+            # do post-processing based on Moses detokenizer
+            if self.processor:
+                normalized_texts = [self.processor.detokenize([t]) for t in normalized_texts]
         normalized_texts = set(normalized_texts)
         return normalized_texts
 
