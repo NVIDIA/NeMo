@@ -60,6 +60,9 @@ class GPTModel(MegatronModule):
 
     def __init__(
         self,
+        vocab_size,
+        hidden_size,
+        max_position_embeddings,
         num_tokentypes=0,
         parallel_output=True,
         pre_process=True,
@@ -67,6 +70,7 @@ class GPTModel(MegatronModule):
         init_method_std=0.02,
         num_layers=1,
         fp16_lm_cross_entropy=False,
+        use_cpu_initialization=False,
     ):
         super(GPTModel, self).__init__()
 
@@ -76,13 +80,19 @@ class GPTModel(MegatronModule):
         self.fp16_lm_cross_entropy = fp16_lm_cross_entropy
 
         self.language_model, self._language_model_key = get_language_model(
+            vocab_size=vocab_size,
             num_tokentypes=num_tokentypes,
+            max_position_embeddings=max_position_embeddings,
             add_pooler=False,
             encoder_attn_mask_type=AttnMaskType.causal,
             init_method=init_method_normal(init_method_std),
             scaled_init_method=scaled_init_method_normal(init_method_std, num_layers),
             pre_process=self.pre_process,
             post_process=self.post_process,
+            init_method_std=init_method_std,
+            num_layers=1,
+            use_cpu_initialization=use_cpu_initialization,
+            hidden_size=hidden_size,
         )
 
         self.initialize_word_embeddings(init_method_normal)
