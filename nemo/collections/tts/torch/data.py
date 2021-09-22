@@ -22,7 +22,6 @@ import librosa
 import torch
 from nemo_text_processing.text_normalization.normalize import Normalizer
 from tqdm import tqdm
-from transformers import AlbertTokenizer
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.common.parts.patch_utils import stft_patch
@@ -526,6 +525,8 @@ class MixerTTSDataset(TTSDataset):
         super().__init__(**kwargs)
 
     def _albert(self, without_matching):
+        from transformers import AlbertTokenizer  # noqa pylint: disable=import-outside-toplevel
+
         self.nlp_model_tokenizer = AlbertTokenizer.from_pretrained('albert-base-v2')
         self.nlp_padding_value = self.nlp_model_tokenizer._convert_token_to_id('<pad>')
         space_value = self.nlp_model_tokenizer._convert_token_to_id('▁')
