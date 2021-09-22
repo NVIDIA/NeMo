@@ -289,7 +289,9 @@ class _AudioTextDALIDataset(Iterator):
                     f"'clamp'."
                 )
 
-            self.log_zero_guard_value = params['log_zero_guard_value'] if 'log_zero_guard_value' in params else 2 ** -24
+            self.log_zero_guard_value = (
+                params['log_zero_guard_value'] if 'log_zero_guard_value' in params else 2 ** -24
+            )
             if isinstance(self.log_zero_guard_value, str):
                 if self.log_zero_guard_value == "tiny":
                     self.log_zero_guard_value = torch.finfo(torch.float32).tiny
