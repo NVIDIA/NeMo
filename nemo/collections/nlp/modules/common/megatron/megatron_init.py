@@ -13,14 +13,18 @@
 # limitations under the License.
 
 import os
+import random
+from apex import mpu
 
-from megatron.initialize import _set_random_seed, initialize_megatron
+from megatron.initialize import initialize_megatron
 from apex.mpu.initialize import (
     set_pipeline_model_parallel_rank,
     set_pipeline_model_parallel_world_size,
     set_tensor_model_parallel_rank,
     set_tensor_model_parallel_world_size,
 )
+import numpy as np
+import torch
 
 from nemo.utils import AppState, logging
 
@@ -89,3 +93,17 @@ def get_extra_args_provider(
         return parser
 
     return extra_args_provider
+
+
+def _set_random_seed(seed_):
+    """Set random seed for reproducability."""
+    if seed_ is not None and seed_ > 0:
+        # Ensure that different pipeline MP stages get different seeds.
+        seed = seed_ + (100 * mpu.get_pipeline_model_parallel_rank())
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        if torch.cuda.device_count() > 0:
+            mpu.model_parallel_cuda_manual_seed(seed)
+    else:
+        raise ValueError('Seed ({}) should be a positive integer.'.format(seed))
