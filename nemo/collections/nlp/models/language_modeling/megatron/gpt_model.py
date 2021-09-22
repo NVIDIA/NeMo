@@ -16,7 +16,6 @@
 
 import torch
 
-# from megatron import get_args
 from apex import mpu
 
 from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType
@@ -70,7 +69,6 @@ class GPTModel(MegatronModule):
         fp16_lm_cross_entropy=False,
     ):
         super(GPTModel, self).__init__()
-        # args = get_args()
 
         self.parallel_output = parallel_output
         self.pre_process = pre_process
