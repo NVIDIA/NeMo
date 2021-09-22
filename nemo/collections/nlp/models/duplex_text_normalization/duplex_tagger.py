@@ -237,7 +237,6 @@ class DuplexTaggerModel(NLPModel):
 
         # Decoding
         nb_spans, span_starts, span_ends = self.decode_tag_preds(all_tag_preds)
-        print(all_tag_preds)
         return all_tag_preds, nb_spans, span_starts, span_ends
 
     def _postprocess_tag_preds(self, words: List[str], inst_dir: str, preds: List[str]):

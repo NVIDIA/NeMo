@@ -235,13 +235,11 @@ class DuplexTextNormalizationModel(nn.Module):
             final_outputs: A list of str where each str is the final output text for an input text.
         """
         # Separate into words
-        print(sents)
         if do_basic_tokenization:
             sents = [self.decoder.processor.tokenize(x).split() for x in sents]
-            print(sents)
 
         # Tagging
-        # span_ends included, returns index wrt to words in input without aux words
+        # span_ends included, returns index wrt to words in input without auxiliary words
         tag_preds, nb_spans, span_starts, span_ends = self.tagger._infer(
             sents, inst_directions, do_basic_tokenization=do_basic_tokenization
         )
