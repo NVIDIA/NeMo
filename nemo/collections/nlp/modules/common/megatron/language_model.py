@@ -16,12 +16,10 @@
 
 import torch
 import torch.nn.functional as F
-from megatron import get_args
+
 from apex import mpu
 
-from megatron.model.enums import AttnMaskType, LayerType
-
-# from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, LayerType
+from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -48,8 +46,11 @@ def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=Non
 
 
 def get_language_model(
+    hidden_size,
+    max_position_embeddings,
     num_tokentypes,
     add_pooler,
+    vocab_size,
     encoder_attn_mask_type,
     init_method=None,
     scaled_init_method=None,
@@ -57,27 +58,33 @@ def get_language_model(
     decoder_attn_mask_type=AttnMaskType.causal,
     pre_process=True,
     post_process=True,
+    init_method_std=0.02,
+    num_layers=1,
+    use_cpu_initialization=False,
 ):
     """Build language model and return along with the key to save."""
-    args = get_args()
 
     if init_method is None:
-        init_method = init_method_normal(args.init_method_std)
+        init_method = init_method_normal(init_method_std)
 
     if scaled_init_method is None:
-        scaled_init_method = scaled_init_method_normal(args.init_method_std, args.num_layers)
+        scaled_init_method = scaled_init_method_normal(init_method_std, num_layers)
 
     # Language model.
     language_model = TransformerLanguageModel(
-        init_method,
-        scaled_init_method,
-        encoder_attn_mask_type,
+        init_method=init_method,
+        output_layer_init_method=scaled_init_method,
+        encoder_attn_mask_type=encoder_attn_mask_type,
         num_tokentypes=num_tokentypes,
+        vocab_size=vocab_size,
+        max_position_embeddings=max_position_embeddings,
+        hidden_size=hidden_size,
         add_decoder=add_decoder,
         decoder_attn_mask_type=decoder_attn_mask_type,
         add_pooler=add_pooler,
         pre_process=pre_process,
         post_process=post_process,
+        use_cpu_initialization=use_cpu_initialization,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -125,7 +132,14 @@ class Embedding(MegatronModule):
     """
 
     def __init__(
-        self, hidden_size, vocab_size, max_sequence_length, embedding_dropout_prob, init_method, num_tokentypes=0
+        self,
+        hidden_size,
+        vocab_size,
+        max_sequence_length,
+        embedding_dropout_prob,
+        init_method,
+        num_tokentypes=0,
+        use_cpu_initialization=False,
     ):
         super(Embedding, self).__init__()
 
@@ -133,14 +147,9 @@ class Embedding(MegatronModule):
         self.init_method = init_method
         self.num_tokentypes = num_tokentypes
 
-        args = get_args()
-
         # Word embeddings (parallel).
         self.word_embeddings = mpu.VocabParallelEmbedding(
-            vocab_size,
-            self.hidden_size,
-            init_method=self.init_method,
-            use_cpu_initialization=args.use_cpu_initialization,
+            vocab_size, self.hidden_size, init_method=self.init_method, use_cpu_initialization=use_cpu_initialization,
         )
         self._word_embeddings_key = 'word_embeddings'
 
@@ -177,7 +186,6 @@ class Embedding(MegatronModule):
         self.num_tokentypes = num_tokentypes
         self.tokentype_embeddings = torch.nn.Embedding(num_tokentypes, self.hidden_size)
         # Initialize the token-type embeddings.
-        args = get_args()
         self.init_method(self.tokentype_embeddings.weight)
 
     def forward(self, input_ids, position_ids, tokentype_ids=None):
@@ -273,35 +281,43 @@ class TransformerLanguageModel(MegatronModule):
         init_method,
         output_layer_init_method,
         encoder_attn_mask_type,
+        vocab_size,
+        max_position_embeddings,
+        hidden_size,
         num_tokentypes=0,
         add_decoder=False,
         decoder_attn_mask_type=AttnMaskType.causal,
         add_pooler=False,
         pre_process=True,
         post_process=True,
+        use_cpu_initialization=False,
+        hidden_dropout=0.1,
     ):
         super(TransformerLanguageModel, self).__init__()
-        args = get_args()
 
         self.pre_process = pre_process
         self.post_process = post_process
-        self.hidden_size = args.hidden_size
+        self.hidden_size = hidden_size
+        self.vocab_size = vocab_size
+        self.max_position_embeddings = max_position_embeddings
         self.num_tokentypes = num_tokentypes
         self.init_method = init_method
         self.encoder_attn_mask_type = encoder_attn_mask_type
         self.add_decoder = add_decoder
         self.decoder_attn_mask_type = decoder_attn_mask_type
         self.add_pooler = add_pooler
+        self.hidden_dropout = hidden_dropout
 
         # Embeddings.
         if self.pre_process:
             self.embedding = Embedding(
-                self.hidden_size,
-                args.padded_vocab_size,
-                args.max_position_embeddings,
-                args.hidden_dropout,
-                self.init_method,
-                self.num_tokentypes,
+                hidden_size=self.hidden_size,
+                vocab_size=self.vocab_size,
+                max_sequence_length=self.max_position_embeddings,
+                init_method=self.init_method,
+                num_tokentypes=self.num_tokentypes,
+                use_cpu_initialization=use_cpu_initialization,
+                embedding_dropout_prob=self.hidden_dropout,
             )
             self._embedding_key = 'embedding'
 

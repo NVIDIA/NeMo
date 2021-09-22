@@ -72,6 +72,22 @@ class MegatronGPTModel(NLPModel):
 
         fused_kernels.load(args)
 
+        self.tokenizer = get_nmt_tokenizer(
+            library=self.cfg.tokenizer.library,
+            model_name=self.cfg.tokenizer.type,
+            tokenizer_model=self.register_artifact("tokenizer_model", self.cfg.tokenizer.model),
+            vocab_file=self.register_artifact("vocab_file", self.cfg.tokenizer.vocab_file),
+            merges_file=self.register_artifact("merges_file", self.cfg.tokenizer.merge_file),
+        )
+
+        vocab_size = self.tokenizer.vocab_size
+
+        padded_vocab_size = self._vocab_size_with_padding(
+            orig_vocab_size=vocab_size,
+            make_vocab_size_divisible_by=cfg.get('make_vocab_size_divisible_by', 128),
+            tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
+        )
+
         self.model = GPTModel(
             num_tokentypes=0,
             parallel_output=True,
@@ -80,14 +96,10 @@ class MegatronGPTModel(NLPModel):
             init_method_std=cfg.get('init_method_std', 0.02),
             num_layers=cfg.get('num_layers', 1),
             fp16_lm_cross_entropy=cfg.get('fp16_lm_cross_entropy', False),
-        )
-
-        self.tokenizer = get_nmt_tokenizer(
-            library=self.cfg.tokenizer.library,
-            model_name=self.cfg.tokenizer.type,
-            tokenizer_model=self.register_artifact("tokenizer_model", self.cfg.tokenizer.model),
-            vocab_file=self.register_artifact("vocab_file", self.cfg.tokenizer.vocab_file),
-            merges_file=self.register_artifact("merges_file", self.cfg.tokenizer.merge_file),
+            use_cpu_initialization=cfg.get('use_cpu_initialization', False),
+            hidden_size=cfg.get('hidden_size', 16),
+            vocab_size=padded_vocab_size,
+            max_position_embeddings=cfg.get('max_position_embeddings', 512),
         )
 
     def forward(self, tokens, position_ids, attention_mask, labels):
@@ -272,3 +284,16 @@ class MegatronGPTModel(NLPModel):
 
     def list_available_models():
         pass
+
+    def _vocab_size_with_padding(self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size):
+        """Pad vocab size so it is divisible by model parallel size and
+        still having GPU friendly size."""
+
+        after = orig_vocab_size
+        multiple = make_vocab_size_divisible_by * tensor_model_parallel_size
+        while (after % multiple) != 0:
+            after += 1
+        logging.info(
+            f'Padded vocab_size: {after}, original vocab_size: {orig_vocab_size}, dummy tokens: {after - orig_vocab_size}.'
+        )
+        return after
