@@ -308,6 +308,7 @@ def _build_index_mappings(name, data_prefix, documents, sizes, num_samples, seq_
                 ' (seconds): {:4f}'.format(time.time() - start_time)
             )
 
+    torch.distributed.barrier()
     # This should be a barrier but nccl barrier assumes
     # device_index=rank which is not the case for model
     # parallel case
