@@ -164,7 +164,7 @@ class TransformerDecoder(nn.Module):
         encoder_mask,
         decoder_mems_list=None,
         return_mems=False,
-        return_list=True,
+        return_mems_as_list=True,
     ):
         """
         Args:
@@ -177,11 +177,12 @@ class TransformerDecoder(nn.Module):
                 of decoder_states as keys and values if not None
             return_mems: bool, whether to return outputs of all decoder layers
                 or the last layer only
+            return_mems_as_list: bool, when True, mems returned are as a list; otherwise mems are Tensor
         """
         decoder_attn_mask = form_attention_mask(decoder_mask, diagonal=self.diagonal)
         encoder_attn_mask = form_attention_mask(encoder_mask)
         memory_states = self._get_memory_states(decoder_states, decoder_mems_list, 0)
-        if return_list:
+        if return_mems_as_list:
             cached_mems_list = [memory_states]
         else:
             cached_mems_list = memory_states.unsqueeze(0)
@@ -189,7 +190,7 @@ class TransformerDecoder(nn.Module):
         for i, layer in enumerate(self.layers):
             decoder_states = layer(decoder_states, decoder_attn_mask, memory_states, encoder_states, encoder_attn_mask)
             memory_states = self._get_memory_states(decoder_states, decoder_mems_list, i + 1)
-            if return_list:
+            if return_mems_as_list:
                 cached_mems_list.append(memory_states)
             else:
                 cached_mems_list = torch.cat((cached_mems_list, memory_states.unsqueeze(0)), dim=0)
@@ -197,7 +198,7 @@ class TransformerDecoder(nn.Module):
         if self.final_layer_norm is not None:
             decoder_states = self.final_layer_norm(decoder_states)
             memory_states = self._get_memory_states(decoder_states, decoder_mems_list, i + 2)
-            if return_list:
+            if return_mems_as_list:
                 cached_mems_list.append(memory_states)
             else:
                 cached_mems_list = torch.cat((cached_mems_list, memory_states.unsqueeze(0)), dim=0)
