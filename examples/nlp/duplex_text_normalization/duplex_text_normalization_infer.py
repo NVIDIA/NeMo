@@ -23,7 +23,7 @@ This script can perform inference for 2 settings:
 1. inference from a raw file (no labels required). Each line of the file represents a single example for inference.
     Specify in inference.from_file and inference.batch_size parameters.
 
-    python duplex_text_normalization_test.py \
+    python duplex_text_normalization_infer.py \
         tagger_pretrained_model=PATH_TO_TRAINED_TAGGER \
         decoder_pretrained_model=PATH_TO_TRAINED_DECODER \
         mode={tn,itn,joint} \
@@ -33,7 +33,7 @@ This script can perform inference for 2 settings:
     The predictions will be saved at "_norm" and "_denorm" files.
 
 2. Interactive inference (one query at a time), set inference.interactive to True to enter the interactive mode
-    python duplex_text_normalization_test.py \
+    python duplex_text_normalization_infer.py \
         tagger_pretrained_model=PATH_TO_TRAINED_TAGGER \
         decoder_pretrained_model=PATH_TO_TRAINED_DECODER \
         mode={tn,itn,joint} \
@@ -80,6 +80,7 @@ def main(cfg: DictConfig) -> None:
 
         def _get_predictions(lines: List[str], mode: str, batch_size: int, text_file: str):
             """ Runs inference on a batch data without labels and saved predictions to a file. """
+            assert mode in ['tn', 'itn']
             file_name, extension = os.path.splitext(text_file)
             batch, all_preds = [], []
             for i, line in enumerate(lines):
@@ -115,18 +116,19 @@ def main(cfg: DictConfig) -> None:
             if test_input == "STOP":
                 done = True
             if not done:
-                outputs = tn_model._infer(
-                    [test_input, test_input],
-                    [
-                        constants.DIRECTIONS_TO_MODE[constants.ITN_MODE],
-                        constants.DIRECTIONS_TO_MODE[constants.TN_MODE],
-                    ],
-                    do_basic_tokenization=do_basic_tokenization,
-                )[-1]
+                directions = []
+                inputs = []
+                if cfg.mode in ['itn', 'joint']:
+                    directions.append(constants.DIRECTIONS_TO_MODE[constants.ITN_MODE])
+                    inputs.append(test_input)
+                if cfg.mode in ['tn', 'joint']:
+                    directions.append(constants.DIRECTIONS_TO_MODE[constants.TN_MODE])
+                    inputs.append(test_input)
+                outputs = tn_model._infer(inputs, directions, do_basic_tokenization=do_basic_tokenization,)[-1]
                 if cfg.mode in ['joint', 'itn']:
                     print(f'Prediction (ITN): {outputs[0]}')
                 if cfg.mode in ['joint', 'tn']:
-                    print(f'Prediction (TN): {outputs[1]}')
+                    print(f'Prediction (TN): {outputs[-1]}')
 
 
 if __name__ == '__main__':
