@@ -211,11 +211,11 @@ class DuplexTextNormalizationModel(nn.Module):
 
         # Close log file
         error_f.close()
-
+        logging.info(f'Errors are saved at {errors_log_fp}.')
         return results
 
     # Functions for inference
-    def _infer(self, sents: List[str], inst_directions: List[str]):
+    def _infer(self, sents: List[str], inst_directions: List[str], do_basic_tokenization=True):
         """
         Main function for Inference
 
@@ -225,7 +225,9 @@ class DuplexTextNormalizationModel(nn.Module):
         Args:
             sents: A list of input texts.
             inst_directions: A list of str where each str indicates the direction of the corresponding instance \
-            (i.e., constants.INST_BACKWARD for ITN or constants.INST_FORWARD for TN).
+                (i.e., constants.INST_BACKWARD for ITN or constants.INST_FORWARD for TN).
+            do_basic_tokenization: whether to do a pre-processing to separate punctuation marks,
+                recommended to set to True
 
         Returns:
             tag_preds: A list of lists where the inner list contains the tag predictions from the tagger for each word in the input text.
@@ -233,12 +235,18 @@ class DuplexTextNormalizationModel(nn.Module):
             final_outputs: A list of str where each str is the final output text for an input text.
         """
         # Separate into words
-        sents = [basic_tokenize(x, lang=self.lang) for x in sents]
+        if do_basic_tokenization:
+            sents = [self.decoder.processor.tokenize(x).split() for x in sents]
 
         # Tagging
-        # span_ends included, returns index wrt to words in input without aux words
-        tag_preds, nb_spans, span_starts, span_ends = self.tagger._infer(sents, inst_directions)
+        # span_ends included, returns index wrt to words in input without auxiliary words
+        tag_preds, nb_spans, span_starts, span_ends = self.tagger._infer(
+            sents, inst_directions, do_basic_tokenization=do_basic_tokenization
+        )
         output_spans = self.decoder._infer(sents, nb_spans, span_starts, span_ends, inst_directions)
+
+        if not do_basic_tokenization:
+            sents = [x.split() for x in sents]
 
         # Prepare final outputs
         final_outputs = []
@@ -256,7 +264,6 @@ class DuplexTextNormalizationModel(nn.Module):
                     span_idx += 1
                     while jx < len(sent) and tags[jx] == constants.I_PREFIX + constants.TRANSFORM_TAG:
                         jx += 1
-            cur_output_str = ' '.join(cur_words)
-            cur_output_str = ' '.join(basic_tokenize(cur_output_str, self.lang))
+            cur_output_str = self.decoder.processor.detokenize(cur_words)
             final_outputs.append(cur_output_str)
         return tag_preds, output_spans, final_outputs
