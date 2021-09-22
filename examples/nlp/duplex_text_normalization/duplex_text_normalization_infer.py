@@ -53,7 +53,6 @@ from helpers import DECODER_MODEL, TAGGER_MODEL, instantiate_model_and_trainer
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.data.text_normalization import constants
-from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize
 from nemo.collections.nlp.models import DuplexTextNormalizationModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -63,7 +62,7 @@ from nemo.utils import logging
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config Params: {OmegaConf.to_yaml(cfg)}')
     lang = cfg.lang
-
+    do_basic_tokenization = True
     if cfg.decoder_pretrained_model is None or cfg.tagger_pretrained_model is None:
         raise ValueError("Both pre-trained models (DuplexTaggerModel and DuplexDecoderModel) should be provided.")
     tagger_trainer, tagger_model = instantiate_model_and_trainer(cfg, TAGGER_MODEL, False)
@@ -86,7 +85,11 @@ def main(cfg: DictConfig) -> None:
             for i, line in enumerate(lines):
                 batch.append(line.strip())
                 if len(batch) == batch_size or i == len(lines) - 1:
-                    outputs = tn_model._infer(batch, [constants.DIRECTIONS_TO_MODE[mode]] * len(batch))
+                    outputs = tn_model._infer(
+                        batch,
+                        [constants.DIRECTIONS_TO_MODE[mode]] * len(batch),
+                        do_basic_tokenization=do_basic_tokenization,
+                    )
                     all_preds.extend([x for x in outputs[-1]])
                     batch = []
             assert len(all_preds) == len(lines)
@@ -112,13 +115,13 @@ def main(cfg: DictConfig) -> None:
             if test_input == "STOP":
                 done = True
             if not done:
-                test_input = ' '.join(basic_tokenize(test_input, lang))
                 outputs = tn_model._infer(
                     [test_input, test_input],
                     [
                         constants.DIRECTIONS_TO_MODE[constants.ITN_MODE],
                         constants.DIRECTIONS_TO_MODE[constants.TN_MODE],
                     ],
+                    do_basic_tokenization=do_basic_tokenization,
                 )[-1]
                 if cfg.mode in ['joint', 'itn']:
                     print(f'Prediction (ITN): {outputs[0]}')
