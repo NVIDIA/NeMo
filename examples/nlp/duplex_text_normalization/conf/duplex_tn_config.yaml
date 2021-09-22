@@ -153,8 +153,10 @@ data:
     num_workers: 3
     pin_memory: false
     drop_last: false
+    errors_log_fp: errors.txt # Path to the file for logging the errors
 
 # Inference
 inference:
   interactive: false  # Set to true if you want to enable the interactive mode when running duplex_text_normalization_test.py
-  errors_log_fp: errors.txt # Path to the file for logging the errors
+  from_file: null # Path to the raw text, no labels required. Each sentence on a separate line
+  batch_size: 16 # batch size for inference.from_file
