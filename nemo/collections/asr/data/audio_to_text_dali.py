@@ -236,26 +236,28 @@ class _AudioTextDALIDataset(Iterator):
                 )
 
             self.window = None
-            window_name = params['window'] if 'window' in params else None
+            window_name = params['window'] if 'window' in params else 'hann'
             torch_windows = {
+                'hann': torch.hann_window,
                 'hamming': torch.hamming_window,
                 'blackman': torch.blackman_window,
                 'bartlett': torch.bartlett_window,
+                'none': None,
             }
-            if window_name is None or window_name == 'hann':
-                self.window = None  # Hann is DALI's default
-            elif window_name == 'ones':
-                self.window = torch.ones(self.window_size)
+
+            if window_name == 'ones':
+                window_tensor = torch.ones(self.window_size)
             else:
                 try:
                     window_fn = torch_windows.get(window_name, None)
-                    self.window = window_fn(self.window_size, periodic=False)
                 except:
                     raise ValueError(
-                        f"{self} received {window_name} for the window parameter."
+                        f"{self} received '{window_name}' for the window parameter."
                         f" It must be one of: ('hann', 'ones', 'hamming', 'blackman', 'bartlett', None)."
                         f" None is equivalent to 'hann'."
                     )
+                window_tensor = window_fn(self.window_size, periodic=False) if window_fn else None
+            self.window = window_tensor.numpy().tolist() if window_tensor is not None else None
 
             self.n_fft = params['n_fft'] if 'n_fft' in params else None  # None means default
             self.n_mels = params['n_mels'] if 'n_mels' in params else 64
@@ -287,7 +289,9 @@ class _AudioTextDALIDataset(Iterator):
                     f"'clamp'."
                 )
 
-            self.log_zero_guard_value = params['log_zero_guard_value'] if 'log_zero_guard_value' in params else 1e-05
+            self.log_zero_guard_value = (
+                params['log_zero_guard_value'] if 'log_zero_guard_value' in params else 2 ** -24
+            )
             if isinstance(self.log_zero_guard_value, str):
                 if self.log_zero_guard_value == "tiny":
                     self.log_zero_guard_value = torch.finfo(torch.float32).tiny
@@ -380,7 +384,7 @@ class _AudioTextDALIDataset(Iterator):
                 )
 
                 # Normalization
-                spec = dali.fn.normalize(spec, axes=self.normalization_axes)
+                spec = dali.fn.normalize(spec, axes=self.normalization_axes, epsilon=1e-5 ** 2, ddof=1)
 
                 # Extracting the length of the spectrogram
                 spec_len = dali.fn.slice(dali.fn.shapes(spec), 1, 1, axes=(0,))
