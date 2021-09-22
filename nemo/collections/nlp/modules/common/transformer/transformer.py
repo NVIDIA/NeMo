@@ -216,7 +216,7 @@ class TransformerDecoderNM(DecoderModule, Exportable):
         self, input_ids, decoder_mask, encoder_embeddings, encoder_mask, decoder_mems=None,
     ):
         start_pos = 0
-        if decoder_mems != None:
+        if decoder_mems is not None:
             start_pos = input_ids.shape[1] - 1
             input_ids = input_ids[:, -1:]
             decoder_mask = decoder_mask[:, -1:]
@@ -229,7 +229,7 @@ class TransformerDecoderNM(DecoderModule, Exportable):
             encoder_mask=encoder_mask,
             decoder_mems_list=decoder_mems,
             return_mems=self.return_mems,
-            return_list=False,
+            return_mems_as_list=False,
         )
         if self.return_mems:
             decoder_hidden_states = torch.transpose(decoder_hidden_states, 0, 1)
