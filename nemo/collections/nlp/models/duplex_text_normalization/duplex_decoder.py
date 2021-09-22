@@ -25,6 +25,7 @@ from pytorch_lightning import Trainer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
 
 import nemo.collections.nlp.data.text_normalization.constants as constants
+from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 from nemo.collections.nlp.data.text_normalization.decoder_dataset import (
     TarredTextNormalizationDecoderDataset,
     TextNormalizationDecoderDataset,
@@ -80,6 +81,9 @@ class DuplexDecoderModel(NLPModel):
         if self.use_cg:
             self.setup_cgs(cfg)
 
+        # setup processor for detokenization
+        self.processor = MosesProcessor(lang_id=self.lang)
+
     # Setup covering grammars (if enabled)
     def setup_cgs(self, cfg: DictConfig):
         """
@@ -126,7 +130,7 @@ class DuplexDecoderModel(NLPModel):
         return {'loss': train_loss, 'lr': lr}
 
     # Validation and Testing
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+    def validation_step(self, batch, batch_idx, dataloader_idx=0, split="val"):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
@@ -162,17 +166,17 @@ class DuplexDecoderModel(NLPModel):
             ).to(self.device)
             results[f"total_{class_name}_{direction}"] += torch.tensor(1).to(self.device)
 
-        results["val_loss"] = val_loss
+        results[f"{split}_loss"] = val_loss
         return dict(results)
 
-    def multi_validation_epoch_end(self, outputs: List, dataloader_idx=0):
+    def multi_validation_epoch_end(self, outputs: List, dataloader_idx=0, split="val"):
         """
         Called at the end of validation to aggregate outputs.
 
         Args:
             outputs: list of individual outputs of each validation step.
         """
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        avg_loss = torch.stack([x[f'{split}_loss'] for x in outputs]).mean()
 
         # create a dictionary to store all the results
         results = {}
@@ -201,7 +205,10 @@ class DuplexDecoderModel(NLPModel):
                 all_results[key].append(v)
 
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-            val_name = self._validation_names[dataloader_idx].upper()
+            if split == "test":
+                val_name = self._test_names[dataloader_idx].upper()
+            else:
+                val_name = self._validation_names[dataloader_idx].upper()
             final_results = defaultdict(int)
             for key, v in all_results.items():
                 for _v in v:
@@ -240,13 +247,13 @@ class DuplexDecoderModel(NLPModel):
                 logging.info(report)
                 accuracies[mode]['AVG'] = [all_acc]
 
-        self.log('val_loss', avg_loss)
+        self.log(f'{split}_loss', avg_loss)
         if self.trainer.is_global_zero:
             for mode in accuracies:
                 for class_name, values in accuracies[mode].items():
                     self.log(f'{val_name}_{mode.upper()}_acc_{class_name.upper()}', values[0], rank_zero_only=True)
         return {
-            'val_loss': avg_loss,
+            f'{split}_loss': avg_loss,
         }
 
     def test_step(self, batch, batch_idx, dataloader_idx: int = 0):
@@ -254,14 +261,14 @@ class DuplexDecoderModel(NLPModel):
         Lightning calls this inside the test loop with the data from the test dataloader
         passed in as `batch`.
         """
-        return self.validation_step(batch, batch_idx, dataloader_idx)
+        return self.validation_step(batch, batch_idx, dataloader_idx, split="test")
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         """
         Called at the end of test to aggregate outputs.
         outputs: list of individual outputs of each test step.
         """
-        return self.multi_validation_epoch_end(outputs, dataloader_idx)
+        return self.multi_validation_epoch_end(outputs, dataloader_idx, split="test")
 
     @torch.no_grad()
     def _generate_predictions(self, input_ids: torch.Tensor, model_max_len: int = 512):
@@ -457,6 +464,11 @@ class DuplexDecoderModel(NLPModel):
         if val_data_config is None:
             val_data_config = self._cfg.validation_ds
         return super().setup_multiple_validation_data(val_data_config)
+
+    def setup_multiple_test_data(self, test_data_config: Union[DictConfig, Dict] = None):
+        if test_data_config is None:
+            test_data_config = self._cfg.test_ds
+        return super().setup_multiple_test_data(test_data_config)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         if not test_data_config or test_data_config.data_path is None:
