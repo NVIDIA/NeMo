@@ -335,6 +335,14 @@ class NLPNativeMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
         model: Optional[Module],
     ) -> None:
         """Override PTL gradient clipping"""
+
+        if clip_val is None:
+            return
+
+        clip_val = float(clip_val)
+        if clip_val <= 0:
+            return
+
         app_state = AppState()
         if app_state.model_parallel_size is not None:
             parameters = model.parameters()
@@ -357,6 +365,14 @@ class NLPPrecisionPlugin(PrecisionPlugin):
         model: Optional[Module],
     ) -> None:
         """Override PTL gradient clipping"""
+
+        if clip_val is None:
+            return
+
+        clip_val = float(clip_val)
+        if clip_val <= 0:
+            return
+
         app_state = AppState()
         if app_state.model_parallel_size is not None:
             parameters = model.parameters()
@@ -365,4 +381,3 @@ class NLPPrecisionPlugin(PrecisionPlugin):
             return super().clip_gradients(
                 optimizer, clip_val, gradient_clip_algorithm=gradient_clip_algorithm, model=model
             )
-
