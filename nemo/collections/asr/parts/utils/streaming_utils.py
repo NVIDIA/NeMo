@@ -54,7 +54,7 @@ class AudioFeatureIterator(IterableDataset):
             self._start = last
         else:
             frame = np.zeros([self._features.shape[0], int(self._feature_frame_len)], dtype='float32')
-            samp_len = self._features_len[0] - self._start
+            samp_len = min(self._features_len[0], self._features.shape[1]) - self._start
             frame[:, 0:samp_len] = self._features[:, self._start : self._features_len[0]].cpu()
             self.output = False
         self.count += 1
@@ -655,6 +655,174 @@ class TransducerFrameBatchASR(FrameBatchASR):
 
                 else:
                     # blank token
+                    pass
+
+        return ids, s
+
+
+class TransducerStreamingBatchASR(FrameBatchASR):
+    def __init__(
+        self,
+        asr_model,
+        frame_len=1.6,
+        total_buffer=4.0,
+        batch_size=4,
+        stateful_decoding: bool = False,
+        max_steps_per_timestep: int = 3,
+        n_refresh: int = 5,
+        stride: int = 8,
+    ):
+        super().__init__(asr_model=asr_model, frame_len=frame_len, total_buffer=total_buffer, batch_size=batch_size)
+        self.stateful_decoding = stateful_decoding
+        self.max_steps_per_timestep = max_steps_per_timestep
+        self.model_stride_in_secs = stride * 0.01
+
+        self.previous_hypotheses = None
+        self.all_alignments = []
+        self.encoded_context_len = int((total_buffer - frame_len) / (2 * self.model_stride_in_secs))
+        self.encoded_buffer = None
+        self.encoded_chunk_len = int(self.frame_len / self.model_stride_in_secs)
+        self.encoded_buffer_len = 0
+        self.n_refresh = n_refresh
+        self.best_hyps_list = []
+
+    def reset(self):
+        super().reset()
+        self.previous_hypotheses = None
+        self.all_alignments = []
+        self.encoded_buffer_len = 0
+        self.best_hyps_list = []
+        self.encoded_buffer = None
+
+    @torch.no_grad()
+    def _get_batch_preds(self):
+
+        device = self.asr_model.device
+        for batch in iter(self.data_loader):
+            feat_signal, feat_signal_len = batch
+            feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
+
+            encoded, encoded_len = self.asr_model(
+                processed_signal=feat_signal, processed_signal_length=feat_signal_len
+            )
+            # print(encoded.shape, encoded_len,encoded[:,:,self.encoded_context_len:
+            # self.encoded_context_len+self.encoded_chunk_len].shape)
+            if self.encoded_buffer_len == 0:
+                self.encoded_buffer = encoded[
+                    :, :, self.encoded_context_len : self.encoded_context_len + self.encoded_chunk_len
+                ]
+                self.encoded_buffer_len = torch.tensor(
+                    [self.encoded_chunk_len] * encoded.shape[0], device=encoded.device
+                )
+            else:
+                self.encoded_buffer = torch.cat(
+                    (
+                        self.encoded_buffer,
+                        encoded[:, :, self.encoded_context_len : self.encoded_context_len + self.encoded_chunk_len],
+                    ),
+                    dim=2,
+                )
+                self.encoded_buffer_len += torch.tensor(
+                    [self.encoded_chunk_len] * encoded.shape[0], device=encoded.device
+                )
+
+            #             self.encoded_buffer_len += self.encoded_chunk_len
+            #             print(self.encoded_buffer.shape, self.encoded_buffer_len.shape)
+            #             print("here")
+            #             print(audio_signal_len, encoded_len, len(self.encoded_buffer) )
+
+            if (
+                -1 < self.n_refresh < len(self.best_hyps_list)
+            ):  # self.encoded_buffer_len > self.encoded_chunk_len*self.n_refresh:
+                # clean up prev_hypothesis
+                self.enc_buffer_to_dec = self.encoded_buffer[:, :, -self.encoded_chunk_len * self.n_refresh :]
+
+                self.enc_buffer_len_to_dec = torch.tensor(
+                    [self.encoded_chunk_len * (self.n_refresh)] * encoded.shape[0], device=encoded.device
+                )
+                ## very important, fails without this
+                self.previous_hypotheses = self.best_hyps_list[-self.n_refresh]
+            else:
+                self.enc_buffer_to_dec = self.encoded_buffer
+                self.enc_buffer_len_to_dec = self.encoded_buffer_len
+
+            best_hyp, _ = self.asr_model.decoding.rnnt_decoder_predictions_tensor(
+                self.enc_buffer_to_dec,
+                self.enc_buffer_len_to_dec,
+                return_hypotheses=True,
+                partial_hypotheses=self.previous_hypotheses,
+            )
+            self.best_hyps_list.append(best_hyp)
+            #             print(best_hyp)
+            #             self.previous_hypotheses = best_hyp
+            self.all_alignments.append(best_hyp[0].alignments)
+
+            # preds = torch.unbind(predictions)
+            preds = [hyp.y_sequence for hyp in best_hyp]
+            for pred in preds:
+                self.all_preds.append(pred.cpu().numpy())
+            del feat_signal
+            del encoded
+            del encoded_len
+            del best_hyp
+
+    def transcribe(
+        self, _, delay: int,
+    ):
+        self.infer_logits()
+        self.unmerged = []
+        decoded_frames = []
+        all_toks = []
+        for idx, alignment in enumerate(self.all_alignments):
+            ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, delay, is_first=idx == 0)
+            decoded_frames.append(ids)
+            all_toks.append(toks)
+
+        if self.n_refresh > -1:
+            for ind, decoded in enumerate(decoded_frames):
+                if len(self.unmerged) <= max(self.encoded_chunk_len, self.n_refresh * self.encoded_chunk_len):
+                    self.unmerged = decoded
+                else:
+                    # count num to remove
+                    count = 0
+                    i = -1
+                    while True:
+                        count += 1
+                        if self.unmerged[i] == self.blank_id and self.unmerged[i - 1] != self.blank_id:
+                            i -= 2
+                        elif self.unmerged[i] != self.blank_id and self.unmerged[i + 1] != self.blank_id:
+                            i -= 2
+                        else:
+                            i -= 1
+                        if count >= (self.n_refresh - 1) * self.encoded_chunk_len or i == len(self.unmerged):
+                            self.unmerged = self.unmerged[:i]
+                            self.unmerged += decoded
+                            break
+
+        else:
+            self.unmerged = decoded_frames[-1]
+        return self.greedy_merge(self.unmerged)
+
+    def greedy_merge(self, preds):
+        decoded_prediction = []
+        for p in preds:
+            if p != self.blank_id:
+                decoded_prediction.append(p)
+        hypothesis = self.asr_model.tokenizer.ids_to_text(decoded_prediction)
+        return hypothesis
+
+    def _alignment_decoder(self, alignments, tokenizer, delay, is_first):
+        s = []
+        ids = []
+
+        for t in range(len(alignments)):
+            for u in range(len(alignments[t])):
+                token = alignments[t][u]
+                ids.append(alignments[t][u])
+                if token != self.blank_id:
+                    token = self.asr_model.tokenizer.ids_to_tokens([token])[0]
+                    s.append(token)
+                else:
                     pass
 
         return ids, s
