@@ -161,6 +161,7 @@ class BeamRNNTInfer(Typing):
         return {
             "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+            "partial_hypotheses": [NeuralType(elements_type=HypothesisType(), optional=True)],  # must always be last
         }
 
     @property
@@ -263,7 +264,10 @@ class BeamRNNTInfer(Typing):
 
     @typecheck()
     def __call__(
-        self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor
+        self,
+        encoder_output: torch.Tensor,
+        encoded_lengths: torch.Tensor,
+        partial_hypotheses: Optional[List[Hypothesis]] = None,
     ) -> Union[Hypothesis, NBestHypotheses]:
         """Perform general beam search.
 
@@ -310,8 +314,13 @@ class BeamRNNTInfer(Typing):
                         if inseq.dtype != dtype:
                             inseq = inseq.to(dtype=dtype)
 
+                        # Extract partial hypothesis if exists
+                        partial_hypothesis = partial_hypotheses[batch_idx] if partial_hypotheses is not None else None
+
                         # Execute the specific search strategy
-                        nbest_hyps = self.search_algorithm(inseq, logitlen)  # sorted list of hypothesis
+                        nbest_hyps = self.search_algorithm(
+                            inseq, logitlen, partial_hypotheses=partial_hypothesis
+                        )  # sorted list of hypothesis
 
                         # Pack the result
                         if self.return_best_hypothesis:
@@ -339,7 +348,9 @@ class BeamRNNTInfer(Typing):
         else:
             return sorted(hyps, key=lambda x: x.score, reverse=True)
 
-    def greedy_search(self, h: torch.Tensor, encoded_lengths: torch.Tensor) -> List[Hypothesis]:
+    def greedy_search(
+        self, h: torch.Tensor, encoded_lengths: torch.Tensor, partial_hypotheses: Optional[Hypothesis] = None
+    ) -> List[Hypothesis]:
         """Greedy search implementation for transducer.
         Generic case when beam size = 1. Results might differ slightly due to implementation details
         as compared to `GreedyRNNTInfer` and `GreedyBatchRNNTInfer`.
@@ -416,7 +427,9 @@ class BeamRNNTInfer(Typing):
 
         return [hyp]
 
-    def default_beam_search(self, h: torch.Tensor, encoded_lengths: torch.Tensor) -> List[Hypothesis]:
+    def default_beam_search(
+        self, h: torch.Tensor, encoded_lengths: torch.Tensor, partial_hypotheses: Optional[Hypothesis] = None
+    ) -> List[Hypothesis]:
         """Beam search implementation.
 
         Args:
@@ -530,7 +543,9 @@ class BeamRNNTInfer(Typing):
 
         return self.sort_nbest(kept_hyps)
 
-    def time_sync_decoding(self, h: torch.Tensor, encoded_lengths: torch.Tensor) -> List[Hypothesis]:
+    def time_sync_decoding(
+        self, h: torch.Tensor, encoded_lengths: torch.Tensor, partial_hypotheses: Optional[Hypothesis] = None
+    ) -> List[Hypothesis]:
         """Time synchronous beam search implementation.
         Based on https://ieeexplore.ieee.org/document/9053040
 
@@ -645,7 +660,9 @@ class BeamRNNTInfer(Typing):
 
         return self.sort_nbest(B)
 
-    def align_length_sync_decoding(self, h: torch.Tensor, encoded_lengths: torch.Tensor) -> List[Hypothesis]:
+    def align_length_sync_decoding(
+        self, h: torch.Tensor, encoded_lengths: torch.Tensor, partial_hypotheses: Optional[Hypothesis] = None
+    ) -> List[Hypothesis]:
         """Alignment-length synchronous beam search implementation.
         Based on https://ieeexplore.ieee.org/document/9053040
 
@@ -824,7 +841,9 @@ class BeamRNNTInfer(Typing):
         else:
             return B
 
-    def modified_adaptive_expansion_search(self, h: torch.Tensor, encoded_lengths: torch.Tensor) -> List[Hypothesis]:
+    def modified_adaptive_expansion_search(
+        self, h: torch.Tensor, encoded_lengths: torch.Tensor, partial_hypotheses: Optional[Hypothesis] = None
+    ) -> List[Hypothesis]:
         """
         Based on/modified from https://ieeexplore.ieee.org/document/9250505
 
