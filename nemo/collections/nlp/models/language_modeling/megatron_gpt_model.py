@@ -73,9 +73,9 @@ class MegatronGPTModel(NLPModel):
             fp16=cfg.get('fp16', True),
             use_cpu_initialization=cfg.get('use_cpu_initialization', False),
         )
-        args = get_args()
+        # args = get_args()
 
-        fused_kernels.load(args)
+        # fused_kernels.load(args)
 
         self.tokenizer = get_nmt_tokenizer(
             library=self.cfg.tokenizer.library,

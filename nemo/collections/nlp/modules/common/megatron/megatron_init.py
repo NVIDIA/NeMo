@@ -76,7 +76,7 @@ def initialize_megatron_for_nemo(
 
     _set_random_seed(1234)
 
-    initialize_megatron(extra_args_provider=extra_args_provider, args_defaults=args_defaults, ignore_unknown_args=True)
+    # initialize_megatron(extra_args_provider=extra_args_provider, args_defaults=args_defaults, ignore_unknown_args=True)
     logging.info(f"Initialized Megatron ...")
     app_state._is_megatron_initialized = True
 

@@ -63,9 +63,7 @@ def main(cfg) -> None:
     trainer.checkpoint_connector = NLPCheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
 
     model = MegatronGPTModel.restore_from(
-        '/raid/nemo_experiments/gpt_debug/megatron_gpt/2021-09-20_12-27-43/checkpoints/megatron_gpt.nemo',
-        trainer=trainer,
-        save_restore_connector=NLPSaveRestoreConnector(),
+        '~/tmp/random_gpt_125M.nemo', trainer=trainer, save_restore_connector=NLPSaveRestoreConnector(),
     )
 
     model.cfg.data.splits_string = cfg.model.data.splits_string

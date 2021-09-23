@@ -90,7 +90,6 @@ class ParallelMLP(MegatronModule):
         else:
             self.bias_gelu_impl = bias_gelu_impl_bf16
 
-
     def forward(self, hidden_states):
 
         # [s, b, 4hp]
@@ -373,6 +372,7 @@ class BiasDropoutAddFusedTrain(torch.nn.Module):
     def forward(self, x, bias, residual, prob):
         return bias_dropout_add_fused_train_(x, bias, residual, prob)
 
+
 bias_dropout_add_fused_train = BiasDropoutAddFusedTrain()
 
 
@@ -397,7 +397,7 @@ class ParallelTransformerLayer(MegatronModule):
         layer_type=LayerType.encoder,
         self_attn_mask_type=AttnMaskType.padding,
     ):
-        args = get_args()
+        # args = get_args()
 
         super(ParallelTransformerLayer, self).__init__()
         self.layer_number = layer_number
@@ -528,29 +528,36 @@ class ParallelTransformer(MegatronModule):
         self,
         init_method,
         output_layer_init_method,
+        num_layers,
+        hidden_size,
         layer_type=LayerType.encoder,
         self_attn_mask_type=AttnMaskType.padding,
         pre_process=True,
         post_process=True,
+        bf16=False,
+        fp32_residual_connection=False,
+        activations_checkpoint_method=None,
+        activations_checkpoint_num_layers=1,
+        layernorm_epsilon=1e-5,
     ):
         super(ParallelTransformer, self).__init__()
-        args = get_args()
+        # args = get_args()
 
-        self.bf16 = args.bf16
-        self.fp32_residual_connection = args.fp32_residual_connection
+        self.bf16 = bf16
+        self.fp32_residual_connection = fp32_residual_connection
         self.pre_process = pre_process
         self.post_process = post_process
         self.input_tensor = None
 
-        # Store activation checkpoiting flag.
-        self.activations_checkpoint_method = args.activations_checkpoint_method
-        self.activations_checkpoint_num_layers = args.activations_checkpoint_num_layers
+        # Store activation checkpointing flag.
+        self.activations_checkpoint_method = activations_checkpoint_method
+        self.activations_checkpoint_num_layers = activations_checkpoint_num_layers
 
         # Number of layers.
         assert (
-            args.num_layers % mpu.get_pipeline_model_parallel_world_size() == 0
+            num_layers % mpu.get_pipeline_model_parallel_world_size() == 0
         ), 'num_layers must be divisible by pipeline_model_parallel_size'
-        self.num_layers = args.num_layers // mpu.get_pipeline_model_parallel_world_size()
+        self.num_layers = num_layers // mpu.get_pipeline_model_parallel_world_size()
 
         # Transformer layers.
         def build_layer(layer_number):
@@ -562,33 +569,35 @@ class ParallelTransformer(MegatronModule):
                 self_attn_mask_type=self_attn_mask_type,
             )
 
-        if args.virtual_pipeline_model_parallel_size is not None:
-            assert args.num_layers % args.virtual_pipeline_model_parallel_size == 0, (
-                'num_layers_per_stage must be divisible by ' 'virtual_pipeline_model_parallel_size'
-            )
-            # Number of layers in each model chunk is the number of layers in the stage,
-            # divided by the number of model chunks in a stage.
-            self.num_layers = self.num_layers // args.virtual_pipeline_model_parallel_size
-            # With 8 layers, 2 stages, and 4 model chunks, we want an assignment of
-            # layers to stages like (each list is a model chunk):
-            # Stage 0: [0]  [2]  [4]  [6]
-            # Stage 1: [1]  [3]  [5]  [7]
-            # With 8 layers, 2 stages, and 2 virtual stages, we want an assignment of
-            # layers to stages like (each list is a model chunk):
-            # Stage 0: [0, 1]  [4, 5]
-            # Stage 1: [2, 3]  [6, 7]
-            offset = mpu.get_virtual_pipeline_model_parallel_rank() * (
-                args.num_layers // args.virtual_pipeline_model_parallel_size
-            ) + (mpu.get_pipeline_model_parallel_rank() * self.num_layers)
-        else:
-            # Each stage gets a contiguous set of layers.
-            offset = mpu.get_pipeline_model_parallel_rank() * self.num_layers
+        # TODO: get virtual_pipeline_model_parallel_size from apex.mpu
+        # if mpu.get_virtual_pipeline_model_parallel_rank() is not None:
+        #     assert args.num_layers % args.virtual_pipeline_model_parallel_size == 0, (
+        #         'num_layers_per_stage must be divisible by ' 'virtual_pipeline_model_parallel_size'
+        #     )
+        #     # Number of layers in each model chunk is the number of layers in the stage,
+        #     # divided by the number of model chunks in a stage.
+        #     self.num_layers = self.num_layers // args.virtual_pipeline_model_parallel_size
+        #     # With 8 layers, 2 stages, and 4 model chunks, we want an assignment of
+        #     # layers to stages like (each list is a model chunk):
+        #     # Stage 0: [0]  [2]  [4]  [6]
+        #     # Stage 1: [1]  [3]  [5]  [7]
+        #     # With 8 layers, 2 stages, and 2 virtual stages, we want an assignment of
+        #     # layers to stages like (each list is a model chunk):
+        #     # Stage 0: [0, 1]  [4, 5]
+        #     # Stage 1: [2, 3]  [6, 7]
+        #     offset = mpu.get_virtual_pipeline_model_parallel_rank() * (
+        #         args.num_layers // args.virtual_pipeline_model_parallel_size
+        #     ) + (mpu.get_pipeline_model_parallel_rank() * self.num_layers)
+        # else:
+        #     # Each stage gets a contiguous set of layers.
+        #     offset = mpu.get_pipeline_model_parallel_rank() * self.num_layers
+        offset = mpu.get_pipeline_model_parallel_rank() * self.num_layers
 
         self.layers = torch.nn.ModuleList([build_layer(i + 1 + offset) for i in range(self.num_layers)])
 
         if self.post_process:
             # Final layer norm before output.
-            self.final_layernorm = LayerNorm(args.hidden_size, eps=args.layernorm_epsilon, fp16=args.fp16)
+            self.final_layernorm = LayerNorm(hidden_size, eps=layernorm_epsilon, fp16=fused_fp16)
 
     def _get_layer(self, layer_number):
         return self.layers[layer_number]
