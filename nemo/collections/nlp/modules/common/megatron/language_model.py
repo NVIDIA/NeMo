@@ -47,6 +47,7 @@ def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=Non
 
 def get_language_model(
     hidden_size,
+    num_layers,
     max_position_embeddings,
     num_tokentypes,
     add_pooler,
@@ -59,8 +60,13 @@ def get_language_model(
     pre_process=True,
     post_process=True,
     init_method_std=0.02,
-    num_layers=1,
     use_cpu_initialization=False,
+    hidden_dropout=0.1,
+    bf16=False,
+    fp32_residual_connection=False,
+    activations_checkpoint_method=None,
+    activations_checkpoint_num_layers=1,
+    layernorm_epsilon=1e-5,
 ):
     """Build language model and return along with the key to save."""
 
@@ -79,12 +85,19 @@ def get_language_model(
         vocab_size=vocab_size,
         max_position_embeddings=max_position_embeddings,
         hidden_size=hidden_size,
+        num_layers=num_layers,
         add_decoder=add_decoder,
         decoder_attn_mask_type=decoder_attn_mask_type,
         add_pooler=add_pooler,
         pre_process=pre_process,
         post_process=post_process,
         use_cpu_initialization=use_cpu_initialization,
+        hidden_dropout=hidden_dropout,
+        bf16=bf16,
+        fp32_residual_connection=fp32_residual_connection,
+        activations_checkpoint_method=activations_checkpoint_method,
+        activations_checkpoint_num_layers=activations_checkpoint_num_layers,
+        layernorm_epsilon=layernorm_epsilon,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -284,6 +297,7 @@ class TransformerLanguageModel(MegatronModule):
         vocab_size,
         max_position_embeddings,
         hidden_size,
+        num_layers,
         num_tokentypes=0,
         add_decoder=False,
         decoder_attn_mask_type=AttnMaskType.causal,
@@ -292,12 +306,18 @@ class TransformerLanguageModel(MegatronModule):
         post_process=True,
         use_cpu_initialization=False,
         hidden_dropout=0.1,
+        bf16=False,
+        fp32_residual_connection=False,
+        activations_checkpoint_method=None,
+        activations_checkpoint_num_layers=1,
+        layernorm_epsilon=1e-5,
     ):
         super(TransformerLanguageModel, self).__init__()
 
         self.pre_process = pre_process
         self.post_process = post_process
         self.hidden_size = hidden_size
+        self.num_layers = num_layers
         self.vocab_size = vocab_size
         self.max_position_embeddings = max_position_embeddings
         self.num_tokentypes = num_tokentypes
@@ -307,6 +327,7 @@ class TransformerLanguageModel(MegatronModule):
         self.decoder_attn_mask_type = decoder_attn_mask_type
         self.add_pooler = add_pooler
         self.hidden_dropout = hidden_dropout
+        self.output_layer_init_method = output_layer_init_method
 
         # Embeddings.
         if self.pre_process:
@@ -323,11 +344,18 @@ class TransformerLanguageModel(MegatronModule):
 
         # Transformer.
         self.encoder = ParallelTransformer(
-            self.init_method,
-            output_layer_init_method,
+            init_method=self.init_method,
+            output_layer_init_method=self.output_layer_init_method,
+            num_layers=self.num_layers,
+            hidden_size=self.hidden_size,
             self_attn_mask_type=self.encoder_attn_mask_type,
             pre_process=self.pre_process,
             post_process=self.post_process,
+            bf16=bf16,
+            fp32_residual_connection=fp32_residual_connection,
+            activations_checkpoint_method=activations_checkpoint_method,
+            activations_checkpoint_num_layers=activations_checkpoint_num_layers,
+            layernorm_epsilon=layernorm_epsilon,
         )
         self._encoder_key = 'encoder'
 
@@ -337,8 +365,17 @@ class TransformerLanguageModel(MegatronModule):
                 mpu.get_pipeline_model_parallel_world_size() == 1
             ), 'pipeline parallelism is not supported in the presence of decoder'
             self.decoder = ParallelTransformer(
-                self.init_method,
-                output_layer_init_method,
+                init_method=self.init_method,
+                output_layer_init_method=self.output_layer_init_method,
+                num_layers=self.num_layers,
+                hidden_size=self.hidden_size,
+                pre_process=self.pre_process,
+                post_process=self.post_process,
+                bf16=bf16,
+                fp32_residual_connection=fp32_residual_connection,
+                activations_checkpoint_method=activations_checkpoint_method,
+                activations_checkpoint_num_layers=activations_checkpoint_num_layers,
+                layernorm_epsilon=layernorm_epsilon,
                 layer_type=LayerType.decoder,
                 self_attn_mask_type=self.decoder_attn_mask_type,
             )

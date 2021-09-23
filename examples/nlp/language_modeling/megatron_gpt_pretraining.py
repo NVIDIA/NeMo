@@ -64,6 +64,8 @@ def main(cfg) -> None:
 
     trainer.fit(model)
 
+    # model.save_to('~/tmp/random_gpt_125M.nemo')
+
 
 if __name__ == '__main__':
     main()

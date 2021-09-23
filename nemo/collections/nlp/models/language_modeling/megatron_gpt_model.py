@@ -68,9 +68,9 @@ class MegatronGPTModel(NLPModel):
             merge_file=cfg.tokenizer.merge_file,
             fp16=cfg.get('fp16', True),
         )
-        args = get_args()
+        # args = get_args()
 
-        fused_kernels.load(args)
+        # fused_kernels.load(args)
 
         self.tokenizer = get_nmt_tokenizer(
             library=self.cfg.tokenizer.library,
