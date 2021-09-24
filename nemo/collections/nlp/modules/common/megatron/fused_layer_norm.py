@@ -29,6 +29,7 @@ fused_mix_prec_layer_norm_cuda = None
 
 class FusedLayerNormAffineFunction(torch.autograd.Function):
     @staticmethod
+    @torch.cuda.amp.custom_fwd
     def forward(ctx, input, weight, bias, normalized_shape, eps):
 
         ctx.normalized_shape = normalized_shape
@@ -44,6 +45,7 @@ class FusedLayerNormAffineFunction(torch.autograd.Function):
         return output
 
     @staticmethod
+    @torch.cuda.amp.custom_bwd
     def backward(ctx, grad_output):
 
         input_, weight_, bias_, mean, invvar = ctx.saved_tensors

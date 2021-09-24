@@ -15,11 +15,6 @@
 
 import torch
 
-torch._C._jit_set_profiling_mode(False)
-torch._C._jit_set_profiling_executor(False)
-torch._C._jit_override_can_fuse_on_cpu(True)
-torch._C._jit_override_can_fuse_on_gpu(True)
-
 ###### BIAS GELU FUSION/ NO AUTOGRAD ################
 # 1/sqrt(2*pi)-> 0.3989423
 # 1/sqrt(2)   -> 0.70710678
@@ -49,12 +44,14 @@ def bias_gelu_back(g, bias, y):
 
 class GeLUFunction(torch.autograd.Function):
     @staticmethod
+    @torch.cuda.amp.custom_fwd
     # bias is an optional argument
     def forward(ctx, input, bias):
         ctx.save_for_backward(input, bias)
         return bias_gelu(bias, input)
 
     @staticmethod
+    @torch.cuda.amp.custom_bwd
     def backward(ctx, grad_output):
         input, bias = ctx.saved_tensors
         tmp = bias_gelu_back(grad_output, bias, input)

@@ -30,6 +30,7 @@ class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):
     """
 
     @staticmethod
+    @torch.cuda.amp.custom_fwd
     def forward(ctx, inputs, scale):
         import scaled_upper_triang_masked_softmax_cuda
 
@@ -40,6 +41,7 @@ class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):
         return softmax_results
 
     @staticmethod
+    @torch.cuda.amp.custom_bwd
     def backward(ctx, output_grads):
         import scaled_upper_triang_masked_softmax_cuda
 
@@ -58,6 +60,7 @@ class ScaledMaskedSoftmax(torch.autograd.Function):
     """
 
     @staticmethod
+    @torch.cuda.amp.custom_fwd
     def forward(ctx, inputs, mask, scale):
         import scaled_masked_softmax_cuda
 
@@ -68,6 +71,7 @@ class ScaledMaskedSoftmax(torch.autograd.Function):
         return softmax_results
 
     @staticmethod
+    @torch.cuda.amp.custom_bwd
     def backward(ctx, output_grads):
         import scaled_masked_softmax_cuda
 

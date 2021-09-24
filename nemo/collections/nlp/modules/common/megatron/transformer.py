@@ -29,11 +29,6 @@ from nemo.collections.nlp.modules.common.megatron.fused_softmax import FusedScal
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import bias_gelu_impl
 from nemo.collections.nlp.modules.common.megatron.utils import attention_mask_func, openai_gelu, erf_gelu
 
-# flags required to enable jit fusion kernels
-torch._C._jit_set_profiling_mode(False)
-torch._C._jit_set_profiling_executor(False)
-torch._C._jit_override_can_fuse_on_cpu(True)
-torch._C._jit_override_can_fuse_on_gpu(True)
 
 """ We use the following notation throughout this file:
      h: hidden size
