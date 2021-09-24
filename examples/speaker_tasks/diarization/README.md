@@ -22,7 +22,7 @@ Diarization Error Rate (DER) table of `ecapa_tdnn.nemo` model on well known eval
 
 * All models were tested using embedding extractor with window size 1.5s and shift length 0.75s
 * The above result is based on the oracle Voice Activity Detection (VAD) result.
-* This result is based on [ecapa_tdnn.nemo](https://ngc.nvidia.com/catalog/models/nvidia:nemo:ecapa_tdnn) model which will be soon uploaded on NGC.
+* This result is based on [ecapa_tdnn.nemo](https://ngc.nvidia.com/catalog/models/nvidia:nemo:ecapa_tdnn) model.
 
 <br/>
 
