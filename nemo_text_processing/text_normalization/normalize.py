@@ -28,6 +28,13 @@ try:
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
+try:
+    from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
+
+    NLP_AVAILABLE = True
+except (ModuleNotFoundError, ImportError):
+    NLP_AVAILABLE = False
+
 
 class Normalizer:
     """
@@ -69,6 +76,12 @@ class Normalizer:
         self.verbalizer = VerbalizeFinalFst(deterministic=deterministic)
         self.parser = TokenParser()
         self.lang = lang
+
+        if NLP_AVAILABLE:
+            self.processor = MosesProcessor(lang_id=lang)
+        else:
+            self.processor = None
+            print("NeMo NLP is not available. Moses de-tokenization will be skipped.")
 
     def normalize_list(self, texts: List[str], verbose=False) -> List[str]:
         """
@@ -129,6 +142,9 @@ class Normalizer:
             output = self.select_verbalizer(verbalizer_lattice)
             if punct_post_process:
                 output = post_process_punctuation(output)
+                # do post-processing based on Moses detokenizer
+                if self.processor:
+                    output = self.processor.detokenize([output])
             return output
         raise ValueError()
 
