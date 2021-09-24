@@ -37,7 +37,14 @@ def main(cfg) -> None:
 
     if cfg.trainer.precision == 16:
         trainer = Trainer(
-            plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes), NLPNativeMixedPrecisionPlugin()], **cfg.trainer
+            plugins=[
+                NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes),
+                NLPNativeMixedPrecisionPlugin(
+                    init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
+                    growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
+                ),
+            ],
+            **cfg.trainer,
         )
     else:
         trainer = Trainer(plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes), NLPPrecisionPlugin()], **cfg.trainer)
