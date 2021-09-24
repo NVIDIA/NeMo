@@ -62,6 +62,7 @@ def get_language_model(
     init_method_std=0.02,
     use_cpu_initialization=False,
     hidden_dropout=0.1,
+    fp16=False,
     bf16=False,
     fp32_residual_connection=False,
     activations_checkpoint_method=None,
@@ -93,6 +94,7 @@ def get_language_model(
         post_process=post_process,
         use_cpu_initialization=use_cpu_initialization,
         hidden_dropout=hidden_dropout,
+        fp16=fp16,
         bf16=bf16,
         fp32_residual_connection=fp32_residual_connection,
         activations_checkpoint_method=activations_checkpoint_method,
@@ -306,6 +308,7 @@ class TransformerLanguageModel(MegatronModule):
         post_process=True,
         use_cpu_initialization=False,
         hidden_dropout=0.1,
+        fp16=False,
         bf16=False,
         fp32_residual_connection=False,
         activations_checkpoint_method=None,
@@ -351,11 +354,13 @@ class TransformerLanguageModel(MegatronModule):
             self_attn_mask_type=self.encoder_attn_mask_type,
             pre_process=self.pre_process,
             post_process=self.post_process,
+            fp16=fp16,
             bf16=bf16,
             fp32_residual_connection=fp32_residual_connection,
             activations_checkpoint_method=activations_checkpoint_method,
             activations_checkpoint_num_layers=activations_checkpoint_num_layers,
             layernorm_epsilon=layernorm_epsilon,
+            hidden_dropout=hidden_dropout,
         )
         self._encoder_key = 'encoder'
 
@@ -371,6 +376,7 @@ class TransformerLanguageModel(MegatronModule):
                 hidden_size=self.hidden_size,
                 pre_process=self.pre_process,
                 post_process=self.post_process,
+                fp16=fp16,
                 bf16=bf16,
                 fp32_residual_connection=fp32_residual_connection,
                 activations_checkpoint_method=activations_checkpoint_method,
@@ -378,6 +384,7 @@ class TransformerLanguageModel(MegatronModule):
                 layernorm_epsilon=layernorm_epsilon,
                 layer_type=LayerType.decoder,
                 self_attn_mask_type=self.decoder_attn_mask_type,
+                hidden_dropout=hidden_dropout,
             )
             self._decoder_key = 'decoder'
 

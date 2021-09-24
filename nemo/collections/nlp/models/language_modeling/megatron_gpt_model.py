@@ -89,17 +89,24 @@ class MegatronGPTModel(NLPModel):
         )
 
         self.model = GPTModel(
+            vocab_size=padded_vocab_size,
+            hidden_size=cfg.hidden_size,
+            max_position_embeddings=cfg.max_position_embeddings,
+            num_layers=cfg.num_layers,
             num_tokentypes=0,
             parallel_output=True,
             pre_process=cfg.pre_process,
             post_process=cfg.post_process,
             init_method_std=cfg.get('init_method_std', 0.02),
-            num_layers=cfg.get('num_layers', 1),
             fp16_lm_cross_entropy=cfg.get('fp16_lm_cross_entropy', False),
             use_cpu_initialization=cfg.get('use_cpu_initialization', False),
-            hidden_size=cfg.get('hidden_size', 16),
-            vocab_size=padded_vocab_size,
-            max_position_embeddings=cfg.get('max_position_embeddings', 512),
+            hidden_dropout=cfg.get('hidden_dropout', 0.1),
+            fp16=cfg.get('fp16', False),
+            bf16=cfg.get('bf16', False),
+            fp32_residual_connection=cfg.get('fp32_residual_connection', False),
+            activations_checkpoint_method=cfg.get('activations_checkpoint_method', None),
+            activations_checkpoint_num_layers=cfg.get('activations_checkpoint_num_layers', 1),
+            layernorm_epsilon=cfg.get('layernorm_epsilon', 1e-5),
         )
 
     def forward(self, tokens, position_ids, attention_mask, labels):
