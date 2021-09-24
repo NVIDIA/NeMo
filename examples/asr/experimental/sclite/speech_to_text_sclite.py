@@ -17,6 +17,17 @@ This script is based on speech_to_text_infer.py and allows you to score the hypo
 with sclite. A local installation from https://github.com/usnistgov/SCTK is required.
 Hypotheses and references are first saved in trn format and are scored after applying a glm
 file (if provided).
+
+# Usage
+
+python speech_to_text_sclite.py \
+    --asr_model="<Path to ASR Model>" \
+    --dataset="<Path to Hub 5 manifest file>" \
+    --out_dir="<Path to output dir, should be unique per model evaluated>" \
+    --sctk_dir="<Path to root directory where SCTK is installed>" \
+    --glm="<OPTIONAL: Path to glm file>" \
+    --batch_size=4
+
 """
 
 import errno
@@ -101,7 +112,7 @@ def main():
     torch.set_grad_enabled(False)
 
     if not os.path.exists(args.out_dir):
-        os.makedirs(args.out_dir)
+        os.makedirs(args.out_dir, exist_ok=True)
 
     use_sctk = os.path.exists(args.sctk_dir)
 
