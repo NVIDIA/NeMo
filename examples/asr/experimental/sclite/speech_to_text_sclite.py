@@ -27,7 +27,6 @@ from argparse import ArgumentParser
 
 import torch
 
-from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models import ASRModel
 from nemo.utils import logging
 
