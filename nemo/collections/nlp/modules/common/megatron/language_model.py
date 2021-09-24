@@ -354,7 +354,6 @@ class TransformerLanguageModel(MegatronModule):
         enc_hidden_states=None,
         output_enc_hidden=False,
     ):
-
         # Embeddings.
         if self.pre_process:
             embedding_output = self.embedding(enc_input_ids, enc_position_ids, tokentype_ids=tokentype_ids)

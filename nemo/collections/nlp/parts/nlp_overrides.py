@@ -67,16 +67,15 @@ class NLPDDPPlugin(DDPPlugin):
     ) -> None:
         super().__init__(parallel_devices, num_nodes, cluster_environment, sync_batchnorm, **kwargs)
 
-    def init_ddp_connection(self, global_rank: int = None, world_size: int = None) -> None:
+    def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
         # call PTL init ddp
-        super().init_ddp_connection()
+        super().setup_distributed()
 
         # init model parallel if needed
         app_state = AppState()
 
         if app_state.model_parallel_size is not None:
             self.init_model_parallel(app_state.global_rank, app_state.world_size)
-
             # if self.lightning_module.has_megatron_encoder and not self.lightning_module.is_model_parallel_initialized:
             #     self.init_model_parallel(app_state.global_rank, app_state.world_size)
 
@@ -203,7 +202,8 @@ class NLPDDPPlugin(DDPPlugin):
         """
         app_state = AppState()
         # dump states as a checkpoint dictionary object
-        checkpoint = self.on_save(checkpoint)
+        # TrainingTypePlugin.on_save() just seems to return the same thing.
+        # checkpoint = self.on_save(checkpoint)
         if self.is_global_zero or app_state.data_parallel_rank == 0:
             try:
                 # write the checkpoint dictionary on the file
@@ -324,8 +324,8 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
 
 class NLPNativeMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, precision) -> None:
+        super().__init__(precision=precision)
 
     def clip_gradients(
         self,
@@ -365,4 +365,3 @@ class NLPPrecisionPlugin(PrecisionPlugin):
             return super().clip_gradients(
                 optimizer, clip_val, gradient_clip_algorithm=gradient_clip_algorithm, model=model
             )
-
