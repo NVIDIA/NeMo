@@ -61,6 +61,11 @@ class Normalizer:
         if lang == 'en' and deterministic:
             from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
+        elif lang == 'en_small':
+            from nemo_text_processing.text_normalization.en.taggers_small.tokenize_and_classify import (
+                ClassifyFstSmall as ClassifyFst,
+            )
+            from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
         elif lang == 'en' and not deterministic:
             from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_with_audio import ClassifyFst
             from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
@@ -260,7 +265,7 @@ class Normalizer:
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("input_string", help="input string", type=str)
-    parser.add_argument("--language", help="language", choices=["en"], default="en", type=str)
+    parser.add_argument("--language", help="language", choices=["en", "en_small"], default="en", type=str)
     parser.add_argument(
         "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )
@@ -283,7 +288,9 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    normalizer = Normalizer(input_case=args.input_case, cache_dir=args.cache_dir, overwrite_cache=args.overwrite_cache)
+    normalizer = Normalizer(
+        lang=args.language, input_case=args.input_case, cache_dir=args.cache_dir, overwrite_cache=args.overwrite_cache
+    )
     print(
         normalizer.normalize(
             args.input_string,

@@ -12,10 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.taggers.abbreviation import AbbreviationFst
-from nemo_text_processing.text_normalization.en.taggers.cardinal import CardinalFst
-from nemo_text_processing.text_normalization.en.taggers.decimal import DecimalFst
-from nemo_text_processing.text_normalization.en.taggers.electronic import ElectronicFst
-from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
-from nemo_text_processing.text_normalization.en.taggers.whitelist import WhiteListFst
-from nemo_text_processing.text_normalization.en.taggers.word import WordFst
+from nemo_text_processing.text_normalization.en.taggers_small.cardinal import CardinalFst
+from nemo_text_processing.text_normalization.en.taggers_small.decimal import DecimalFst
+
+# from nemo_text_processing.text_normalization.en.taggers_small.ordinal import OrdinalFst

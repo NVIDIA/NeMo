@@ -89,7 +89,7 @@ class CardinalFst(GraphFst):
             self.range_graph |= self.graph + (pynini.cross("x", " by ") | pynini.cross(" x ", " by ")) + self.graph
             self.range_graph = self.range_graph.optimize()
 
-        optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
+        self.optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
 
         long_numbers = pynini.compose(NEMO_DIGIT ** (5, ...), self.single_digits_graph).optimize()
         final_graph = self.graph | self.get_serial_graph() | pynutil.add_weight(long_numbers, -0.001)
@@ -101,7 +101,8 @@ class CardinalFst(GraphFst):
             )
             final_graph |= remove_leading_zeros
 
-        final_graph = optional_minus_graph + pynutil.insert("integer: \"") + final_graph + pynutil.insert("\"")
+        self.final_graph = final_graph.optimize()
+        final_graph = self.optional_minus_graph + pynutil.insert("integer: \"") + final_graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
 
