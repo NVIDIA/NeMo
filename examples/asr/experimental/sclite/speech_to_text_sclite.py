@@ -28,7 +28,7 @@ from argparse import ArgumentParser
 import torch
 
 from nemo.collections.asr.metrics.wer import WER
-from nemo.collections.asr.models import EncDecCTCModel
+from nemo.collections.asr.models import ASRModel
 from nemo.utils import logging
 
 try:
@@ -64,6 +64,17 @@ def score_with_sctk(sctk_dir, ref_fname, hyp_fname, out_dir, glm=""):
     _ = subprocess.check_output(f"{sclite_path} -h {hypglm}  -r {refglm} -i wsj -o all", shell=True)
 
 
+def read_manifest(manifest_path):
+    manifest_data = []
+    with open(manifest_path, 'r') as f:
+        for line in f:
+            data = json.loads(line)
+            manifest_data.append(data)
+
+    logging.info('Loaded manifest data')
+    return manifest_data
+
+
 can_gpu = torch.cuda.is_available()
 
 
@@ -84,12 +95,6 @@ def main():
     )
     parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
     parser.add_argument("--batch_size", type=int, default=4)
-    parser.add_argument(
-        "--dont_normalize_text",
-        default=False,
-        action='store_true',
-        help="Turn off trasnscript normalization. Recommended for non-English.",
-    )
     parser.add_argument("--out_dir", type=str, required=True, help="Destination dir for output files")
     parser.add_argument("--sctk_dir", type=str, required=False, default="", help="Path to sctk root dir")
     parser.add_argument("--glm", type=str, required=False, default="", help="Path to glm file")
@@ -103,42 +108,27 @@ def main():
 
     if args.asr_model.endswith('.nemo'):
         logging.info(f"Using local ASR model from {args.asr_model}")
-        asr_model = EncDecCTCModel.restore_from(restore_path=args.asr_model)
+        asr_model = ASRModel.restore_from(restore_path=args.asr_model, map_location='cpu')
     else:
         logging.info(f"Using NGC cloud ASR model {args.asr_model}")
-        asr_model = EncDecCTCModel.from_pretrained(model_name=args.asr_model)
-    asr_model.setup_test_data(
-        test_data_config={
-            'sample_rate': 16000,
-            'manifest_filepath': args.dataset,
-            'labels': asr_model.decoder.vocabulary,
-            'batch_size': args.batch_size,
-            'normalize_transcripts': not args.dont_normalize_text,
-        }
-    )
+        asr_model = ASRModel.from_pretrained(model_name=args.asr_model, map_location='cpu')
+
     if can_gpu:
         asr_model = asr_model.cuda()
-    asr_model.eval()
-    labels_map = dict([(i, asr_model.decoder.vocabulary[i]) for i in range(len(asr_model.decoder.vocabulary))])
 
-    wer = WER(vocabulary=asr_model.decoder.vocabulary)
-    hypotheses = []
-    references = []
-    all_log_probs = []
-    for test_batch in asr_model.test_dataloader():
-        if can_gpu:
-            test_batch = [x.cuda() for x in test_batch]
-        with autocast():
-            log_probs, encoded_len, greedy_predictions = asr_model(
-                input_signal=test_batch[0], input_signal_length=test_batch[1]
-            )
-        for r in log_probs.cpu().numpy():
-            all_log_probs.append(r)
-        hypotheses += wer.ctc_decoder_predictions_tensor(greedy_predictions)
-        for batch_ind in range(greedy_predictions.shape[0]):
-            reference = ''.join([labels_map[c] for c in test_batch[2][batch_ind].cpu().detach().numpy()])
-            references.append(reference)
-        del test_batch
+    asr_model.eval()
+
+    manifest_data = read_manifest(args.dataset)
+
+    references = [data['text'] for data in manifest_data]
+    audio_filepaths = [data['audio_filepath'] for data in manifest_data]
+
+    with autocast():
+        hypotheses = asr_model.transcribe(audio_filepaths, batch_size=args.batch_size)
+
+        # if transcriptions form a tuple (from RNNT), extract just "best" hypothesis
+        if type(hypotheses) == tuple and len(hypotheses) == 2:
+            hypotheses = hypotheses[0]
 
     info_list = get_utt_info(args.dataset)
     hypfile = os.path.join(args.out_dir, "hyp.trn")
