@@ -22,7 +22,7 @@ file (if provided).
 
 python speech_to_text_sclite.py \
     --asr_model="<Path to ASR Model>" \
-    --dataset="<Path to Hub 5 manifest file>" \
+    --dataset="<Path to manifest file>" \
     --out_dir="<Path to output dir, should be unique per model evaluated>" \
     --sctk_dir="<Path to root directory where SCTK is installed>" \
     --glm="<OPTIONAL: Path to glm file>" \
