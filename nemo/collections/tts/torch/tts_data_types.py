@@ -52,7 +52,10 @@ class Energy(WithLens):
 class NLPTokens:
     name = "nlp_tokens"
 
+class NLPDurationPrior(TTSDataType):
+    name = "nlp_duration_prior"
+
 
 MAIN_DATA_TYPES = [Audio, Text]
-VALID_SUPPLEMENTARY_DATA_TYPES = [LogMel, Durations, DurationPrior, Pitch, Energy, NLPTokens]
+VALID_SUPPLEMENTARY_DATA_TYPES = [LogMel, Durations, DurationPrior, Pitch, Energy, NLPTokens, NLPDurationPrior]
 DATA_STR2DATA_CLASS = {d.name: d for d in MAIN_DATA_TYPES + VALID_SUPPLEMENTARY_DATA_TYPES}

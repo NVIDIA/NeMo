@@ -36,7 +36,7 @@ from nemo.collections.tts.torch.tts_data_types import (
     LogMel,
     NLPTokens,
     Pitch,
-    WithLens,
+    WithLens, NLPDurationPrior,
 )
 from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishCharsTokenizer, EnglishPhonemesTokenizer
 from nemo.core.classes import Dataset
@@ -537,9 +537,12 @@ class MixerTTSDataset(TTSDataset):
             enc_text = d["text_tokens"]
 
             if without_matching:
-                assert isinstance(self.text_tokenizer, EnglishPhonemesTokenizer)
+                assert isinstance(self.text_tokenizer, EnglishPhonemesTokenizer) or isinstance(self.text_tokenizer, EnglishCharsTokenizer)
+                if isinstance(self.text_tokenizer, EnglishPhonemesTokenizer):
+                    preprocess_text_as_tts_input = self.text_tokenizer.g2p.text_preprocessing_func(raw_text)
+                else:
+                    preprocess_text_as_tts_input = self.text_tokenizer.text_preprocessing_func(raw_text)
 
-                preprocess_text_as_tts_input = self.text_tokenizer.g2p.text_preprocessing_func(raw_text)
                 nlp_tokens_as_ids = self.nlp_model_tokenizer.encode(
                     preprocess_text_as_tts_input, add_special_tokens=False
                 )
@@ -603,16 +606,42 @@ class MixerTTSDataset(TTSDataset):
                 f"{nlp_model} nlp model is not supported. Only albert is supported at this moment."
             )
 
-    def __getitem__(self, item):
+    def add_nlp_duration_prior(self, **kwargs):
+        pass
+
+    def __getitem__(self, index):
+        sample = self.data[index]
+        audio_stem = Path(sample["audio_filepath"]).stem
+
+        audio, audio_length, text, text_length, log_mel, log_mel_length, \
+        durations, duration_prior, pitch, pitch_length, energy, energy_length = super().__getitem__(index)
+
         nlp_tokens = None
         if NLPTokens in self.sup_data_types_set:
-            nlp_tokens = torch.tensor(self.id2nlp_tokens[item]).long()
-        return tuple([*super().__getitem__(item), nlp_tokens])
+            nlp_tokens = torch.tensor(self.id2nlp_tokens[index]).long()
+
+        nlp_duration_prior = None
+        if NLPDurationPrior in self.sup_data_types_set:
+            nlp_prior_path = Path(self.sup_data_path) / f"nlp_pr_{audio_stem}.pt"
+
+            if nlp_prior_path.exists():
+                nlp_duration_prior = torch.load(nlp_prior_path)
+            else:
+                log_mel_length = torch.tensor(self.get_log_mel(audio).squeeze(0).shape[1]).long()
+                nlp_tokens_length = len(self.id2nlp_tokens[index])
+                nlp_duration_prior = beta_binomial_prior_distribution(nlp_tokens_length, log_mel_length)
+                nlp_duration_prior = torch.from_numpy(nlp_duration_prior)
+                torch.save(nlp_duration_prior, nlp_prior_path)
+
+        return audio, audio_length, text, text_length, log_mel, \
+               log_mel_length, durations, duration_prior, pitch, pitch_length, \
+               energy, energy_length, nlp_tokens, nlp_duration_prior
 
     def _collate_fn(self, batch):
         batch = list(zip(*batch))
         data_dict = self.general_collate_fn(list(zip(*batch[:12])))
         nlp_tokens_list = batch[12]
+        nlp_duration_prior_list = batch[13]
 
         if NLPTokens in self.sup_data_types_set:
             nlp_tokens = torch.full(
@@ -623,6 +652,22 @@ class MixerTTSDataset(TTSDataset):
                 nlp_tokens[i, : nlp_tokens_i.shape[0]] = nlp_tokens_i
 
             data_dict[NLPTokens.name] = nlp_tokens
+
+        if NLPDurationPrior in self.sup_data_types_set:
+            nlp_duration_priors = (
+                torch.zeros(
+                    len(nlp_duration_prior_list),
+                    max([prior_i.shape[0] for prior_i in nlp_duration_prior_list]),
+                    max([prior_i.shape[1] for prior_i in nlp_duration_prior_list]),
+                )
+                if NLPDurationPrior in self.sup_data_types_set
+                else []
+            )
+
+            for i, nlp_duration_prior_i in enumerate(nlp_duration_prior_list):
+                nlp_duration_priors[i, : nlp_duration_prior_i.shape[0], : nlp_duration_prior_i.shape[1]] = nlp_duration_prior_i
+
+            data_dict[NLPDurationPrior.name] = nlp_duration_priors
 
         joined_data = self.join_data(data_dict)
         return joined_data

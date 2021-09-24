@@ -37,6 +37,7 @@ from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import average_pitch, regulate_len
 from nemo.collections.tts.torch.data import MixerTTSDataset
+from nemo.collections.tts.torch.tts_tokenizers import EnglishPhonemesTokenizer, EnglishCharsTokenizer
 from nemo.core.classes import typecheck
 from nemo.utils import logging
 
@@ -67,11 +68,13 @@ class MixerTTSModel(SpectrogramGenerator):
         self.conditioning_on_nlp_model_text_encoder = cfg.get("conditioning_on_nlp_model_text_encoder", False)
         self.conditioning_on_nlp_model_text_decoder = cfg.get("conditioning_on_nlp_model_text_decoder", False)
         self.extract_nlp_features_via_nlp_aligner = cfg.get("extract_nlp_features_via_nlp_aligner", False)
+        self.use_only_nlp_features_for_encoder = cfg.get("use_only_nlp_features_for_encoder", False)
 
         nlp_cond_flags = [
             self.conditioning_on_nlp_model_text_encoder,
             self.conditioning_on_nlp_model_text_decoder,
             self.extract_nlp_features_via_nlp_aligner,
+            self.use_only_nlp_features_for_encoder
         ]
         assert sum(nlp_cond_flags) <= 1, "use only one NLP conditioning flag"
         self.is_cond_on_nlp = sum(nlp_cond_flags) == 1
@@ -83,9 +86,9 @@ class MixerTTSModel(SpectrogramGenerator):
                 else self._get_nlp_padding_value(cfg.train_ds.dataset.nlp_model)
             )
             self.nlp_model_text_proj = self._get_nlp_embeddings(cfg.train_ds.dataset.nlp_model)
-            self.nlp_model_text_proj.weight.requires_grad = False
+            self.nlp_model_text_proj.weight.requires_grad = True
 
-            if self.conditioning_on_nlp_model_text_encoder or self.conditioning_on_nlp_model_text_decoder:
+            if self.conditioning_on_nlp_model_text_encoder or self.conditioning_on_nlp_model_text_decoder or self.use_only_nlp_features_for_encoder:
                 self.nlp_emb = instantiate(cfg.nlp_emb, in_channels=self.nlp_model_text_proj.weight.shape[1])
 
             if self.extract_nlp_features_via_nlp_aligner:
@@ -93,8 +96,24 @@ class MixerTTSModel(SpectrogramGenerator):
                     cfg.nlp_aligner, n_nlp_channels=self.nlp_model_text_proj.weight.shape[1]
                 )
 
-        self.encoder = instantiate(cfg.encoder, num_tokens=num_tokens, padding_idx=self.tokenizer.pad)
-        self.symbol_emb = self.encoder.to_embed
+        if cfg.encoder._target_ == "nemo.collections.tts.modules.mixer_tts.TTSMixerModule":
+            self.encoder_type = "mixer"
+            self.encoder = instantiate(
+                cfg.encoder,
+                num_tokens=num_tokens if not self.use_only_nlp_features_for_encoder else -1,
+                padding_idx=self.tokenizer.pad
+            )
+            self.symbol_emb = self.encoder.to_embed
+        elif cfg.encoder._target_ == "nemo.collections.tts.modules.transformer.FFTransformerEncoder":
+            self.encoder_type = "transformer"
+            self.encoder = instantiate(
+                cfg.encoder,
+                n_embed=num_tokens if not self.use_only_nlp_features_for_encoder else -1,
+                padding_idx=self.tokenizer.pad
+            )
+            self.symbol_emb = self.encoder.word_emb
+        else:
+            raise ValueError
 
         self.duration_predictor = instantiate(cfg.duration_predictor)
 
@@ -105,6 +124,14 @@ class MixerTTSModel(SpectrogramGenerator):
         self.preprocessor = instantiate(cfg.preprocessor)
 
         self.decoder = instantiate(cfg.decoder)
+
+        if cfg.decoder._target_ == "nemo.collections.tts.modules.mixer_tts.TTSMixerModule":
+            self.decoder_type = "mixer"
+        elif cfg.decoder._target_ == "nemo.collections.tts.modules.transformer.FFTransformerDecoder":
+            self.decoder_type = "transformer"
+        else:
+            raise ValueError
+
         self.proj = nn.Linear(self.decoder.d_model, cfg.n_mel_channels)
 
     def _get_nlp_embeddings(self, nlp_model):
@@ -137,8 +164,9 @@ class MixerTTSModel(SpectrogramGenerator):
         attn_soft=None,
         attn_hard=None,
         attn_hard_dur=None,
+        nlp_len=None
     ):
-        text_mask = get_mask_from_lengths(true_text_len)
+        text_mask = get_mask_from_lengths(true_text_len if not self.use_only_nlp_features_for_encoder else nlp_len)
         mel_mask = get_mask_from_lengths(true_spect_len)
         loss = 0.0
 
@@ -166,7 +194,11 @@ class MixerTTSModel(SpectrogramGenerator):
 
         # aligner loss
         bin_loss, ctc_loss = None, None
-        ctc_loss = self.forward_sum_loss(attn_logprob=attn_logprob, in_lens=true_text_len, out_lens=true_spect_len)
+        ctc_loss = self.forward_sum_loss(
+            attn_logprob=attn_logprob,
+            in_lens=true_text_len if not self.use_only_nlp_features_for_encoder else nlp_len,
+            out_lens=true_spect_len
+        )
         loss = loss + ctc_loss
         if self.add_bin_loss:
             bin_loss = self.bin_loss(hard_attention=attn_hard, soft_attention=attn_soft)
@@ -181,26 +213,47 @@ class MixerTTSModel(SpectrogramGenerator):
 
         return loss, durs_loss, acc, acc_dist_1, acc_dist_3, pitch_loss, mel_loss, ctc_loss, bin_loss
 
-    def forward(self, text, text_len, pitch=None, spect=None, spect_len=None, attn_prior=None, nlp_tokens=None):
+    def forward(self, text, text_len, pitch=None, spect=None, spect_len=None, attn_prior=None, nlp_tokens=None,
+                nlp_attn_prior=None):
         if self.training:
             assert pitch is not None
 
         text_mask = get_mask_from_lengths(text_len).unsqueeze(2)
 
-        if self.conditioning_on_nlp_model_text_encoder:
-            nlp_mask = (nlp_tokens != self.nlp_padding_value).unsqueeze(2)
-            nlp_emb = self.nlp_model_text_proj(nlp_tokens) * nlp_mask
-            nlp_emb = self.nlp_emb(nlp_emb.transpose(1, 2)).transpose(1, 2) * nlp_mask
-            enc_out, enc_mask = self.encoder(text, text_mask, conditioning=nlp_emb)
+        if self.encoder_type == "transformer":
+            enc_out, enc_mask = self.encoder(input=text, conditioning=0)
+        elif self.encoder_type == "mixer":
+            if self.conditioning_on_nlp_model_text_encoder:
+                nlp_mask = (nlp_tokens != self.nlp_padding_value).unsqueeze(2)
+                nlp_emb = self.nlp_model_text_proj(nlp_tokens) * nlp_mask
+                nlp_emb = self.nlp_emb(nlp_emb.transpose(1, 2)).transpose(1, 2) * nlp_mask
+                enc_out, enc_mask = self.encoder(text, text_mask, conditioning=nlp_emb)
+            elif self.use_only_nlp_features_for_encoder:
+                nlp_mask = (nlp_tokens != self.nlp_padding_value).unsqueeze(2)
+                nlp_emb = self.nlp_model_text_proj(nlp_tokens) * nlp_mask
+                nlp_emb = self.nlp_emb(nlp_emb.transpose(1, 2)).transpose(1, 2) * nlp_mask
+                enc_out, enc_mask = self.encoder(nlp_emb, nlp_mask)
+            else:
+                enc_out, enc_mask = self.encoder(text, text_mask)
         else:
-            enc_out, enc_mask = self.encoder(text, text_mask)
+            raise NotImplementedError
 
         # aligner
-        text_emb = self.symbol_emb(text)
-        attn_soft, attn_logprob = self.aligner(
-            spect, text_emb.permute(0, 2, 1), mask=text_mask == 0, attn_prior=attn_prior,
-        )
-        attn_hard = binarize_attention_parallel(attn_soft, text_len, spect_len)
+        nlp_len = None
+        if self.use_only_nlp_features_for_encoder:
+            attn_soft, attn_logprob = self.aligner(
+                spect, nlp_emb.permute(0, 2, 1), mask=nlp_mask == 0, attn_prior=nlp_attn_prior,
+            )
+            # it is assumed that zeros in nlp_mask is consecutive and only at the end
+            nlp_len = (nlp_mask.squeeze(2) != 0).sum(dim=-1)
+            attn_hard = binarize_attention_parallel(attn_soft, nlp_len, spect_len)
+        else:
+            text_emb = self.symbol_emb(text)
+            attn_soft, attn_logprob = self.aligner(
+                spect, text_emb.permute(0, 2, 1), mask=text_mask == 0, attn_prior=attn_prior,
+            )
+            attn_hard = binarize_attention_parallel(attn_soft, text_len, spect_len)
+
         attn_hard_dur = attn_hard.sum(2)[:, 0, :]
         assert torch.all(torch.eq(attn_hard_dur.sum(dim=1), spect_len))
 
@@ -245,7 +298,13 @@ class MixerTTSModel(SpectrogramGenerator):
         # regulate length
         len_regulated_enc_out, dec_lens = regulate_len(attn_hard_dur, enc_out)
 
-        dec_out, dec_lens = self.decoder(len_regulated_enc_out, get_mask_from_lengths(dec_lens).unsqueeze(2))
+        if self.decoder_type == "transformer":
+            dec_out, _ = self.decoder(input=len_regulated_enc_out, seq_lens=dec_lens)
+        elif self.decoder_type == "mixer":
+            dec_out, dec_lens = self.decoder(len_regulated_enc_out, get_mask_from_lengths(dec_lens).unsqueeze(2))
+        else:
+            raise NotImplementedError
+
         pred_spect = self.proj(dec_out)
 
         return (
@@ -257,8 +316,10 @@ class MixerTTSModel(SpectrogramGenerator):
             attn_logprob,
             attn_hard,
             attn_hard_dur,
+            nlp_len
         )
 
+    # TODO(Oktai): change according to use_only_nlp_features_for_encoder
     def infer(
         self,
         text,
@@ -272,19 +333,24 @@ class MixerTTSModel(SpectrogramGenerator):
     ):
         text_mask = get_mask_from_lengths(text_len).unsqueeze(2)
 
-        if self.conditioning_on_nlp_model_text_encoder:
-            nlp_mask = (nlp_tokens != self.nlp_padding_value).unsqueeze(2)
-            nlp_emb = self.nlp_model_text_proj(nlp_tokens) * nlp_mask
-            nlp_emb = self.nlp_emb(nlp_emb.transpose(1, 2)).transpose(1, 2) * nlp_mask
-            enc_out, enc_mask = self.encoder(text, text_mask, conditioning=nlp_emb)
+        if self.encoder_type == "transformer":
+            enc_out, enc_mask = self.encoder(input=text, conditioning=0)
+        elif self.encoder_type == "mixer":
+            if self.conditioning_on_nlp_model_text_encoder:
+                nlp_mask = (nlp_tokens != self.nlp_padding_value).unsqueeze(2)
+                nlp_emb = self.nlp_model_text_proj(nlp_tokens) * nlp_mask
+                nlp_emb = self.nlp_emb(nlp_emb.transpose(1, 2)).transpose(1, 2) * nlp_mask
+                enc_out, enc_mask = self.encoder(text, text_mask, conditioning=nlp_emb)
+            else:
+                enc_out, enc_mask = self.encoder(text, text_mask)
         else:
-            enc_out, enc_mask = self.encoder(text, text_mask)
+            raise NotImplementedError
 
         # aligner
         attn_hard_dur = None
         if use_gt_durs and spect is not None and spect_len is not None and attn_prior is not None:
             if attn_prior.shape[1] != spect.shape[2]:
-                # TODO(Oktai): need to delete it?
+                # TODO(otatanov): need to delete it
                 logging.warning(f"bad attn prior is detected: atth_prior shape: {attn_prior}, spect shape: {spect}")
                 spect = spect[:, :, : attn_prior.shape[1]]
                 spect_len[...] = attn_prior.shape[1]
@@ -336,7 +402,13 @@ class MixerTTSModel(SpectrogramGenerator):
         else:
             len_regulated_enc_out, dec_lens = regulate_len(durs_predicted, enc_out)
 
-        dec_out, _ = self.decoder(len_regulated_enc_out, get_mask_from_lengths(dec_lens).unsqueeze(2))
+        if self.decoder_type == "transformer":
+            dec_out, _ = self.decoder(input=len_regulated_enc_out, seq_lens=dec_lens)
+        elif self.decoder_type == "mixer":
+            dec_out, _ = self.decoder(len_regulated_enc_out, get_mask_from_lengths(dec_lens).unsqueeze(2))
+        else:
+            raise NotImplementedError
+
         pred_spect = self.proj(dec_out)
 
         return pred_spect
@@ -353,13 +425,15 @@ class MixerTTSModel(SpectrogramGenerator):
             self.bin_loss_scale = min((self.current_epoch - bin_loss_start_epoch) / self.bin_loss_warmup_epochs, 1.0)
 
     def training_step(self, batch, batch_idx):
-        attn_prior, nlp_tokens = None, None
+        attn_prior, nlp_tokens, nlp_attn_prior = None, None, None
         if (
             self.conditioning_on_nlp_model_text_encoder
             or self.conditioning_on_nlp_model_text_decoder
             or self.extract_nlp_features_via_nlp_aligner
         ):
             audio, audio_len, text, text_len, attn_prior, pitch, _, nlp_tokens = batch
+        elif self.use_only_nlp_features_for_encoder:
+            audio, audio_len, text, text_len, attn_prior, pitch, _, nlp_tokens, nlp_attn_prior = batch
         else:
             audio, audio_len, text, text_len, attn_prior, pitch, _ = batch
 
@@ -370,7 +444,7 @@ class MixerTTSModel(SpectrogramGenerator):
         pitch = (pitch - self.pitch_mean) / self.pitch_std
         pitch[zero_pitch_idx] = 0.0
 
-        (pred_spect, _, pred_log_durs, pred_pitch, attn_soft, attn_logprob, attn_hard, attn_hard_dur,) = self(
+        (pred_spect, _, pred_log_durs, pred_pitch, attn_soft, attn_logprob, attn_hard, attn_hard_dur, nlp_len, ) = self(
             text=text,
             text_len=text_len,
             pitch=pitch,
@@ -378,6 +452,7 @@ class MixerTTSModel(SpectrogramGenerator):
             spect_len=spect_len,
             attn_prior=attn_prior,
             nlp_tokens=nlp_tokens,
+            nlp_attn_prior=nlp_attn_prior
         )
 
         (loss, durs_loss, acc, acc_dist_1, acc_dist_3, pitch_loss, mel_loss, ctc_loss, bin_loss,) = self._metrics(
@@ -393,6 +468,7 @@ class MixerTTSModel(SpectrogramGenerator):
             attn_soft=attn_soft,
             attn_hard=attn_hard,
             attn_hard_dur=attn_hard_dur,
+            nlp_len=nlp_len
         )
 
         train_log = {
@@ -409,13 +485,15 @@ class MixerTTSModel(SpectrogramGenerator):
         return {'loss': loss, 'progress_bar': train_log, 'log': train_log}
 
     def validation_step(self, batch, batch_idx):
-        attn_prior, nlp_tokens = None, None
+        attn_prior, nlp_tokens, nlp_attn_prior = None, None, None
         if (
             self.conditioning_on_nlp_model_text_encoder
             or self.conditioning_on_nlp_model_text_decoder
             or self.extract_nlp_features_via_nlp_aligner
         ):
             audio, audio_len, text, text_len, attn_prior, pitch, _, nlp_tokens = batch
+        elif self.use_only_nlp_features_for_encoder:
+            audio, audio_len, text, text_len, attn_prior, pitch, _, nlp_tokens, nlp_attn_prior = batch
         else:
             audio, audio_len, text, text_len, attn_prior, pitch, _ = batch
 
@@ -426,7 +504,7 @@ class MixerTTSModel(SpectrogramGenerator):
         pitch = (pitch - self.pitch_mean) / self.pitch_std
         pitch[zero_pitch_idx] = 0.0
 
-        (pred_spect, _, pred_log_durs, pred_pitch, attn_soft, attn_logprob, attn_hard, attn_hard_dur,) = self(
+        (pred_spect, _, pred_log_durs, pred_pitch, attn_soft, attn_logprob, attn_hard, attn_hard_dur, nlp_len, ) = self(
             text=text,
             text_len=text_len,
             pitch=pitch,
@@ -434,6 +512,7 @@ class MixerTTSModel(SpectrogramGenerator):
             spect_len=spect_len,
             attn_prior=attn_prior,
             nlp_tokens=nlp_tokens,
+            nlp_attn_prior=nlp_attn_prior
         )
 
         (loss, durs_loss, acc, acc_dist_1, acc_dist_3, pitch_loss, mel_loss, ctc_loss, bin_loss,) = self._metrics(
@@ -449,10 +528,11 @@ class MixerTTSModel(SpectrogramGenerator):
             attn_soft=attn_soft,
             attn_hard=attn_hard,
             attn_hard_dur=attn_hard_dur,
+            nlp_len=nlp_len
         )
 
         # without ground truth internal features except for durations
-        pred_spect, _, pred_log_durs, pred_pitch, attn_soft, attn_logprob, attn_hard, attn_hard_dur = self(
+        pred_spect, _, pred_log_durs, pred_pitch, attn_soft, attn_logprob, attn_hard, attn_hard_dur, nlp_len = self(
             text=text,
             text_len=text_len,
             pitch=None,
@@ -460,6 +540,7 @@ class MixerTTSModel(SpectrogramGenerator):
             spect_len=spect_len,
             attn_prior=attn_prior,
             nlp_tokens=nlp_tokens,
+            nlp_attn_prior=nlp_attn_prior,
         )
 
         *_, with_pred_features_mel_loss, _, _ = self._metrics(
@@ -475,6 +556,7 @@ class MixerTTSModel(SpectrogramGenerator):
             attn_soft=attn_soft,
             attn_hard=attn_hard,
             attn_hard_dur=attn_hard_dur,
+            nlp_len=nlp_len
         )
 
         val_log = {
@@ -534,7 +616,7 @@ class MixerTTSModel(SpectrogramGenerator):
         if self._train_dl is not None and self._train_dl.dataset is not None:
             self._nlp_model_tokenizer = self._train_dl.dataset.nlp_model_tokenizer
 
-        # TODO(Oktai): rewrite it
+        # TODO(otatanov): rewrite it
         self._nlp_model_tokenizer = AlbertTokenizer.from_pretrained('albert-base-v2')
 
         return self._nlp_model_tokenizer
@@ -573,7 +655,14 @@ class MixerTTSModel(SpectrogramGenerator):
             nlp_space_value = nlp_model_tokenizer._convert_token_to_id('▁')
 
             if without_matching:
-                preprocess_texts_as_tts_input = [self.tokenizer.g2p.text_preprocessing_func(t) for t in raw_texts]
+                assert isinstance(self.tokenizer, EnglishCharsTokenizer) or isinstance(self.tokenizer, EnglishPhonemesTokenizer)
+
+                preprocess_texts_as_tts_input = [
+                    self.tokenizer.g2p.text_preprocessing_func(t)
+                    if isinstance(self.tokenizer, EnglishPhonemesTokenizer)
+                    else self.tokenizer.text_preprocessing_func(t)
+                    for t in raw_texts
+                ]
                 nlp_tokens_as_ids_list = [
                     nlp_model_tokenizer.encode(t, add_special_tokens=False) for t in preprocess_texts_as_tts_input
                 ]
