@@ -126,7 +126,7 @@ def linear_search_wer(
         param_name: the name of the parameter to be used in the figure
 
     Output:
-        (best coefficient found, best WER achived)
+        (best coefficient found, best WER achieved)
     """
     scale = scores1.mean().abs().item() / scores2.mean().abs().item()
     left = coef_range[0] * scale
