@@ -1307,7 +1307,7 @@ pipeline {
               model.validation_ds.tokens_in_batch=128 \
               model.test_ds.tokens_in_batch=128 \
               model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
-              model.decoder.hidden_size=128 \
+              model.decoder.hidden_size=48 \
               model.decoder.inner_size=256 \
               trainer.gpus=[0] \
               +trainer.fast_dev_run=true \
@@ -1340,7 +1340,7 @@ pipeline {
               model.validation_ds.tokens_in_batch=128 \
               model.test_ds.tokens_in_batch=128 \
               model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
-              model.decoder.hidden_size=128 \
+              model.decoder.hidden_size=48 \
               model.decoder.inner_size=256 \
               trainer.gpus=[1] \
               +trainer.fast_dev_run=true \
