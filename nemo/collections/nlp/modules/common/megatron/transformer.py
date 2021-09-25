@@ -26,7 +26,7 @@ from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from megatron.model.enums import AttnMaskType, LayerType, AttnType
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import MixedFusedLayerNorm as LayerNorm
 from nemo.collections.nlp.modules.common.megatron.fused_softmax import FusedScaleMaskSoftmax
-from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import bias_gelu_impl
+from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import bias_gelu_impl_fp16, bias_gelu_impl_bf16
 from nemo.collections.nlp.modules.common.megatron.utils import attention_mask_func, openai_gelu, erf_gelu
 
 
@@ -85,13 +85,19 @@ class ParallelMLP(MegatronModule):
             use_cpu_initialization=args.use_cpu_initialization,
         )
 
+        if args.fp16:
+            self.bias_gelu_impl = bias_gelu_impl_fp16
+        else:
+            self.bias_gelu_impl = bias_gelu_impl_bf16
+
+
     def forward(self, hidden_states):
 
         # [s, b, 4hp]
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
 
         if self.bias_gelu_fusion:
-            intermediate_parallel = bias_gelu_impl(intermediate_parallel, bias_parallel)
+            intermediate_parallel = self.bias_gelu_impl(intermediate_parallel, bias_parallel)
         else:
             intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel)
 
@@ -354,9 +360,20 @@ def get_bias_dropout_add(training):
 
 
 @torch.jit.script
-def bias_dropout_add_fused_train(x, bias, residual, prob):
+def bias_dropout_add_fused_train_(x, bias, residual, prob):
     # type: (Tensor, Tensor, Tensor, float) -> Tensor
     return bias_dropout_add(x, bias, residual, prob, True)
+
+
+class BiasDropoutAddFusedTrain(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @torch.cuda.amp.custom_fwd(cast_inputs=torch.float16)
+    def forward(self, x, bias, residual, prob):
+        return bias_dropout_add_fused_train_(x, bias, residual, prob)
+
+bias_dropout_add_fused_train = BiasDropoutAddFusedTrain()
 
 
 @torch.jit.script
@@ -571,7 +588,7 @@ class ParallelTransformer(MegatronModule):
 
         if self.post_process:
             # Final layer norm before output.
-            self.final_layernorm = LayerNorm(args.hidden_size, eps=args.layernorm_epsilon)
+            self.final_layernorm = LayerNorm(args.hidden_size, eps=args.layernorm_epsilon, fp16=args.fp16)
 
     def _get_layer(self, layer_number):
         return self.layers[layer_number]

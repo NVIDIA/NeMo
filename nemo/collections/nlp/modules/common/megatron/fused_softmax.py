@@ -60,7 +60,7 @@ class ScaledMaskedSoftmax(torch.autograd.Function):
     """
 
     @staticmethod
-    @torch.cuda.amp.custom_fwd
+    @torch.cuda.amp.custom_fwd(cast_inputs=torch.float16)
     def forward(ctx, inputs, mask, scale):
         import scaled_masked_softmax_cuda
 

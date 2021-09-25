@@ -42,9 +42,9 @@ def bias_gelu_back(g, bias, y):
     return ff * g
 
 
-class GeLUFunction(torch.autograd.Function):
+class GeLUFunctionFP16(torch.autograd.Function):
     @staticmethod
-    @torch.cuda.amp.custom_fwd
+    @torch.cuda.amp.custom_fwd(cast_inputs=torch.float16)
     # bias is an optional argument
     def forward(ctx, input, bias):
         ctx.save_for_backward(input, bias)
@@ -58,4 +58,21 @@ class GeLUFunction(torch.autograd.Function):
         return tmp, tmp
 
 
-bias_gelu_impl = GeLUFunction.apply
+class GeLUFunctionBF16(torch.autograd.Function):
+    @staticmethod
+    @torch.cuda.amp.custom_fwd(cast_inputs=torch.bfloat16)
+    # bias is an optional argument
+    def forward(ctx, input, bias):
+        ctx.save_for_backward(input, bias)
+        return bias_gelu(bias, input)
+
+    @staticmethod
+    @torch.cuda.amp.custom_bwd
+    def backward(ctx, grad_output):
+        input, bias = ctx.saved_tensors
+        tmp = bias_gelu_back(grad_output, bias, input)
+        return tmp, tmp
+
+
+bias_gelu_impl_fp16 = GeLUFunctionFP16.apply
+bias_gelu_impl_bf16 = GeLUFunctionBF16.apply

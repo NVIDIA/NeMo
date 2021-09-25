@@ -27,9 +27,39 @@ global fused_mix_prec_layer_norm_cuda
 fused_mix_prec_layer_norm_cuda = None
 
 
-class FusedLayerNormAffineFunction(torch.autograd.Function):
+class FusedLayerNormAffineFunctionFP16(torch.autograd.Function):
     @staticmethod
-    @torch.cuda.amp.custom_fwd
+    @torch.cuda.amp.custom_fwd(cast_inputs=torch.float16)
+    def forward(ctx, input, weight, bias, normalized_shape, eps):
+
+        ctx.normalized_shape = normalized_shape
+        ctx.eps = eps
+        input_ = input.contiguous()
+        weight_ = weight.contiguous()
+        bias_ = bias.contiguous()
+        output, mean, invvar = fused_mix_prec_layer_norm_cuda.forward_affine(
+            input_, ctx.normalized_shape, weight_, bias_, ctx.eps
+        )
+        ctx.save_for_backward(input_, weight_, bias_, mean, invvar)
+
+        return output
+
+    @staticmethod
+    @torch.cuda.amp.custom_bwd
+    def backward(ctx, grad_output):
+
+        input_, weight_, bias_, mean, invvar = ctx.saved_tensors
+        grad_input = grad_weight = grad_bias = None
+        grad_input, grad_weight, grad_bias = fused_mix_prec_layer_norm_cuda.backward_affine(
+            grad_output.contiguous(), mean, invvar, input_, ctx.normalized_shape, weight_, bias_, ctx.eps
+        )
+
+        return grad_input, grad_weight, grad_bias, None, None
+
+
+class FusedLayerNormAffineFunctionBF16(torch.autograd.Function):
+    @staticmethod
+    @torch.cuda.amp.custom_fwd(cast_inputs=torch.bfloat16)
     def forward(ctx, input, weight, bias, normalized_shape, eps):
 
         ctx.normalized_shape = normalized_shape
@@ -58,7 +88,7 @@ class FusedLayerNormAffineFunction(torch.autograd.Function):
 
 
 class MixedFusedLayerNorm(torch.nn.Module):
-    def __init__(self, normalized_shape, eps=1e-5):
+    def __init__(self, normalized_shape, eps=1e-5, fp16=True):
         super(MixedFusedLayerNorm, self).__init__()
 
         global fused_mix_prec_layer_norm_cuda
@@ -71,6 +101,11 @@ class MixedFusedLayerNorm(torch.nn.Module):
         self.weight = Parameter(torch.Tensor(*normalized_shape))
         self.bias = Parameter(torch.Tensor(*normalized_shape))
         self.reset_parameters()
+    
+        if fp16:
+            self.fused_layer_norm_affine_function = FusedLayerNormAffineFunctionFP16
+        else:
+            self.fused_layer_norm_affine_function = FusedLayerNormAffineFunctionBF16
 
     def reset_parameters(self):
 
@@ -79,4 +114,4 @@ class MixedFusedLayerNorm(torch.nn.Module):
 
     def forward(self, input):
 
-        return FusedLayerNormAffineFunction.apply(input, self.weight, self.bias, self.normalized_shape, self.eps)
+        return self.fused_layer_norm_affine_function.apply(input, self.weight, self.bias, self.normalized_shape, self.eps)
