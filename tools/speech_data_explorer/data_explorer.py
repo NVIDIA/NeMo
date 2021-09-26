@@ -34,15 +34,12 @@ import editdistance
 import librosa
 import numpy as np
 import soundfile as sf
-
-
 import tqdm
 from dash.dependencies import Input, Output
 from dash.exceptions import PreventUpdate
 from plotly import express as px
 from plotly import graph_objects as go
 from plotly.subplots import make_subplots
-
 
 # number of items in a table per page
 DATA_PAGE_SIZE = 10
@@ -88,7 +85,12 @@ def parse_args():
     parser.add_argument(
         '--disable-caching-metrics', action='store_true', help='disable caching metrics for errors analysis'
     )
-    parser.add_argument('--estimate-audio-metrics', '-a', action='store_true', help='estimate frequency bandwidth and signal level of audio recordings')
+    parser.add_argument(
+        '--estimate-audio-metrics',
+        '-a',
+        action='store_true',
+        help='estimate frequency bandwidth and signal level of audio recordings',
+    )
     parser.add_argument('--debug', '-d', action='store_true', help='enable debug mode')
     args = parser.parse_args()
     print(args)
@@ -101,16 +103,11 @@ def eval_bandwidth(signal, sr, threshold=-50):
     hop_length = int(sr * time_stride)
     n_fft = 512
     spectrogram = np.mean(
-        np.abs(librosa.stft(y=signal, n_fft=n_fft, hop_length=hop_length, window='blackmanharris'))**2,
-        axis=1
+        np.abs(librosa.stft(y=signal, n_fft=n_fft, hop_length=hop_length, window='blackmanharris')) ** 2, axis=1
     )
-    power_spectrum = librosa.power_to_db(
-        spectrogram,
-        ref=np.max,
-        top_db=100
-    )
+    power_spectrum = librosa.power_to_db(spectrogram, ref=np.max, top_db=100)
     freqband = 0
-    for idx in range(len(power_spectrum)-1, -1, -1):
+    for idx in range(len(power_spectrum) - 1, -1, -1):
         if power_spectrum[idx] > threshold:
             freqband = idx / n_fft * sr
             break
@@ -216,7 +213,7 @@ def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=
                 signal, sr = librosa.load(item['audio_filepath'], sr=None)
                 bw = eval_bandwidth(signal, sr)
                 item['freq_bandwidth'] = int(bw)
-                item['level_db'] = 20*np.log10(np.max(np.abs(signal)))
+                item['level_db'] = 20 * np.log10(np.max(np.abs(signal)))
             for k in item:
                 if k not in data[-1]:
                     data[-1][k] = item[k]
@@ -311,16 +308,16 @@ app = dash.Dash(
 )
 
 figures_labels = {
-        'duration': ['Duration', 'Duration, sec'],
-        'num_words': ['Number of Words', '#words'],
-        'num_chars': ['Number of Characters', '#chars'],
-        'word_rate': ['Word Rate', '#words/sec'],
-        'char_rate': ['Character Rate', '#chars/sec'],
-        'WER': ['Word Error Rate', 'WER, %'],
-        'CER': ['Character Error Rate', 'CER, %'],
-        'WMR': ['Word Match Rate', 'WMR, %'],
-        'freq_bandwidth': ['Frequency Bandwidth', 'Bandwidth, Hz'],
-        'level_db': ['Peak Level', 'Level, dB'],
+    'duration': ['Duration', 'Duration, sec'],
+    'num_words': ['Number of Words', '#words'],
+    'num_chars': ['Number of Characters', '#chars'],
+    'word_rate': ['Word Rate', '#words/sec'],
+    'char_rate': ['Character Rate', '#chars/sec'],
+    'WER': ['Word Error Rate', 'WER, %'],
+    'CER': ['Character Error Rate', 'CER, %'],
+    'WMR': ['Word Match Rate', 'WMR, %'],
+    'freq_bandwidth': ['Frequency Bandwidth', 'Bandwidth, Hz'],
+    'level_db': ['Peak Level', 'Level, dB'],
 }
 figures_hist = {}
 for k in data[0]:
@@ -334,7 +331,7 @@ for k in data[0]:
             title = title[0].upper() + title[1:].lower()
             ylabel = title
             xlabel = title
-        figures_hist[k]= [ylabel + ' (per utterance)', plot_histogram(data, k, xlabel)]
+        figures_hist[k] = [ylabel + ' (per utterance)', plot_histogram(data, k, xlabel)]
 
 if metrics_available:
     figure_word_acc = plot_word_accuracy(vocabulary)
