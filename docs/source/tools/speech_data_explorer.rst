@@ -3,14 +3,30 @@ Speech Data Explorer
 
 Speech Data Explorer (SDE) is a `Dash <https://plotly.com/dash/>`__-based web application for interactive exploration and analysis of speech datasets.
 
-Features:
++--------------------------------------------------------------------------------------------------------------------------+
+| **SDE Features:**                                                                                                        |
++--------------------------------------------------------------------------------------------------------------------------+
+| global dataset statistics [alphabet, vocabulary, duration-based histograms, number of hours, number of utterances, etc.] |
++--------------------------------------------------------------------------------------------------------------------------+
+| navigation across the dataset using an interactive datatable that supports sorting and filtering                         |
++--------------------------------------------------------------------------------------------------------------------------+
+| inspection of individual utterances [plotting waveforms, spectrograms, custom attributes, and playing audio]             |
++--------------------------------------------------------------------------------------------------------------------------+
+| error analysis [word error rate (WER), character error rate (CER), word match rate (WMR), word accuracy,                 |
+| display highlighted the difference between the reference text and ASR model prediction]                                  |
++--------------------------------------------------------------------------------------------------------------------------+
+| estimation of audio signal parameters [peak level, frequency bandwidth]                                                  |
++--------------------------------------------------------------------------------------------------------------------------+
 
-* global dataset statistics [alphabet, vocabulary, duration-based histograms, number of hours, number of utterances, etc.]
-* navigation across the dataset using an interactive datatable that supports sorting and filtering
-* inspection of individual utterances [plotting waveforms, spectrograms, custom attributes, and playing audio]
-* error analysis [word error rate (WER), character error rate (CER), word match rate (WMR), word accuracy, display highlighted the difference between the reference text and ASR model prediction]
-* estimation of audio signal parameters [peak level, frequency bandwidth]
+SDE Demo Instance
+-----------------
 
+To demonstrate both the `CTC-Segmentation <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tools/ctc_segmentation.html>`_ and Speech Data Explorer tools, we re-resegmenting the development set as of `the LibriSpeech corpus <http://www.danielpovey.com/files/2015_icassp_librispeech.pdf>`_.
+We concatenated all audio files from the dev-clean split into a single file and set up the CTC-Segmentation tool to cut the long audio file into original utterances.
+We used the CTC-based `QuartzNet15x5Base-En ASR model <https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/QuartzNet15x5Base-En.nemo>`_.
+The segmented corpus has 3.82% WER and contains 300 out of the initial 323 minutes of audio.
+The remaining 23 minutes are the silence at the beginning and end of the audio removed during the segmentation.
+A `running instance of the SDE <http://34.221.29.162:8050/>`_ demonstrates the re-segmented corpus.
 
 Getting Started
 ---------------
@@ -154,17 +170,6 @@ Listening to the audio recording helps to validate the corresponding reference t
         :align: center
         :alt: MLS Player
         :scale: 50%
-
-SDE Demo Instance
------------------
-
-To demonstrate both the CTC-Segmentation and Speech Data Explorer tools, we re-resegmenting the development set as of `the LibriSpeech corpus <http://www.danielpovey.com/files/2015_icassp_librispeech.pdf>`_. 
-We concatenated all audio files from the dev-clean split into a single file and set up the CTC-Segmentation tool to cut the long audio file into original utterances. 
-We used the CTC-based `QuartzNet15x5Base-En ASR model <https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/QuartzNet15x5Base-En.nemo>`_. 
-The segmented corpus has 3.82% WER and contains 300 out of the initial 323 minutes of audio. 
-The remaining 23 minutes are the silence at the beginning and end of the audio removed during the segmentation. 
-A `running instance of the SDE <http://34.221.29.162:8050/>`_ demonstrates the re-segmented corpus.
-
 
 
 
