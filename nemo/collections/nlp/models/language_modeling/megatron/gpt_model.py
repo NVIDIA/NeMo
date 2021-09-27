@@ -132,7 +132,9 @@ class GPTModel(MegatronModule):
             onnx_safe=onnx_safe,
         )
 
-        self.initialize_word_embeddings(init_method_normal)
+        self.initialize_word_embeddings(
+            init_method=init_method_normal(init_method_std), vocab_size=vocab_size, hidden_size=hidden_size
+        )
 
     def set_input_tensor(self, input_tensor):
         """See megatron.model.transformer.set_input_tensor()"""
