@@ -152,7 +152,6 @@ class MegatronGPTModel(NLPModel):
         return loss
 
     def process_batch(self, batch):
-        args = get_args()
 
         # Items and their type.
         keys = ['text']
@@ -175,7 +174,11 @@ class MegatronGPTModel(NLPModel):
 
         # Get the masks and postition ids.
         attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
-            tokens, self.tokenizer.eos_id, args.reset_position_ids, args.reset_attention_mask, args.eod_mask_loss
+            tokens,
+            self.tokenizer.eos_id,
+            self.cfg.get('reset_position_ids', False),
+            self.cfg.get('reset_attention_mask', False),
+            self.cfg.get('eod_mask_loss', False),
         )
 
         return tokens, labels, loss_mask, attention_mask, position_ids

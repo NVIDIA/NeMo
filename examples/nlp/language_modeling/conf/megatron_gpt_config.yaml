@@ -65,6 +65,9 @@ model:
   layernorm_epsilon: 1e-5
   onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
   seed: 1234
+  reset_position_ids: False # Reset position ids after end-of-document token
+  reset_attention_mask: False # Reset attention mask after end-of-document token
+  eod_mask_loss: False # Mask loss for the end of document tokens
   tokenizer:
     library: 'megatron'
     type: 'GPT2BPETokenizer'
