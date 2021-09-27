@@ -25,13 +25,12 @@ from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import bui
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_ltor_masks_and_position_ids,
 )
-from nemo.collections.nlp.modules.common.megatron import load_fused_kernels
+from nemo.collections.nlp.modules.common.megatron import fused_kernels
 from nemo.utils import AppState, logging
 
 
@@ -52,7 +51,7 @@ class MegatronGPTModel(NLPModel):
             seed=self.cfg.get('seed', 1234),
         )
 
-        load_fused_kernels.load()
+        fused_kernels.load()
 
         self.tokenizer = get_nmt_tokenizer(
             library=self.cfg.tokenizer.library,
