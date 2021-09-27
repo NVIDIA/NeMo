@@ -59,6 +59,7 @@ model:
   activations_checkpoint_num_layers: 1 # not implemented yet
   layernorm_epsilon: 1e-5
   onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
+  seed: 1234
   tokenizer:
     library: 'megatron'
     type: 'GPT2BPETokenizer'
@@ -66,7 +67,6 @@ model:
     vocab_file: /raid/data/gpt/vocab.json
     merge_file: /raid/data/gpt/merges.txt
 
-  seed: 1234
 
   # GPT
   pre_process: True

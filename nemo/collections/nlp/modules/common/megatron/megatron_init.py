@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 import os
 import random
 from apex import mpu
@@ -30,13 +31,19 @@ from nemo.utils import AppState, logging
 
 
 def initialize_model_parallel_for_nemo(
-    tensor_model_parallel_size=1, tensor_model_parallel_rank=0, seed=1234,
+    world_size, global_rank, local_rank, tensor_model_parallel_size=1, seed=1234,
 ):
 
+    # updating NeMo globals
     app_state = AppState()
+    app_state.global_rank = global_rank
+    app_state.world_size = world_size
+    app_state.model_parallel_size = tensor_model_parallel_size
+    app_state.model_parallel_rank = compute_model_parallel_rank(local_rank, tensor_model_parallel_size)
 
+    # update apex.mpu globals
     set_tensor_model_parallel_world_size(tensor_model_parallel_size)
-    set_tensor_model_parallel_rank(tensor_model_parallel_rank)
+    set_tensor_model_parallel_rank(app_state.model_parallel_rank)
 
     # pipeline model parallelism not implemented in NeMo yet
     set_pipeline_model_parallel_rank(0)
@@ -44,22 +51,7 @@ def initialize_model_parallel_for_nemo(
 
     _set_random_seed(seed)
 
-    logging.info(f"Initialized Megatron ...")
     app_state._is_megatron_initialized = True
-
-
-def get_extra_args_provider(
-    micro_batch_size=1, tensor_model_parallel_size=1, encoder_seq_length=512, init_method_std=0.02, fp16=True,
-):
-    def extra_args_provider(parser):
-        parser.set_defaults(micro_batch_size=micro_batch_size)
-        parser.set_defaults(tensor_model_parallel_size=tensor_model_parallel_size)
-        parser.set_defaults(encoder_seq_length=encoder_seq_length)
-        parser.set_defaults(init_method_std=init_method_std)
-        parser.set_defaults(fp16=fp16)
-        return parser
-
-    return extra_args_provider
 
 
 def _set_random_seed(seed_):
