@@ -133,6 +133,11 @@ def get_nemo_transformer(
             num_token_types=cfg.get('num_token_types', 2),
         )
 
+    # update hidden_size which might be missing for pre-trained models
+    if pretrained and (config_dict is not None):
+        config_dict["hidden_size"] = model.hidden_size
+
+
     return model
 
 
@@ -147,10 +152,6 @@ def get_huggingface_transformer(
         model = HuggingFaceEncoderModule(model_name, pretrained, config_dict)
     else:
         model = HuggingFaceDecoderModule(model_name, pretrained, config_dict)
-
-    # update hidden_size
-    if config_dict is not None:
-        config_dict["hidden_size"] = model.hidden_size
         
     return model
 
