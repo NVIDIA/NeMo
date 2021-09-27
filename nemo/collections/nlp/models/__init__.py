@@ -31,3 +31,4 @@ from nemo.collections.nlp.models.neural_machine_translation.neural_machine_trans
 from nemo.collections.nlp.models.question_answering.qa_model import QAModel
 from nemo.collections.nlp.models.text_classification import TextClassificationModel
 from nemo.collections.nlp.models.token_classification import PunctuationCapitalizationModel, TokenClassificationModel
+from nemo.collections.nlp.models.zero_shot_intent_recognition import ZeroShotIntentModel
