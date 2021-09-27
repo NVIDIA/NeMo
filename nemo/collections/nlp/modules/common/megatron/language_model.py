@@ -25,6 +25,7 @@ from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTra
 from nemo.collections.nlp.modules.common.megatron.utils import (
     get_linear_layer,
     init_method_normal,
+    openai_gelu,
     scaled_init_method_normal,
 )
 
@@ -52,7 +53,11 @@ def get_language_model(
     num_tokentypes,
     add_pooler,
     vocab_size,
+    num_attention_heads,
     encoder_attn_mask_type,
+    apply_query_key_layer_scaling=True,
+    kv_channels=None,
+    ffn_hidden_size=None,
     init_method=None,
     scaled_init_method=None,
     add_decoder=False,
@@ -68,8 +73,20 @@ def get_language_model(
     activations_checkpoint_method=None,
     activations_checkpoint_num_layers=1,
     layernorm_epsilon=1e-5,
+    bias_gelu_fusion=True,
+    openai_gelu=False,
+    onnx_safe=False,
 ):
     """Build language model and return along with the key to save."""
+
+    if kv_channels is None:
+        assert (
+            hidden_size % num_attention_heads == 0
+        ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+        kv_channels = hidden_size // num_attention_heads
+
+    if ffn_hidden_size is None:
+        ffn_hidden_size = 4 * hidden_size
 
     if init_method is None:
         init_method = init_method_normal(init_method_std)
@@ -87,6 +104,10 @@ def get_language_model(
         max_position_embeddings=max_position_embeddings,
         hidden_size=hidden_size,
         num_layers=num_layers,
+        num_attention_heads=num_attention_heads,
+        apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+        kv_channels=kv_channels,
+        ffn_hidden_size=ffn_hidden_size,
         add_decoder=add_decoder,
         decoder_attn_mask_type=decoder_attn_mask_type,
         add_pooler=add_pooler,
@@ -100,6 +121,9 @@ def get_language_model(
         activations_checkpoint_method=activations_checkpoint_method,
         activations_checkpoint_num_layers=activations_checkpoint_num_layers,
         layernorm_epsilon=layernorm_epsilon,
+        bias_gelu_fusion=bias_gelu_fusion,
+        openai_gelu=openai_gelu,
+        onnx_safe=onnx_safe,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -300,7 +324,11 @@ class TransformerLanguageModel(MegatronModule):
         max_position_embeddings,
         hidden_size,
         num_layers,
-        num_tokentypes=0,
+        num_tokentypes,
+        num_attention_heads,
+        apply_query_key_layer_scaling=True,
+        kv_channels=None,
+        ffn_hidden_size=None,
         add_decoder=False,
         decoder_attn_mask_type=AttnMaskType.causal,
         add_pooler=False,
@@ -314,6 +342,9 @@ class TransformerLanguageModel(MegatronModule):
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=1,
         layernorm_epsilon=1e-5,
+        bias_gelu_fusion=True,
+        openai_gelu=False,
+        onnx_safe=False,
     ):
         super(TransformerLanguageModel, self).__init__()
 
@@ -331,6 +362,16 @@ class TransformerLanguageModel(MegatronModule):
         self.add_pooler = add_pooler
         self.hidden_dropout = hidden_dropout
         self.output_layer_init_method = output_layer_init_method
+
+        if kv_channels is None:
+
+            assert (
+                hidden_size % num_attention_heads == 0
+            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+            kv_channels = hidden_size // num_attention_heads
+
+        if ffn_hidden_size is None:
+            ffn_hidden_size = 4 * hidden_size
 
         # Embeddings.
         if self.pre_process:
@@ -351,6 +392,10 @@ class TransformerLanguageModel(MegatronModule):
             output_layer_init_method=self.output_layer_init_method,
             num_layers=self.num_layers,
             hidden_size=self.hidden_size,
+            num_attention_heads=num_attention_heads,
+            apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+            kv_channels=kv_channels,
+            ffn_hidden_size=ffn_hidden_size,
             self_attn_mask_type=self.encoder_attn_mask_type,
             pre_process=self.pre_process,
             post_process=self.post_process,
@@ -361,6 +406,10 @@ class TransformerLanguageModel(MegatronModule):
             activations_checkpoint_num_layers=activations_checkpoint_num_layers,
             layernorm_epsilon=layernorm_epsilon,
             hidden_dropout=hidden_dropout,
+            use_cpu_initialization=use_cpu_initialization,
+            bias_gelu_fusion=bias_gelu_fusion,
+            openai_gelu=openai_gelu,
+            onnx_safe=onnx_safe,
         )
         self._encoder_key = 'encoder'
 
@@ -370,10 +419,16 @@ class TransformerLanguageModel(MegatronModule):
                 mpu.get_pipeline_model_parallel_world_size() == 1
             ), 'pipeline parallelism is not supported in the presence of decoder'
             self.decoder = ParallelTransformer(
+                layer_type=LayerType.decoder,
+                self_attn_mask_type=self.decoder_attn_mask_type,
                 init_method=self.init_method,
                 output_layer_init_method=self.output_layer_init_method,
                 num_layers=self.num_layers,
                 hidden_size=self.hidden_size,
+                num_attention_heads=num_attention_heads,
+                apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+                kv_channels=kv_channels,
+                ffn_hidden_size=ffn_hidden_size,
                 pre_process=self.pre_process,
                 post_process=self.post_process,
                 fp16=fp16,
@@ -382,9 +437,11 @@ class TransformerLanguageModel(MegatronModule):
                 activations_checkpoint_method=activations_checkpoint_method,
                 activations_checkpoint_num_layers=activations_checkpoint_num_layers,
                 layernorm_epsilon=layernorm_epsilon,
-                layer_type=LayerType.decoder,
-                self_attn_mask_type=self.decoder_attn_mask_type,
                 hidden_dropout=hidden_dropout,
+                use_cpu_initialization=use_cpu_initialization,
+                bias_gelu_fusion=bias_gelu_fusion,
+                openai_gelu=openai_gelu,
+                onnx_safe=onnx_safe,
             )
             self._decoder_key = 'decoder'
 
