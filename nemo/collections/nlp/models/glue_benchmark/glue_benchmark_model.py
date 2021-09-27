@@ -71,6 +71,10 @@ class GLUEModel(NLPModel):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.pooler.output_types
 
+    @property
+    def output_module(self):
+        return self.pooler
+
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """
         Initializes model to use BERT model for GLUE tasks.
