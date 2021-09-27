@@ -46,7 +46,9 @@ model:
   hidden_size: 1024
   num_attention_heads: 16
   init_method_std: 0.02
-  fp16: False
+  fp16: True # True if using native amp
+  native_amp_init_scale: 4294967296 # 2 ** 32
+  native_amp_growth_interval: 1000
   tokenizer:
     library: 'megatron'
     type: 'GPT2BPETokenizer'

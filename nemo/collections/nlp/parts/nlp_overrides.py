@@ -324,8 +324,10 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
 
 class NLPNativeMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
-    def __init__(self, precision) -> None:
-        super().__init__(precision=precision)
+    def __init__(self, init_scale: float = 2 ** 32, growth_interval: int = 1000) -> None:
+        super().__init__()
+
+        self.scaler = torch.cuda.amp.GradScaler(init_scale=init_scale, growth_interval=growth_interval)
 
     def clip_gradients(
         self,
@@ -334,15 +336,27 @@ class NLPNativeMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
         gradient_clip_algorithm: GradClipAlgorithmType,
         model: Optional[Module],
     ) -> None:
-        """Override PTL gradient clipping"""
-        app_state = AppState()
-        if app_state.model_parallel_size is not None:
-            parameters = model.parameters()
-            clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
-        else:
-            return super().clip_gradients(
-                optimizer, clip_val, gradient_clip_algorithm=gradient_clip_algorithm, model=model
-            )
+        """Override PTL gradient clipping.
+           Do nothing because we've already clipped gradients in `on_before_optimizer_step` hook.
+        """
+        pass
+
+
+class NLPNativeBfloat16PrecisionPlugin(NativeMixedPrecisionPlugin):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def clip_gradients(
+        self,
+        optimizer: Optimizer,
+        clip_val: Union[int, float],
+        gradient_clip_algorithm: GradClipAlgorithmType,
+        model: Optional[Module],
+    ) -> None:
+        """Override PTL gradient clipping.
+           Do nothing because we've already clipped gradients in `on_before_optimizer_step` hook.
+        """
+        pass
 
 
 class NLPPrecisionPlugin(PrecisionPlugin):
@@ -356,7 +370,17 @@ class NLPPrecisionPlugin(PrecisionPlugin):
         gradient_clip_algorithm: GradClipAlgorithmType,
         model: Optional[Module],
     ) -> None:
-        """Override PTL gradient clipping"""
+        """Override PTL gradient clipping.
+           Model parallel models require gradient clipping from megatron-lm.
+        """
+
+        if clip_val is None:
+            return
+
+        clip_val = float(clip_val)
+        if clip_val <= 0:
+            return
+
         app_state = AppState()
         if app_state.model_parallel_size is not None:
             parameters = model.parameters()

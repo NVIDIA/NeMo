@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from megatron.optimizer.clip_grads import clip_grad_norm_fp32
 import torch
 from megatron import fused_kernels
 from apex import mpu
@@ -263,6 +264,24 @@ class MegatronGPTModel(NLPModel):
             * self.trainer.accumulate_grad_batches
         )
         return consumed_samples
+
+    def on_before_optimizer_step(self, optimizer, optimizer_idx):
+        """PTL hook that is called after unscaling gradients when using native amp.
+           We use gradient clipping implementation from megatron-lm.
+        """
+        clip_val = self.trainer.gradient_clip_val
+        if clip_val is None:
+            return
+
+        clip_val = float(clip_val)
+        if clip_val <= 0:
+            return
+
+        if self.trainer.amp_backend == 'native':
+            parameters = self.model.parameters()
+            clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
+        else:
+            return
 
     def list_available_models():
         pass
