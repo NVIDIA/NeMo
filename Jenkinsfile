@@ -1366,7 +1366,7 @@ pipeline {
         --config-name=megatron \
         model.encoder.model_name=megatron-bert-uncased \
         model.encoder.checkpoint_file=/home/TestData/nlp/mp_2_bert_toy/iter_2000000 \
-        model.encoder.hidden_size=1024 \
+        model.encoder.hidden_size=512 \
         model.encoder.num_attention_heads=16 \
         model.encoder.num_layers=24 \
         model.encoder.max_position_embeddings=512 \
