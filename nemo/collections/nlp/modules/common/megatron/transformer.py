@@ -18,12 +18,10 @@ import math
 import torch
 import torch.nn.functional as F
 
-from megatron import get_args
 from apex import mpu
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 
-# from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, LayerType, AttnType
-from megatron.model.enums import AttnMaskType, LayerType, AttnType
+from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, LayerType, AttnType
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import MixedFusedLayerNorm as LayerNorm
 from nemo.collections.nlp.modules.common.megatron.fused_softmax import FusedScaleMaskSoftmax
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import bias_gelu_impl

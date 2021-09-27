@@ -15,7 +15,6 @@
 """Megatron Module"""
 
 import torch
-from megatron import get_args
 from apex import mpu
 from torch.autograd import Variable
 from torch.nn.parameter import Parameter
@@ -53,7 +52,7 @@ class MegatronModule(torch.nn.Module):
             return self.word_embeddings.weight
         raise Exception('word_embeddings_weight() should be ' 'called for first and last stage only')
 
-    def initialize_word_embeddings(self, init_method_normal, pipeline_model_parallel_size=1):
+    def initialize_word_embeddings(self, init_method, vocab_size, hidden_size, pipeline_model_parallel_size=1):
         if not self.share_word_embeddings:
             raise Exception('initialize_word_embeddings() was called but ' 'share_word_embeddings is false')
 
@@ -81,9 +80,7 @@ class MegatronModule(torch.nn.Module):
             self._word_embeddings_for_head_key = 'word_embeddings_for_head'
             # set word_embeddings weights to 0 here, then copy first
             # stage's weights using all_reduce below.
-            self.word_embeddings = mpu.VocabParallelEmbedding(
-                args.padded_vocab_size, args.hidden_size, init_method=init_method_normal(args.init_method_std)
-            )
+            self.word_embeddings = mpu.VocabParallelEmbedding(vocab_size, hidden_size, init_method=init_method)
             self.word_embeddings.weight.data.fill_(0)
             self.word_embeddings.weight.shared = True
 

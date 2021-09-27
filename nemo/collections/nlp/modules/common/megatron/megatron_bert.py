@@ -17,12 +17,15 @@
 import os
 
 import torch
-from megatron import fused_kernels, get_args, initialize_megatron
-from megatron.checkpointing import set_checkpoint_version
-from megatron.model import get_language_model
-from megatron.model.bert_model import bert_extended_attention_mask, bert_position_ids
-from megatron.model.enums import AttnMaskType
-from megatron.mpu import (
+from nemo.collections.nlp.modules.common.megatron import fused_kernels
+
+# from megatron.checkpointing import set_checkpoint_version
+# TODO: backwards compatibility for megatron checkpoints
+from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
+
+from nemo.collections.nlp.modules.common.megatron.megatron_bert import bert_extended_attention_mask, bert_position_ids
+from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType
+from apex.mpu import (
     get_model_parallel_group,
     model_parallel_is_initialized,
     set_pipeline_model_parallel_rank,
