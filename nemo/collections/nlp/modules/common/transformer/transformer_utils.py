@@ -137,7 +137,6 @@ def get_nemo_transformer(
     if pretrained and (config_dict is not None):
         config_dict["hidden_size"] = model.hidden_size
 
-
     return model
 
 
@@ -152,7 +151,7 @@ def get_huggingface_transformer(
         model = HuggingFaceEncoderModule(model_name, pretrained, config_dict)
     else:
         model = HuggingFaceDecoderModule(model_name, pretrained, config_dict)
-        
+
     return model
 
 
