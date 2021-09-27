@@ -29,41 +29,9 @@ import torch
 from nemo.utils import AppState, logging
 
 
-def initialize_megatron_for_nemo(
-    global_rank=0,
-    world_size=1,
-    micro_batch_size=1,
-    tensor_model_parallel_size=1,
-    tensor_model_parallel_rank=0,
-    encoder_seq_length=512,
-    num_layers=1,
-    hidden_size=16,
-    num_attention_heads=1,
-    max_position_embeddings=512,
-    tokenizer_type=None,
-    vocab_file=None,
-    merge_file=None,
-    use_cpu_initialization=False,
-    init_method_std=0.02,
-    fp16=True,
+def initialize_model_parallel_for_nemo(
+    tensor_model_parallel_size=1, tensor_model_parallel_rank=0, seed=1234,
 ):
-    os.environ["WORLD_SIZE"] = str(world_size)
-    os.environ["RANK"] = str(global_rank)
-
-    args_defaults = {}
-    args_defaults['num_layers'] = num_layers
-    args_defaults['hidden_size'] = hidden_size
-    args_defaults['num_attention_heads'] = num_attention_heads
-    args_defaults['max_position_embeddings'] = max_position_embeddings
-    args_defaults['tokenizer_type'] = tokenizer_type
-    args_defaults['vocab_file'] = vocab_file
-    args_defaults['merge_file'] = merge_file
-    args_defaults['lazy_mpu_init'] = True
-    args_defaults['use_cpu_initialization'] = use_cpu_initialization  # need to change this to use gpu init
-
-    extra_args_provider = get_extra_args_provider(
-        micro_batch_size, tensor_model_parallel_size, encoder_seq_length, init_method_std, fp16
-    )
 
     app_state = AppState()
 
@@ -74,9 +42,8 @@ def initialize_megatron_for_nemo(
     set_pipeline_model_parallel_rank(0)
     set_pipeline_model_parallel_world_size(1)
 
-    _set_random_seed(1234)
+    _set_random_seed(seed)
 
-    # initialize_megatron(extra_args_provider=extra_args_provider, args_defaults=args_defaults, ignore_unknown_args=True)
     logging.info(f"Initialized Megatron ...")
     app_state._is_megatron_initialized = True
 
@@ -106,4 +73,4 @@ def _set_random_seed(seed_):
         if torch.cuda.device_count() > 0:
             mpu.model_parallel_cuda_manual_seed(seed)
     else:
-        raise ValueError('Seed ({}) should be a positive integer.'.format(seed))
+        raise ValueError('Seed ({}) should be a positive integer.'.format(seed_))

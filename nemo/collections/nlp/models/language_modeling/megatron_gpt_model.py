@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import torch
-from megatron import fused_kernels
 from apex import mpu
 from megatron.global_vars import get_args
 from omegaconf.dictconfig import DictConfig
@@ -26,7 +25,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_megatron_for_nemo
+from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -51,7 +50,7 @@ class MegatronGPTModel(NLPModel):
         app_state.model_parallel_size = cfg.get('tensor_model_parallel_size', 1)
         app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
 
-        initialize_megatron_for_nemo(
+        initialize_model_parallel_for_nemo(
             world_size=app_state.world_size,
             global_rank=app_state.global_rank,
             micro_batch_size=cfg.get('micro_batch_size', 1),
@@ -68,9 +67,8 @@ class MegatronGPTModel(NLPModel):
             merge_file=cfg.tokenizer.merge_file,
             fp16=cfg.get('fp16', True),
         )
-        # args = get_args()
 
-        # fused_kernels.load(args)
+        fused_kernels.load()
 
         self.tokenizer = get_nmt_tokenizer(
             library=self.cfg.tokenizer.library,
