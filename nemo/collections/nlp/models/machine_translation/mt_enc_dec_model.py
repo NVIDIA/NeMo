@@ -158,7 +158,6 @@ class MTEncDecModel(EncDecNLPModel):
         library = decoder_cfg_dict.pop('library', 'nemo')
         model_name = decoder_cfg_dict.pop('model_name', None)
         pretrained = decoder_cfg_dict.pop('pretrained', False)
-        self._validate_encoder_decoder_hidden_size(encoder_cfg_dict, decoder_cfg_dict)
         self.decoder = get_transformer(
             library=library,
             model_name=model_name,
@@ -167,6 +166,9 @@ class MTEncDecModel(EncDecNLPModel):
             encoder=False,
             pre_ln_final_layer_norm=decoder_cfg_dict.get('pre_ln_final_layer_norm', False),
         )
+
+        # validate hidden_size here to allow get_transformer to update missing hidden_size
+        self._validate_encoder_decoder_hidden_size(encoder_cfg_dict, decoder_cfg_dict)
 
         self.log_softmax = TokenClassifier(
             hidden_size=self.decoder.hidden_size,

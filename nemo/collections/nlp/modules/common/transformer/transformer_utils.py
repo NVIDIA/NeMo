@@ -148,6 +148,10 @@ def get_huggingface_transformer(
     else:
         model = HuggingFaceDecoderModule(model_name, pretrained, config_dict)
 
+    # update hidden_size
+    if config_dict is not None:
+        config_dict["hidden_size"] = model.hidden_size
+        
     return model
 
 
