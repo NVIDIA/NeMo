@@ -18,7 +18,7 @@ import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_megatron_for_nemo
+from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.utils import AppState, logging
 
 
@@ -39,7 +39,7 @@ class MegatronDataset(torch.utils.data.Dataset):
             app_state.model_parallel_size = 1
             app_state.model_parallel_rank = trainer.global_rank
 
-            initialize_megatron_for_nemo(
+            initialize_model_parallel_for_nemo(
                 world_size=app_state.world_size,
                 global_rank=app_state.global_rank,
                 fp16=cfg.get('fp16', True),
