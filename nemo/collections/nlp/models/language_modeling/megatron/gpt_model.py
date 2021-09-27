@@ -64,6 +64,10 @@ class GPTModel(MegatronModule):
         hidden_size,
         max_position_embeddings,
         num_layers,
+        num_attention_heads,
+        apply_query_key_layer_scaling=True,
+        kv_channels=None,
+        ffn_hidden_size=None,
         num_tokentypes=0,
         parallel_output=True,
         pre_process=True,
@@ -78,6 +82,9 @@ class GPTModel(MegatronModule):
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=1,
         layernorm_epsilon=1e-5,
+        bias_gelu_fusion=True,
+        openai_gelu=False,
+        onnx_safe=False,
     ):
         super(GPTModel, self).__init__()
 
@@ -86,10 +93,25 @@ class GPTModel(MegatronModule):
         self.post_process = post_process
         self.fp16_lm_cross_entropy = fp16_lm_cross_entropy
 
+        if kv_channels is None:
+            assert (
+                hidden_size % num_attention_heads == 0
+            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+            kv_channels = hidden_size // num_attention_heads
+
+        if ffn_hidden_size is None:
+            ffn_hidden_size = 4 * hidden_size
+
         self.language_model, self._language_model_key = get_language_model(
             vocab_size=vocab_size,
+            hidden_size=hidden_size,
             num_tokentypes=num_tokentypes,
             max_position_embeddings=max_position_embeddings,
+            num_layers=num_layers,
+            num_attention_heads=num_attention_heads,
+            apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+            kv_channels=kv_channels,
+            ffn_hidden_size=ffn_hidden_size,
             add_pooler=False,
             encoder_attn_mask_type=AttnMaskType.causal,
             init_method=init_method_normal(init_method_std),
@@ -107,6 +129,9 @@ class GPTModel(MegatronModule):
             activations_checkpoint_method=activations_checkpoint_method,
             activations_checkpoint_num_layers=activations_checkpoint_num_layers,
             layernorm_epsilon=layernorm_epsilon,
+            bias_gelu_fusion=bias_gelu_fusion,
+            openai_gelu=openai_gelu,
+            onnx_safe=onnx_safe,
         )
 
         self.initialize_word_embeddings(init_method_normal)
