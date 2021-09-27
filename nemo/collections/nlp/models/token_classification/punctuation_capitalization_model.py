@@ -322,7 +322,6 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             capit_label_ids_file=self._cfg.class_labels.capit_labels_file
             if 'class_labels' in self._cfg
             else 'capit_label_ids.csv',
-            njobs=cfg.get('njobs'),
         )
 
         return torch.utils.data.DataLoader(
