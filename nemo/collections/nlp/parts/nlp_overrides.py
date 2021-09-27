@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.nlp.modules.common.megatron.megatron_bert import (
+    get_megatron_checkpoint_version,
+    set_megatron_checkpoint_version,
+)
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_checkpoint_version
 from pytorch_lightning.plugins.precision.precision_plugin import PrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
 import shutil
@@ -102,10 +105,10 @@ class NLPDDPPlugin(DDPPlugin):
                         'checkpoint_version', None
                     )
                     if checkpoint_version is not None:
-                        set_checkpoint_version(checkpoint_version)
+                        set_megatron_checkpoint_version(checkpoint_version)
                     else:
                         logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
-                        set_checkpoint_version(0)
+                        set_megatron_checkpoint_version(0)
                 else:
                     self.lightning_module.restore_megatron_encoder_weights()
             else:

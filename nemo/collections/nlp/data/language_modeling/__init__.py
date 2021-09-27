@@ -23,6 +23,5 @@ from nemo.collections.nlp.data.language_modeling.megatron import (
     GPTDataset,
     IndexedDataset,
     MMapIndexedDataset,
-    T5Dataset,
 )
 from nemo.collections.nlp.data.language_modeling.sentence_dataset import SentenceDataset, TarredSentenceDataset
