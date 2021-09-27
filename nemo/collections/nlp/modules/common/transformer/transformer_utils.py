@@ -134,7 +134,7 @@ def get_nemo_transformer(
         )
 
     # update hidden_size which might be missing for pre-trained models
-    if pretrained and (config_dict is not None):
+    if (config_dict is not None) and ("hidden_size" not in config_dict):
         config_dict["hidden_size"] = model.hidden_size
 
     return model
