@@ -25,7 +25,7 @@ ReLU, and dropout:
 
     .. image:: images/jasper_vertical.png
         :align: center
-        :alt: japer model
+        :alt: jasper model
         :scale: 50%
 
 Jasper models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModel` class.

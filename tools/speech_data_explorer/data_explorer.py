@@ -45,33 +45,32 @@ from plotly.subplots import make_subplots
 DATA_PAGE_SIZE = 10
 
 # operators for filtering items
-filter_operators = [
-    ['ge ', '>='],
-    ['le ', '<='],
-    ['lt ', '<'],
-    ['gt ', '>'],
-    ['ne ', '!='],
-    ['eq ', '='],
-    ['contains '],
-]
+filter_operators = {
+    '>=': 'ge',
+    '<=': 'le',
+    '<': 'lt',
+    '>': 'gt',
+    '!=': 'ne',
+    '=': 'eq',
+    'contains ': 'contains',
+}
 
 # parse table filter queries
 def split_filter_part(filter_part):
-    for operator_type in filter_operators:
-        for op in operator_type:
-            if op in filter_part:
-                name_part, value_part = filter_part.split(op, 1)
-                name = name_part[name_part.find('{') + 1 : name_part.rfind('}')]
-                value_part = value_part.strip()
-                v0 = value_part[0]
-                if v0 == value_part[-1] and v0 in ("'", '"', '`'):
-                    value = value_part[1:-1].replace('\\' + v0, v0)
-                else:
-                    try:
-                        value = float(value_part)
-                    except ValueError:
-                        value = value_part
-                return name, operator_type[0].strip(), value
+    for op in filter_operators:
+        if op in filter_part:
+            name_part, value_part = filter_part.split(op, 1)
+            name = name_part[name_part.find('{') + 1 : name_part.rfind('}')]
+            value_part = value_part.strip()
+            v0 = value_part[0]
+            if v0 == value_part[-1] and v0 in ("'", '"', '`'):
+                value = value_part[1:-1].replace('\\' + v0, v0)
+            else:
+                try:
+                    value = float(value_part)
+                except ValueError:
+                    value = value_part
+            return name, filter_operators[op], value
     return [None] * 3
 
 
@@ -86,14 +85,37 @@ def parse_args():
     parser.add_argument(
         '--disable-caching-metrics', action='store_true', help='disable caching metrics for errors analysis'
     )
+    parser.add_argument(
+        '--estimate-audio-metrics',
+        '-a',
+        action='store_true',
+        help='estimate frequency bandwidth and signal level of audio recordings',
+    )
     parser.add_argument('--debug', '-d', action='store_true', help='enable debug mode')
     args = parser.parse_args()
     print(args)
     return args
 
 
+# estimate frequency bandwidth of signal
+def eval_bandwidth(signal, sr, threshold=-50):
+    time_stride = 0.01
+    hop_length = int(sr * time_stride)
+    n_fft = 512
+    spectrogram = np.mean(
+        np.abs(librosa.stft(y=signal, n_fft=n_fft, hop_length=hop_length, window='blackmanharris')) ** 2, axis=1
+    )
+    power_spectrum = librosa.power_to_db(spectrogram, ref=np.max, top_db=100)
+    freqband = 0
+    for idx in range(len(power_spectrum) - 1, -1, -1):
+        if power_spectrum[idx] > threshold:
+            freqband = idx / n_fft * sr
+            break
+    return freqband
+
+
 # load data from JSON manifest file
-def load_data(data_filename, disable_caching, vocab=None):
+def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=None):
     if not disable_caching:
         pickle_filename = data_filename.split('.json')[0]
         json_mtime = datetime.datetime.fromtimestamp(os.path.getmtime(data_filename))
@@ -137,9 +159,11 @@ def load_data(data_filename, disable_caching, vocab=None):
     with open(data_filename, 'r', encoding='utf8') as f:
         for line in tqdm.tqdm(f):
             item = json.loads(line)
-            num_words = len(item['text'].split())
+            if not isinstance(item['text'], str):
+                item['text'] = ''
             num_chars = len(item['text'])
             orig = item['text'].split()
+            num_words = len(orig)
             for word in orig:
                 vocabulary[word] += 1
             for char in item['text']:
@@ -177,9 +201,19 @@ def load_data(data_filename, disable_caching, vocab=None):
             )
             if metrics_available:
                 data[-1]['pred_text'] = item['pred_text']
+                if num_words == 0:
+                    num_words = 1e-9
+                if num_chars == 0:
+                    num_chars = 1e-9
                 data[-1]['WER'] = round(word_dist / num_words * 100.0, 2)
                 data[-1]['CER'] = round(char_dist / num_chars * 100.0, 2)
-                data[-1]['WMR'] = round(num_matches / len(orig) * 100.0, 2)
+                data[-1]['WMR'] = round(num_matches / num_words * 100.0, 2)
+
+            if estimate_audio:
+                signal, sr = librosa.load(item['audio_filepath'], sr=None)
+                bw = eval_bandwidth(signal, sr)
+                item['freq_bandwidth'] = int(bw)
+                item['level_db'] = 20 * np.log10(np.max(np.abs(signal)))
             for k in item:
                 if k not in data[-1]:
                     data[-1][k] = item[k]
@@ -263,7 +297,7 @@ def plot_word_accuracy(vocabulary_data):
 args = parse_args()
 print('Loading data...')
 data, wer, cer, wmr, mwa, num_hours, vocabulary, alphabet, metrics_available = load_data(
-    args.manifest, args.disable_caching_metrics, args.vocab
+    args.manifest, args.disable_caching_metrics, args.estimate_audio_metrics, args.vocab
 )
 print('Starting server...')
 app = dash.Dash(
@@ -273,17 +307,33 @@ app = dash.Dash(
     title=os.path.basename(args.manifest),
 )
 
-
-figure_duration = plot_histogram(data, 'duration', 'Duration (sec)')
-figure_num_words = plot_histogram(data, 'num_words', '#words')
-figure_num_chars = plot_histogram(data, 'num_chars', '#chars')
-figure_word_rate = plot_histogram(data, 'word_rate', '#words/sec')
-figure_char_rate = plot_histogram(data, 'char_rate', '#chars/sec')
+figures_labels = {
+    'duration': ['Duration', 'Duration, sec'],
+    'num_words': ['Number of Words', '#words'],
+    'num_chars': ['Number of Characters', '#chars'],
+    'word_rate': ['Word Rate', '#words/sec'],
+    'char_rate': ['Character Rate', '#chars/sec'],
+    'WER': ['Word Error Rate', 'WER, %'],
+    'CER': ['Character Error Rate', 'CER, %'],
+    'WMR': ['Word Match Rate', 'WMR, %'],
+    'freq_bandwidth': ['Frequency Bandwidth', 'Bandwidth, Hz'],
+    'level_db': ['Peak Level', 'Level, dB'],
+}
+figures_hist = {}
+for k in data[0]:
+    val = data[0][k]
+    if isinstance(val, (int, float)) and not isinstance(val, bool):
+        if k in figures_labels:
+            ylabel = figures_labels[k][0]
+            xlabel = figures_labels[k][1]
+        else:
+            title = k.replace('_', ' ')
+            title = title[0].upper() + title[1:].lower()
+            ylabel = title
+            xlabel = title
+        figures_hist[k] = [ylabel + ' (per utterance)', plot_histogram(data, k, xlabel)]
 
 if metrics_available:
-    figure_wer = plot_histogram(data, 'WER', 'WER, %')
-    figure_cer = plot_histogram(data, 'CER', 'CER, %')
-    figure_wmr = plot_histogram(data, 'WMR', 'WMR, %')
     figure_word_acc = plot_word_accuracy(vocabulary)
 
 stats_layout = [
@@ -393,26 +443,15 @@ stats_layout += [
     dbc.Row(
         dbc.Col(html.Div('{}'.format(sorted(alphabet))),), className='mt-2 bg-light text-monospace rounded border'
     ),
-    dbc.Row(dbc.Col(html.H5('Duration (per utterance)'), className='text-secondary'), className='mt-3'),
-    dbc.Row(dbc.Col(dcc.Graph(id='duration-graph', figure=figure_duration),),),
-    dbc.Row(dbc.Col(html.H5('Number of words (per utterance)'), className='text-secondary'), className='mt-3'),
-    dbc.Row(dbc.Col(dcc.Graph(id='num-words-graph', figure=figure_num_words),),),
-    dbc.Row(dbc.Col(html.H5('Number of characters (per utterance)'), className='text-secondary'), className='mt-3'),
-    dbc.Row(dbc.Col(dcc.Graph(id='num-chars-graph', figure=figure_num_chars),),),
-    dbc.Row(dbc.Col(html.H5('Word rate (per utterance)'), className='text-secondary'), className='mt-3'),
-    dbc.Row(dbc.Col(dcc.Graph(id='word-rate-graph', figure=figure_word_rate),),),
-    dbc.Row(dbc.Col(html.H5('Character rate (per utterance)'), className='text-secondary'), className='mt-3'),
-    dbc.Row(dbc.Col(dcc.Graph(id='char-rate-graph', figure=figure_char_rate),),),
 ]
+for k in figures_hist:
+    stats_layout += [
+        dbc.Row(dbc.Col(html.H5(figures_hist[k][0]), className='text-secondary'), className='mt-3'),
+        dbc.Row(dbc.Col(dcc.Graph(id='duration-graph', figure=figures_hist[k][1]),),),
+    ]
 
 if metrics_available:
     stats_layout += [
-        dbc.Row(dbc.Col(html.H5('WER (per utterance)'), className='text-secondary'), className='mt-3'),
-        dbc.Row(dbc.Col(dcc.Graph(id='wer-graph', figure=figure_wer),),),
-        dbc.Row(dbc.Col(html.H5('CER (per utterance)'), className='text-secondary'), className='mt-3'),
-        dbc.Row(dbc.Col(dcc.Graph(id='cer-graph', figure=figure_cer),),),
-        dbc.Row(dbc.Col(html.H5('WMR (per utterance)'), className='text-secondary'), className='mt-3'),
-        dbc.Row(dbc.Col(dcc.Graph(id='wmr-graph', figure=figure_wmr),),),
         dbc.Row(dbc.Col(html.H5('Word accuracy distribution'), className='text-secondary'), className='mt-3'),
         dbc.Row(dbc.Col(dcc.Graph(id='word-acc-graph', figure=figure_word_acc),),),
     ]
@@ -526,7 +565,7 @@ if metrics_available:
         dbc.Row(
             [
                 dbc.Col(
-                    html.Div(children='diff'),
+                    html.Div(children='text diff'),
                     width=2,
                     className='mt-1 bg-light text-monospace text-break small rounded border',
                 ),
