@@ -25,7 +25,8 @@ from nemo.collections.nlp.data.language_modeling.lm_bert_dataset import (
     BertPretrainingDataset,
     BertPretrainingPreprocessedDataloader,
 )
-from nemo.collections.nlp.data.language_modeling.megatron import *
+
+# from nemo.collections.nlp.data.language_modeling.megatron import *
 from nemo.collections.nlp.data.language_modeling.sentence_dataset import SentenceDataset, TarredSentenceDataset
 from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import (
     TarredTranslationDataset,
