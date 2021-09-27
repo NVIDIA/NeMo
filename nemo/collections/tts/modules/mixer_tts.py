@@ -44,39 +44,73 @@ def get_same_padding(kernel_size, stride, dilation) -> int:
 
 
 class SameLensMaskedConv1d(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, dilation, padding, groups):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, dilation, padding, groups,
+                 use_conv_2d_with_last_channel_format=False):
         super().__init__()
 
-        self.conv = nn.Conv1d(
-            in_channels,
-            out_channels,
-            kernel_size=kernel_size,
-            stride=stride,
-            dilation=dilation,
-            padding=padding,
-            groups=groups,
-        )
+        if not use_conv_2d_with_last_channel_format:
+            self.conv = nn.Conv1d(
+                in_channels,
+                out_channels,
+                kernel_size=kernel_size,
+                stride=stride,
+                dilation=dilation,
+                padding=padding,
+                groups=groups,
+            )
+        else:
+            self.conv = nn.Conv1d(
+                in_channels,
+                out_channels,
+                kernel_size=kernel_size,
+                stride=stride,
+                dilation=dilation,
+                padding=padding,
+                groups=groups,
+            )
+            # self.conv = nn.Conv2d(
+            #     in_channels,
+            #     out_channels,
+            #     kernel_size=(1, kernel_size),
+            #     stride=(1, stride),
+            #     dilation=(1, dilation),
+            #     padding=(0, padding),
+            #     groups=groups,
+            # )
+            # ).to(memory_format=torch.channels_last)
+
+        self.use_conv_2d_with_last_channel_format = use_conv_2d_with_last_channel_format
 
     def forward(self, x, mask):
-        x = self.conv(x.transpose(1, 2)).transpose(1, 2) * mask
+        if not self.use_conv_2d_with_last_channel_format:
+            x = self.conv(x.transpose(1, 2)).transpose(1, 2) * mask
+        else:
+            # x = x.transpose(1, 2).unsqueeze(-2) # .to(memory_format=torch.channels_last)
+            # x = self.conv(x.transpose(1, 2).unsqueeze(-2)).squeeze(2).transpose(1, 2) * mask
+            x = self.conv(x) * mask
         return x, mask
 
 
 class SameLensMaskedLinear(nn.Module):
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, use_conv_2d_with_last_channel_format):
         super().__init__()
-        self.linear = nn.Linear(in_channels, out_channels)
+        self.use_conv_2d_with_last_channel_format = use_conv_2d_with_last_channel_format
+        if not use_conv_2d_with_last_channel_format:
+            self.linear = nn.Linear(in_channels, out_channels)
+        else:
+            self.linear = torch.nn.Conv1d(in_channels, out_channels, kernel_size=1)
 
     def forward(self, x, mask):
         x = self.linear(x) * mask
         return x, mask
 
 
-def create_time_mix_layer(in_feat, out_feat):
-    return SameLensMaskedLinear(in_feat, out_feat)
+def create_time_mix_layer(in_feat, out_feat, use_conv_2d_with_last_channel_format):
+    return SameLensMaskedLinear(in_feat, out_feat, use_conv_2d_with_last_channel_format)
 
 
-def create_channel_mix_layer(in_feat, out_feat, kernel_size=3, stride=1, conv_type="depth-wise", dilation=1):
+def create_channel_mix_layer(in_feat, out_feat, kernel_size=3, stride=1, conv_type="depth-wise", dilation=1,
+                             use_conv_2d_with_last_channel_format=False):
     padding = get_same_padding(kernel_size, stride=stride, dilation=dilation)
 
     if conv_type == "original":
@@ -87,7 +121,8 @@ def create_channel_mix_layer(in_feat, out_feat, kernel_size=3, stride=1, conv_ty
         raise NotImplementedError
 
     conv = SameLensMaskedConv1d(
-        in_feat, out_feat, kernel_size=kernel_size, stride=stride, dilation=dilation, padding=padding, groups=groups
+        in_feat, out_feat, kernel_size=kernel_size, stride=stride, dilation=dilation, padding=padding, groups=groups,
+        use_conv_2d_with_last_channel_format=use_conv_2d_with_last_channel_format
     )
 
     return conv
@@ -113,41 +148,56 @@ class MLPBlock(nn.Module):
 
 
 class PreNormResidual(nn.Module):
-    def __init__(self, fn, feature_dim):
+    def __init__(self, fn, feature_dim, use_conv_2d_with_last_channel_format):
         super().__init__()
         self.fn = fn
         self.norm = nn.LayerNorm(feature_dim)
+        self.use_conv_2d_with_last_channel_format = use_conv_2d_with_last_channel_format
 
     def forward(self, x, mask):
-        new_x, mask = self.fn(self.norm(x), mask)
+        if not self.use_conv_2d_with_last_channel_format:
+            new_x, mask = self.fn(self.norm(x), mask)
+        else:
+            new_x, mask = self.fn(self.norm(x.transpose(1, 2)).transpose(1, 2), mask)
+
         x = x + new_x
         return x, mask
 
 
 class MixerBlock(nn.Module):
-    def __init__(self, in_feat, expansion_factor, kernel_size, conv_type, dropout):
+    def __init__(self, in_feat, expansion_factor, kernel_size, conv_type, dropout, use_conv_2d_with_last_channel_format=False):
         super().__init__()
 
         self.channel_mix = PreNormResidual(
             fn=MLPBlock(
                 first_mix_layer=create_channel_mix_layer(
-                    in_feat=in_feat, out_feat=in_feat, kernel_size=kernel_size, conv_type=conv_type
+                    in_feat=in_feat, out_feat=in_feat, kernel_size=kernel_size, conv_type=conv_type,
+                    use_conv_2d_with_last_channel_format=use_conv_2d_with_last_channel_format
                 ),
                 second_mix_layer=create_channel_mix_layer(
-                    in_feat=in_feat, out_feat=in_feat, kernel_size=kernel_size, conv_type=conv_type
+                    in_feat=in_feat, out_feat=in_feat, kernel_size=kernel_size, conv_type=conv_type,
+                    use_conv_2d_with_last_channel_format=use_conv_2d_with_last_channel_format
                 ),
                 dropout=dropout,
             ),
             feature_dim=in_feat,
+            use_conv_2d_with_last_channel_format=use_conv_2d_with_last_channel_format
         )
 
         self.time_mix = PreNormResidual(
             fn=MLPBlock(
-                first_mix_layer=create_time_mix_layer(in_feat=in_feat, out_feat=expansion_factor * in_feat),
-                second_mix_layer=create_time_mix_layer(in_feat=expansion_factor * in_feat, out_feat=in_feat),
+                first_mix_layer=create_time_mix_layer(
+                    in_feat=in_feat, out_feat=expansion_factor * in_feat,
+                    use_conv_2d_with_last_channel_format=use_conv_2d_with_last_channel_format
+                ),
+                second_mix_layer=create_time_mix_layer(
+                    in_feat=expansion_factor * in_feat, out_feat=in_feat,
+                    use_conv_2d_with_last_channel_format=use_conv_2d_with_last_channel_format
+                ),
                 dropout=dropout,
             ),
             feature_dim=in_feat,
+            use_conv_2d_with_last_channel_format=use_conv_2d_with_last_channel_format
         )
 
     def forward(self, x, mask):
@@ -167,6 +217,7 @@ class TTSMixerModule(nn.Module):
         conv_type="depth-wise",
         expansion_factor=4,
         dropout=0.0,
+        use_conv_2d_with_last_channel_format=False
     ):
         super().__init__()
 
@@ -177,10 +228,10 @@ class TTSMixerModule(nn.Module):
         self.to_embed = (
             nn.Embedding(num_tokens, feature_dim, padding_idx=padding_idx) if num_tokens != -1 else nn.Identity()
         )
-
+        self.use_conv_2d_with_last_channel_format = use_conv_2d_with_last_channel_format
         self.mixer_blocks = nn.Sequential(
             *[
-                MixerBlock(feature_dim, expansion_factor, kernel_size, conv_type, dropout)
+                MixerBlock(feature_dim, expansion_factor, kernel_size, conv_type, dropout, use_conv_2d_with_last_channel_format)
                 for kernel_size in kernel_sizes
             ],
         )
@@ -190,11 +241,24 @@ class TTSMixerModule(nn.Module):
         x = self.to_embed(x)
         x = x + conditioning
 
+        if self.use_conv_2d_with_last_channel_format:
+            x = x.transpose(1, 2).contiguous()
+            mask = mask.transpose(1, 2).contiguous()
+
         x = x * mask
         for block in self.mixer_blocks:
             x, lens = block(x, mask)
 
-        return self.norm(x), mask
+        if not self.use_conv_2d_with_last_channel_format:
+            x = self.norm(x)
+        else:
+            x = self.norm(x.transpose(1, 2)).transpose(1, 2)
+
+        if self.use_conv_2d_with_last_channel_format:
+            x = x.transpose(1, 2).contiguous()
+            mask = mask.transpose(1, 2).contiguous()
+
+        return x, mask
 
 
 class NLPAligner(nn.Module):

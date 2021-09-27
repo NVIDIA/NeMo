@@ -134,6 +134,25 @@ class MixerTTSModel(SpectrogramGenerator):
 
         self.proj = nn.Linear(self.decoder.d_model, cfg.n_mel_channels)
 
+    def load_state_dict(self, state_dict, strict=True):
+        new_sd = {}
+        for k, v in state_dict.items():
+            new_sd[k] = v
+
+        # Fix for conv1d/conv2d/NHWC
+        curr_sd = self.state_dict()
+        for key in new_sd:
+            len_diff = len(new_sd[key].size()) - len(curr_sd[key].size())
+            if len_diff == -1:
+                if "linear" in key:
+                    new_sd[key] = new_sd[key].unsqueeze(-1)
+                else:
+                    new_sd[key] = new_sd[key].unsqueeze(-2)
+            elif len_diff == 1:
+                new_sd[key] = new_sd[key].squeeze(-1)
+
+        super().load_state_dict(new_sd, strict=strict)
+
     def _get_nlp_embeddings(self, nlp_model):
         if nlp_model == "albert":
             return transformers.AlbertModel.from_pretrained('albert-base-v2').embeddings.word_embeddings

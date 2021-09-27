@@ -188,7 +188,7 @@ class EnglishCharsTokenizer(BaseTokenizer):
                 cs.append(c)
                 continue
 
-            logging.warning(f"symbol {c} was skipped in {words}")
+            # logging.warning(f"symbol {c} was skipped in {words}")
 
         # Remove trailing spaces
         while cs[-1] == space:
@@ -310,7 +310,7 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
                 ps.append(p)
                 continue
 
-            logging.warning(f"symbol {p} was skipped in {text}")
+            # logging.warning(f"symbol {p} was skipped in {text}")
 
         # Remove trailing spaces
         while ps[-1] == space:
