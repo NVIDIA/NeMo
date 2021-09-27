@@ -222,14 +222,7 @@ class SDLoss(torch.nn.Module):
 
         dense_fsa_vec = prep_padded_densefsavec(log_probs, supervisions) if self.pad_fsavec else k2.DenseFsaVec(log_probs, supervisions)
 
-        try:
-            num_tot_scores, den_tot_scores, num_lats, den_lats = self.intersect_calc_scores(dense_fsa_vec, num_graphs, den_graph, self.use_mbr)
-        except ValueError as e:
-            torch.save(log_probs, './log_probs_fail.pt')
-            torch.save(supervisions, './supervisions_fail.pt')
-            torch.save(num_graphs.as_dict(), './num_graphs_fail.pt')
-            torch.save(den_graph.as_dict(), './den_graph_fail.pt')
-            raise e
+        num_tot_scores, den_tot_scores, num_lats, den_lats = self.intersect_calc_scores(dense_fsa_vec, num_graphs, den_graph, self.use_mbr)
 
         if self.sd_type == 'crf':
             token_ids_list = [t[:l].tolist() for t, l in zip(targets, target_lengths)]
