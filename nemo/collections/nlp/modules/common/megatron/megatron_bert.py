@@ -22,8 +22,10 @@ from nemo.collections.nlp.modules.common.megatron import fused_kernels
 # from megatron.checkpointing import set_checkpoint_version
 # TODO: backwards compatibility for megatron checkpoints
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
-
-from nemo.collections.nlp.modules.common.megatron.megatron_bert import bert_extended_attention_mask, bert_position_ids
+from nemo.collections.nlp.models.language_modeling.megatron.bert_model import (
+    bert_extended_attention_mask,
+    bert_position_ids,
+)
 from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType
 from apex.mpu import (
     get_model_parallel_group,
