@@ -649,7 +649,6 @@ class ParallelTransformer(MegatronModule):
         encoder_output=None,
         enc_dec_attn_mask=None,
     ):
-
         # Checks.
         if layer_past is not None:
             assert get_key_value, 'for not None values in layer_past, ' 'expected get_key_value to be set'
