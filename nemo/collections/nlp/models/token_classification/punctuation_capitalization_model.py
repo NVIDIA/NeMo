@@ -622,7 +622,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                         all_preds[q_i], acc_probs[q_i] = self._move_acc_probs_to_token_preds(pred, prob, len(prob))
             for i, query in enumerate(queries):
                 result.append(
-                    self.get_labels(all_punct_preds[i], all_capit_preds[i]) if return_labels
+                    self.get_labels(all_punct_preds[i], all_capit_preds[i])
+                    if return_labels
                     else self.apply_punct_capit_predictions(query, all_punct_preds[i], all_capit_preds[i])
                 )
         finally:
