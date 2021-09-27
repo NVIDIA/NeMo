@@ -53,15 +53,15 @@ class MegatronModule(torch.nn.Module):
             return self.word_embeddings.weight
         raise Exception('word_embeddings_weight() should be ' 'called for first and last stage only')
 
-    def initialize_word_embeddings(self, init_method_normal):
-        args = get_args()
+    def initialize_word_embeddings(self, init_method_normal, pipeline_model_parallel_size=1):
         if not self.share_word_embeddings:
             raise Exception('initialize_word_embeddings() was called but ' 'share_word_embeddings is false')
 
+        # TODO: pipeline model parallelism is not implemented in NeMo yet
         # This function just initializes the word embeddings in the final stage
         # when we are using pipeline parallelism. If we aren't using pipeline
         # parallelism there is nothing to do.
-        if args.pipeline_model_parallel_size == 1:
+        if pipeline_model_parallel_size == 1:
             return
 
         # Parameters are shared between the word embeddings layer, and the
