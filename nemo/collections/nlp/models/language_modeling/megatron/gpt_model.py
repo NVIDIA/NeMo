@@ -105,6 +105,7 @@ class GPTModel(MegatronModule):
         self.language_model, self._language_model_key = get_language_model(
             vocab_size=vocab_size,
             hidden_size=hidden_size,
+            hidden_dropout=hidden_dropout,
             num_tokentypes=num_tokentypes,
             max_position_embeddings=max_position_embeddings,
             num_layers=num_layers,
@@ -119,10 +120,7 @@ class GPTModel(MegatronModule):
             pre_process=self.pre_process,
             post_process=self.post_process,
             init_method_std=init_method_std,
-            num_layers=num_layers,
             use_cpu_initialization=use_cpu_initialization,
-            hidden_size=hidden_size,
-            hidden_dropout=hidden_dropout,
             fp16=fp16,
             bf16=bf16,
             fp32_residual_connection=fp32_residual_connection,
