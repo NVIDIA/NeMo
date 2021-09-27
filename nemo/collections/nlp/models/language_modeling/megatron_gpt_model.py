@@ -48,6 +48,7 @@ class MegatronGPTModel(NLPModel):
         initialize_model_parallel_for_nemo(
             world_size=trainer.world_size,
             global_rank=trainer.global_rank,
+            local_rank=trainer.local_rank,
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
             seed=self.cfg.get('seed', 1234),
         )
