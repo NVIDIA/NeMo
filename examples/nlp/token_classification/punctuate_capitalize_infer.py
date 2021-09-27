@@ -140,11 +140,12 @@ def get_args():
         "--batch_size", "-b", type=int, default=128, help="Number of segments which are processed simultaneously.",
     )
     parser.add_argument(
-        "--save_only_labels",
+        "--save_labels_instead_of_text",
         "-B",
         action="store_true",
         help="If this option is set save punctuation and capitalization labels instead text with restored punctuation "
-        "and capitalization.",
+        "and capitalization. Labels are saved in format described here https://docs.nvidia.com/deeplearning/nemo/"
+        "user-guide/docs/en/main/nlp/punctuation_and_capitalization.html#nemo-data-format",
     )
     parser.add_argument(
         "--device",
@@ -204,7 +205,7 @@ def main():
         max_seq_length=args.max_seq_length,
         step=args.step,
         margin=args.margin,
-        return_labels=args.save_only_labels,
+        return_labels=args.save_labels_instead_of_text,
     )
     if args.output_manifest is None:
         args.output_text.parent.mkdir(exist_ok=True, parents=True)
