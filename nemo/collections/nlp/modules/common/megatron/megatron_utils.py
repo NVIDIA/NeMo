@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from build.lib.nemo.utils import app_state
 import glob
 import json
 import os
@@ -337,3 +338,13 @@ def get_megatron_tokenizer(pretrained_model_name: str):
     """
     _check_megatron_name(pretrained_model_name)
     return MEGATRON_CONFIG_MAP[pretrained_model_name]["tokenizer_name"]
+
+
+def get_megatron_checkpoint_version():
+    app_state = AppState()
+    return app_state._megatron_checkpoint_version
+
+
+def set_megatron_checkpoint_version(version: int = None):
+    app_state = AppState()
+    app_state._megatron_checkpoint_version = version
