@@ -16,6 +16,8 @@ import argparse
 import json
 from pathlib import Path
 
+import torch.cuda
+
 from nemo.collections.nlp.models import PunctuationCapitalizationModel
 
 
@@ -137,6 +139,20 @@ def get_args():
     parser.add_argument(
         "--batch_size", "-b", type=int, default=128, help="Number of segments which are processed simultaneously.",
     )
+    parser.add_argument(
+        "--save_only_labels",
+        "-B",
+        action="store_true",
+        help="If this option is set save punctuation and capitalization labels instead text with restored punctuation "
+        "and capitalization.",
+    )
+    parser.add_argument(
+        "--device",
+        "-d",
+        choices=['cpu', 'cuda'],
+        help="Which device to use. If device is not set and CUDA is available GPU will be used. If device is not set "
+        "and CUDA is not available CPU is used.",
+    )
     args = parser.parse_args()
     if args.input_manifest is None and args.output_manifest is not None:
         parser.error("--output_manifest requires --input_manifest")
@@ -163,10 +179,19 @@ def main():
         model = PunctuationCapitalizationModel.restore_from(args.model_path)
     else:
         model = PunctuationCapitalizationModel.from_pretrained(args.pretrained_name)
+    if args.device is None:
+        if torch.cuda.is_available():
+            model = model.cuda()
+        else:
+            model = model.cpu()
+    else:
+        model = model.to(args.device)
+    model = model.cpu()
     if args.input_manifest is None:
         texts = []
         with args.input_text.open() as f:
-            texts.append(f.readline().strip())
+            for line in f:
+                texts.append(line.strip())
     else:
         manifest = load_manifest(args.input_manifest)
         text_key = "pred_text" if "pred_text" in manifest[0] else "text"
@@ -174,13 +199,20 @@ def main():
         for item in manifest:
             texts.append(item[text_key])
     processed_texts = model.add_punctuation_capitalization(
-        texts, batch_size=args.batch_size, max_seq_length=args.max_seq_length, step=args.step, margin=args.margin,
+        texts,
+        batch_size=args.batch_size,
+        max_seq_length=args.max_seq_length,
+        step=args.step,
+        margin=args.margin,
+        return_labels=args.save_only_labels,
     )
     if args.output_manifest is None:
+        args.output_text.parent.mkdir(exist_ok=True, parents=True)
         with args.output_text.open('w') as f:
             for t in processed_texts:
                 f.write(t + '\n')
     else:
+        args.output_manifest.parent.mkdir(exist_ok=True, parents=True)
         with args.output_manifest.open('w') as f:
             for item, t in zip(manifest, processed_texts):
                 item[text_key] = t
