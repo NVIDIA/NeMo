@@ -17,7 +17,6 @@ import os
 import random
 from apex import mpu
 
-from megatron.initialize import initialize_megatron
 from apex.mpu.initialize import (
     set_pipeline_model_parallel_rank,
     set_pipeline_model_parallel_world_size,

@@ -24,8 +24,8 @@ from pytorch_lightning.utilities import rank_zero_only
 from transformers import TRANSFORMERS_CACHE
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-from nemo.collections.nlp.modules import BertModule
 from nemo.collections.nlp.modules import MegatronBertEncoder
+from nemo.collections.nlp.modules import BertModule
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder import MegatronEncoderModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector
