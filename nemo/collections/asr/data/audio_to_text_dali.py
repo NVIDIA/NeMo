@@ -259,7 +259,7 @@ class _AudioTextDALIDataset(Iterator):
                 window_tensor = window_fn(self.window_size, periodic=False) if window_fn else None
             self.window = window_tensor.numpy().tolist() if window_tensor is not None else None
 
-            self.n_fft = params['n_fft'] if 'n_fft' in params else None  # None means default
+            self.n_fft = params['n_fft'] if 'n_fft' in params else 2 ** math.ceil(math.log2(self.window_size))
             self.n_mels = params['n_mels'] if 'n_mels' in params else 64
             self.n_mfcc = params['n_mfcc'] if 'n_mfcc' in params else 64
 
@@ -354,11 +354,15 @@ class _AudioTextDALIDataset(Iterator):
 
                 # Preemphasis filter
                 if self.preemph > 0.0:
-                    audio = dali.fn.preemphasis_filter(audio, preemph_coeff=self.preemph)
+                    audio = dali.fn.preemphasis_filter(audio, preemph_coeff=self.preemph, border='zero')
 
                 # Power spectrogram
                 spec = dali.fn.spectrogram(
-                    audio, nfft=self.n_fft, window_length=self.window_size, window_step=self.window_stride
+                    audio,
+                    nfft=self.n_fft,
+                    window_length=self.window_size,
+                    window_step=self.window_stride,
+                    window_fn=self.window,
                 )
 
                 if feature_type == 'mel_spectrogram' or feature_type == 'mfcc':
