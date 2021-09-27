@@ -19,13 +19,12 @@ import os
 import torch
 from nemo.collections.nlp.modules.common.megatron import fused_kernels
 
-# from megatron.checkpointing import set_checkpoint_version
-# TODO: backwards compatibility for megatron checkpoints
-from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
+
 from nemo.collections.nlp.models.language_modeling.megatron.bert_model import (
     bert_extended_attention_mask,
     bert_position_ids,
 )
+from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType
 from apex.mpu import (
     get_model_parallel_group,
@@ -41,13 +40,6 @@ from nemo.utils import logging
 from nemo.utils.app_state import AppState
 
 __all__ = ['MegatronBertEncoder']
-
-
-def complete_lazy_init(self):
-    # finish megatron-lm initialization
-    if hasattr(self, "_lazy_init_fn") and self._lazy_init_fn is not None:
-        self._lazy_init_fn()
-        self._lazy_init_fn = None
 
 
 class MegatronBertEncoder(BertModule):
@@ -91,40 +83,11 @@ class MegatronBertEncoder(BertModule):
 
         num_tokentypes = config.pop('num_tokentypes', 2)
 
-        # if 'model_parallel_size' in config:
-        if self._model_parallel_size is not None:
-            app_state = AppState()
-            self._app_state = app_state
-
-            # must be set for model parallel megatron-lm
-            os.environ["WORLD_SIZE"] = str(app_state.world_size)
-            os.environ["RANK"] = str(self._model_parallel_rank)
-
-            extra_args_provider = self._update_megatron_args(tensor_model_parallel_size=self._model_parallel_size)
-
-        else:
-            extra_args_provider = self._update_megatron_args()
-
         # configure globals for megatron
         set_pipeline_model_parallel_rank(0)  # pipeline model parallelism not implemented in NeMo
         set_pipeline_model_parallel_world_size(1)  # pipeline model parallelism not implemented in NeMo
 
-        # Initialize part of Megatron global state that is needed for its constructor.
-        # We set 'lazy_mpu_init' flag on to make Megatron do only the initialization that does not depend
-        # on ddp be initialized yet (and we don't want Megatron to initialize DDP itself either)
-        # and to return a hook for us to call after PTL has torch.distributed initialized.
-        # (or if no PTL in case of inference - then we'll initialize torch.distributed)
-        # We call and clear this hook on first call to forward()
-        self._lazy_init_fn = initialize_megatron(
-            extra_args_provider=extra_args_provider, args_defaults=config, ignore_unknown_args=True
-        )
-
-        # read Megatron arguments back
-        args = get_args()
-
-        fused_kernels.load(args)
-
-        logging.info(f'Megatron-lm argparse args: {args}')
+        fused_kernels.load()
 
         self.language_model, self._language_model_key = get_language_model(
             encoder_attn_mask_type=AttnMaskType.padding, num_tokentypes=num_tokentypes, add_pooler=False
@@ -133,33 +96,6 @@ class MegatronBertEncoder(BertModule):
         self.config = OmegaConf.create(config)
         # key used for checkpoints
         self._hidden_size = self.language_model.hidden_size
-
-    def _update_megatron_args(
-        self,
-        micro_batch_size=1,
-        tensor_model_parallel_size=1,
-        scaled_masked_softmax_fusion=False,
-        bias_gelu_fusion=False,
-        bias_dropout_fusion=False,
-        encoder_seq_length=512,
-    ):
-        def extra_args_provider(parser):
-            parser.set_defaults(micro_batch_size=micro_batch_size)
-            parser.set_defaults(tensor_model_parallel_size=tensor_model_parallel_size)
-            parser.set_defaults(scaled_masked_softmax_fusion=scaled_masked_softmax_fusion)
-            parser.set_defaults(bias_gelu_fusion=bias_gelu_fusion)
-            parser.set_defaults(bias_dropout_fusion=bias_dropout_fusion)
-            parser.set_defaults(encoder_seq_length=encoder_seq_length)
-
-            return parser
-
-        return extra_args_provider
-
-    def complete_lazy_init(self):
-        # finish megatron-lm initialization
-        if hasattr(self, "_lazy_init_fn") and self._lazy_init_fn is not None:
-            self._lazy_init_fn()
-            self._lazy_init_fn = None
 
     @property
     def hidden_size(self):
@@ -183,9 +119,6 @@ class MegatronBertEncoder(BertModule):
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids=None):
-        app_state = AppState()
-        if app_state.model_parallel_size is None:
-            self.complete_lazy_init()
 
         extended_attention_mask = bert_extended_attention_mask(attention_mask)
         position_ids = bert_position_ids(input_ids)
@@ -207,13 +140,13 @@ class MegatronBertEncoder(BertModule):
         state_dict = torch.load(filename, map_location='cpu')
         if 'checkpoint_version' in state_dict:
             if state_dict['checkpoint_version'] is not None:
-                set_checkpoint_version(state_dict['checkpoint_version'])
+                set_megatron_checkpoint_version(state_dict['checkpoint_version'])
                 logging.info(
                     f"Megatron-lm checkpoint version found. Setting checkpoint_version to {state_dict['checkpoint_version']}."
                 )
         else:
             logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
-            set_checkpoint_version(0)
+            set_megatron_checkpoint_version(0)
         # to load from Megatron pretrained checkpoint
         if 'model' in state_dict:
             self.language_model.load_state_dict(state_dict['model'][self._language_model_key])
@@ -244,3 +177,13 @@ class MegatronBertEncoder(BertModule):
                 logging.info(f'torch.distributed not initialized yet. Will not restore model parallel checkpoint')
         else:
             logging.error(f'restore_path: {restore_path} must be a file or directory.')
+
+
+def get_megatron_checkpoint_version():
+    app_state = AppState()
+    return app_state._megatron_checkpoint_version
+
+
+def set_megatron_checkpoint_version(version: int = None):
+    app_state = AppState()
+    app_state._megatron_checkpoint_version = version
