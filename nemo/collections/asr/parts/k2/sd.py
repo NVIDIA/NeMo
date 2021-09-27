@@ -30,8 +30,6 @@ from typing import Optional, Union
 
 import torch
 import k2
-import k2.sparse
-import _k2
 
 from nemo.collections.asr.parts.k2.autograd import sparse_abs
 from nemo.collections.asr.parts.k2.utils import create_supervision
@@ -118,12 +116,6 @@ class SDLoss(torch.nn.Module):
         den_graph = den_graph.clone()
         num_graphs = num_graphs.clone()
 
-        # The following converts aux_labels of den_graph and num_graphs
-        # from torch.Tensor to k2.RaggedInt so that
-        # we can use k2.append() later
-        den_graph.convert_attr_to_ragged_(name='aux_labels')
-        num_graphs.convert_attr_to_ragged_(name='aux_labels')
-
         num_den_graphs = k2.cat([num_graphs, den_graph])
 
         # NOTE: The a_to_b_map in k2.intersect_dense must be sorted
@@ -139,7 +131,7 @@ class SDLoss(torch.nn.Module):
         num_den_graphs_indexes = torch.stack(
             [num_graphs_indexes, den_graph_indexes]).t().reshape(-1).to(device)
 
-        num_den_reordered_graphs = k2.index(num_den_graphs, num_den_graphs_indexes)
+        num_den_reordered_graphs = k2.index_fsa(num_den_graphs, num_den_graphs_indexes)
 
         # [[0, 1, 2, ...]]
         a_to_b_map = torch.arange(num_fsas, dtype=torch.int32).reshape(1, -1)
@@ -160,7 +152,7 @@ class SDLoss(torch.nn.Module):
 
         if return_lats:
             lat_slice = torch.arange(num_fsas, dtype=torch.int32).to(device) * 2
-            return num_tot_scores, den_tot_scores, k2.index(num_den_lats, lat_slice), k2.index(num_den_lats, lat_slice + 1)
+            return num_tot_scores, den_tot_scores, k2.index_fsa(num_den_lats, lat_slice), k2.index_fsa(num_den_lats, lat_slice + 1)
         else:
             return num_tot_scores, den_tot_scores, None, None
 
@@ -230,7 +222,14 @@ class SDLoss(torch.nn.Module):
 
         dense_fsa_vec = prep_padded_densefsavec(log_probs, supervisions) if self.pad_fsavec else k2.DenseFsaVec(log_probs, supervisions)
 
-        num_tot_scores, den_tot_scores, num_lats, den_lats = self.intersect_calc_scores(dense_fsa_vec, num_graphs, den_graph, self.use_mbr)
+        try:
+            num_tot_scores, den_tot_scores, num_lats, den_lats = self.intersect_calc_scores(dense_fsa_vec, num_graphs, den_graph, self.use_mbr)
+        except ValueError as e:
+            torch.save(log_probs, './log_probs_fail.pt')
+            torch.save(supervisions, './supervisions_fail.pt')
+            torch.save(num_graphs.as_dict(), './num_graphs_fail.pt')
+            torch.save(den_graph.as_dict(), './den_graph_fail.pt')
+            raise e
 
         if self.sd_type == 'crf':
             token_ids_list = [t[:l].tolist() for t, l in zip(targets, target_lengths)]
@@ -256,13 +255,13 @@ class SDLoss(torch.nn.Module):
 
             size = (dense_fsa_vec.dim0(), dense_fsa_vec.scores.shape[0], dense_fsa_vec.scores.shape[1] - 1)
             row_ids = dense_fsa_vec.dense_fsa_vec.shape().row_ids(1)
-            mbr_num_sparse = create_sparse_wrapped(indices=[_k2.index_select(row_ids, num_lats.seqframe_idx),
+            mbr_num_sparse = create_sparse_wrapped(indices=[k2.index_select(row_ids, num_lats.seqframe_idx),
                                                             num_lats.seqframe_idx,
                                                             num_lats.phones],
                                                    values=num_lats.get_arc_post(True,True).exp(),
                                                    size=size,
                                                    min_col_index=0)
-            mbr_den_sparse = create_sparse_wrapped(indices=[_k2.index_select(row_ids, den_lats.seqframe_idx),
+            mbr_den_sparse = create_sparse_wrapped(indices=[k2.index_select(row_ids, den_lats.seqframe_idx),
                                                             den_lats.seqframe_idx,
                                                             den_lats.phones],
                                                    values=den_lats.get_arc_post(True,True).exp(),

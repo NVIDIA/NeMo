@@ -117,7 +117,7 @@ class BaseDecoder(object):
             # raise
             if return_ilabels:
                 shortest_paths = []
-                # direct iterating is bugged
+                # direct iterating does not work as expected
                 for i in range(shortest_paths_fsa.shape[0]):
                     labels = shortest_paths_fsa[i].labels[:-1].to(dtype=torch.long)
                     if self.blank != 0:
@@ -126,7 +126,7 @@ class BaseDecoder(object):
                     shortest_paths.append(labels)
             else:
                 shortest_paths = []
-                # direct iterating is bugged
+                # direct iterating does not work as expected
                 for i in range(shortest_paths_fsa.shape[0]):
                     aux_labels = shortest_paths_fsa[i].aux_labels.values() if isinstance(shortest_paths_fsa.aux_labels, k2.RaggedInt) else shortest_paths_fsa[i].aux_labels
                     aux_labels = aux_labels[aux_labels != 0][:-1]

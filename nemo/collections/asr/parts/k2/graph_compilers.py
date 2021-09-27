@@ -59,7 +59,8 @@ class CtcTrainingTopologyCompiler(object):
 
     def compile(self, targets: torch.Tensor, target_lengths: torch.Tensor) -> k2.Fsa:
         token_ids_list = [t[:l].tolist() for t, l in zip(targets, target_lengths)]
-        label_graph = k2.linear_fsa(token_ids_list, self.device)
+        # see https://github.com/k2-fsa/k2/issues/835
+        label_graph = k2.linear_fsa(token_ids_list).to(self.device)
         label_graph.aux_labels = label_graph.labels.clone()
         decoding_graphs = compose_with_self_loops(self.base_graph, label_graph)
         decoding_graphs = k2.arc_sort(decoding_graphs).to(self.device)

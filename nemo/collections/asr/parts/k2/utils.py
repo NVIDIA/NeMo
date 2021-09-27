@@ -225,7 +225,7 @@ def create_sparse_wrapped(indices: List[torch.Tensor],
     else:
         raise ValueError(f"len(indices) = {len(indices)}")
 
-def prep_padded_densefsavec(log_softmax: torch.Tensor, supervisions: torch.Tensor,):
+def prep_padded_densefsavec(log_softmax: torch.Tensor, supervisions: torch.Tensor):
     log_softmax_shifted = torch.cat([torch.full((log_softmax.shape[0], log_softmax.shape[1], 1), -float("inf"), device=log_softmax.device), log_softmax], axis=-1)
     log_softmax_padded = torch.zeros((log_softmax_shifted.shape[0], log_softmax_shifted.shape[1] * 2, log_softmax_shifted.shape[2]), device=log_softmax.device)
     log_softmax_padded[:,::2] = log_softmax_shifted
