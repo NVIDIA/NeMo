@@ -65,7 +65,7 @@ Citrinet models can be instantiated using the :class:`~nemo.collections.asr.mode
 .. _ContextNet_model:
 
 ContextNet
---------
+----------
 
 ContextNet is a model uses Transducer/RNNT loss/decoder and is introduced in :cite:`asr-models-han2020contextnet`.
 It uses Squeeze-and-Excitation mechanism :cite:`asr-models-hu2018squeeze` to model larger context.
