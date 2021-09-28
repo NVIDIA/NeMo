@@ -68,6 +68,7 @@ class MegatronGPTModel(NLPModel):
             vocab_file=cfg.tokenizer.vocab_file,
             merge_file=cfg.tokenizer.merge_file,
             fp16=cfg.get('fp16', True),
+            bf16=cfg.get('bf16', False),
         )
         args = get_args()
 
