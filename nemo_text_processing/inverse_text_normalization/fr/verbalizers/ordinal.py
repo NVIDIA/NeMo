@@ -17,7 +17,6 @@ from nemo_text_processing.inverse_text_normalization.fr.graph_utils import (
     NEMO_NOT_QUOTE,
     GraphFst,
     delete_space,
-    insert_space,
 )
 from nemo_text_processing.inverse_text_normalization.fr.utils import get_abs_path
 
@@ -78,7 +77,6 @@ class OrdinalFst(GraphFst):
         graph_roman_digits = NEMO_DIGIT @ graph_roman_digits
 
         graph_roman_integers = graph_roman_hundreds | graph_roman_ties | graph_roman_digits
-        graph_roman_digits = pynutil.delete("\"")
 
         graph_roman = (graph_integer @ graph_roman_integers) + replace_suffix
         graph_roman += pynini.cross("/", " ") + "siècle"

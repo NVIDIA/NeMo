@@ -14,10 +14,7 @@
 
 from nemo_text_processing.inverse_text_normalization.fr.graph_utils import (
     GraphFst,
-    convert_space,
-    delete_extra_space,
     delete_space,
-    insert_space,
 )
 from nemo_text_processing.inverse_text_normalization.fr.utils import get_abs_path
 
