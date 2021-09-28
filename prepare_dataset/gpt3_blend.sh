@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DATA_HOME="/bignlp-scripts/prepare_dataset/the_pile/train"
+DATA_HOME="/path/to/directory/bignlp-scripts/prepare_dataset/the_pile"
 DATA0="${DATA_HOME}/my-gpt3_00_text_document"
 DATA1="${DATA_HOME}/my-gpt3_01_text_document"
 DATA2="${DATA_HOME}/my-gpt3_02_text_document"

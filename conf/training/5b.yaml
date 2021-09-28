@@ -2,17 +2,17 @@ slurm:
   partition: ???
   account: null
   time_limit: "4:00:00"
-  nodes: 8
+  nodes: 20
   exclusive: True
   mem: 0
   overcommit: True
   ntasks_per_node: 8
   dependency: "Singleton"
-  job_name: "bignlp-gpt3:126m"
+  job_name: "bignlp-gpt3:5b"
 
 
 run:
-  name: "126m"
+  name: "5b"
   container: "nvcr.io#nvidia/pytorch:20.12-py3"
   blend_path: "prepare_dataset/gpt3_blend.sh"
   log_dir: "train_scripts/logs"
@@ -21,20 +21,20 @@ run:
   cpu_script: null
 
 megatron:
-  tensor_model_parallel_size: 1
+  tensor_model_parallel_size: 4
   pipeline_model_parallel_size: 1
-  num_layers: 12
-  hidden_size: 768
-  num_attention_heads: 12
+  num_layers: 24
+  hidden_size: 4096
+  num_attention_heads: 32
   seq_length: 2048
   max_position_embeddings: 2048
   micro_batch_size: 4
-  global_batch_size: 256
+  global_batch_size: 1280
   train_samples: 160000000
   lr_decay_samples: 166400000
-  lr_warmup_samples: 162761
-  lr: 6.0e-4
-  min_lr: 6.0e-5
+  lr_warmup_samples: 244141
+  lr: 1.2e-4
+  min_lr: 1.2e-5
   lr_decay_style: "cosine"
   log_timers_to_tensorboard: False
   log_interval: 100

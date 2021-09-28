@@ -8,3 +8,5 @@ hydra:
   run:
     dir: .
   output_subdir: null
+
+bignlp_path: ???

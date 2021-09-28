@@ -75,10 +75,15 @@ named `the_pile`.
 Main directory: train_scripts
 
 #### Train 126M Parameter Model:
-To train the 126M model do:
+First, modify the conf/training/*.yaml file for the model you want to run.
+Maake sure all the paths are set correctly by replacing the ??? symbols with
+the right paths. Make sure the correct yaml file is selected in the
+conf/config.yaml file, for the training parameter.
+
+To train the 126M model after modifying the yaml file:
 ```
 cd bignlp-scripts/train_scripts
-sbatch run_gpt3_126m.sh
+python3 train_model.py
 ```
 
 
@@ -88,7 +93,6 @@ sbatch run_gpt3_126m.sh
 To download the LAMBADA test dataset do:
 ```
 cd bignlp-scripts/prepare_dataset
-bash prepare_lambada_test_data.sh
 ```
 
 
