@@ -59,6 +59,7 @@ def main(cfg):
 
     # Run parameters
     name = run_cfg.get("name")
+    container = run_cfg.get("container")
     blend_path = os.path.join(bignlp_path, run_cfg.get("blend_path"))
     log_dir = os.path.join(bignlp_path, run_cfg.get("log_dir"))
     if not os.path.exists(log_dir):
@@ -83,7 +84,7 @@ def main(cfg):
     train_file_name = "train_script.sh"
     flags = (
         f"-l "
-        f"--container-image nvcr.io#nvidia/pytorch:20.12-py3 "
+        f"--container-image {container} "
         f"--container-mounts {bignlp_path}:{bignlp_path} "
         f"--output {log_dir}/{name}-%j.log"
     )

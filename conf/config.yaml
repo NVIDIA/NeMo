@@ -9,4 +9,4 @@ hydra:
     dir: .
   output_subdir: null
 
-bignlp_path: "/gpfs/fs1/mausin/bignlp-scripts"
+bignlp_path: ???

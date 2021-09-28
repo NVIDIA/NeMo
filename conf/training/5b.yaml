@@ -13,6 +13,7 @@ slurm:
 
 run:
   name: "5b"
+  container: "nvcr.io#nvidia/pytorch:20.12-py3"
   blend_path: "prepare_dataset/gpt3_blend.sh"
   log_dir: "train_scripts/logs"
   bind_script: null
