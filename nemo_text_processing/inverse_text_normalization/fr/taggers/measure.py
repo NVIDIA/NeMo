@@ -57,9 +57,7 @@ class MeasureFst(GraphFst):
             pynutil.insert("negative: ") + pynini.cross("moins", "\"true\"") + delete_extra_space, 0, 1
         )
 
-        unit_misc = (
-            pynutil.insert("/") + (pynutil.delete("par") | pynutil.delete("à")) + delete_space + unit
-        )
+        unit_misc = pynutil.insert("/") + (pynutil.delete("par") | pynutil.delete("à")) + delete_space + unit
 
         unit = (
             pynutil.insert("units: \"")
