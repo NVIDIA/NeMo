@@ -4,4 +4,4 @@
     branch = main
 [submodule "fastertransformer_backend"]
 	path = fastertransformer_backend
-	url = ssh://git@gitlab-master.nvidia.com:12051/bhsueh/fastertransformer_backend.git
+	url = https://gitlab-master.nvidia.com/bhsueh/fastertransformer_backend.git
