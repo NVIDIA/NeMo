@@ -17,10 +17,13 @@ import json
 import os
 import tempfile
 
+import numpy as np
 import pytest
 import torch.cuda
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
+from torch.utils.data import DataLoader
 
+from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text import TarredAudioToBPEDataset, TarredAudioToCharDataset
 from nemo.collections.asr.data.audio_to_text_dali import (
     __DALI_MINIMUM_VERSION__,
@@ -29,6 +32,7 @@ from nemo.collections.asr.data.audio_to_text_dali import (
     is_dali_supported,
 )
 from nemo.collections.asr.data.audio_to_text_dataset import inject_dataloader_value_from_model_config
+from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.common import tokenizers
 from nemo.utils import logging
 
@@ -329,3 +333,77 @@ class TestASRDatasets:
                 if orig != shuffled:
                     samples_changed += 1
             assert samples_changed > 1  # assume after shuffling at least 1 sample was displaced
+
+    @pytest.mark.skipif(not HAVE_DALI, reason="NVIDIA DALI is not installed or incompatible version")
+    @pytest.mark.unit
+    def test_dali_char_vs_ref_dataset(self, test_data_dir):
+        manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/an4_val.json'))
+
+        num_samples = 10
+        batch_size = 1
+        device = 'gpu' if torch.cuda.is_available() else 'cpu'
+        texts = []
+
+        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
+            with open(manifest_path, 'r') as m:
+                for ix, line in enumerate(m):
+                    if ix >= num_samples:
+                        break
+
+                    line = line.replace("tests/data/", "tests/.data/").replace("\n", "")
+                    f.write(f"{line}\n")
+
+                    data = json.loads(line)
+                    texts.append(data['text'])
+
+            f.seek(0)
+
+            preprocessor = {
+                '_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor',
+                'dither': 0.0,
+            }
+            preprocessor_cfg = DictConfig(preprocessor)
+
+            dataset_cfg = {
+                'manifest_filepath': f.name,
+                'sample_rate': 16000,
+                'labels': self.labels,
+                'batch_size': batch_size,
+                'trim_silence': False,
+                'max_duration': 16.7,
+                'shuffle': False,
+                'is_tarred': False,
+            }
+            dali_dataset = audio_to_text_dataset.get_dali_char_dataset(
+                config=dataset_cfg,
+                shuffle=False,
+                device_id=0,
+                global_rank=0,
+                world_size=1,
+                preprocessor_cfg=preprocessor_cfg,
+            )
+            ref_dataset = audio_to_text_dataset.get_char_dataset(config=dataset_cfg,)
+            ref_dataloader = DataLoader(
+                dataset=ref_dataset,
+                batch_size=batch_size,
+                collate_fn=ref_dataset.collate_fn,
+                drop_last=False,
+                shuffle=False,
+                num_workers=0,
+                pin_memory=False,
+            )
+            ref_preprocessor = EncDecCTCModel.from_config_dict(preprocessor_cfg)
+
+            count = 0
+            for ref_data, dali_data in zip(ref_dataloader, dali_dataset):
+                ref_audio, ref_audio_len, _, _ = ref_data
+                ref_features, ref_features_len = ref_preprocessor(input_signal=ref_audio, length=ref_audio_len)
+
+                dali_features, dali_features_len, _, _ = dali_data
+
+                a = ref_features.cpu().numpy()[:, :, :ref_features_len]
+                b = dali_features.cpu().numpy()[:, :, :dali_features_len]
+
+                err = np.abs(a - b)
+                assert np.mean(err) < 0.0001
+                assert np.max(err) < 0.01
