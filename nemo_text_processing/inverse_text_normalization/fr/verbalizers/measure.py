@@ -60,7 +60,7 @@ class MeasureFst(GraphFst):
             + delete_space
             + optional_sign
             + delete_space
-            + cardinal.numbers @ decimal.group_by_threes # measurements most obey three by three spacing
+            + cardinal.numbers @ decimal.group_by_threes  # measurements most obey three by three spacing
             + delete_space
             + pynutil.delete("}")
         )

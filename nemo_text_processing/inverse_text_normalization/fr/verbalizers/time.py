@@ -64,6 +64,13 @@ class TimeFst(GraphFst):
 
         graph = hour + delete_extra_space + pynutil.insert("h") + minute.ques + delete_space + day_suffixes.ques
 
-        graph |= hour @ hour_to_night + delete_extra_space + pynutil.insert("h") + minute.ques + delete_space + night_suffixes
+        graph |= (
+            hour @ hour_to_night
+            + delete_extra_space
+            + pynutil.insert("h")
+            + minute.ques
+            + delete_space
+            + night_suffixes
+        )
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
