@@ -46,6 +46,8 @@ ReLU, and dropout:
 
 QuartzNet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModel` class.
 
+.. _Citrinet_model:
+
 Citrinet
 --------
 
@@ -59,6 +61,22 @@ obtain highly accurate audio transcripts while utilizing a non-autoregressive CT
         :scale: 50%
 
 Citrinet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModelBPE` class.
+
+.. _ContextNet_model:
+
+ContextNet
+--------
+
+ContextNet is a model uses Transducer/RNNT loss/decoder and is introduced in :cite:`asr-models-han2020contextnet`.
+It uses Squeeze-and-Excitation mechanism :cite:`asr-models-hu2018squeeze` to model larger context.
+Unlike Citrinet, it has an autoregressive decoding scheme.
+
+ContextNet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecRNNTBPEModel` class for a
+model with sub-word encoding and :class:`~nemo.collections.asr.models.EncDecRNNTModel` for char-based encoding.
+
+You may find the example config files of ContextNet model with character-based encoding at
+``<NeMo_git_root>/examples/asr/conf/contextnet_rnnt/contextnet_rnnt_char.yaml`` and
+with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/contextnet_rnnt/contextnet_rnnt.yaml``.
 
 .. _Conformer-CTC_model:
 
@@ -87,6 +105,8 @@ character-based variant is based on :class:`~nemo.collections.asr.models.EncDecC
 You may find the example config files of Conformer-CTC model with character-based encoding at
 ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_char.yaml`` and
 with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_bpe.yaml``.
+
+.. _Conformer-Transducer_model:
 
 Conformer-Transducer
 --------------------

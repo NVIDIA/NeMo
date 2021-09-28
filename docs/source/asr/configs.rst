@@ -474,6 +474,11 @@ specify the tokenizer if you want to use sub-word encoding instead of character-
 The encoder section includes the details about the Conformer-CTC encoder architecture. You may find more information in the 
 config files and also :doc:`nemo.collections.asr.modules.ConformerEncoder<./api.html#nemo.collections.asr.modules.ConformerEncoder>`.
 
+ContextNet
+~~~~~~~~~~
+
+Please refer to the model page of `ContextNet <./models.html#ContextNet>`__ for more information on this model.
+
 Conformer-Transducer
 ~~~~~~~~~~~~~~~~~~~~
 
