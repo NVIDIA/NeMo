@@ -13,12 +13,10 @@
 # limitations under the License.
 
 from nemo_text_processing.inverse_text_normalization.fr.graph_utils import (
-    NEMO_CHAR,
     NEMO_DIGIT,
     GraphFst,
     delete_extra_space,
     delete_space,
-    insert_space,
 )
 from nemo_text_processing.inverse_text_normalization.fr.utils import get_abs_path
 
