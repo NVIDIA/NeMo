@@ -76,7 +76,7 @@ testITNElectronic() {
 }
 
 testITNWord() {
-  input=$PROJECT_DIR/de/data_inverse_text_normalization/test_cases_word.txt
+  input=$PROJECT_DIR/fr/data_inverse_text_normalization/test_cases_word.txt
   runtest $input
 }
 
