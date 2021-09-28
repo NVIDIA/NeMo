@@ -26,7 +26,7 @@ We concatenated all audio files from the dev-clean split into a single file and 
 We used the CTC-based `QuartzNet15x5Base-En ASR model <https://ngc.nvidia.com/catalog/models/nvidia:nemospeechmodels>`_.
 The segmented corpus has 3.82% WER and contains 300 out of the initial 323 minutes of audio.
 The remaining 23 minutes are the silence at the beginning and end of the audio removed during the segmentation.
-A `running instance of the SDE <http://34.221.29.162:8050/>`_ demonstrates the re-segmented corpus.
+A `running instance of the SDE <http://18.223.252.228:8050/>`_ demonstrates the re-segmented corpus.
 
 Getting Started
 ---------------
