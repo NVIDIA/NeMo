@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Dict
 import torch
 from apex import mpu
 from omegaconf.dictconfig import DictConfig
@@ -281,6 +282,63 @@ class MegatronGPTModel(NLPModel):
     def list_available_models():
         pass
 
+    def complete(self, request: Dict):
+        """
+            Autoregressively invokes language model in the inference mode
+        Args:	
+            request: Dictionary with the following fields
+                * prompt: a string which text the model should complete.
+                * tokens_to_generate: how many tokens to generate while doing prompt completion.
+                * stop_after_sentence: (default True) whether to stop generation once sentence end is reached.
+        Returns:	
+            response: A python dictionary with the following fields
+                * prompt: original text of the prompt
+                * tokenized_prompt: list of (str) tokens from prompt
+                * completion: a python dictionary with the following subfields:
+                    * tokens: a list of triples (token, token_id, log_prob) comprising completion
+                    * stop reason: either 'eos', 'sentence_end' or 'limit' indicating why generation stopped
+                    * text: completion text (as a single string)
+                
+        """
+        response = {}
+        self.eval()
+        tokenized_prompt = self.tokenizer.text_to_tokens(request['prompt'])
+        response["tokenized_prompt"] = tokenized_prompt     
+        tokens = self.tokenizer.text_to_ids(request['prompt'])
+        # How will this look in model parallel setting?
+        tokens = torch.tensor(tokens, device=self.device)
+        # naive greedy slow loop
+        # TODO: rewrite me with BeamSearchDecoder          
+        response['prompt'] = request['prompt']
+        response['completion'] = {}
+        response['completion']['stop reason'] = 'limit' 
+        for i in range(request.get("tokens_to_generate", 1024)):            
+            attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
+                data=torch.unsqueeze(tokens, 0), 
+                eod_token=self.tokenizer.eos_id,
+                reset_position_ids=self.cfg.get('reset_position_ids', False),
+                reset_attention_mask=self.cfg.get('reset_attention_mask', False),
+                eod_mask_loss=self.cfg.get('eod_mask_loss', False),
+            )
+            # No labels during inference. Still need masks to not attend to the right
+            output_tensor = self(torch.unsqueeze(tokens, 0), position_ids, attention_mask, labels=None)            
+            log_probs, token_ids = torch.max(output_tensor, dim=-1)
+            reached_eos = token_ids[0, -1].item() == self.tokenizer.eos_id            
+            # TODO: CURRENT log_probs are probably NOT correct!!!!            
+            tokens = torch.cat([tokens, token_ids[:,-1]])
+            response['completion']["tokens"] = list(zip(self.tokenizer.ids_to_tokens(tokens), tokens.tolist(), log_probs.tolist()[0]))
+            completion_text = self.tokenizer.ids_to_text(x[1] for x in response['completion']["tokens"])
+            if reached_eos: # Will it actually ever reach that?
+                response['completion']['stop reason'] = 'eos'
+                break
+            elif request.get("stop_after_sentence", True) and completion_text.endswith(('.', '!', '?')):
+                response['completion']['stop reason'] = 'sentence_end'
+                break
+        response['completion']["text"] = self.tokenizer.ids_to_text(x[1] for x in response['completion']["tokens"])                  
+        return response
+        
+
+    
     def _vocab_size_with_padding(self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size):
         """Pad vocab size so it is divisible by model parallel size and
         still having GPU friendly size."""
