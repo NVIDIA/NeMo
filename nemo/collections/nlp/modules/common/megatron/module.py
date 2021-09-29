@@ -16,12 +16,6 @@
 
 import torch
 from apex import mpu
-from torch.autograd import Variable
-from torch.nn.parameter import Parameter
-
-_FLOAT_TYPES = (torch.FloatTensor, torch.cuda.FloatTensor)
-_HALF_TYPES = (torch.HalfTensor, torch.cuda.HalfTensor)
-_BF16_TYPES = (torch.BFloat16Tensor, torch.cuda.BFloat16Tensor)
 
 
 def param_is_not_shared(param):
@@ -35,11 +29,6 @@ class MegatronModule(torch.nn.Module):
     def __init__(self, share_word_embeddings=True):
         super(MegatronModule, self).__init__()
         self.share_word_embeddings = share_word_embeddings
-
-    # def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
-    #     """Use this function to override the state dict for
-    #     saving checkpoints."""
-    #     return self.state_dict(destination, prefix, keep_vars)
 
     def word_embeddings_weight(self):
         if mpu.is_pipeline_first_stage(ignore_virtual=True):
