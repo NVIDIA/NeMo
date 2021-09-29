@@ -131,7 +131,7 @@ class ParallelAttention(MegatronModule):
         hidden_size,
         attention_type=AttnType.self_attn,
         attn_mask_type=AttnMaskType.padding,
-        fused_softmax_input_in_fp16=False,
+        fused_fp16=False,
         fused_softmax_input_bf16=False,
         apply_query_key_layer_scaling=True,
         kv_channels=None,
@@ -188,7 +188,7 @@ class ParallelAttention(MegatronModule):
             self.norm_factor *= coeff
 
         self.scale_mask_softmax = FusedScaleMaskSoftmax(
-            fused_softmax_input_in_fp16,
+            fused_fp16,
             fused_softmax_input_bf16,
             self.attn_mask_type,
             masked_softmax_fusion,
@@ -422,8 +422,8 @@ class ParallelTransformerLayer(MegatronModule):
         self_attn_mask_type=AttnMaskType.padding,
         fp32_residual_connection=False,
         apply_residual_connection_post_layernorm=False,
-        fused_softmax_input_in_fp16=False,
-        fused_softmax_input_in_bf16=False,
+        fused_fp16=False,
+        fused_bf16=False,
         apply_query_key_layer_scaling=True,
         kv_channels=None,
         layernorm_epsilon=1e-5,
@@ -452,7 +452,7 @@ class ParallelTransformerLayer(MegatronModule):
 
         self.apply_residual_connection_post_layernorm = apply_residual_connection_post_layernorm  # if true apply residual connection post layer norm (like original bert)
 
-        self.bf16 = fused_softmax_input_in_bf16
+        self.bf16 = fused_bf16
         self.fp32_residual_connection = fp32_residual_connection  # if true move residual connections to fp32
 
         # Layernorm on the input data.
@@ -467,8 +467,8 @@ class ParallelTransformerLayer(MegatronModule):
             hidden_size=hidden_size,
             attention_type=AttnType.self_attn,
             attn_mask_type=self_attn_mask_type,
-            fused_softmax_input_in_fp16=fused_softmax_input_in_fp16,
-            fused_softmax_input_bf16=fused_softmax_input_in_bf16,
+            fused_fp16=fused_fp16,
+            fused_softmax_input_bf16=fused_bf16,
             apply_query_key_layer_scaling=apply_query_key_layer_scaling,
             kv_channels=kv_channels,
             use_cpu_initialization=use_cpu_initialization,
@@ -603,8 +603,8 @@ class ParallelTransformer(MegatronModule):
         self_attn_mask_type=AttnMaskType.padding,
         pre_process=True,
         post_process=True,
-        fused_softmax_input_in_fp16=False,
-        fused_softmax_input_in_bf16=False,
+        fused_fp16=False,
+        fused_bf16=False,
         fp32_residual_connection=False,
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=1,
@@ -626,7 +626,7 @@ class ParallelTransformer(MegatronModule):
         if ffn_hidden_size is None:
             ffn_hidden_size = 4 * hidden_size
 
-        self.bf16 = fused_softmax_input_in_bf16
+        self.bf16 = fused_bf16
         self.fp32_residual_connection = fp32_residual_connection
         self.pre_process = pre_process
         self.post_process = post_process
@@ -654,8 +654,8 @@ class ParallelTransformer(MegatronModule):
                 kv_channels=kv_channels,
                 layer_type=layer_type,
                 self_attn_mask_type=self_attn_mask_type,
-                fused_softmax_input_in_fp16=fused_softmax_input_in_fp16,
-                fused_softmax_input_in_bf16=fused_softmax_input_in_bf16,
+                fused_fp16=fused_fp16,
+                fused_bf16=fused_bf16,
                 fp32_residual_connection=fp32_residual_connection,
                 layernorm_epsilon=layernorm_epsilon,
                 hidden_dropout=hidden_dropout,

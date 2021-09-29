@@ -38,16 +38,6 @@ model:
   # model parallelism 
   micro_batch_size: 4
   tensor_model_parallel_size: 1
-  encoder_seq_length: 1024
-  max_position_embeddings: 1024
-  num_layers: 24
-  hidden_size: 1024
-  num_attention_heads: 16
-  init_method_std: 0.02
-  fp16: True # True if using native amp
-  native_amp_init_scale: 4294967296 # 2 ** 32
-  native_amp_growth_interval: 1000
-  use_cpu_initialization: False # init weights on the CPU (slow for large models)
 
   # model architecture
   encoder_seq_length: 512
@@ -73,8 +63,10 @@ model:
     merge_file: /raid/data/gpt/merges.txt
 
   # precision
-  fused_softmax_input_in_fp16: True # False if using fp32 or bf16
-  fused_softmax_input_in_bf16: False
+  native_amp_init_scale: 4294967296 # 2 ** 32
+  native_amp_growth_interval: 1000
+  fused_fp16: True # False if using fp32 or bf16
+  fused_bf16: False
   fp32_residual_connection: False # Move residual connections to fp32
   fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
 
