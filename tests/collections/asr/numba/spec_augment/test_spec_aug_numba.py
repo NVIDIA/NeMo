@@ -124,8 +124,6 @@ def freq_mask_check(x, x_len, f_start, f_len, mask_value, bidx):
     check_result = True
     for fidx in range(f_start, f_start + f_len):
         if not (x[bidx, fidx, :] == mask_value).all():
-            print(bidx, fidx)
-            print(x[bidx, fidx, :])
             check_result = False
             break
     assert check_result
