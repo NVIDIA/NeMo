@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import re
 import string
 from copy import deepcopy
 from typing import List
@@ -161,3 +162,43 @@ def basic_tokenize(input_str, lang):
     if lang == constants.ENGLISH:
         return word_tokenize(input_str)
     return input_str.strip().split(' ')
+
+
+def post_process_punct(input: str, output: str):
+    """
+    Post-process punctuation,
+    e.g., output = "yesterday's agenda (april seventh two thousand one) disappointments of the same ol 'routine"
+          input = "yesterday's agenda (April 7th, 2001) disappointments of the same ol' routine"
+        -> yesterday's agenda (april seventh two thousand one) disappointments of the same ol' routine
+
+    Args:
+        input: input text
+        output: output text
+    """
+    input = [x for x in input]
+    output = [x for x in output]
+    punct_marks = string.punctuation
+
+    for punct in punct_marks:
+        if input.count(punct) != output.count(punct):
+            continue
+        idx_in, idx_out = 0, 0
+        while punct in input[idx_in:]:
+            idx_in = input.index(punct, idx_in)
+            idx_out = output.index(punct, idx_out)
+            if idx_in > 0 and idx_out > 0:
+                if output[idx_out - 1] == " " and input[idx_in - 1] != " ":
+                    output[idx_out - 1] = ""
+
+                elif output[idx_out - 1] != " " and input[idx_in - 1] == " ":
+                    output[idx_out - 1] += " "
+
+            if idx_in < len(input) - 1 and idx_out < len(output) - 1:
+                if output[idx_out + 1] == " " and input[idx_in + 1] != " ":
+                    output[idx_out + 1] = ""
+                elif output[idx_out + 1] != " " and input[idx_in + 1] == " ":
+                    output[idx_out] = output[idx_out] + " "
+            idx_out += 1
+            idx_in += 1
+    output = "".join(output)
+    return re.sub(r' +', ' ', output)

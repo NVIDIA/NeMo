@@ -64,13 +64,17 @@ def instantiate_model_and_trainer(cfg: DictConfig, model_name: str, do_training:
         if model_name == TAGGER_MODEL:
             if pretrained_cfg not in DuplexTaggerModel.get_available_model_names():
                 raise (
-                    f'{pretrained_cfg} not in the list of available Tagger models. Select from {DuplexTaggerModel.list_available_models()}'
+                    ValueError(
+                        f'{pretrained_cfg} not in the list of available Tagger models. Select from {DuplexTaggerModel.list_available_models()}'
+                    )
                 )
             model = DuplexTaggerModel.from_pretrained(pretrained_cfg)
         if model_name == DECODER_MODEL:
             if pretrained_cfg not in DuplexDecoderModel.get_available_model_names():
                 raise (
-                    f'{pretrained_cfg} not in the list of available Decoder models. Select from {DuplexDecoderModel.list_available_models()}'
+                    ValueError(
+                        f'{pretrained_cfg} not in the list of available Decoder models. Select from {DuplexDecoderModel.list_available_models()}'
+                    )
                 )
             model = DuplexDecoderModel.from_pretrained(pretrained_cfg)
 

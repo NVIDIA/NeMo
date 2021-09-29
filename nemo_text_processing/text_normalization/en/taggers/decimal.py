@@ -99,6 +99,6 @@ class DecimalFst(GraphFst):
         )
 
         final_graph = optional_graph_negative + self.final_graph_wo_negative
-        self.final_graph = final_graph.optimize()
+
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

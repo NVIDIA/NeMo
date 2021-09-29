@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
-from nemo_text_processing.text_normalization.en.taggers_small.tokenize_and_classify import ClassifyFstSmall
 from nemo_text_processing.text_normalization.en.verbalizers.verbalize import VerbalizeFst
 from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
 
