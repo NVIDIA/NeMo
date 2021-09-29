@@ -150,7 +150,9 @@ def beam_search_eval(
             )
         )
     logging.info(
-        'Best WER/CER in candidates = {:.2%}/{:.2%}'.format(wer_dist_best / words_count, cer_dist_best / chars_count)
+        'Oracle WER/CER in candidates with perfect LM= {:.2%}/{:.2%}'.format(
+            wer_dist_best / words_count, cer_dist_best / chars_count
+        )
     )
     logging.info(f"=================================================================================")
 
