@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from megatron.optimizer.clip_grads import clip_grad_norm_fp32
 import torch
 from apex import mpu
 from omegaconf.dictconfig import DictConfig
@@ -32,6 +31,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_ltor_masks_and_position_ids,
 )
 from nemo.collections.nlp.modules.common.megatron import fused_kernels
+from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
 from nemo.utils import AppState, logging
 
 

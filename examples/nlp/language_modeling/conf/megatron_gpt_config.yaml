@@ -66,7 +66,7 @@ model:
   native_amp_init_scale: 4294967296 # 2 ** 32
   native_amp_growth_interval: 1000
   fused_fp16: True # False if using fp32 or bf16
-  fused_bf16: False
+  fused_bf16: False # True if using bf16
   fp32_residual_connection: False # Move residual connections to fp32
   fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
 
