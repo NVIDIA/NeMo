@@ -49,6 +49,7 @@ model:
   fp16: True # True if using native amp
   native_amp_init_scale: 4294967296 # 2 ** 32
   native_amp_growth_interval: 1000
+  use_cpu_initialization: False # init weights on the CPU (slow for large models)
   tokenizer:
     library: 'megatron'
     type: 'GPT2BPETokenizer'
