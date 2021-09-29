@@ -62,6 +62,7 @@ class ParallelMLP(MegatronModule):
         bias_gelu_fusion=True,
         openai_gelu=False,
         onnx_safe=False,
+        fused_fp16=False,
     ):
         super(ParallelMLP, self).__init__()
 
@@ -95,7 +96,7 @@ class ParallelMLP(MegatronModule):
             use_cpu_initialization=use_cpu_initialization,
         )
 
-        if args.fp16:
+        if fused_fp16:
             self.bias_gelu_impl = bias_gelu_impl_fp16
         else:
             self.bias_gelu_impl = bias_gelu_impl_bf16
@@ -498,6 +499,7 @@ class ParallelTransformerLayer(MegatronModule):
             bias_gelu_fusion=bias_gelu_fusion,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
+            fused_fp16=fused_fp16,
         )
 
     def forward(
