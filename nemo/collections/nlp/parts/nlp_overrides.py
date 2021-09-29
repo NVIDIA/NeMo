@@ -325,7 +325,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
 class NLPNativeMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
     def __init__(self, init_scale: float = 2 ** 32, growth_interval: int = 1000) -> None:
-        super().__init__()
+        super().__init__(precision=16)
 
         self.scaler = torch.cuda.amp.GradScaler(init_scale=init_scale, growth_interval=growth_interval)
 
@@ -344,7 +344,7 @@ class NLPNativeMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
 
 class NLPNativeBfloat16PrecisionPlugin(NativeMixedPrecisionPlugin):
     def __init__(self) -> None:
-        super().__init__()
+        super().__init__(precision='bf16')
 
     def clip_gradients(
         self,
