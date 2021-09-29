@@ -117,13 +117,19 @@ To run a tutorial:
      - `Relation Extraction - BioMegatron <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/Relation_Extraction-BioMegatron.ipynb>`_
    * - TTS
      - Speech Synthesis
-     - `TTS Inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/1_TTS_inference.ipynb>`_
+     - `TTS Inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/Inference_ModelSelect.ipynb>`_
    * - TTS
      - Speech Synthesis
-     - `Tacotron2 Training <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/2_TTS_Tacotron2_Training.ipynb>`_
+     - `FastPitch Duration and Pitch Control <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/Inference_DurationPitchControl.ipynb>`_
    * - TTS
      - Speech Synthesis
-     - `TalkNet Training <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/3_TTS_TalkNet_Training.ipynb>`_
+     - `Tacotron2 Training <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/Tacotron2_Training.ipynb>`_
+   * - TTS
+     - Speech Synthesis
+     - `TalkNet Training <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/TalkNet_Training.ipynb>`_
+   * - TTS
+     - Speech Synthesis
+     - `FastPitch Fine-Tuning <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/FastPitch_Finetuning.ipynb>`_
    * - Tools
      - CTC Segmentation
      - `CTC Segmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tools/CTC_Segmentation_Tutorial.ipynb>`_

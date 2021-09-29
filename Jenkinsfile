@@ -1307,7 +1307,7 @@ pipeline {
               model.validation_ds.tokens_in_batch=128 \
               model.test_ds.tokens_in_batch=128 \
               model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
-              model.decoder.hidden_size=48 \
+              model.decoder.hidden_size=768 \
               model.decoder.inner_size=256 \
               trainer.gpus=[0] \
               +trainer.fast_dev_run=true \
@@ -1351,7 +1351,7 @@ pipeline {
       }
     }
 
-    stage('L2: NMT Megatron Model Parallel Size 2 Encoder') {
+    stage('L2: NMT Megatron BERT Model Parallel Size 2 Encoder') {
       when {
         anyOf{
           branch 'main'
@@ -1377,6 +1377,7 @@ pipeline {
         model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
         model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
         model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+        model.decoder.hidden_size=1024 \
         trainer.gpus=[0,1] \
         +trainer.fast_dev_run=true \
         exp_manager=null \

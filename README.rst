@@ -44,7 +44,7 @@ Key Features
 * Speech processing
     * `Automatic Speech recognition (ASR) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/intro.html>`_: Jasper, QuartzNet, CitriNet, Conformer
     * `Speech Classification <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speech_classification/intro.html>`_: MatchboxNet (command recognition), MarbleNet (voice activity detection)
-    * `Speaker Recognition <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speaker_recognition/intro.html>`_: SpeakerNet, TDNN-Attention
+    * `Speaker Recognition <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speaker_recognition/intro.html>`_: SpeakerNet, ECAPA_TDNN
     * `Speaker Diarization <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speaker_diarization/intro.html>`_: MarbleNet + SpeakerNet
     * `NGC collection of pre-trained speech processing models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_asr>`_
 * Natural Language Processing
@@ -67,7 +67,10 @@ Key Features
     * Vocoders: WaveGlow, SqueezeWave, UniGlow, MelGAN, HiFiGAN
     * End-to-end speech generation: FastPitch_HifiGan_E2E, FastSpeech2_HifiGan_E2E
     * `NGC collection of pre-trained TTS models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_tts>`_
-
+* `Tools <https://github.com/NVIDIA/NeMo/tree/main/tools>`_
+    * `Text Processing (text normalization and inverse text normalization) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tools/text_processing_deployment.html>`_
+    * `CTC-Segmentation tool <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tools/ctc_segmentation.html>`_
+    * `Speech Data Explorer <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tools/speech_data_explorer.html>`_
 
 Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training to multiple GPUs and multiple nodes.
 

@@ -38,3 +38,7 @@ from nemo.collections.nlp.data.token_classification.token_classification_dataset
     BertTokenClassificationDataset,
     BertTokenClassificationInferDataset,
 )
+from nemo.collections.nlp.data.zero_shot_intent_recognition.zero_shot_intent_dataset import (
+    ZeroShotIntentDataset,
+    ZeroShotIntentInferenceDataset,
+)
