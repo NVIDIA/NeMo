@@ -55,13 +55,12 @@ class NamedTimer(object):
             torch.cuda.synchronize()
 
         # compute dt and make timer inactive
-        dt = time.time()-timer_data.pop("start")
+        dt = time.time() - timer_data.pop("start")
 
         # store dt
         timer_data["dt"] = timer_data.get("dt", []) + [dt]
 
         self.timers[name] = timer_data
-
 
     def active(self):
         """
