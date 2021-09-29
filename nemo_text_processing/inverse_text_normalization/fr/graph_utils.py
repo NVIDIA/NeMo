@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 # Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -95,10 +95,13 @@ except (ModuleNotFoundError, ImportError):
     insert_space = None
     delete_extra_space = None
 
+    delete_hyphen = None
+    insert_hyphen = None
+
     suppletive = None
-    _ies = None
-    _es = None
     _s = None
+    _x = None
+    _aux = None
 
     graph_plural = None
 

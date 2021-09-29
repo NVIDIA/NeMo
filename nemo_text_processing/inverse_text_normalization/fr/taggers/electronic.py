@@ -83,10 +83,10 @@ class ElectronicFst(GraphFst):
         protocol_start |= pynini.cross(pynini.union("https", "h t t p s", "ache té té pé esse"), "https")
         protocol_start += pynini.cross(
             pynini.union(
-                " deux points barre oblique barre oblique ",
-                " deux points barre barre ",
-                " deux points double barre ",
-                " deux points slash slash ",
+                " deux-points barre oblique barre oblique ",
+                " deux-points barre barre ",
+                " deux-points double barre ",
+                " deux-points slash slash ",
             ),
             "://",
         )
