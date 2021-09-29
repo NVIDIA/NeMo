@@ -92,7 +92,7 @@ model:
     data_impl: mmap
     splits_string: 900,50,50
     seq_length: 1024
-    skip_warmup: False
+    skip_warmup: True
     num_workers: 0
     dataloader_type: single # cyclic
     reset_position_ids: False # Reset position ids after end-of-document token
