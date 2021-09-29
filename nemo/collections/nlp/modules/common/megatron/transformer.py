@@ -365,7 +365,7 @@ def bias_dropout_add_fused_train_(x, bias, residual, prob):
     return bias_dropout_add(x, bias, residual, prob, True)
 
 
-class BiasDropoutAddFusedTrain(torch.nn.Module):
+class BiasDropoutAddFusedTrainFP16(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -373,13 +373,44 @@ class BiasDropoutAddFusedTrain(torch.nn.Module):
     def forward(self, x, bias, residual, prob):
         return bias_dropout_add_fused_train_(x, bias, residual, prob)
 
-bias_dropout_add_fused_train = BiasDropoutAddFusedTrain()
+
+class BiasDropoutAddFusedTrainBF16(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @torch.cuda.amp.custom_fwd(cast_inputs=torch.bfloat16)
+    def forward(self, x, bias, residual, prob):
+        return bias_dropout_add_fused_train_(x, bias, residual, prob)
+
+bias_dropout_add_fused_train_fp16 = BiasDropoutAddFusedTrainFP16()
+bias_dropout_add_fused_train_bf16 = BiasDropoutAddFusedTrainBF16()
 
 
 @torch.jit.script
-def bias_dropout_add_fused_inference(x, bias, residual, prob):
+def bias_dropout_add_fused_inference_(x, bias, residual, prob):
     # type: (Tensor, Tensor, Tensor, float) -> Tensor
     return bias_dropout_add(x, bias, residual, prob, False)
+
+
+class BiasDropoutAddFusedInferenceFP16(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @torch.cuda.amp.custom_fwd(cast_inputs=torch.float16)
+    def forward(self, x, bias, residual, prob):
+        return bias_dropout_add_fused_inference_(x, bias, residual, prob)
+
+
+class BiasDropoutAddFusedInferenceBF16(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @torch.cuda.amp.custom_fwd(cast_inputs=torch.bfloat16)
+    def forward(self, x, bias, residual, prob):
+        return bias_dropout_add_fused_inference_(x, bias, residual, prob)
+
+bias_dropout_add_fused_inference_fp16 = BiasDropoutAddFusedInferenceFP16()
+bias_dropout_add_fused_inference_bf16 = BiasDropoutAddFusedInferenceBF16()
 
 
 class ParallelTransformerLayer(MegatronModule):
@@ -435,6 +466,13 @@ class ParallelTransformerLayer(MegatronModule):
         # MLP
         self.mlp = ParallelMLP(init_method, output_layer_init_method)
 
+        if args.fp16:
+            self.bias_dropout_add_fused_train = bias_dropout_add_fused_train_fp16
+            self.bias_dropout_add_fused_inference = bias_dropout_add_fused_inference_fp16
+        else:
+            self.bias_dropout_add_fused_train = bias_dropout_add_fused_train_bf16
+            self.bias_dropout_add_fused_inference = bias_dropout_add_fused_inference_bf16
+
     def forward(
         self,
         hidden_states,
@@ -468,9 +506,9 @@ class ParallelTransformerLayer(MegatronModule):
         # dropout semantics during training and inference phases.
         if self.bias_dropout_fusion:
             if self.training:
-                bias_dropout_add_func = bias_dropout_add_fused_train
+                bias_dropout_add_func = self.bias_dropout_add_fused_train
             else:
-                bias_dropout_add_func = bias_dropout_add_fused_inference
+                bias_dropout_add_func = self.bias_dropout_add_fused_inference
         else:
             bias_dropout_add_func = get_bias_dropout_add(self.training)
 
