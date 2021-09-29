@@ -42,10 +42,18 @@ Key Features
 ------------
 
 * Speech processing
-    * `Automatic Speech recognition (ASR) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/intro.html>`_: Jasper, QuartzNet, CitriNet, Conformer
-    * `Speech Classification <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speech_classification/intro.html>`_: MatchboxNet (command recognition), MarbleNet (voice activity detection)
+    * `Automatic Speech Recognition (ASR) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/intro.html>`_: Jasper, QuartzNet, CitriNet, Conformer-CTC, Conformer-Transducer, ContextNet, ...
+        * Supports CTC and Transducer/RNNT losses/decoders
+        * Beam Search decoding
+        * `Language Modelling for ASR <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_language_modeling.html>`_: N-gram language modelling with KenLM in fusion with Beam Search decoding, Transformer Neural Rescorer
+    * `Speech Classification and Speech Command Recognition <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speech_classification/intro.html>`_: MatchboxNet (Command Recognition)
+    * `Voice activity Detection (VAD) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/speech_classification/models.html#marblenet-vad>`_: MarbleNet
     * `Speaker Recognition <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speaker_recognition/intro.html>`_: SpeakerNet, ECAPA_TDNN
     * `Speaker Diarization <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speaker_diarization/intro.html>`_: MarbleNet + SpeakerNet
+    * `Speech Explorer <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/tools/speech_data_explorer.html>`_: a dash-based tool for interactive exploration of ASR/TTS datasets
+    * `Speech Segmentation <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/tools/CTC_Segmentation_Tutorial.ipynb>`_
+    * `Text normalization/denormalization <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nemo_text_processing/text_normalization.html>`_
+    * Pretrained models on different languages: English, Spanish, German, Russian, Chinese, French, Italian, Polish, ...
     * `NGC collection of pre-trained speech processing models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_asr>`_
 * Natural Language Processing
     * `Compatible with Hugging Face Transformers and NVIDIA Megatron <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/megatron_finetuning.html>`_
