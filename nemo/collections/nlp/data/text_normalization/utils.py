@@ -21,6 +21,7 @@ from nltk import word_tokenize
 from tqdm import tqdm
 
 from nemo.collections.nlp.data.text_normalization import constants
+from nemo.utils import logging
 
 __all__ = ['read_data_file', 'normalize_str', 'flatten', 'process_url']
 
@@ -179,26 +180,29 @@ def post_process_punct(input: str, output: str):
     output = [x for x in output]
     punct_marks = string.punctuation
 
-    for punct in punct_marks:
-        if input.count(punct) != output.count(punct):
-            continue
-        idx_in, idx_out = 0, 0
-        while punct in input[idx_in:]:
-            idx_in = input.index(punct, idx_in)
-            idx_out = output.index(punct, idx_out)
-            if idx_in > 0 and idx_out > 0:
-                if output[idx_out - 1] == " " and input[idx_in - 1] != " ":
-                    output[idx_out - 1] = ""
+    try:
+        for punct in punct_marks:
+            if input.count(punct) != output.count(punct):
+                continue
+            idx_in, idx_out = 0, 0
+            while punct in input[idx_in:]:
+                idx_in = input.index(punct, idx_in)
+                idx_out = output.index(punct, idx_out)
+                if idx_in > 0 and idx_out > 0:
+                    if output[idx_out - 1] == " " and input[idx_in - 1] != " ":
+                        output[idx_out - 1] = ""
 
-                elif output[idx_out - 1] != " " and input[idx_in - 1] == " ":
-                    output[idx_out - 1] += " "
+                    elif output[idx_out - 1] != " " and input[idx_in - 1] == " ":
+                        output[idx_out - 1] += " "
 
-            if idx_in < len(input) - 1 and idx_out < len(output) - 1:
-                if output[idx_out + 1] == " " and input[idx_in + 1] != " ":
-                    output[idx_out + 1] = ""
-                elif output[idx_out + 1] != " " and input[idx_in + 1] == " ":
-                    output[idx_out] = output[idx_out] + " "
-            idx_out += 1
-            idx_in += 1
+                if idx_in < len(input) - 1 and idx_out < len(output) - 1:
+                    if output[idx_out + 1] == " " and input[idx_in + 1] != " ":
+                        output[idx_out + 1] = ""
+                    elif output[idx_out + 1] != " " and input[idx_in + 1] == " ":
+                        output[idx_out] = output[idx_out] + " "
+                idx_out += 1
+                idx_in += 1
+    except:
+        logging.warning(f"Skipping post-processing of {''.join(output)}")
     output = "".join(output)
     return re.sub(r' +', ' ', output)
