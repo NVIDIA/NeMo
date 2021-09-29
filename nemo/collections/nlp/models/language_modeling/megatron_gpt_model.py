@@ -168,20 +168,13 @@ class MegatronGPTModel(NLPModel):
         labels = tokens_[:, 1:].contiguous()
         tokens = tokens_[:, :-1].contiguous()
 
-        if self.cfg.debug:
-            logging.info('debugging')
-            tokens_list = tokens.detach().tolist()[0]
-            labels_list = labels.detach().tolist()[0]
-            logging.info(f'detokenize tokens: {self.tokenizer.ids_to_text(tokens_list)}')
-            logging.info(f'detokenize labels: {self.tokenizer.ids_to_text(labels_list)}')
-
         # Get the masks and postition ids.
         attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
             tokens,
             self.tokenizer.eos_id,
-            self.cfg.get('reset_position_ids', False),
-            self.cfg.get('reset_attention_mask', False),
-            self.cfg.get('eod_mask_loss', False),
+            self.cfg.data.get('reset_position_ids', False),
+            self.cfg.data.get('reset_attention_mask', False),
+            self.cfg.data.get('eod_mask_loss', False),
         )
 
         return tokens, labels, loss_mask, attention_mask, position_ids

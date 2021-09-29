@@ -3,17 +3,17 @@ trainer:
   num_nodes: 1
   accelerator: ddp
   precision: 16
-  logger: False
+  logger: False # logger provided by exp_manager
   checkpoint_callback: False
   replace_sampler_ddp: False
   max_epochs: null
   max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  log_every_n_steps: 100
+  log_every_n_steps: 10
   val_check_interval: 100
   limit_val_batches: 50
   limit_test_batches: 500
   accumulate_grad_batches: 1
-  gradient_clip_val: 1.0 # TODO: implement model parallel gradient clipping
+  gradient_clip_val: 1.0
 
 exp_manager:
   explicit_log_dir: null
@@ -35,10 +35,8 @@ exp_manager:
 
 
 model:
-  debug: False # logs debugging info
-  # TODO: add validation generation config, size of context, max sequence length
-  # needed to initialize megatron
-  micro_batch_size: 8
+  # model parallelism 
+  micro_batch_size: 4
   tensor_model_parallel_size: 1
   encoder_seq_length: 1024
   max_position_embeddings: 1024
@@ -50,25 +48,23 @@ model:
   native_amp_init_scale: 4294967296 # 2 ** 32
   native_amp_growth_interval: 1000
   use_cpu_initialization: False # init weights on the CPU (slow for large models)
+
+  # model architecture
+  encoder_seq_length: 512
+  max_position_embeddings: 512
+  num_layers: 12
+  hidden_size: 768
+  num_attention_heads: 12
+  init_method_std: 0.02 # Standard deviation of the zero mean normal distribution used for weight initialization.')
+  hidden_dropout: 0.1 # Dropout probability for hidden state transformer.
   kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   ffn_hidden_size: null # Transformer FFN hidden size. Set to 4 * hidden_size if null.
   apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
-  init_method_std: 0.02 # Standard deviation of the zero mean normal distribution used for weight initialization.')
-  fp16: False # Run model in (megatron) fp16 mode
-  bf16: False # Run model with bfloat
-  fp32_residual_connection: False # Move residual connections to fp32
-  fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
-  make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
-  hidden_dropout: 0.1 # Dropout probability for hidden state transformer.
-  activations_checkpoint_method: null # 'uniform', 'block', not yet implemented/tested in nemo megatron
-  activations_checkpoint_num_layers: 1 # not implemented yet
   layernorm_epsilon: 1e-5
-  onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
-  seed: 1234
-  reset_position_ids: False # Reset position ids after end-of-document token
-  reset_attention_mask: False # Reset attention mask after end-of-document token
-  eod_mask_loss: False # Mask loss for the end of document tokens
-  use_cpu_initialization: False # Init weights on the CPU (slow for large models)
+  make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
+  pre_process: True # add embedding
+  post_process: True # add pooler
+
   tokenizer:
     library: 'megatron'
     type: 'GPT2BPETokenizer'
@@ -76,10 +72,21 @@ model:
     vocab_file: /raid/data/gpt/vocab.json
     merge_file: /raid/data/gpt/merges.txt
 
+  # precision
+  fp16: False # Run model in (megatron) fp16 mode
+  bf16: False # Run model with bfloat
+  fp32_residual_connection: False # Move residual connections to fp32
+  fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
 
-  # GPT
-  pre_process: True
-  post_process: True
+
+  # miscellaneous
+  seed: 1234
+  use_cpu_initialization: False # Init weights on the CPU (slow for large models)
+  onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
+
+  # not implemented in NeMo yet
+  activations_checkpoint_method: null # 'uniform', 'block'
+  activations_checkpoint_num_layers: 1 
 
   data:
     # data_prefix
@@ -96,6 +103,9 @@ model:
     skip_warmup: False
     num_workers: 0
     dataloader_type: single # cyclic
+    reset_position_ids: False # Reset position ids after end-of-document token
+    reset_attention_mask: False # Reset attention mask after end-of-document token
+    eod_mask_loss: False # Mask loss for the end of document tokens
   
   optim:
     name: adam
