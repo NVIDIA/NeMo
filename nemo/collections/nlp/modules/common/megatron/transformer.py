@@ -132,7 +132,7 @@ class ParallelAttention(MegatronModule):
         attention_type=AttnType.self_attn,
         attn_mask_type=AttnMaskType.padding,
         fused_fp16=False,
-        fused_softmax_input_bf16=False,
+        fused_bf16=False,
         apply_query_key_layer_scaling=True,
         kv_channels=None,
         use_cpu_initialization=False,
@@ -189,7 +189,7 @@ class ParallelAttention(MegatronModule):
 
         self.scale_mask_softmax = FusedScaleMaskSoftmax(
             fused_fp16,
-            fused_softmax_input_bf16,
+            fused_bf16,
             self.attn_mask_type,
             masked_softmax_fusion,
             attention_mask_func,
@@ -468,7 +468,7 @@ class ParallelTransformerLayer(MegatronModule):
             attention_type=AttnType.self_attn,
             attn_mask_type=self_attn_mask_type,
             fused_fp16=fused_fp16,
-            fused_softmax_input_bf16=fused_bf16,
+            fused_bf16=fused_bf16,
             apply_query_key_layer_scaling=apply_query_key_layer_scaling,
             kv_channels=kv_channels,
             use_cpu_initialization=use_cpu_initialization,

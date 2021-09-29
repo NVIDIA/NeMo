@@ -90,7 +90,7 @@ class MegatronGPTModel(NLPModel):
             fp16_lm_cross_entropy=cfg.get('fp16_lm_cross_entropy', False),
             use_cpu_initialization=cfg.get('use_cpu_initialization', False),
             hidden_dropout=cfg.get('hidden_dropout', 0.1),
-            fused_softmax_in_fp16=cfg.get('fused_fp16', False),
+            fused_fp16=cfg.get('fused_fp16', False),
             fused_softmax_in_bf16=cfg.get('fused_bf16', False),
             fp32_residual_connection=cfg.get('fp32_residual_connection', False),
             activations_checkpoint_method=cfg.get('activations_checkpoint_method', None),
