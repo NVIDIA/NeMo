@@ -57,12 +57,12 @@ def spec_augment_kernel(
     # For all samples in the batch, apply the freq mask
     for bidx in range(0, x.shape[0], threads_per_block):
         # Resolve the index of the batch (case where more masks than MAX_THREAD_BUFFER)
-        bm_idx = bidx * threads_per_block + tid
+        bm_idx = bidx + tid
 
-        # For `len_f` number of freq masks that must be applied
-        for fidx in range(0, len_f):
-            # If resolved freq mask index < total number of freq masks
-            if fidx < len_f:
+        # Access mask only if valid sample id in batch
+        if bm_idx < x.shape[0]:
+            # For `len_f` number of freq masks that must be applied
+            for fidx in range(0, len_f):
                 # Access the start index and width of this freq mask
                 f_start = freq_starts[bm_idx, fidx]
                 f_width = freq_widths[bm_idx, fidx]
@@ -76,12 +76,12 @@ def spec_augment_kernel(
     # For all samples in the batch, apply the time mask
     for b_idx in range(0, x.shape[0], threads_per_block):
         # Resolve the index of the batch (case where more masks than MAX_THREAD_BUFFER)
-        bm_idx = bidx * threads_per_block + tid
+        bm_idx = b_idx + tid
 
-        # For `len_t` number of freq masks that must be applied
-        for tidx in range(0, len_t):
-            # If resolved time mask index < total number of time masks
-            if tidx < len_t:
+        # Access mask only if valid sample id in batch
+        if bm_idx < x.shape[0]:
+            # For `len_t` number of freq masks that must be applied
+            for tidx in range(0, len_t):
                 # Access the start index and width of this time mask
                 t_start = time_starts[bm_idx, tidx]
                 t_width = time_widths[bm_idx, tidx]
