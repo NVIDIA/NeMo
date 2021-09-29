@@ -198,7 +198,7 @@ class MegatronGPTModel(NLPModel):
             train_valid_test_num_samples=train_valid_test_num_samples,
             seq_length=self.cfg.data.seq_length,
             seed=self.cfg.seed,
-            skip_warmup=self.cfg.data.skip_warmup,
+            skip_warmup=self.cfg.data.get('skip_warmup', True),
         )
         if self._train_ds is not None:
             logging.info(f'Length of train dataset: {len(self._train_ds)}')
