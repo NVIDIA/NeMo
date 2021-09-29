@@ -40,18 +40,9 @@ class MegatronDataset(torch.utils.data.Dataset):
             app_state.model_parallel_rank = trainer.global_rank
 
             initialize_model_parallel_for_nemo(
-                world_size=app_state.world_size,
-                global_rank=app_state.global_rank,
-                fp16=cfg.get('fp16', True),
-                micro_batch_size=cfg.get('micro_batch_size', 1),
+                world_size=trainer.world_size,
+                global_rank=trainer.global_rank,
+                local_rank=trainer.local_rank,
                 tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
-                tensor_model_parallel_rank=app_state.model_parallel_rank,
-                encoder_seq_length=cfg.get('encoder_seq_length', 512),
-                num_layers=cfg.get('num_layers', 1),
-                hidden_size=cfg.get('hidden_size', 16),
-                num_attention_heads=cfg.get('num_attention_heads', 1),
-                max_position_embeddings=cfg.get('max_position_embeddings', 512),
-                tokenizer_type='GPT2BPETokenizer',
-                vocab_file=cfg.vocab_file,
-                merge_file=cfg.merge_file,
+                seed=self.cfg.get('seed', 1234),
             )
