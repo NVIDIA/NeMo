@@ -41,6 +41,9 @@ def rewrite(cardinal: 'pynini.FstLike') -> 'pynini.FstLike':
     will render invalid form that will not pass through CardinalFst
     e.g. deux-mille cent-vingt-trois -> "deux##vingt-trois" ('#' is not accepted in cardinal FST and will fail to convert.)
     e.g. deux 
+
+    Args: 
+        cardinal: cardinal FST
     """
 
     # Traditional orthography does not hyphenate numbers > 100, this will insert hyphens in

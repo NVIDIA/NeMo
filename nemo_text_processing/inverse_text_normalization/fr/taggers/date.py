@@ -36,7 +36,6 @@ class DateFst(GraphFst):
         e.g. le vingt mais dix-neuf-cent-quatre -> date { day: "20" month: "mais" year: "1904" preserve_order: true }
 
     Args:
-        ordinal: OrdinalFst
         cardinal: CardinalFst
     """
 
