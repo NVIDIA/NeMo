@@ -46,6 +46,9 @@ class MegatronGPTModel(NLPModel):
         super().__init__(cfg, trainer=trainer)
         self.cfg = cfg
 
+        if self.cfg.get('use_cpu_initialization', False) is False:
+            torch.cuda.set_device(trainer.local_rank)
+
         app_state = AppState()
         app_state.global_rank = trainer.global_rank
         app_state.world_size = trainer.world_size
@@ -69,6 +72,7 @@ class MegatronGPTModel(NLPModel):
             merge_file=cfg.tokenizer.merge_file,
             fp16=cfg.get('fp16', True),
             bf16=cfg.get('bf16', False),
+            use_cpu_initialization=cfg.get('use_cpu_initialization', False),
         )
         args = get_args()
 
