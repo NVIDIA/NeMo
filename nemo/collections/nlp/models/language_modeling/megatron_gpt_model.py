@@ -46,6 +46,9 @@ class MegatronGPTModel(NLPModel):
         super().__init__(cfg, trainer=trainer)
         self.cfg = cfg
 
+        if self.cfg.get('use_cpu_initialization', False):
+            torch.cuda.set_device(trainer.local_rank)
+
         app_state = AppState()
         app_state.global_rank = trainer.global_rank
         app_state.world_size = trainer.world_size
