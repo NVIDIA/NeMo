@@ -44,7 +44,7 @@ class MegatronGPTModel(NLPModel):
         super().__init__(cfg, trainer=trainer)
         self.cfg = cfg
 
-        if self.cfg.get('use_cpu_initialization', False):
+        if self.cfg.get('use_cpu_initialization', False) is False:
             torch.cuda.set_device(trainer.local_rank)
 
         initialize_model_parallel_for_nemo(
