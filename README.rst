@@ -53,7 +53,7 @@ Key Features
     * `Speech Explorer <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/tools/speech_data_explorer.html>`_: a dash-based tool for interactive exploration of ASR/TTS datasets
     * `Speech Segmentation <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/tools/CTC_Segmentation_Tutorial.ipynb>`_
     * `Text normalization/denormalization <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nemo_text_processing/text_normalization.html>`_
-    * Pretrained models on different languages: English, Spanish, German, Russian, Chinese, French, Italian, Polish, ...
+    * `Pretrained models on different languages. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_asr>`_: English, Spanish, German, Russian, Chinese, French, Italian, Polish, ...
     * `NGC collection of pre-trained speech processing models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_asr>`_
 * Natural Language Processing
     * `Compatible with Hugging Face Transformers and NVIDIA Megatron <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/megatron_finetuning.html>`_
