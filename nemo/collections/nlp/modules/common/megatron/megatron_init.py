@@ -48,6 +48,8 @@ def initialize_model_parallel_for_nemo(
     set_pipeline_model_parallel_rank(0)
     set_pipeline_model_parallel_world_size(1)
 
+    torch.cuda.set_device(local_rank)
+
     _set_random_seed(seed)
 
     app_state._is_megatron_initialized = True
