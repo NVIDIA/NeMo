@@ -39,6 +39,20 @@ class NumberParser(GraphFst):
 
     def __init__(self):
         super().__init__(name="parser", kind="verbalize")
+
+
+
+class DecimalFst(GraphFst):
+    """
+    Finite state transducer for verbalizing decimal, e.g.
+        decimal { negative: "true" integer_part: "12"  fractional_part: "5006" quantity: "billion" } -> -12.5006 billion
+    """
+
+    def __init__(self):
+        super().__init__(name="decimal", kind="verbalize")
+        
+        
+        # Need parser to group digits by threes
         exactly_three_digits = NEMO_DIGIT ** 3
         at_most_three_digits = pynini.closure(NEMO_DIGIT, 1, 3)
 
@@ -50,21 +64,7 @@ class NumberParser(GraphFst):
             + (exactly_three_digits + pynutil.insert(NEMO_NON_BREAKING_SPACE)).closure()
             + at_most_three_digits
         )
-
-        space_every_three = space_every_three_integer | space_every_three_decimal
-
-        self.fst = space_every_three
-
-
-class DecimalFst(GraphFst):
-    """
-    Finite state transducer for verbalizing decimal, e.g.
-        decimal { negative: "true" integer_part: "12"  fractional_part: "5006" quantity: "billion" } -> -12.5006 billion
-    """
-
-    def __init__(self):
-        super().__init__(name="decimal", kind="verbalize")
-        group_by_threes = NumberParser().fst
+        group_by_threes = space_every_three_integer | space_every_three_decimal
         self.group_by_threes = group_by_threes
 
         optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "-") + delete_space, 0, 1)
