@@ -73,8 +73,8 @@ model:
     merge_file: /raid/data/gpt/merges.txt
 
   # precision
-  fp16: False # Run model in (megatron) fp16 mode
-  bf16: False # Run model with bfloat
+  fused_softmax_input_in_fp16: True # False if using fp32 or bf16
+  fused_softmax_input_in_bf16: False
   fp32_residual_connection: False # Move residual connections to fp32
   fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
 
