@@ -29,9 +29,8 @@ from nemo.collections.nlp.metrics.classification_report import ClassificationRep
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
-from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.classes.exportable import Exportable, ExportFormat
+from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import LogitsType, NeuralType
 from nemo.utils import logging
 
@@ -503,8 +502,36 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             query_with_punct_and_capit += ' '
         return query_with_punct_and_capit[:-1]
 
+    def get_labels(self, punct_preds: List[int], capit_preds: List[int]) -> str:
+        """
+        Returns punctuation and capitalization labels in NeMo format (see https://docs.nvidia.com/deeplearning/nemo/
+        user-guide/docs/en/main/nlp/punctuation_and_capitalization.html#nemo-data-format).
+        Args:
+            punct_preds: ids of predicted punctuation labels
+            capit_preds: ids of predicted capitalization labels
+        Returns:
+            labels in NeMo format
+        """
+        assert len(capit_preds) == len(
+            punct_preds
+        ), f"len(capit_preds)={len(capit_preds)} len(punct_preds)={len(punct_preds)}"
+        punct_ids_to_labels = {v: k for k, v in self._cfg.punct_label_ids.items()}
+        capit_ids_to_labels = {v: k for k, v in self._cfg.capit_label_ids.items()}
+        result = ''
+        for capit_label, punct_label in zip(capit_preds, punct_preds):
+            punct_label = punct_ids_to_labels[punct_label]
+            capit_label = capit_ids_to_labels[capit_label]
+            result += punct_label + capit_label + ' '
+        return result[:-1]
+
     def add_punctuation_capitalization(
-        self, queries: List[str], batch_size: int = None, max_seq_length: int = 64, step: int = 8, margin: int = 16,
+        self,
+        queries: List[str],
+        batch_size: int = None,
+        max_seq_length: int = 64,
+        step: int = 8,
+        margin: int = 16,
+        return_labels: bool = False,
     ) -> List[str]:
         """
         Adds punctuation and capitalization to the queries. Use this method for inference.
@@ -535,9 +562,11 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 computation, margins are removed. In the next list, subtokens which logits are not used for final
                 predictions computation are marked with asterisk: ``[['[CLS]'*, 'h', 'e', 'l'*, '[SEP]'*],
                 ['[CLS]'*, 'e'*, 'l', 'l'*, '[SEP]'*], ['[CLS]'*, 'l'*, 'l', 'o', '[SEP]'*]]``.
+            return_labels: whether to return labels in NeMo format (see https://docs.nvidia.com/deeplearning/nemo/
+                user-guide/docs/en/main/nlp/punctuation_and_capitalization.html#nemo-data-format) instead of queries
+                with restored punctuation and capitalization.
         Returns:
-            result: text with added capitalization and punctuation ``max_seq_length`` equals 5, ``step`` equals 2, and
-
+            result: text with added capitalization and punctuation or punctuation and capitalization labels
         """
         if len(queries) == 0:
             return []
@@ -546,10 +575,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             logging.info(f'Using batch size {batch_size} for inference')
         result: List[str] = []
         mode = self.training
-        d = 'cuda' if torch.cuda.is_available() else 'cpu'
         try:
             self.eval()
-            self = self.to(d)
             infer_datalayer = self._setup_infer_dataloader(queries, batch_size, max_seq_length, step, margin)
             # Predicted labels for queries. List of labels for every query
             all_punct_preds: List[List[int]] = [[] for _ in queries]
@@ -564,6 +591,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             # prediction to `all_preds`, probabilities for a word are removed from `acc_probs`.
             acc_punct_probs: List[Optional[np.ndarray]] = [None for _ in queries]
             acc_capit_probs: List[Optional[np.ndarray]] = [None for _ in queries]
+            d = self.device
             for batch_i, batch in enumerate(infer_datalayer):
                 inp_ids, inp_type_ids, inp_mask, subtokens_mask, start_word_ids, query_ids, is_first, is_last = batch
                 punct_logits, capit_logits = self.forward(
@@ -592,7 +620,11 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     if prob is not None:
                         all_preds[q_i], acc_probs[q_i] = self._move_acc_probs_to_token_preds(pred, prob, len(prob))
             for i, query in enumerate(queries):
-                result.append(self.apply_punct_capit_predictions(query, all_punct_preds[i], all_capit_preds[i]))
+                result.append(
+                    self.get_labels(all_punct_preds[i], all_capit_preds[i])
+                    if return_labels
+                    else self.apply_punct_capit_predictions(query, all_punct_preds[i], all_capit_preds[i])
+                )
         finally:
             # set mode back to its original value
             self.train(mode=mode)
