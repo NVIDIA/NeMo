@@ -93,7 +93,7 @@ class NamedTimer(object):
         else:
             fn = lambda x: x
 
-        dt_list = self.timer[name].get("dt", [])
+        dt_list = self.timers[name].get("dt", [])
 
         return fn(dt_list)
 
