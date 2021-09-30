@@ -3,6 +3,7 @@ This module support timing of code blocks.
 """
 
 import time
+
 import numpy as np
 import torch
 
