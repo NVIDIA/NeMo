@@ -218,6 +218,7 @@ class MTEncDecModel(EncDecNLPModel):
     # TODO: remove when Trainer hooks are working
     def configure_callbacks(self):
         from nemo.utils.exp_manager import TimingCallback
+        # the TimingCallback with local timer overrides global one (if exists)
         timing_callabck = TimingCallback(timer=self.timer)
         return super().configure_callbacks() + [timing_callabck]
 
