@@ -23,7 +23,19 @@ class NamedTimer(object):
         mean - default behaviour. If True mean dt is returned, else a list.
         """
         self.mean = mean
-        self.timers = {}
+        self.reset()
+
+        def __getitem__(self, k):
+            return self.timers[k]
+
+    def reset(self, name=None):
+        """
+        Resents all / specific timer
+        """
+        if name is None:
+            self.timers = {}
+        else:
+            self.timers[name] = {}
 
     def start(self, name=""):
         """
