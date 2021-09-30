@@ -165,44 +165,48 @@ def basic_tokenize(input_str, lang):
     return input_str.strip().split(' ')
 
 
-def post_process_punct(input: str, output: str):
+def post_process_punct(input: str, nn_output: str):
     """
-    Post-process punctuation,
-    e.g., output = "yesterday's agenda (april seventh two thousand one) disappointments of the same ol 'routine"
-          input = "yesterday's agenda (April 7th, 2001) disappointments of the same ol' routine"
-        -> yesterday's agenda (april seventh two thousand one) disappointments of the same ol' routine
+    Post-processing of the normalized output to match input in terms of spaces around punctuation marks.
+    After NN normalization, Moses detokenization puts a space after
+    punctuation marks, and attaches an opening quote "'" to the word to the right.
+    E.g., input to the TN NN model is "12 test' example",
+    after normalization and detokenization -> "twelve test 'example" (the quote is considered to be an opening quote,
+    but it doesn't match the input and can cause issues during TTS voice generation.)
+    The current function will match the punctuation and spaces of the normalized text with the input sequence.
+    "12 test' example" -> "twelve test 'example" -> "twelve test' example" (the quote was shifted to match the input).
 
     Args:
-        input: input text
-        output: output text
+        input: input text (original input to the NN, before normalization or tokenization)
+        nn_output: output text (output of the TN NN model)
     """
     input = [x for x in input]
-    output = [x for x in output]
+    nn_output = [x for x in nn_output]
     punct_marks = string.punctuation
 
     try:
         for punct in punct_marks:
-            if input.count(punct) != output.count(punct):
+            if input.count(punct) != nn_output.count(punct):
                 continue
             idx_in, idx_out = 0, 0
             while punct in input[idx_in:]:
                 idx_in = input.index(punct, idx_in)
-                idx_out = output.index(punct, idx_out)
+                idx_out = nn_output.index(punct, idx_out)
                 if idx_in > 0 and idx_out > 0:
-                    if output[idx_out - 1] == " " and input[idx_in - 1] != " ":
-                        output[idx_out - 1] = ""
+                    if nn_output[idx_out - 1] == " " and input[idx_in - 1] != " ":
+                        nn_output[idx_out - 1] = ""
 
-                    elif output[idx_out - 1] != " " and input[idx_in - 1] == " ":
-                        output[idx_out - 1] += " "
+                    elif nn_output[idx_out - 1] != " " and input[idx_in - 1] == " ":
+                        nn_output[idx_out - 1] += " "
 
-                if idx_in < len(input) - 1 and idx_out < len(output) - 1:
-                    if output[idx_out + 1] == " " and input[idx_in + 1] != " ":
-                        output[idx_out + 1] = ""
-                    elif output[idx_out + 1] != " " and input[idx_in + 1] == " ":
-                        output[idx_out] = output[idx_out] + " "
+                if idx_in < len(input) - 1 and idx_out < len(nn_output) - 1:
+                    if nn_output[idx_out + 1] == " " and input[idx_in + 1] != " ":
+                        nn_output[idx_out + 1] = ""
+                    elif nn_output[idx_out + 1] != " " and input[idx_in + 1] == " ":
+                        nn_output[idx_out] = nn_output[idx_out] + " "
                 idx_out += 1
                 idx_in += 1
     except:
-        logging.warning(f"Skipping post-processing of {''.join(output)}")
-    output = "".join(output)
-    return re.sub(r' +', ' ', output)
+        logging.warning(f"Skipping post-processing of {''.join(nn_output)}")
+    nn_output = "".join(nn_output)
+    return re.sub(r' +', ' ', nn_output)

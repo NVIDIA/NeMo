@@ -269,7 +269,7 @@ class DuplexTextNormalizationModel(nn.Module):
                         while jx < len(sent) and tags[jx] == constants.I_PREFIX + constants.TRANSFORM_TAG:
                             jx += 1
                 cur_output_str = self.decoder.processor.detokenize(cur_words)
-                cur_output_str = post_process_punct(input=original_sents[ix], output=cur_output_str)
+                cur_output_str = post_process_punct(input=original_sents[ix], nn_output=cur_output_str)
                 final_outputs.append(cur_output_str)
             except IndexError:
                 logging.warning(f"Input sent is too long and will be skipped - {original_sents[ix]}")
