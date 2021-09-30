@@ -127,7 +127,7 @@ class TimingCallback(Callback):
         pl_module.log(name, self.timer[name])
 
         # FIXME: REMOVE ME
-        if not self.timer.has("timing_data"):
+        if not hasattr(self.timer, "timing_data"):
             self.timer.timing_data = {}
         self.timer.timing_data[name] = self.timer[name]
         print(f"END {name} {self.timer[name]}")

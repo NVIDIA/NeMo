@@ -374,7 +374,7 @@ class MTBottleneckModel(MTEncDecModel):
         tensorboard_logs.update(info_dict)
 
         # TODO: remove me when timing callbacks work
-        if self.timer.has("timing_data"):
+        if hasattr(self.timer, "timing_data"):
             if "train_step_timing" in self.timer.timing_data:
                 tensorboard_logs["train_step_timing"] = self.timer.timing_data["train_step_timing"]
 
