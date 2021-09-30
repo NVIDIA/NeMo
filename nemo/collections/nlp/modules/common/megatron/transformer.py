@@ -440,7 +440,7 @@ class ParallelTransformerLayer(MegatronModule):
         self.fp32_residual_connection = args.fp32_residual_connection
 
         # Layernorm on the input data.
-        self.input_layernorm = LayerNorm(args.hidden_size, eps=args.layernorm_epsilon)
+        self.input_layernorm = LayerNorm(args.hidden_size, eps=args.layernorm_epsilon, fp16=not self.bf16)
 
         # Self attention.
         self.self_attention = ParallelAttention(
@@ -454,14 +454,14 @@ class ParallelTransformerLayer(MegatronModule):
         self.bias_dropout_fusion = args.bias_dropout_fusion
 
         # Layernorm on the attention output
-        self.post_attention_layernorm = LayerNorm(args.hidden_size, eps=args.layernorm_epsilon)
+        self.post_attention_layernorm = LayerNorm(args.hidden_size, eps=args.layernorm_epsilon, fp16=not self.bf16)
 
         if self.layer_type == LayerType.decoder:
             self.inter_attention = ParallelAttention(
                 init_method, output_layer_init_method, layer_number, attention_type=AttnType.cross_attn
             )
             # Layernorm on the attention output.
-            self.post_inter_attention_layernorm = LayerNorm(args.hidden_size, eps=args.layernorm_epsilon)
+            self.post_inter_attention_layernorm = LayerNorm(args.hidden_size, eps=args.layernorm_epsilon, fp16=not self.bf16)
 
         # MLP
         self.mlp = ParallelMLP(init_method, output_layer_init_method)
