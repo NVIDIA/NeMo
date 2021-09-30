@@ -66,7 +66,7 @@ class DuplexDecoderModel(NLPModel):
 
         super().__init__(cfg=cfg, trainer=trainer)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(cfg.transformer)
-        self.model_max_len = cfg.get('max_seq_length', 512)
+        self.max_sequence_len = cfg.get('max_seq_length', self._tokenizer.model_max_length)
         self.mode = cfg.get('mode', 'joint')
 
         self.transformer_name = cfg.transformer
@@ -149,7 +149,7 @@ class DuplexDecoderModel(NLPModel):
             skip_special_tokens=True,
         )
         generated_texts, _, _ = self._generate_predictions(
-            input_ids=batch['input_ids'], model_max_len=self.model_max_len
+            input_ids=batch['input_ids'], model_max_len=self.max_sequence_len
         )
 
         input_centers = self._tokenizer.batch_decode(batch['input_center'], skip_special_tokens=True)
@@ -523,7 +523,7 @@ class DuplexDecoderModel(NLPModel):
                 tokenizer=self._tokenizer,
                 tokenizer_name=self.transformer_name,
                 mode=self.mode,
-                max_len=self._cfg.get('max_sequence_len', self._tokenizer.model_max_length),
+                max_len=self.max_sequence_len,
                 decoder_data_augmentation=cfg.get('decoder_data_augmentation', False)
                 if data_split == "train"
                 else False,
