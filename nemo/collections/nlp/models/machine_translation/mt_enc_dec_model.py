@@ -215,35 +215,11 @@ class MTEncDecModel(EncDecNLPModel):
         # a timer for various timing measurements
         self.timer = timers.NamedTimer()
 
-    # TODO: remove all hooks below when Trainer hooks are working
-    def _on_batch_start(self, name):
-        print(f"START {name}")
-        self.timer.reset(name)
-        self.timer.start(name)
-
-    def _on_batch_end(self, name):
-        self.timer.stop(name)
-        self.log(name, self.timer[name])
-        print(f"START {name} {self.timer[name]}")
-
-    def on_train_batch_start(self):
-        self._on_batch_start("train_step_timing")
-
-    def on_train_batch_end(self):
-        self._on_batch_end("train_step_timing")
-
-    def on_validation_batch_start(self):
-        self._on_batch_start("validation_step_timing")
-
-    def on_validation_batch_end(self):
-        self._on_batch_end("validation_step_timing")
-
-    def on_test_batch_start(self):
-        self._on_batch_start("test_step_timing")
-
-    def on_test_batch_end(self):
-        self._on_batch_end("test_step_timing")
-    # TODO: remove all hooks above when Trainer hooks are working
+    # TODO: remove when Trainer hooks are working
+    def configure_callbacks(self):
+        from nemo.utils.exp_manager import TimingCallback
+        timing_callabck = TimingCallback()
+        return super().configure_callbacks() + [timing_callabck]
 
     def _validate_encoder_decoder_hidden_size(self):
         """
