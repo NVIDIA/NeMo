@@ -376,6 +376,7 @@ class MTBottleneckModel(MTEncDecModel):
         # TODO: remove me when timing callbacks work
         if "train_step_timing" in self.timer.timers:
             tensorboard_logs["train_step_timing"] = self.timer["train_step_timing"]
+            print(f"{tensorboard_logs}")
         else:
             print(f"{self.timer.export()}")
 
