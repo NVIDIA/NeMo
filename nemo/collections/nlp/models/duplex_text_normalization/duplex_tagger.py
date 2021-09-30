@@ -51,6 +51,7 @@ class DuplexTaggerModel(NLPModel):
 
         self.model = AutoModelForTokenClassification.from_pretrained(cfg.transformer, num_labels=self.num_labels)
         self.transformer_name = cfg.transformer
+        self.max_sequence_len = cfg.get('max_sequence_len', self._tokenizer.model_max_length)
 
         # Loss Functions
         self.loss_fct = nn.CrossEntropyLoss(ignore_index=constants.LABEL_PAD_TOKEN_ID)
@@ -182,6 +183,7 @@ class DuplexTaggerModel(NLPModel):
             len(self._tokenizer.convert_ids_to_tokens(x, skip_special_tokens=True)) for x in encodings['input_ids']
         ]
         idx_valid = [i for i, (t, enc) in enumerate(zip(len_texts, len_ids)) if enc >= t]
+
         if len(idx_valid) != len(texts):
             logging.warning(
                 'Some of the examples have symbols that were skipped during the tokenization. Such examples will be skipped.'
@@ -212,10 +214,11 @@ class DuplexTaggerModel(NLPModel):
         # Extract all_tag_preds for words
         all_tag_preds = []
         batch_size, max_len = encodings['input_ids'].size()
+        pred_idx = 0
         for ix in range(batch_size):
             if ix in idx_valid:
                 # remove first special token and task prefix token
-                raw_tag_preds = [constants.ALL_TAG_LABELS[p] for p in pred_indexes[ix][2:]]
+                raw_tag_preds = [constants.ALL_TAG_LABELS[p] for p in pred_indexes[pred_idx][2:]]
                 tag_preds, previous_word_idx = [], None
                 word_ids = encodings.word_ids(batch_index=ix)[2:]
                 for jx, word_idx in enumerate(word_ids):
@@ -224,6 +227,7 @@ class DuplexTaggerModel(NLPModel):
                     if word_idx != previous_word_idx:
                         tag_preds.append(raw_tag_preds[jx])  # without special token at index 0
                     previous_word_idx = word_idx
+                pred_idx += 1
             else:
                 # for excluded examples, use SAME tags for all words
                 tag_preds = [constants.SAME_TAG] * (len(texts[ix]) - 1)
@@ -342,7 +346,7 @@ class DuplexTaggerModel(NLPModel):
             do_basic_tokenize=cfg.do_basic_tokenize,
             tagger_data_augmentation=tagger_data_augmentation,
             lang=self.lang,
-            max_seq_length=self._cfg.get('max_sequence_len', self._tokenizer.model_max_length),
+            max_seq_length=self.max_sequence_len,
             use_cache=cfg.get('use_cache', False),
             max_insts=cfg.get('max_insts', -1),
         )

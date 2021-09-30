@@ -21,7 +21,7 @@ import torch.nn as nn
 from tqdm import tqdm
 
 from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset, constants
-from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize
+from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize, post_process_punct
 from nemo.collections.nlp.models.duplex_text_normalization.utils import get_formatted_string
 from nemo.utils import logging
 from nemo.utils.decorators.experimental import experimental
@@ -147,9 +147,11 @@ class DuplexTextNormalizationModel(nn.Module):
                     cur_output_spans.append(output_spans)
             nb_instances = len(cur_final_preds)
             cur_targets_sent = [" ".join(x) for x in cur_targets]
+
             sent_accuracy = TextNormalizationTestDataset.compute_sent_accuracy(
                 cur_final_preds, cur_targets_sent, cur_dirs, self.lang
             )
+
             class_accuracy = TextNormalizationTestDataset.compute_class_accuracy(
                 [basic_tokenize(x, lang=self.lang) for x in cur_inputs],
                 cur_targets,
@@ -234,6 +236,7 @@ class DuplexTextNormalizationModel(nn.Module):
             output_spans: A list of lists where each list contains the decoded semiotic spans from the decoder for an input text.
             final_outputs: A list of str where each str is the final output text for an input text.
         """
+        original_sents = [s for s in sents]
         # Separate into words
         if do_basic_tokenization:
             sents = [self.decoder.processor.tokenize(x).split() for x in sents]
@@ -251,19 +254,24 @@ class DuplexTextNormalizationModel(nn.Module):
         # Prepare final outputs
         final_outputs = []
         for ix, (sent, tags) in enumerate(zip(sents, tag_preds)):
-            cur_words, jx, span_idx = [], 0, 0
-            cur_spans = output_spans[ix]
-            while jx < len(sent):
-                tag, word = tags[jx], sent[jx]
-                if constants.SAME_TAG in tag:
-                    cur_words.append(word)
-                    jx += 1
-                else:
-                    jx += 1
-                    cur_words.append(cur_spans[span_idx])
-                    span_idx += 1
-                    while jx < len(sent) and tags[jx] == constants.I_PREFIX + constants.TRANSFORM_TAG:
+            try:
+                cur_words, jx, span_idx = [], 0, 0
+                cur_spans = output_spans[ix]
+                while jx < len(sent):
+                    tag, word = tags[jx], sent[jx]
+                    if constants.SAME_TAG in tag:
+                        cur_words.append(word)
                         jx += 1
-            cur_output_str = self.decoder.processor.detokenize(cur_words)
-            final_outputs.append(cur_output_str)
+                    else:
+                        jx += 1
+                        cur_words.append(cur_spans[span_idx])
+                        span_idx += 1
+                        while jx < len(sent) and tags[jx] == constants.I_PREFIX + constants.TRANSFORM_TAG:
+                            jx += 1
+                cur_output_str = self.decoder.processor.detokenize(cur_words)
+                cur_output_str = post_process_punct(input=original_sents[ix], nn_output=cur_output_str)
+                final_outputs.append(cur_output_str)
+            except IndexError:
+                logging.warning(f"Input sent is too long and will be skipped - {original_sents[ix]}")
+                final_outputs.append(original_sents[ix])
         return tag_preds, output_spans, final_outputs
