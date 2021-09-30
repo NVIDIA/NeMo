@@ -282,8 +282,9 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
     # add loggers timing callbacks
     if cfg.log_step_timing:
-        timing_callback = TimingCallback()
-        trainer.callbacks.insert(0, timing_callback)
+        # FIXME: uncomment me
+        # timing_callback = TimingCallback()
+        # trainer.callbacks.insert(0, timing_callback)
 
     if cfg.create_checkpoint_callback:
         configure_checkpointing(
