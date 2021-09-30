@@ -215,12 +215,12 @@ class MTEncDecModel(EncDecNLPModel):
         # a timer for various timing measurements
         self.timer = timers.NamedTimer()
 
-    # TODO: remove when Trainer hooks are working
-    def configure_callbacks(self):
-        from nemo.utils.exp_manager import TimingCallback
-        # the TimingCallback with local timer overrides global one (if exists)
-        timing_callabck = TimingCallback(timer=self.timer)
-        return super().configure_callbacks() + [timing_callabck]
+    # TODO: remove me when timing callbacks work
+    # def configure_callbacks(self):
+    #     from nemo.utils.exp_manager import TimingCallback
+    #     # the TimingCallback with local timer overrides global one (if exists)
+    #     timing_callabck = TimingCallback(timer=self.timer)
+    #     return super().configure_callbacks() + [timing_callabck]
 
     def _validate_encoder_decoder_hidden_size(self):
         """

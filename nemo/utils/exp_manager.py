@@ -117,20 +117,17 @@ class TimingCallback(Callback):
         self.timer = timer
 
     def _on_batch_start(self, name):
-        # FIXME: REMOVE ME
-        print(f"START {name}")
         self.timer.reset(name)
         self.timer.start(name)
 
     def _on_batch_end(self, name, pl_module):
         self.timer.stop(name)
-        pl_module.log(name, self.timer[name])
+        pl_module.log(name, self.timer[name], on_step=True, on_epoch=False, )
 
-        # FIXME: REMOVE ME
+        # TODO: remove me when timing callbacks work
         if not hasattr(self.timer, "timing_data"):
             self.timer.timing_data = {}
         self.timer.timing_data[name] = self.timer[name]
-        print(f"END {name} {self.timer[name]}")
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
         self._on_batch_start("train_step_timing")

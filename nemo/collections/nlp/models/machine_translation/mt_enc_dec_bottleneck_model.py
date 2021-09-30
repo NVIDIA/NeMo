@@ -374,9 +374,9 @@ class MTBottleneckModel(MTEncDecModel):
         tensorboard_logs.update(info_dict)
 
         # TODO: remove me when timing callbacks work
-        if hasattr(self.timer, "timing_data"):
-            if "train_step_timing" in self.timer.timing_data:
-                tensorboard_logs["train_step_timing"] = self.timer.timing_data["train_step_timing"]
+        # if hasattr(self.timer, "timing_data"):
+        #     if "train_step_timing" in self.timer.timing_data:
+        #         tensorboard_logs["train_step_timing"] = self.timer.timing_data["train_step_timing"]
 
         return {'loss': train_loss, 'log': tensorboard_logs}
 
@@ -423,10 +423,10 @@ class MTBottleneckModel(MTEncDecModel):
         num_non_pad_tokens = np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
 
         # TODO: remove me when timing callbacks work
-        if hasattr(self.timer, "timing_data"):
-            name = f"{mode}_step_timing"
-            if name in self.timer.timing_data:
-                info_dict[name] = self.timer.timing_data[name]
+        # if hasattr(self.timer, "timing_data"):
+        #     name = f"{mode}_step_timing"
+        #     if name in self.timer.timing_data:
+        #         info_dict[name] = self.timer.timing_data[name]
 
         return {
             'translations': translations,
