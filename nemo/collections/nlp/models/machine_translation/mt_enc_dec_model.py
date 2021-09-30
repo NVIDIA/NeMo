@@ -285,12 +285,6 @@ class MTEncDecModel(EncDecNLPModel):
             'lr': self._optimizer.param_groups[0]['lr'],
         }
 
-        # TODO: remove me when timing callbacks work
-        if "train_step_timing" in self.timer.timers:
-            tensorboard_logs["train_step_timing"] = self.timer["train_step_timing"]
-        else:
-            print(f"{self.timer.export()}")
-
         return {'loss': train_loss, 'log': tensorboard_logs}
 
     def eval_step(self, batch, batch_idx, mode, dataloader_idx=0):
