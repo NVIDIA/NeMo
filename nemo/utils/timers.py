@@ -27,7 +27,7 @@ class NamedTimer(object):
         self.reset()
 
     def __getitem__(self, k):
-        return self.timers[k]
+        return self.get(k)
 
     def reset(self, name=None):
         """
