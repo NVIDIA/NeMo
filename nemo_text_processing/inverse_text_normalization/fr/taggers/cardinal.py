@@ -121,7 +121,7 @@ class CardinalFst(GraphFst):
         graph_tens_component = pynini.union(graph_tens_component, graph_teens, graph_ties_unique)
 
         graph_tens_component_with_leading_zeros = pynini.union(
-            graph_tens_component, (pynutil.insert("0") + (graph_digit | pynutil.insert("0")))
+            graph_tens_component, (pynutil.insert("0") + (graph_digit | pynutil.insert("0", weight=0.01)))
         )
 
         # Hundreds components
@@ -133,17 +133,15 @@ class CardinalFst(GraphFst):
         graph_digit_no_one = pynini.project(pynini.union("un", "une"), 'input')
         graph_digit_no_one = (pynini.project(graph_digit, "input") - graph_digit_no_one.arcsort()) @ graph_digit
 
-        graph_hundreds_component_digit_of_hundreds_singular = (
+        graph_hundreds_component_singular = (
             graph_digit_no_one + delete_hyphen + graph_cent_singular
         )  # Regular way: [1-9] * 100
-        graph_hundreds_component_singular = graph_hundreds_component_digit_of_hundreds_singular
-
-        graph_hundreds_component_digit_of_hundreds_plural = graph_digit_no_one + delete_hyphen + graph_cent_plural
-        graph_hundreds_component_plural = graph_hundreds_component_digit_of_hundreds_plural
 
         graph_hundreds_component_singular = pynini.union(graph_hundreds_component_singular, pynini.cross("cent", "1"))
         graph_hundreds_component_singular += delete_hyphen
         graph_hundreds_component_singular += graph_tens_component_with_leading_zeros
+
+        graph_hundreds_component_plural = graph_digit_no_one + delete_hyphen + graph_cent_plural
 
         graph_hundreds_component = pynini.union(
             graph_hundreds_component_singular,

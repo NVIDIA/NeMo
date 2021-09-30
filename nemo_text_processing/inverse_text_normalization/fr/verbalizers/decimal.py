@@ -41,7 +41,6 @@ class NumberParser(GraphFst):
         super().__init__(name="parser", kind="verbalize")
 
 
-
 class DecimalFst(GraphFst):
     """
     Finite state transducer for verbalizing decimal, e.g.
@@ -50,8 +49,7 @@ class DecimalFst(GraphFst):
 
     def __init__(self):
         super().__init__(name="decimal", kind="verbalize")
-        
-        
+
         # Need parser to group digits by threes
         exactly_three_digits = NEMO_DIGIT ** 3
         at_most_three_digits = pynini.closure(NEMO_DIGIT, 1, 3)
