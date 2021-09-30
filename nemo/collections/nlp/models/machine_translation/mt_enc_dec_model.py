@@ -217,6 +217,7 @@ class MTEncDecModel(EncDecNLPModel):
 
     # TODO: remove when Trainer hooks are working
     def configure_callbacks(self):
+        import pudb; pudb.set_trace()
         from nemo.utils.exp_manager import TimingCallback
         timing_callabck = TimingCallback()
         return super().configure_callbacks() + [timing_callabck]
