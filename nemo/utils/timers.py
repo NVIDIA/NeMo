@@ -26,8 +26,8 @@ class NamedTimer(object):
         self.mean = mean
         self.reset()
 
-        def __getitem__(self, k):
-            return self.timers[k]
+    def __getitem__(self, k):
+        return self.timers[k]
 
     def reset(self, name=None):
         """
