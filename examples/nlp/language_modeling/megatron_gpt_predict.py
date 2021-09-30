@@ -36,9 +36,7 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
-    app_state = AppState()
-    app_state.model_parallel_size = cfg.model.tensor_model_parallel_size
-
+    trainer = None
     if cfg.trainer.precision == 16:
         trainer = Trainer(
             plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes), NLPNativeMixedPrecisionPlugin()], **cfg.trainer
@@ -46,24 +44,12 @@ def main(cfg) -> None:
     else:
         trainer = Trainer(plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes), NLPPrecisionPlugin()], **cfg.trainer)
 
-    # TODO: possibly add model parallel size arg to exp_manager
-    # exp_manager(trainer, cfg.exp_manager)
-
-    # update resume from checkpoint found by exp_manager
-    resume_from_checkpoint = trainer.resume_from_checkpoint
-    if resume_from_checkpoint is not None:
-        mp_rank = compute_model_parallel_rank(trainer.local_rank, cfg.model.tensor_model_parallel_size)
-        resume_from_checkpoint = Path(resume_from_checkpoint)
-        resume_from_checkpoint = resume_from_checkpoint.parent.parent.joinpath(f'mp_rank_{mp_rank:02d}').joinpath(
-            resume_from_checkpoint.name
-        )
-        resume_from_checkpoint = str(resume_from_checkpoint)
-        logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
-
-    trainer.checkpoint_connector = NLPCheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
+    app_state = AppState()
+    app_state.model_parallel_size = cfg.model.tensor_model_parallel_size
+    app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
 
     model = MegatronGPTModel.restore_from(
-        '~/tmp/random_gpt_125M.nemo', trainer=trainer, save_restore_connector=NLPSaveRestoreConnector(),
+        '~/tmp/gpt_dev.nemo', trainer=trainer, save_restore_connector=NLPSaveRestoreConnector(),
     )
 
     model.cfg.data.splits_string = cfg.model.data.splits_string

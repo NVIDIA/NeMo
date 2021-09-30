@@ -30,11 +30,13 @@ exp_manager:
     monitor: val_loss
     save_top_k: 10
     mode: min
-    always_save_nemo: False # TODO: add support for model parallel
+    always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
     filename: 'megatron_gpt--{val_loss:.2f}-{step}'
 
 
 model:
+  nemo_file_path: null # after each training run save .nemo file to this location
+
   # model parallelism 
   micro_batch_size: 4
   tensor_model_parallel_size: 1
