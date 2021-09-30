@@ -110,8 +110,11 @@ class TimingCallback(Callback):
     Logs execution time of train/val/test steps
     """
 
-    def __init__(self):
-        self.timer = timers.NamedTimer()
+    def __init__(self, timer=None):
+        # support external timer
+        if timer is None:
+            timer = timers.NamedTimer()
+        self.timer = timer
 
     def _on_batch_start(self, name):
         print(f"START {name}")

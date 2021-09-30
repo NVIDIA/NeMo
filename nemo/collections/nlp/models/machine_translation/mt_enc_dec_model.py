@@ -217,9 +217,8 @@ class MTEncDecModel(EncDecNLPModel):
 
     # TODO: remove when Trainer hooks are working
     def configure_callbacks(self):
-        import pudb; pudb.set_trace()
         from nemo.utils.exp_manager import TimingCallback
-        timing_callabck = TimingCallback()
+        timing_callabck = TimingCallback(timer=self.timer)
         return super().configure_callbacks() + [timing_callabck]
 
     def _validate_encoder_decoder_hidden_size(self):
@@ -285,6 +284,11 @@ class MTEncDecModel(EncDecNLPModel):
             'train_loss': train_loss,
             'lr': self._optimizer.param_groups[0]['lr'],
         }
+
+        # TODO: remove me when timing callbacks work
+        if "train_step_timing" in self.timer.timers:
+            tensorboard_logs["train_step_timing"] = self.timer["train_step_timing"]
+
         return {'loss': train_loss, 'log': tensorboard_logs}
 
     def eval_step(self, batch, batch_idx, mode, dataloader_idx=0):
