@@ -114,12 +114,14 @@ class TimingCallback(Callback):
         self.timer = timers.NamedTimer()
 
     def _on_batch_start(self, name):
+        print(f"START {name}")
         self.timer.reset(name)
         self.timer.start(name)
 
     def _on_batch_end(self, name, pl_module):
         self.timer.stop(name)
         pl_module.log(name, self.timer[name])
+        print(f"END {name}")
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
         self._on_batch_start("train_step_timing")
@@ -275,7 +277,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             cfg.wandb_logger_kwargs,
         )
 
-        # add loggers callbacks
+    # add loggers timing callbacks
+    if cfg.log_step_timing:
         timing_callback = TimingCallback()
         trainer.callbacks.insert(0, timing_callback)
 
