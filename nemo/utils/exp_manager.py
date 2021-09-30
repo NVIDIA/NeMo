@@ -119,8 +119,8 @@ class TimingCallback(Callback):
 
     def _on_batch_end(self, name, pl_module):
         self.timer.stop(name)
-        pl_module.log(name, self.timer[name])
         import pudb; pudb.set_trace()
+        pl_module.log(name, self.timer[name])
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
         self._on_batch_start("train_step_timing")
