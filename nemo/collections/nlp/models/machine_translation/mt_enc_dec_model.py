@@ -217,12 +217,14 @@ class MTEncDecModel(EncDecNLPModel):
 
     # TODO: remove all hooks below when Trainer hooks are working
     def _on_batch_start(self, name):
+        print(f"START {name}")
         self.timer.reset(name)
         self.timer.start(name)
 
     def _on_batch_end(self, name):
         self.timer.stop(name)
         self.log(name, self.timer[name])
+        print(f"START {name} {self.timer[name]}")
 
     def on_train_batch_start(self):
         self._on_batch_start("train_step_timing")
