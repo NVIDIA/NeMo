@@ -153,6 +153,7 @@ class TimingCallback(Callback):
     def on_after_backward(self, trainer, pl_module):
         self._on_batch_end("train_backward_timing", pl_module)
 
+
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Path:
     """
     exp_manager is a helper function used to manage folders for experiments. It follows the pytorch lightning paradigm
