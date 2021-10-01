@@ -57,7 +57,7 @@ class ParallelMLP(MegatronModule):
         init_method,
         output_layer_init_method,
         hidden_size,
-        ffn_hidden_size=None,
+        ffn_hidden_size,
         use_cpu_initialization=False,
         bias_gelu_fusion=True,
         openai_gelu=False,
@@ -65,9 +65,6 @@ class ParallelMLP(MegatronModule):
         fused_fp16=False,
     ):
         super(ParallelMLP, self).__init__()
-
-        if ffn_hidden_size is None:
-            ffn_hidden_size = 4 * hidden_size
 
         # Project to 4h.
         self.dense_h_to_4h = mpu.ColumnParallelLinear(
@@ -417,8 +414,8 @@ class ParallelTransformerLayer(MegatronModule):
         output_layer_init_method,
         layer_number,
         hidden_size,
+        ffn_hidden_size,
         num_attention_heads,
-        ffn_hidden_size=None,
         layer_type=LayerType.encoder,
         self_attn_mask_type=AttnMaskType.padding,
         fp32_residual_connection=False,
@@ -438,9 +435,6 @@ class ParallelTransformerLayer(MegatronModule):
         attention_dropout=0.1,
     ):
         super(ParallelTransformerLayer, self).__init__()
-
-        if ffn_hidden_size is None:
-            ffn_hidden_size = 4 * hidden_size
 
         if kv_channels is None:
             assert (
@@ -597,10 +591,10 @@ class ParallelTransformer(MegatronModule):
         output_layer_init_method,
         num_layers,
         hidden_size,
+        ffn_hidden_size,
         num_attention_heads,
         apply_query_key_layer_scaling=True,
         kv_channels=None,
-        ffn_hidden_size=None,
         layer_type=LayerType.encoder,
         self_attn_mask_type=AttnMaskType.padding,
         pre_process=True,
@@ -625,9 +619,6 @@ class ParallelTransformer(MegatronModule):
             ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
             kv_channels = hidden_size // num_attention_heads
 
-        if ffn_hidden_size is None:
-            ffn_hidden_size = 4 * hidden_size
-
         self.bf16 = fused_bf16
         self.fp32_residual_connection = fp32_residual_connection
         self.pre_process = pre_process
@@ -651,6 +642,7 @@ class ParallelTransformer(MegatronModule):
                 output_layer_init_method=output_layer_init_method,
                 layer_number=num_layers,
                 hidden_size=hidden_size,
+                ffn_hidden_size=ffn_hidden_size,
                 num_attention_heads=num_attention_heads,
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,

@@ -65,9 +65,9 @@ class GPTModel(MegatronModule):
         max_position_embeddings,
         num_layers,
         num_attention_heads,
+        ffn_hidden_size,
         apply_query_key_layer_scaling=True,
         kv_channels=None,
-        ffn_hidden_size=None,
         num_tokentypes=0,
         parallel_output=True,
         pre_process=True,
@@ -98,9 +98,6 @@ class GPTModel(MegatronModule):
                 hidden_size % num_attention_heads == 0
             ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
             kv_channels = hidden_size // num_attention_heads
-
-        if ffn_hidden_size is None:
-            ffn_hidden_size = 4 * hidden_size
 
         self.language_model, self._language_model_key = get_language_model(
             vocab_size=vocab_size,

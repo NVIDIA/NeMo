@@ -48,6 +48,7 @@ def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=Non
 
 def get_language_model(
     hidden_size,
+    ffn_hidden_size,
     num_layers,
     max_position_embeddings,
     num_tokentypes,
@@ -57,7 +58,6 @@ def get_language_model(
     encoder_attn_mask_type,
     apply_query_key_layer_scaling=True,
     kv_channels=None,
-    ffn_hidden_size=None,
     init_method=None,
     scaled_init_method=None,
     add_decoder=False,
@@ -84,9 +84,6 @@ def get_language_model(
             hidden_size % num_attention_heads == 0
         ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
         kv_channels = hidden_size // num_attention_heads
-
-    if ffn_hidden_size is None:
-        ffn_hidden_size = 4 * hidden_size
 
     if init_method is None:
         init_method = init_method_normal(init_method_std)
@@ -323,12 +320,12 @@ class TransformerLanguageModel(MegatronModule):
         vocab_size,
         max_position_embeddings,
         hidden_size,
+        ffn_hidden_size,
         num_layers,
         num_tokentypes,
         num_attention_heads,
         apply_query_key_layer_scaling=True,
         kv_channels=None,
-        ffn_hidden_size=None,
         add_decoder=False,
         decoder_attn_mask_type=AttnMaskType.causal,
         add_pooler=False,
@@ -369,9 +366,6 @@ class TransformerLanguageModel(MegatronModule):
                 hidden_size % num_attention_heads == 0
             ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
             kv_channels = hidden_size // num_attention_heads
-
-        if ffn_hidden_size is None:
-            ffn_hidden_size = 4 * hidden_size
 
         # Embeddings.
         if self.pre_process:

@@ -82,7 +82,7 @@ class MegatronGPTModel(NLPModel):
             num_attention_heads=cfg.num_attention_heads,
             apply_query_key_layer_scaling=cfg.get('apply_query_key_layer_scaling', True),
             kv_channels=cfg.get('kv_channels', None),
-            ffn_hidden_size=cfg.get('ffn_hidden_size', None),
+            ffn_hidden_size=cfg.ffn_hidden_size,
             num_tokentypes=0,
             parallel_output=True,
             pre_process=cfg.get('pre_process', True),
@@ -294,7 +294,6 @@ class MegatronGPTModel(NLPModel):
         else:
             return
 
-
     def complete(self, request: Dict):
         """
             Autoregressively invokes language model in the inference mode
@@ -316,40 +315,41 @@ class MegatronGPTModel(NLPModel):
         response = {}
         self.eval()
         tokenized_prompt = self.tokenizer.text_to_tokens(request['prompt'])
-        response["tokenized_prompt"] = tokenized_prompt     
+        response["tokenized_prompt"] = tokenized_prompt
         tokens = self.tokenizer.text_to_ids(request['prompt'])
         # How will this look in model parallel setting?
         tokens = torch.tensor(tokens, device=self.device)
         # naive greedy slow loop
-        # TODO: rewrite me with BeamSearchDecoder          
+        # TODO: rewrite me with BeamSearchDecoder
         response['prompt'] = request['prompt']
         response['completion'] = {}
-        response['completion']['stop reason'] = 'limit' 
-        for i in range(request.get("tokens_to_generate", 1024)):            
+        response['completion']['stop reason'] = 'limit'
+        for i in range(request.get("tokens_to_generate", 1024)):
             attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
-                data=torch.unsqueeze(tokens, 0), 
+                data=torch.unsqueeze(tokens, 0),
                 eod_token=self.tokenizer.eos_id,
                 reset_position_ids=self.cfg.get('reset_position_ids', False),
                 reset_attention_mask=self.cfg.get('reset_attention_mask', False),
                 eod_mask_loss=self.cfg.get('eod_mask_loss', False),
             )
             # No labels during inference. Still need masks to not attend to the right
-            output_tensor = self(torch.unsqueeze(tokens, 0), position_ids, attention_mask, labels=None)            
+            output_tensor = self(torch.unsqueeze(tokens, 0), position_ids, attention_mask, labels=None)
             log_probs, token_ids = torch.max(output_tensor, dim=-1)
-            reached_eos = token_ids[0, -1].item() == self.tokenizer.eos_id            
-            # TODO: CURRENT log_probs are probably NOT correct!!!!            
-            tokens = torch.cat([tokens, token_ids[:,-1]])
-            response['completion']["tokens"] = list(zip(self.tokenizer.ids_to_tokens(tokens), tokens.tolist(), log_probs.tolist()[0]))
+            reached_eos = token_ids[0, -1].item() == self.tokenizer.eos_id
+            # TODO: CURRENT log_probs are probably NOT correct!!!!
+            tokens = torch.cat([tokens, token_ids[:, -1]])
+            response['completion']["tokens"] = list(
+                zip(self.tokenizer.ids_to_tokens(tokens), tokens.tolist(), log_probs.tolist()[0])
+            )
             completion_text = self.tokenizer.ids_to_text(x[1] for x in response['completion']["tokens"])
-            if reached_eos: # Will it actually ever reach that?
+            if reached_eos:  # Will it actually ever reach that?
                 response['completion']['stop reason'] = 'eos'
                 break
             elif request.get("stop_after_sentence", True) and completion_text.endswith(('.', '!', '?')):
                 response['completion']['stop reason'] = 'sentence_end'
                 break
-        response['completion']["text"] = self.tokenizer.ids_to_text(x[1] for x in response['completion']["tokens"])                  
+        response['completion']["text"] = self.tokenizer.ids_to_text(x[1] for x in response['completion']["tokens"])
         return response
-
 
     def list_available_models():
         pass
