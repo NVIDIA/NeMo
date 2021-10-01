@@ -103,6 +103,8 @@ class ExpManagerConfig:
     files_to_copy: Optional[List[str]] = None
     # logs timing of train/val/test steps
     log_step_timing: Optional[bool] = True
+    # if True torch.cuda.synchronize() is called on start/stop
+    step_timing_sync_cuda: Optional[bool] = False
 
 
 class TimingCallback(Callback):
@@ -113,7 +115,7 @@ class TimingCallback(Callback):
     def __init__(self, timer=None):
         # support external timer
         if timer is None:
-            timer = timers.NamedTimer()
+            timer = timers.NamedTimer(sync_cuda=step_timing_sync_cuda)
         self.timer = timer
 
     def _on_batch_start(self, name):
