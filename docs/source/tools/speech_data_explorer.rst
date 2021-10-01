@@ -21,12 +21,12 @@ Speech Data Explorer (SDE) is a `Dash <https://plotly.com/dash/>`__-based web ap
 SDE Demo Instance
 -----------------
 
-To demonstrate both the `CTC-Segmentation <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tools/ctc_segmentation.html>`_ and Speech Data Explorer tools, we re-resegmenting the development set as of `the LibriSpeech corpus <http://www.danielpovey.com/files/2015_icassp_librispeech.pdf>`_.
+To demonstrate both the `CTC-Segmentation <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tools/ctc_segmentation.html>`_ and Speech Data Explorer tools, we re-segmenting the development set as of `the LibriSpeech corpus <http://www.danielpovey.com/files/2015_icassp_librispeech.pdf>`_.
 We concatenated all audio files from the dev-clean split into a single file and set up the CTC-Segmentation tool to cut the long audio file into original utterances.
-We used the CTC-based `QuartzNet15x5Base-En ASR model <https://api.ngc.nvidia.com/v2/models/nvidia/nemospeechmodels/versions/1.0.0a5/files/QuartzNet15x5Base-En.nemo>`_.
+We used the CTC-based `QuartzNet15x5Base-En ASR model <https://ngc.nvidia.com/catalog/models/nvidia:nemospeechmodels>`_.
 The segmented corpus has 3.82% WER and contains 300 out of the initial 323 minutes of audio.
 The remaining 23 minutes are the silence at the beginning and end of the audio removed during the segmentation.
-A `running instance of the SDE <http://34.221.29.162:8050/>`_ demonstrates the re-segmented corpus.
+A `running instance of the SDE <http://18.223.252.228:8050/>`_ demonstrates the re-segmented corpus.
 
 Getting Started
 ---------------
@@ -68,10 +68,10 @@ SDE takes as an input a JSON manifest file (that describes speech datasets in Ne
 * `duration` (duration of the audio file in seconds)
 * `text` (reference transcript)
 
-SDE supports any custom extra fields in the JSON manifest. If the field is numeric, then SDE can visualize its distribution across utterances.
+SDE supports any extra custom fields in the JSON manifest. If the field is numeric, then SDE can visualize its distribution across utterances.
 
-If the JSON manifest has attribute `pred_text`, then SDE interprets it as a predicted ASR transcript and computes error analysis metrics.
-The command line option ``--estimate-audio-metrics`` allows SDE to estimate signal's peak level and frequency bandwidth for each utterance.
+If the JSON manifest has attribute `pred_text`, SDE interprets it as a predicted ASR transcript and computes error analysis metrics.
+The command line option ``--estimate-audio-metrics`` allows SDE to estimate the signal's peak level and frequency bandwidth for each utterance.
 By default, SDE caches all computed metrics to a pickle file. The caching can be disabled with ``--disable-caching-metrics`` option.
 
 User Interface
@@ -79,7 +79,7 @@ User Interface
 
 SDE application has two pages:
 
-* `Statistics` (to diplay global statistics and aggregated error metrics)
+* `Statistics` (to display global statistics and aggregated error metrics)
 
     .. image:: images/sde_base_stats.png
         :align: center
@@ -93,7 +93,7 @@ SDE application has two pages:
         :alt: SDE Statistics
         :scale: 50%
 
-Plotly Dash Datatable provides core SDE's interactive features (such as navigation, filtering, and sorting).
+Plotly Dash Datatable provides core SDE's interactive features (navigation, filtering, and sorting).
 SDE has two datatables:
 
 * Vocabulary (that shows all words from dataset's reference texts on `Statistics` page)
@@ -112,7 +112,7 @@ SDE has two datatables:
 
 Every column of the DataTable has the following interactive features:
 
-* toggling off (by clicking on `eye` icon in the column's header cell) or on (by clicking on `Toggle Columns` button below the table)
+* toggling off (by clicking on the `eye` icon in the column's header cell) or on (by clicking on the `Toggle Columns` button below the table)
 
     .. image:: images/datatable_toggle.png
         :align: center
@@ -126,7 +126,7 @@ Every column of the DataTable has the following interactive features:
         :alt: Sorting
         :scale: 80%
 
-* filtering (by entering a filtering expression in a cell below the header's cell): filtering expressions support ``<``, ``>``, ``<=``, ``>=``, ``=``, ``!=``, ``contains`` operators; to match specific substring, the quoted substring can be used as a filtering expression
+* filtering (by entering a filtering expression in a cell below the header's cell): SDE supports ``<``, ``>``, ``<=``, ``>=``, ``=``, ``!=``, and ``contains`` operators; to match a specific substring, the quoted substring can be used as a filtering expression
 
     .. image:: images/datatable_filter.png
         :align: center
@@ -137,12 +137,12 @@ Every column of the DataTable has the following interactive features:
 Analysis of Speech Datasets
 ---------------------------
 
-In the simplest use case, SDE can be used to interactively explore a speech dataset and get basic statistics.
+In the simplest use case, SDE helps to explore a speech dataset interactively and get basic statistics.
 If there is no available pre-trained ASR model to get predicted transcripts, there are still available heuristic rules to spot potential issues in a dataset:
 
 1. Check dataset alphabet (it should contain only target characters)
-2. Check vocabulary for uncommon words (e.g., foreign words, typos). SDE can take an external vocabulary file passed with ``--vocab`` option. Then it is easy to filter out-of-vocabulary (OOV) words in the dataset and sort them by their number of occurence (count).
-3. Check utterances with high character rate. Too high character rate might be an indicator that the utterance has more words in reference transcript than the corresponding audio recording contain.
+2. Check vocabulary for uncommon words (e.g., foreign words, typos). SDE can take an external vocabulary file passed with ``--vocab`` option. Then it is easy to filter out-of-vocabulary (OOV) words in the dataset and sort them by their number of occurrences (count).
+3. Check utterances with a high character rate. A high character rate might indicate that the utterance has more words in the reference transcript than the corresponding audio recording.
 
 If there is a pre-trained ASR model, then the JSON manifest file can be extended with ASR predicted transcripts:
 
