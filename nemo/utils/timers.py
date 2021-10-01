@@ -37,7 +37,8 @@ class NamedTimer(object):
     def __init__(self, reduction="mean"):
         """
         Args:
-            reduction (str): reduction over multiple timings of the same timer (mean, sum, none - returns a list)
+            reduction (str): reduction over multiple timings of the same timer
+                             (none - returns the list instead of a scalar)
         """
         if reduction not in self._REDUCTION_TYPE:
             raise ValueError(f"Unknown reduction={reduction} please use one of {self._REDUCTION_TYPE}")
