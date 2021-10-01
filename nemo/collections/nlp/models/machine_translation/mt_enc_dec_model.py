@@ -275,6 +275,7 @@ class MTEncDecModel(EncDecNLPModel):
             'train_loss': train_loss,
             'lr': self._optimizer.param_groups[0]['lr'],
         }
+
         return {'loss': train_loss, 'log': tensorboard_logs}
 
     def eval_step(self, batch, batch_idx, mode, dataloader_idx=0):
