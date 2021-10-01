@@ -31,6 +31,7 @@ class NamedTimer(object):
     A named timer cannot be started if it is already currently running.
     Use case: measuring execution of multiple code blocks.
     """
+
     _REDUCTION_TYPE = ["mean", "sum", "min", "max", "none"]
 
     def __init__(self, reduction="mean"):
