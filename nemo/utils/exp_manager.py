@@ -112,10 +112,10 @@ class TimingCallback(Callback):
     Logs execution time of train/val/test steps
     """
 
-    def __init__(self, timer=None):
+    def __init__(self, timer=None, sync_cuda=False):
         # support external timer
         if timer is None:
-            timer = timers.NamedTimer(sync_cuda=step_timing_sync_cuda)
+            timer = timers.NamedTimer(sync_cuda=sync_cuda)
         self.timer = timer
 
     def _on_batch_start(self, name):
@@ -282,7 +282,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
     # add loggers timing callbacks
     if cfg.log_step_timing:
-        timing_callback = TimingCallback()
+        timing_callback = TimingCallback(sync_cuda=cfg.step_timing_sync_cuda)
         trainer.callbacks.insert(0, timing_callback)
 
     if cfg.create_checkpoint_callback:
