@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
-import os
 import random
 from apex import mpu
 
@@ -26,7 +25,7 @@ from apex.mpu.initialize import (
 import numpy as np
 import torch
 
-from nemo.utils import AppState, logging
+from nemo.utils import AppState
 
 
 def initialize_model_parallel_for_nemo(
