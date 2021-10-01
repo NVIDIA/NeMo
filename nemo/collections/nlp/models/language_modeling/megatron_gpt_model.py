@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from megatron.optimizer.clip_grads import clip_grad_norm_fp32
+from typing import Dict
 import torch
-from megatron import fused_kernels
 from apex import mpu
-from megatron.global_vars import get_args
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -27,13 +25,14 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_megatron_for_nemo
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
+from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_ltor_masks_and_position_ids,
 )
+from nemo.collections.nlp.modules.common.megatron import fused_kernels
+from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
 from nemo.utils import AppState, logging
 
 
@@ -49,37 +48,15 @@ class MegatronGPTModel(NLPModel):
         if self.cfg.get('use_cpu_initialization', False) is False:
             torch.cuda.set_device(trainer.local_rank)
 
-        app_state = AppState()
-        app_state.global_rank = trainer.global_rank
-        app_state.world_size = trainer.world_size
-        app_state.model_parallel_size = cfg.get('tensor_model_parallel_size', 1)
-        app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
-
-        initialize_megatron_for_nemo(
-            world_size=app_state.world_size,
-            global_rank=app_state.global_rank,
-            micro_batch_size=cfg.get('micro_batch_size', 1),
+        initialize_model_parallel_for_nemo(
+            world_size=trainer.world_size,
+            global_rank=trainer.global_rank,
+            local_rank=trainer.local_rank,
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
-            tensor_model_parallel_rank=app_state.model_parallel_rank,
-            encoder_seq_length=cfg.get('encoder_seq_length', 512),
-            num_layers=cfg.get('num_layers', 1),
-            hidden_size=cfg.get('hidden_size', 16),
-            num_attention_heads=cfg.get('num_attention_heads', 1),
-            max_position_embeddings=cfg.get('max_position_embeddings', 512),
-            init_method_std=cfg.get('init_method_std', 0.02),
-            tokenizer_type='GPT2BPETokenizer',
-            vocab_file=cfg.tokenizer.vocab_file,
-            merge_file=cfg.tokenizer.merge_file,
-            fp16=cfg.get('fp16', True),
-            use_cpu_initialization=cfg.get('use_cpu_initialization', False),
+            seed=self.cfg.get('seed', 1234),
         )
-        args = get_args()
 
-        fused_kernels.load(args)
-
-        self.model = GPTModel(
-            num_tokentypes=0, parallel_output=True, pre_process=cfg.pre_process, post_process=cfg.post_process
-        )
+        fused_kernels.load()
 
         self.tokenizer = get_nmt_tokenizer(
             library=self.cfg.tokenizer.library,
@@ -87,6 +64,40 @@ class MegatronGPTModel(NLPModel):
             tokenizer_model=self.register_artifact("tokenizer_model", self.cfg.tokenizer.model),
             vocab_file=self.register_artifact("vocab_file", self.cfg.tokenizer.vocab_file),
             merges_file=self.register_artifact("merges_file", self.cfg.tokenizer.merge_file),
+        )
+
+        vocab_size = self.tokenizer.vocab_size
+
+        padded_vocab_size = self._vocab_size_with_padding(
+            orig_vocab_size=vocab_size,
+            make_vocab_size_divisible_by=cfg.get('make_vocab_size_divisible_by', 128),
+            tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
+        )
+
+        self.model = GPTModel(
+            vocab_size=padded_vocab_size,
+            hidden_size=cfg.hidden_size,
+            max_position_embeddings=cfg.max_position_embeddings,
+            num_layers=cfg.num_layers,
+            num_attention_heads=cfg.num_attention_heads,
+            apply_query_key_layer_scaling=cfg.get('apply_query_key_layer_scaling', True),
+            kv_channels=cfg.get('kv_channels', None),
+            ffn_hidden_size=cfg.ffn_hidden_size,
+            num_tokentypes=0,
+            parallel_output=True,
+            pre_process=cfg.get('pre_process', True),
+            post_process=cfg.get('post_process', True),
+            init_method_std=cfg.get('init_method_std', 0.02),
+            fp16_lm_cross_entropy=cfg.get('fp16_lm_cross_entropy', False),
+            use_cpu_initialization=cfg.get('use_cpu_initialization', False),
+            hidden_dropout=cfg.get('hidden_dropout', 0.1),
+            fused_fp16=cfg.get('fused_fp16', False),
+            fused_bf16=cfg.get('fused_bf16', False),
+            fp32_residual_connection=cfg.get('fp32_residual_connection', False),
+            activations_checkpoint_method=cfg.get('activations_checkpoint_method', None),
+            activations_checkpoint_num_layers=cfg.get('activations_checkpoint_num_layers', 1),
+            layernorm_epsilon=cfg.get('layernorm_epsilon', 1e-5),
+            onnx_safe=cfg.get('onnx_safe', False),
         )
 
     def forward(self, tokens, position_ids, attention_mask, labels):
@@ -145,7 +156,6 @@ class MegatronGPTModel(NLPModel):
         return loss
 
     def process_batch(self, batch):
-        args = get_args()
 
         # Items and their type.
         keys = ['text']
@@ -159,16 +169,13 @@ class MegatronGPTModel(NLPModel):
         labels = tokens_[:, 1:].contiguous()
         tokens = tokens_[:, :-1].contiguous()
 
-        if self.cfg.debug:
-            logging.info('debugging')
-            tokens_list = tokens.detach().tolist()[0]
-            labels_list = labels.detach().tolist()[0]
-            logging.info(f'detokenize tokens: {self.tokenizer.ids_to_text(tokens_list)}')
-            logging.info(f'detokenize labels: {self.tokenizer.ids_to_text(labels_list)}')
-
         # Get the masks and postition ids.
         attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
-            tokens, self.tokenizer.eos_id, args.reset_position_ids, args.reset_attention_mask, args.eod_mask_loss
+            tokens,
+            self.tokenizer.eos_id,
+            self.cfg.data.get('reset_position_ids', False),
+            self.cfg.data.get('reset_attention_mask', False),
+            self.cfg.data.get('eod_mask_loss', False),
         )
 
         return tokens, labels, loss_mask, attention_mask, position_ids
@@ -192,7 +199,7 @@ class MegatronGPTModel(NLPModel):
             train_valid_test_num_samples=train_valid_test_num_samples,
             seq_length=self.cfg.data.seq_length,
             seed=self.cfg.seed,
-            skip_warmup=self.cfg.data.skip_warmup,
+            skip_warmup=self.cfg.data.get('skip_warmup', True),
         )
         if self._train_ds is not None:
             logging.info(f'Length of train dataset: {len(self._train_ds)}')
@@ -287,5 +294,75 @@ class MegatronGPTModel(NLPModel):
         else:
             return
 
+    def complete(self, request: Dict):
+        """
+            Autoregressively invokes language model in the inference mode
+        Args:	
+            request: Dictionary with the following fields
+                * prompt: a string which text the model should complete.
+                * tokens_to_generate: how many tokens to generate while doing prompt completion.
+                * stop_after_sentence: (default True) whether to stop generation once sentence end is reached.
+        Returns:	
+            response: A python dictionary with the following fields
+                * prompt: original text of the prompt
+                * tokenized_prompt: list of (str) tokens from prompt
+                * completion: a python dictionary with the following subfields:
+                    * tokens: a list of triples (token, token_id, log_prob) comprising completion
+                    * stop reason: either 'eos', 'sentence_end' or 'limit' indicating why generation stopped
+                    * text: completion text (as a single string)
+                
+        """
+        response = {}
+        self.eval()
+        tokenized_prompt = self.tokenizer.text_to_tokens(request['prompt'])
+        response["tokenized_prompt"] = tokenized_prompt
+        tokens = self.tokenizer.text_to_ids(request['prompt'])
+        # How will this look in model parallel setting?
+        tokens = torch.tensor(tokens, device=self.device)
+        # naive greedy slow loop
+        # TODO: rewrite me with BeamSearchDecoder
+        response['prompt'] = request['prompt']
+        response['completion'] = {}
+        response['completion']['stop reason'] = 'limit'
+        for i in range(request.get("tokens_to_generate", 1024)):
+            attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
+                data=torch.unsqueeze(tokens, 0),
+                eod_token=self.tokenizer.eos_id,
+                reset_position_ids=self.cfg.get('reset_position_ids', False),
+                reset_attention_mask=self.cfg.get('reset_attention_mask', False),
+                eod_mask_loss=self.cfg.get('eod_mask_loss', False),
+            )
+            # No labels during inference. Still need masks to not attend to the right
+            output_tensor = self(torch.unsqueeze(tokens, 0), position_ids, attention_mask, labels=None)
+            log_probs, token_ids = torch.max(output_tensor, dim=-1)
+            reached_eos = token_ids[0, -1].item() == self.tokenizer.eos_id
+            # TODO: CURRENT log_probs are probably NOT correct!!!!
+            tokens = torch.cat([tokens, token_ids[:, -1]])
+            response['completion']["tokens"] = list(
+                zip(self.tokenizer.ids_to_tokens(tokens), tokens.tolist(), log_probs.tolist()[0])
+            )
+            completion_text = self.tokenizer.ids_to_text(x[1] for x in response['completion']["tokens"])
+            if reached_eos:  # Will it actually ever reach that?
+                response['completion']['stop reason'] = 'eos'
+                break
+            elif request.get("stop_after_sentence", True) and completion_text.endswith(('.', '!', '?')):
+                response['completion']['stop reason'] = 'sentence_end'
+                break
+        response['completion']["text"] = self.tokenizer.ids_to_text(x[1] for x in response['completion']["tokens"])
+        return response
+
     def list_available_models():
         pass
+
+    def _vocab_size_with_padding(self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size):
+        """Pad vocab size so it is divisible by model parallel size and
+        still having GPU friendly size."""
+
+        after = orig_vocab_size
+        multiple = make_vocab_size_divisible_by * tensor_model_parallel_size
+        while (after % multiple) != 0:
+            after += 1
+        logging.info(
+            f'Padded vocab_size: {after}, original vocab_size: {orig_vocab_size}, dummy tokens: {after - orig_vocab_size}.'
+        )
+        return after

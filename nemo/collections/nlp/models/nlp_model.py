@@ -15,32 +15,27 @@
 import hashlib
 import json
 import os
-import shutil
-import tarfile
-import tempfile
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict
 
-import torch
-from apex import mpu
-from megatron.checkpointing import get_checkpoint_version, set_checkpoint_version
+
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
-from pytorch_lightning.accelerators.accelerator import Accelerator
 from pytorch_lightning.utilities import rank_zero_only
 from transformers import TRANSFORMERS_CACHE
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
-from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import VOCAB_FILE_NAME
+from nemo.collections.nlp.modules import MegatronBertEncoder
+from nemo.collections.nlp.modules import BertModule
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder import MegatronEncoderModule
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
-from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector, NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import AppState, logging
-from nemo.utils.get_rank import is_global_rank_zero
+from nemo.collections.nlp.modules.common.megatron.megatron_bert import (
+    get_megatron_checkpoint_version,
+    set_megatron_checkpoint_version,
+)
 
 __all__ = ['NLPModel']
 
@@ -210,19 +205,19 @@ class NLPModel(ModelPT, Exportable):
         """ LightningModule hook that's used to save things in addition to model weights. """
 
         if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
-            checkpoint['checkpoint_version'] = get_checkpoint_version()
+            checkpoint['checkpoint_version'] = get_megatron_checkpoint_version()
         return None
 
     def on_load_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         """ LightningModule hook that's used to restore things saved with on_save_checkpoint."""
 
         if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
-            if get_checkpoint_version():
+            if get_megatron_checkpoint_version():
                 assert (
-                    checkpoint['checkpoint_version'] == get_checkpoint_version()
-                ), 'checkpoint version found on_load_checkpoint different than get_checkpoint_version'
+                    checkpoint['checkpoint_version'] == get_megatron_checkpoint_version()
+                ), 'checkpoint version found on_load_checkpoint different than get_megatron_checkpoint_version'
             else:
-                set_checkpoint_version(checkpoint['checkpoint_version'])
+                set_megatron_checkpoint_version(checkpoint['checkpoint_version'])
                 logging.info(f"Setting Megatron checkpoint version: {checkpoint['checkpoint_version']}")
         return None
 
@@ -230,7 +225,7 @@ class NLPModel(ModelPT, Exportable):
     def register_megatron_checkpoint_version(self):
         """ Adds checkpoint version to .nemo archive """
         if self.has_megatron_encoder:
-            checkpoint_version = get_checkpoint_version()
+            checkpoint_version = get_megatron_checkpoint_version()
             if checkpoint_version is None:
                 raise ValueError('Unable to get megatron checkpoint version.')
             else:
