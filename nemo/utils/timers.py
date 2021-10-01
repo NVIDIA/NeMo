@@ -31,20 +31,37 @@ class NamedTimer(object):
     A named timer cannot be started if it is already currently running.
     Use case: measuring execution of multiple code blocks.
     """
+    _REDUCTION_TYPE = ["mean", "sum", "min", "max", "none"]
 
-    def __init__(self, mean=True):
+    def __init__(self, reduction="mean"):
         """
-        mean - default behaviour. If True mean dt is returned, else a list.
+        Args:
+            reduction (str): reduction over multiple timings of the same timer (mean, sum, none - returns a list)
         """
-        self.mean = mean
+        if reduction not in self._REDUCTION_TYPE:
+            raise ValueError(f"Unknown reduction={reduction} please use one of {self._REDUCTION_TYPE}")
+
+        self._reduction = reduction
         self.reset()
 
     def __getitem__(self, k):
         return self.get(k)
 
+    @property
+    def _reduction_fn(self):
+        if self._reduction == "none":
+            fn = lambda x: x
+        else:
+            fn = getattr(np, self._reduction)
+
+        return fn
+
     def reset(self, name=None):
         """
         Resents all / specific timer
+
+        Args:
+            name (str): timer name to reset (if None all timers are reset)
         """
         if name is None:
             self.timers = {}
@@ -54,6 +71,9 @@ class NamedTimer(object):
     def start(self, name=""):
         """
         Starts measuring a named timer.
+
+        Args:
+            name (str): timer name to start
         """
         timer_data = self.timers.get(name, {})
 
@@ -71,6 +91,9 @@ class NamedTimer(object):
     def stop(self, name=""):
         """
         Stops measuring a named timer.
+
+        Args:
+            name (str): timer name to stop
         """
         timer_data = self.timers.get(name, None)
         if (timer_data is None) or ("start" not in timer_data):
@@ -88,42 +111,28 @@ class NamedTimer(object):
 
         self.timers[name] = timer_data
 
-    def active(self):
+    def active_timers(self):
         """
         Return list of all active named timers
         """
         return [k for k, v in self.timers.items() if ("start" in v)]
 
-    def get(self, name="", mean=None):
+    def get(self, name=""):
         """
         Returns the value of a named timer
+
+        Args:
+            name (str): timer name to return
         """
-        if mean is None:
-            mean = self.mean
-
-        if mean:
-            fn = np.mean
-        else:
-            fn = lambda x: x
-
         dt_list = self.timers[name].get("dt", [])
 
-        return fn(dt_list)
+        return self._reduction_fn(dt_list)
 
-    def export(self, mean=None):
+    def export(self):
         """
         Exports a dictionary with average/all dt per named timer
-
-        mean - if True return the mean per name of all measures,
-               else return a list per name.
         """
-        if mean is None:
-            mean = self.mean
-
-        if mean:
-            fn = np.mean
-        else:
-            fn = lambda x: x
+        fn = self._reduction_fn
 
         data = {k: fn(v["dt"]) for k, v in self.timers.items() if ("dt" in v)}
 
