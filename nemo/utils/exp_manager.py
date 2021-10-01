@@ -81,6 +81,12 @@ class CallbackParams:
 
 
 @dataclass
+class StepTimingParams:
+    reduction: Optional[str] = "mean"
+    # if True torch.cuda.synchronize() is called on start/stop
+    sync_cuda: Optional[bool] = False
+
+@dataclass
 class ExpManagerConfig:
     # Log dir creation parameters
     explicit_log_dir: Optional[str] = None
@@ -103,6 +109,7 @@ class ExpManagerConfig:
     files_to_copy: Optional[List[str]] = None
     # logs timing of train/val/test steps
     log_step_timing: Optional[bool] = True
+    step_timing_kwargs: Optional[StepTimingParams] = StepTimingParams()
 
 
 class TimingCallback(Callback):
@@ -110,11 +117,8 @@ class TimingCallback(Callback):
     Logs execution time of train/val/test steps
     """
 
-    def __init__(self, timer=None):
-        # support external timer
-        if timer is None:
-            timer = timers.NamedTimer()
-        self.timer = timer
+    def __init__(self, timer_kwargs={}):
+        self.timer = timers.NamedTimer(**timer_kwargs)
 
     def _on_batch_start(self, name):
         self.timer.reset(name)
@@ -141,6 +145,13 @@ class TimingCallback(Callback):
 
     def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
         self._on_batch_end("test_step_timing", pl_module)
+
+    def on_before_backward(self, trainer, pl_module, loss):
+        self._on_batch_start("train_backward_timing")
+
+    def on_after_backward(self, trainer, pl_module):
+        self._on_batch_end("train_backward_timing", pl_module)
+
 
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Path:
     """
@@ -279,7 +290,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
     # add loggers timing callbacks
     if cfg.log_step_timing:
-        timing_callback = TimingCallback()
+        timing_callback = TimingCallback(timer_kwargs=cfg.step_timing_kwargs or {})
         trainer.callbacks.insert(0, timing_callback)
 
     if cfg.create_checkpoint_callback:
