@@ -25,7 +25,7 @@ from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, Lay
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import MixedFusedLayerNorm as LayerNorm
 from nemo.collections.nlp.modules.common.megatron.fused_softmax import FusedScaleMaskSoftmax
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import bias_gelu_impl_fp16, bias_gelu_impl_bf16
-from nemo.collections.nlp.modules.common.megatron.utils import attention_mask_func, openai_gelu, erf_gelu
+from nemo.collections.nlp.modules.common.megatron.utils import attention_mask_func, erf_gelu
 
 
 """ We use the following notation throughout this file:
