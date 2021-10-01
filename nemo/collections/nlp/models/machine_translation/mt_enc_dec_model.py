@@ -46,7 +46,7 @@ from nemo.collections.nlp.modules.common.lm_utils import get_transformer
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TopKSequenceGenerator
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.utils import logging, model_utils, timers
+from nemo.utils import logging, model_utils
 
 __all__ = ['MTEncDecModel']
 
@@ -211,9 +211,6 @@ class MTEncDecModel(EncDecNLPModel):
             pad_id=self.decoder_tokenizer.pad_id, label_smoothing=cfg.label_smoothing
         )
         self.eval_loss_fn = NLLLoss(ignore_index=self.decoder_tokenizer.pad_id)
-
-        # a timer for various timing measurements
-        self.timer = timers.NamedTimer()
 
     def _validate_encoder_decoder_hidden_size(self):
         """
