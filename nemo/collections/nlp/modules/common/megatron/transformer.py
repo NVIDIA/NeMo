@@ -18,16 +18,14 @@ import math
 import torch
 import torch.nn.functional as F
 
-from megatron import get_args
 from apex import mpu
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 
-# from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, LayerType, AttnType
-from megatron.model.enums import AttnMaskType, LayerType, AttnType
+from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, LayerType, AttnType
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import MixedFusedLayerNorm as LayerNorm
 from nemo.collections.nlp.modules.common.megatron.fused_softmax import FusedScaleMaskSoftmax
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import bias_gelu_impl_fp16, bias_gelu_impl_bf16
-from nemo.collections.nlp.modules.common.megatron.utils import attention_mask_func, openai_gelu, erf_gelu
+from nemo.collections.nlp.modules.common.megatron.utils import attention_mask_func, erf_gelu
 
 
 """ We use the following notation throughout this file:
@@ -54,42 +52,51 @@ class ParallelMLP(MegatronModule):
     state back into h hidden dimension.
     """
 
-    def __init__(self, init_method, output_layer_init_method):
+    def __init__(
+        self,
+        init_method,
+        output_layer_init_method,
+        hidden_size,
+        ffn_hidden_size,
+        use_cpu_initialization=False,
+        bias_gelu_fusion=True,
+        openai_gelu=False,
+        onnx_safe=False,
+        fused_fp16=False,
+    ):
         super(ParallelMLP, self).__init__()
-        args = get_args()
 
         # Project to 4h.
         self.dense_h_to_4h = mpu.ColumnParallelLinear(
-            args.hidden_size,
-            args.ffn_hidden_size,
+            hidden_size,
+            ffn_hidden_size,
             gather_output=False,
             init_method=init_method,
             skip_bias_add=True,
-            use_cpu_initialization=args.use_cpu_initialization,
+            use_cpu_initialization=use_cpu_initialization,
         )
 
-        self.bias_gelu_fusion = args.bias_gelu_fusion
+        self.bias_gelu_fusion = bias_gelu_fusion
         self.activation_func = F.gelu
-        if args.openai_gelu:
+        if openai_gelu:
             self.activation_func = openai_gelu
-        elif args.onnx_safe:
+        elif onnx_safe:
             self.activation_func = erf_gelu
 
         # Project back to h.
         self.dense_4h_to_h = mpu.RowParallelLinear(
-            args.ffn_hidden_size,
-            args.hidden_size,
+            ffn_hidden_size,
+            hidden_size,
             input_is_parallel=True,
             init_method=output_layer_init_method,
             skip_bias_add=True,
-            use_cpu_initialization=args.use_cpu_initialization,
+            use_cpu_initialization=use_cpu_initialization,
         )
 
-        if args.fp16:
+        if fused_fp16:
             self.bias_gelu_impl = bias_gelu_impl_fp16
         else:
             self.bias_gelu_impl = bias_gelu_impl_bf16
-
 
     def forward(self, hidden_states):
 
@@ -118,47 +125,58 @@ class ParallelAttention(MegatronModule):
         init_method,
         output_layer_init_method,
         layer_number,
+        num_attention_heads,
+        hidden_size,
         attention_type=AttnType.self_attn,
         attn_mask_type=AttnMaskType.padding,
+        fused_fp16=False,
+        fused_bf16=False,
+        apply_query_key_layer_scaling=True,
+        kv_channels=None,
+        use_cpu_initialization=False,
+        masked_softmax_fusion=True,
+        attention_dropout=0.1,
     ):
         super(ParallelAttention, self).__init__()
-        args = get_args()
-        self.fp16 = args.fp16
-        self.bf16 = args.bf16
 
-        self.apply_query_key_layer_scaling = args.apply_query_key_layer_scaling
-        self.attention_softmax_in_fp32 = args.attention_softmax_in_fp32
+        self.apply_query_key_layer_scaling = apply_query_key_layer_scaling
+        self.attention_softmax_in_fp32 = False
         if self.apply_query_key_layer_scaling:
             self.attention_softmax_in_fp32 = True
         self.layer_number = max(1, layer_number)
         self.attention_type = attention_type
         self.attn_mask_type = attn_mask_type
 
-        projection_size = args.kv_channels * args.num_attention_heads
+        if kv_channels is None:
+            assert (
+                hidden_size % num_attention_heads == 0
+            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+            kv_channels = hidden_size // num_attention_heads
+        projection_size = kv_channels * num_attention_heads
 
         # Per attention head and per partition values.
         world_size = mpu.get_tensor_model_parallel_world_size()
         self.hidden_size_per_partition = mpu.divide(projection_size, world_size)
-        self.hidden_size_per_attention_head = mpu.divide(projection_size, args.num_attention_heads)
-        self.num_attention_heads_per_partition = mpu.divide(args.num_attention_heads, world_size)
+        self.hidden_size_per_attention_head = mpu.divide(projection_size, num_attention_heads)
+        self.num_attention_heads_per_partition = mpu.divide(num_attention_heads, world_size)
 
         # Strided linear layer.
         if attention_type == AttnType.self_attn:
             self.query_key_value = mpu.ColumnParallelLinear(
-                args.hidden_size,
+                hidden_size,
                 3 * projection_size,
                 gather_output=False,
                 init_method=init_method,
-                use_cpu_initialization=args.use_cpu_initialization,
+                use_cpu_initialization=use_cpu_initialization,
             )
         else:
             assert attention_type == AttnType.cross_attn
             self.query = mpu.ColumnParallelLinear(
-                args.hidden_size, projection_size, gather_output=False, init_method=init_method
+                hidden_size, projection_size, gather_output=False, init_method=init_method
             )
 
             self.key_value = mpu.ColumnParallelLinear(
-                args.hidden_size, 2 * projection_size, gather_output=False, init_method=init_method
+                hidden_size, 2 * projection_size, gather_output=False, init_method=init_method
             )
 
         coeff = None
@@ -168,10 +186,10 @@ class ParallelAttention(MegatronModule):
             self.norm_factor *= coeff
 
         self.scale_mask_softmax = FusedScaleMaskSoftmax(
-            self.fp16,
-            self.bf16,
+            fused_fp16,
+            fused_bf16,
             self.attn_mask_type,
-            args.masked_softmax_fusion,
+            masked_softmax_fusion,
             attention_mask_func,
             self.attention_softmax_in_fp32,
             coeff,
@@ -180,16 +198,16 @@ class ParallelAttention(MegatronModule):
         # Dropout. Note that for a single iteration, this layer will generate
         # different outputs on different number of parallel partitions but
         # on average it should not be partition dependent.
-        self.attention_dropout = torch.nn.Dropout(args.attention_dropout)
+        self.attention_dropout = torch.nn.Dropout(attention_dropout)
 
         # Output.
         self.dense = mpu.RowParallelLinear(
             projection_size,
-            args.hidden_size,
+            hidden_size,
             input_is_parallel=True,
             init_method=output_layer_init_method,
             skip_bias_add=True,
-            use_cpu_initialization=args.use_cpu_initialization,
+            use_cpu_initialization=use_cpu_initialization,
         )
 
     def forward(self, hidden_states, attention_mask, layer_past=None, get_key_value=False, encoder_output=None):
@@ -373,6 +391,7 @@ class BiasDropoutAddFusedTrain(torch.nn.Module):
     def forward(self, x, bias, residual, prob):
         return bias_dropout_add_fused_train_(x, bias, residual, prob)
 
+
 bias_dropout_add_fused_train = BiasDropoutAddFusedTrain()
 
 
@@ -394,46 +413,90 @@ class ParallelTransformerLayer(MegatronModule):
         init_method,
         output_layer_init_method,
         layer_number,
+        hidden_size,
+        ffn_hidden_size,
+        num_attention_heads,
         layer_type=LayerType.encoder,
         self_attn_mask_type=AttnMaskType.padding,
+        fp32_residual_connection=False,
+        apply_residual_connection_post_layernorm=False,
+        fused_fp16=False,
+        fused_bf16=False,
+        apply_query_key_layer_scaling=True,
+        kv_channels=None,
+        layernorm_epsilon=1e-5,
+        hidden_dropout=0.1,
+        bias_dropout_fusion=True,
+        use_cpu_initialization=False,
+        bias_gelu_fusion=True,
+        openai_gelu=False,
+        onnx_safe=False,
+        masked_softmax_fusion=True,
+        attention_dropout=0.1,
     ):
-        args = get_args()
-
         super(ParallelTransformerLayer, self).__init__()
+
+        assert not (fused_fp16 and fused_bf16), "both fused_fp16 and fused_bf16 flags cannot be True at the same time."
+
+        if kv_channels is None:
+            assert (
+                hidden_size % num_attention_heads == 0
+            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+            kv_channels = hidden_size // num_attention_heads
+
         self.layer_number = layer_number
         self.layer_type = layer_type
 
-        self.apply_residual_connection_post_layernorm = args.apply_residual_connection_post_layernorm
+        self.apply_residual_connection_post_layernorm = apply_residual_connection_post_layernorm  # if true apply residual connection post layer norm (like original bert)
 
-        self.bf16 = args.bf16
-        self.fp32_residual_connection = args.fp32_residual_connection
+        self.bf16 = fused_bf16
+        self.fp32_residual_connection = fp32_residual_connection  # if true move residual connections to fp32
 
         # Layernorm on the input data.
-        self.input_layernorm = LayerNorm(args.hidden_size, eps=args.layernorm_epsilon)
+        self.input_layernorm = LayerNorm(hidden_size, eps=layernorm_epsilon, fp16=fused_fp16)
 
         # Self attention.
         self.self_attention = ParallelAttention(
-            init_method,
-            output_layer_init_method,
-            layer_number,
+            init_method=init_method,
+            output_layer_init_method=output_layer_init_method,
+            layer_number=layer_number,
+            num_attention_heads=num_attention_heads,
+            hidden_size=hidden_size,
             attention_type=AttnType.self_attn,
             attn_mask_type=self_attn_mask_type,
+            fused_fp16=fused_fp16,
+            fused_bf16=fused_bf16,
+            apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+            kv_channels=kv_channels,
+            use_cpu_initialization=use_cpu_initialization,
+            masked_softmax_fusion=masked_softmax_fusion,
+            attention_dropout=attention_dropout,
         )
-        self.hidden_dropout = args.hidden_dropout
-        self.bias_dropout_fusion = args.bias_dropout_fusion
+        self.hidden_dropout = hidden_dropout
+        self.bias_dropout_fusion = bias_dropout_fusion  # if true, enable bias dropout fusion
 
         # Layernorm on the attention output
-        self.post_attention_layernorm = LayerNorm(args.hidden_size, eps=args.layernorm_epsilon)
+        self.post_attention_layernorm = LayerNorm(hidden_size, eps=layernorm_epsilon, fp16=fused_fp16)
 
         if self.layer_type == LayerType.decoder:
             self.inter_attention = ParallelAttention(
                 init_method, output_layer_init_method, layer_number, attention_type=AttnType.cross_attn
             )
             # Layernorm on the attention output.
-            self.post_inter_attention_layernorm = LayerNorm(args.hidden_size, eps=args.layernorm_epsilon)
+            self.post_inter_attention_layernorm = LayerNorm(hidden_size, eps=layernorm_epsilon, fp16=fused_fp16)
 
         # MLP
-        self.mlp = ParallelMLP(init_method, output_layer_init_method)
+        self.mlp = ParallelMLP(
+            init_method=init_method,
+            output_layer_init_method=output_layer_init_method,
+            hidden_size=hidden_size,
+            ffn_hidden_size=ffn_hidden_size,
+            use_cpu_initialization=use_cpu_initialization,
+            bias_gelu_fusion=bias_gelu_fusion,
+            openai_gelu=openai_gelu,
+            onnx_safe=onnx_safe,
+            fused_fp16=fused_fp16,
+        )
 
     def forward(
         self,
@@ -528,67 +591,107 @@ class ParallelTransformer(MegatronModule):
         self,
         init_method,
         output_layer_init_method,
+        num_layers,
+        hidden_size,
+        ffn_hidden_size,
+        num_attention_heads,
+        apply_query_key_layer_scaling=True,
+        kv_channels=None,
         layer_type=LayerType.encoder,
         self_attn_mask_type=AttnMaskType.padding,
         pre_process=True,
         post_process=True,
+        fused_fp16=False,
+        fused_bf16=False,
+        fp32_residual_connection=False,
+        activations_checkpoint_method=None,
+        activations_checkpoint_num_layers=1,
+        layernorm_epsilon=1e-5,
+        hidden_dropout=0.1,
+        use_cpu_initialization=False,
+        bias_gelu_fusion=True,
+        openai_gelu=False,
+        onnx_safe=False,
     ):
         super(ParallelTransformer, self).__init__()
-        args = get_args()
 
-        self.bf16 = args.bf16
-        self.fp32_residual_connection = args.fp32_residual_connection
+        assert not (fused_fp16 and fused_bf16), "both fused_fp16 and fused_bf16 flags cannot be True at the same time."
+
+        if kv_channels is None:
+            assert (
+                hidden_size % num_attention_heads == 0
+            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+            kv_channels = hidden_size // num_attention_heads
+
+        self.bf16 = fused_bf16
+        self.fp32_residual_connection = fp32_residual_connection
         self.pre_process = pre_process
         self.post_process = post_process
         self.input_tensor = None
 
-        # Store activation checkpoiting flag.
-        self.activations_checkpoint_method = args.activations_checkpoint_method
-        self.activations_checkpoint_num_layers = args.activations_checkpoint_num_layers
+        # Store activation checkpointing flag.
+        self.activations_checkpoint_method = activations_checkpoint_method
+        self.activations_checkpoint_num_layers = activations_checkpoint_num_layers
 
         # Number of layers.
         assert (
-            args.num_layers % mpu.get_pipeline_model_parallel_world_size() == 0
+            num_layers % mpu.get_pipeline_model_parallel_world_size() == 0
         ), 'num_layers must be divisible by pipeline_model_parallel_size'
-        self.num_layers = args.num_layers // mpu.get_pipeline_model_parallel_world_size()
+        self.num_layers = num_layers // mpu.get_pipeline_model_parallel_world_size()
 
         # Transformer layers.
         def build_layer(layer_number):
             return ParallelTransformerLayer(
-                init_method,
-                output_layer_init_method,
-                layer_number,
+                init_method=init_method,
+                output_layer_init_method=output_layer_init_method,
+                layer_number=num_layers,
+                hidden_size=hidden_size,
+                ffn_hidden_size=ffn_hidden_size,
+                num_attention_heads=num_attention_heads,
+                apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+                kv_channels=kv_channels,
                 layer_type=layer_type,
                 self_attn_mask_type=self_attn_mask_type,
+                fused_fp16=fused_fp16,
+                fused_bf16=fused_bf16,
+                fp32_residual_connection=fp32_residual_connection,
+                layernorm_epsilon=layernorm_epsilon,
+                hidden_dropout=hidden_dropout,
+                use_cpu_initialization=use_cpu_initialization,
+                bias_gelu_fusion=bias_gelu_fusion,
+                openai_gelu=openai_gelu,
+                onnx_safe=onnx_safe,
             )
 
-        if args.virtual_pipeline_model_parallel_size is not None:
-            assert args.num_layers % args.virtual_pipeline_model_parallel_size == 0, (
-                'num_layers_per_stage must be divisible by ' 'virtual_pipeline_model_parallel_size'
-            )
-            # Number of layers in each model chunk is the number of layers in the stage,
-            # divided by the number of model chunks in a stage.
-            self.num_layers = self.num_layers // args.virtual_pipeline_model_parallel_size
-            # With 8 layers, 2 stages, and 4 model chunks, we want an assignment of
-            # layers to stages like (each list is a model chunk):
-            # Stage 0: [0]  [2]  [4]  [6]
-            # Stage 1: [1]  [3]  [5]  [7]
-            # With 8 layers, 2 stages, and 2 virtual stages, we want an assignment of
-            # layers to stages like (each list is a model chunk):
-            # Stage 0: [0, 1]  [4, 5]
-            # Stage 1: [2, 3]  [6, 7]
-            offset = mpu.get_virtual_pipeline_model_parallel_rank() * (
-                args.num_layers // args.virtual_pipeline_model_parallel_size
-            ) + (mpu.get_pipeline_model_parallel_rank() * self.num_layers)
-        else:
-            # Each stage gets a contiguous set of layers.
-            offset = mpu.get_pipeline_model_parallel_rank() * self.num_layers
+        # TODO: get virtual_pipeline_model_parallel_size from apex.mpu
+        # if mpu.get_virtual_pipeline_model_parallel_rank() is not None:
+        #     assert args.num_layers % args.virtual_pipeline_model_parallel_size == 0, (
+        #         'num_layers_per_stage must be divisible by ' 'virtual_pipeline_model_parallel_size'
+        #     )
+        #     # Number of layers in each model chunk is the number of layers in the stage,
+        #     # divided by the number of model chunks in a stage.
+        #     self.num_layers = self.num_layers // args.virtual_pipeline_model_parallel_size
+        #     # With 8 layers, 2 stages, and 4 model chunks, we want an assignment of
+        #     # layers to stages like (each list is a model chunk):
+        #     # Stage 0: [0]  [2]  [4]  [6]
+        #     # Stage 1: [1]  [3]  [5]  [7]
+        #     # With 8 layers, 2 stages, and 2 virtual stages, we want an assignment of
+        #     # layers to stages like (each list is a model chunk):
+        #     # Stage 0: [0, 1]  [4, 5]
+        #     # Stage 1: [2, 3]  [6, 7]
+        #     offset = mpu.get_virtual_pipeline_model_parallel_rank() * (
+        #         args.num_layers // args.virtual_pipeline_model_parallel_size
+        #     ) + (mpu.get_pipeline_model_parallel_rank() * self.num_layers)
+        # else:
+        #     # Each stage gets a contiguous set of layers.
+        #     offset = mpu.get_pipeline_model_parallel_rank() * self.num_layers
+        offset = mpu.get_pipeline_model_parallel_rank() * self.num_layers
 
         self.layers = torch.nn.ModuleList([build_layer(i + 1 + offset) for i in range(self.num_layers)])
 
         if self.post_process:
             # Final layer norm before output.
-            self.final_layernorm = LayerNorm(args.hidden_size, eps=args.layernorm_epsilon, fp16=args.fp16)
+            self.final_layernorm = LayerNorm(hidden_size, eps=layernorm_epsilon, fp16=fused_fp16)
 
     def _get_layer(self, layer_number):
         return self.layers[layer_number]

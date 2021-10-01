@@ -17,8 +17,7 @@
 import torch
 import torch.nn as nn
 
-# from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType
-from megatron.model.enums import AttnMaskType
+from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType
 
 
 class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):

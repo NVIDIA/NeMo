@@ -37,7 +37,6 @@ import time
 
 import numpy as np
 import torch
-from megatron import get_args
 from apex import mpu
 from nemo.utils import logging
 
