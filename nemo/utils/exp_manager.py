@@ -81,6 +81,12 @@ class CallbackParams:
 
 
 @dataclass
+class StepTimingParams:
+    reduction: Optional[str] = "mean"
+    # if True torch.cuda.synchronize() is called on start/stop
+    sync_cuda: Optional[bool] = False
+
+@dataclass
 class ExpManagerConfig:
     # Log dir creation parameters
     explicit_log_dir: Optional[str] = None
@@ -103,20 +109,15 @@ class ExpManagerConfig:
     files_to_copy: Optional[List[str]] = None
     # logs timing of train/val/test steps
     log_step_timing: Optional[bool] = True
-    # if True torch.cuda.synchronize() is called on start/stop
-    step_timing_sync_cuda: Optional[bool] = False
-
+    step_timing_kwargs: Optional[StepTimingParams] = StepTimingParams()
 
 class TimingCallback(Callback):
     """
     Logs execution time of train/val/test steps
     """
 
-    def __init__(self, timer=None, sync_cuda=False):
-        # support external timer
-        if timer is None:
-            timer = timers.NamedTimer(sync_cuda=sync_cuda)
-        self.timer = timer
+    def __init__(self, timer_kwargs={}):
+        self.timer = timers.NamedTimer(**timer_kwargs)
 
     def _on_batch_start(self, name):
         self.timer.reset(name)
@@ -282,7 +283,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
     # add loggers timing callbacks
     if cfg.log_step_timing:
-        timing_callback = TimingCallback(sync_cuda=cfg.step_timing_sync_cuda)
+        timing_callback = TimingCallback(timer_kwargs=cfg.step_timing_kwargs)
         trainer.callbacks.insert(0, timing_callback)
 
     if cfg.create_checkpoint_callback:
