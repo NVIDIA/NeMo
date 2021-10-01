@@ -31,11 +31,11 @@ def main():
 
     args = parser.parse_args()
 
-    args.checkpoint_folder = '/raid/nemo_experiments/gpt_debug/checkpoints'
+    args.checkpoint_folder = '/raid/nemo_experiments/gpt_debug/megatron_gpt/2021-10-01_11-23-40/checkpoints/mp_rank_00/megatron_gpt--val_loss=8.79-step=49-last.ckpt'
     args.nemo_file_path = '~/tmp/ckpt_to_nemo.nemo'
 
     trainer = Trainer()
-    model = MegatronGPTModel.load_from_checkpoint(checkpoint_path=args.checkpoint_folder)
+    model = MegatronGPTModel.load_from_checkpoint(checkpoint_path=args.checkpoint_folder, trainer=trainer)
     model.save_to(args.nemo_file_path)
 
 
