@@ -231,7 +231,6 @@ class ModelPT(LightningModule, Model):
         return_config: bool = False,
         trainer: Optional[Trainer] = None,
         save_restore_connector: SaveRestoreConnector = None,
-        trainer: Optional['Trainer'] = None,
     ):
         """
         Restores model instance (weights and configuration) from .nemo file.
