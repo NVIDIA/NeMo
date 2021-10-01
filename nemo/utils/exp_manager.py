@@ -86,6 +86,7 @@ class StepTimingParams:
     # if True torch.cuda.synchronize() is called on start/stop
     sync_cuda: Optional[bool] = False
 
+
 @dataclass
 class ExpManagerConfig:
     # Log dir creation parameters
@@ -110,6 +111,7 @@ class ExpManagerConfig:
     # logs timing of train/val/test steps
     log_step_timing: Optional[bool] = True
     step_timing_kwargs: Optional[StepTimingParams] = StepTimingParams()
+
 
 class TimingCallback(Callback):
     """
