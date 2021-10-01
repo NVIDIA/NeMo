@@ -20,9 +20,6 @@ from argparse import ArgumentParser
 
 import torch
 
-from nemo.utils import logging
-
-
 assert torch.cuda.is_available()
 
 
