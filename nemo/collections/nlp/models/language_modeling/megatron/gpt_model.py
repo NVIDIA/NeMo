@@ -93,6 +93,8 @@ class GPTModel(MegatronModule):
         self.post_process = post_process
         self.fp16_lm_cross_entropy = fp16_lm_cross_entropy
 
+        assert not (fused_fp16 and fused_fp16), "both fused_fp16 and fused_bf16 flags cannot be True at the same time."
+
         if kv_channels is None:
             assert (
                 hidden_size % num_attention_heads == 0
