@@ -16,7 +16,6 @@
 
 
 import torch
-from apex import mpu
 
 
 class MegatronPretrainingSampler:
