@@ -416,6 +416,7 @@ class MTBottleneckModel(MTEncDecModel):
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
         ground_truths = [self.target_processor.detokenize(tgt.split(' ')) for tgt in ground_truths]
         num_non_pad_tokens = np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
+
         return {
             'translations': translations,
             'ground_truths': ground_truths,
