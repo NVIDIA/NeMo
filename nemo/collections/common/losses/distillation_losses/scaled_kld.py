@@ -29,7 +29,7 @@ class ScaledKLDivLoss(nn.KLDivLoss, Serialization, Typing, ScaledDistillationLos
     """
 
     def __init__(
-        self, temperature: float, size_average=None, reduce=None, reduction: str = 'mean', log_target: bool = False
+        self, temperature: float, size_average=None, reduce=None, reduction: str = 'batchmean', log_target: bool = False
     ):
         super().__init__(size_average=size_average, reduce=reduce, reduction=reduction, log_target=log_target)
         self.temperature = temperature

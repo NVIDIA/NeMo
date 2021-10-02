@@ -257,12 +257,14 @@ class DistillationModelPT(ModelPT):
         self.multi_validation_epoch_end = self.forward_delegate(self.student.multi_validation_epoch_end)
         self.multi_test_epoch_end = self.forward_delegate(self.student.multi_test_epoch_end)
 
-        # Misc PTL delegates
+        # Misc PTL delegatesaa
         self.configure_optimizers = self.forward_delegate(self.student.configure_optimizers)
 
         # Backward delegate all student PTL logging calls to self
         self.student.log = self.log
         self.student.log_dict = self.log_dict
+        self.teacher.log = lambda *args, **kwargs: None  # Ignore teachers logs
+        self.teacher.log_dict = lambda *args, **kwargs: None  # Ignore teachers logs
 
     def training_step(self, batch, batch_nb):
         """
@@ -288,6 +290,9 @@ class DistillationModelPT(ModelPT):
 
         # Log the primary distillation training loss
         self.log('distillation_primary_loss', primary_loss_value)
+
+        # Reset the loss due to scaled gradients so that only additional loss affects gradients
+        # If the loss function inherits a Distillation Loss mixin, execute the mixin's operation on the gradient.
 
         # Add secondary losses to primary loss with weighted term
         if additional_losses is not None and len(additional_losses) > 0:
@@ -518,10 +523,22 @@ class DistillationModelPT(ModelPT):
             output = self.student.setup_test_data(test_data_config)
         return output
 
-    # def teardown(self, stage: str):
-    #     with distill_mixins.as_distill_type(DistillationType.TEACHER):
-    #         self.teacher.teardown(stage)
-    #
-    #     with distill_mixins.as_distill_type(DistillationType.STUDENT):
-    #         output = self.student.teardown(stage)
-    #     return output
+    def optimizer_zero_grad(self, epoch: int, batch_idx: int, optimizer, optimizer_idx: int):
+        if isinstance(self.transfer_loss_primary, ScaledDistillationLossMixin):
+            self._distillation_loss_zero_grad = True
+        else:
+            super().optimizer_zero_grad(*args, **kwargs)
+
+    def on_train_batch_end(self, outputs, batch, batch_idx: int, dataloader_idx: int):
+        super().on_train_batch_end(outputs, batch, batch_idx, dataloader_idx)
+
+        if isinstance(self.transfer_loss_primary, ScaledDistillationLossMixin) and self._distillation_loss_zero_grad:
+            optimizers = self.optimizers()
+
+            if type(optimizers) not in (list, tuple):
+                optimizers = [optimizers]
+
+            for optimizer in optimizers:
+                optimizer.zero_grad()
+
+            self._distillation_loss_zero_grad = False

@@ -50,7 +50,7 @@ class CosineEmbeddingLossWrapper(nn.CosineEmbeddingLoss, Serialization, Typing):
             if target.device != x1.device or target.dtype != x1.dtype:
                 target = target.to(device=x1.device, dtype=x1.dtype)
         else:
-            target = torch.tensor(1.0, device=x1.device, dtype=x1.dtype)
+            target = torch.tensor([1.0], device=x1.device, dtype=x1.dtype)
             self._target = target
 
         return super().forward(x1, x2, target)

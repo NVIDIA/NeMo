@@ -24,6 +24,29 @@ class CTCDistillationMixin(DistillationMixin):
     Distillation Mixin specialization for CTC based ASR models.
     """
 
+    def setup_distillation_loss(self):
+        """
+        Setup of distillation losses that are used during distillation training.
+
+        If implemented by base class, in case the distillation config does not contain the 'loss' sub-config,
+        the model itself can provide a default loss here, which will be used in place of the config.
+
+        Returns:
+            A dictionary of Loss object(s) that will be used as the distillation loss function.
+            The dictionary must have at least 1 key - "primary" which is the primary loss function used
+            for distillation.
+            By default, this function returns KLDivergence loss (primary) and CosineEmbeddingLossWrapper (cosine).
+            If None is returned, the distillation config must have an appropriate loss function defined.
+        """
+        # Lazy import to avoid circular dependency between imports
+        from nemo.collections.common.losses import CosineEmbeddingLossWrapper, ScaledKLDivLoss
+
+        temperature = self.distill_cfg.get('temperature', 1.0)
+        primary = ScaledKLDivLoss(temperature, log_target=True, reduction='batchmean')
+        cosine = CosineEmbeddingLossWrapper()
+        loss_dict = {'primary': primary, 'cosine': cosine}
+        return loss_dict
+
     def distillation_registration_step(self, decoder: DistillationMixin):
         """
         Helper method to register tensors inside of `training_step`.
@@ -80,7 +103,8 @@ class CTCDistillationMixin(DistillationMixin):
         teacher_decoder_params = list(other_model.decoder.parameters())
         student_decoder_params = list(self.decoder.parameters())
 
-        if len(teacher_decoder_params) == len(student_decoder_params) and 'cosine' in self.distill_cfg:
+        loss_cfg = self.distill_cfg.get('loss', {})
+        if len(teacher_decoder_params) == len(student_decoder_params) and 'cosine' in loss_cfg:
             # If number of weight matrices is same, attempt to perform decoder weight matrix distillation
             self._distillation_decoder_match = True
 
@@ -90,10 +114,11 @@ class CTCDistillationMixin(DistillationMixin):
                     self._distillation_decoder_match = False
                     break
 
-            logging.info(
-                "Decoder parameters match exactly between student and teacher models. Initializing "
-                "student decoder with teacher parameters."
-            )
+            if self._distillation_decoder_match:
+                logging.info("Decoder parameters match exactly between student and teacher models")
+            else:
+                logging.info("Decoder parameters do not match exactly between student and teacher models, "
+                             "due to parameter shape mismatch")
         else:
             # Number of weight matrices are different, cannot perform weight matrix distillation
             self._distillation_decoder_match = False

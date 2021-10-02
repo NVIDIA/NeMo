@@ -441,7 +441,7 @@ class ConvASRDecoder(NeuralModule, Exportable, DistillationMixin):
 
         if self.is_being_distilled():
             temperature = self.distill_cfg.get('temperature', 1.0)
-            temp_logits = torch.nn.functional.log_softmax(logits / temperature)
+            temp_logits = torch.nn.functional.log_softmax(logits / temperature, dim=-1)
             self.distillation_registration_step(log_prob=temp_logits)
             del temp_logits
 

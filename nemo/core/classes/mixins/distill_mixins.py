@@ -85,14 +85,8 @@ class DistillationMixin(ABC):
             By default, this function returns KLDivergence loss (primary) and CosineEmbeddingLossWrapper (cosine).
             If None is returned, the distillation config must have an appropriate loss function defined.
         """
-        # Lazy import to avoid circular dependency between imports
-        from nemo.collections.common.losses import CosineEmbeddingLossWrapper, ScaledKLDivLoss
-
-        temperature = self.distill_cfg.get('temperature', 1.0)
-        primary = ScaledKLDivLoss(temperature, log_target=True, reduction='batchmean')
-        cosine = CosineEmbeddingLossWrapper()
-        loss_dict = {'primary': primary, 'cosine': cosine}
-        return loss_dict
+        raise NotImplementedError("Please implement setup_distillation_loss() in model which subclasses "
+                                  "DistillationMixin")
 
     def register_distillation_tensor(
         self, loss_key: str = None, tensor: torch.Tensor = None, loss_name: str = "primary",

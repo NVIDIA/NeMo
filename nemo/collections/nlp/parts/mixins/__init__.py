@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.parts.mixins.mtencdec_distillation_mixins import MTEncDecDistillationMixin
+from nemo.collections.nlp.parts.mixins.nmt_distillation_mixins import MTEncDecDistillationMixin

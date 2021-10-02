@@ -101,6 +101,29 @@ class MTEncDecDistillationMixin(DistillationMixin):
     #         self._distillation_decoder_match = False
     #         logging.info("Decoder parameters do not match exactly between student and teacher models")
 
+    def setup_distillation_loss(self):
+        """
+        Setup of distillation losses that are used during distillation training.
+
+        If implemented by base class, in case the distillation config does not contain the 'loss' sub-config,
+        the model itself can provide a default loss here, which will be used in place of the config.
+
+        Returns:
+            A dictionary of Loss object(s) that will be used as the distillation loss function.
+            The dictionary must have at least 1 key - "primary" which is the primary loss function used
+            for distillation.
+            By default, this function returns KLDivergence loss (primary) and CosineEmbeddingLossWrapper (cosine).
+            If None is returned, the distillation config must have an appropriate loss function defined.
+        """
+        # Lazy import to avoid circular dependency between imports
+        from nemo.collections.common.losses import CosineEmbeddingLossWrapper, ScaledKLDivLoss
+
+        temperature = self.distill_cfg.get('temperature', 1.0)
+        primary = ScaledKLDivLoss(temperature, log_target=True, reduction='batchmean')
+        cosine = CosineEmbeddingLossWrapper()
+        loss_dict = {'primary': primary, 'cosine': cosine}
+        return loss_dict
+
     def prehook_additional_distillation_losses(
         self,
         loss_name: str,

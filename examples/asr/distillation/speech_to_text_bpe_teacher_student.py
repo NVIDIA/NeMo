@@ -32,6 +32,8 @@ def main(cfg):
 
     teacher_student_model = DistillationModelPT(cfg=cfg.model, trainer=trainer)
 
+    teacher_student_model.student.maybe_init_from_pretrained_checkpoint(cfg)
+
     trainer.fit(teacher_student_model)
 
 
