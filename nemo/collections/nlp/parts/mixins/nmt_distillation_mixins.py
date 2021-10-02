@@ -116,10 +116,10 @@ class MTEncDecDistillationMixin(DistillationMixin):
             If None is returned, the distillation config must have an appropriate loss function defined.
         """
         # Lazy import to avoid circular dependency between imports
-        from nemo.collections.common.losses import CosineEmbeddingLossWrapper, ScaledKLDivLoss
+        from nemo.collections.common.losses import CosineEmbeddingLossWrapper, NMTScaledKLDivLoss
 
         temperature = self.distill_cfg.get('temperature', 1.0)
-        primary = ScaledKLDivLoss(temperature, log_target=True, reduction='batchmean')
+        primary = NMTScaledKLDivLoss(temperature, log_target=True, reduction='none')
         cosine = CosineEmbeddingLossWrapper()
         loss_dict = {'primary': primary, 'cosine': cosine}
         return loss_dict

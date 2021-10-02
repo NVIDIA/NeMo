@@ -214,6 +214,7 @@ class DistillationModelPT(ModelPT):
         # Attach the loss dict to teacher and student and all modules which extend DistillationMixin
         distill_mixins.set_distill_loss_dict(self.loss_dict)
         logging.info(f"Distillation losses registered : {list(self.loss_dict.keys())}")
+        logging.info(f"{self.loss_dict}")
 
     def forward_delegate(self, fn):
         """
