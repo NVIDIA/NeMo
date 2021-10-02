@@ -138,7 +138,7 @@ class NLPDDPPlugin(DDPPlugin):
 
     def configure_ddp(self):
         """ Override LightningModule ddp if using model parallel.
-            Sets find_unused_parameters to True.
+            Sets find_unused_parameters to False to use activation-checkpoint-recomputation.
         """
 
         app_state = AppState()
@@ -155,7 +155,7 @@ class NLPDDPPlugin(DDPPlugin):
                 device_ids=device_ids,
                 output_device=device_ids[0],
                 process_group=app_state.data_parallel_group,
-                find_unused_parameters=True,
+                find_unused_parameters=False,
                 **self._ddp_kwargs,
             )
 
