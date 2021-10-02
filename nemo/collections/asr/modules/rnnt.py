@@ -475,6 +475,8 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
                 tokens, state=dec_states, add_sos=False, batch_size=batch
             )  # [B, 1, H], List([L, 1, H])
 
+            dec_states = tuple(state.to(dtype=dtype) for state in dec_states)
+
         # Update done states and cache shared by entire batch.
         j = 0
         for i in range(final_batch):
@@ -518,11 +520,17 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
                ([L x (B, H)], [L x (B, H)])
        """
         # LSTM has 2 states
+        new_states = [[] for _ in range(len(decoder_states[0]))]
         for layer in range(self.pred_rnn_layers):
-            for state_id in range(len(batch_states)):
-                batch_states[state_id][layer] = torch.stack([s[state_id][layer] for s in decoder_states])
+            for state_id in range(len(decoder_states[0])):
+                # batch_states[state_id][layer] = torch.stack([s[state_id][layer] for s in decoder_states])
+                new_state_for_layer = torch.stack([s[state_id][layer] for s in decoder_states])
+                new_states[state_id].append(new_state_for_layer)
 
-        return batch_states
+        for state_id in range(len(decoder_states[0])):
+            new_states[state_id] = torch.stack([state for state in new_states[state_id]])
+
+        return new_states
 
     def batch_select_state(self, batch_states: List[torch.Tensor], idx: int) -> List[List[torch.Tensor]]:
         """Get decoder state from batch of states, for given id.
@@ -575,9 +583,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
             Warning: This will make the forward-backward pass much slower than normal.
             It also might not fix the OOM if the GPU simply does not have enough memory to compute the joint.
 
-        experimental_fuse_loss_wer: Optional bool, set to False by default.
-            NOTE: This is an experimental feature that attempts to trade of compute time for memory preservation.
-            There may be undetermined effects to convergence behaviour.
+        fuse_loss_wer: Optional bool, set to False by default.
 
             Fuses the joint forward, loss forward and
             wer forward steps. In doing so, it trades of speed for memory conservation by creating sub-batches
@@ -670,8 +676,9 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
         vocabulary: Optional[List] = None,
         log_softmax: Optional[bool] = None,
         preserve_memory: bool = False,
-        experimental_fuse_loss_wer: bool = False,
+        fuse_loss_wer: bool = False,
         fused_batch_size: Optional[int] = None,
+        experimental_fuse_loss_wer: Any = None,
     ):
         super().__init__()
 
@@ -680,17 +687,19 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
         self._vocab_size = num_classes
         self._num_classes = num_classes + 1  # add 1 for blank symbol
 
-        self._fuse_loss_wer = experimental_fuse_loss_wer
+        if experimental_fuse_loss_wer is not None:
+            # TODO: Deprecate in 1.6
+            logging.warning(
+                "`experimental_fuse_loss_wer` will be deprecated in NeMo 1.6. Please use `fuse_loss_wer` instead."
+            )
+            # Override fuse_loss_wer from deprecated argument
+            fuse_loss_wer = experimental_fuse_loss_wer
+
+        self._fuse_loss_wer = fuse_loss_wer
         self._fused_batch_size = fused_batch_size
 
-        if experimental_fuse_loss_wer and (fused_batch_size is None):
+        if fuse_loss_wer and (fused_batch_size is None):
             raise ValueError("If `fuse_loss_wer` is set, then `fused_batch_size` cannot be None!")
-
-        if experimental_fuse_loss_wer:
-            logging.warning(
-                "\nFused joint step is an experimental technique. Please be aware that it "
-                "may have unintended side effects!\n"
-            )
 
         self._loss = None
         self._wer = None
@@ -761,13 +770,12 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
 
             # If fused joint step is required, fused batch size is required as well
             if self._fused_batch_size is None:
-                raise ValueError("If `experimental_fuse_loss_wer` is set, then `fused_batch_size` cannot be None!")
+                raise ValueError("If `fuse_loss_wer` is set, then `fused_batch_size` cannot be None!")
 
             # When using fused joint step, both encoder and transcript lengths must be provided
             if (encoder_lengths is None) or (transcript_lengths is None):
                 raise ValueError(
-                    "`experimental_fuse_loss_wer` is set, therefore encoder and target lengths "
-                    "must be provided as well!"
+                    "`fuse_loss_wer` is set, therefore encoder and target lengths " "must be provided as well!"
                 )
 
             losses = []

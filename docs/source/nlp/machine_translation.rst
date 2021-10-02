@@ -19,7 +19,7 @@ Quick Start Guide
     MTEncDecModel.list_available_models()
 
     # Download and load the a pre-trained to translate from English to Spanish
-    model = MTEncDecModel.from_pretrained("nmt_en_es_transformer12x2")
+    model = MTEncDecModel.from_pretrained("nmt_en_es_transformer24x6")
 
     # Translate a sentence or list of sentences
     translations = model.translate(["Hello!"], source_lang="en", target_lang="es")
@@ -33,6 +33,30 @@ Available Models
 
    * - Model
      - Pretrained Checkpoint
+   * - *New Checkppoints*
+     - 
+   * - English -> German
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_de_transformer24x6
+   * - German -> English
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_de_en_transformer24x6
+   * - English -> Spanish
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_es_transformer24x6
+   * - Spanish -> English
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_es_en_transformer24x6
+   * - English -> French
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_fr_transformer24x6
+   * - French -> English
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_fr_en_transformer24x6
+   * - English -> Russian
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_ru_transformer24x6
+   * - Russian -> English
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_ru_en_transformer24x6
+   * - English -> Chinese
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_zh_transformer24x6
+   * - Chinese -> English
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_zh_en_transformer24x6
+   * - *Old Checkppoints*
+     -
    * - English -> German
      - https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_de_transformer12x2
    * - German -> English
@@ -82,6 +106,8 @@ Data Cleaning, Normalization & Tokenization
 -------------------------------------------
 
 We recommend applying the following steps to clean, normalize, and tokenize your data. All pre-trained models released, apply these data pre-processing steps.
+
+#. Please take a look at a detailed notebook on best practices to pre-process and clean your datasets - NeMo/tutorials/nlp/Data_Preprocessing_and_Cleaning_for_NMT.ipynb
 
 #. Language ID filtering - This step filters out examples from your training dataset that aren't in the correct language. For example, 
    many datasets contain examples where source and target sentences are in the same language. You can use a pre-trained language ID 
@@ -189,7 +215,7 @@ Training a BPE Tokenization
 ---------------------------
 
 Byte-pair encoding (BPE) :cite:`nlp-machine_translation-sennrich2015neural` is a sub-word tokenization algorithm that is commonly used 
-to reduce the large vocabulary size of datasets by splitting words into frequently occuring sub-words. Currently, mMachine translation 
+to reduce the large vocabulary size of datasets by splitting words into frequently occuring sub-words. Currently, Machine translation 
 only supports the `YouTokenToMe <https://github.com/VKCOM/YouTokenToMe>`__ BPE tokenizer. One can set the tokenization configuration 
 as follows:
 
@@ -272,13 +298,13 @@ Tarred datasets can be configured as follows:
 +-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
 | **model.{train_ds,validation_ds,test_ds}.metadata_file**              | str             | ``null``       | Path to JSON metadata file that contains only a single entry for the total number of batches in the dataset.   |
 +-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
-| **model.{train_ds,validation_ds,test_ds}.lines_per_dataset_fragment** | int             | ``1000000``    |                                                                                                                |
+| **model.{train_ds,validation_ds,test_ds}.lines_per_dataset_fragment** | int             | ``1000000``    | Number of lines to consider for bucketing and padding.                                                         |
 +-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
-| **model.{train_ds,validation_ds,test_ds}.num_batches_per_tarfile**    | int             | ``100``        | Maximum sequence to be used with the ``clean`` argument above.                                                 |
+| **model.{train_ds,validation_ds,test_ds}.num_batches_per_tarfile**    | int             | ``100``        | Number of batches (pickle files) within each tarfile.                                                          |
 +-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
-| **model.{train_ds,validation_ds,test_ds}.tar_shuffle_n**              | int             | ``100``        | Whether to cache IDs to avoid re-tokenizing data. This will be deprecated in favor of tarred datasets.         |
+| **model.{train_ds,validation_ds,test_ds}.tar_shuffle_n**              | int             | ``100``        | How many samples to look ahead and load to be shuffled.                                                        |
 +-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
-| **model.{train_ds,validation_ds,test_ds}.shard_strategy**             | str             | ``scatter``    | Whether to cache IDs in each of the nodes in multi-node training.                                              |
+| **model.{train_ds,validation_ds,test_ds}.shard_strategy**             | str             | ``scatter``    | How the shards are distributed between multiple workers.                                                       |
 +-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
 | **model.preproc_out_dir**                                             | str             | ``null``       | Path to folder that contains processed tar files or directory where new tar files are written.                 |
 +-----------------------------------------------------------------------+-----------------+----------------+----------------------------------------------------------------------------------------------------------------+
@@ -377,10 +403,10 @@ options:
 | **model.{encoder,decoder}.pre_ln**                                | bool            | ``false``             | Whether to apply layer-normalization before (``true``) or after (``false``) a sub-layer.                        |
 +-------------------------------------------------------------------+-----------------+-----------------------+-----------------------------------------------------------------------------------------------------------------+
 
-Our pre-trained models are optimized with Adam, with a maximum learning of 0.0004, beta of (0.9, 0.98), an inverse square root learning 
+Our pre-trained models are optimized with Adam, with a maximum learning of 0.0004, beta of (0.9, 0.98), and inverse square root learning 
 rate schedule from :cite:`nlp-machine_translation-vaswani2017attention`. The **model.optim** section sets the optimization parameters.
 
-The following script creates tarred datasets based on the provided parallel corpus and train a model based on the ``base`` configuration 
+The following script creates tarred datasets based on the provided parallel corpus and trains a model based on the ``base`` configuration 
 from :cite:`nlp-machine_translation-vaswani2017attention`.
 
 .. code ::
@@ -410,7 +436,7 @@ from :cite:`nlp-machine_translation-vaswani2017attention`.
       ~model.test_ds \
 
 The trainer keeps track of the sacreBLEU score :cite:`nlp-machine_translation-post2018call` on the provided validation set and saves 
-the checkpoints that had the top 5 (by default) sacreBLEU scores.
+the checkpoints that have the top 5 (by default) sacreBLEU scores.
 
 At the end of training, a ``.nemo`` file is written to the result directory which allows to run inference on a test set.
 
@@ -456,6 +482,102 @@ can be used to compute sacreBLEU scores.
 .. code ::
 
     cat test.en-es.translations | sacrebleu test.es
+
+Inference Improvements
+----------------------
+
+In practice, there are a few commonly used techniques at inference to improve translation quality. NeMo implements: 
+
+1) Model Ensembling
+2) Shallow Fusion decoding with transformer language models :cite:`nlp-machine_translation-gulcehre2015using`
+3) Noisy-channel re-ranking :cite:`nlp-machine_translation-yee2019simple`
+
+(a) Model Ensembling - Given many models trained with the same encoder and decoder tokenizer, it is possible to ensemble their predictions (by averaging probabilities at each step) to generate better translations.
+
+.. math::
+
+  P(y_t|y_{<t},x;\theta_{1} \ldots \theta_{k}) = \frac{1}{k} \sum_{i=1}^k P(y_t|y_{<t},x;\theta_{i})
+
+
+*NOTE*: It is important to make sure that all models being ensembled are trained with the same tokenizer.
+
+The inference script will ensemble all models provided via the `--model` argument as a comma separated string pointing to multiple model paths.
+
+For example, to ensemble three models /path/to/model1.nemo, /path/to/model2.nemo, /path/to/model3.nemo, run:
+
+.. code::
+
+    python examples/nlp/machine_translation/nmt_transformer_infer.py \
+      --model /path/to/model1.nemo,/path/to/model2.nemo,/path/to/model3.nemo \
+      --srctext test.en \
+      --tgtout test.en-es.translations \
+      --batch_size 128 \
+      --source_lang en \
+      --target_lang es
+
+(b) Shallow Fusion Decoding with Transformer Language Models - Given a translation model or an ensemble ot translation models, it possible to combine the scores provided by the translation model(s) and a target-side language model.
+
+At each decoding step, the score for a particular hypothesis on the beam is given by the weighted sum of the translation model log-probabilities and lanuage model log-probabilities.
+
+.. math::
+   \mathcal{S}(y_{1\ldots n}|x;\theta_{s \rightarrow t},\theta_{t}) = \mathcal{S}(y_{1\ldots n - 1}|x;\theta_{s \rightarrow t},\theta_{t}) + \log P(y_{n}|y_{<n},x;\theta_{s \rightarrow t}) + \lambda_{sf} \log P(y_{n}|y_{<n};\theta_{t})
+
+Lambda controls the weight assigned to the language model. For now, the only family of language models supported are transformer language models trained in NeMo.
+
+*NOTE*: The transformer language model needs to be trained using the same tokenizer as the decoder tokenizer in the NMT system.
+
+For example, to ensemble three models /path/to/model1.nemo, /path/to/model2.nemo, /path/to/model3.nemo, with shallow fusion using an LM /path/to/lm.nemo
+
+.. code::
+
+    python examples/nlp/machine_translation/nmt_transformer_infer.py \
+      --model /path/to/model1.nemo,/path/to/model2.nemo,/path/to/model3.nemo \
+      --lm_model /path/to/lm.nemo \
+      --fusion_coef 0.05 \
+      --srctext test.en \
+      --tgtout test.en-es.translations \
+      --batch_size 128 \
+      --source_lang en \
+      --target_lang es
+
+(c) Noisy Channel Re-ranking - Unlike ensembling and shallow fusion, noisy channel re-ranking only re-ranks the final candidates produced by beam search. It does so based on three scores 
+
+1) Forward (source to target) translation model(s) log-proabilities 
+2) Reverse (target to source) translation model(s) log-proabilities
+3) Language Model (target) log-proabilities
+
+.. math::
+  \argmax_{i} \mathcal{S}(y_i|x) = \log P(y_i|x;\theta_{s \rightarrow t}^{ens}) + \lambda_{ncr} \big( \log P(x|y_i;\theta_{t \rightarrow s}) + \log P(y_i;\theta_{t}) \big)
+
+
+To perform noisy-channel re-ranking, first generate a `.scores` file that contains log-proabilities from the forward translation model for each hypothesis on the beam.
+
+.. code::
+  python examples/nlp/machine_translation/nmt_transformer_infer.py \
+    --model /path/to/model1.nemo,/path/to/model2.nemo,/path/to/model3.nemo \
+    --lm_model /path/to/lm.nemo \
+    --write_scores \
+    --fusion_coef 0.05 \
+    --srctext test.en \
+    --tgtout test.en-es.translations \
+    --batch_size 128 \
+    --source_lang en \
+    --target_lang es
+
+This will generate a scores file test.en-es.translations.scores, which is provided as input to NeMo/examples/nlp/machine_translation/noisy_channel_reranking.py
+
+This script also requires a reverse (target to source) translation model and a target language model.
+
+.. code::
+
+    python noisy_channel_reranking.py \
+        --reverse_model=/path/to/reverse_model1.nemo,/path/to/reverse_model2.nemo \
+        --language_model=/path/to/lm.nemo \
+        --srctext=test.en-es.translations.scores \
+        --tgtout=test-en-es.ncr.translations \
+        --forward_model_coef=1.0 \
+        --reverse_model_coef=0.7 \
+        --target_lm_coef=0.05 \
 
 Pretrained Encoders
 -------------------

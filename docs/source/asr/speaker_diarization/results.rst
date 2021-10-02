@@ -21,7 +21,7 @@ Load Speaker Embedding model
 
 .. code-block:: bash
 
-  pretrained_speaker_model='/path/to/speakerdiarization_speakernet.nemo' # local .nemo or pretrained speakernet model name
+  pretrained_speaker_model='/path/to/ecapa_tdnn.nemo' # local .nemo or pretrained speakernet model name
   ...
   # pass with hydra config
   config.diarizer.speaker_embeddings.model_path=pretrained_speaker_model
@@ -35,7 +35,7 @@ Inference
 ----------
 
 .. note::
-  For details and deep understanding, please refer to ``<NeMo_git_root>/tutorials/speaker_recognition/Speaker_Diarization_Inference.ipynb``.
+  For details and deep understanding, please refer to ``<NeMo_git_root>/tutorials/speaker_tasks/Speaker_Diarization_Inference.ipynb``.
 
 Check out :doc:`Datasets <./datasets>` for preparing audio files and optional label files.
 
@@ -44,7 +44,7 @@ Run and evaluate speaker diarizer with below command:
 .. code-block:: bash
 
   # Have a look at the instruction inside the script and pass the arguments you might need. 
-  python <NeMo_git_root>/examples/speaker_recognition/speaker_diarize.py 
+  python <NeMo_git_root>/examples/speaker_tasks/diarization/speaker_diarize.py 
 
 
 NGC Pretrained Checkpoints
@@ -59,7 +59,7 @@ In general, you can load models with model name in the following format,
 .. code-block:: python
 
   pretrained_vad_model='vad_telephony_marblenet' 
-  pretrained_speaker_model='speakerdiarization_speakernet' 
+  pretrained_speaker_model='ecapa_tdnn' 
   ...
   config.diarizer.vad.model_path=retrained_vad_model \
   config.diarizer.speaker_embeddings.model_path=pretrained_speaker_model

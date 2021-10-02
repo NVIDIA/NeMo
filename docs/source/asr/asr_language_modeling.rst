@@ -21,7 +21,7 @@ best candidates. The beam search decoders in NeMo support language models traine
 `https://github.com/kpu/kenlm <https://github.com/kpu/kenlm>`__).
 The beam search decoders and KenLM library are not installed by default in NeMo, and you need to install them to be
 able to use beam search decoding and N-gram LM.
-Please refer to `scripts/ngram_lm/install_beamsearch_decoders.sh` on how to install them.
+Please refer to `scripts/asr_language_modeling/ngram_lm/install_beamsearch_decoders.sh` on how to install them.
 
 NeMo supports both character-based and BPE-based models for N-gram LMs. An N-gram LM can be used with beam search
 decoders on top of the ASR models to produce more accurate candidates. The beam search decoder would incorporate
@@ -107,9 +107,9 @@ You may evaluate an ASR model as the following:
                                          --acoustic_batch_size <batch size for calculating log probabilities> \
                                          --beam_width <list of the beam widths> \
                                          --beam_alpha <list of the beam alphas> \
-                                         --beam_width <list of the beam betas> \
+                                         --beam_beta <list of the beam betas> \
                                          --preds_output_folder <optional folder to store the predictions> \
-                                         --decoding_mode beam_search_ngram
+                                         --decoding_mode beamsearch_ngram
 
 It can evaluate a model in the three following modes by setting the argument `--decoding_mode`:
 
@@ -203,13 +203,18 @@ Train Neural Rescorer
 =====================
 
 An example script to train such a language model with Transformer can be found at `examples/nlp/language_modeling/transformer_lm.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/language_modeling/transformer_lm.py>`__.
-It trains a TransformerLMModel which can be used as a neural rescorer for an ASR system.
+It trains a ``TransformerLMModel`` which can be used as a neural rescorer for an ASR system. Full documentation on language models training is available at:
+
+:doc:`../nlp/language_modeling`
+
+You may also use a pretrained language model from HuggingFace library like Transformer-XL and GPT instead of training your model.
+Models like BERT and RoBERTa are not supported by this script as they are trained as a Masked Language Model and are not efficient and effective to score sentences out of the box.
 
 
 Evaluation
 ==========
 
-Given a trained TransformerLMModel `.nemo` file, the script available at
+Given a trained TransformerLMModel `.nemo` file or a pretrained HF model, the script available at
 `scripts/asr_language_modeling/neural_rescorer/eval_neural_rescorer.py <https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/neural_rescorer/eval_neural_rescorer.py>`__
 can be used to re-score beams obtained with ASR model. You need the `.tsv` file containing the candidates produced
 by the acoustic model and the beam search decoding to use this script. The candidates can be the result of just the beam
@@ -237,7 +242,7 @@ You may follow the following steps to evaluate a neural LM:
 
 .. code::
     python eval_neural_rescorer.py
-        --lm_model=[path to .nemo file of the LM]
+        --lm_model=[path to .nemo file of the LM or the name of a HF pretrained model]
         --beams_file=[path to beams .tsv file]
         --beam_size=[size of the beams]
         --eval_manifest=[path to eval manifest .json file]
@@ -253,7 +258,8 @@ The following is the list of the arguments for the evaluation script:
 +---------------------+--------+------------------+-------------------------------------------------------------------------+
 | **Argument**        |**Type**| **Default**      | **Description**                                                         |
 +---------------------+--------+------------------+-------------------------------------------------------------------------+
-| lm_model            | str    | Required         | The path of the '.nemo' file of the ASR model to extract the tokenizer. |
+| lm_model            | str    | Required         | The path of the '.nemo' file of an ASR model, or the name of a          |
+|                     |        |                  | HuggingFace pretrained model like 'transfo-xl-wt103' or 'gpt2'          |
 +---------------------+--------+------------------+-------------------------------------------------------------------------+
 | eval_manifest       | str    | Required         | Path to the evaluation manifest file (.json manifest file)              |
 +---------------------+--------+------------------+-------------------------------------------------------------------------+
@@ -269,6 +275,8 @@ The following is the list of the arguments for the evaluation script:
 +---------------------+--------+------------------+-------------------------------------------------------------------------+
 | batch_size          | int    | 16               | The batch size used to calculate the scores                             |
 +---------------------+--------+------------------+-------------------------------------------------------------------------+
+| max_seq_length      | int    | 512              | Maximum sequence length (in tokens) for the input                       |
++---------------------+--------+------------------+-------------------------------------------------------------------------+
 | scores_output_file  | str    | None             | The optional file to store the rescored beams                           |
 +---------------------+--------+------------------+-------------------------------------------------------------------------+
 | use_amp             | bool   | ``False``        | Whether to use AMP if available calculate the scores                    |
@@ -281,10 +289,10 @@ The following is the list of the arguments for the evaluation script:
 Hyperparameter Linear Search
 ----------------------------
 
-This script also supports linear search for parameters `rescorer_alpha` and `rescorer_beta`. If any of the two is not
+This script also supports linear search for parameters `alpha` and `beta`. If any of the two is not
 provided, a linear search is performed to find the best value for that parameter. When linear search is used, initially
-`rescorer_beta` is set to zero and the best value for `rescorer_alpha` is found, then `rescorer_alpha` is fixed with
-that value and another linear search is done to find the best value for `rescorer_beta`.
+`beta` is set to zero and the best value for `alpha` is found, then `alpha` is fixed with
+that value and another linear search is done to find the best value for `beta`.
 If any of the of these two parameters is already specified, then search for that one is skipped. After each search for a
 parameter, the plot of WER% for different values of the parameter is also shown.
 

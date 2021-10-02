@@ -41,12 +41,22 @@ import torch.nn as nn
 import torch.nn.functional as F
 from librosa.util import tiny
 from torch.autograd import Variable
-from torch_stft import STFT
 
 from nemo.collections.asr.parts.preprocessing.perturb import AudioAugmentor
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.common.parts.patch_utils import stft_patch
 from nemo.utils import logging
+
+# TODO @blisc: Perhaps refactor instead of import guarding
+try:
+    from torch_stft import STFT
+except ModuleNotFoundError:
+    from nemo.utils.exceptions import CheckInstall
+
+    # fmt: off
+    class STFT(CheckInstall): pass
+    # fmt: on
+
 
 CONSTANT = 1e-5
 

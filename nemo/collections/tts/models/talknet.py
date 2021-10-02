@@ -387,6 +387,6 @@ class TalkNetSpectModel(SpectrogramGenerator, Exportable):
         # list_of_models.append(model)
         # return list_of_models
 
-        # NOTE: TalkNet loading is currently broken in r1.3.0 and newer. Please revert to r1.2.0 if interested in
+        # NOTE: TalkNet loading is currently broken in main and newer. Please revert to r1.2.0 if interested in
         # TalkNet.
         pass

@@ -24,9 +24,9 @@
 #                                         --kenlm_model_file <path to the binary KenLM model> \
 #                                         --beam_width <list of the beam widths> \
 #                                         --beam_alpha <list of the beam alphas> \
-#                                         --beam_width <list of the beam betas> \
+#                                         --beam_beta <list of the beam betas> \
 #                                         --preds_output_folder <optional folder to store the predictions> \
-#                                         --decoding_mode beam_search_ngram
+#                                         --decoding_mode beamsearch_ngram
 #                                         ...
 #
 # You may find more info on how to use this script at:
@@ -150,7 +150,9 @@ def beam_search_eval(
             )
         )
     logging.info(
-        'Best WER/CER in candidates = {:.2%}/{:.2%}'.format(wer_dist_best / words_count, cer_dist_best / chars_count)
+        'Oracle WER/CER in candidates with perfect LM= {:.2%}/{:.2%}'.format(
+            wer_dist_best / words_count, cer_dist_best / chars_count
+        )
     )
     logging.info(f"=================================================================================")
 
