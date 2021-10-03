@@ -326,7 +326,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=config['batch_size'],
-            collate_fn=dataset.collate_fn,
+            collate_fn=collate_fn,
             drop_last=config.get('drop_last', False),
             shuffle=shuffle,
             num_workers=config.get('num_workers', 0),
