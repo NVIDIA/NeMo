@@ -129,6 +129,12 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--sort_shard",
+    action='store_true',
+    help="Whether or not to sort samples inside the shards based on their duration.",
+)
+
+parser.add_argument(
     "--use_relative_paths",
     action='store_true',
     help="Whether or not consider the paths in the manifest relative to the path of the manifest file itself.",
@@ -154,6 +160,7 @@ class ASRTarredDatasetConfig:
     shuffle: bool = False
     use_relative_paths: bool = False
     sort: bool = True
+    sort_shard: bool = True
     max_duration: Optional[float] = None
     min_duration: Optional[float] = None
     shuffle_seed: Optional[int] = None
@@ -470,7 +477,7 @@ class ASRTarredDatasetBuilder:
         with open(manifest_path, 'r') as m:
             for line in m:
                 entry = json.loads(line)
-                if (config.max_duration is None or entry['duration'] < config.max_duration) and (
+                if (config.max_duration is None or entry['duration'] <= config.max_duration) and (
                     config.min_duration is None or entry['duration'] > config.min_duration
                 ):
                     entries.append(entry)
@@ -483,6 +490,9 @@ class ASRTarredDatasetBuilder:
     def _create_shard(self, entries, target_dir, shard_id):
         """Creates a tarball containing the audio files from `entries`.
         """
+        if self.config.sort_shard:
+            entries.sort(key=lambda x: x["duration"], reverse=False)
+
         new_entries = []
         tar = tarfile.open(os.path.join(target_dir, f'audio_{shard_id}.tar'), mode='w', dereference=True)
 
@@ -553,6 +563,7 @@ def main():
     shuffle = args.shuffle
     use_relative_paths = args.use_relative_paths
     sort = args.sort
+    sort_shard = args.sort_shard
     seed = args.shuffle_seed if args.shuffle_seed else None
     write_metadata = args.write_metadata
     num_workers = args.workers
@@ -565,6 +576,7 @@ def main():
             num_shards=num_shards,
             shuffle=shuffle,
             sort=sort,
+            sort_shard=sort_shard,
             use_relative_paths=use_relative_paths,
             max_duration=max_duration,
             min_duration=min_duration,
@@ -586,6 +598,7 @@ def main():
             shuffle=shuffle,
             use_relative_paths=use_relative_paths,
             sort=sort,
+            sort_shard=sort_shard,
             max_duration=max_duration,
             min_duration=min_duration,
             shuffle_seed=seed,
@@ -612,6 +625,7 @@ def main():
         metadata.dataset_config.min_duration = min_duration
         metadata.dataset_config.shuffle = shuffle
         metadata.dataset_config.sort = sort
+        metadata.dataset_config.sort_shard = sort_shard
         metadata.dataset_config.shuffle_seed = seed
 
         builder.configure(metadata.dataset_config)
