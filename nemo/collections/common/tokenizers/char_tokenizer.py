@@ -12,11 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
+from enum import Enum
+from typing import NewType, Optional
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 __all__ = ['CharTokenizer']
+
+
+class SpecialTokenString(Enum):
+    MASK = 'mask'
+    BOS = 'bos'
+    EOS = 'eos',
+    PAD = 'pad'
+    SEP = 'sep'
+    CLS = 'cls'
+    UNK = 'unk'
+
+    @classmethod
+    def has_value(cls, value):
+        return value in cls._value2member_map_
+
+
+SpecialTokenStringType = NewType('SpecialTokenString', SpecialTokenString)
 
 
 class CharTokenizer(TokenizerSpec):
@@ -32,6 +50,8 @@ class CharTokenizer(TokenizerSpec):
         sep_token: Optional[str] = None,
         cls_token: Optional[str] = None,
         unk_token: Optional[str] = None,
+        special_token_to_prepend: Optional[SpecialTokenStringType] = None,
+        special_token_to_append: Optional[SpecialTokenStringType] = None,
     ):
         """
         Args:
@@ -50,20 +70,23 @@ class CharTokenizer(TokenizerSpec):
         self.vocab = {vocab_list[i].strip(): i for i in range(len(vocab_list))}
 
         special_tokens_dict = {}
-        if unk_token:
+        if unk_token is not None:
             special_tokens_dict["unk_token"] = unk_token
-        if sep_token:
+        if sep_token is not None:
             special_tokens_dict["sep_token"] = sep_token
-        if mask_token:
+        if mask_token is not None:
             special_tokens_dict["mask_token"] = mask_token
-        if bos_token:
+        if bos_token is not None:
             special_tokens_dict["bos_token"] = bos_token
-        if eos_token:
+        if eos_token is not None:
             special_tokens_dict["eos_token"] = eos_token
-        if pad_token:
+        if pad_token is not None:
             special_tokens_dict["pad_token"] = pad_token
-        if cls_token:
+        if cls_token is not None:
             special_tokens_dict["cls_token"] = cls_token
+        if special_token_to_prepend is not None:
+            if SpecialTokenString.has_value(special_token_to_prepend):
+                if
 
         self.add_special_tokens(special_tokens_dict)
         self.inv_vocab = {v: k for k, v in self.vocab.items()}
