@@ -28,6 +28,7 @@ from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
+from torch.utils.data import ChainDataset
 
 
 class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
@@ -316,6 +317,11 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             dataset = audio_to_text_dataset.get_bpe_dataset(
                 config=config, tokenizer=self.tokenizer, augmentor=augmentor
             )
+
+        if type(dataset) is ChainDataset:
+            collate_fn = dataset.datasets[0].collate_fn
+        else:
+            collate_fn = dataset.collate_fn
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
