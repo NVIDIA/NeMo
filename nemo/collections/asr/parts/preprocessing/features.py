@@ -33,6 +33,7 @@
 # SOFTWARE.
 # This file contains code artifacts adapted from https://github.com/ryanleary/patter
 import math
+import random
 
 import librosa
 import numpy as np
@@ -56,7 +57,6 @@ except ModuleNotFoundError:
     # fmt: off
     class STFT(CheckInstall): pass
     # fmt: on
-import random
 
 CONSTANT = 1e-5
 
@@ -341,7 +341,7 @@ class FilterbankFeatures(nn.Module):
             if nb_max_freq >= sample_rate / 2:
                 self.nb_augmentation_prob = 0.0
             else:
-                self._nb_max_fft_bin = int((nb_max_freq/sample_rate) * n_fft)
+                self._nb_max_fft_bin = int((nb_max_freq / sample_rate) * n_fft)
 
         # log_zero_guard_value is the the small we want to use, we support
         # an actual number, or "tiny", or "eps"
@@ -415,7 +415,7 @@ class FilterbankFeatures(nn.Module):
         if self.training and self.nb_augmentation_prob > 0.0:
             for idx in range(x.shape[0]):
                 if self._rng.random() < self.nb_augmentation_prob:
-                    x[idx, self._nb_max_fft_bin:, :] = 0.0
+                    x[idx, self._nb_max_fft_bin :, :] = 0.0
 
         # get power spectrum
         if self.mag_power != 1.0:
