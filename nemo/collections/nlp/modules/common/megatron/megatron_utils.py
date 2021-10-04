@@ -155,7 +155,7 @@ def get_megatron_lm_model(
         vocab_file = get_megatron_vocab_file(pretrained_model_name)
 
     if not merges_file:
-        merges_file = get_megatron_merge_file(pretrained_model_name)
+        merges_file = get_megatron_merges_file(pretrained_model_name)
 
     app_state = AppState()
     if app_state.model_parallel_size is not None and app_state.model_parallel_rank is not None:
@@ -337,3 +337,4 @@ def get_megatron_tokenizer(pretrained_model_name: str):
     """
     _check_megatron_name(pretrained_model_name)
     return MEGATRON_CONFIG_MAP[pretrained_model_name]["tokenizer_name"]
+

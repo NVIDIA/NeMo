@@ -16,7 +16,6 @@
 
 import numpy as np
 import torch
-from megatron import get_tokenizer
 
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
     create_masked_lm_predictions,
@@ -40,7 +39,7 @@ class BertDataset(torch.utils.data.Dataset):
         short_seq_prob,
         seed,
         binary_head,
-        tokenizer
+        tokenizer,
     ):
 
         # Params to store.

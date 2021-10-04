@@ -12,82 +12,55 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
+import random
+from apex import mpu
 
-from megatron.initialize import _set_random_seed, initialize_megatron
 from apex.mpu.initialize import (
     set_pipeline_model_parallel_rank,
     set_pipeline_model_parallel_world_size,
     set_tensor_model_parallel_rank,
     set_tensor_model_parallel_world_size,
 )
+import numpy as np
+import torch
 
-from nemo.utils import AppState, logging
+from nemo.utils import AppState
 
 
-def initialize_megatron_for_nemo(
-    global_rank=0,
-    world_size=1,
-    micro_batch_size=1,
-    tensor_model_parallel_size=1,
-    tensor_model_parallel_rank=0,
-    encoder_seq_length=512,
-    num_layers=1,
-    hidden_size=16,
-    num_attention_heads=1,
-    max_position_embeddings=512,
-    tokenizer_type=None,
-    vocab_file=None,
-    merge_file=None,
-    use_cpu_initialization=False,
-    init_method_std=0.02,
-    fp16=True,
-    bf16=False
+def initialize_model_parallel_for_nemo(
+    world_size, global_rank, local_rank, tensor_model_parallel_size=1, seed=1234,
 ):
-    os.environ["WORLD_SIZE"] = str(world_size)
-    os.environ["RANK"] = str(global_rank)
 
-    args_defaults = {}
-    args_defaults['num_layers'] = num_layers
-    args_defaults['hidden_size'] = hidden_size
-    args_defaults['num_attention_heads'] = num_attention_heads
-    args_defaults['max_position_embeddings'] = max_position_embeddings
-    args_defaults['tokenizer_type'] = tokenizer_type
-    args_defaults['vocab_file'] = vocab_file
-    args_defaults['merge_file'] = merge_file
-    args_defaults['lazy_mpu_init'] = True
-    args_defaults['use_cpu_initialization'] = use_cpu_initialization  # need to change this to use gpu init
-
-    extra_args_provider = get_extra_args_provider(
-        micro_batch_size, tensor_model_parallel_size, encoder_seq_length, init_method_std, fp16, bf16
-    )
-
+    # updating NeMo globals
     app_state = AppState()
+    app_state.global_rank = global_rank
+    app_state.world_size = world_size
+    app_state.model_parallel_size = tensor_model_parallel_size
+    app_state.model_parallel_rank = compute_model_parallel_rank(local_rank, tensor_model_parallel_size)
 
+    # update apex.mpu globals
     set_tensor_model_parallel_world_size(tensor_model_parallel_size)
-    set_tensor_model_parallel_rank(tensor_model_parallel_rank)
+    set_tensor_model_parallel_rank(app_state.model_parallel_rank)
 
     # pipeline model parallelism not implemented in NeMo yet
     set_pipeline_model_parallel_rank(0)
     set_pipeline_model_parallel_world_size(1)
 
-    _set_random_seed(1234)
+    _set_random_seed(seed)
 
-    initialize_megatron(extra_args_provider=extra_args_provider, args_defaults=args_defaults, ignore_unknown_args=True)
-    logging.info(f"Initialized Megatron ...")
     app_state._is_megatron_initialized = True
 
 
-def get_extra_args_provider(
-    micro_batch_size=1, tensor_model_parallel_size=1, encoder_seq_length=512, init_method_std=0.02, fp16=True, bf16=False
-):
-    def extra_args_provider(parser):
-        parser.set_defaults(micro_batch_size=micro_batch_size)
-        parser.set_defaults(tensor_model_parallel_size=tensor_model_parallel_size)
-        parser.set_defaults(encoder_seq_length=encoder_seq_length)
-        parser.set_defaults(init_method_std=init_method_std)
-        parser.set_defaults(fp16=fp16)
-        parser.set_defaults(bf16=bf16)
-        return parser
-
-    return extra_args_provider
+def _set_random_seed(seed_):
+    """Set random seed for reproducability."""
+    if seed_ is not None and seed_ > 0:
+        # Ensure that different pipeline MP stages get different seeds.
+        seed = seed_ + (100 * mpu.get_pipeline_model_parallel_rank())
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        if torch.cuda.device_count() > 0:
+            mpu.model_parallel_cuda_manual_seed(seed)
+    else:
+        raise ValueError('Seed ({}) should be a positive integer.'.format(seed_))
