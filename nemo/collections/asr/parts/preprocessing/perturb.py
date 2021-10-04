@@ -639,7 +639,9 @@ class TranscodePerturbation(Perturbation):
         if codecs is not None:
             for codec in codecs:
                 if codec not in ["g711", "amr-nb", "ogg"]:
-                    raise ValueError(f"TranscodePerturbation with {codec} isnot supported. Only {codecs} are supported")
+                    raise ValueError(
+                        f"TranscodePerturbation with {codec} isnot supported. Only {codecs} are supported"
+                    )
 
     def perturb(self, data):
         max_level = np.max(np.abs(data._samples))
@@ -658,23 +660,27 @@ class TranscodePerturbation(Perturbation):
             rate = rates[random.randint(0, len(rates) - 1)]
             _ = subprocess.check_output(
                 f"sox {orig_f.name} -V0 -C {rate} -t amr-nb - | sox -t amr-nb - -V0 -b 16 -r 16000 {transcoded_f.name}",
-                shell=True)
+                shell=True,
+            )
         elif self._codecs[codec_ind] == "ogg":
             transcoded_f = NamedTemporaryFile(suffix="_ogg.wav")
             rates = list(range(-1, 8))
             rate = rates[random.randint(0, len(rates) - 1)]
             _ = subprocess.check_output(
                 f"sox {orig_f.name} -V0 -C {rate} -t ogg - | sox -t ogg - -V0 -b 16 -r 16000 {transcoded_f.name}",
-                shell=True)
+                shell=True,
+            )
         elif self._codecs[codec_ind] == "g711":
             transcoded_f = NamedTemporaryFile(suffix="_g711.wav")
             _ = subprocess.check_output(
                 f"sox {orig_f.name} -V0  -r 8000 -c 1 -e a-law {transcoded_f.name} lowpass 3400 highpass 300",
-                shell=True)
+                shell=True,
+            )
 
         new_data = AudioSegment.from_file(transcoded_f.name, target_sr=16000)
         data._samples = new_data._samples[0 : data._samples.shape[0]]
         return
+
 
 perturbation_types = {
     "speed": SpeedPerturbation,
