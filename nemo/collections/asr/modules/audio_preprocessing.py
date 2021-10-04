@@ -22,7 +22,7 @@ from packaging import version
 
 from nemo.collections.asr.parts.numba.spec_augment import SpecAugmentNumba, spec_augment_launch_heuristics
 from nemo.collections.asr.parts.preprocessing.features import FilterbankFeatures
-from nemo.collections.asr.parts.submodules.spectr_augment import SpecAugment, SpecCutout
+from nemo.collections.asr.parts.submodules.spectr_augment import SpecAugment, SpecCutout, NarrowbandAugment
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import (
     AudioSignal,
@@ -216,6 +216,9 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         stft_conv=False,
         pad_value=0,
         mag_power=2.0,
+        rng=None,
+        nb_augmentation_prob=0.5,
+        nb_max_freq=3700,
     ):
         super().__init__(n_window_size, n_window_stride)
 
@@ -253,6 +256,9 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             stft_conv=stft_conv,
             pad_value=pad_value,
             mag_power=mag_power,
+            rng=rng,
+            nb_augmentation_prob=nb_augmentation_prob,
+            nb_max_freq=nb_max_freq,
         )
 
     def get_features(self, input_signal, length):
@@ -457,6 +463,9 @@ class SpectrogramAugmentation(NeuralModule):
         rng=None,
         mask_value=0.0,
         use_numba_spec_augment: bool = True,
+        sr=16000,
+        n_fft=512,
+        n_mels=80,
     ):
         super().__init__()
 
@@ -465,7 +474,6 @@ class SpectrogramAugmentation(NeuralModule):
             # self.spec_cutout.to(self._device)
         else:
             self.spec_cutout = lambda input_spec: input_spec
-
         if freq_masks + time_masks > 0:
             self.spec_augment = SpecAugment(
                 freq_masks=freq_masks,
