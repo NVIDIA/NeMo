@@ -17,8 +17,8 @@
 import torch
 import torch.nn as nn
 
-# from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType
-from megatron.model.enums import AttnMaskType
+from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType
+from nemo.collections.nlp.modules.common.megatron.utils import AutocastModuleWrapper
 
 
 class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):
@@ -30,7 +30,6 @@ class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):
     """
 
     @staticmethod
-    @torch.cuda.amp.custom_fwd
     def forward(ctx, inputs, scale):
         import scaled_upper_triang_masked_softmax_cuda
 
@@ -41,7 +40,6 @@ class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):
         return softmax_results
 
     @staticmethod
-    @torch.cuda.amp.custom_bwd
     def backward(ctx, output_grads):
         import scaled_upper_triang_masked_softmax_cuda
 
@@ -49,6 +47,16 @@ class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):
         input_grads = scaled_upper_triang_masked_softmax_cuda.backward(output_grads, softmax_results, scale_t[0])
 
         return input_grads, None
+
+
+class FusedScaledUpperTriangMaskedSoftmax(AutocastModuleWrapper):
+    def __init__(self, fp16=False, bf16=True):
+        super(FusedScaledUpperTriangMaskedSoftmax, self).__init__(fp16, bf16)
+
+        self.func = ScaledUpperTriangMaskedSoftmax
+
+    def forward(self, inputs, scale):
+        return self.autocast_forward(inputs, scale)
 
 
 class ScaledMaskedSoftmax(torch.autograd.Function):
@@ -60,7 +68,6 @@ class ScaledMaskedSoftmax(torch.autograd.Function):
     """
 
     @staticmethod
-    @torch.cuda.amp.custom_fwd(cast_inputs=torch.float16)
     def forward(ctx, inputs, mask, scale):
         import scaled_masked_softmax_cuda
 
@@ -71,7 +78,6 @@ class ScaledMaskedSoftmax(torch.autograd.Function):
         return softmax_results
 
     @staticmethod
-    @torch.cuda.amp.custom_bwd
     def backward(ctx, output_grads):
         import scaled_masked_softmax_cuda
 
@@ -79,6 +85,16 @@ class ScaledMaskedSoftmax(torch.autograd.Function):
 
         input_grads = scaled_masked_softmax_cuda.backward(output_grads, softmax_results, scale_t[0])
         return input_grads, None, None
+
+
+class FusedScaledMaskedSoftmax(AutocastModuleWrapper):
+    def __init__(self, fp16=False, bf16=True):
+        super(FusedScaledMaskedSoftmax, self).__init__(fp16, bf16)
+
+        self.fused_func = ScaledMaskedSoftmax
+
+    def forward(self, inputs, mask, scale):
+        return self.autocast_forward(inputs, mask, scale)
 
 
 class FusedScaleMaskSoftmax(nn.Module):
@@ -120,6 +136,10 @@ class FusedScaleMaskSoftmax(nn.Module):
 
         assert self.scale is None or softmax_in_fp32, "softmax should be in fp32 when scaled"
 
+        self.fused_scaled_uppper_triang_masked_softmax = FusedScaledUpperTriangMaskedSoftmax(
+                input_in_fp16, input_in_bf16)
+        self.fused_scaled_masked_softmax = ScaledMaskedSoftmax(input_in_fp16, input_in_bf16)
+
     def forward(self, input, mask):
         # [b, np, sq, sk]
         assert input.dim() == 4
@@ -160,11 +180,11 @@ class FusedScaleMaskSoftmax(nn.Module):
 
             # input is 3D tensor (attn_batches, sq, sk)
             input = input.view(-1, sq, sk)
-            probs = ScaledUpperTriangMaskedSoftmax.apply(input, scale)
+            probs = self.fused_scaled_uppper_triang_masked_softmax(input, scale)
             return probs.view(b, np, sq, sk)
         else:
             # input is 4D tensor (b, np, sq, sk)
-            return ScaledMaskedSoftmax.apply(input, mask, scale)
+            return self.fused_scaled_masked_softmax(input, mask, scale)
 
     def forward_torch_softmax(self, input, mask):
         if self.input_in_float16 and self.softmax_in_fp32:

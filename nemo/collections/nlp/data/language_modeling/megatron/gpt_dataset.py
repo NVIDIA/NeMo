@@ -29,7 +29,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
     get_train_valid_test_split_,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
-from nemo.collections.nlp.data.language_modeling.megatron.megatraon_dataset import MegatronDataset
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_dataset import MegatronDataset
 
 
 def build_train_valid_test_datasets(

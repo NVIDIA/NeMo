@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
-import tempfile
-from omegaconf.omegaconf import OmegaConf
+from nemo.collections.nlp.modules.common.megatron.megatron_bert import (
+    get_megatron_checkpoint_version,
+    set_megatron_checkpoint_version,
+)
+from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
 from pytorch_lightning.plugins.precision.precision_plugin import PrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
-from nemo.collections.nlp.data.language_modeling import megatron
 import shutil
 import tarfile
 from pytorch_lightning.utilities.enums import GradClipAlgorithmType
@@ -33,10 +33,6 @@ from typing import Any, Dict, List, Optional, Union
 import pytorch_lightning as pl
 import torch
 from apex import mpu
-from megatron.optimizer.clip_grads import clip_grad_norm_fp32
-from megatron.checkpointing import get_checkpoint_version, set_checkpoint_version
-from megatron.initialize import _set_random_seed
-from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
@@ -46,9 +42,7 @@ from pytorch_lightning.utilities import rank_zero_warn
 from pytorch_lightning.utilities.cloud_io import atomic_save
 from torch.nn.parallel import DistributedDataParallel
 
-from nemo.collections.nlp.modules.common.megatron.megatron_bert import MegatronBertEncoder
-from nemo.collections.nlp.modules.common.megatron.megatron_encoder import MegatronEncoderModule
-from nemo.utils import AppState, app_state, logging
+from nemo.utils import AppState, logging
 
 
 class NLPDDPPlugin(DDPPlugin):
@@ -91,7 +85,7 @@ class NLPDDPPlugin(DDPPlugin):
                     if not hasattr(p, 'model_parallel'):
                         p.model_parallel = False
 
-                if get_checkpoint_version() is not None:
+                if get_megatron_checkpoint_version() is not None:
                     # megatron checkpoint already restored
                     pass
                 elif trainer.checkpoint_connector.resume_checkpoint_path is not None:
@@ -110,14 +104,14 @@ class NLPDDPPlugin(DDPPlugin):
                         'checkpoint_version', None
                     )
                     if checkpoint_version is not None:
-                        set_checkpoint_version(checkpoint_version)
+                        set_megatron_checkpoint_version(checkpoint_version)
                     else:
                         logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
-                        set_checkpoint_version(0)
+                        set_megatron_checkpoint_version(0)
                 else:
                     self.lightning_module.restore_megatron_encoder_weights()
             else:
-                if get_checkpoint_version() is not None:
+                if get_megatron_checkpoint_version() is not None:
                     # megatron checkpoint already restored
                     pass
                 else:
@@ -135,7 +129,7 @@ class NLPDDPPlugin(DDPPlugin):
 
             if self.has_megatron_encoder:
                 # check megatron checkpoint version
-                checkpoint_version = get_checkpoint_version()
+                checkpoint_version = get_megatron_checkpoint_version()
                 if checkpoint_version is None:
                     raise ValueError("Unable to find megatron checkpoint version.")
 
@@ -143,7 +137,7 @@ class NLPDDPPlugin(DDPPlugin):
 
     def configure_ddp(self):
         """ Override LightningModule ddp if using model parallel.
-            Sets find_unused_parameters to True.
+            Sets find_unused_parameters to False to use activation-checkpoint-recomputation.
         """
 
         app_state = AppState()
@@ -160,7 +154,7 @@ class NLPDDPPlugin(DDPPlugin):
                 device_ids=device_ids,
                 output_device=device_ids[0],
                 process_group=app_state.data_parallel_group,
-                find_unused_parameters=True,
+                find_unused_parameters=False,
                 **self._ddp_kwargs,
             )
 
@@ -189,9 +183,6 @@ class NLPDDPPlugin(DDPPlugin):
                 app_state.data_parallel_size = mpu.get_data_parallel_world_size()
                 logging.info(f'mp_rank: {app_state.model_parallel_rank}')
                 logging.info(f'dp_rank: {app_state.data_parallel_rank}')
-                seed = os.environ.get("PL_GLOBAL_SEED", 1234)
-                # random seed must be set for megatron model parallel init
-                # _set_random_seed(seed)
 
     def save_checkpoint(self, checkpoint: Dict[str, Any], filepath: str) -> None:
         """Save model/training states as a checkpoint file through state-dump and file-write.

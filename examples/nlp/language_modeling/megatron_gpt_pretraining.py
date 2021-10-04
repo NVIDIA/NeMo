@@ -80,6 +80,9 @@ def main(cfg) -> None:
 
     trainer.fit(model)
 
+    if cfg.model.get('nemo_file_path', None) is not None:
+        model.save_to(cfg.model.nemo_file_path)
+
 
 if __name__ == '__main__':
     main()
