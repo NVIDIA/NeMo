@@ -22,7 +22,7 @@ from packaging import version
 
 from nemo.collections.asr.parts.numba.spec_augment import SpecAugmentNumba, spec_augment_launch_heuristics
 from nemo.collections.asr.parts.preprocessing.features import FilterbankFeatures
-from nemo.collections.asr.parts.submodules.spectr_augment import SpecAugment, SpecCutout, NarrowbandAugment
+from nemo.collections.asr.parts.submodules.spectr_augment import SpecAugment, SpecCutout
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import (
     AudioSignal,
@@ -217,8 +217,8 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         pad_value=0,
         mag_power=2.0,
         rng=None,
-        nb_augmentation_prob=0.5,
-        nb_max_freq=3700,
+        nb_augmentation_prob=0.0,
+        nb_max_freq=4000,
     ):
         super().__init__(n_window_size, n_window_stride)
 

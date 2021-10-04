@@ -636,6 +636,10 @@ class TranscodePerturbation(Perturbation):
         self._rng = np.random.RandomState() if rng is None else rng
         self._codecs = codecs if codecs is not None else ["g711", "amr-nb", "ogg"]
         self.att_factor = 0.8  # to avoid saturation while writing to wav
+        if codecs is not None:
+            for codec in codecs:
+                if codec not in ["g711", "amr-nb", "ogg"]:
+                    raise ValueError(f"TranscodePerturbation with {codec} isnot supported. Only {codecs} are supported")
 
     def perturb(self, data):
         max_level = np.max(np.abs(data._samples))

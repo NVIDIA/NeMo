@@ -234,9 +234,8 @@ class FilterbankFeatures(nn.Module):
         mag_power=2.0,
         use_grads=False,
         rng=None,
-        nb_augmentation_prob=0.5,
+        nb_augmentation_prob=0.0,
         nb_max_freq=4000,
-        nb_min_freq=300,
     ):
         super().__init__()
         if stft_conv or stft_exact_pad:
@@ -339,12 +338,10 @@ class FilterbankFeatures(nn.Module):
         self._rng = random.Random() if rng is None else rng
         self.nb_augmentation_prob = nb_augmentation_prob
         if self.nb_augmentation_prob > 0.0:
-            if nb_max_freq >= sample_rate / 2 and nb_min_freq == 0:
+            if nb_max_freq >= sample_rate / 2:
                 self.nb_augmentation_prob = 0.0
             else:
                 self._nb_max_fft_bin = int((nb_max_freq/sample_rate) * n_fft)
-                self._nb_min_fft_bin = int((nb_min_freq/sample_rate) * n_fft)
-
 
         # log_zero_guard_value is the the small we want to use, we support
         # an actual number, or "tiny", or "eps"
@@ -418,7 +415,6 @@ class FilterbankFeatures(nn.Module):
         if self.training and self.nb_augmentation_prob > 0.0:
             for idx in range(x.shape[0]):
                 if self._rng.random() < self.nb_augmentation_prob:
-                    # x[idx, 1:self._min_freq_index, :] = 0.0
                     x[idx, self._nb_max_fft_bin:, :] = 0.0
 
         # get power spectrum
