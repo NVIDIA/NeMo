@@ -11,10 +11,9 @@ e.g. `1122 -> mille cent vingt-deux`
 As available training data for upstream ASR will vary in use of convention, NeMo's French ITN accomodates either style for normalization e.g.
 
 ```
-	python inverse_normalize.py "mille-cent-vingt-deux" --language="fr"  
-	python inverse_normalize.py "mille cent vingt-deux" --language="fr"
+	python inverse_normalize.py "mille-cent-vingt-deux" --language="fr"  --> 1122
+	python inverse_normalize.py "mille cent vingt-deux" --language="fr"  --> 1122
 ```
-will yield same output: `1122`
 
 As a result, there exists some ambiguity in the case of currency conversions, namely minor denominations of the dollar e.g.
 
