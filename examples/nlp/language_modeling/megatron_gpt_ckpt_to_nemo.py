@@ -27,16 +27,25 @@ def main():
         required=False,
         help="Path to PTL checkpoints saved during training.",
     )
-    parser.add_argument("--nemo_file_path", type=str, default=None, required=False, help="Path to output .nemo file.")
+    parser.add_argument(
+        "--hparams_file", type=str, default=None, required=False, help="Path to updated config for restoring."
+    )
+    parser.add_argument("--nemo_file", type=str, default=None, required=False, help="Path to output .nemo file.")
+
+    parser.add_argument("--tensor_model_parallel_size", type=int, default=None, required=False)
 
     args = parser.parse_args()
 
-    args.checkpoint_folder = '/raid/nemo_experiments/gpt_debug/megatron_gpt/2021-10-01_11-23-40/checkpoints/mp_rank_00/megatron_gpt--val_loss=8.79-step=49-last.ckpt'
-    args.nemo_file_path = '~/tmp/ckpt_to_nemo.nemo'
+    # args.checkpoint_folder = '/raid/nemo_experiments/gpt_debug/megatron_gpt/2021-10-01_11-23-40/checkpoints/mp_rank_00/megatron_gpt--val_loss=8.79-step=49-last.ckpt'
+    args.checkpoint_folder = '/raid/nemo_experiments/gpt_debug/megatron_gpt/2021-10-04_11-03-07'
+    args.nemo_file = '~/tmp/ckpt_to_nemo.nemo'
+    args.tensor_model_parallel_size = 4
 
-    trainer = Trainer()
-    model = MegatronGPTModel.load_from_checkpoint(checkpoint_path=args.checkpoint_folder, trainer=trainer)
-    model.save_to(args.nemo_file_path)
+    trainer = Trainer(gpus=args.tensor_model_parallel_size)
+    model = MegatronGPTModel.load_from_checkpoint(
+        checkpoint_path=args.checkpoint_folder, hparams_file=args.hparams_file, trainer=trainer
+    )
+    model.save_to(args.nemo_file)
 
 
 if __name__ == '__main__':
