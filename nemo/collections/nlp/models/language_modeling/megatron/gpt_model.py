@@ -16,7 +16,7 @@
 
 import torch
 
-from apex import mpu
+from apex.transformer import tensor_parallel
 
 from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model, parallel_lm_logits
@@ -49,9 +49,9 @@ def post_language_model_processing(
     else:
         if fp16_lm_cross_entropy:
             assert output.dtype == torch.half
-            loss = mpu.vocab_parallel_cross_entropy(output, labels)
+            loss = tensor_parallel.vocab_parallel_cross_entropy(output, labels)
         else:
-            loss = mpu.vocab_parallel_cross_entropy(output.float(), labels)
+            loss = tensor_parallel.vocab_parallel_cross_entropy(output.float(), labels)
         return loss
 
 

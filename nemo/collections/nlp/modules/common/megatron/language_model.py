@@ -17,7 +17,7 @@
 import torch
 import torch.nn.functional as F
 
-from apex import mpu
+from apex.transformer import tensor_parallel
 
 from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
@@ -33,7 +33,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=None):
     """LM logits using word embedding weights."""
     # Parallel logits.
-    input_parallel = mpu.copy_to_tensor_model_parallel_region(input_)
+    input_parallel = tensor_parallel.copy_to_tensor_model_parallel_region(input_)
     # Matrix multiply.
     if bias is None:
         logits_parallel = F.linear(input_parallel, word_embeddings_weight)
@@ -43,7 +43,7 @@ def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=Non
     if parallel_output:
         return logits_parallel
 
-    return mpu.gather_from_tensor_model_parallel_region(logits_parallel)
+    return tensor_parallel.gather_from_tensor_model_parallel_region(logits_parallel)
 
 
 def get_language_model(
@@ -186,7 +186,7 @@ class Embedding(MegatronModule):
         self.num_tokentypes = num_tokentypes
 
         # Word embeddings (parallel).
-        self.word_embeddings = mpu.VocabParallelEmbedding(
+        self.word_embeddings = tensor_parallel.VocabParallelEmbedding(
             vocab_size, self.hidden_size, init_method=self.init_method, use_cpu_initialization=use_cpu_initialization,
         )
         self._word_embeddings_key = 'word_embeddings'
@@ -412,7 +412,7 @@ class TransformerLanguageModel(MegatronModule):
         # Decoder
         if self.add_decoder:
             assert (
-                mpu.get_pipeline_model_parallel_world_size() == 1
+                parallel_state.get_pipeline_model_parallel_world_size() == 1
             ), 'pipeline parallelism is not supported in the presence of decoder'
             self.decoder = ParallelTransformer(
                 layer_type=LayerType.decoder,

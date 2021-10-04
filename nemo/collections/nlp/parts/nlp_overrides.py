@@ -32,7 +32,8 @@ from typing import Any, Dict, List, Optional, Union
 
 import pytorch_lightning as pl
 import torch
-from apex import mpu
+from apex.transformer import tensor_parallel
+from apex.transformer import parallel_state
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
@@ -175,12 +176,12 @@ class NLPDDPPlugin(DDPPlugin):
         # after initializing DDP with PTL.
         if app_state.model_parallel_size is not None:
             if torch.distributed.is_initialized():
-                mpu.initialize_model_parallel(app_state.model_parallel_size)
-                app_state.model_parallel_group = mpu.get_tensor_model_parallel_group()
-                app_state.data_parallel_group = mpu.get_data_parallel_group()
-                app_state.model_parallel_rank = mpu.get_tensor_model_parallel_rank()
-                app_state.data_parallel_rank = mpu.get_data_parallel_rank()
-                app_state.data_parallel_size = mpu.get_data_parallel_world_size()
+                parallel_state.initialize_model_parallel(app_state.model_parallel_size)
+                app_state.model_parallel_group = parallel_state.get_tensor_model_parallel_group()
+                app_state.data_parallel_group = parallel_state.get_data_parallel_group()
+                app_state.model_parallel_rank = parallel_state.get_tensor_model_parallel_rank()
+                app_state.data_parallel_rank = parallel_state.get_data_parallel_rank()
+                app_state.data_parallel_size = parallel_state.get_data_parallel_world_size()
                 logging.info(f'mp_rank: {app_state.model_parallel_rank}')
                 logging.info(f'dp_rank: {app_state.data_parallel_rank}')
 
@@ -275,7 +276,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 super().save_to(model, mp_save_path)
 
             # we need a barrier for data_parallel_rank 0 when using model parallel so that all processes have finished writing their weights before creating .nemo file
-            # torch.distributed.barrier(group=mpu.get_tensor_model_parallel_group())
+            # torch.distributed.barrier(group=parallel_state.get_tensor_model_parallel_group())
             # torch.distributed.barrier()
 
             if is_global_rank_zero():

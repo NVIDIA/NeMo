@@ -14,13 +14,14 @@
 
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 import random
-from apex import mpu
+from apex.transformer import tensor_parallel
 
-from apex.mpu.initialize import (
+from apex.transformer.parallel_state import (
     set_pipeline_model_parallel_rank,
     set_pipeline_model_parallel_world_size,
     set_tensor_model_parallel_rank,
     set_tensor_model_parallel_world_size,
+    get_pipeline_model_parallel_rank,
 )
 import numpy as np
 import torch
@@ -56,12 +57,12 @@ def _set_random_seed(seed_):
     """Set random seed for reproducability."""
     if seed_ is not None and seed_ > 0:
         # Ensure that different pipeline MP stages get different seeds.
-        seed = seed_ + (100 * mpu.get_pipeline_model_parallel_rank())
+        seed = seed_ + (100 * get_pipeline_model_parallel_rank())
         random.seed(seed)
         np.random.seed(seed)
         torch.manual_seed(seed)
         if torch.cuda.device_count() > 0:
-            mpu.model_parallel_cuda_manual_seed(seed)
+            tensor_parallel.model_parallel_cuda_manual_seed(seed)
     else:
         raise ValueError('Seed ({}) should be a positive integer.'.format(seed_))
 
