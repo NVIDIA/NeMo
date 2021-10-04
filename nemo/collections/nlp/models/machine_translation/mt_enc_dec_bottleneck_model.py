@@ -250,7 +250,7 @@ class MTBottleneckModel(MTEncDecModel):
             loss = -(log_p_x_given_z + warmup_coef * loss_terms)
 
             info_dict["log_q_z_given_x"] = log_q_z_given_x.detach().cpu()
-            info_dict["log_var_q_z_given_x"] = z_logv.detach().cpu()
+            info_dict["log_var_q_z_given_x"] = z_logv.detach().mean().cpu()
             info_dict["log_p_z"] = log_p_z.detach().cpu()
             info_dict["kl_div_q_p"] = (log_q_z_given_x - log_p_z).detach().cpu()
 
