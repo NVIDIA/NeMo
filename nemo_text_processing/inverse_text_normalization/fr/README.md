@@ -5,7 +5,7 @@ Due to a 1990 orthographic reform, there are currently two conventions for writt
 1. **Reformed** All composite words are joined by a hyphen: 
 e.g. `1122 -> mille-cent-vingt-deux`
 
-2. **Traditional** Hyphenation only occurs (with exceptions) for numbers from 17 to 99 (inclusive):
+2. **Traditional** Hyphenation only occurs (with exception) for numbers from 17 to 99 (inclusive):
 e.g. `1122 -> mille cent vingt-deux`
 
 As available training data for upstream ASR will vary in use of convention, NeMo's French ITN accomodates either style for normalization e.g.
