@@ -30,7 +30,7 @@ def main():
         "--prompt", type=str, default="", required=True, help="Prompt for the model (a text to complete)"
     )
     parser.add_argument(
-        "--tokens_to_generate", type=int, default="64", required=True, help="How many tokens to add to prompt"
+        "--tokens_to_generate", type=int, default="64", required=False, help="How many tokens to add to prompt"
     )
     parser.add_argument(
         "--stop_after_sentence",
