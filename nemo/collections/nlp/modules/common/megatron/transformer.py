@@ -528,10 +528,10 @@ class ParallelTransformerLayer(MegatronModule):
             fused_fp16=fused_fp16,
         )
 
-        if args.fp16:
+        if fused_fp16:
             self.bias_dropout_add_fused_train = bias_dropout_add_fused_train_fp16
             self.bias_dropout_add_fused_inference = bias_dropout_add_fused_inference_fp16
-        else:
+        elif fused_bf16:
             self.bias_dropout_add_fused_train = bias_dropout_add_fused_train_bf16
             self.bias_dropout_add_fused_inference = bias_dropout_add_fused_inference_bf16
 
