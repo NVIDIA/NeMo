@@ -1,6 +1,4 @@
-# French ITN
-
-** Note on spelling **
+# Note on French spelling
 
 Due to a 1990 orthographic reform, there are currently two conventions for written French numbers:
 
