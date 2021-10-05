@@ -27,7 +27,7 @@ import torch
 from hydra.core.hydra_config import HydraConfig
 from hydra.utils import get_original_cwd
 from omegaconf import DictConfig, OmegaConf, open_dict
-from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
@@ -35,7 +35,7 @@ from pytorch_lightning.utilities import rank_zero_only
 from pytorch_lightning.utilities.types import _METRIC
 
 from nemo.constants import NEMO_ENV_VARNAME_VERSION
-from nemo.utils import app_state, logging
+from nemo.utils import app_state, logging, timers
 from nemo.utils.app_state import AppState
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
@@ -81,6 +81,13 @@ class CallbackParams:
 
 
 @dataclass
+class StepTimingParams:
+    reduction: Optional[str] = "mean"
+    # if True torch.cuda.synchronize() is called on start/stop
+    sync_cuda: Optional[bool] = False
+
+
+@dataclass
 class ExpManagerConfig:
     # Log dir creation parameters
     explicit_log_dir: Optional[str] = None
@@ -101,6 +108,50 @@ class ExpManagerConfig:
     checkpoint_callback_params: Optional[CallbackParams] = CallbackParams()
     # Additional exp_manager arguments
     files_to_copy: Optional[List[str]] = None
+    # logs timing of train/val/test steps
+    log_step_timing: Optional[bool] = True
+    step_timing_kwargs: Optional[StepTimingParams] = StepTimingParams()
+
+
+class TimingCallback(Callback):
+    """
+    Logs execution time of train/val/test steps
+    """
+
+    def __init__(self, timer_kwargs={}):
+        self.timer = timers.NamedTimer(**timer_kwargs)
+
+    def _on_batch_start(self, name):
+        self.timer.reset(name)
+        self.timer.start(name)
+
+    def _on_batch_end(self, name, pl_module):
+        self.timer.stop(name)
+        pl_module.log(name, self.timer[name], on_step=True, on_epoch=False)
+
+    def on_train_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
+        self._on_batch_start("train_step_timing")
+
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+        self._on_batch_end("train_step_timing", pl_module)
+
+    def on_validation_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
+        self._on_batch_start("validation_step_timing")
+
+    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+        self._on_batch_end("validation_step_timing", pl_module)
+
+    def on_test_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
+        self._on_batch_start("test_step_timing")
+
+    def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+        self._on_batch_end("test_step_timing", pl_module)
+
+    def on_before_backward(self, trainer, pl_module, loss):
+        self._on_batch_start("train_backward_timing")
+
+    def on_after_backward(self, trainer, pl_module):
+        self._on_batch_end("train_backward_timing", pl_module)
 
 
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Path:
@@ -237,6 +288,11 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             cfg.create_wandb_logger,
             cfg.wandb_logger_kwargs,
         )
+
+    # add loggers timing callbacks
+    if cfg.log_step_timing:
+        timing_callback = TimingCallback(timer_kwargs=cfg.step_timing_kwargs or {})
+        trainer.callbacks.insert(0, timing_callback)
 
     if cfg.create_checkpoint_callback:
         configure_checkpointing(
@@ -833,6 +889,7 @@ def configure_checkpointing(
         )
         params.every_n_val_epochs = params.period
 
+    # NOTE: checkpoint_callback should be called last
     checkpoint_callback = NeMoModelCheckpoint(n_resume=resume, **params)
     checkpoint_callback.last_model_path = trainer.checkpoint_connector.resume_checkpoint_path or ""
     trainer.callbacks.append(checkpoint_callback)
