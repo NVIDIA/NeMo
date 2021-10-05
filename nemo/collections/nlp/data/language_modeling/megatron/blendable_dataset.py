@@ -18,7 +18,7 @@ import time
 
 import numpy as np
 import torch
-from apex import mpu
+from apex.transformer import tensor_parallel
 from nemo.utils import logging
 
 from nemo.collections.nlp.data.language_modeling.megatron import helpers

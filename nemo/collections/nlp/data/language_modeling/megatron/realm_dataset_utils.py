@@ -18,7 +18,7 @@ import time
 import numpy as np
 import torch
 from megatron import get_args, get_tokenizer
-from apex import mpu
+from apex.transformer import tensor_parallel
 from nemo.utils import logging
 
 
@@ -26,8 +26,8 @@ def get_one_epoch_dataloader(dataset, micro_batch_size=None):
     """Specifically one epoch to be used in an indexing job."""
     args = get_args()
 
-    world_size = mpu.get_data_parallel_world_size()
-    rank = mpu.get_data_parallel_rank()
+    world_size = parallel_state.get_data_parallel_world_size()
+    rank = parallel_state.get_data_parallel_rank()
     if micro_batch_size is None:
         micro_batch_size = args.micro_batch_size
     global_batch_size = micro_batch_size * world_size
@@ -55,7 +55,7 @@ def get_ict_batch(data_iterator):
         data = None
     else:
         data = next(data_iterator)
-    data_b = mpu.broadcast_data(keys, data, datatype)
+    data_b = tensor_parallel.broadcast_data(keys, data, datatype)
 
     # Unpack.
     query_tokens = data_b['query_tokens'].long()
@@ -153,7 +153,7 @@ def get_block_samples_mapping(
     indexmap_filename += '.npy'
 
     # Build the indexed mapping if not exist.
-    if mpu.get_data_parallel_rank() == 0 and not os.path.isfile(indexmap_filename):
+    if parallel_state.get_data_parallel_rank() == 0 and not os.path.isfile(indexmap_filename):
         print(
             ' > WARNING: could not find index map file {}, building '
             'the indices on rank 0 ...'.format(indexmap_filename)
@@ -194,8 +194,8 @@ def get_block_samples_mapping(
     # device_index=rank which is not the case for model
     # parallel case
     counts = torch.cuda.LongTensor([1])
-    torch.distributed.all_reduce(counts, group=mpu.get_data_parallel_group())
-    assert counts[0].item() == torch.distributed.get_world_size(group=mpu.get_data_parallel_group())
+    torch.distributed.all_reduce(counts, group=parallel_state.get_data_parallel_group())
+    assert counts[0].item() == torch.distributed.get_world_size(group=parallel_state.get_data_parallel_group())
 
     # Load indexed dataset.
     logging.info(' > loading indexed mapping from {}'.format(indexmap_filename))

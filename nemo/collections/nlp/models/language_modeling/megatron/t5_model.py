@@ -16,7 +16,7 @@
 
 import torch
 from megatron import get_args
-from apex import mpu
+from apex.transformer import tensor_parallel
 
 from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model, parallel_lm_logits
@@ -140,9 +140,9 @@ class T5Model(MegatronModule):
         else:
             if self.fp16_lm_cross_entropy:
                 assert lm_logits.dtype == torch.half
-                lm_loss = mpu.vocab_parallel_cross_entropy(lm_logits, lm_labels)
+                lm_loss = tensor_parallel.vocab_parallel_cross_entropy(lm_logits, lm_labels)
             else:
-                lm_loss = mpu.vocab_parallel_cross_entropy(lm_logits.float(), lm_labels)
+                lm_loss = tensor_parallel.vocab_parallel_cross_entropy(lm_logits.float(), lm_labels)
             return lm_loss, encoder_output
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):

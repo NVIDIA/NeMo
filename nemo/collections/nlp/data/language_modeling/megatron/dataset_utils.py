@@ -37,7 +37,7 @@ import time
 
 import numpy as np
 import torch
-from apex import mpu
+from apex.transformer import tensor_parallel
 from nemo.utils import logging
 
 from nemo.collections.nlp.data.language_modeling.megatron import helpers
@@ -721,11 +721,11 @@ def get_samples_mapping(
     # device_index=rank which is not the case for model
     # parallel case
     counts = torch.cuda.LongTensor([1])
-    torch.distributed.all_reduce(counts, group=mpu.get_data_parallel_group())
-    torch.distributed.all_reduce(counts, group=mpu.get_pipeline_model_parallel_group())
+    torch.distributed.all_reduce(counts, group=parallel_state.get_data_parallel_group())
+    torch.distributed.all_reduce(counts, group=parallel_state.get_pipeline_model_parallel_group())
     assert counts[0].item() == (
         torch.distributed.get_world_size()
-        // torch.distributed.get_world_size(group=mpu.get_tensor_model_parallel_group())
+        // torch.distributed.get_world_size(group=parallel_state.get_tensor_model_parallel_group())
     )
 
     # Load indexed dataset.

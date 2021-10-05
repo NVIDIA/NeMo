@@ -22,6 +22,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     NLPCheckpointConnector,
     NLPDDPPlugin,
     NLPNativeMixedPrecisionPlugin,
+    NLPNativeBfloat16PrecisionPlugin,
     NLPPrecisionPlugin,
     NLPSaveRestoreConnector,
 )
@@ -43,6 +44,14 @@ def main(cfg) -> None:
                     init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
                     growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
                 ),
+            ],
+            **cfg.trainer,
+        )
+    elif cfg.trainer.precision == 'bf16':
+        trainer = Trainer(
+            plugins=[
+                NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes),
+                NLPNativeBfloat16PrecisionPlugin(),
             ],
             **cfg.trainer,
         )

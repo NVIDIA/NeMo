@@ -232,7 +232,6 @@ class MTEncDecModel(EncDecNLPModel):
         # test src/tgt for id range (i.e., hellp in catching wrong tokenizer)
         self.test_encoder_ids(src, raise_error=True)
         self.test_decoder_ids(tgt, raise_error=True)
-
         src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
         tgt_hiddens = self.decoder(
             input_ids=tgt, decoder_mask=tgt_mask, encoder_embeddings=src_hiddens, encoder_mask=src_mask
