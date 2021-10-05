@@ -13,7 +13,7 @@ def main(cfg) -> None:
     downloaded_path = os.path.join(data_save_dir, f"{file_number:02d}.jsonl.zst")
     output_file = f"{file_number:02d}.jsonl"
     utils.extract_single_zst_file(downloaded_path, data_save_dir, output_file)
-    os.remove(downloaded_path)
+    #os.remove(downloaded_path)
 
 
 if __name__ == "__main__":
