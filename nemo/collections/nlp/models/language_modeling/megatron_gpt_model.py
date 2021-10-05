@@ -60,6 +60,9 @@ class MegatronGPTModel(NLPModel):
             seed=self.cfg.get('seed', 1234),
         )
 
+        if not self.cfg.get('fused_bf16'):
+            set_jit_fusion_options()
+
         if isinstance(self.trainer.accelerator_connector.precision_plugin, NLPNativeBfloat16PrecisionPlugin):
             pass
         else:
