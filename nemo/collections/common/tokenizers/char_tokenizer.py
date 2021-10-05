@@ -105,7 +105,7 @@ class CharTokenizer(TokenizerSpec):
         special_tokens_dict = {}
         for value, name in zip(
             [pad_token, unk_token, bos_token, eos_token, sep_token, mask_token, cls_token],
-            ['pad_token', 'unk_token', 'bos_token', 'eos_token', 'sep_token', 'mask_token', 'cls_token']
+            ['pad_token', 'unk_token', 'bos_token', 'eos_token', 'sep_token', 'mask_token', 'cls_token'],
         ):
             self.check_special_token_value(name, value)
             if isinstance(value, bool):
@@ -114,7 +114,8 @@ class CharTokenizer(TokenizerSpec):
             if value is not None:
                 special_tokens_dict[name] = value
         for value, name in [
-            (special_token_to_prepend, 'special_token_to_prepend'), (special_token_to_append, 'special_token_to_append')
+            (special_token_to_prepend, 'special_token_to_prepend'),
+            (special_token_to_append, 'special_token_to_append'),
         ]:
             self.check_special_token_name(name, value, special_tokens_dict)
             setattr(self, name, value + '_token' if isinstance(value, str) else value)
@@ -134,7 +135,9 @@ class CharTokenizer(TokenizerSpec):
                 count += 1
         self.inv_vocab = {v: k for k, v in self.vocab.items()}
         self.vocab_size = len(self.vocab)
-        self.check_special_tokens_to_remove_while_decoding(special_tokens_to_remove_while_decoding, special_tokens_dict)
+        self.check_special_tokens_to_remove_while_decoding(
+            special_tokens_to_remove_while_decoding, special_tokens_dict
+        )
         self.special_token_ids_to_remove_while_decoding = (
             self.tokens_to_ids([v for v in special_tokens_dict.values()])
             if special_tokens_to_remove_while_decoding == 'all'
