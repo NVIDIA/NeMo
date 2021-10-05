@@ -250,9 +250,10 @@ class CharTokenizer(TokenizerSpec):
     @staticmethod
     def check_special_token_id_getting(special_token, id_name):
         if special_token is None:
+            token_param = id_name[:-3] + '_token'
             raise ValueError(
-                f"To obtain `{id_name}` you need to pass parameter `{id_name[:-3] + '_token'}` to `CharTokenizer` "
-                f"constructor"
+                f"Cannot return `{id_name}` since `{token_param}` is not set. To obtain `{id_name}` you need to pass "
+                f"parameter `{token_param}` to `CharTokenizer` constructor."
             )
 
     @property
@@ -326,7 +327,7 @@ class CharTokenizer(TokenizerSpec):
         save_path: Union[str, bytes, os.PathLike],
         text: Optional[str] = None,
         text_file_name: Optional[Union[str, bytes, os.PathLike]] = None,
-        characters_to_exclude_from_vocabulary: Optional[List[str]] = None,
+        characters_to_exclude: Optional[List[str]] = None,
         vocab_size: int = None,
     ):
         """
@@ -337,14 +338,14 @@ class CharTokenizer(TokenizerSpec):
             text: string which characters are used for vocabulary creation.
             text_file_name: path to a file which characters are used for vocabulary creation. Use this parameter if
                 the text in file is too large to be loaded in memory.
-            characters_to_exclude_from_vocabulary: a list of characters which will not be added to vocabulary.
+            characters_to_exclude: a list of characters which will not be added to vocabulary.
             vocab_size: vocabulary size. If this parameter is set only most frequent ``vocab_size`` characters are added
                 to vocabulary.
         """
-        if characters_to_exclude_from_vocabulary is None:
-            characters_to_exclude_from_vocabulary = []
+        if characters_to_exclude is None:
+            characters_to_exclude = []
         else:
-            cls.check_characters_to_exclude_from_vocabulary(characters_to_exclude_from_vocabulary)
+            cls.check_characters_to_exclude_from_vocabulary(characters_to_exclude)
         cls.check_text_and_text_file_name(text, text_file_name)
         if text is not None:
             counter = Counter(text)
@@ -358,7 +359,7 @@ class CharTokenizer(TokenizerSpec):
                     if not segment:
                         break
                     counter.update(segment)
-        for char in characters_to_exclude_from_vocabulary:
+        for char in characters_to_exclude:
             if char in counter:
                 del counter[char]
         save_path = Path(save_path).expanduser()
