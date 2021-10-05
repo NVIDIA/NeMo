@@ -36,6 +36,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.modules.common.megatron import fused_kernels
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
+from nemo.collections.nlp.parts.nlp_overrides import NLPNativeBfloat16PrecisionPlugin, NLPNativeMixedPrecisionPlugin
 from nemo.utils import AppState, logging
 
 
@@ -59,7 +60,7 @@ class MegatronGPTModel(NLPModel):
             seed=self.cfg.get('seed', 1234),
         )
 
-        if trainer.precision == 'bf16':
+        if isinstance(self.trainer.accelerator_connector.precision_plugin, NLPNativeBfloat16PrecisionPlugin):
             pass
         else:
             set_jit_fusion_options()
@@ -296,7 +297,7 @@ class MegatronGPTModel(NLPModel):
         if clip_val <= 0:
             return
 
-        if self.trainer.amp_backend == 'native':
+        if isinstance(self.trainer.accelerator_connector.precision_plugin, NLPNativeMixedPrecisionPlugin):
             parameters = self.model.parameters()
             clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
         else:
