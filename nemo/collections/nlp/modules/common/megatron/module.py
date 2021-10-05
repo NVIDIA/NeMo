@@ -15,7 +15,7 @@
 """Megatron Module"""
 
 import torch
-from apex import mpu
+from apex.transformer import tensor_parallel, parallel_state
 
 
 def param_is_not_shared(param):
@@ -31,9 +31,9 @@ class MegatronModule(torch.nn.Module):
         self.share_word_embeddings = share_word_embeddings
 
     def word_embeddings_weight(self):
-        if mpu.is_pipeline_first_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
             return self.language_model.embedding.word_embeddings.weight
-        if mpu.is_pipeline_last_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
             if not self.share_word_embeddings:
                 raise Exception(
                     'word_embeddings_weight() called for last ' 'stage, but share_word_embeddings is false'
@@ -64,20 +64,24 @@ class MegatronModule(torch.nn.Module):
         # 3. In the training loop, before an all-reduce between the grads of
         #    the two word_embeddings layers to ensure that every applied weight
         #    update is the same on both stages.
-        if mpu.is_pipeline_last_stage():
-            assert not mpu.is_pipeline_first_stage()
+        if parallel_state.is_pipeline_last_stage():
+            assert not parallel_state.is_pipeline_first_stage()
             self._word_embeddings_for_head_key = 'word_embeddings_for_head'
             # set word_embeddings weights to 0 here, then copy first
             # stage's weights using all_reduce below.
-            self.word_embeddings = mpu.VocabParallelEmbedding(vocab_size, hidden_size, init_method=init_method)
+            self.word_embeddings = tensor_parallel.VocabParallelEmbedding(
+                vocab_size, hidden_size, init_method=init_method
+            )
             self.word_embeddings.weight.data.fill_(0)
             self.word_embeddings.weight.shared = True
 
         # Ensure that first and last stages have the same initial parameter
         # values.
         if torch.distributed.is_initialized():
-            if mpu.is_pipeline_first_stage() or mpu.is_pipeline_last_stage():
-                torch.distributed.all_reduce(self.word_embeddings_weight().data, group=mpu.get_embedding_group())
+            if parallel_state.is_pipeline_first_stage() or parallel_state.is_pipeline_last_stage():
+                torch.distributed.all_reduce(
+                    self.word_embeddings_weight().data, group=parallel_state.get_embedding_group()
+                )
         else:
             print(
                 "WARNING! Distributed processes aren't initialized, so "

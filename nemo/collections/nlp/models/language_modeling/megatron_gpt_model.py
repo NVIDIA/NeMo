@@ -14,7 +14,7 @@
 
 from typing import Dict
 import torch
-from apex import mpu
+from apex.transformer import tensor_parallel, parallel_state
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -27,7 +27,7 @@ from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPT
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import (
     initialize_model_parallel_for_nemo,
-    set_jit_fusion_options
+    set_jit_fusion_options,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -167,7 +167,7 @@ class MegatronGPTModel(NLPModel):
         datatype = torch.int64
 
         data = batch
-        data_b = mpu.broadcast_data(keys, data, datatype)
+        data_b = tensor_parallel.broadcast_data(keys, data, datatype)
 
         # Unpack.
         tokens_ = data_b['text'].long()
@@ -227,16 +227,16 @@ class MegatronGPTModel(NLPModel):
                 total_samples=len(dataset),
                 consumed_samples=consumed_samples,
                 micro_batch_size=self.cfg.micro_batch_size,
-                data_parallel_rank=mpu.get_data_parallel_rank(),
-                data_parallel_size=mpu.get_data_parallel_world_size(),
+                data_parallel_rank=parallel_state.get_data_parallel_rank(),
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
         elif self.cfg.data.dataloader_type == 'cyclic':
             batch_sampler = MegatronPretrainingRandomSampler(
                 total_samples=len(dataset),
                 consumed_samples=consumed_samples,
                 micro_batch_size=self.cfg.micro_batch_size,
-                data_parallel_rank=mpu.get_data_parallel_rank(),
-                data_parallel_size=mpu.get_data_parallel_world_size(),
+                data_parallel_rank=parallel_state.get_data_parallel_rank(),
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
         else:
             raise Exception('{} dataloader type is not supported.'.format(self.cfg.dataloader_type))
