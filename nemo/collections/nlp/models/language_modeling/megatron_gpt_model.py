@@ -63,11 +63,6 @@ class MegatronGPTModel(NLPModel):
         if not self.cfg.get('fused_bf16'):
             set_jit_fusion_options()
 
-        if isinstance(self.trainer.accelerator_connector.precision_plugin, NLPNativeBfloat16PrecisionPlugin):
-            pass
-        else:
-            set_jit_fusion_options()
-
         fused_kernels.load()
 
         self.tokenizer = get_nmt_tokenizer(
