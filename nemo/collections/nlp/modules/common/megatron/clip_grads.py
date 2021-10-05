@@ -20,9 +20,9 @@ from torch._six import inf
 from apex.multi_tensor_apply import multi_tensor_applier
 import amp_C
 
-from apex import mpu
+from apex.transformer import parallel_state
 from nemo.collections.nlp.modules.common.megatron.module import param_is_not_shared
-from apex.mpu.layers import param_is_not_tensor_parallel_duplicate
+from apex.transformer.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
 
 
 def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
@@ -73,7 +73,7 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
         total_norm_cuda = torch.cuda.FloatTensor([float(total_norm)])
         # Take max across all model-parallel GPUs.
         torch.distributed.all_reduce(
-            total_norm_cuda, op=torch.distributed.ReduceOp.MAX, group=mpu.get_model_parallel_group()
+            total_norm_cuda, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group()
         )
         total_norm = total_norm_cuda[0].item()
 
@@ -97,7 +97,7 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
 
         # Sum across all model-parallel GPUs.
         torch.distributed.all_reduce(
-            total_norm, op=torch.distributed.ReduceOp.SUM, group=mpu.get_model_parallel_group()
+            total_norm, op=torch.distributed.ReduceOp.SUM, group=parallel_state.get_model_parallel_group()
         )
         total_norm = total_norm.item() ** (1.0 / norm_type)
 
@@ -131,7 +131,7 @@ def count_zeros_fp32(parameters):
 
     # Sum across all model-parallel GPUs.
     torch.distributed.all_reduce(
-        total_num_zeros, op=torch.distributed.ReduceOp.SUM, group=mpu.get_model_parallel_group()
+        total_num_zeros, op=torch.distributed.ReduceOp.SUM, group=parallel_state.get_model_parallel_group()
     )
     total_num_zeros = total_num_zeros.item()
 

@@ -16,7 +16,7 @@ from abc import ABC, abstractmethod
 
 import torch
 from megatron import get_args
-from apex import mpu
+from apex.transformer import tensor_parallel
 from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
 
 from .module import MegatronModule
@@ -163,8 +163,8 @@ class DistributedDataParallel(DistributedDataParallelBase):
         # If we have buffers, simply reduce the data in the buffer.
         if self._grad_buffers is not None:
             for _, buffer_ in self._grad_buffers.items():
-                buffer_.data /= mpu.get_data_parallel_world_size()
-                torch.distributed.all_reduce(buffer_.data, group=mpu.get_data_parallel_group())
+                buffer_.data /= parallel_state.get_data_parallel_world_size()
+                torch.distributed.all_reduce(buffer_.data, group=parallel_state.get_data_parallel_group())
         else:
             # Otherwise, bucketize and all-reduce
             buckets = {}
@@ -182,7 +182,7 @@ class DistributedDataParallel(DistributedDataParallelBase):
                 bucket = buckets[tp]
                 grads = [param.grad.data for param in bucket]
                 coalesced = _flatten_dense_tensors(grads)
-                coalesced /= mpu.get_data_parallel_world_size()
-                torch.distributed.all_reduce(coalesced, group=mpu.get_data_parallel_group())
+                coalesced /= parallel_state.get_data_parallel_world_size()
+                torch.distributed.all_reduce(coalesced, group=parallel_state.get_data_parallel_group())
                 for buf, synced in zip(grads, _unflatten_dense_tensors(coalesced, grads)):
                     buf.copy_(synced)

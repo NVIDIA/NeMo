@@ -15,7 +15,7 @@
 """BERT model."""
 
 import torch
-from apex import mpu
+from apex.transformer import tensor_parallel
 
 from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import MixedFusedLayerNorm as LayerNorm
@@ -74,7 +74,7 @@ class BertLMHead(MegatronModule):
         args = get_args()
 
         self.bias = torch.nn.Parameter(torch.zeros(mpu_vocab_size))
-        mpu.set_tensor_model_parallel_attributes(self.bias, True, 0, 1)
+        parallel_state.set_tensor_model_parallel_attributes(self.bias, True, 0, 1)
         self.parallel_output = parallel_output
 
         self.dense = get_linear_layer(hidden_size, hidden_size, init_method)
@@ -108,9 +108,9 @@ def post_language_model_processing(
     else:
         if fp16_lm_cross_entropy:
             assert lm_logits.dtype == torch.half
-            lm_loss = mpu.vocab_parallel_cross_entropy(lm_logits, lm_labels)
+            lm_loss = tensor_parallel.vocab_parallel_cross_entropy(lm_logits, lm_labels)
         else:
-            lm_loss = mpu.vocab_parallel_cross_entropy(lm_logits.float(), lm_labels)
+            lm_loss = tensor_parallel.vocab_parallel_cross_entropy(lm_logits.float(), lm_labels)
         return lm_loss, binary_logits
 
 
