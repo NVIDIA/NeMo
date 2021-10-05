@@ -259,37 +259,37 @@ class CharTokenizer(TokenizerSpec):
     @property
     def pad_id(self):
         self.check_special_token_id_getting(self.pad_token, 'pad_id')
-        return None if self.pad_token is None else self.vocab[self.pad_token]
+        return self.vocab[self.pad_token]
 
     @property
     def bos_id(self):
         self.check_special_token_id_getting(self.bos_token, 'bos_id')
-        return None if self.bos_token is None else self.vocab[self.bos_token]
+        return self.vocab[self.bos_token]
 
     @property
     def eos_id(self):
         self.check_special_token_id_getting(self.eos_token, 'eos_id')
-        return None if self.eos_token is None else self.vocab[self.eos_token]
+        return self.vocab[self.eos_token]
 
     @property
     def unk_id(self):
         self.check_special_token_id_getting(self.unk_token, 'unk_id')
-        return None if self.unk_token is None else self.vocab[self.unk_token]
+        return self.vocab[self.unk_token]
 
     @property
     def mask_id(self):
         self.check_special_token_id_getting(self.mask_token, 'mask_id')
-        return None if self.mask_token is None else self.vocab[self.mask_token]
+        return self.vocab[self.mask_token]
 
     @property
     def sep_id(self):
         self.check_special_token_id_getting(self.sep_token, 'sep_id')
-        return None if self.sep_token is None else self.vocab[self.sep_token]
+        return self.vocab[self.sep_token]
 
     @property
     def cls_id(self):
         self.check_special_token_id_getting(self.cls_token, 'cls_id')
-        return None if self.cls_token is None else self.vocab[self.cls_token]
+        return self.vocab[self.cls_token]
 
     @staticmethod
     def check_characters_to_exclude_from_vocabulary(characters_to_exclude_from_vocabulary):
@@ -319,7 +319,9 @@ class CharTokenizer(TokenizerSpec):
             )
         if text is not None:
             if not isinstance(text, str):
-                raise ValueError(f"Parameter `text` has to of type `str`, whereas it belongs to type `{type(text)}`.")
+                raise ValueError(
+                    f"Parameter `text` has to be of type `str`, whereas it belongs to type `{type(text)}`."
+                )
 
     @classmethod
     def build_vocab(
