@@ -27,7 +27,7 @@ def bias_dropout_add(x, bias, residual, prob, training):
 
 
 @torch.jit.script
-def bias_dropout_add_fused_train_(x, bias, residual, prob):
+def bias_dropout_add_fused_train_(x: torch.Tensor, bias: torch.Tensor, residual: torch.Tensor, prob: float) -> torch.Tensor:
     # type: (Tensor, Tensor, Tensor, float) -> Tensor
     return bias_dropout_add(x, bias, residual, prob, True)
 
@@ -43,7 +43,7 @@ class BiasDropoutAddFusedTrain(AutocastModuleWrapper):
 
 
 @torch.jit.script
-def bias_dropout_add_fused_inference_(x, bias, residual, prob):
+def bias_dropout_add_fused_inference_(x: torch.Tensor, bias: torch.Tensor, residual: torch.Tensor, prob: float) -> torch.Tensor:
     # type: (Tensor, Tensor, Tensor, float) -> Tensor
     return bias_dropout_add(x, bias, residual, prob, False)
 

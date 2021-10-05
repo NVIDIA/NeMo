@@ -31,8 +31,6 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import 
     bias_dropout_add,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import attention_mask_func, erf_gelu
-from nemo.collections.nlp.modules.common.megatron.utils import dummy_handler
-
 
 """ We use the following notation throughout this file:
      h: hidden size
@@ -589,10 +587,9 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
     ):
 
         if self.dtype == torch.float32:
-            with dummy_handler():
-                return super().forward(
-                    hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, layer_past, get_key_value
-                )
+            return super().forward(
+                hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, layer_past, get_key_value
+            )
         else:
             with torch.cuda.amp.autocast(dtype=self.dtype):
                 return super().forward(

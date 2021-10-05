@@ -164,11 +164,3 @@ class AutocastModuleWrapper(torch.nn.Module):
                 return self.func.apply(*args)
             else:
                 return self.func(*args)
-
-
-@contextmanager
-def dummy_handler():
-    try:
-        yield
-    finally:
-        pass
