@@ -11,12 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import os
 import warnings
 from collections import Counter
 from enum import Enum
 from pathlib import Path
-from typing import List, NewType, Optional, Union
+from typing import Dict, List, NewType, Optional, Union
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
@@ -91,28 +92,40 @@ class CharTokenizer(TokenizerSpec):
     def __init__(
         self,
         vocab_file: str,
-        mask_token: Union[str, bool] = False,
-        bos_token: Union[str, bool] = False,
-        eos_token: Union[str, bool] = False,
-        pad_token: Union[str, bool] = False,
-        sep_token: Union[str, bool] = False,
-        cls_token: Union[str, bool] = False,
-        unk_token: Union[str, bool] = False,
+        mask_token: Optional[Union[str, bool]] = None,
+        bos_token: Optional[Union[str, bool]] = None,
+        eos_token: Optional[Union[str, bool]] = None,
+        pad_token: Optional[Union[str, bool]] = None,
+        sep_token: Optional[Union[str, bool]] = None,
+        cls_token: Optional[Union[str, bool]] = None,
+        unk_token: Optional[Union[str, bool]] = None,
         special_token_to_prepend: Optional[SpecialTokenStringType] = None,
         special_token_to_append: Optional[SpecialTokenStringType] = None,
         special_tokens_to_remove_while_decoding: Union[List[SpecialTokenStringType], str] = 'all',
     ):
-        special_tokens_dict = {}
-        for value, name in zip(
-            [pad_token, unk_token, bos_token, eos_token, sep_token, mask_token, cls_token],
-            ['pad_token', 'unk_token', 'bos_token', 'eos_token', 'sep_token', 'mask_token', 'cls_token'],
-        ):
-            self.check_special_token_value(name, value)
-            if isinstance(value, bool):
-                value = '<' + name[:-6].upper() + '>' if value else None
-            setattr(self, name, value)
-            if value is not None:
-                special_tokens_dict[name] = value
+        vocab_file = Path(vocab_file).expanduser()
+        with vocab_file.open(encoding='utf-8') as f:
+            first_line = f.readline()
+            print('first_line:', first_line)
+            print('first_line[0]:', first_line[0])
+            if first_line[0] == '{':
+                print('inside')
+                special_tokens_dict = json.loads(first_line)
+                self.check_special_tokens_dict_from_file(special_tokens_dict, vocab_file)
+                vocab_list = f.readlines()
+            else:
+                special_tokens_dict = {}
+                vocab_list = [first_line] + f.readlines()
+        print(special_tokens_dict)
+        special_tokens_dict = self.update_special_tokens_dict(
+            special_tokens_dict, mask_token, bos_token, eos_token, pad_token, sep_token, cls_token, unk_token
+        )
+        print(special_tokens_dict, vocab_list)
+        for e in SpecialTokenString:
+            name = e.value + '_token'
+            setattr(self, name, special_tokens_dict[name] if name in special_tokens_dict else None)
+        for k, v in special_tokens_dict.items():
+            setattr(self, k, v)
         for value, name in [
             (special_token_to_prepend, 'special_token_to_prepend'),
             (special_token_to_append, 'special_token_to_append'),
@@ -124,9 +137,6 @@ class CharTokenizer(TokenizerSpec):
         for v in special_tokens_dict.values():
             self.vocab[v] = count
             count += 1
-        vocab_file = Path(vocab_file).expanduser()
-        with vocab_file.open(encoding='utf-8') as f:
-            vocab_list = f.readlines()
         for i, token in enumerate(vocab_list):
             token = eval(token.strip())
             self.check_token_from_file(token, vocab_file, i)
@@ -145,6 +155,64 @@ class CharTokenizer(TokenizerSpec):
         )
 
     @staticmethod
+    def check_special_tokens_dict_from_file(special_tokens_dict, vocab_file):
+        for k, v in special_tokens_dict.items():
+            if k[-6:] != '_token' or not SpecialTokenString.has_value(k[:-6]):
+                raise ValueError(
+                    f"Unsupported key {repr(k)} in special tokens dictionary in vocabulary file {vocab_file} "
+                    f"(first line). Supported keys are {[e.value + '_token' for e in SpecialTokenString]}."
+                )
+            if not isinstance(v, str):
+                raise ValueError(
+                    f"Values of special tokens dictionary in vocabulary file {vocab_file} (first line) has to belong "
+                    f"to type `str`, whereas type of item '{k}' value {repr(v)} is `{type(v)}`."
+                )
+            elif len(v) == 0:
+                raise ValueError(
+                    f"Values of special tokens dictionary in vocabulary file {vocab_file} (first line) has to not "
+                    f"empty strings, whereas value of item '{k}' is an empty string."
+                )
+
+    @staticmethod
+    def update_special_tokens_dict(
+        init_special_tokens_dict: Dict[str, str],
+        mask_token: Optional[Union[str, bool]] = None,
+        bos_token: Optional[Union[str, bool]] = None,
+        eos_token: Optional[Union[str, bool]] = None,
+        pad_token: Optional[Union[str, bool]] = None,
+        sep_token: Optional[Union[str, bool]] = None,
+        cls_token: Optional[Union[str, bool]] = None,
+        unk_token: Optional[Union[str, bool]] = None,
+    ):
+        special_tokens_dict = init_special_tokens_dict.copy()
+        for value, name in zip(
+            [pad_token, unk_token, bos_token, eos_token, sep_token, mask_token, cls_token],
+            ['pad_token', 'unk_token', 'bos_token', 'eos_token', 'sep_token', 'mask_token', 'cls_token'],
+        ):
+            if value is not None:
+                if isinstance(value, bool):
+                    if value:
+                        raise ValueError(
+                            f"If `CharTokenizer` constructor parameter `{name}` is `bool` it has to be `False`"
+                        )
+                    else:
+                        if name in special_tokens_dict:
+                            del special_tokens_dict[name]
+                        else:
+                            warnings.warn(
+                                f"Cannot remove special token `{name}` since it is not in special tokens dictionary "
+                                f"{special_tokens_dict}."
+                            )
+                elif not isinstance(value, str):
+                    raise ValueError(
+                        f"`CharTokenizer` constructor parameter `{name}` has to be either `False` or belong to type "
+                        f"`str`, whereas type of `{name}` is `{type(value)}`."
+                    )
+                else:
+                    special_tokens_dict[name] = value
+        return special_tokens_dict
+
+    @staticmethod
     def check_token_from_file(token, vocab_file, line_i):
         if not isinstance(token, str) or isinstance(token, str) and len(token) != 1:
             raise ValueError(
@@ -152,19 +220,19 @@ class CharTokenizer(TokenizerSpec):
                 f"Encountered {repr(token)} on line {line_i} in file {vocab_file}."
             )
 
-    @staticmethod
-    def check_special_token_value(parameter_name, value):
-        if isinstance(value, str):
-            if len(value) > 1:
-                raise ValueError(
-                    f"If `CharTokenizer` constructor parameter `{parameter_name}` is a string, then it has to "
-                    f"contain only 1 character. Given string '{value}' of length {len(value)}."
-                )
-        elif not isinstance(value, bool):
-            raise ValueError(
-                f"`CharTokenizer` constructor parameter `{parameter_name}` has to be a `str` or a `bool`, whereas it "
-                f"belongs to type {type(value)}"
-            )
+    # @staticmethod
+    # def check_special_token_value(parameter_name, value):
+    #     if isinstance(value, str):
+    #         if len(value) > 1:
+    #             raise ValueError(
+    #                 f"If `CharTokenizer` constructor parameter `{parameter_name}` is a string, then it has to "
+    #                 f"contain only 1 character. Given string '{value}' of length {len(value)}."
+    #             )
+    #     elif not isinstance(value, bool):
+    #         raise ValueError(
+    #             f"`CharTokenizer` constructor parameter `{parameter_name}` has to be a `str` or a `bool`, whereas it "
+    #             f"belongs to type {type(value)}"
+    #         )
 
     @staticmethod
     def check_special_token_name(parameter_name, value, special_tokens_dict):
@@ -292,6 +360,29 @@ class CharTokenizer(TokenizerSpec):
         return self.vocab[self.cls_token]
 
     @staticmethod
+    def create_special_tokens_dict(
+        mask_token: Optional[str] = None,
+        bos_token: Optional[str] = None,
+        eos_token: Optional[str] = None,
+        pad_token: Optional[str] = None,
+        sep_token: Optional[str] = None,
+        cls_token: Optional[str] = None,
+        unk_token: Optional[str] = None,
+    ):
+        special_tokens_dict = {}
+        for value, name in zip(
+            [pad_token, unk_token, bos_token, eos_token, sep_token, mask_token, cls_token],
+            ['pad_token', 'unk_token', 'bos_token', 'eos_token', 'sep_token', 'mask_token', 'cls_token'],
+        ):
+            if value is not None:
+                if not isinstance(value, str):
+                    raise ValueError(f"The type of parameter `{name}` has to be `None` or `str`, found `{type(value)}`")
+                elif len(value) == 0:
+                    raise ValueError(f"If the parameter `{name}` is `str`, then its length has to be nonzero.")
+                special_tokens_dict[name] = value
+        return special_tokens_dict
+
+    @staticmethod
     def check_characters_to_exclude_from_vocabulary(characters_to_exclude_from_vocabulary):
         for i, char in enumerate(characters_to_exclude_from_vocabulary):
             if not isinstance(char, str):
@@ -331,6 +422,13 @@ class CharTokenizer(TokenizerSpec):
         text_file_name: Optional[Union[str, bytes, os.PathLike]] = None,
         characters_to_exclude: Optional[List[str]] = None,
         vocab_size: int = None,
+        mask_token: Optional[str] = None,
+        bos_token: Optional[str] = None,
+        eos_token: Optional[str] = None,
+        pad_token: Optional[str] = None,
+        sep_token: Optional[str] = None,
+        cls_token: Optional[str] = None,
+        unk_token: Optional[str] = None,
     ):
         """
         Creates character vocabulary and saves it to file ``save_path``. You should provide one of parameters ``text``
@@ -344,6 +442,9 @@ class CharTokenizer(TokenizerSpec):
             vocab_size: vocabulary size. If this parameter is set only most frequent ``vocab_size`` characters are added
                 to vocabulary.
         """
+        special_tokens_dict = cls.create_special_tokens_dict(
+            mask_token, bos_token, eos_token, pad_token, sep_token, cls_token, unk_token
+        )
         if characters_to_exclude is None:
             characters_to_exclude = []
         else:
@@ -367,10 +468,12 @@ class CharTokenizer(TokenizerSpec):
         save_path = Path(save_path).expanduser()
         save_path.parent.mkdir(exist_ok=True, parents=True)
         with save_path.open('w', encoding='utf-8') as f:
+            f.write(json.dumps(special_tokens_dict) + '\n')
             if vocab_size is None:
                 for c, _ in sorted(counter.items(), key=lambda x: -x[1]):
                     f.write(repr(c) + '\n')
             else:
+                vocab_size -= len(special_tokens_dict)
                 for i, (c, _) in enumerate(sorted(counter.items(), key=lambda x: -x[1])):
                     if i < vocab_size:
                         f.write(repr(c) + '\n')
