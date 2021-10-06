@@ -306,6 +306,8 @@ class MegatronGPTModel(NLPModel):
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         request = batch
         response = self.complete(request)
+        logging.info(f"response: {response}")
+        return response
 
     def complete(self, request: Dict):
         """
@@ -343,11 +345,11 @@ class MegatronGPTModel(NLPModel):
                 eod_mask_loss=self.cfg.get('eod_mask_loss', False),
             )
             # No labels during inference. Still need masks to not attend to the right
-            output_tensor = self(torch.unsqueeze(tokens, 0), position_ids, attention_mask, labels=None)
+            output_tensor = self(tokens, position_ids, attention_mask, labels=None)
             log_probs, token_ids = torch.max(output_tensor, dim=-1)
             reached_eos = token_ids[0, -1].item() == self.tokenizer.eos_id
             # TODO: CURRENT log_probs are probably NOT correct!!!!
-            tokens = torch.cat([tokens, token_ids[:, -1]])
+            tokens = torch.cat([torch.squeeze(tokens), token_ids[:, -1]])
             response['completion']["tokens"] = list(
                 zip(self.tokenizer.ids_to_tokens(tokens), tokens.tolist(), log_probs.tolist()[0])
             )
