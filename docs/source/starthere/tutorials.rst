@@ -127,6 +127,9 @@ To run a tutorial:
    * - TTS
      - Speech Synthesis
      - `TalkNet Training <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/TalkNet_Training.ipynb>`_
+   * - TTS
+     - Speech Synthesis
+     - `FastPitch Fine-Tuning <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tts/FastPitch_Finetuning.ipynb>`_
    * - Tools
      - CTC Segmentation
      - `CTC Segmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tools/CTC_Segmentation_Tutorial.ipynb>`_
