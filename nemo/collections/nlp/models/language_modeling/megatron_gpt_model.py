@@ -301,6 +301,10 @@ class MegatronGPTModel(NLPModel):
         else:
             return
 
+    def predict(self):
+        logging.info('predict')
+        pass
+
     def complete(self, request: Dict):
         """
             Autoregressively invokes language model in the inference mode

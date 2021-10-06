@@ -13,13 +13,21 @@
 # limitations under the License.
 
 
+from typing import Dict
+
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from pytorch_lightning.trainer.trainer import Trainer
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.utils import logging
 from argparse import ArgumentParser
 
 import torch
+from torch.utils.data import Dataset, DataLoader
+
+from nemo.utils import logging
+from nemo.utils.app_state import AppState
+
 
 assert torch.cuda.is_available()
 
@@ -45,22 +53,51 @@ def main():
     )
 
     args = parser.parse_args()
+
     torch.set_grad_enabled(False)
 
+    # request dataloader
+    class GPTRequestlDataset(Dataset):
+        def __init__(self, request: Dict) -> None:
+            super().__init__()
+            self.request = request
+
+        def __len__(self):
+            return 1
+
+        def __getitem__(self, index):
+            return self.request
+
+    request = {
+        "prompt": args.prompt,
+        "tokens_to_generate": args.tokens_to_generate,
+        "stop_after_sentence": args.stop_after_sentence,
+    }
+
+    request_dl = DataLoader(GPTRequestlDataset(request), 1)
+
     # trainer required for restoring model parallel models
-    trainer = Trainer(plugins=NLPDDPPlugin())
+    trainer = Trainer(plugins=NLPDDPPlugin(), gpus=args.tensor_model_parallel_size)
+
+    app_state = AppState()
+    app_state.model_parallel_size = args.tensor_model_parallel_size
+    app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
+
     model = MegatronGPTModel.restore_from(restore_path=args.model_file, trainer=trainer)
-    res = model.complete(
-        {
-            "prompt": args.prompt,
-            "tokens_to_generate": args.tokens_to_generate,
-            "stop_after_sentence": args.stop_after_sentence,
-        }
-    )
-    print("***************************")
-    print(res['completion']['text'])
-    print("***************************")
-    logging.info(f"Generation stopped because: {res['completion']['stop reason']}")
+
+    trainer.predict(model, request_dl)
+
+    # res = model.complete(
+    #     {
+    #         "prompt": args.prompt,
+    #         "tokens_to_generate": args.tokens_to_generate,
+    #         "stop_after_sentence": args.stop_after_sentence,
+    #     }
+    # )
+    # print("***************************")
+    # print(res['completion']['text'])
+    # print("***************************")
+    # logging.info(f"Generation stopped because: {res['completion']['stop reason']}")
 
 
 if __name__ == '__main__':
