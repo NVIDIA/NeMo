@@ -14,6 +14,7 @@
 
 
 from typing import Dict
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_request_dataset import GPTRequestDataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from pytorch_lightning.trainer.trainer import Trainer
@@ -56,26 +57,6 @@ def main():
 
     torch.set_grad_enabled(False)
 
-    # request dataloader
-    class GPTRequestlDataset(Dataset):
-        def __init__(self, request: Dict) -> None:
-            super().__init__()
-            self.request = request
-
-        def __len__(self):
-            return 1
-
-        def __getitem__(self, index):
-            return self.request
-
-    request = {
-        "prompt": args.prompt,
-        "tokens_to_generate": args.tokens_to_generate,
-        "stop_after_sentence": args.stop_after_sentence,
-    }
-
-    request_dl = DataLoader(GPTRequestlDataset(request), 1)
-
     # trainer required for restoring model parallel models
     trainer = Trainer(plugins=NLPDDPPlugin(), gpus=args.tensor_model_parallel_size)
 
@@ -84,6 +65,16 @@ def main():
     app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
 
     model = MegatronGPTModel.restore_from(restore_path=args.model_file, trainer=trainer)
+
+    request = {
+        "prompt": args.prompt,
+        "tokens_to_generate": args.tokens_to_generate,
+        "stop_after_sentence": args.stop_after_sentence,
+    }
+
+    dataset = GPTRequestDataset(request, model.tokenizer)
+
+    request_dl = DataLoader(dataset)
 
     trainer.predict(model, request_dl)
 

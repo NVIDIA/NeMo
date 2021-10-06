@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict
+from typing import Any, Dict, Optional
 import torch
 from apex.transformer import tensor_parallel, parallel_state
 from omegaconf.dictconfig import DictConfig
@@ -249,6 +249,8 @@ class MegatronGPTModel(NLPModel):
         )
 
     def setup(self, stage=None):
+        if stage == 'predict':
+            return
         self.build_train_valid_test_datasets()
         self.setup_training_data(self.cfg.data)
         self.setup_validation_data(self.cfg.data)
@@ -301,9 +303,9 @@ class MegatronGPTModel(NLPModel):
         else:
             return
 
-    def predict(self):
-        logging.info('predict')
-        pass
+    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
+        request = batch
+        response = self.complete(request)
 
     def complete(self, request: Dict):
         """
@@ -325,17 +327,14 @@ class MegatronGPTModel(NLPModel):
         """
         response = {}
         self.eval()
-        tokenized_prompt = self.tokenizer.text_to_tokens(request['prompt'])
-        response["tokenized_prompt"] = tokenized_prompt
-        tokens = self.tokenizer.text_to_ids(request['prompt'])
-        # How will this look in model parallel setting?
-        tokens = torch.tensor(tokens, device=self.device)
+        response['tokenized_prompt'] = request['tokenized_prompt']
+        tokens = request['tokens']
         # naive greedy slow loop
         # TODO: rewrite me with BeamSearchDecoder
         response['prompt'] = request['prompt']
         response['completion'] = {}
         response['completion']['stop reason'] = 'limit'
-        for i in range(request.get("tokens_to_generate", 1024)):
+        for i in range(request.get("tokens_to_generate", 64)):
             attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
                 data=torch.unsqueeze(tokens, 0),
                 eod_token=self.tokenizer.eos_id,
