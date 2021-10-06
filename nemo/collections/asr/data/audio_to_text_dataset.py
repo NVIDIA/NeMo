@@ -206,8 +206,15 @@ def get_tarred_bpe_dataset(
             global_rank=global_rank,
             world_size=world_size,
         ))
-    return ChainDataset(datasets)
+
+    if config.get('bucketing_batch_size', None) is not None and config['bucketing_batch_size'] > 0:
+        for idx, dataset in enumerate(datasets):
+            #print(config['bucketing_batch_size']*(2**(len(datasets)-idx-1)))
+            bucketing_batchsize = config['bucketing_batch_size']*(2**(len(datasets)-idx-1))
+            datasets[idx] = audio_to_text.BucketingDataset(dataset=dataset,
+                                                           bucketing_batchsize=bucketing_batchsize)
     #return datasets[0]
+    return ChainDataset(datasets)
 
 
 def get_dali_char_dataset(

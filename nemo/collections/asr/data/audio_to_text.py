@@ -1027,13 +1027,14 @@ class _TarredAudioToTextDataset(IterableDataset):
                 begin_idx = (len(audio_tar_filepaths) // world_size) * global_rank
                 end_idx = begin_idx + (len(audio_tar_filepaths) // world_size)
                 audio_tar_filepaths = audio_tar_filepaths[begin_idx:end_idx]
+                self.length = len(self.collection) // world_size
                 logging.info(
                     "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx
                 )
 
             elif shard_strategy == 'replicate':
+                self.length = len(self.collection) // world_size
                 logging.info("All tarred dataset shards will be replicated across all nodes.")
-
             else:
                 raise ValueError(f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}")
 
@@ -1393,3 +1394,46 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
             global_rank=global_rank,
             world_size=world_size,
         )
+
+
+class BucketingDataset(IterableDataset):
+    """
+    lodfehlkfeh fqpfjqfpopf fpqojf qpoj!!!
+    """
+
+    def __init__(
+        self,
+        dataset: IterableDataset,
+        bucketing_batchsize: int,
+    ):
+        self.wrapped_dataset = dataset
+        self.bucketing_batchsize = bucketing_batchsize
+        super().__init__()
+
+    def _collate_fn(self, batch):
+        return _speech_collate_fn(batch[0], self.wrapped_dataset.pad_id)
+
+    def __iter__(self):
+        return BucketingIterator(wrapped_iter=self.wrapped_dataset._dataset.__iter__(), bucketing_batchsize=self.bucketing_batchsize).__iter__()
+
+    def __len__(self):
+        #print(math.ceil(len(self.wrapped_dataset.collection)/float(self.bucketing_batchsize)))
+        #return math.ceil(len(self.wrapped_dataset.collection)/float(self.bucketing_batchsize))
+        #print(math.ceil(self.wrapped_dataset.length/float(self.bucketing_batchsize)))
+        return math.ceil(self.wrapped_dataset.length/float(self.bucketing_batchsize))
+
+
+class BucketingIterator:
+    def __init__(self, wrapped_iter, bucketing_batchsize):
+        self.wrapped_iter = wrapped_iter
+        self.bucketing_batchsize = bucketing_batchsize
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        batches = []
+        for idx in range(self.bucketing_batchsize):
+            batches.append(next(self.wrapped_iter))
+        #print(batches)
+        return batches
