@@ -106,21 +106,16 @@ class CharTokenizer(TokenizerSpec):
         vocab_file = Path(vocab_file).expanduser()
         with vocab_file.open(encoding='utf-8') as f:
             first_line = f.readline()
-            print('first_line:', first_line)
-            print('first_line[0]:', first_line[0])
             if first_line[0] == '{':
-                print('inside')
                 special_tokens_dict = json.loads(first_line)
                 self.check_special_tokens_dict_from_file(special_tokens_dict, vocab_file)
                 vocab_list = f.readlines()
             else:
                 special_tokens_dict = {}
                 vocab_list = [first_line] + f.readlines()
-        print(special_tokens_dict)
         special_tokens_dict = self.update_special_tokens_dict(
             special_tokens_dict, mask_token, bos_token, eos_token, pad_token, sep_token, cls_token, unk_token
         )
-        print(special_tokens_dict, vocab_list)
         for e in SpecialTokenString:
             name = e.value + '_token'
             setattr(self, name, special_tokens_dict[name] if name in special_tokens_dict else None)
