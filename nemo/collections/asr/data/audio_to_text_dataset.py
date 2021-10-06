@@ -15,6 +15,7 @@
 from typing import Optional
 
 import torch
+import math
 from omegaconf import DictConfig, open_dict
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dali
@@ -210,7 +211,11 @@ def get_tarred_bpe_dataset(
     if config.get('bucketing_batch_size', None) is not None and config['bucketing_batch_size'] > 0:
         for idx, dataset in enumerate(datasets):
             #print(config['bucketing_batch_size']*(2**(len(datasets)-idx-1)))
-            bucketing_batchsize = config['bucketing_batch_size']*(2**(len(datasets)-idx-1))
+            #dataset._dataset = dataset._dataset.repeat()
+            #bucketing_batchsize = config['bucketing_batch_size']*(2**(len(datasets)-idx-1))
+            #factor = 2**(len(datasets)-idx-1)
+            factor = int(math.ceil(len(datasets)/float(idx + 1)))
+            bucketing_batchsize = config['bucketing_batch_size'] * factor
             datasets[idx] = audio_to_text.BucketingDataset(dataset=dataset,
                                                            bucketing_batchsize=bucketing_batchsize)
     #return datasets[0]

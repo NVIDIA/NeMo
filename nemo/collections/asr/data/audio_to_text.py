@@ -1418,7 +1418,7 @@ class BucketingDataset(IterableDataset):
 
     def __len__(self):
         #print(math.ceil(len(self.wrapped_dataset.collection)/float(self.bucketing_batchsize)))
-        return math.ceil(len(self.wrapped_dataset.collection)/float(self.bucketing_batchsize))
+        return int(math.ceil(len(self.wrapped_dataset.collection)/float(self.bucketing_batchsize)))
         #print(math.ceil(self.wrapped_dataset.length/float(self.bucketing_batchsize)))
         #return math.ceil(self.wrapped_dataset.length/float(self.bucketing_batchsize))
 
