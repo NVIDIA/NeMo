@@ -15,6 +15,7 @@
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from pytorch_lightning.trainer.trainer import Trainer
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.utils import logging
 from argparse import ArgumentParser
 
@@ -39,12 +40,15 @@ def main():
         required=False,
         help="True/False: whether to stop after full sentence has been generated.",
     )
+    parser.add_argument(
+        "--tensor_model_parallel_size", type=int, default=1, required=True,
+    )
 
     args = parser.parse_args()
     torch.set_grad_enabled(False)
 
     # trainer required for restoring model parallel models
-    trainer = Trainer()
+    trainer = Trainer(plugins=NLPDDPPlugin())
     model = MegatronGPTModel.restore_from(restore_path=args.model_file, trainer=trainer)
     res = model.complete(
         {
