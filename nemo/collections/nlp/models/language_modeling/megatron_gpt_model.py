@@ -14,7 +14,7 @@
 
 from typing import Dict
 import torch
-from apex import mpu
+from apex.transformer import tensor_parallel, parallel_state
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -25,7 +25,10 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
+from nemo.collections.nlp.modules.common.megatron.megatron_init import (
+    initialize_model_parallel_for_nemo,
+    set_jit_fusion_options,
+)
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
@@ -33,6 +36,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.modules.common.megatron import fused_kernels
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
+from nemo.collections.nlp.parts.nlp_overrides import NLPNativeBfloat16PrecisionPlugin, NLPNativeMixedPrecisionPlugin
 from nemo.utils import AppState, logging
 
 
@@ -55,6 +59,9 @@ class MegatronGPTModel(NLPModel):
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
             seed=self.cfg.get('seed', 1234),
         )
+
+        if not self.cfg.get('fused_bf16'):
+            set_jit_fusion_options()
 
         fused_kernels.load()
 
@@ -162,7 +169,7 @@ class MegatronGPTModel(NLPModel):
         datatype = torch.int64
 
         data = batch
-        data_b = mpu.broadcast_data(keys, data, datatype)
+        data_b = tensor_parallel.broadcast_data(keys, data, datatype)
 
         # Unpack.
         tokens_ = data_b['text'].long()
@@ -222,16 +229,16 @@ class MegatronGPTModel(NLPModel):
                 total_samples=len(dataset),
                 consumed_samples=consumed_samples,
                 micro_batch_size=self.cfg.micro_batch_size,
-                data_parallel_rank=mpu.get_data_parallel_rank(),
-                data_parallel_size=mpu.get_data_parallel_world_size(),
+                data_parallel_rank=parallel_state.get_data_parallel_rank(),
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
         elif self.cfg.data.dataloader_type == 'cyclic':
             batch_sampler = MegatronPretrainingRandomSampler(
                 total_samples=len(dataset),
                 consumed_samples=consumed_samples,
                 micro_batch_size=self.cfg.micro_batch_size,
-                data_parallel_rank=mpu.get_data_parallel_rank(),
-                data_parallel_size=mpu.get_data_parallel_world_size(),
+                data_parallel_rank=parallel_state.get_data_parallel_rank(),
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
         else:
             raise Exception('{} dataloader type is not supported.'.format(self.cfg.dataloader_type))
@@ -288,7 +295,7 @@ class MegatronGPTModel(NLPModel):
         if clip_val <= 0:
             return
 
-        if self.trainer.amp_backend == 'native':
+        if isinstance(self.trainer.accelerator_connector.precision_plugin, NLPNativeMixedPrecisionPlugin):
             parameters = self.model.parameters()
             clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
         else:

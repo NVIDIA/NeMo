@@ -72,7 +72,6 @@ class CallbackParams:
     save_top_k: Optional[int] = 3
     save_weights_only: Optional[bool] = False
     mode: Optional[str] = "min"
-    period: Optional[int] = None
     every_n_val_epochs: Optional[int] = 1
     prefix: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     postfix: str = ".nemo"
@@ -792,7 +791,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             filepath = self._format_checkpoint_name(self.CHECKPOINT_NAME_LAST, monitor_candidates)
             filepath = os.path.join(self.dirpath, f"{filepath}{self.FILE_EXTENSION}")
 
-            self._save_model(trainer, filepath)
+            trainer.save_checkpoint(filepath)
 
             # TODO: figure out where self.last_model_path is being set
             if self.last_model_path is not None:
@@ -820,7 +819,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 return
 
             filepath = self._get_metric_interpolated_filepath_name(monitor_candidates, trainer)
-            self._save_model(trainer, filepath)
+
+            trainer.save_checkpoint(filepath)
 
             if (
                 self.save_top_k is None
@@ -894,14 +894,6 @@ def configure_checkpointing(
                 f"{trainer.check_val_every_n_epoch} epochs to ensure that checkpointing will not error out."
             )
 
-    if params.period is not None:
-        logging.warning(
-            "The use of `period` in the checkpoint callback is deprecrated, please use `every_n_val_epochs` instead. "
-            "Overwriting `every_n_val_epochs` with `period`."
-        )
-        params.every_n_val_epochs = params.period
-
-    # NOTE: checkpoint_callback should be called last
     checkpoint_callback = NeMoModelCheckpoint(n_resume=resume, **params)
     checkpoint_callback.last_model_path = trainer.checkpoint_connector.resume_checkpoint_path or ""
     trainer.callbacks.append(checkpoint_callback)

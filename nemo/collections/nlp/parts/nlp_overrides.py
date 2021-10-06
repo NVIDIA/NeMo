@@ -32,7 +32,8 @@ from typing import Any, Dict, List, Optional, Union
 
 import pytorch_lightning as pl
 import torch
-from apex import mpu
+from apex.transformer import tensor_parallel
+from apex.transformer import parallel_state
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
@@ -61,16 +62,15 @@ class NLPDDPPlugin(DDPPlugin):
     ) -> None:
         super().__init__(parallel_devices, num_nodes, cluster_environment, sync_batchnorm, **kwargs)
 
-    def init_ddp_connection(self, global_rank: int = None, world_size: int = None) -> None:
+    def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
         # call PTL init ddp
-        super().init_ddp_connection()
+        super().setup_distributed()
 
         # init model parallel if needed
         app_state = AppState()
 
         if app_state.model_parallel_size is not None:
             self.init_model_parallel(app_state.global_rank, app_state.world_size)
-
             # if self.lightning_module.has_megatron_encoder and not self.lightning_module.is_model_parallel_initialized:
             #     self.init_model_parallel(app_state.global_rank, app_state.world_size)
 
@@ -138,7 +138,7 @@ class NLPDDPPlugin(DDPPlugin):
 
     def configure_ddp(self):
         """ Override LightningModule ddp if using model parallel.
-            Sets find_unused_parameters to True.
+            Sets find_unused_parameters to False to use activation-checkpoint-recomputation.
         """
 
         app_state = AppState()
@@ -155,7 +155,7 @@ class NLPDDPPlugin(DDPPlugin):
                 device_ids=device_ids,
                 output_device=device_ids[0],
                 process_group=app_state.data_parallel_group,
-                find_unused_parameters=True,
+                find_unused_parameters=False,
                 **self._ddp_kwargs,
             )
 
@@ -176,12 +176,12 @@ class NLPDDPPlugin(DDPPlugin):
         # after initializing DDP with PTL.
         if app_state.model_parallel_size is not None:
             if torch.distributed.is_initialized():
-                mpu.initialize_model_parallel(app_state.model_parallel_size)
-                app_state.model_parallel_group = mpu.get_tensor_model_parallel_group()
-                app_state.data_parallel_group = mpu.get_data_parallel_group()
-                app_state.model_parallel_rank = mpu.get_tensor_model_parallel_rank()
-                app_state.data_parallel_rank = mpu.get_data_parallel_rank()
-                app_state.data_parallel_size = mpu.get_data_parallel_world_size()
+                parallel_state.initialize_model_parallel(app_state.model_parallel_size)
+                app_state.model_parallel_group = parallel_state.get_tensor_model_parallel_group()
+                app_state.data_parallel_group = parallel_state.get_data_parallel_group()
+                app_state.model_parallel_rank = parallel_state.get_tensor_model_parallel_rank()
+                app_state.data_parallel_rank = parallel_state.get_data_parallel_rank()
+                app_state.data_parallel_size = parallel_state.get_data_parallel_world_size()
                 logging.info(f'mp_rank: {app_state.model_parallel_rank}')
                 logging.info(f'dp_rank: {app_state.data_parallel_rank}')
 
@@ -194,7 +194,8 @@ class NLPDDPPlugin(DDPPlugin):
         """
         app_state = AppState()
         # dump states as a checkpoint dictionary object
-        checkpoint = self.on_save(checkpoint)
+        # TrainingTypePlugin.on_save() just seems to return the same thing.
+        # checkpoint = self.on_save(checkpoint)
         if self.is_global_zero or app_state.data_parallel_rank == 0:
             try:
                 # write the checkpoint dictionary on the file
@@ -275,7 +276,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 super().save_to(model, mp_save_path)
 
             # we need a barrier for data_parallel_rank 0 when using model parallel so that all processes have finished writing their weights before creating .nemo file
-            # torch.distributed.barrier(group=mpu.get_tensor_model_parallel_group())
+            # torch.distributed.barrier(group=parallel_state.get_tensor_model_parallel_group())
             # torch.distributed.barrier()
 
             if is_global_rank_zero():
@@ -316,7 +317,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
 class NLPNativeMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
     def __init__(self, init_scale: float = 2 ** 32, growth_interval: int = 1000) -> None:
-        super().__init__()
+        super().__init__(precision=16)
 
         self.scaler = torch.cuda.amp.GradScaler(init_scale=init_scale, growth_interval=growth_interval)
 
@@ -331,6 +332,38 @@ class NLPNativeMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
            Do nothing because we've already clipped gradients in `on_before_optimizer_step` hook.
         """
         pass
+
+
+class NLPNativeBfloat16PrecisionPlugin(NativeMixedPrecisionPlugin):
+    def __init__(self) -> None:
+        super().__init__(precision='bf16')
+
+    def clip_gradients(
+        self,
+        optimizer: Optimizer,
+        clip_val: Union[int, float],
+        gradient_clip_algorithm: GradClipAlgorithmType,
+        model: Optional[Module],
+    ) -> None:
+        """Override PTL gradient clipping.
+           Model parallel models require gradient clipping from megatron-lm.
+        """
+
+        if clip_val is None:
+            return
+
+        clip_val = float(clip_val)
+        if clip_val <= 0:
+            return
+
+        app_state = AppState()
+        if app_state.model_parallel_size is not None:
+            parameters = model.parameters()
+            clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
+        else:
+            return super().clip_gradients(
+                optimizer, clip_val, gradient_clip_algorithm=gradient_clip_algorithm, model=model
+            )
 
 
 class NLPPrecisionPlugin(PrecisionPlugin):

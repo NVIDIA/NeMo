@@ -15,9 +15,10 @@
 """Utilities for models."""
 
 import math
+from contextlib import contextmanager
 
 import torch
-from apex import mpu
+from apex.transformer import parallel_state
 
 
 def init_method_normal(sigma):
@@ -72,8 +73,10 @@ def erf_gelu(x):
 def average_losses_across_data_parallel_group(losses):
     """Reduce a tensor of losses across all GPUs."""
     averaged_losses = torch.cat([loss.clone().detach().view(1) for loss in losses])
-    torch.distributed.all_reduce(averaged_losses, group=mpu.get_data_parallel_group())
-    averaged_losses = averaged_losses / torch.distributed.get_world_size(group=mpu.get_data_parallel_group())
+    torch.distributed.all_reduce(averaged_losses, group=parallel_state.get_data_parallel_group())
+    averaged_losses = averaged_losses / torch.distributed.get_world_size(
+        group=parallel_state.get_data_parallel_group()
+    )
 
     return averaged_losses
 
@@ -131,3 +134,33 @@ def get_ltor_masks_and_position_ids(data, eod_token, reset_position_ids, reset_a
     attention_mask = attention_mask < 0.5
 
     return attention_mask, loss_mask, position_ids
+
+
+class AutocastModuleWrapper(torch.nn.Module):
+    def __init__(self, fp16=False, bf16=False):
+        super(AutocastModuleWrapper, self).__init__()
+
+        assert not (fp16 and bf16)
+        if fp16 or bf16:
+            self.precision = torch.float16 if fp16 else torch.bfloat16
+            self.use_autocast = True
+        else:
+            self.use_autocast = False
+
+        # class or function to autocast should be defined
+        self.func = None
+
+    def autocast_forward(self, *args):
+
+        assert self.func is not None
+        if self.use_autocast:
+            if isinstance(self.func, torch.autograd.function.FunctionMeta):
+                fwd = torch.cuda.amp.custom_fwd(cast_inputs=self.precision)(self.func.apply)
+            else:
+                fwd = torch.cuda.amp.custom_fwd(cast_inputs=self.precision)(self.func)
+            return fwd(*args)
+        else:
+            if isinstance(self.func, torch.autograd.function.FunctionMeta):
+                return self.func.apply(*args)
+            else:
+                return self.func(*args)

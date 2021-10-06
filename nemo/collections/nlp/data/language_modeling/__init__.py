@@ -19,7 +19,6 @@ from nemo.collections.nlp.data.language_modeling.lm_bert_dataset import (
 )
 
 from nemo.collections.nlp.data.language_modeling.megatron import (
-    BertDataset,
     GPTDataset,
     IndexedDataset,
     MMapIndexedDataset,

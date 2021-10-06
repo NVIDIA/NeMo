@@ -22,7 +22,7 @@ from nemo.collections.nlp.modules.common.megatron import fused_kernels
 
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType
-from apex.mpu import (
+from apex.transformer.parallel_state import (
     get_model_parallel_group,
     model_parallel_is_initialized,
     set_pipeline_model_parallel_rank,
