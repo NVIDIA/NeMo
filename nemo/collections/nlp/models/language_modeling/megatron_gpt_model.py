@@ -330,13 +330,13 @@ class MegatronGPTModel(NLPModel):
         response['tokenized_prompt'] = request['tokenized_prompt']
         tokens = request['tokens']
         # naive greedy slow loop
-        # TODO: rewrite me with BeamSearchDecoder
+        # TODO: add option for BeamSearchDecoder
         response['prompt'] = request['prompt']
         response['completion'] = {}
         response['completion']['stop reason'] = 'limit'
         for i in range(request.get("tokens_to_generate", 64)):
             attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
-                data=torch.unsqueeze(tokens, 0),
+                data=tokens,
                 eod_token=self.tokenizer.eos_id,
                 reset_position_ids=self.cfg.get('reset_position_ids', False),
                 reset_attention_mask=self.cfg.get('reset_attention_mask', False),
