@@ -27,8 +27,9 @@ from torch.utils.data import IterableDataset
 from tqdm import tqdm
 from transformers import PreTrainedTokenizerBase
 
+from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 from nemo.collections.nlp.data.text_normalization import constants
-from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize, read_data_file
+from nemo.collections.nlp.data.text_normalization.utils import read_data_file
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 from nemo.utils.decorators.experimental import experimental
@@ -58,7 +59,7 @@ class TextNormalizationDecoderDataset(Dataset):
             instances that may help the decoder become more robust against the tagger's errors.
             Refer to the doc for more info.
         lang: language of the dataset
-        do_basic_tokenize: a flag indicates whether to do some basic tokenization for the inputs
+        do_basic_tokenize: a flag indicates whether to do Moses tokenization for the inputs
         use_cache: Enables caching to use pickle format to store and read data from
         max_insts: Maximum number of instances (-1 means no limit)
         do_tokenize: Tokenize each instance (set to False for Tarred dataset)
@@ -95,7 +96,8 @@ class TextNormalizationDecoderDataset(Dataset):
         data_dir, filename = os.path.split(input_file)
         tokenizer_name_normalized = tokenizer_name.replace('/', '_')
         cached_data_file = os.path.join(
-            data_dir, f'cached_decoder_{filename}_{tokenizer_name_normalized}_{lang}_{max_insts}_{mode}_{max_len}.pkl'
+            data_dir,
+            f'cached_decoder_{filename}_{tokenizer_name_normalized}_{lang}_{max_insts}_{mode}_{max_len}_{do_basic_tokenize}.pkl',
         )
 
         if use_cache and os.path.exists(cached_data_file):
@@ -410,8 +412,10 @@ class DecoderDataInstance:
 
         # Extract input_words and output_words
         if do_basic_tokenize:
-            c_w_words = basic_tokenize(' '.join(c_w_words), lang)
-            c_s_words = basic_tokenize(' '.join(c_s_words), lang)
+            processor = MosesProcessor(lang_id=lang)
+            c_w_words = processor.tokenize(' '.join(c_w_words)).split()
+            c_s_words = processor.tokenize(' '.join(c_s_words)).split()
+
         w_input = w_left + [extra_id_0] + c_w_words + [extra_id_1] + w_right
         s_input = s_left + [extra_id_0] + c_s_words + [extra_id_1] + s_right
         if inst_dir == constants.INST_BACKWARD:

@@ -90,6 +90,7 @@ def _write_batches_to_tarfiles(
     tokenizer_name: str,
     mode: str,
     max_seq_len: int,
+    do_basic_tokenize: bool,
     batch_size: int,
     out_dir: str,
     num_batches_per_tarfile: int,
@@ -110,6 +111,7 @@ def _write_batches_to_tarfiles(
         tokenizer_name: the name of the tokenizer, usually corresponds to the pre-trained LM
         mode: model training mode
         max_seq_len: maximum length of the sequence (examples that are longer will be discarded)
+        do_basic_tokenize: a flag indicates whether to do Moses tokenization for the inputs
         batch_size: batch size
         out_dir: path to output directory
         num_batches_per_tarfile: number of batches saved in each tar file
@@ -126,7 +128,7 @@ def _write_batches_to_tarfiles(
         max_len=max_seq_len,
         decoder_data_augmentation=decoder_data_augmentation,
         lang=lang,
-        do_basic_tokenize=False,
+        do_basic_tokenize=do_basic_tokenize,
         use_cache=False,
         max_insts=-1,
         do_tokenize=False,
@@ -183,22 +185,31 @@ if __name__ == '__main__':
     parser.add_argument(
         '--max_seq_length', type=int, default=80, help='Maximum sequence length, longer examples will be discarded.'
     )
+    parser.add_argument(
+        '--no_moses_tokenization',
+        action='store_true',
+        help='Set to True to disable moses tokenization (not recommended).',
+    )
     parser.add_argument('--min_seq_length', type=int, default=1, help='Minimum sequence length.')
     parser.add_argument(
         '--num_batches_per_tarfile',
         type=int,
-        default=2,
+        default=1000,
         help='Number batches, i.e., pickle files, included in a single .tar file.',
     )
     parser.add_argument('--n_jobs', type=int, default=-2, help='The maximum number of concurrently running jobs.')
     parser.add_argument(
-        '--batch_size', type=int, default=16, help='Batch size, i.e., number of examples in a single pickle file'
+        '--batch_size', type=int, default=32, help='Batch size, i.e., number of examples in a single pickle file'
     )
     parser.add_argument(
         '--factor', default=8, type=int, help='The final number of tar files will be divisible by the "factor" value'
     )
 
     args = parser.parse_args()
+    from glob import glob
+
+    files = glob("/mnt/sdb/DATA/normalization/nn_dataset/processed_data/google_en/5_files/*.tsv")
+    args.input_files = [os.path.basename(x) for x in files]
 
     # check if tar files exist
     if os.path.exists(args.out_dir):
@@ -221,6 +232,7 @@ if __name__ == '__main__':
             mode=args.mode,
             batch_size=args.batch_size,
             max_seq_len=args.max_seq_length,
+            do_basic_tokenize=not args.no_moses_tokenization,
             decoder_data_augmentation=args.decoder_data_augmentation,
             out_dir=args.out_dir,
             num_batches_per_tarfile=args.num_batches_per_tarfile,

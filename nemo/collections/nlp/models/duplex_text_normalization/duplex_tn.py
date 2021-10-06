@@ -153,7 +153,7 @@ class DuplexTextNormalizationModel(nn.Module):
             )
 
             class_accuracy = TextNormalizationTestDataset.compute_class_accuracy(
-                [basic_tokenize(x, lang=self.lang) for x in cur_inputs],
+                [self.decoder.processor.tokenize(x).split() for x in cur_inputs],
                 cur_targets,
                 cur_tag_preds,
                 cur_dirs,
@@ -217,7 +217,7 @@ class DuplexTextNormalizationModel(nn.Module):
         return results
 
     # Functions for inference
-    def _infer(self, sents: List[str], inst_directions: List[str], do_basic_tokenization=True):
+    def _infer(self, sents: List[str], inst_directions: List[str]):
         """
         Main function for Inference
 
@@ -228,8 +228,6 @@ class DuplexTextNormalizationModel(nn.Module):
             sents: A list of input texts.
             inst_directions: A list of str where each str indicates the direction of the corresponding instance \
                 (i.e., constants.INST_BACKWARD for ITN or constants.INST_FORWARD for TN).
-            do_basic_tokenization: whether to do a pre-processing to separate punctuation marks,
-                recommended to set to True
 
         Returns:
             tag_preds: A list of lists where the inner list contains the tag predictions from the tagger for each word in the input text.
@@ -237,15 +235,15 @@ class DuplexTextNormalizationModel(nn.Module):
             final_outputs: A list of str where each str is the final output text for an input text.
         """
         original_sents = [s for s in sents]
+        do_basic_tokenization = True  # self.decoder.do_basic_tokenize and self.tagger.do_basic_tokenize
+        logging.debug(f'Moses tokenization is {"enabled" if do_basic_tokenization else "disabled"}.')
         # Separate into words
         if do_basic_tokenization:
             sents = [self.decoder.processor.tokenize(x).split() for x in sents]
 
         # Tagging
         # span_ends included, returns index wrt to words in input without auxiliary words
-        tag_preds, nb_spans, span_starts, span_ends = self.tagger._infer(
-            sents, inst_directions, do_basic_tokenization=do_basic_tokenization
-        )
+        tag_preds, nb_spans, span_starts, span_ends = self.tagger._infer(sents, inst_directions)
         output_spans = self.decoder._infer(sents, nb_spans, span_starts, span_ends, inst_directions)
 
         if not do_basic_tokenization:

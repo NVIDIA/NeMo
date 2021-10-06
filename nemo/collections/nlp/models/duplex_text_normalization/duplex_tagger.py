@@ -52,6 +52,8 @@ class DuplexTaggerModel(NLPModel):
         self.model = AutoModelForTokenClassification.from_pretrained(cfg.transformer, num_labels=self.num_labels)
         self.transformer_name = cfg.transformer
         self.max_sequence_len = cfg.get('max_sequence_len', self._tokenizer.model_max_length)
+        # setting to False for backward compatibility with old checkpoints
+        self.do_basic_tokenize = cfg.get('do_basic_tokenize', False)
 
         # Loss Functions
         self.loss_fct = nn.CrossEntropyLoss(ignore_index=constants.LABEL_PAD_TOKEN_ID)
@@ -131,7 +133,7 @@ class DuplexTaggerModel(NLPModel):
 
     # Functions for inference
     @torch.no_grad()
-    def _infer(self, sents: List[List[str]], inst_directions: List[str], do_basic_tokenization=True):
+    def _infer(self, sents: List[List[str]], inst_directions: List[str]):
         """ Main function for Inference
 
         Args:
@@ -144,10 +146,9 @@ class DuplexTaggerModel(NLPModel):
             nb_spans: A list of ints where each int indicates the number of semiotic spans in input words.
             span_starts: A list of lists where each list contains the starting locations of semiotic spans in input words.
             span_ends: A list of lists where each list contains the ending locations of semiotic spans in input words.
-            do_basic_tokenization: whether to do a pre-processing to separate punctuation marks, recommended to set to True
         """
         self.eval()
-
+        do_basic_tokenization = True  # self.do_basic_tokenize
         # Append prefix
         texts = []
         for ix, sent in enumerate(sents):
@@ -343,7 +344,7 @@ class DuplexTaggerModel(NLPModel):
             tokenizer=self._tokenizer,
             tokenizer_name=self.transformer_name,
             mode=self.mode,
-            do_basic_tokenize=cfg.do_basic_tokenize,
+            do_basic_tokenize=self.do_basic_tokenize,
             tagger_data_augmentation=tagger_data_augmentation,
             lang=self.lang,
             max_seq_length=self.max_sequence_len,

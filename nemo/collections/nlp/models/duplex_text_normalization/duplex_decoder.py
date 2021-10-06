@@ -66,7 +66,9 @@ class DuplexDecoderModel(NLPModel):
 
         super().__init__(cfg=cfg, trainer=trainer)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(cfg.transformer)
-        self.max_sequence_len = cfg.get('max_seq_length', self._tokenizer.model_max_length)
+        self.max_sequence_len = cfg.get('max_sequence_len', self._tokenizer.model_max_length)
+        # setting to False for backward compatibility with old checkpoints
+        self.do_basic_tokenize = cfg.get('do_basic_tokenize', False)
         self.mode = cfg.get('mode', 'joint')
 
         self.transformer_name = cfg.transformer
@@ -320,7 +322,7 @@ class DuplexDecoderModel(NLPModel):
         """
         Build all_inputs - extracted spans to be transformed by the decoder model
         Inputs for TN direction have "0" prefix, while the backward, ITN direction, has prefix "1"
-        "input_centers" - List[str] - ground-truth labels for the span #TODO: rename
+        "input_centers" - List[str] - ground-truth labels for the span
         """
         input_centers, input_dirs, all_inputs = [], [], []
         for ix, sent in enumerate(sents):
@@ -528,7 +530,7 @@ class DuplexDecoderModel(NLPModel):
                 if data_split == "train"
                 else False,
                 lang=self.lang,
-                do_basic_tokenize=cfg.do_basic_tokenize,
+                do_basic_tokenize=self.do_basic_tokenize,
                 use_cache=cfg.get('use_cache', False),
                 max_insts=cfg.get('max_insts', -1),
                 do_tokenize=True,

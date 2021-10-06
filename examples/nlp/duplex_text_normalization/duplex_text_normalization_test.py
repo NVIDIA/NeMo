@@ -62,18 +62,18 @@ def main(cfg: DictConfig) -> None:
     if cfg.tagger_pretrained_model:
         tagger_trainer, tagger_model = instantiate_model_and_trainer(cfg, TAGGER_MODEL, False)
         tagger_model.max_sequence_len = 512
-        tagger_model.setup_test_data(cfg.data.test_ds)
-        logging.info('Evaluating the tagger...')
-        tagger_trainer.test(model=tagger_model, verbose=False)
+        # tagger_model.setup_test_data(cfg.data.test_ds)
+        # logging.info('Evaluating the tagger...')
+        # tagger_trainer.test(model=tagger_model, verbose=False)
     else:
         logging.info('Tagger checkpoint is not provided, skipping tagger evaluation')
 
     if cfg.decoder_pretrained_model:
         decoder_trainer, decoder_model = instantiate_model_and_trainer(cfg, DECODER_MODEL, False)
         decoder_model.max_sequence_len = 512
-        decoder_model.setup_multiple_test_data(cfg.data.test_ds)
-        logging.info('Evaluating the decoder...')
-        decoder_trainer.test(decoder_model)
+        # decoder_model.setup_multiple_test_data(cfg.data.test_ds)
+        # logging.info('Evaluating the decoder...')
+        # decoder_trainer.test(decoder_model)
     else:
         logging.info('Decoder checkpoint is not provided, skipping decoder evaluation')
 

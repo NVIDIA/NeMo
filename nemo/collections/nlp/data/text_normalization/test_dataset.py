@@ -13,8 +13,9 @@
 # limitations under the License.
 
 from collections import defaultdict
-from typing import DefaultDict, List
+from typing import List
 
+from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 from nemo.collections.nlp.data.text_normalization import constants
 from nemo.collections.nlp.data.text_normalization.utils import (
     basic_tokenize,
@@ -41,7 +42,7 @@ class TextNormalizationTestDataset:
     def __init__(self, input_file: str, mode: str, lang: str):
         self.lang = lang
         insts = read_data_file(input_file, lang=lang)
-
+        processor = MosesProcessor(lang_id=lang)
         # Build inputs and targets
         self.directions, self.inputs, self.targets, self.classes, self.nb_spans, self.span_starts, self.span_ends = (
             [],
@@ -80,7 +81,7 @@ class TextNormalizationTestDataset:
                         processed_nb_spans += 1
                         processed_classes.append(cls)
                         processed_s_span_starts.append(s_word_idx)
-                        s_word_idx += len(basic_tokenize(processed_s_words[-1], lang=self.lang))
+                        s_word_idx += len(processor.tokenize(processed_s_words[-1]).split())
                         processed_s_span_ends.append(s_word_idx)
                         processed_w_words.append(w_word)
 
@@ -88,8 +89,8 @@ class TextNormalizationTestDataset:
                     self.span_ends.append(processed_s_span_ends)
                     self.classes.append(processed_classes)
                     self.nb_spans.append(processed_nb_spans)
-                    # Basic tokenization
-                    input_words = basic_tokenize(' '.join(processed_s_words), lang)
+                    # Moses tokenization
+                    input_words = processor.tokenize(' '.join(processed_s_words)).split()
                     # Update self.directions, self.inputs, self.targets
                     self.directions.append(direction)
                     self.inputs.append(' '.join(input_words))
@@ -111,7 +112,6 @@ class TextNormalizationTestDataset:
                     ) = ([], [], [], 0, [], [])
                     w_word_idx = 0
                     for cls, w_word, s_word in zip(classes, w_words, s_words):
-
                         # TN forward mode
                         if s_word in constants.SPECIAL_WORDS:
                             processed_s_words.append(w_word)
@@ -119,7 +119,7 @@ class TextNormalizationTestDataset:
                             processed_s_words.append(s_word)
 
                         w_span_starts.append(w_word_idx)
-                        w_word_idx += len(basic_tokenize(w_word, lang=self.lang))
+                        w_word_idx += len(processor.tokenize(w_word).split())
                         w_span_ends.append(w_word_idx)
                         processed_nb_spans += 1
                         processed_classes.append(cls)
@@ -129,8 +129,8 @@ class TextNormalizationTestDataset:
                     self.span_ends.append(w_span_ends)
                     self.classes.append(processed_classes)
                     self.nb_spans.append(processed_nb_spans)
-                    # Basic tokenization
-                    input_words = basic_tokenize(' '.join(processed_w_words), lang)
+                    # Moses tokenization
+                    input_words = processor.tokenize(' '.join(processed_w_words)).split()
                     # Update self.directions, self.inputs, self.targets
                     self.directions.append(direction)
                     self.inputs.append(' '.join(input_words))
@@ -233,7 +233,7 @@ class TextNormalizationTestDataset:
             return 'NA'
         class2stats, class2correct = defaultdict(int), defaultdict(int)
         for ix, (sent, tags) in enumerate(zip(inputs, tag_preds)):
-            assert len(inputs) == len(tag_preds)
+            assert len(sent) == len(tags)
             cur_words = [[] for _ in range(nb_spans[ix])]
             jx, span_idx = 0, 0
             cur_spans = output_spans[ix]
@@ -265,6 +265,11 @@ class TextNormalizationTestDataset:
                 correct = TextNormalizationTestDataset.is_same(
                     " ".join(cur_words[class_idx]), targets[ix][target_token_idx], inst_directions[ix], lang
                 )
+                # if not correct:
+                #     print(" ".join(cur_words[class_idx]))
+                #     print(targets[ix][target_token_idx])
+                #     import pdb; pdb.set_trace()
+                #     print()
                 class2correct[classes[ix][class_idx]] += correct
                 target_token_idx += 1
 
