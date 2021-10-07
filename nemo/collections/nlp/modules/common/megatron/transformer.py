@@ -474,7 +474,6 @@ class ParallelTransformerLayer_(MegatronModule):
         self.bias_dropout_add_fused_train = BiasDropoutAddFusedTrain(fused_fp16, fused_bf16)
         self.bias_dropout_add_fused_inference = BiasDropoutAddFusedInference(fused_fp16, fused_bf16)
 
-
         self.bias_dropout_add_fused_train = BiasDropoutAddFusedTrain(fused_fp16, fused_bf16)
         self.bias_dropout_add_fused_inference = BiasDropoutAddFusedInference(fused_fp16, fused_bf16)
 
@@ -657,7 +656,7 @@ class ParallelTransformer(MegatronModule):
             return ParallelTransformerLayer(
                 init_method=init_method,
                 output_layer_init_method=output_layer_init_method,
-                layer_number=num_layers,
+                layer_number=layer_number,
                 hidden_size=hidden_size,
                 ffn_hidden_size=ffn_hidden_size,
                 num_attention_heads=num_attention_heads,
