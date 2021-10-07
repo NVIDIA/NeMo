@@ -348,11 +348,11 @@ class MegatronGPTModel(NLPModel):
             # No labels during inference. Still need masks to not attend to the right
             output_tensor = self(tokens, position_ids, attention_mask, labels=None)
             output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
-            logits, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
+            log_probs, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
             reached_eos = token_ids[0, -1].item() == self.tokenizer.eos_id
             tokens = torch.cat([torch.squeeze(tokens), token_ids[:, -1]])
             response['completion']["tokens"] = list(
-                zip(self.tokenizer.ids_to_tokens(tokens), tokens.tolist(), logits.tolist()[0])
+                zip(self.tokenizer.ids_to_tokens(tokens), tokens.tolist(), log_probs.tolist()[0])
             )
             completion_text = self.tokenizer.ids_to_text(x[1] for x in response['completion']["tokens"])
             if reached_eos:  # Will it actually ever reach that?
