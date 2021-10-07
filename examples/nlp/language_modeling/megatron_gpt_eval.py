@@ -13,7 +13,6 @@
 # limitations under the License.
 
 
-from typing import Dict
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_request_dataset import GPTRequestDataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -24,7 +23,7 @@ from nemo.utils import logging
 from argparse import ArgumentParser
 
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
