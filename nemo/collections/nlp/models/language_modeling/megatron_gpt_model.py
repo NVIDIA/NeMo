@@ -34,9 +34,8 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_ltor_masks_and_position_ids,
 )
-from nemo.collections.nlp.modules.common.megatron import fused_kernels
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
-from nemo.collections.nlp.parts.nlp_overrides import NLPNativeBfloat16PrecisionPlugin, NLPNativeMixedPrecisionPlugin
+from nemo.collections.nlp.parts.nlp_overrides import NLPNativeMixedPrecisionPlugin
 from nemo.utils import AppState, logging
 
 
@@ -62,8 +61,6 @@ class MegatronGPTModel(NLPModel):
 
         if not self.cfg.get('fused_bf16'):
             set_jit_fusion_options()
-
-        # fused_kernels.load()
 
         self.tokenizer = get_nmt_tokenizer(
             library=self.cfg.tokenizer.library,
