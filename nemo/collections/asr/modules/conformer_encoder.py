@@ -119,7 +119,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         att_context_size=None,
         xscaling=True,
         untie_biases=True,
-        pos_emb_max_len=5000,
+        pos_emb_max_len:int=5000,
         conv_kernel_size=31,
         dropout=0.1,
         dropout_emb=0.1,
@@ -205,25 +205,35 @@ class ConformerEncoder(NeuralModule, Exportable):
         else:
             self.out_proj = None
             self._feat_out = d_model
+        self.xmax = pos_emb_max_len
+        device=next(self.parameters()).device
+        seq_range = torch.arange(0, self.xmax, device=device)
+        self.register_buffer('seq_range', seq_range, persistent=False)
+        
 
     @typecheck()
     def forward(self, audio_signal, length=None):
+        audio_size:int = audio_signal.size(-1)
+        if audio_size > self.xmax :
+            logging.warning(f"Audio Signal is too long : {audio_size}, please increase pos_emb_max_len (={pos_emb_max_len}) config parameter!")
+        
         if length is None:
-            length = torch.tensor(audio_signal.size(-1)).repeat(audio_signal.size(0)).to(audio_signal)
+            length = audio_signal.new_full(audio_signal.size(0), audio_size, dtype = torch.int32, device=self.seq_range.device)
+            
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
         if isinstance(self.pre_encode, ConvSubsampling):
             audio_signal, length = self.pre_encode(audio_signal, length)
         else:
             audio_signal = self.pre_encode(audio_signal)
-
         audio_signal, pos_emb = self.pos_enc(audio_signal)
-        bs, xmax, idim = audio_signal.size()
-
+        # adjust size
+        audio_size = audio_signal.size(1)
         # Create the self-attention and padding masks
-        pad_mask = self.make_pad_mask(length, max_time=xmax, device=audio_signal.device)
-        att_mask = pad_mask.unsqueeze(1).repeat([1, xmax, 1])
-        att_mask = att_mask & att_mask.transpose(1, 2)
+        pad_mask = self.make_pad_mask(audio_size,length)
+        att_mask = pad_mask.unsqueeze(1).repeat([1, audio_size, 1])
+        print (pad_mask.dtype)
+        att_mask = torch.logical_and(att_mask, att_mask.transpose(1, 2))
         if self.att_context_size[0] >= 0:
             att_mask = att_mask.triu(diagonal=-self.att_context_size[0])
         if self.att_context_size[1] >= 0:
@@ -240,16 +250,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         audio_signal = torch.transpose(audio_signal, 1, 2)
         return audio_signal, length
 
-    @staticmethod
-    def make_pad_mask(seq_lens, max_time, device=None):
+    def make_pad_mask(self, audio_size, seq_lens):
         """Make masking for padding."""
-        bs = seq_lens.size(0)
-        seq_range = torch.arange(0, max_time, dtype=torch.int32)
-        seq_range_expand = seq_range.unsqueeze(0).expand(bs, max_time)
-        seq_lens = seq_lens.type(seq_range_expand.dtype).to(seq_range_expand.device)
-        seq_length_expand = seq_lens.unsqueeze(-1)
-        mask = seq_range_expand < seq_length_expand
-
-        if device:
-            mask = mask.to(device)
+        mask = self.seq_range[:audio_size].expand(seq_lens.size(0),-1) < seq_lens.unsqueeze(-1)
         return mask
