@@ -120,10 +120,10 @@ class ModelPT(LightningModule, Model):
                 self.setup_training_data(self._cfg.train_ds)
 
             if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
-                self.setup_multiple_validation_data(val_data_config=None)
+                self.setup_multiple_validation_data(val_data_config=cfg.validation_ds)
 
             if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
-                self.setup_multiple_test_data(test_data_config=None)
+                self.setup_multiple_test_data(test_data_config=cfg.test_ds)
 
         else:
             if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
