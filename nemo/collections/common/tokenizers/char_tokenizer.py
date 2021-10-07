@@ -169,7 +169,26 @@ class CharTokenizer(TokenizerSpec):
                 )
 
     @staticmethod
+    def check_special_tokens_dict_for_duplicate_values(special_tokens_dict, err_msg_prefix):
+        if len(special_tokens_dict) != len(set(special_tokens_dict.values())):
+            tokens_with_equal_values = []
+            duplicate_values = []
+            for k, v in reversed(list(special_tokens_dict.items()))[:-1]:
+                tokens = [k]
+                for kk, vv in special_tokens_dict.items():
+                    if kk == k:
+                        break
+                    if v == vv:
+                        tokens.append(kk)
+                if len(tokens) > 1:
+                    duplicate_values.append(v)
+                    tokens_with_equal_values.append(tokens)
+            if duplicate_values:
+                raise ValueError(err_msg_prefix + f" special tokens dictionary has duplicate values. ")
+
+    @classmethod
     def update_special_tokens_dict(
+        cls,
         init_special_tokens_dict: Dict[str, str],
         mask_token: Optional[Union[str, bool]] = None,
         bos_token: Optional[Union[str, bool]] = None,
@@ -205,17 +224,10 @@ class CharTokenizer(TokenizerSpec):
                     )
                 else:
                     special_tokens_dict[name] = value
-        if len(special_tokens_dict) != len(set(special_tokens_dict.values())):
-            tokens_with_equal_values = []
-            duplicate_values = []
-            for k, v in reversed(list(special_tokens_dict.items()))[:-1]:
-                tokens = []
-                for kk, vv in special_tokens_dict.items():
-                    if kk == k:
-                        break
-                    if v == vv:
-                        tokens.append(kk)
-
+        cls.check_special_tokens_dict_for_duplicate_values(
+            special_tokens_dict,
+            "After updating special tokens dictionary with tokens passed in `CharTokenizer` constructor parameters "
+        )
         return special_tokens_dict
 
     @staticmethod
@@ -225,20 +237,6 @@ class CharTokenizer(TokenizerSpec):
                 f"Each line in vocabulary have to be a Python string literal containing 1 character. "
                 f"Encountered {repr(token)} on line {line_i} in file {vocab_file}."
             )
-
-    # @staticmethod
-    # def check_special_token_value(parameter_name, value):
-    #     if isinstance(value, str):
-    #         if len(value) > 1:
-    #             raise ValueError(
-    #                 f"If `CharTokenizer` constructor parameter `{parameter_name}` is a string, then it has to "
-    #                 f"contain only 1 character. Given string '{value}' of length {len(value)}."
-    #             )
-    #     elif not isinstance(value, bool):
-    #         raise ValueError(
-    #             f"`CharTokenizer` constructor parameter `{parameter_name}` has to be a `str` or a `bool`, whereas it "
-    #             f"belongs to type {type(value)}"
-    #         )
 
     @staticmethod
     def check_special_token_name(parameter_name, value, special_tokens_dict):
