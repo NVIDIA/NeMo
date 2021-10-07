@@ -76,19 +76,12 @@ def main():
 
     request_dl = DataLoader(dataset)
 
-    trainer.predict(model, request_dl)
+    response = trainer.predict(model, request_dl)
 
-    # res = model.complete(
-    #     {
-    #         "prompt": args.prompt,
-    #         "tokens_to_generate": args.tokens_to_generate,
-    #         "stop_after_sentence": args.stop_after_sentence,
-    #     }
-    # )
-    # print("***************************")
-    # print(res['completion']['text'])
-    # print("***************************")
-    # logging.info(f"Generation stopped because: {res['completion']['stop reason']}")
+    print("***************************")
+    print(response[0]['completion']['text'])
+    print("***************************")
+    logging.info(f"Generation stopped because: {response[0]['completion']['stop reason']}")
 
 
 if __name__ == '__main__':
