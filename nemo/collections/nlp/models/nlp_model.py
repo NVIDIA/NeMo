@@ -15,6 +15,9 @@
 from ctypes import Union
 import hashlib
 import json
+
+from torch.serialization import save
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 import os
 from typing import Any, Callable, Dict, Optional
 
@@ -33,7 +36,7 @@ from nemo.collections.nlp.modules import MegatronBertEncoder
 from nemo.collections.nlp.modules import BertModule
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder import MegatronEncoderModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
-from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector
+from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector, NLPSaveRestoreConnector
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
 from nemo.utils import AppState, logging
@@ -346,3 +349,13 @@ class NLPModel(ModelPT, Exportable):
         finally:
             cls._set_model_restore_state(is_being_restored=False)
         return checkpoint
+
+    def save_to(self, save_path: str):
+        app_state = AppState()
+        # Add NeMo rank check as well
+        if app_state.model_parallel_size is not None:
+            if app_state.model_parallel_size > 1 and isinstance(self._save_restore_connector, SaveRestoreConnector):
+                logging.warning("Tried using default SaveRestoreConnector with a model parallel NLP model.")
+                logging.warning("Swapping SaveRestoreConnector for NLPSaveRestoreConnector.")
+                self._save_restore_connector = NLPSaveRestoreConnector()
+        super(NLPModel, self).save_to(save_path=save_path)

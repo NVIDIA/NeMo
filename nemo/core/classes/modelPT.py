@@ -221,7 +221,7 @@ class ModelPT(LightningModule, Model):
             if app_state.model_parallel_size > 1:
                 if isinstance(self._save_restore_connector, SaveRestoreConnector):
                     raise ValueError(
-                        'Using the default NeMo SaveRestoreConnector with a model parallel model. Please use NLPSaveRestoreConnector or a custom Connector that supports model parallelism.'
+                        'Default NeMo SaveRestoreConnector will not work in model parallel mode. You should use a connector which supports model parallel mode, such as NLPSaveRestoreConnector in NLP. You can also you custom one.'
                     )
 
             save_path = os.path.abspath(os.path.expanduser(save_path))
