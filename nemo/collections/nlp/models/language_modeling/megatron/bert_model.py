@@ -17,7 +17,7 @@
 import torch
 from apex.transformer import tensor_parallel
 
-from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType
+from apex.transformer.enums import AttnMaskType
 from apex.normalization.fused_layer_norm import MixedFusedLayerNorm as LayerNorm
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model, parallel_lm_logits
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule

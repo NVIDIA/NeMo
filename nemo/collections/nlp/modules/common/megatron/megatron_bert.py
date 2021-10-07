@@ -17,11 +17,10 @@
 import os
 
 import torch
-from nemo.collections.nlp.modules.common.megatron import fused_kernels
 
 
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
-from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType
+from apex.transformer.enums import AttnMaskType
 from apex.transformer.parallel_state import (
     get_model_parallel_group,
     model_parallel_is_initialized,
@@ -82,8 +81,6 @@ class MegatronBertEncoder(BertModule):
         # configure globals for megatron
         set_pipeline_model_parallel_rank(0)  # pipeline model parallelism not implemented in NeMo
         set_pipeline_model_parallel_world_size(1)  # pipeline model parallelism not implemented in NeMo
-
-        fused_kernels.load()
 
         self.language_model, self._language_model_key = get_language_model(
             encoder_attn_mask_type=AttnMaskType.padding, num_tokentypes=num_tokentypes, add_pooler=False
