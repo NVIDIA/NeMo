@@ -331,12 +331,15 @@ class MegatronGPTModel(NLPModel):
         self.eval()
         response['tokenized_prompt'] = request['tokenized_prompt']
         tokens = request['tokens']
+        # tokens = torch.tensor(tokens, device=self.device)
+        # tokens = torch.squeeze(tokens, 0)
         # naive greedy slow loop
         # TODO: add option for BeamSearchDecoder
         response['prompt'] = request['prompt']
         response['completion'] = {}
         response['completion']['stop reason'] = 'limit'
         for i in range(request.get("tokens_to_generate", 64)):
+            logging.info(f"tokens.shape: {tokens.shape}")
             attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
                 data=tokens,
                 eod_token=self.tokenizer.eos_id,
@@ -360,6 +363,7 @@ class MegatronGPTModel(NLPModel):
             elif request.get("stop_after_sentence", True) and completion_text.endswith(('.', '!', '?')):
                 response['completion']['stop reason'] = 'sentence_end'
                 break
+            tokens = torch.unsqueeze(tokens, 0)
         response['completion']["text"] = self.tokenizer.ids_to_text(x[1] for x in response['completion']["tokens"])
         return response
 
