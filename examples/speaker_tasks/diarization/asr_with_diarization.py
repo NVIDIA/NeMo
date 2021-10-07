@@ -57,7 +57,7 @@ if not sum(bool(c) for c in vad_choices) == 1:
 if args.asr_based_vad:
     oracle_manifest = 'asr_based_vad'
 elif args.pretrained_vad_model:  
-    oracle_manifest = None
+    oracle_manifest = 'system_vad'
 elif args.external_vad_manifest:
     oracle_manifest = args.external_vad_manifest
 elif args.reference_rttmfile_list_path:
@@ -65,16 +65,13 @@ elif args.reference_rttmfile_list_path:
     oracle_manifest = asr_diar_offline.write_VAD_rttm(asr_diar_offline.oracle_vad_dir, audio_file_list, args.reference_rttmfile_list_path)
 
 params = {
-    # "time_stride": 0.02,  # This should not be changed if you are using QuartzNet15x5Base.
-    # "offset": -0.18,  # This should not be changed if you are using QuartzNet15x5Base.
-    # "oracle_manifest": oracle_manifest,
     "round_float": 2,
     "window_length_in_sec": 1.5,
     "shift_length_in_sec": 0.75,
     "print_transcript": False,
     "lenient_overlap_WDER": True,
-    "SAD_threshold_for_word_ts": 0.5,
-    "max_word_ts_length_in_sec": 0.3,
+    "SAD_threshold_for_word_ts": 0.7,
+    "max_word_ts_length_in_sec": 0.6,
     "word_gap_in_sec": 0.01,
     "minimum": True,
     "threshold": args.threshold,  # minimun width to consider non-speech activity
@@ -113,7 +110,7 @@ if args.reference_rttmfile_list_path:
     
     total_riva_dict = asr_diar_offline.write_json_and_transcript(audio_file_list, diar_labels, word_list, word_ts_list)
    
-    WDER_dict = asr_diar_offline.get_WDER(total_riva_dict, DER_result_dict, audio_file_list, ref_labels_list)
+    WDER_dict = asr_diar_offline.get_WDER(audio_file_list, total_riva_dict, DER_result_dict, ref_labels_list)
     
     effective_wder = asr_diar_offline.get_effective_WDER(DER_result_dict, WDER_dict)
     # print(effective_wder)

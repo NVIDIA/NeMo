@@ -306,7 +306,7 @@ class ASR_DIAR_OFFLINE(object):
             asr_model = EncDecCTCModel.from_pretrained(model_name=ASR_model_name, strict=False)
             self.params['offset'] = -0.18
             self.model_stride_in_secs = 0.02
-            self.asr_delay_sec = 0.0
+            self.asr_delay_sec = -1*self.params['offset']
         
         elif 'conformer_ctc' in ASR_model_name:
             self.run_ASR = self.run_ASR_BPE_CTC
@@ -400,10 +400,10 @@ class ASR_DIAR_OFFLINE(object):
                 )
                 _trans, char_ts_in_feature_frame_idx = self.clean_trans_and_TS(text[0], char_ts[0])
                 _spaces_in_sec, _trans_words = self._get_spaces(_trans, char_ts_in_feature_frame_idx, self.params['time_stride'])
-                word_timestamps = self.get_word_ts_from_spaces(char_ts_in_feature_frame_idx, _spaces_in_sec, end_stamp=logit_np.shape[0])
-                assert len(_trans_words) == len(word_timestamps), "Words and word-timestamp list length does not match."
+                word_ts = self.get_word_ts_from_spaces(char_ts_in_feature_frame_idx, _spaces_in_sec, end_stamp=logit_np.shape[0])
+                assert len(_trans_words) == len(word_ts), "Words and word-timestamp list length does not match."
                 words_list.append(_trans_words)
-                word_ts_list.append(word_timestamps)
+                word_ts_list.append(word_ts)
         return words_list, word_ts_list
 
     def run_ASR_BPE_RNNT(self, _asr_model, audio_file_list):
@@ -452,12 +452,21 @@ class ASR_DIAR_OFFLINE(object):
                     self.model_stride_in_secs, greedy_predictions, predictions_len=logits_len
                 )
                 _trans_words, word_ts = text[0].split(), word_ts[0]
-                for p in range(len(word_ts)):
-                    word_ts[p] = [max(round(word_ts[p][0]-self.asr_delay_sec,2), 0), round(word_ts[p][1]-self.asr_delay_sec,2)]
                 words_list.append(_trans_words)
                 word_ts_list.append(word_ts)
                 assert len(_trans_words) == len(word_ts)
         return words_list, word_ts_list
+    
+    def apply_delay(self, word_ts):
+        """
+        Compensate the constant delay in the decoder output.
+
+        Arg:
+            word_ts (List): The list contains the timestamps of the word sequences.
+        """
+        for p in range(len(word_ts)):
+            word_ts[p] = [max(round(word_ts[p][0]-self.asr_delay_sec,2), 0), round(word_ts[p][1]-self.asr_delay_sec,2)]
+        return word_ts
 
     def save_SAD_labels_list(self, word_ts_list, audio_file_list):
         """
@@ -496,10 +505,11 @@ class ASR_DIAR_OFFLINE(object):
         return word_ts 
     
     def get_word_ts_from_spaces(self, char_ts, _spaces_in_sec, end_stamp):
-        start_stamp_in_sec, end_stamp_in_sec = char_ts[0]*self.params['time_stride'], end_stamp * self.params['time_stride']
-        word_timetamps_middle = [[_spaces_in_sec[k][1], _spaces_in_sec[k + 1][0]] for k in range(len(_spaces_in_sec) - 1)]
+        start_stamp_in_sec = char_ts[0]*self.params['time_stride'] - self.asr_delay_sec
+        end_stamp_in_sec = end_stamp * self.params['time_stride'] - self.asr_delay_sec
+        word_timetamps_middle = [[_spaces_in_sec[k][1]-self.asr_delay_sec, _spaces_in_sec[k + 1][0]-self.asr_delay_sec] for k in range(len(_spaces_in_sec) - 1)]
         word_timestamps = (
-            [[start_stamp_in_sec, _spaces_in_sec[0][0]]] + word_timetamps_middle + [[_spaces_in_sec[-1][1], end_stamp_in_sec]]
+            [[start_stamp_in_sec, _spaces_in_sec[0][0]-self.asr_delay_sec]] + word_timetamps_middle + [[_spaces_in_sec[-1][1]-self.asr_delay_sec, end_stamp_in_sec]]
         )
         return word_timestamps
     
@@ -578,7 +588,8 @@ class ASR_DIAR_OFFLINE(object):
             # Use ASR-based VAD for diarization.
             self.save_SAD_labels_list(words_and_timestamps, audio_file_list)
             oracle_manifest = self.write_VAD_rttm(self.oracle_vad_dir, audio_file_list)
-        elif not oracle_manifest:
+
+        elif oracle_manifest == 'system_vad':
             logging.info(f"Using the provided system VAD model for diarization: {pretrained_vad_model}")
             config.diarizer.vad.model_path = pretrained_vad_model
         else:
@@ -596,8 +607,8 @@ class ASR_DIAR_OFFLINE(object):
 
         oracle_model = ClusteringDiarizer(cfg=config)
         oracle_model.diarize()
-        
-        self.get_frame_level_SAD(oracle_model, audio_file_list)        
+        if oracle_manifest == 'system_vad':
+            self.get_frame_level_SAD(oracle_model, audio_file_list)        
         diar_labels = self.get_diarization_labels(audio_file_list)
 
         return diar_labels
@@ -703,15 +714,41 @@ class ASR_DIAR_OFFLINE(object):
         }
         return ref_labels_list, DER_result_dict
 
-    # def get_enhanced_word_ts_list(word_ts_list, params):
-        # N = len(word_ts_list)
-        # enhanced_word_ts_list = []
-        # for k, word_ts_seq in enumerate(word_ts_list):
-            # if k < N-1:
-                # if abs(word_ts_seq[k+1][0] - word_ts_seq[k][1] + params['word_gap_in_sec']) < params['max_word_ts_length_in_sec']:
+    def closest_silence_start(self, vad_index_word_end, vad_frames, params, offset=10):
+        c = vad_index_word_end + offset
+        while c < len(vad_frames):
+            if vad_frames[c] <  params['SAD_threshold_for_word_ts']:
+                break
+            else:
+                c += 1
+        c = min(len(vad_frames)-1, c)
+        return round(c/100.0, 2)
 
 
-                
+    def get_enhanced_word_ts_list(self, audio_file_list, word_ts_list, params):
+        enhanced_word_ts_list = []
+        for idx, word_ts_seq_list in enumerate(word_ts_list):
+            uniq_id = get_uniq_id_from_audio_path(audio_file_list[idx])
+            N = len(word_ts_seq_list)
+            enhanced_word_ts_buffer = []
+            for k, word_ts in enumerate(word_ts_seq_list):
+                if k < N-1:
+                    # Case 1 where word length is shorter than minimum word length
+                    vad_index_word_end = int(100*word_ts[1])
+                    closest_sil_stt = self.closest_silence_start(vad_index_word_end, self.frame_VAD[uniq_id], params)
+                    vad_est_len = round(closest_sil_stt - word_ts[0], 2)
+                    word_len = round(word_ts[1] - word_ts[0], 2)
+                    len_to_next_word = round(word_ts_seq_list[k+1][0] - word_ts[0] - 0.01,2)
+                    print(f"vad_est_len: {vad_est_len} word_len:{word_len} len_to_next_word:{len_to_next_word}") 
+                    fixed_word_len = min(vad_est_len, len_to_next_word) 
+                    fixed_word_len = max(min(params['max_word_ts_length_in_sec'], fixed_word_len), word_len)
+                    # else:
+                    print(f"fixed_word_len: {fixed_word_len}")
+                    # if fixed_word_len < 0.05:
+                        # import ipdb; ipdb.set_trace()
+                    enhanced_word_ts_buffer.append([word_ts[0], word_ts[0]+fixed_word_len])
+            enhanced_word_ts_list.append(enhanced_word_ts_buffer)
+        return enhanced_word_ts_list
 
 
     def write_json_and_transcript(
@@ -738,7 +775,7 @@ class ASR_DIAR_OFFLINE(object):
         """
         total_riva_dict = {}
 
-        # word_ts_list = self.get_enhanced_word_ts_list(word_ts_list, self.params))
+        word_ts_list = self.get_enhanced_word_ts_list(audio_file_list, word_ts_list, self.params)
         for k, audio_file_path in enumerate(audio_file_list):
             uniq_id = get_uniq_id_from_audio_path(audio_file_path)
             labels = diar_labels[k]
@@ -774,7 +811,7 @@ class ASR_DIAR_OFFLINE(object):
                     string_out = self.print_time(string_out, speaker, start_point, end_point, self.params)
                     string_out = self.print_word(string_out, words[j], self.params)
 
-                stt_sec, end_sec = word_ts_stt_end
+                stt_sec, end_sec = round(word_ts_stt_end[0],2), round(word_ts_stt_end[1], 2)
                 riva_dict = self.add_json_to_dict(riva_dict, words[j], stt_sec, end_sec, speaker)
 
                 total_riva_dict[uniq_id] = riva_dict
@@ -787,7 +824,7 @@ class ASR_DIAR_OFFLINE(object):
 
         return total_riva_dict
 
-    def get_WDER(self, total_riva_dict, DER_result_dict, audio_file_list, ref_labels_list):
+    def get_WDER(self, audio_file_list, total_riva_dict, DER_result_dict, ref_labels_list):
         """
         Calculate Word-level Diarization Error Rate (WDER). WDER is calculated by
         counting the the wrongly diarized words and divided by the total number of words
@@ -863,39 +900,6 @@ class ASR_DIAR_OFFLINE(object):
             speech_labels.append("{:.3f} {:.3f} speech".format(start, end))
         return speech_labels
         
-
-    def get_speech_labels_from_nonspeech(self, probs, non_speech):
-        """
-        Generate timestamps for speech labels from non_speech list.
-
-        Args:
-            probs (numpy.array):
-                The logit values converted to softmax values.
-
-            non_speech (list):
-                The list of timestamps for non-speech regions.
-        """
-        params = self.params
-        frame_offset = params['offset'] / params['time_stride']
-        speech_labels = []
-
-        if len(non_speech) > 0:
-            for idx in range(len(non_speech) - 1):
-                start = (non_speech[idx][1] + frame_offset) * params['time_stride']
-                end = (non_speech[idx + 1][0] + frame_offset) * params['time_stride']
-                speech_labels.append("{:.3f} {:.3f} speech".format(start, end))
-
-            if non_speech[-1][1] < len(probs):
-                start = (non_speech[-1][1] + frame_offset) * params['time_stride']
-                end = (len(probs) + frame_offset) * params['time_stride']
-                speech_labels.append("{:.3f} {:.3f} speech".format(start, end))
-        else:
-            start = 0
-            end = (len(probs) + frame_offset) * params['time_stride']
-            speech_labels.append("{:.3f} {:.3f} speech".format(start, end))
-
-        return speech_labels
-
     def write_result_in_csv(self, args, WDER_dict, DER_result_dict, effective_WDER):
         """
         This function is for development use.
@@ -985,7 +989,8 @@ class ASR_DIAR_OFFLINE(object):
         """Writes a VAD rttm file from speech_labels list.
         """
         uniq_id = get_uniq_id_from_audio_path(AUDIO_FILENAME)
-        with open(f'{self.oracle_vad_dir}/{uniq_id}.rttm', 'w') as f:
+        oracle_vad_dir = os.path.join(ROOT, 'oracle_vad')
+        with open(f'{oracle_vad_dir}/{uniq_id}.rttm', 'w') as f:
             for spl in speech_labels:
                 start, end, speaker = spl.split()
                 start, end = float(start), float(end)
@@ -1037,11 +1042,11 @@ class ASR_DIAR_OFFLINE(object):
         right = np.min(np.vstack((rangeA[:, 1], rangeB[:, 1])), axis=0)
         return right - left
 
-    @staticmethod
-    def get_timestamp_in_sec(word_ts_stt_end, params):
-        stt = round(params['offset'] + word_ts_stt_end[0] * params['time_stride'], params['round_float'])
-        end = round(params['offset'] + word_ts_stt_end[1] * params['time_stride'], params['round_float'])
-        return stt, end
+    # @staticmethod
+    # def get_timestamp_in_sec(word_ts_stt_end, params):
+        # stt = round(params['offset'] + word_ts_stt_end[0] * params['time_stride'], params['round_float'])
+        # end = round(params['offset'] + word_ts_stt_end[1] * params['time_stride'], params['round_float'])
+        # return stt, end
 
     @staticmethod
     def get_audacity_label(word, stt_sec, end_sec, speaker, audacity_label_words):
