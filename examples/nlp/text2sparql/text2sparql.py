@@ -14,20 +14,20 @@
 # limitations under the License.
 
 """
-This script contains an example on how to train and save a NeuralMachineTranslationModel.
-NeuralMachineTranslationModel in NeMo supports sequence to sequence problems such as language translation
+This script contains an example on how to train and save a Text2SparqlModel.
+Text2SparqlModel in NeMo supports sequence to sequence problems such as language translation
 and text summarization, provided the data follows the format specified below.
 
 
 ***Data format***
-NeuralMachineTranslationModel requires the data to be stored in TAB separated files (.tsv) with two columns of
+Text2SparqlModel requires the data to be stored in TAB separated files (.tsv) with two columns of
 sentence and label, where the first line is a header of format:
     sentence[TAB]label
 And each line is of the format:
     [SENTENCE][TAB][LABEL]
 
 If your dataset is stored in another format, you need to convert it to this format to use a
-NeuralMachineTranslationModel.
+Text2SparqlModel.
 
 
 ***Setting the configs***
@@ -35,7 +35,7 @@ This script uses the `/examples/nlp/text2sparql/conf/text2sparql_config.yaml` co
 You may update the config file from the file directly or by using the command line arguments.
 Another other option is to set another config file via command line arguments by `--config-name=CONFIG_FILE_PATH'.
 
-A NeuralMachineTranslationModel's config file declares multiple import sections. They are:
+A Text2SparqlModel's config file declares multiple import sections. They are:
     - trainer: Arguments to be passed to PyTorch Lightning.
     - model: All arguments that relate to the Model - language_model, tokenizers, datasets, optimizer, generate.
     - exp_manager: Arguments to be passed to NeMo's experiment manager.
@@ -91,7 +91,7 @@ python text2sparql.py \
 import pytorch_lightning as pl
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.nlp.models.neural_machine_translation import NeuralMachineTranslationModel
+from nemo.collections.nlp.models.text2sparql import Text2SparqlModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -102,7 +102,7 @@ def main(cfg: DictConfig) -> None:
     logging.info(f"Config:\n {OmegaConf.to_yaml(cfg)}")
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-    nmt_model = NeuralMachineTranslationModel(cfg.model, trainer=trainer)
+    nmt_model = Text2SparqlModel(cfg.model, trainer=trainer)
     trainer.fit(nmt_model)
     if cfg.model.nemo_path:
         nmt_model.save_to(cfg.model.nemo_path)
