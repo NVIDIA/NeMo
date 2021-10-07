@@ -329,6 +329,7 @@ class MegatronGPTModel(NLPModel):
         """
         response = {}
         self.eval()
+        logsoftmaxlayer = torch.nn.LogSoftmax(dim=-1)
         response['tokenized_prompt'] = request['tokenized_prompt']
         tokens = request['tokens']
         # naive greedy slow loop
@@ -347,7 +348,7 @@ class MegatronGPTModel(NLPModel):
             # No labels during inference. Still need masks to not attend to the right
             output_tensor = self(tokens, position_ids, attention_mask, labels=None)
             output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
-            logits, token_ids = torch.max(output_tensor, dim=-1)
+            logits, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
             reached_eos = token_ids[0, -1].item() == self.tokenizer.eos_id
             tokens = torch.cat([torch.squeeze(tokens), token_ids[:, -1]])
             response['completion']["tokens"] = list(
