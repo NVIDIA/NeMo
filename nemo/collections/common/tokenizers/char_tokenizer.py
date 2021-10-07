@@ -205,6 +205,17 @@ class CharTokenizer(TokenizerSpec):
                     )
                 else:
                     special_tokens_dict[name] = value
+        if len(special_tokens_dict) != len(set(special_tokens_dict.values())):
+            tokens_with_equal_values = []
+            duplicate_values = []
+            for k, v in reversed(list(special_tokens_dict.items()))[:-1]:
+                tokens = []
+                for kk, vv in special_tokens_dict.items():
+                    if kk == k:
+                        break
+                    if v == vv:
+                        tokens.append(kk)
+
         return special_tokens_dict
 
     @staticmethod
@@ -374,6 +385,15 @@ class CharTokenizer(TokenizerSpec):
                     raise ValueError(f"The type of parameter `{name}` has to be `None` or `str`, found `{type(value)}`")
                 elif len(value) == 0:
                     raise ValueError(f"If the parameter `{name}` is `str`, then its length has to be nonzero.")
+                elif value in special_tokens_dict.values():
+                    other_name = None
+                    for k, v in special_tokens_dict.items():
+                        if v == value:
+                            other_name = k
+                    raise ValueError(
+                        f"The value {repr(value)} of special token `{name}` is the same as the value for special token "
+                        f"`{other_name}`."
+                    )
                 special_tokens_dict[name] = value
         return special_tokens_dict
 
@@ -427,7 +447,9 @@ class CharTokenizer(TokenizerSpec):
     ):
         """
         Creates character vocabulary and saves it to file ``save_path``. You should provide one of parameters ``text``
-        and ``text_file_name``. The format of cr
+        and ``text_file_name``. The format of created char vocabulary file is following:
+        ```
+        {['mask_token': "ANY NON EMPTY STRING", ]['bos_token'
         Args:
             save_path: path to the output text file. If ``save_path`` parent directory does not exist it will be created
             text: string which characters are used for vocabulary creation.
