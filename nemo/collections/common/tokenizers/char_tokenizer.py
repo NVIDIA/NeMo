@@ -231,7 +231,7 @@ class CharTokenizer(TokenizerSpec):
                     special_tokens_dict[name] = value
         cls.check_special_tokens_dict_for_duplicate_values(
             special_tokens_dict,
-            "After updating special tokens dictionary with tokens passed in `CharTokenizer` constructor parameters"
+            "After updating special tokens dictionary with tokens passed in `CharTokenizer` constructor parameters",
         )
         return special_tokens_dict
 
@@ -385,7 +385,9 @@ class CharTokenizer(TokenizerSpec):
         ):
             if value is not None:
                 if not isinstance(value, str):
-                    raise ValueError(f"The type of parameter `{name}` has to be `None` or `str`, found `{type(value)}`")
+                    raise ValueError(
+                        f"The type of parameter `{name}` has to be `None` or `str`, found `{type(value)}`"
+                    )
                 elif len(value) == 0:
                     raise ValueError(f"If the parameter `{name}` is `str`, then its length has to be nonzero.")
                 elif value in special_tokens_dict.values():
