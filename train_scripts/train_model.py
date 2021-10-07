@@ -63,37 +63,17 @@ def main(cfg):
     blend_path = os.path.join(bignlp_path, run_cfg.get("blend_path"))
     log_dir = os.path.join(bignlp_path, run_cfg.get("log_dir"))
     if not os.path.exists(log_dir):
+        print(log_dir)
         os.makedirs(log_dir)
-    if run_cfg.get("bind_script") is not None:
-        bind_script = os.path.join(bignlp_path, run_cfg.get("bind_script"))
-    if run_cfg.get("mem_script") is not None:
-        mem_script = os.path.join(bignlp_path, run_cfg.get("mem_script"))
-    if run_cfg.get("cpu_script") is not None:
-        cpu_script = os.path.join(bignlp_path, run_cfg.get("cpu_script"))
 
-    # Megatron parameters
-    # Convert YAML values to flags: --key value
-    train_args_list = []
-    for k, v in megatron_cfg.items():
-        if isinstance(v, bool):
-            train_args_list.append(f"--{k.replace('_', '-')}")
-        else:
-            train_args_list.append(f"--{k.replace('_', '-')} {v}")
-    train_args = " ".join(train_args_list)
-
-    train_file_name = "train_script.sh"
     flags = (
-        f"-l "
         f"--container-image {container} "
-        f"--container-mounts {bignlp_path}:{bignlp_path} "
-        f"--output {log_dir}/{name}-%j.log"
-    )
-
-    train_cmd = ""
-    if run_cfg.get("bind_script") is not None:
-        train_cmd = f"{bind_script} --cpu={cpu_script} --mem={mem_script} "
-    train_cmd += f"python -u {bignlp_path}/megatron-lm/pretrain_gpt.py {train_args}"
-
+        f"--container-mounts {bignlp_path}:/workspace/bignlp-scripts "
+        f"-o {log_dir}/{name}-%j.log "
+        f"-e {log_dir}/{name}-%j.error "
+        )
+    train_file_name = "train_script.sh"
+    train_cmd = f"python3 -u /workspace/bignlp-scripts/train_scripts/pretrain_gpt.py"
     path_to_train_file = create_slurm_file(
         new_file_name=train_file_name,
         train_cmd=train_cmd,

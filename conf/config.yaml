@@ -9,4 +9,5 @@ hydra:
     dir: .
   output_subdir: null
 
-bignlp_path: ???
+bignlp_path: ??? # Path to where the bignlp-scripts repo is. Should end with /.../bignlp-scripts
+container: gitlab-master.nvidia.com/dl/dgx/bignlp:21.10.02-py3-base
