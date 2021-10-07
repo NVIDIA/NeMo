@@ -39,6 +39,7 @@ class NamedTimer(object):
         Args:
             reduction (str): reduction over multiple timings of the same timer
                              (none - returns the list instead of a scalar)
+            sync_cuda (bool): if True torch.cuda.synchronize() is called for start/stop
         """
         if reduction not in self._REDUCTION_TYPE:
             raise ValueError(f"Unknown reduction={reduction} please use one of {self._REDUCTION_TYPE}")
