@@ -461,12 +461,12 @@ The config files for Conformer-CTC model contain character-based encoding and su
 ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_char.yaml`` and ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_bpe.yaml`` 
 respectively. Some components of the configs of `Conformer-CTC <./models.html#Conformer-CTC>`__ include the following datasets:
 
-- ``train_ds``, ``validation_ds``, and ``test_ds``
-- opimizer (``optim``)
-- augmentation (``spec_augment``)
-- ``decoder``
-- ``trainer``
-``exp_manager``
+* ``train_ds``, ``validation_ds``, and ``test_ds``
+* opimizer (``optim``)
+* augmentation (``spec_augment``)
+* ``decoder``
+* ``trainer``
+* ``exp_manager``
 
 These datasets are similar to other ASR models like `QuartzNet <./models.html#QuartzNet>`__. There should be a tokenizer section where you can  
 specify the tokenizer if you want to use sub-word encoding instead of character-based encoding.
@@ -474,6 +474,15 @@ specify the tokenizer if you want to use sub-word encoding instead of character-
 The encoder section includes the details about the Conformer-CTC encoder architecture. You may find more information in the 
 config files and also :doc:`nemo.collections.asr.modules.ConformerEncoder<./api.html#nemo.collections.asr.modules.ConformerEncoder>`.
 
+ContextNet
+~~~~~~~~~~
+
+Please refer to the model page of `ContextNet <./models.html#ContextNet>`__ for more information on this model.
+
+Conformer-Transducer
+~~~~~~~~~~~~~~~~~~~~
+
+Please refer to the model page of `Conformer-Transducer <./models.html#Conformer-Transducer>`__ for more information on this model.
 
 Fine-tuning Configurations
 -------------------------
