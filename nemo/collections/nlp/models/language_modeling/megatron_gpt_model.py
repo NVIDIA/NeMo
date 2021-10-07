@@ -63,7 +63,7 @@ class MegatronGPTModel(NLPModel):
         if not self.cfg.get('fused_bf16'):
             set_jit_fusion_options()
 
-        fused_kernels.load()
+        # fused_kernels.load()
 
         self.tokenizer = get_nmt_tokenizer(
             library=self.cfg.tokenizer.library,
