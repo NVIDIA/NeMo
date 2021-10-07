@@ -29,7 +29,7 @@ def get_args():
         type=str,
         default=None,
         required=True,
-        help="Path to PTL checkpoints saved during training. Ex: /raid/nemo_experiments/megatron_gpt/2021-10-04_11-03-07/checkpoints",
+        help="Path to PTL checkpoints saved during training. Ex: /raid/nemo_experiments/megatron_gpt/checkpoints",
     )
     parser.add_argument(
         "--checkpoint_name",
@@ -40,7 +40,11 @@ def get_args():
     )
 
     parser.add_argument(
-        "--hparams_file", type=str, default=None, required=False, help="Path to updated config for restoring."
+        "--hparams_file",
+        type=str,
+        default=None,
+        required=False,
+        help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )
     parser.add_argument("--nemo_file_path", type=str, default=None, required=True, help="Path to output .nemo file.")
 
