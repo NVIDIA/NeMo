@@ -204,11 +204,7 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
                 pooling_type="avg",
             )
         else:
-            raise ValueError(
-                "Unknown arch = {arch}, supported arch = {supported_arch}".format(
-                    arch=arch, supported_arch=self.supported_arch,
-                )
-            )
+            raise ValueError(f"Unknown arch = {self.arch}, supported arch = {self.supported_arch}")
 
         return encoder
 
@@ -303,11 +299,14 @@ class TransformerBottleneckDecoderNM(TransformerDecoderNM):
         # replace decoder
         self._decoder = self._build_decoder(
             arch=arch,
-            hidden_steps=hidden_steps,
             hidden_size=hidden_size,
             num_layers=num_layers,
             inner_size=inner_size,
             num_attention_heads=num_attention_heads,
+            max_sequence_length=max_sequence_length,
+            num_token_types=num_token_types,
+            embedding_dropout=embedding_dropout,
+            learn_positional_encodings=learn_positional_encodings,
             ffn_dropout=ffn_dropout,
             attn_score_dropout=attn_score_dropout,
             attn_layer_dropout=attn_layer_dropout,
@@ -324,17 +323,13 @@ class TransformerBottleneckDecoderNM(TransformerDecoderNM):
         if (not arch) or (arch == "seq2seq"):
             decoder = self.decoder
         else:
-            raise ValueError(
-                "Unknown arch = {arch}, supported arch = {supported arch}".format(
-                    arch=arch, supported_arch=self.supported_arch,
-                )
-            )
+            raise ValueError(f"Unknown arch = {self.arch}, supported arch = {self.supported_arch}")
 
         return decoder
 
     @property
     def supported_arch(self):
-        return _SUPPORTED_ARCH
+        return self._SUPPORTED_ARCH
 
     @property
     def arch(self):

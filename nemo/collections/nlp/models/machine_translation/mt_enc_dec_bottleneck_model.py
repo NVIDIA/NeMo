@@ -304,7 +304,9 @@ class MTBottleneckModel(MTEncDecModel):
         return z, z_mean, z_logv, z_mask, tgt_log_probs
 
     @torch.no_grad()
-    def batch_translate(self, src: torch.LongTensor, src_mask: torch.LongTensor, return_beam_scores: bool = False, cache={}):
+    def batch_translate(
+        self, src: torch.LongTensor, src_mask: torch.LongTensor, return_beam_scores: bool = False, cache={}
+    ):
         """
         Translates a minibatch of inputs from source language to target language.
         Args:
@@ -428,12 +430,7 @@ class MTBottleneckModel(MTEncDecModel):
             return_info=True,
         )
         # pass cache to sampler in order to reuse encoder's output
-        cache = dict(
-            z=z,
-            z_mean=z_mean,
-            z_mask=z_mask,
-            timer=timer,
-        )
+        cache = dict(z=z, z_mean=z_mean, z_mask=z_mask, timer=timer,)
 
         _, translations = self.batch_translate(src=src_ids, src_mask=src_mask, cache=cache)
 
