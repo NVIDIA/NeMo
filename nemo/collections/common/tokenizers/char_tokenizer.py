@@ -427,7 +427,7 @@ class CharTokenizer(TokenizerSpec):
     ):
         """
         Creates character vocabulary and saves it to file ``save_path``. You should provide one of parameters ``text``
-        and ``text_file_name``.
+        and ``text_file_name``. The format of cr
         Args:
             save_path: path to the output text file. If ``save_path`` parent directory does not exist it will be created
             text: string which characters are used for vocabulary creation.
@@ -436,6 +436,7 @@ class CharTokenizer(TokenizerSpec):
             characters_to_exclude: a list of characters which will not be added to vocabulary.
             vocab_size: vocabulary size. If this parameter is set only most frequent ``vocab_size`` characters are added
                 to vocabulary.
+            mask_token:
         """
         special_tokens_dict = cls.create_special_tokens_dict(
             mask_token, bos_token, eos_token, pad_token, sep_token, cls_token, unk_token
