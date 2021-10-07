@@ -13,39 +13,60 @@
 # limitations under the License.
 
 
+import os
+import torch.multiprocessing as mp
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
+from nemo.utils import app_state, logging, AppState
 from pytorch_lightning.trainer.trainer import Trainer
 from argparse import ArgumentParser
 
 
-def main():
+def get_args():
     parser = ArgumentParser()
     parser.add_argument(
         "--checkpoint_folder",
         type=str,
         default=None,
-        required=False,
-        help="Path to PTL checkpoints saved during training.",
+        required=True,
+        help="Path to PTL checkpoints saved during training. Ex: /raid/nemo_experiments/megatron_gpt/2021-10-04_11-03-07/checkpoints",
     )
+    parser.add_argument(
+        "--checkpoint_name",
+        type=str,
+        default=None,
+        required=True,
+        help="Name of checkpoint to be used. Ex: megatron_gpt--val_loss=6.34-step=649-last.ckpt",
+    )
+
     parser.add_argument(
         "--hparams_file", type=str, default=None, required=False, help="Path to updated config for restoring."
     )
-    parser.add_argument("--nemo_file", type=str, default=None, required=False, help="Path to output .nemo file.")
+    parser.add_argument("--nemo_file_path", type=str, default=None, required=True, help="Path to output .nemo file.")
 
-    parser.add_argument("--tensor_model_parallel_size", type=int, default=None, required=False)
+    parser.add_argument("--tensor_model_parallel_size", type=int, required=True, default=None)
 
     args = parser.parse_args()
+    return args
 
-    # args.checkpoint_folder = '/raid/nemo_experiments/gpt_debug/megatron_gpt/2021-10-01_11-23-40/checkpoints/mp_rank_00/megatron_gpt--val_loss=8.79-step=49-last.ckpt'
-    args.checkpoint_folder = '/raid/nemo_experiments/gpt_debug/megatron_gpt/2021-10-04_11-03-07'
-    args.nemo_file = '~/tmp/ckpt_to_nemo.nemo'
-    args.tensor_model_parallel_size = 4
 
+def convert(rank, world_size, args):
+
+    app_state = AppState()
+    app_state.data_parallel_rank = 0
     trainer = Trainer(gpus=args.tensor_model_parallel_size)
-    model = MegatronGPTModel.load_from_checkpoint(
-        checkpoint_path=args.checkpoint_folder, hparams_file=args.hparams_file, trainer=trainer
-    )
-    model.save_to(args.nemo_file)
+    trainer.accelerator.training_type_plugin._local_rank = rank
+    checkpoint_path = os.path.join(args.checkpoint_folder, f'mp_rank_{rank:02d}', args.checkpoint_name)
+    model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
+    model._save_restore_connector = NLPSaveRestoreConnector()
+    model.save_to(args.nemo_file_path)
+    logging.info(f'NeMo model saved to: {args.nemo_file_path}')
+
+
+def main() -> None:
+    args = get_args()
+    world_size = args.tensor_model_parallel_size
+    mp.spawn(convert, args=(world_size, args), nprocs=world_size, join=True)
 
 
 if __name__ == '__main__':
