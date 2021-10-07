@@ -70,6 +70,7 @@ params = {
     "shift_length_in_sec": 0.75,
     "print_transcript": False,
     "lenient_overlap_WDER": True,
+    "fix_word_ts_with_SAD": False,
     "SAD_threshold_for_word_ts": 0.7,
     "max_word_ts_length_in_sec": 0.6,
     "word_gap_in_sec": 0.01,
@@ -78,7 +79,7 @@ params = {
     "asr_based_vad": args.asr_based_vad,
     "diar_config_url": args.diar_config_url,
     "ASR_model_name": 'stt_en_conformer_ctc_large',
-    # "ASR_model_name": 'QuartzNet15x5Base-En', #?
+    # "ASR_model_name": 'QuartzNet15x5Base-En', 
 }
 
 asr_diar_offline = ASR_DIAR_OFFLINE(params)

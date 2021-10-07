@@ -413,9 +413,9 @@ class ASR_DIAR_OFFLINE(object):
         """
         Not implemented Yet
         """
+        torch.manual_seed(0)
         words_list, word_ts_list = [], []
 
-        # self.chunk_len_in_sec = self.chunk_len_in_ms / 1000
         onset_delay = math.ceil(((self.total_buffer_in_secs - self.chunk_len_in_sec)/2)/self.model_stride_in_secs)+1
 
         tokens_per_chunk = math.ceil(self.chunk_len_in_sec / self.model_stride_in_secs)
@@ -774,8 +774,8 @@ class ASR_DIAR_OFFLINE(object):
 
         """
         total_riva_dict = {}
-
-        word_ts_list = self.get_enhanced_word_ts_list(audio_file_list, word_ts_list, self.params)
+        if self.params['fix_word_ts_with_SAD']:
+            word_ts_list = self.get_enhanced_word_ts_list(audio_file_list, word_ts_list, self.params)
         for k, audio_file_path in enumerate(audio_file_list):
             uniq_id = get_uniq_id_from_audio_path(audio_file_path)
             labels = diar_labels[k]
@@ -1041,12 +1041,6 @@ class ASR_DIAR_OFFLINE(object):
         left = np.max(np.vstack((rangeA[:, 0], rangeB[:, 0])), axis=0)
         right = np.min(np.vstack((rangeA[:, 1], rangeB[:, 1])), axis=0)
         return right - left
-
-    # @staticmethod
-    # def get_timestamp_in_sec(word_ts_stt_end, params):
-        # stt = round(params['offset'] + word_ts_stt_end[0] * params['time_stride'], params['round_float'])
-        # end = round(params['offset'] + word_ts_stt_end[1] * params['time_stride'], params['round_float'])
-        # return stt, end
 
     @staticmethod
     def get_audacity_label(word, stt_sec, end_sec, speaker, audacity_label_words):
