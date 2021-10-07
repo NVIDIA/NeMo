@@ -19,11 +19,11 @@ import torch
 import torch.nn.functional as F
 
 from apex.transformer import tensor_parallel, parallel_state
-from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
+from apex.normalization.fused_layer_norm import MixedFusedLayerNorm as LayerNorm
+from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
 
+from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, LayerType, AttnType
-from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import MixedFusedLayerNorm as LayerNorm
-from nemo.collections.nlp.modules.common.megatron.fused_softmax import FusedScaleMaskSoftmax
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import FusedBiasGeLU
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import (
     BiasDropoutAddFusedTrain,
@@ -473,7 +473,6 @@ class ParallelTransformerLayer_(MegatronModule):
         )
         self.bias_dropout_add_fused_train = BiasDropoutAddFusedTrain(fused_fp16, fused_bf16)
         self.bias_dropout_add_fused_inference = BiasDropoutAddFusedInference(fused_fp16, fused_bf16)
-
 
         self.bias_dropout_add_fused_train = BiasDropoutAddFusedTrain(fused_fp16, fused_bf16)
         self.bias_dropout_add_fused_inference = BiasDropoutAddFusedInference(fused_fp16, fused_bf16)
