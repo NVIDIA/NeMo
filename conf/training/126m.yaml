@@ -12,8 +12,7 @@ slurm:
 
 
 run:
-  name: "126m"
-  container: "gitlab-master.nvidia.com/dl/dgx/bignlp:21.10.02-py3-base"
+  name: "126m-gpt3"
   blend_path: "prepare_dataset/gpt3_blend.sh"
   log_dir: "train_scripts/logs"
 
@@ -57,7 +56,7 @@ exp_manager:
 
 
 model:
-  nemo_file_path: /workspace/bignlp-scripts/train_scripts/nemo_checkpoint/126m_gpt3.nemo  # after each training run save .nemo file to this location
+  nemo_file_path: /gpfs/fs1/mausin/bignlp-scripts/train_scripts/nemo_checkpoint/126m_gpt3.nemo  # after each training run save .nemo file to this location
 
   # model parallelism 
   micro_batch_size: 4
@@ -126,6 +125,6 @@ model:
     eod_mask_loss: False # Mask loss for the end of document tokens
     data_prefix:  # Should be weight path weight path... for a blended dataset
       - .5
-      - /workspace/bignlp-scripts/prepare_dataset/the_pile/my-gpt3_00_text_document
+      - /gpfs/fs1/mausin/bignlp-scripts/prepare_dataset/the_pile/my-gpt3_00_text_document
       - .5
-      - /workspace/bignlp-scripts/prepare_dataset/the_pile/my-gpt3_01_text_document
+      - /gpfs/fs1/mausin/bignlp-scripts/prepare_dataset/the_pile/my-gpt3_01_text_document

@@ -3,10 +3,11 @@ import os
 import subprocess
 
 import hydra
+from omegaconf import OmegaConf
 
 
 def create_slurm_file(
-    new_file_name,
+    new_script_path,
     train_cmd,
     job_name,
     blend_path,
@@ -17,8 +18,7 @@ def create_slurm_file(
     nodes=1,
     partition="A100",
 ):
-    path_to_file = os.path.join(os.environ.get("PWD"), new_file_name)
-    with open(path_to_file, "w") as f:
+    with open(new_script_path, "w") as f:
         f.writelines("#!/bin/bash\n")
         f.writelines(f"#SBATCH --nodes={nodes}\n")
         if depend is not None:
@@ -33,13 +33,13 @@ def create_slurm_file(
 
         f.writelines(f'srun {flags} sh -c "{train_cmd}"\n\n')
         f.writelines("set +x\n")
-    return path_to_file
 
 
 @hydra.main(config_path="../conf", config_name="config")
 def main(cfg):
     # Read config
     bignlp_path = cfg.get("bignlp_path")
+    container = cfg.get("container")
     train_cfg = cfg.get("training")
     run_cfg = train_cfg.get("run")
     megatron_cfg = train_cfg.get("megatron")
@@ -59,26 +59,26 @@ def main(cfg):
 
     # Run parameters
     name = run_cfg.get("name")
-    container = run_cfg.get("container")
-    blend_path = os.path.join(bignlp_path, run_cfg.get("blend_path"))
+    blend_path = run_cfg.get("blend_path")
+    full_blend_path = os.path.join(bignlp_path, blend_path)
     log_dir = os.path.join(bignlp_path, run_cfg.get("log_dir"))
     if not os.path.exists(log_dir):
-        print(log_dir)
         os.makedirs(log_dir)
 
     flags = (
         f"--container-image {container} "
-        f"--container-mounts {bignlp_path}:/workspace/bignlp-scripts "
+        f"--container-mounts {bignlp_path}:{bignlp_path} "
         f"-o {log_dir}/{name}-%j.log "
         f"-e {log_dir}/{name}-%j.error "
         )
-    train_file_name = "train_script.sh"
-    train_cmd = f"python3 -u /workspace/bignlp-scripts/train_scripts/pretrain_gpt.py"
-    path_to_train_file = create_slurm_file(
-        new_file_name=train_file_name,
+    new_script_path = os.path.join(bignlp_path, "train_scripts/train_script.sh")
+    code_path = os.path.join(bignlp_path, "train_scripts/pretrain_gpt.py")
+    train_cmd = f"python3 -u {code_path}"
+    create_slurm_file(
+        new_script_path=new_script_path,
         train_cmd=train_cmd,
-        blend_path=blend_path,
-        job_name="bignlp:gpt3-126m",
+        blend_path=full_blend_path,
+        job_name=f"bignlp:{name}",
         flags=flags,
         depend=dependency,
         time=time_limit,
@@ -86,7 +86,7 @@ def main(cfg):
         partition=partition,
     )
     job_id = subprocess.check_output(
-        [f"sbatch --parsable {path_to_train_file}"], shell=True
+        [f"sbatch --parsable {new_script_path}"], shell=True
     )
     job_id = job_id.decode("utf-8")
     print(f"Submitted Training script with job id: {job_id}")
