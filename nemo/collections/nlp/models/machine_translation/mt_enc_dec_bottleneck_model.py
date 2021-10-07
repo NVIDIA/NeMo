@@ -435,7 +435,7 @@ class MTBottleneckModel(MTEncDecModel):
             timer=timer,
         )
 
-        _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
+        _, translations = self.batch_translate(src=src_ids, src_mask=src_mask, cache=cache)
 
         num_measurements = labels.shape[0] * labels.shape[1]
         if dataloader_idx == 0:
