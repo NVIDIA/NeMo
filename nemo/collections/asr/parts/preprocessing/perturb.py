@@ -645,7 +645,7 @@ class TranscodePerturbation(Perturbation):
 
     def perturb(self, data):
         max_level = np.max(np.abs(data._samples))
-        if max_level > 1.0:
+        if max_level > 0.8:
             norm_factor = self.att_factor / max_level
             norm_samples = norm_factor * data._samples
         else:
