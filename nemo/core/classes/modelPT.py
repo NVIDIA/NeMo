@@ -218,6 +218,12 @@ class ModelPT(LightningModule, Model):
         app_state = AppState()
         # Add NeMo rank check as well
         if app_state.model_parallel_size is not None:
+            if app_state.model_parallel_size > 1:
+                if isinstance(self._save_restore_connector, SaveRestoreConnector):
+                    raise ValueError(
+                        'Using the default NeMo SaveRestoreConnector with a model parallel model. Please use NLPSaveRestoreConnector or a custom Connector that supports model parallelism.'
+                    )
+
             save_path = os.path.abspath(os.path.expanduser(save_path))
             # connector checks for ranks properly, no need to check here
             self._save_restore_connector.save_to(self, save_path)
