@@ -184,7 +184,12 @@ class CharTokenizer(TokenizerSpec):
                     duplicate_values.append(v)
                     tokens_with_equal_values.append(tokens)
             if duplicate_values:
-                raise ValueError(err_msg_prefix + f" special tokens dictionary has duplicate values. ")
+                dup_values_msg = '. '.join(
+                    ["Tokens {t} have value {v}" for t, v in zip(tokens_with_equal_values, duplicate_values)]
+                )
+                raise ValueError(
+                    err_msg_prefix + f" special tokens dictionary has duplicate values. " + dup_values_msg
+                )
 
     @classmethod
     def update_special_tokens_dict(
