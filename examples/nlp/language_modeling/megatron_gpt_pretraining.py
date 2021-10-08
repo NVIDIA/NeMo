@@ -13,16 +13,17 @@
 # limitations under the License.
 
 from pathlib import Path
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
+
 from omegaconf.omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.parts.nlp_overrides import (
     NLPCheckpointConnector,
     NLPDDPPlugin,
-    NLPNativeMixedPrecisionPlugin,
     NLPNativeBfloat16PrecisionPlugin,
+    NLPNativeMixedPrecisionPlugin,
     NLPPrecisionPlugin,
     NLPSaveRestoreConnector,
 )
@@ -49,10 +50,7 @@ def main(cfg) -> None:
         )
     elif cfg.trainer.precision == 'bf16':
         trainer = Trainer(
-            plugins=[
-                NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes),
-                NLPNativeBfloat16PrecisionPlugin(),
-            ],
+            plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes), NLPNativeBfloat16PrecisionPlugin(),],
             **cfg.trainer,
         )
     else:

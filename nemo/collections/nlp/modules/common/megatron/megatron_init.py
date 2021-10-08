@@ -12,20 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 import random
-from apex.transformer import tensor_parallel
 
+import numpy as np
+import torch
+from apex.transformer import tensor_parallel
 from apex.transformer.parallel_state import (
+    get_pipeline_model_parallel_rank,
     set_pipeline_model_parallel_rank,
     set_pipeline_model_parallel_world_size,
     set_tensor_model_parallel_rank,
     set_tensor_model_parallel_world_size,
-    get_pipeline_model_parallel_rank,
 )
-import numpy as np
-import torch
 
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.utils import AppState
 
 

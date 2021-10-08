@@ -19,9 +19,9 @@ import time
 import numpy as np
 import torch
 from apex.transformer import tensor_parallel
-from nemo.utils import logging
 
 from nemo.collections.nlp.data.language_modeling.megatron import helpers
+from nemo.utils import logging
 
 
 class BlendableDataset(torch.utils.data.Dataset):

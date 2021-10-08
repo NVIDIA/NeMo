@@ -55,7 +55,7 @@ class FusedLayerNormAffineFunction(torch.autograd.Function):
         )
 
         return grad_input, grad_weight, grad_bias, None, None
-        
+
 
 class MixedFusedLayerNorm(AutocastModuleWrapper):
     def __init__(self, normalized_shape, eps=1e-5, fp16=False, bf16=False):

@@ -1,12 +1,11 @@
 import math
 
 import torch
-from torch.nn import LayerNorm
-
 from megatron.model.enums import AttnMaskType
 from megatron.model.fused_layer_norm import MixedFusedLayerNorm
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
 from megatron.model.utils import attention_mask_func
+from torch.nn import LayerNorm
 
 
 def test_load_fused_kernels():
@@ -26,14 +25,10 @@ def test_fused_softmax():
     bert = BertModel.from_pretrained("bert-base-cased").cuda().half()
     tokenizer = BertTokenizer.from_pretrained("bert-base-cased")
     test_text = (
-        "Hello. How are you? I am fine thank you and you? yes Good. "
-        "hi hi hi hi hi hi hi hi hi hi hi hi hi"  # 32
+        "Hello. How are you? I am fine thank you and you? yes Good. " "hi hi hi hi hi hi hi hi hi hi hi hi hi"  # 32
     )
 
-    tokens = tokenizer(
-        [test_text] * 4,
-        return_tensors="pt",
-    )
+    tokens = tokenizer([test_text] * 4, return_tensors="pt",)
 
     embedding_output = bert.embeddings(
         input_ids=tokens["input_ids"].cuda(),
@@ -45,9 +40,7 @@ def test_fused_softmax():
 
     # (bsz, 1, 1, seq_len)
     mask = bert.get_extended_attention_mask(
-        attention_mask=tokens["attention_mask"].cuda(),
-        input_shape=tokens["input_ids"].shape,
-        device=bert.device,
+        attention_mask=tokens["attention_mask"].cuda(), input_shape=tokens["input_ids"].shape, device=bert.device,
     )
     # (bsz, 1, seq_len, seq_len)
     mask = mask.repeat(1, 1, mask.size()[-1], 1)
@@ -73,10 +66,7 @@ def test_fused_softmax():
         .half()
     )
 
-    fused_softmax_output = fused_softmax(
-        attention_scores,
-        (mask != 0),
-    )
+    fused_softmax_output = fused_softmax(attention_scores, (mask != 0),)
 
     torch_softmax = (
         FusedScaleMaskSoftmax(
@@ -92,10 +82,7 @@ def test_fused_softmax():
         .half()
     )
 
-    torch_softmax_output = torch_softmax(
-        attention_scores,
-        (mask != 0),
-    )
+    torch_softmax_output = torch_softmax(attention_scores, (mask != 0),)
 
     test_result = (fused_softmax_output - torch_softmax_output).abs()
 
@@ -123,15 +110,9 @@ def test_fused_softmax():
 def test_fused_upper_triangle_mask_softmax():
     gpt = GPT2Model.from_pretrained("gpt2").cuda().half()
     tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-    test_text = (
-        "Hello. How are you? I am fine thank you and you? yes Good. "
-        "hi hi hi hi hi hi hi"  # 24
-    )
+    test_text = "Hello. How are you? I am fine thank you and you? yes Good. " "hi hi hi hi hi hi hi"  # 24
 
-    tokens = tokenizer(
-        [test_text] * 4,
-        return_tensors="pt",
-    )
+    tokens = tokenizer([test_text] * 4, return_tensors="pt",)
 
     attention_mask = tokens["attention_mask"].cuda()
     attention_mask = attention_mask.view(attention_mask.size(0), -1)
@@ -173,10 +154,7 @@ def test_fused_upper_triangle_mask_softmax():
         .half()
     )
 
-    fused_softmax_output = fused_softmax(
-        attn_weights,
-        total_mask,
-    )
+    fused_softmax_output = fused_softmax(attn_weights, total_mask,)
 
     torch_softmax = (
         FusedScaleMaskSoftmax(
@@ -192,10 +170,7 @@ def test_fused_upper_triangle_mask_softmax():
         .half()
     )
 
-    torch_softmax_output = torch_softmax(
-        attn_weights,
-        total_mask,
-    )
+    torch_softmax_output = torch_softmax(attn_weights, total_mask,)
 
     test_result = (fused_softmax_output - torch_softmax_output).abs()
 
@@ -224,14 +199,10 @@ def test_layer_norm():
     bert = BertModel.from_pretrained("bert-base-cased").cuda().half()
     tokenizer = BertTokenizer.from_pretrained("bert-base-cased")
     test_text = (
-        "Hello. How are you? I am fine thank you and you? yes Good. "
-        "hi hi hi hi hi hi hi hi hi hi hi hi hi"  # 32
+        "Hello. How are you? I am fine thank you and you? yes Good. " "hi hi hi hi hi hi hi hi hi hi hi hi hi"  # 32
     )
 
-    tokens = tokenizer(
-        [test_text] * 4,
-        return_tensors="pt",
-    )
+    tokens = tokenizer([test_text] * 4, return_tensors="pt",)
 
     # [bsz, seq_len, d_model]
     embedding_output = (
@@ -246,13 +217,9 @@ def test_layer_norm():
         .half()
     )
 
-    fused_layernorm_layer = (
-        MixedFusedLayerNorm(normalized_shape=embedding_output.size(-1)).cuda().half()
-    )
+    fused_layernorm_layer = MixedFusedLayerNorm(normalized_shape=embedding_output.size(-1)).cuda().half()
 
-    torch_layernorm_layer = (
-        LayerNorm(normalized_shape=embedding_output.size(-1)).cuda().half()
-    )
+    torch_layernorm_layer = LayerNorm(normalized_shape=embedding_output.size(-1)).cuda().half()
 
     fused_output = fused_layernorm_layer(embedding_output)
     torch_output = torch_layernorm_layer(embedding_output)
@@ -286,9 +253,7 @@ if __name__ == "__main__":
         from transformers.models.gpt2.modeling_gpt2 import GPT2Model
         import transformers
 
-        transformers.logging.set_verbosity(
-            transformers.logging.FATAL,
-        )
+        transformers.logging.set_verbosity(transformers.logging.FATAL,)
 
     except:
         print("\n[Fail] Please install `transformers` package to test fused kernels\n")

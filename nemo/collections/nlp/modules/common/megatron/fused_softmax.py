@@ -137,7 +137,8 @@ class FusedScaleMaskSoftmax(nn.Module):
         assert self.scale is None or softmax_in_fp32, "softmax should be in fp32 when scaled"
 
         self.fused_scaled_uppper_triang_masked_softmax = FusedScaledUpperTriangMaskedSoftmax(
-                input_in_fp16, input_in_bf16)
+            input_in_fp16, input_in_bf16
+        )
         self.fused_scaled_masked_softmax = ScaledMaskedSoftmax(input_in_fp16, input_in_bf16)
 
     def forward(self, input, mask):

@@ -62,7 +62,7 @@ class Encoder(object):
             model_name=self.args.tokenizer_type,
             tokenizer_model=self.args.tokenizer_model,
             vocab_file=self.args.vocab_file,
-            merges_file=self.args.merge_file
+            merges_file=self.args.merge_file,
         )
         if self.args.split_sentences:
             if not nltk_available:
@@ -115,16 +115,10 @@ def get_args():
         help='What tokenizer library to use.',
     )
     group.add_argument(
-        '--tokenizer-type',
-        type=str,
-        default=None,
-        help='What type of tokenizer to use.',
+        '--tokenizer-type', type=str, default=None, help='What type of tokenizer to use.',
     )
     group.add_argument(
-        '--tokenizer-model',
-        type=str,
-        default=None,
-        help='Path to tokenizer model.',
+        '--tokenizer-model', type=str, default=None, help='Path to tokenizer model.',
     )
     group.add_argument('--vocab-file', type=str, default=None, help='Path to the vocab file')
     group.add_argument('--merge-file', type=str, default=None, help='Path to the BPE merge file (if necessary).')
@@ -171,7 +165,7 @@ def main():
         model_name=args.tokenizer_type,
         tokenizer_model=args.tokenizer_model,
         vocab_file=args.vocab_file,
-        merges_file=args.merge_file
+        merges_file=args.merge_file,
     )
     pool = multiprocessing.Pool(args.workers, initializer=encoder.initializer)
     encoded_docs = pool.imap(encoder.encode, fin, 25)

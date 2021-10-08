@@ -69,7 +69,7 @@ class AutoTokenizer(TokenizerSpec):
                     pretrained_model_name_or_path=pretrained_model_name,
                     vocab_file=vocab_file,
                     merges_file=merges_file,
-                    use_fast=False
+                    use_fast=False,
                 )
             else:
                 self.tokenizer = AUTOTOKENIZER.from_pretrained(

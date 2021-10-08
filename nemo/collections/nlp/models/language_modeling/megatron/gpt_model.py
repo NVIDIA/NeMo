@@ -15,7 +15,6 @@
 """GPT-2 model."""
 
 import torch
-
 from apex.transformer import tensor_parallel
 
 from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType

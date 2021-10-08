@@ -17,8 +17,9 @@ import time
 
 import numpy as np
 import torch
-from megatron import get_args, get_tokenizer
 from apex.transformer import tensor_parallel
+from megatron import get_args, get_tokenizer
+
 from nemo.utils import logging
 
 
