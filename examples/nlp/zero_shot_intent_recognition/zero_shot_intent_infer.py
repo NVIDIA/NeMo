@@ -40,7 +40,7 @@ def main(cfg: DictConfig) -> None:
 
     candidate_labels = ['Food order', 'Play music', 'Request for directions', 'Change lighting', 'Calendar query']
 
-    predictions = model.predict(queries, candidate_labels, batch_size=4, multi_class=True)
+    predictions = model.predict(queries, candidate_labels, batch_size=4, multi_label=True)
 
     logging.info('The prediction results of some sample queries with the trained model:')
     for query in predictions:
