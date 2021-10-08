@@ -156,6 +156,12 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             mag_power (float): The power that the linear spectrogram is raised to
                 prior to multiplication with mel basis.
                 Defaults to 2 for a power spec
+            rng : Random number generator
+            nb_augmentation_prob (float) : Probability with which narrowband augmentation would be applied to
+                samples in the batch.
+                Defaults to 0.0
+            nb_max_freq (int) : Frequency above which all frequencies will be masked for narrowband augmentation.
+                Defaults to 4000
         """
 
     def save_to(self, save_path: str):
@@ -216,6 +222,9 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         stft_conv=False,
         pad_value=0,
         mag_power=2.0,
+        rng=None,
+        nb_augmentation_prob=0.0,
+        nb_max_freq=4000,
     ):
         super().__init__(n_window_size, n_window_stride)
 
@@ -253,6 +262,9 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             stft_conv=stft_conv,
             pad_value=pad_value,
             mag_power=mag_power,
+            rng=rng,
+            nb_augmentation_prob=nb_augmentation_prob,
+            nb_max_freq=nb_max_freq,
         )
 
     def get_features(self, input_signal, length):
@@ -465,7 +477,6 @@ class SpectrogramAugmentation(NeuralModule):
             # self.spec_cutout.to(self._device)
         else:
             self.spec_cutout = lambda input_spec: input_spec
-
         if freq_masks + time_masks > 0:
             self.spec_augment = SpecAugment(
                 freq_masks=freq_masks,
@@ -603,6 +614,9 @@ class AudioToMelSpectrogramPreprocessorConfig:
     stft_conv: bool = False
     pad_value: int = 0
     mag_power: float = 2.0
+    rng: Optional[str] = None
+    nb_augmentation_prob: float = 0.0
+    nb_max_freq: int = 4000
 
 
 @dataclass
