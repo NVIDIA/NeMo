@@ -18,7 +18,7 @@ import os
 import uuid
 from abc import abstractmethod
 from os import path
-from os.path import expanduser
+from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
 import hydra
@@ -202,7 +202,7 @@ class ModelPT(LightningModule, Model):
         return self._save_restore_connector.register_artifact(self, config_path, src, verify_src_exists)
 
     @rank_zero_only
-    def save_to(self, save_path: str):
+    def save_to(self, save_path: str, make_dirs: bool = False):
         """
         Saves model instance (weights and configuration) into .nemo file
          You can use "restore_from" method to fully restore instance from .nemo file.
@@ -213,13 +213,16 @@ class ModelPT(LightningModule, Model):
 
         Args:
             save_path: Path to .nemo file where model instance should be saved
+            make_dirs(bool): Whether NeMo will make the directory is it doesn't exist. Defaults to False
         """
 
         # Add NeMo rank check as well
         if not is_global_rank_zero():
             return
         else:
-            save_path = os.path.abspath(os.path.expanduser(save_path))
+            save_path = Path(save_path).expanduser().resolve()
+            if make_dirs and not save_path.parent.exists():
+                save_path.parent.mkdir(parents=True)
             self._save_restore_connector.save_to(self, save_path)
 
     @classmethod

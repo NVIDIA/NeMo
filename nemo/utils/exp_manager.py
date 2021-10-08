@@ -753,8 +753,14 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         # TODO: make this work for model parallel, need to call on data parallel rank 0 and update best_model_path
         # Load the best model and then re-save it
         if self.save_best_model:
-            trainer.checkpoint_connector.restore(self.best_model_path)
-        pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
+            if self.best_model_path is "":
+                logging.warning(
+                    f"{self} was told to save the best checkpoint at the end of training, but no saved checkpoints "
+                    "were found. Saving latest model instead."
+                )
+            else:
+                trainer.checkpoint_connector.restore(self.best_model_path)
+        pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix), make_dirs=True)
 
     def _del_model(self, trainer: "pl.Trainer", filepath: str) -> None:
         """ Overrides PTL method to account for model parallel checkpoints.
