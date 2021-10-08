@@ -285,7 +285,3 @@ class ZeroShotIntentModel(TextClassificationModel):
             )
         )
         return result
-
-    @classmethod
-    def from_pretrained(cls, name: str):
-        return super(TextClassificationModel, cls).from_pretrained(name)
