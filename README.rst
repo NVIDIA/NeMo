@@ -166,13 +166,13 @@ Note that RNNT requires numba to be installed from conda.
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
 
-If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 21.05-py3 and then installing from GitHub.
+If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 21.08-py3 and then installing from GitHub.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:21.05-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:21.08-py3
 
 Examples
 --------
