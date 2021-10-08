@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict
+from typing import Any, Dict, Optional
 import torch
 from apex.transformer import tensor_parallel, parallel_state
 from omegaconf.dictconfig import DictConfig
@@ -249,6 +249,8 @@ class MegatronGPTModel(NLPModel):
         )
 
     def setup(self, stage=None):
+        if stage == 'predict':
+            return
         self.build_train_valid_test_datasets()
         self.setup_training_data(self.cfg.data)
         self.setup_validation_data(self.cfg.data)
@@ -301,6 +303,12 @@ class MegatronGPTModel(NLPModel):
         else:
             return
 
+    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
+        request = batch
+        response = self.complete(request)
+        logging.info(f"response: {response}")
+        return response
+
     def complete(self, request: Dict):
         """
             Autoregressively invokes language model in the inference mode
@@ -321,30 +329,28 @@ class MegatronGPTModel(NLPModel):
         """
         response = {}
         self.eval()
-        tokenized_prompt = self.tokenizer.text_to_tokens(request['prompt'])
-        response["tokenized_prompt"] = tokenized_prompt
-        tokens = self.tokenizer.text_to_ids(request['prompt'])
-        # How will this look in model parallel setting?
-        tokens = torch.tensor(tokens, device=self.device)
+        logsoftmaxlayer = torch.nn.LogSoftmax(dim=-1)
+        response['tokenized_prompt'] = request['tokenized_prompt']
+        tokens = request['tokens']
         # naive greedy slow loop
-        # TODO: rewrite me with BeamSearchDecoder
+        # TODO: add option for BeamSearchDecoder
         response['prompt'] = request['prompt']
         response['completion'] = {}
         response['completion']['stop reason'] = 'limit'
-        for i in range(request.get("tokens_to_generate", 1024)):
+        for i in range(request.get("tokens_to_generate", 64)):
             attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
-                data=torch.unsqueeze(tokens, 0),
+                data=tokens,
                 eod_token=self.tokenizer.eos_id,
                 reset_position_ids=self.cfg.get('reset_position_ids', False),
                 reset_attention_mask=self.cfg.get('reset_attention_mask', False),
                 eod_mask_loss=self.cfg.get('eod_mask_loss', False),
             )
             # No labels during inference. Still need masks to not attend to the right
-            output_tensor = self(torch.unsqueeze(tokens, 0), position_ids, attention_mask, labels=None)
-            log_probs, token_ids = torch.max(output_tensor, dim=-1)
+            output_tensor = self(tokens, position_ids, attention_mask, labels=None)
+            output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
+            log_probs, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
             reached_eos = token_ids[0, -1].item() == self.tokenizer.eos_id
-            # TODO: CURRENT log_probs are probably NOT correct!!!!
-            tokens = torch.cat([tokens, token_ids[:, -1]])
+            tokens = torch.cat([torch.squeeze(tokens), token_ids[:, -1]])
             response['completion']["tokens"] = list(
                 zip(self.tokenizer.ids_to_tokens(tokens), tokens.tolist(), log_probs.tolist()[0])
             )
@@ -355,6 +361,7 @@ class MegatronGPTModel(NLPModel):
             elif request.get("stop_after_sentence", True) and completion_text.endswith(('.', '!', '?')):
                 response['completion']['stop reason'] = 'sentence_end'
                 break
+            tokens = torch.unsqueeze(tokens, 0)
         response['completion']["text"] = self.tokenizer.ids_to_text(x[1] for x in response['completion']["tokens"])
         return response
 
