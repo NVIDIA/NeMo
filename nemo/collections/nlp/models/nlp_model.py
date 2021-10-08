@@ -12,15 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from ctypes import Union
 import hashlib
 import json
+
+from torch.serialization import save
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 import os
-from typing import Any, Dict
+from typing import Any, Callable, Dict, Optional
 
 
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
+from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
 from pytorch_lightning.utilities import rank_zero_only
+from pytorch_lightning.utilities.migration import pl_legacy_patch
+from pytorch_lightning.utilities.cloud_io import load as pl_load
+import torch
 from transformers import TRANSFORMERS_CACHE
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -28,7 +36,7 @@ from nemo.collections.nlp.modules import MegatronBertEncoder
 from nemo.collections.nlp.modules import BertModule
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder import MegatronEncoderModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
-from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector
+from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector, NLPSaveRestoreConnector
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
 from nemo.utils import AppState, logging
@@ -289,3 +297,66 @@ class NLPModel(ModelPT, Exportable):
             if isinstance(self.encoder, MegatronEncoderModule):
                 logging.info(f"Restoring from pretrained model parallel checkpoint: {self.encoder.checkpoint_file}")
                 self.encoder._encoder.restore_weights(self.encoder.checkpoint_file)
+
+    @classmethod
+    def load_from_checkpoint(
+        cls,
+        checkpoint_path: str,
+        map_location: Any = None,
+        hparams_file: Optional[str] = None,
+        strict: bool = True,
+        **kwargs,
+    ):
+        """
+        Loads ModelPT from checkpoint, with some maintenance of restoration.
+        For documentation, please refer to LightningModule.load_from_checkpoin() documentation.
+        """
+        checkpoint = None
+        try:
+            cls._set_model_restore_state(is_being_restored=True)
+            with pl_legacy_patch():
+                if map_location is not None:
+                    checkpoint = pl_load(checkpoint_path, map_location=map_location)
+                else:
+                    checkpoint = pl_load(checkpoint_path, map_location=lambda storage, loc: storage)
+
+            if hparams_file is not None:
+                extension = hparams_file.split(".")[-1]
+                if extension.lower() == "csv":
+                    hparams = load_hparams_from_tags_csv(hparams_file)
+                elif extension.lower() in ("yml", "yaml"):
+                    hparams = load_hparams_from_yaml(hparams_file)
+                else:
+                    raise ValueError(".csv, .yml or .yaml is required for `hparams_file`")
+
+                hparams["on_gpu"] = False
+
+                # overwrite hparams by the given file
+                checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY] = hparams
+
+            # for past checkpoint need to add the new key
+            if cls.CHECKPOINT_HYPER_PARAMS_KEY not in checkpoint:
+                checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY] = {}
+            # override the hparams with values that were passed in
+            # TODO: can we do this without overriding?
+            config_kwargs = kwargs.copy()
+            if 'trainer' in config_kwargs:
+                config_kwargs.pop('trainer')
+            checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].update(config_kwargs)
+
+            model = cls._load_model_state(checkpoint, strict=strict, **kwargs)
+            checkpoint = model
+
+        finally:
+            cls._set_model_restore_state(is_being_restored=False)
+        return checkpoint
+
+    def save_to(self, save_path: str):
+        app_state = AppState()
+        # Add NeMo rank check as well
+        if app_state.model_parallel_size is not None:
+            if app_state.model_parallel_size > 1 and isinstance(self._save_restore_connector, SaveRestoreConnector):
+                logging.warning("Tried using default SaveRestoreConnector with a model parallel NLP model.")
+                logging.warning("Swapping SaveRestoreConnector for NLPSaveRestoreConnector.")
+                self._save_restore_connector = NLPSaveRestoreConnector()
+        super(NLPModel, self).save_to(save_path=save_path)
