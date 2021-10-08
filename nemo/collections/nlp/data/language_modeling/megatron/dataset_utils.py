@@ -37,7 +37,7 @@ import time
 
 import numpy as np
 import torch
-from apex.transformer import tensor_parallel
+from apex.transformer import parallel_state
 from nemo.utils import logging
 
 from nemo.collections.nlp.data.language_modeling.megatron import helpers
@@ -423,6 +423,9 @@ def pad_and_convert_to_numpy(tokens, tokentypes, masked_positions, masked_labels
 
 
 def build_train_valid_test_datasets(
+    cfg,
+    trainer,
+    tokenizer,
     data_prefix,
     data_impl,
     splits_string,
@@ -439,6 +442,9 @@ def build_train_valid_test_datasets(
 
     if len(data_prefix) == 1:
         return _build_train_valid_test_datasets(
+            cfg,
+            trainer,
+            tokenizer,
             data_prefix[0],
             data_impl,
             splits_string,
@@ -463,6 +469,9 @@ def build_train_valid_test_datasets(
     test_datasets = []
     for i in range(len(prefixes)):
         train_ds, valid_ds, test_ds = _build_train_valid_test_datasets(
+            cfg,
+            trainer,
+            tokenizer,
             prefixes[i],
             data_impl,
             splits_string,
@@ -497,6 +506,9 @@ def build_train_valid_test_datasets(
 
 
 def _build_train_valid_test_datasets(
+    cfg,
+    trainer,
+    tokenizer,
     data_prefix,
     data_impl,
     splits_string,
@@ -584,6 +596,9 @@ def _build_train_valid_test_datasets(
                 )
             elif dataset_type == DSET_TYPE_T5:
                 dataset = T5Dataset(
+                    cfg=cfg,
+                    trainer=trainer,
+                    tokenizer=tokenizer,
                     indexed_dataset=indexed_dataset,
                     masked_lm_prob=masked_lm_prob,
                     max_seq_length_dec=max_seq_length_dec,

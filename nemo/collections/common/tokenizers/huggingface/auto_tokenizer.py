@@ -201,6 +201,13 @@ class AutoTokenizer(TokenizerSpec):
             setattr(self, k, getattr(self.tokenizer, k, None))
         return num_tokens_added
 
+    @property
+    def additional_special_tokens_ids(self):
+        return [
+            self.token_to_id(token)
+            for token in self.additional_special_tokens
+        ]
+
     def text_to_tokens(self, text):
         tokens = self.tokenizer.tokenize(text)
         return tokens
@@ -230,6 +237,11 @@ class AutoTokenizer(TokenizerSpec):
         tokens_clean = [t for t in tokens if t not in self.tokenizer.all_special_tokens]
         text = self.tokens_to_text(tokens_clean)
         return text
+
+    @property
+    def vocab(self):
+        id2vocab = {v: k for k, v in self.tokenizer.vocab.items()}
+        return [id2vocab[i] for i in range(len(self.tokenizer))]
 
     @property
     def pad_id(self):

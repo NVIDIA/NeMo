@@ -15,20 +15,25 @@
 """T5 Style dataset."""
 
 import collections
+from posixpath import ismount
 
 import numpy as np
 import torch
-from megatron import get_tokenizer
 
+from nemo.collections.common.tokenizers import YouTokenToMeTokenizer, SentencePieceTokenizer, AutoTokenizer
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_dataset import MegatronDataset
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
     create_masked_lm_predictions,
     get_samples_mapping,
 )
 
 
-class T5Dataset(torch.utils.data.Dataset):
+class T5Dataset(MegatronDataset):
     def __init__(
         self,
+        cfg,
+        trainer,
+        tokenizer,
         name,
         indexed_dataset,
         data_prefix,
@@ -39,7 +44,9 @@ class T5Dataset(torch.utils.data.Dataset):
         max_seq_length_dec,
         short_seq_prob,
         seed,
+        vocab_extra_ids=100
     ):
+        super().__init__(cfg, trainer=trainer)
 
         # Params to store.
         self.name = name
@@ -64,16 +71,25 @@ class T5Dataset(torch.utils.data.Dataset):
             False,
         )
 
-        # Vocab stuff.
-        tokenizer = get_tokenizer()
-        self.vocab_id_list = list(tokenizer.inv_vocab.keys())
-        self.vocab_id_to_token_dict = tokenizer.inv_vocab
-        self.cls_id = tokenizer.cls
-        self.sep_id = tokenizer.sep
+        self.tokenizer = tokenizer
+
+        if isinstance(self.tokenizer, YouTokenToMeTokenizer):
+            raise ValueError(f"YTTM does not support special tokens and cannot be used with T5 datasets.")
+        
+        if isinstance(self.tokenizer, SentencePieceTokenizer):
+            if not self.tokenizer.legacy:
+                raise ValueError("Sentencepiece Tokenizer must have legacy = False to add special tokens.")
+
+        self.cls_id = tokenizer.cls_id
+        self.sep_id = tokenizer.sep_id
         self.mask_id = tokenizer.mask
-        self.pad_id = tokenizer.pad
-        self.bos_id = tokenizer.bos_token_id
-        self.eos_id = tokenizer.eos_token_id
+        self.pad_id = tokenizer.pad_id
+        self.bos_id = tokenizer.bos_id
+        self.eos_id = tokenizer.eos_id
+
+        self.vocab_id_list = self.tokenizer.vocab
+        self.vocab_id_to_token_dict = {idx: token for idx, token in enumerate(self.vocab_id_list)}
+
         self.sentinel_tokens = tokenizer.additional_special_tokens_ids
         assert len(self.sentinel_tokens) > 0, "Provide the argument --vocab-extra-ids 100 to the script"
 
@@ -126,7 +142,6 @@ def build_training_sample(
     sentinel_tokens=None,
 ):
     """Build training sample.
-
     Arguments:
         sample: A list of sentences in which each sentence is a list token ids.
         target_seq_length: Desired sequence length.
