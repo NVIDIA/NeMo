@@ -13,14 +13,20 @@
 # limitations under the License.
 
 
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_request_dataset import GPTRequestDataset
+
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from pytorch_lightning.trainer.trainer import Trainer
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.utils import logging
 from argparse import ArgumentParser
 
 import torch
+from torch.utils.data import DataLoader
 
 from nemo.utils import logging
+from nemo.utils.app_state import AppState
 
 
 assert torch.cuda.is_available()
@@ -33,7 +39,7 @@ def main():
         "--prompt", type=str, default="", required=True, help="Prompt for the model (a text to complete)"
     )
     parser.add_argument(
-        "--tokens_to_generate", type=int, default="64", required=True, help="How many tokens to add to prompt"
+        "--tokens_to_generate", type=int, default="64", required=False, help="How many tokens to add to prompt"
     )
     parser.add_argument(
         "--stop_after_sentence",
@@ -42,24 +48,40 @@ def main():
         required=False,
         help="True/False: whether to stop after full sentence has been generated.",
     )
+    parser.add_argument(
+        "--tensor_model_parallel_size", type=int, default=1, required=True,
+    )
 
     args = parser.parse_args()
+
     torch.set_grad_enabled(False)
 
     # trainer required for restoring model parallel models
-    trainer = Trainer()
+    trainer = Trainer(plugins=NLPDDPPlugin(), gpus=args.tensor_model_parallel_size)
+
+    app_state = AppState()
+    if args.tensor_model_parallel_size is not None and args.tensor_model_parallel_size > 1:
+        app_state.model_parallel_size = args.tensor_model_parallel_size
+        app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
+
     model = MegatronGPTModel.restore_from(restore_path=args.model_file, trainer=trainer)
-    res = model.complete(
-        {
-            "prompt": args.prompt,
-            "tokens_to_generate": args.tokens_to_generate,
-            "stop_after_sentence": args.stop_after_sentence,
-        }
-    )
+
+    request = {
+        "prompt": args.prompt,
+        "tokens_to_generate": args.tokens_to_generate,
+        "stop_after_sentence": args.stop_after_sentence,
+    }
+
+    dataset = GPTRequestDataset(request, model.tokenizer)
+
+    request_dl = DataLoader(dataset)
+
+    response = trainer.predict(model, request_dl)
+
     print("***************************")
-    print(res['completion']['text'])
+    print(response[0]['completion']['text'])
     print("***************************")
-    logging.info(f"Generation stopped because: {res['completion']['stop reason']}")
+    logging.info(f"Generation stopped because: {response[0]['completion']['stop reason']}")
 
 
 if __name__ == '__main__':
