@@ -95,11 +95,11 @@ def main(cfg):
         nodes=nodes,
         partition=partition,
     )
-    #job_id = subprocess.check_output(
-    #    [f"sbatch --parsable {new_script_path}"], shell=True
-    #)
-    #job_id = job_id.decode("utf-8")
-    #print(f"Submitted Training script with job id: {job_id}")
+    job_id = subprocess.check_output(
+        [f"sbatch --parsable {new_script_path}"], shell=True
+    )
+    job_id = job_id.decode("utf-8")
+    print(f"Submitted Training script with job id: {job_id}")
 
 
 if __name__ == "__main__":
