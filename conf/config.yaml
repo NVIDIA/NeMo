@@ -10,5 +10,5 @@ hydra:
   output_subdir: null
 
 training_config: 126m_fp16  # Must match - training above.
-bignlp_path: /gpfs/fs1/mausin/bignlp-scripts # Path to where the bignlp-scripts repo is. Should end with /.../bignlp-scripts
-container: gitlab-master.nvidia.com/dl/dgx/bignlp:21.10.02-py3-base
+bignlp_path: ??? # Path to where the bignlp-scripts repo is. Should end with /.../bignlp-scripts
+container: nvcr.io/nvidian/swdl/bignlp:21.10.02-py3-base
