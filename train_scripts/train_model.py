@@ -12,25 +12,32 @@ def create_slurm_file(
     job_name,
     blend_path,
     flags="",
-    depend=None,
+    dependency=None,
     time="04:00:00",
     exclusive=True,
+    mem=0,
+    overcommit=True,
     nodes=1,
-    partition="A100",
+    ntasks_per_node=8,
+    gpus_per_task=1,
+    partition="batch",
 ):
     with open(new_script_path, "w") as f:
         f.writelines("#!/bin/bash\n")
         f.writelines(f"#SBATCH --nodes={nodes}\n")
-        if depend is not None:
-            f.writelines(f"#SBATCH --depend={depend}\n")
+        f.writelines(f"#SBATCH --ntasks-per-node={ntasks_per_node}\n")
+        f.writelines(f"#SBATCH --gpus-per-task={gpus_per_task}\n")
+        if dependency is not None:
+            f.writelines(f"#SBATCH --dependency={dependency}\n")
         f.writelines(f"#SBATCH -p {partition}\n")
         f.writelines(f"#SBATCH --job-name={job_name}\n")
+        f.writelines(f"#SBATCH --mem={mem}\n")
         if exclusive:
             f.writelines("#SBATCH --exclusive\n")
+        if overcommit:
+            f.writelines("#SBATCH --overcommit\n")
         f.writelines(f"#SBATCH --time={time}\n\n")
-
         f.writelines(f". {blend_path}\n\n")
-
         f.writelines(f'srun {flags} sh -c "{train_cmd}"\n\n')
         f.writelines("set +x\n")
 
@@ -80,16 +87,19 @@ def main(cfg):
         blend_path=full_blend_path,
         job_name=f"bignlp:{name}",
         flags=flags,
-        depend=dependency,
+        dependency=dependency,
+        exclusive=exclusive,
+        mem=mem,
+        overcommit=overcommit,
         time=time_limit,
         nodes=nodes,
         partition=partition,
     )
-    job_id = subprocess.check_output(
-        [f"sbatch --parsable {new_script_path}"], shell=True
-    )
-    job_id = job_id.decode("utf-8")
-    print(f"Submitted Training script with job id: {job_id}")
+    #job_id = subprocess.check_output(
+    #    [f"sbatch --parsable {new_script_path}"], shell=True
+    #)
+    #job_id = job_id.decode("utf-8")
+    #print(f"Submitted Training script with job id: {job_id}")
 
 
 if __name__ == "__main__":

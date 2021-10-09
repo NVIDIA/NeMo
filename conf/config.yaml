@@ -1,7 +1,7 @@
 defaults:
   - _self_
   - data_preparation: download_pile
-  - training: 126m  # Must match training_config below.
+  - training: 126m_fp16  # Must match training_config below.
   - override hydra/job_logging: stdout
 
 hydra:
@@ -9,6 +9,6 @@ hydra:
     dir: .
   output_subdir: null
 
-training_config: 126m  # Must match - training above.
+training_config: 126m_fp16  # Must match - training above.
 bignlp_path: /gpfs/fs1/mausin/bignlp-scripts # Path to where the bignlp-scripts repo is. Should end with /.../bignlp-scripts
 container: gitlab-master.nvidia.com/dl/dgx/bignlp:21.10.02-py3-base
