@@ -37,7 +37,7 @@ def main(cfg):
         f"--workers $SLURM_CPUS_ON_NODE "
         f"--append-eod "
     )
-    cmd = f'cd /opt/bignlp/NeMo; git rev-parse HEAD; cd /opt/bignlp/NeMo/nemo/collections/nlp/data/language_modeling/megatron; make; export PYTHONPATH="/opt/bignlp/NeMo/.:$PYTHONPATH"; CUDA_VISIBLE_DEVICES=0,4,2,6,1,5,3,7 python3 {code_path} {flags}'
+    cmd = f'cd /opt/bignlp/NeMo; git rev-parse HEAD; cd /opt/bignlp/NeMo/nemo/collections/nlp/data/language_modeling/megatron; make; export PYTHONPATH="/opt/bignlp/NeMo/.:$PYTHONPATH"; export TRANSFORMERS_CACHE="/temp_root/.cache/"; CUDA_VISIBLE_DEVICES=0,4,2,6,1,5,3,7 python3 {code_path} {flags}'
     os.system(f"{cmd}")
     os.remove(extracted_path)
 

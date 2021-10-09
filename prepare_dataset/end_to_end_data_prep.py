@@ -12,22 +12,24 @@ def create_slurm_file(
     code_path,
     log_dir="./",
     flags="",
-    depend=None,
+    dependency=None,
     time="04:00:00",
     exclusive=True,
+    requeue=True,
     file_numbers="0",
     nodes=1,
-    partition="A100",
+    partition="batch",
 ):
     task = code_path.split("/")[-1].split(".")[0]
     with open(new_script_path, "w") as f:
         f.writelines("#!/bin/bash\n")
         f.writelines("#SBATCH --nodes=1\n")
-        if depend is not None:
-            f.writelines(f"#SBATCH --depend={depend}\n")
+        if dependency is not None:
+            f.writelines(f"#SBATCH --dependency={dependency}\n")
         f.writelines(f"#SBATCH -p {partition}\n")
         f.writelines(f"#SBATCH --job-name=bignlp:{task}_all_pile_files\n")
-        f.writelines("#SBATCH --requeue\n")
+        if requeue:
+            f.writelines("#SBATCH --requeue\n")
         if exclusive:
             f.writelines("#SBATCH --exclusive\n")
         f.writelines(f"#SBATCH --time={time}\n")
@@ -48,7 +50,6 @@ def main(cfg):
     # Data preparation config
     download_the_pile = data_cfg.get("download_the_pile")
     file_numbers = data_cfg["file_numbers"]
-    data_save_dir = data_cfg["data_save_dir"]  ################################################################
     preprocess_data = data_cfg.get("preprocess_data")
     download_vocab_url = data_cfg.get("download_vocab_url")
     download_merges_url = data_cfg.get("download_merges_url")
@@ -70,14 +71,20 @@ def main(cfg):
         assert vocab_save_dir is not None, "vocab_save_dir must be a valid path."
         if bignlp_path not in vocab_save_dir:
             full_vocab_save_dir = os.path.join(bignlp_path, vocab_save_dir)
-        utils.download_single_file(url=download_vocab_url, save_dir=full_vocab_save_dir, file_name="vocab.txt")
+        utils.download_single_file(
+            url=download_vocab_url, save_dir=full_vocab_save_dir, file_name="vocab.json"
+        )
 
     # Download merges
     if download_merges_url is not None:
         assert merges_save_dir is not None, "merges_save_dir must be a valid path."
         if bignlp_path not in merges_save_dir:
             full_merges_save_dir = os.path.join(bignlp_path, merges_save_dir)
-        utils.download_single_file(url=download_merges_url, save_dir=full_merges_save_dir, file_name="merges.txt")
+        utils.download_single_file(
+            url=download_merges_url,
+            save_dir=full_merges_save_dir,
+            file_name="merges.txt",
+        )
 
     dependency = None
     assert isinstance(download_the_pile, bool), "download_the_pile must be bool."
@@ -87,7 +94,9 @@ def main(cfg):
             f"--container-image {container} "
             f"--container-mounts {bignlp_path}:{bignlp_path}"
         )
-        download_script_path = os.path.join(bignlp_path, "prepare_dataset/download_script.sh")
+        download_script_path = os.path.join(
+            bignlp_path, "prepare_dataset/download_script.sh"
+        )
         download_code_path = os.path.join(bignlp_path, "prepare_dataset/download.py")
         create_slurm_file(
             new_script_path=download_script_path,
@@ -111,14 +120,16 @@ def main(cfg):
             f"--container-image {container} "
             f"--container-mounts {bignlp_path}:{bignlp_path}"
         )
-        extract_script_path = os.path.join(bignlp_path, "prepare_dataset/extract_script.sh")
+        extract_script_path = os.path.join(
+            bignlp_path, "prepare_dataset/extract_script.sh"
+        )
         extract_code_path = os.path.join(bignlp_path, "prepare_dataset/extract.py")
         create_slurm_file(
             new_script_path=extract_script_path,
             code_path=extract_code_path,
             log_dir=full_log_dir,
             flags=flags,
-            depend=dependency,
+            dependency=dependency,
             time=time_limit,
             file_numbers=file_numbers,
             nodes=nodes,
@@ -138,14 +149,18 @@ def main(cfg):
             f"--container-image {container} "
             f"--container-mounts {bignlp_path}:{bignlp_path}"
         )
-        preprocess_script_path = os.path.join(bignlp_path, "prepare_dataset/preprocess_script.sh")
-        preprocess_code_path = os.path.join(bignlp_path, "prepare_dataset/preprocess.py")
+        preprocess_script_path = os.path.join(
+            bignlp_path, "prepare_dataset/preprocess_script.sh"
+        )
+        preprocess_code_path = os.path.join(
+            bignlp_path, "prepare_dataset/preprocess.py"
+        )
         create_slurm_file(
             new_script_path=preprocess_script_path,
             code_path=preprocess_code_path,
             log_dir=full_log_dir,
             flags=flags,
-            depend=dependency,
+            dependency=dependency,
             time=time_limit,
             file_numbers=file_numbers,
             nodes=nodes,

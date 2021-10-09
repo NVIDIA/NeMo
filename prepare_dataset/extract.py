@@ -18,7 +18,7 @@ def main(cfg) -> None:
     output_file = f"{file_number:02d}.jsonl"
     utils.extract_single_zst_file(downloaded_path, full_data_save_dir, output_file)
     os.remove(downloaded_path)
-    
+
 
 if __name__ == "__main__":
     main()

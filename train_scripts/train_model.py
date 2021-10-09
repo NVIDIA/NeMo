@@ -70,7 +70,7 @@ def main(cfg):
         f"--container-mounts {bignlp_path}:{bignlp_path} "
         f"-o {log_dir}/{name}-%j.log "
         f"-e {log_dir}/{name}-%j.error "
-        )
+    )
     new_script_path = os.path.join(bignlp_path, "train_scripts/train_script.sh")
     code_path = os.path.join(bignlp_path, "train_scripts/pretrain_gpt.py")
     train_cmd = f"python3 -u {code_path}"
