@@ -405,6 +405,8 @@ class MTBottleneckModel(MTEncDecModel):
         else:
             timer = None
 
+        import pudb; pudb.set_trace()
+
         for i in range(len(batch)):
             if batch[i].ndim == 3:
                 # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
