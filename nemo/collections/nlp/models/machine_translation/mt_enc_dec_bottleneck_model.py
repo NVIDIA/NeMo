@@ -405,8 +405,6 @@ class MTBottleneckModel(MTEncDecModel):
         else:
             timer = None
 
-        import pudb; pudb.set_trace()
-
         for i in range(len(batch)):
             if batch[i].ndim == 3:
                 # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
@@ -455,7 +453,7 @@ class MTBottleneckModel(MTEncDecModel):
         # add timing if required
         if timer is not None:
             for k, v in timer.export().items():
-                log_dict[f"{mode}_{k}"] = v
+                log_dict[f"{mode}_{k}_timing"] = v
 
         return {
             'translations': translations,
