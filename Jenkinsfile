@@ -74,6 +74,7 @@ pipeline {
     stage('Installation') {
       steps {
         sh './reinstall.sh release'
+        sh 'cd nemo/collections/nlp/data/language_modeling && make'
       }
     }
 
