@@ -119,7 +119,7 @@ class TextNormalizationTaggerDataset(Dataset):
                                 filtered_w_words.append(w)
                                 filtered_s_words.append(s)
                         if len(filtered_s_words) > 1:
-                            inst = TaggerDataInstance(filtered_w_words, filtered_s_words, inst_dir)
+                            inst = TaggerDataInstance(filtered_w_words, filtered_s_words, inst_dir, lang)
                             insts.append(inst)
 
             self.insts = insts
