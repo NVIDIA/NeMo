@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-      image 'nvcr.io/nvidia/pytorch:21.09-py3'
+      image 'nvcr.io/nvidia/cuda:11.4.2-devel-ubuntu20.04'
       args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
   }
@@ -10,6 +10,16 @@ pipeline {
     disableConcurrentBuilds()
   }
   stages {
+    stage('Update container'){
+      steps{
+        sh 'apt-get update && apt-get install -y bc'
+      }
+    }
+    stage('PyTorch installation'){
+      steps{
+        sh 'conda install pytorch torchvision torchaudio cudatoolkit=11.1 -c pytorch-nightly -c nvidia'
+      }
+    }
     stage('PyTorch version') {
       steps {
         sh 'python -c "import torch; print(torch.__version__)"'
