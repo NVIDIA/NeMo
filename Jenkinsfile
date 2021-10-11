@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-      image 'nvcr.io/nvidia/cuda:11.4.2-devel-ubuntu20.04'
+      image 'gitlab-master.nvidia.com/dl/dgx/pytorch:21.10-py3-devel'
       args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
   }
@@ -10,16 +10,7 @@ pipeline {
     disableConcurrentBuilds()
   }
   stages {
-    stage('Update container'){
-      steps{
-        sh 'apt-get update && apt-get install -y bc'
-      }
-    }
-    stage('PyTorch installation'){
-      steps{
-        sh 'conda install pytorch torchvision torchaudio cudatoolkit=11.1 -c pytorch-nightly -c nvidia'
-      }
-    }
+
     stage('PyTorch version') {
       steps {
         sh 'python -c "import torch; print(torch.__version__)"'
@@ -62,12 +53,12 @@ pipeline {
       }
     }
 
-    stage('Install latest apex') {
-      steps {
-        sh 'pip uninstall -y apex'
-        sh 'cd / && git clone https://github.com/NVIDIA/apex.git && cd apex && pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./'
-      }
-    }
+    // stage('Install latest apex') {
+    //   steps {
+    //     sh 'pip uninstall -y apex'
+    //     sh 'cd / && git clone https://github.com/NVIDIA/apex.git && cd apex && pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./'
+    //   }
+    // }
 
     stage('Install PyTorch Lighting from Sandeep Fork') {
       steps{
