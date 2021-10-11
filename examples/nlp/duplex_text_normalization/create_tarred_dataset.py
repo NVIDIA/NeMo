@@ -198,10 +198,6 @@ if __name__ == '__main__':
     )
 
     args = parser.parse_args()
-    from glob import glob
-
-    files = glob("/mnt/sdb/DATA/normalization/nn_dataset/processed_data/google_en/5_files/*.tsv")
-    args.input_files = [os.path.basename(x) for x in files]
 
     # check if tar files exist
     if os.path.exists(args.out_dir):

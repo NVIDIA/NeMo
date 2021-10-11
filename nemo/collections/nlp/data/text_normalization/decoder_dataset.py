@@ -202,9 +202,6 @@ class TextNormalizationDecoderDataset(Dataset):
         for idx in tqdm(range(len(inputs))):
             # Input
             _input = self.tokenizer([inputs[idx]])
-            # import pdb;
-            # pdb.set_trace()
-            # print()
             input_len = len(_input['input_ids'][0])
             if input_len > self.max_seq_len:
                 long_examples_filtered += 1

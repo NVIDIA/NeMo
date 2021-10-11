@@ -54,9 +54,6 @@ from nemo.collections.nlp.models import DuplexTextNormalizationModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
-NEMO_ENV_VARNAME_TESTING = True
-NEMO_TESTING = 1
-
 
 @hydra_runner(config_path="conf", config_name="duplex_tn_config")
 def main(cfg: DictConfig) -> None:

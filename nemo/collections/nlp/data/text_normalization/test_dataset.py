@@ -86,7 +86,6 @@ class TextNormalizationTestDataset:
                     self.span_ends.append(processed_s_span_ends)
                     self.classes.append(processed_classes)
                     self.nb_spans.append(processed_nb_spans)
-                    # Moses tokenization
                     input_words = ' '.join(processed_s_words)
                     # Update self.directions, self.inputs, self.targets
                     self.directions.append(direction)
@@ -109,8 +108,7 @@ class TextNormalizationTestDataset:
                     w_word_idx = 0
                     for cls, w_word, s_word in zip(classes, w_words, s_words):
                         # TN forward mode
-                        # this is done word cases like `do n't`, this w_word will be treated as 2 tokens
-                        # and each should have the cls to have to match the lengths
+                        # this is done for cases like `do n't`, this w_word will be treated as 2 tokens
                         w_word = processor.tokenize(w_word).split()
                         num_tokens = len(w_word)
                         if s_word in constants.SPECIAL_WORDS:
@@ -262,6 +260,6 @@ class TextNormalizationTestDataset:
                 target_token_idx += 1
 
         for key in class2stats:
-            class2correct[key] = (class2correct[key] / class2stats[key], class2correct[key], class2stats[key])
+            class2stats[key] = (class2correct[key] / class2stats[key], class2correct[key], class2stats[key])
 
-        return class2correct
+        return class2stats

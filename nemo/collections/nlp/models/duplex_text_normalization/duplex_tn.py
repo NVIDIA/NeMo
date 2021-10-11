@@ -150,7 +150,6 @@ class DuplexTextNormalizationModel(nn.Module):
                     cur_span_ends.append(span_ends)
                     cur_output_spans.append(output_spans)
             nb_instances = len(cur_final_preds)
-            # import pdb; pdb.set_trace()
             cur_targets_sent = [" ".join(x) for x in cur_targets]
 
             sent_accuracy = TextNormalizationTestDataset.compute_sent_accuracy(
@@ -233,7 +232,7 @@ class DuplexTextNormalizationModel(nn.Module):
             inst_directions: A list of str where each str indicates the direction of the corresponding instance \
                 (i.e., constants.INST_BACKWARD for ITN or constants.INST_FORWARD for TN).
             processed: Set to True when used with TextNormalizationTestDataset, the data is already tokenized with moses,
-                repetitive moses tokenization could lead to number of tokens mismatch
+                repetitive moses tokenization could lead to the number of tokens and class span mismatch
 
         Returns:
             tag_preds: A list of lists where the inner list contains the tag predictions from the tagger for each word in the input text.
@@ -271,8 +270,11 @@ class DuplexTextNormalizationModel(nn.Module):
                             jx += 1
 
                 if processed:
+                    # for Class-based evaluation, don't apply Moses detokenization
                     cur_output_str = " ".join(cur_words)
                 else:
+                    # detokenize the output with Moses and fix punctuation marks to match the input
+                    # for interactive inference or inference from a file
                     cur_output_str = self.decoder.processor.detokenize(cur_words)
                     cur_output_str = post_process_punct(input=original_sents[ix], nn_output=cur_output_str)
                 final_outputs.append(cur_output_str)

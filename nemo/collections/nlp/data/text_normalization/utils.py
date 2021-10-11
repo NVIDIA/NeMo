@@ -141,11 +141,6 @@ def process_url(tokens: List[str], outputs: List[str], lang: str):
 def normalize_str(input_str):
     """ Normalize an input string """
     return input_str.strip().lower().replace(" ", "")
-    # input_str_tokens = basic_tokenize(input_str.strip().lower(), lang)
-    # import pdb; pdb.set_trace()
-    # input_str = ' '.join(input_str_tokens)
-    # input_str = input_str.replace('  ', ' ')
-    # return input_str
 
 
 def remove_puncts(input_str):
