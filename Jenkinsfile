@@ -23,6 +23,19 @@ pipeline {
       }
     }
 
+    stage('Install latest apex') {
+      steps {
+        sh 'pip uninstall -y apex'
+        sh 'cd / && git clone https://github.com/NVIDIA/apex.git && cd apex && pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./'
+      }
+    }
+
+    stage('Install PyTorch Lighting from Sandeep Fork') {
+      steps{
+        sh 'cd / && git clone https://github.com/MaximumEntropy/pytorch-lightning.git && cd pytorch-lightning && pip install .'
+      }
+    }
+
     stage('Copyright Headers check') {
       steps {
         sh 'python tests/check_copyright_header.py --dir .'
