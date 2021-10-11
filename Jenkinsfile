@@ -82,12 +82,12 @@ pipeline {
         sh 'python -c "import pytorch_lightning; print(pytorch_lightning.__version__)"'
       }
     }
-
-    stage('PyTorch Lightning DDP Checks') {
-      steps {
-        sh 'python "tests/core_ptl/check_for_ranks.py"'
-      }
-    }
+    // TODO: add after 21.10 container is out
+    // stage('PyTorch Lightning DDP Checks') {
+    //   steps {
+    //     sh 'python "tests/core_ptl/check_for_ranks.py"'
+    //   }
+    // }
 
     stage('Basic Import Checks') {
       steps {
