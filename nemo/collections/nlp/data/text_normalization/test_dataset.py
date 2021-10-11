@@ -73,7 +73,6 @@ class TextNormalizationTestDataset:
                             processed_s_words.append(s_word)
 
                         s_word_last = processor.tokenize(processed_s_words.pop()).split()
-                        # processed_s_words.extend(s_word_last)
                         processed_s_words.append(" ".join(s_word_last))
                         num_tokens = len(s_word_last)
                         processed_nb_spans += 1
@@ -124,9 +123,6 @@ class TextNormalizationTestDataset:
                         processed_nb_spans += 1
                         processed_classes.append(cls)
                         processed_w_words.extend(w_word)
-                        # if 'company' in w_word:
-                        #     import pdb; pdb.set_trace()
-                        #     print()
 
                     self.span_starts.append(w_span_starts)
                     self.span_ends.append(w_span_ends)
@@ -153,20 +149,6 @@ class TextNormalizationTestDataset:
         )
 
     def __getitem__(self, idx):
-        """
-        Return an element of the dataset
-            e.g., TN
-            direction: FORWARD
-            inputs: input str:  "2014 does n 't"
-            targets: List[str]: ["twenty fourteen", "does", "n", "'t"]
-            classes: List[str]: ["DATE", "PLAIN", "PLAIN", "PLAIN", "PLAIN"]
-            nb_spans: int: 2
-            span_starts: List[int]: [0, 1]
-            span_starts: List[int]: [1, 4] (exclusive)
-        """
-        tn = self.examples[idx]
-        # print(tn)
-        # import pdb; pdb.set_trace()
         return self.examples[idx]
 
     def __len__(self):
@@ -276,16 +258,10 @@ class TextNormalizationTestDataset:
                 correct = TextNormalizationTestDataset.is_same(
                     " ".join(cur_words[class_idx]), targets[ix][target_token_idx], inst_directions[ix]
                 )
-                # if not correct and classes[ix][class_idx] in ['DATE', 'CARDINAL']:
-                #     import pdb; pdb.set_trace()
-                #     print()
                 class2correct[classes[ix][class_idx]] += correct
                 target_token_idx += 1
 
-        classes_to_ignore = []  # ['PUNCT', 'VERBATIM', 'PLAIN', 'LETTERS', 'ELECTRONIC']
-        result = {}
         for key in class2stats:
-            if key not in classes_to_ignore:
-                result[key] = (class2correct[key] / class2stats[key], class2correct[key], class2stats[key])
+            class2correct[key] = (class2correct[key] / class2stats[key], class2correct[key], class2stats[key])
 
-        return result
+        return class2correct

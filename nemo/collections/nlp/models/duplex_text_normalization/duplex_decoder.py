@@ -154,22 +154,6 @@ class DuplexDecoderModel(NLPModel):
         )
 
         input_centers = self._tokenizer.batch_decode(batch['input_center'], skip_special_tokens=True)
-        # with open("valid.txt", 'a') as f:
-        #     for i, input_ in enumerate(batch['input_ids']):
-        #         if input_[0] == 3:
-        #             f.write(f'inputs_{i}: {input_}\n')
-        #             f.write(f"text_{i}: {self._tokenizer.batch_decode(batch['input_ids'])[i]}\n")
-        #             f.write(f'predis_{i}: {generated_texts[i]}\n')
-        #             f.write(f'center_{i}: {input_centers[i]}\n')
-        #             f.write(f'target_{i}: {labels_str[i]}\n')
-        #             f.write('\n')
-        #
-        # if generated_texts[i] != labels_str[i] and self._val_id_to_class[dataloader_idx][batch['semiotic_class_id'][i][0].item()] == 'DATE':
-        #     print(f"targ: {labels_str[i]}")
-        #     print(f'Pred: {generated_texts[i]}')
-        #     print(f"IN: {self._tokenizer.batch_decode(batch['input_ids'])[i]}")
-        #     # import pdb; pdb.set_trace()
-        #     print()
 
         direction = [x[0].item() for x in batch['direction']]
         direction_str = [constants.DIRECTIONS_ID_TO_NAME[x] for x in direction]
@@ -183,11 +167,6 @@ class DuplexDecoderModel(NLPModel):
             pred_result = TextNormalizationTestDataset.is_same(
                 generated_texts[idx], labels_str[idx], constants.DIRECTIONS_TO_MODE[direction]
             )
-            # if pred_result != (labels_str[idx] == generated_texts[idx]):
-            #     print(labels_str[idx], generated_texts[idx])
-            #     import pdb;
-            #     pdb.set_trace()
-            #     print()
 
             results[f"correct_{class_name}_{direction}"] += torch.tensor(pred_result, dtype=torch.int).to(self.device)
             results[f"total_{class_name}_{direction}"] += torch.tensor(1).to(self.device)
@@ -365,10 +344,6 @@ class DuplexDecoderModel(NLPModel):
                     cur_inputs = [constants.TN_PREFIX]
                 cur_inputs += ctx_left
                 cur_inputs += [extra_id_0] + span_words_str.split(' ') + [extra_id_1]
-                # import pdb; pdb.set_trace()
-                """
-                inputs: 1 On <extra_id_0> April 16 , 2012 <extra_id_1> , Circa Survive
-                """
                 cur_inputs += ctx_right
                 all_inputs.append(' '.join(cur_inputs))
 
@@ -379,19 +354,6 @@ class DuplexDecoderModel(NLPModel):
         generated_texts, generated_ids, sequence_toks_scores = self._generate_predictions(
             input_ids=input_ids, model_max_len=self.max_sequence_len
         )
-
-        # with open("infer.txt", 'a') as f:
-        #     for i, input_ in enumerate(batch['input_ids']):
-        #         if input_[0] == 3:
-        #             # import pdb; pdb.set_trace()
-        #             f.write(f'inputs_{i}: {input_}\n')
-        #             f.write(f"text_{i}: {self._tokenizer.batch_decode(batch['input_ids'])[i]}\n")
-        #             f.write(f'predis_{i}: {generated_texts[i]}\n')
-        #             f.write(f'center_{i}: {input_centers[i]}\n')
-        #             f.write('\n')
-
-        # print('inputs infer:', self._tokenizer.batch_decode(batch['input_ids']))
-        # print('predictions infer:', generated_texts)
 
         # Use covering grammars (if enabled)
         if self.use_cg:
