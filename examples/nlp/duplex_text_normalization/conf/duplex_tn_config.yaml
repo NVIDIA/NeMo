@@ -120,7 +120,6 @@ data:
     data_path: train.tsv # provide the full path to the file
     batch_size: 64
     shuffle: true
-    do_basic_tokenize: false
     max_insts: -1 # Maximum number of instances (-1 means no limit)
     # Refer to the text_normalization doc for more information about data augmentation
     tagger_data_augmentation: false
@@ -137,7 +136,6 @@ data:
     data_path: dev.tsv # provide the full path to the file. Provide multiple paths to run evaluation on multiple datasets
     batch_size: 64
     shuffle: false
-    do_basic_tokenize: false
     max_insts: -1 # Maximum number of instances (-1 means no limit)
     use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up (especially when using multi GPUs)
     num_workers: 3
@@ -148,7 +146,6 @@ data:
     data_path: test.tsv # provide the full path to the file
     batch_size: 64
     shuffle: false
-    do_basic_tokenize: false
     use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up (especially when using multi GPUs)
     num_workers: 3
     pin_memory: false

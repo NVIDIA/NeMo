@@ -60,7 +60,7 @@ from nemo.utils import logging
 
 @hydra_runner(config_path="conf", config_name="duplex_tn_config")
 def main(cfg: DictConfig) -> None:
-    logging.info(f'Config Params: {OmegaConf.to_yaml(cfg)}')
+    logging.debug(f'Config Params: {OmegaConf.to_yaml(cfg)}')
     lang = cfg.lang
 
     if cfg.decoder_pretrained_model is None or cfg.tagger_pretrained_model is None:
@@ -88,9 +88,7 @@ def main(cfg: DictConfig) -> None:
             for i, line in enumerate(lines):
                 batch.append(line.strip())
                 if len(batch) == batch_size or i == len(lines) - 1:
-                    outputs = tn_model._infer(
-                        batch, [constants.DIRECTIONS_TO_MODE[mode]] * len(batch), do_basic_tokenization=True,
-                    )
+                    outputs = tn_model._infer(batch, [constants.DIRECTIONS_TO_MODE[mode]] * len(batch),)
                     all_preds.extend([x for x in outputs[-1]])
                     batch = []
             assert len(all_preds) == len(lines)
@@ -124,7 +122,7 @@ def main(cfg: DictConfig) -> None:
                 if cfg.mode in ['tn', 'joint']:
                     directions.append(constants.DIRECTIONS_TO_MODE[constants.TN_MODE])
                     inputs.append(test_input)
-                outputs = tn_model._infer(inputs, directions, do_basic_tokenization=True)[-1]
+                outputs = tn_model._infer(inputs, directions)[-1]
                 if cfg.mode in ['joint', 'itn']:
                     print(f'Prediction (ITN): {outputs[0]}')
                 if cfg.mode in ['joint', 'tn']:
