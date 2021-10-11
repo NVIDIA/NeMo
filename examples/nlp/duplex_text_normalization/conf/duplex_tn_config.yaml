@@ -24,7 +24,6 @@ tagger_model:
   transformer: distilroberta-base # For ru, try cointegrated/rubert-tiny | For de, try bert-base-german-cased | For multilingual, try bert-base-multilingual-cased
   tokenizer: ${tagger_model.transformer}
   max_sequence_len: 128
-  do_basic_tokenize: true # if True, will uses Moses tokenization before LM tokenization (recommended to set to True)
   nemo_path: ${tagger_exp_manager.exp_dir}/tagger_model.nemo # exported .nemo path
   lang: ${lang}
   mode: ${mode}
@@ -78,7 +77,6 @@ decoder_model:
   do_training: true
   transformer: t5-base  # For ru, try cointegrated/rut5-base | For de or multilingual, try google/mt5-base
   max_sequence_len: 80
-  do_basic_tokenize: true # if True, will uses Moses tokenization before LM tokenization (recommended to set to True)
   tokenizer: ${decoder_model.transformer}
   nemo_path: ${decoder_exp_manager.exp_dir}/decoder_model.nemo # exported .nemo path
   lang: ${lang}
