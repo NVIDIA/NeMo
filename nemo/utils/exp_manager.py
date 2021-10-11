@@ -153,44 +153,6 @@ class TimingCallback(Callback):
         self._on_batch_end("train_backward_timing", pl_module)
 
 
-class TimingCallback(Callback):
-    """
-    Logs execution time of train/val/test steps
-    """
-
-    def __init__(self, timer=None):
-        # support external timer
-        if timer is None:
-            timer = timers.NamedTimer()
-        self.timer = timer
-
-    def _on_batch_start(self, name):
-        self.timer.reset(name)
-        self.timer.start(name)
-
-    def _on_batch_end(self, name, pl_module):
-        self.timer.stop(name)
-        pl_module.log(name, self.timer[name], on_step=True, on_epoch=False)
-
-    def on_train_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
-        self._on_batch_start("train_step_timing")
-
-    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
-        self._on_batch_end("train_step_timing", pl_module)
-
-    def on_validation_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
-        self._on_batch_start("validation_step_timing")
-
-    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
-        self._on_batch_end("validation_step_timing", pl_module)
-
-    def on_test_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
-        self._on_batch_start("test_step_timing")
-
-    def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
-        self._on_batch_end("test_step_timing", pl_module)
-
-
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Path:
     """
     exp_manager is a helper function used to manage folders for experiments. It follows the pytorch lightning paradigm
