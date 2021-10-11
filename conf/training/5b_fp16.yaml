@@ -2,25 +2,25 @@ slurm:
   partition: batch
   account: null
   time_limit: "4:00:00"
-  nodes: 8
+  nodes: 20
   exclusive: True
   mem: 0
   overcommit: True
   ntasks_per_node: 8
   gpus_per_task: 1
   dependency: "Singleton"
-  job_name: "bignlp-gpt3:126m_fp16"
+  job_name: "bignlp-gpt3:5b_fp16"
 
 
 run:
-  name: "126m_fp16"
+  name: "5b_fp16"
   blend_path: "prepare_dataset/gpt3_blend.sh"
   log_dir: "train_scripts/logs"
 
 
 trainer:
   gpus: 8
-  num_nodes: 8
+  num_nodes: 20
   accelerator: ddp
   precision: 16
   amp_backend: native
@@ -60,17 +60,17 @@ model:
   nemo_file_path: ???  # after each training run save .nemo file to this location
 
   # model parallelism 
-  micro_batch_size: 4
-  tensor_model_parallel_size: 1
+  micro_batch_size: 2
+  tensor_model_parallel_size: 2
 
   # model architecture
   encoder_seq_length: 2048
   max_position_embeddings: 2048
-  num_layers: 12
-  hidden_size: 768
-  ffn_hidden_size: 3072  # Transformer FFN hidden size. Usually 4 * hidden_size.
-  num_attention_heads: 12
-  init_method_std: 0.023  # Standard deviation of the zero mean normal distribution used for weight initialization.')
+  num_layers: 24
+  hidden_size: 4096
+  ffn_hidden_size: 16384  # Transformer FFN hidden size. Usually 4 * hidden_size.
+  num_attention_heads: 32
+  init_method_std: 0.014  # Standard deviation of the zero mean normal distribution used for weight initialization.')
   hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
   kv_channels: null  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
@@ -79,7 +79,7 @@ model:
   pre_process: True # add embedding
   post_process: True # add pooler
   activations_checkpoint_method: block
-  activations_checkpoint_num_layers: 0
+  activations_checkpoint_num_layers: 3
 
   tokenizer:
     library: 'megatron'
@@ -103,16 +103,16 @@ model:
 
   optim:
     name: fused_adam
-    lr: 6e-4
+    lr: 1.2e-4
     weight_decay: 0.1 
     betas: 
     - 0.9
     - 0.95
     sched:
       name: CosineAnnealing
-      warmup_steps: 636
-      constant_steps: 100000
-      min_lr: 6e-5
+      warmup_steps: 190
+      constant_steps: 20000
+      min_lr: 1.2e-5
 
   data:
     data_impl: mmap
@@ -124,4 +124,4 @@ model:
     reset_position_ids: False # Reset position ids after end-of-document token
     reset_attention_mask: False # Reset attention mask after end-of-document token
     eod_mask_loss: False # Mask loss for the end of document tokens
-    data_prefix: ${BLEND} # Should be weight path weight path... for a blended dataset
+    data_prefix: ??? # Should be weight path weight path... for a blended dataset

@@ -68,7 +68,7 @@ def main(cfg):
     name = run_cfg.get("name")
     blend_path = run_cfg.get("blend_path")
     full_blend_path = os.path.join(bignlp_path, blend_path)
-    log_dir = os.path.join(bignlp_path, run_cfg.get("log_dir"))
+    log_dir = os.path.join(bignlp_path, run_cfg.get("log_dir"), name)
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
