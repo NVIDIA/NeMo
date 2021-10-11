@@ -140,7 +140,7 @@ def process_url(tokens: List[str], outputs: List[str], lang: str):
 
 def normalize_str(input_str):
     """ Normalize an input string """
-    return input_str.strip().lower().replace(" ", "")
+    return input_str.strip().lower().replace("  ", " ")
 
 
 def remove_puncts(input_str):
