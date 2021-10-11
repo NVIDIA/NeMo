@@ -453,7 +453,7 @@ class MTBottleneckModel(MTEncDecModel):
         # add timing if required
         if timer is not None:
             for k, v in timer.export().items():
-                log_dict[f"{mode}_{k}_timing"] = v
+                log_dict[f"{k}_timing"] = v
 
         return {
             'translations': translations,
