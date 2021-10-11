@@ -329,6 +329,7 @@ class ExportableEncDecJointModel(Exportable):
                         encoder_input_list,
                         encoder_input_dict,
                         encoder_input_names,
+                        encoder_output_names,
                         check_tolerance,
                         check_trace,
                     )
@@ -385,6 +386,7 @@ class ExportableEncDecJointModel(Exportable):
                         encoder_decoder_input_list,
                         encoder_decoder_input_dict,
                         self._join_input_output_names(["encoder_outputs"], decoder_input_names, input_state_names),
+                        self._join_input_output_names(joint_output_names, decoder_output_names, output_state_names),
                         check_tolerance,
                         check_trace,
                     )

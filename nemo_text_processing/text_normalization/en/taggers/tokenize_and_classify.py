@@ -60,17 +60,26 @@ class ClassifyFst(GraphFst):
             for False multiple options (used for audio-based normalization)
         cache_dir: path to a dir with .far grammar file. Set to None to avoid using cache.
         overwrite_cache: set to True to overwrite .far files
+        whitelist: path to a file with whitelist replacements
     """
 
     def __init__(
-        self, input_case: str, deterministic: bool = True, cache_dir: str = None, overwrite_cache: bool = False
+        self,
+        input_case: str,
+        deterministic: bool = True,
+        cache_dir: str = None,
+        overwrite_cache: bool = False,
+        whitelist: str = None,
     ):
         super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
 
         far_file = None
         if cache_dir is not None and cache_dir != "None":
             os.makedirs(cache_dir, exist_ok=True)
-            far_file = os.path.join(cache_dir, f"_{input_case}_en_tn_{deterministic}_deterministic.far")
+            whitelist_file = os.path.basename(whitelist) if whitelist else ""
+            far_file = os.path.join(
+                cache_dir, f"_{input_case}_en_tn_{deterministic}_deterministic{whitelist_file}.far"
+            )
         if not overwrite_cache and far_file and os.path.exists(far_file):
             self.fst = pynini.Far(far_file, mode="r")["tokenize_and_classify"]
             logging.info(f'ClassifyFst.fst was restored from {far_file}.')
@@ -95,7 +104,9 @@ class ClassifyFst(GraphFst):
             telephone_graph = TelephoneFst(deterministic=deterministic).fst
             electonic_graph = ElectronicFst(deterministic=deterministic).fst
             money_graph = MoneyFst(cardinal=cardinal, decimal=decimal, deterministic=deterministic).fst
-            whitelist_graph = WhiteListFst(input_case=input_case, deterministic=deterministic).fst
+            whitelist_graph = WhiteListFst(
+                input_case=input_case, deterministic=deterministic, input_file=whitelist
+            ).fst
             punct_graph = PunctuationFst(deterministic=deterministic).fst
 
             classify = (

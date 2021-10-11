@@ -60,13 +60,15 @@ from nemo.utils import logging
 
 @hydra_runner(config_path="conf", config_name="duplex_tn_config")
 def main(cfg: DictConfig) -> None:
-    logging.info(f'Config Params: {OmegaConf.to_yaml(cfg)}')
+    logging.debug(f'Config Params: {OmegaConf.to_yaml(cfg)}')
     lang = cfg.lang
-    do_basic_tokenization = True
+
     if cfg.decoder_pretrained_model is None or cfg.tagger_pretrained_model is None:
         raise ValueError("Both pre-trained models (DuplexTaggerModel and DuplexDecoderModel) should be provided.")
     tagger_trainer, tagger_model = instantiate_model_and_trainer(cfg, TAGGER_MODEL, False)
     decoder_trainer, decoder_model = instantiate_model_and_trainer(cfg, DECODER_MODEL, False)
+    decoder_model.max_sequence_len = 512
+    tagger_model.max_sequence_len = 512
     tn_model = DuplexTextNormalizationModel(tagger_model, decoder_model, lang)
 
     if cfg.inference.get("from_file", False):
@@ -86,11 +88,7 @@ def main(cfg: DictConfig) -> None:
             for i, line in enumerate(lines):
                 batch.append(line.strip())
                 if len(batch) == batch_size or i == len(lines) - 1:
-                    outputs = tn_model._infer(
-                        batch,
-                        [constants.DIRECTIONS_TO_MODE[mode]] * len(batch),
-                        do_basic_tokenization=do_basic_tokenization,
-                    )
+                    outputs = tn_model._infer(batch, [constants.DIRECTIONS_TO_MODE[mode]] * len(batch),)
                     all_preds.extend([x for x in outputs[-1]])
                     batch = []
             assert len(all_preds) == len(lines)
@@ -124,7 +122,7 @@ def main(cfg: DictConfig) -> None:
                 if cfg.mode in ['tn', 'joint']:
                     directions.append(constants.DIRECTIONS_TO_MODE[constants.TN_MODE])
                     inputs.append(test_input)
-                outputs = tn_model._infer(inputs, directions, do_basic_tokenization=do_basic_tokenization,)[-1]
+                outputs = tn_model._infer(inputs, directions)[-1]
                 if cfg.mode in ['joint', 'itn']:
                     print(f'Prediction (ITN): {outputs[0]}')
                 if cfg.mode in ['joint', 'tn']:

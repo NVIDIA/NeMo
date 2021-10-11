@@ -33,6 +33,7 @@
 # SOFTWARE.
 # This file contains code artifacts adapted from https://github.com/ryanleary/patter
 import math
+import random
 
 import librosa
 import numpy as np
@@ -56,7 +57,6 @@ except ModuleNotFoundError:
     # fmt: off
     class STFT(CheckInstall): pass
     # fmt: on
-
 
 CONSTANT = 1e-5
 
@@ -233,6 +233,9 @@ class FilterbankFeatures(nn.Module):
         pad_value=0,
         mag_power=2.0,
         use_grads=False,
+        rng=None,
+        nb_augmentation_prob=0.0,
+        nb_max_freq=4000,
     ):
         super().__init__()
         if stft_conv or stft_exact_pad:
@@ -332,6 +335,13 @@ class FilterbankFeatures(nn.Module):
         self.use_grads = use_grads
         if not use_grads:
             self.forward = torch.no_grad()(self.forward)
+        self._rng = random.Random() if rng is None else rng
+        self.nb_augmentation_prob = nb_augmentation_prob
+        if self.nb_augmentation_prob > 0.0:
+            if nb_max_freq >= sample_rate / 2:
+                self.nb_augmentation_prob = 0.0
+            else:
+                self._nb_max_fft_bin = int((nb_max_freq / sample_rate) * n_fft)
 
         # log_zero_guard_value is the the small we want to use, we support
         # an actual number, or "tiny", or "eps"
@@ -344,6 +354,7 @@ class FilterbankFeatures(nn.Module):
         logging.debug(f"fmin: {lowfreq}")
         logging.debug(f"fmax: {highfreq}")
         logging.debug(f"using grads: {use_grads}")
+        logging.debug(f"nb_augmentation_prob: {nb_augmentation_prob}")
 
     def log_zero_guard_value_fn(self, x):
         if isinstance(self.log_zero_guard_value, str):
@@ -400,6 +411,11 @@ class FilterbankFeatures(nn.Module):
             if x.dtype in [torch.cfloat, torch.cdouble]:
                 x = torch.view_as_real(x)
             x = torch.sqrt(x.pow(2).sum(-1) + guard)
+
+        if self.training and self.nb_augmentation_prob > 0.0:
+            for idx in range(x.shape[0]):
+                if self._rng.random() < self.nb_augmentation_prob:
+                    x[idx, self._nb_max_fft_bin :, :] = 0.0
 
         # get power spectrum
         if self.mag_power != 1.0:
