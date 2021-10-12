@@ -122,7 +122,7 @@ class NamedTimer(object):
 
         # enforce buffer_size if positive
         if self._buffer_size > 0:
-            timer_data["dt"] = timer_data["dt"][-self._buffer_size:]
+            timer_data["dt"] = timer_data["dt"][-self._buffer_size :]
 
         self.timers[name] = timer_data
 
