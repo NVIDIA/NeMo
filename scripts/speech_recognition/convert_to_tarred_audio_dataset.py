@@ -384,6 +384,10 @@ class ASRTarredDatasetBuilder:
 
             entries.extend(new_entries)
 
+        if len(entries) == 0:
+            print("No tarred dataset was created as there were 0 valid samples after filtering!")
+            return
+
         if config.shuffle:
             random.seed(config.shuffle_seed)
             print("Shuffling...")
