@@ -451,12 +451,23 @@ class ParallelTransformerLayer_(MegatronModule):
 
         if self.layer_type == LayerType.decoder:
             self.inter_attention = ParallelAttention(
-                init_method, output_layer_init_method, layer_number, attention_type=AttnType.cross_attn
+                init_method=init_method,
+                output_layer_init_method=output_layer_init_method,
+                layer_number=layer_number,
+                num_attention_heads=num_attention_heads,
+                hidden_size=hidden_size,
+                attention_type=AttnType.cross_attn,
+                attn_mask_type=AttnMaskType.padding,
+                fused_fp16=fused_fp16,
+                fused_bf16=fused_bf16,
+                apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+                kv_channels=kv_channels,
+                use_cpu_initialization=use_cpu_initialization,
+                masked_softmax_fusion=masked_softmax_fusion,
+                attention_dropout=attention_dropout,
             )
             # Layernorm on the attention output.
-            self.post_inter_attention_layernorm = LayerNorm(
-                hidden_size, eps=layernorm_epsilon, fp16=fused_fp16, bf16=fused_bf16
-            )
+            self.post_inter_attention_layernorm = LayerNorm(hidden_size, eps=layernorm_epsilon, fp16=fused_fp16, bf16=fused_bf16)
 
         # MLP
         self.mlp = ParallelMLP(

@@ -43,8 +43,7 @@ class T5Dataset(MegatronDataset):
         max_seq_length,
         max_seq_length_dec,
         short_seq_prob,
-        seed,
-        vocab_extra_ids=100
+        seed
     ):
         super().__init__(cfg, trainer=trainer)
 
@@ -82,7 +81,7 @@ class T5Dataset(MegatronDataset):
 
         self.cls_id = tokenizer.cls_id
         self.sep_id = tokenizer.sep_id
-        self.mask_id = tokenizer.mask
+        self.mask_id = tokenizer.mask_id
         self.pad_id = tokenizer.pad_id
         self.bos_id = tokenizer.bos_id
         self.eos_id = tokenizer.eos_id
@@ -161,7 +160,6 @@ def build_training_sample(
         eos_id: end of generation id
         sentinel_tokens: unique value to be substituted for every replaced span
     """
-
     assert target_seq_length <= max_seq_length
 
     # flatten sentences into one list
@@ -229,7 +227,6 @@ def pad_and_convert_to_numpy(
     sentinel_tokens=None,
 ):
     """Pad sequences and convert them to numpy."""
-
     sentinel_tokens = collections.deque(sentinel_tokens)
     t5_input = []
     (t5_decoder_in, t5_decoder_out) = ([bos_id], [])

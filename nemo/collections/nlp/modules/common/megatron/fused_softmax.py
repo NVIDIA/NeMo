@@ -55,6 +55,7 @@ class FusedScaledUpperTriangMaskedSoftmax(AutocastModuleWrapper):
 
         self.func = ScaledUpperTriangMaskedSoftmax
 
+    @staticmethod
     def forward(self, inputs, scale):
         return self.autocast_forward(inputs, scale)
 
@@ -93,6 +94,7 @@ class FusedScaledMaskedSoftmax(AutocastModuleWrapper):
 
         self.fused_func = ScaledMaskedSoftmax
 
+    @staticmethod
     def forward(self, inputs, mask, scale):
         return self.autocast_forward(inputs, mask, scale)
 

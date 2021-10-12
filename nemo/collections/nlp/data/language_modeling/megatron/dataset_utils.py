@@ -482,6 +482,7 @@ def build_train_valid_test_datasets(
             seed,
             skip_warmup,
             binary_head,
+            max_seq_length_dec,
             dataset_type=dataset_type,
         )
         if train_ds:
@@ -530,7 +531,6 @@ def _build_train_valid_test_datasets(
     indexed_dataset = get_indexed_dataset_(data_prefix, data_impl, skip_warmup)
 
     if dataset_type == DSET_TYPE_ICT:
-        args = get_args()
         title_dataset = get_indexed_dataset_(args.titles_data_path, data_impl, skip_warmup)
 
     # Get start and end indices of train/valid/train into doc-idx
@@ -585,7 +585,6 @@ def _build_train_valid_test_datasets(
             )
 
             if dataset_type == DSET_TYPE_ICT:
-                args = get_args()
                 dataset = ICTDataset(
                     block_dataset=indexed_dataset,
                     title_dataset=title_dataset,

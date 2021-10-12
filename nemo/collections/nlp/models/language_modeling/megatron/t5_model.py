@@ -22,6 +22,10 @@ from nemo.collections.nlp.modules.common.megatron.language_model import get_lang
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal, scaled_init_method_normal
 
+def t5_attention_mask_func(attention_scores, attention_mask):
+    attention_scores.masked_fill_(attention_mask, -10000)
+    return attention_scores
+
 
 def t5_extended_attention_mask(attention_mask_list):
     def attn_mask_postprocess(attn_mask):
@@ -54,8 +58,6 @@ class T5LMHead(MegatronModule):
 
     def __init__(self, mpu_vocab_size, parallel_output):
         super(T5LMHead, self).__init__()
-
-        args = get_args()
 
         self.bias = torch.nn.Parameter(torch.zeros(mpu_vocab_size))
         self.bias.model_parallel = True
