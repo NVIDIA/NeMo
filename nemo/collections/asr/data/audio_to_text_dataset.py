@@ -305,9 +305,6 @@ def convert_to_config_list(initial_list):
     if not isinstance(initial_list, ListConfig):
         initial_list = ListConfig([initial_list])
 
-    # for list_idx, list_val in enumerate(initial_list):
-    #     if type(list_val) is not ListConfig:
-    #         initial_list[list_idx] = ListConfig([list_val])
     for list_idx, list_val in enumerate(initial_list):
         if type(list_val) != type(initial_list[0]):
             raise ValueError(

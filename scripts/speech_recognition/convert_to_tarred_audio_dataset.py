@@ -42,7 +42,7 @@ python convert_to_tarred_audio_dataset.py \
     --min_duration=<float representing minimum duration of audio samples> \
     --shuffle --shuffle_seed=1 \
     --concat_manifest_paths \
-    <space seperated paths to 1 or more manifest files to concatenate into the original tarred dataset>
+    <space separated paths to 1 or more manifest files to concatenate into the original tarred dataset>
 
 3) Writing an empty metadata file
 
@@ -135,7 +135,14 @@ parser.add_argument(
     help="Whether or not consider the paths in the manifest relative to the path of the manifest file itself.",
 )
 
-parser.add_argument("--shuffle_seed", type=int, help="Random seed for use if shuffling is enabled.")
+parser.add_argument(
+    "--buckets_num",
+    type=int,
+    default=1,
+    help="Number of buckets to create based on duration.",
+)
+
+parser.add_argument("--shuffle_seed", type=int, default=None, help="Random seed for use if shuffling is enabled.")
 parser.add_argument(
     '--write_metadata',
     action='store_true',
@@ -545,32 +552,47 @@ class ASRTarredDatasetBuilder:
 
 
 def main():
-    manifest_path = args.manifest_path
-    concat_manifest_paths = args.concat_manifest_paths
-    target_dir = args.target_dir
-    metadata_path = args.metadata_path
-    num_shards = args.num_shards
-    max_duration = args.max_duration
-    min_duration = args.min_duration
-    shuffle = args.shuffle
-    use_relative_paths = args.use_relative_paths
-    seed = args.shuffle_seed if args.shuffle_seed else None
-    write_metadata = args.write_metadata
-    num_workers = args.workers
-    sort_in_shards = args.sort_in_shards
+    # manifest_path = args.manifest_path
+    # concat_manifest_paths = args.concat_manifest_paths
+    # target_dir = args.target_dir
+    # metadata_path = args.metadata_path
+    # num_shards = args.num_shards
+    # max_duration = args.max_duration
+    # min_duration = args.min_duration
+    # shuffle = args.shuffle
+    # use_relative_paths = args.use_relative_paths
+    #seed = args.shuffle_seed if args.shuffle_seed else None
+    # write_metadata = args.write_metadata
+    # num_workers = args.workers
+    # sort_in_shards = args.sort_in_shards
+    # buckets_num = args.buckets_num
+    if args.buckets_num > 1:
+        bucket_length = (args.max_duration - args.min_duration) / float(args.buckets_num)
+        for i in range(args.buckets_num):
+            min_duration = args.min_duration + i*bucket_length
+            max_duration = min_duration + bucket_length
+            target_dir = os.path.join(args.target_dir, f"bucket{i+1}")
+            print(f"Creating bucket {i+1} with min_duration={min_duration} and max_duration={max_duration} ...")
+            print(f"Results are being saved at: {target_dir}.")
+            create_tar_datasets(min_duration=min_duration, max_duration=max_duration, target_dir=target_dir)
+            print(f"Bucket {i+1} is created.")
+    else:
+        create_tar_datasets(min_duration=args.min_duration, max_duration=args.max_duration, target_dir=args.target_dir)
 
+
+def create_tar_datasets(min_duration: float, max_duration: float, target_dir:str):
     builder = ASRTarredDatasetBuilder()
 
-    if write_metadata:
+    if args.write_metadata:
         metadata = ASRTarredDatasetMetadata()
         dataset_cfg = ASRTarredDatasetConfig(
-            num_shards=num_shards,
-            shuffle=shuffle,
+            num_shards=args.num_shards,
+            shuffle=args.shuffle,
             max_duration=max_duration,
             min_duration=min_duration,
-            shuffle_seed=seed,
-            sort_in_shards=sort_in_shards,
-            use_relative_paths=use_relative_paths,
+            shuffle_seed=args.shuffle_seed,
+            sort_in_shards=args.sort_in_shards,
+            use_relative_paths=args.use_relative_paths,
         )
         metadata.dataset_config = dataset_cfg
 
@@ -579,28 +601,28 @@ def main():
         print(f"Default metadata written to {output_path}")
         exit(0)
 
-    if concat_manifest_paths is None or len(concat_manifest_paths) == 0:
+    if args.concat_manifest_paths is None or len(args.concat_manifest_paths) == 0:
         print("Creating new tarred dataset ...")
 
         # Create a tarred dataset from scratch
         config = ASRTarredDatasetConfig(
-            num_shards=num_shards,
-            shuffle=shuffle,
+            num_shards=args.num_shards,
+            shuffle=args.shuffle,
             max_duration=max_duration,
             min_duration=min_duration,
-            shuffle_seed=seed,
-            use_relative_paths=use_relative_paths,
-            sort_in_shards=sort_in_shards,
+            shuffle_seed=args.shuffle_seed,
+            use_relative_paths=args.use_relative_paths,
+            sort_in_shards=args.sort_in_shards,
         )
         builder.configure(config)
-        builder.create_new_dataset(manifest_path=manifest_path, target_dir=target_dir, num_workers=num_workers)
+        builder.create_new_dataset(manifest_path=args.manifest_path, target_dir=target_dir, num_workers=args.workers)
 
     else:
         print("Concatenating multiple tarred datasets ...")
 
         # Implicitly update config from base details
-        if metadata_path is not None:
-            metadata = ASRTarredDatasetMetadata.from_file(metadata_path)
+        if args.metadata_path is not None:
+            metadata = ASRTarredDatasetMetadata.from_file(args.metadata_path)
         else:
             raise ValueError("`metadata` yaml file path must be provided!")
 
@@ -612,19 +634,19 @@ def main():
         # Add command line overrides (everything other than num_shards)
         metadata.dataset_config.max_duration = max_duration
         metadata.dataset_config.min_duration = min_duration
-        metadata.dataset_config.shuffle = shuffle
-        metadata.dataset_config.shuffle_seed = seed
-        metadata.dataset_config.sort_in_shards = sort_in_shards
+        metadata.dataset_config.shuffle = args.shuffle
+        metadata.dataset_config.shuffle_seed = args.shuffle_seed
+        metadata.dataset_config.sort_in_shards = args.sort_in_shards
 
         builder.configure(metadata.dataset_config)
 
         # Concatenate a tarred dataset onto a previous one
         builder.create_concatenated_dataset(
-            base_manifest_path=manifest_path,
-            manifest_paths=concat_manifest_paths,
+            base_manifest_path=args.manifest_path,
+            manifest_paths=args.concat_manifest_paths,
             metadata=metadata,
             target_dir=target_dir,
-            num_workers=num_workers,
+            num_workers=args.workers,
         )
 
 
