@@ -310,7 +310,9 @@ def convert_to_config_list(initial_list):
     #         initial_list[list_idx] = ListConfig([list_val])
     for list_idx, list_val in enumerate(initial_list):
         if type(list_val) != type(initial_list[0]):
-            raise ValueError("manifest_filepaths and tarred_audio_filepaths need to be a list of lists for bucketing or just a list of strings")
+            raise ValueError(
+                "manifest_filepaths and tarred_audio_filepaths need to be a list of lists for bucketing or just a list of strings"
+            )
     if type(initial_list[0]) is not ListConfig:
         initial_list = ListConfig([initial_list])
     return initial_list
