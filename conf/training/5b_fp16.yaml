@@ -8,7 +8,7 @@ slurm:
   overcommit: True
   ntasks_per_node: 8
   gpus_per_task: 1
-  dependency: "Singleton"
+  dependency: "singleton"
   job_name: "bignlp-gpt3:5b_fp16"
 
 
