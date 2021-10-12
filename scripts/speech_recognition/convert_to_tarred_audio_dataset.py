@@ -20,6 +20,12 @@
 # Because we will use it to handle files which have duplicate filenames but with different offsets
 # (see function create_shard for details)
 
+# Recommend to use --sort_in_shards to speedup the training by reducing the paddings in the batches
+
+# Bucketing can also help to improve the training speed. You may use --buckets_num to specify the number of buckets.
+# It creates multiple tarred datasets, one per bucket, based on the audio durations.
+# The range of [min_duration, max_duration) is split into equal sized buckets.
+
 # Usage:
 1) Creating a new tarfile dataset
 
@@ -30,6 +36,7 @@ python convert_to_tarred_audio_dataset.py \
     --max_duration=<float representing maximum duration of audio samples> \
     --min_duration=<float representing minimum duration of audio samples> \
     --shuffle --shuffle_seed=1
+    --sort_in_shards
 
 
 2) Concatenating more tarfiles to a pre-existing tarred dataset
@@ -41,6 +48,7 @@ python convert_to_tarred_audio_dataset.py \
     --max_duration=<float representing maximum duration of audio samples> \
     --min_duration=<float representing minimum duration of audio samples> \
     --shuffle --shuffle_seed=1 \
+    --sort_in_shards
     --concat_manifest_paths \
     <space separated paths to 1 or more manifest files to concatenate into the original tarred dataset>
 
@@ -53,6 +61,7 @@ python convert_to_tarred_audio_dataset.py \
     --max_duration=16.7 \
     --min_duration=0.01 \
     --shuffle \
+    --sort_in_shards
     --shuffle_seed=1 \
     --write_metadata
 
@@ -136,10 +145,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--buckets_num",
-    type=int,
-    default=1,
-    help="Number of buckets to create based on duration.",
+    "--buckets_num", type=int, default=1, help="Number of buckets to create based on duration.",
 )
 
 parser.add_argument("--shuffle_seed", type=int, default=None, help="Random seed for use if shuffling is enabled.")
@@ -552,24 +558,10 @@ class ASRTarredDatasetBuilder:
 
 
 def main():
-    # manifest_path = args.manifest_path
-    # concat_manifest_paths = args.concat_manifest_paths
-    # target_dir = args.target_dir
-    # metadata_path = args.metadata_path
-    # num_shards = args.num_shards
-    # max_duration = args.max_duration
-    # min_duration = args.min_duration
-    # shuffle = args.shuffle
-    # use_relative_paths = args.use_relative_paths
-    #seed = args.shuffle_seed if args.shuffle_seed else None
-    # write_metadata = args.write_metadata
-    # num_workers = args.workers
-    # sort_in_shards = args.sort_in_shards
-    # buckets_num = args.buckets_num
     if args.buckets_num > 1:
         bucket_length = (args.max_duration - args.min_duration) / float(args.buckets_num)
         for i in range(args.buckets_num):
-            min_duration = args.min_duration + i*bucket_length
+            min_duration = args.min_duration + i * bucket_length
             max_duration = min_duration + bucket_length
             target_dir = os.path.join(args.target_dir, f"bucket{i+1}")
             print(f"Creating bucket {i+1} with min_duration={min_duration} and max_duration={max_duration} ...")
@@ -580,7 +572,7 @@ def main():
         create_tar_datasets(min_duration=args.min_duration, max_duration=args.max_duration, target_dir=args.target_dir)
 
 
-def create_tar_datasets(min_duration: float, max_duration: float, target_dir:str):
+def create_tar_datasets(min_duration: float, max_duration: float, target_dir: str):
     builder = ASRTarredDatasetBuilder()
 
     if args.write_metadata:
