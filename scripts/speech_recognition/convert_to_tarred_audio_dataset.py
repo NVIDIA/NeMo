@@ -259,7 +259,7 @@ class ASRTarredDatasetBuilder:
             print(f"Filtered {len(filtered_entries)} files which amounts to {filtered_duration} seconds of audio.")
 
         if len(entries) == 0:
-            print("No tarred is created as there was 0 samples after the filtering!")
+            print("No tarred dataset was created as there were 0 valid samples after filtering!")
             return
         if config.shuffle:
             random.seed(config.shuffle_seed)
@@ -485,8 +485,8 @@ class ASRTarredDatasetBuilder:
         with open(manifest_path, 'r') as m:
             for line in m:
                 entry = json.loads(line)
-                if (config.max_duration is None or entry['duration'] <= config.max_duration) and (
-                    config.min_duration is None or entry['duration'] > config.min_duration
+                if (config.max_duration is None or entry['duration'] < config.max_duration) and (
+                    config.min_duration is None or entry['duration'] >= config.min_duration
                 ):
                     entries.append(entry)
                 else:
@@ -566,6 +566,9 @@ def main():
         for i in range(args.buckets_num):
             min_duration = args.min_duration + i * bucket_length
             max_duration = min_duration + bucket_length
+            if i == len(args.buckets_num) - 1:
+                # add a small number to cover the samples with exactly duration of max_duration in the last bucket.
+                max_duration += 1e-5
             target_dir = os.path.join(args.target_dir, f"bucket{i+1}")
             print(f"Creating bucket {i+1} with min_duration={min_duration} and max_duration={max_duration} ...")
             print(f"Results are being saved at: {target_dir}.")

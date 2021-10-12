@@ -18,6 +18,7 @@ import torch
 from omegaconf import DictConfig, open_dict
 from omegaconf.listconfig import ListConfig
 from torch.utils.data import ChainDataset
+from typing import Union
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dali
 from nemo.utils import logging
@@ -131,7 +132,7 @@ def get_tarred_dataset(
     world_size: int,
     tokenizer: Optional['TokenizerSpec'] = None,
     augmentor: Optional['AudioAugmentor'] = None,
-) -> audio_to_text.TarredAudioToBPEDataset:
+) -> Union[audio_to_text.TarredAudioToBPEDataset, audio_to_text.TarredAudioToDataset]:
     """
     Instantiates a Byte Pair Encoding / Word Piece Encoding based TarredAudioToBPEDataset.
 
@@ -146,7 +147,7 @@ def get_tarred_dataset(
         augmentor: Optional AudioAugmentor object for augmentations on audio data.
 
     Returns:
-        An instance of TarredAudioToBPEDataset.
+        An instance of TarredAudioToBPEDataset or TarredAudioToDataset.
     """
     tarred_audio_filepaths = config['tarred_audio_filepaths']
     manifest_filepaths = config['manifest_filepath']
@@ -301,7 +302,7 @@ def get_dali_bpe_dataset(
 
 def convert_to_config_list(initial_list):
     if initial_list is None or initial_list == []:
-        raise ValueError("manifest_filepaths and tarred_audio_filepaths may not be empty.")
+        raise ValueError("manifest_filepaths and tarred_audio_filepaths must not be empty.")
     if not isinstance(initial_list, ListConfig):
         initial_list = ListConfig([initial_list])
 
