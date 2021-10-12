@@ -16,10 +16,13 @@ from typing import Optional
 
 import torch
 from omegaconf import DictConfig, open_dict
+from omegaconf.listconfig import ListConfig
+
+from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dali
 from nemo.utils import logging
-from torch.utils.data import ChainDataset
+
 
 def inject_dataloader_value_from_model_config(model_cfg: dict, dataloader_cfg: DictConfig, key: str):
     """
@@ -188,26 +191,38 @@ def get_tarred_bpe_dataset(
     tarred_audio_filepaths = config['tarred_audio_filepaths']
     manifest_filepaths = config['manifest_filepath']
     datasets = []
-    for dataset_idx, (tarred_audio_filepath, manifest_filepath) in enumerate(zip(tarred_audio_filepaths, manifest_filepaths)):
-        datasets.append(audio_to_text.TarredAudioToBPEDataset(
-            audio_tar_filepaths=tarred_audio_filepath,
-            manifest_filepath=manifest_filepath,
-            tokenizer=tokenizer,
-            sample_rate=config['sample_rate'],
-            int_values=config.get('int_values', False),
-            augmentor=augmentor,
-            shuffle_n=shuffle_n,
-            max_duration=config.get('max_duration', None),
-            min_duration=config.get('min_duration', None),
-            max_utts=config.get('max_utts', 0),
-            trim=config.get('trim_silence', False),
-            use_start_end_token=config.get('use_start_end_token', True),
-            shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
-            global_rank=global_rank,
-            world_size=world_size,
-        ))
-    return ChainDataset(datasets)
-    #return datasets[0]
+    tarred_audio_filepaths = convert_to_config_list(tarred_audio_filepaths)
+    manifest_filepaths = convert_to_config_list(manifest_filepaths)
+
+    if len(manifest_filepaths) != len(tarred_audio_filepaths):
+        raise ValueError(f"manifest_filepaths and tarred_audio_filepaths need to have the same number of buckets.")
+
+    for dataset_idx, (tarred_audio_filepath, manifest_filepath) in enumerate(
+        zip(tarred_audio_filepaths, manifest_filepaths)
+    ):
+        datasets.append(
+            audio_to_text.TarredAudioToBPEDataset(
+                audio_tar_filepaths=tarred_audio_filepath,
+                manifest_filepath=manifest_filepath,
+                tokenizer=tokenizer,
+                sample_rate=config['sample_rate'],
+                int_values=config.get('int_values', False),
+                augmentor=augmentor,
+                shuffle_n=shuffle_n,
+                max_duration=config.get('max_duration', None),
+                min_duration=config.get('min_duration', None),
+                max_utts=config.get('max_utts', 0),
+                trim=config.get('trim_silence', False),
+                use_start_end_token=config.get('use_start_end_token', True),
+                shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
+                global_rank=global_rank,
+                world_size=world_size,
+            )
+        )
+    if len(datasets) > 1:
+        return ChainDataset(datasets)
+    else:
+        return datasets[0]
 
 
 def get_dali_char_dataset(
@@ -297,3 +312,13 @@ def get_dali_bpe_dataset(
         preprocessor_cfg=preprocessor_cfg,
     )
     return dataset
+
+
+def convert_to_config_list(initial_list):
+    if type(initial_list) is not ListConfig:
+        initial_list = ListConfig([initial_list])
+
+    for list_idx, list_val in enumerate(initial_list):
+        if type(list_val) is not ListConfig:
+            initial_list[list_idx] = ListConfig([list_val])
+    return initial_list
