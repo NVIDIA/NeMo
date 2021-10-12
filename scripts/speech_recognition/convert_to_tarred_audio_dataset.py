@@ -258,6 +258,9 @@ class ASRTarredDatasetBuilder:
         if len(filtered_entries) > 0:
             print(f"Filtered {len(filtered_entries)} files which amounts to {filtered_duration} seconds of audio.")
 
+        if len(entries) == 0:
+            print("No tarred is created as there was 0 samples after the filtering!")
+            return
         if config.shuffle:
             random.seed(config.shuffle_seed)
             print("Shuffling...")
