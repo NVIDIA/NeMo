@@ -65,6 +65,7 @@ class ExampleModel(ModelPT):
     def __init__(self, *args, **kwargs):
         cfg = OmegaConf.structured({})
         super().__init__(cfg)
+        pl.seed_everything(1234)
         self.l1 = torch.nn.modules.Linear(in_features=2, out_features=1)
 
     def train_dataloader(self):
@@ -87,8 +88,8 @@ class ExampleModel(ModelPT):
         return self(batch)
 
     def configure_optimizers(self):
-        return MyTestOptimizer(self.parameters())
-        # return torch.optim.Adam(self.parameters(), lr=0.1)
+        # return MyTestOptimizer(self.parameters())
+        return torch.optim.Adam(self.parameters(), lr=0.1)
 
     def list_available_models(self):
         pass
@@ -313,7 +314,7 @@ class TestExpManager:
 
     @pytest.mark.unit
     def test_nemo_checkpoint_save_best_model_1(self, tmp_path):
-        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4)
+        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4, deterministic=True)
         log_dir = exp_manager(
             test_trainer,
             {"checkpoint_callback_params": {"save_best_model": True}, "explicit_log_dir": str(tmp_path / "test")},
@@ -324,11 +325,13 @@ class TestExpManager:
         assert Path(str(tmp_path / "test" / "checkpoints" / "default.nemo")).exists()
 
         model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / "default.nemo"))
-        assert float(model(torch.tensor([1.0, 1.0], device=model.device))) == 0.0
+        out = float(model(torch.tensor([1.0, 1.0], device=model.device)))
+        ans = 0.0554855540394783
+        assert math.fabs(out - ans) < 1e-5
 
     @pytest.mark.unit
     def test_nemo_checkpoint_save_best_model_2(self, tmp_path):
-        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4)
+        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4, deterministic=True)
         log_dir = exp_manager(test_trainer, {"explicit_log_dir": str(tmp_path / "test")},)
         model = ExampleModel()
         test_trainer.fit(model)
@@ -336,11 +339,13 @@ class TestExpManager:
         assert Path(str(tmp_path / "test" / "checkpoints" / "default.nemo")).exists()
 
         model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / "default.nemo"))
-        assert math.fabs(float(model(torch.tensor([1.0, 1.0], device=model.device))) - 0.03) < 1e-5
+        out = float(model(torch.tensor([1.0, 1.0], device=model.device)))
+        ans = 0.0554855540394783
+        assert math.fabs(out - ans) < 1e-5
 
     @pytest.mark.unit
     def test_nemo_checkpoint_always_save_nemo(self, tmp_path):
-        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4)
+        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4, deterministic=True)
         log_dir = exp_manager(
             test_trainer,
             {
@@ -354,4 +359,6 @@ class TestExpManager:
         assert Path(str(tmp_path / "test" / "checkpoints" / "default.nemo")).exists()
 
         model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / "default.nemo"))
-        assert float(model(torch.tensor([1.0, 1.0], device=model.device))) == 0.0
+        out = float(model(torch.tensor([1.0, 1.0], device=model.device)))
+        ans = 0.0554855540394783
+        assert math.fabs(out - ans) < 1e-5
