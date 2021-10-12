@@ -11,4 +11,4 @@ hydra:
 
 training_config: 126m_fp16  # Must match - training above.
 bignlp_path: ??? # Path to where the bignlp-scripts repo is. Should end with /.../bignlp-scripts
-container: nvcr.io/nvidian/swdl/bignlp:21.10.02-py3-base
+container: nvcr.io/nvidian/swdl/bignlp:21.10-py3-base
