@@ -1,0 +1,115 @@
+trainer:
+  gpus: 2
+  num_nodes: 1
+  accelerator: ddp
+  precision: 16
+  logger: False # logger provided by exp_manager
+  checkpoint_callback: False
+  replace_sampler_ddp: False
+  max_epochs: null
+  max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  log_every_n_steps: 10
+  val_check_interval: 100
+  limit_val_batches: 50
+  limit_test_batches: 500
+  accumulate_grad_batches: 1
+  gradient_clip_val: 1.0
+
+exp_manager:
+  explicit_log_dir: null
+  exp_dir: /home/sandeepsub/nemo_t5
+  name: megatron_t5
+  create_wandb_logger: True
+  wandb_logger_kwargs:
+    project: nemo_megatron_t5_pretraining
+    name: dev
+  resume_if_exists: True
+  resume_ignore_no_checkpoint: True
+  create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: val_loss
+    save_top_k: 10
+    mode: min
+    always_save_nemo: False # TODO: add support
+    filename: 'megatron_t5--{val_loss:.2f}-{step}'
+
+
+model:
+  nemo_file_path: null # after each training run save .nemo file to this location
+
+  # model parallelism 
+  micro_batch_size: 4
+  tensor_model_parallel_size: 1
+
+  # model architecture
+  make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
+  pre_process: True # add embedding
+  post_process: True # add pooler
+  debug: False # logs debugging info
+
+  seq_length: 512
+  max_position_embeddings: 512
+  num_layers: 12
+  hidden_size: 768
+  ffn_hidden_size: 3072 # Transformer FFN hidden size. Usually 4 * hidden_size.
+  num_attention_heads: 12
+  init_method_std: 0.02 # Standard deviation of the zero mean normal distribution used for weight initialization.')
+  hidden_dropout: 0.1 # Dropout probability for hidden state transformer.
+  kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
+  apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
+  layernorm_epsilon: 1e-5
+  
+  tokenizer:
+    library: 'megatron'
+    type: 'BertWordPieceCase'
+    model: null
+    vocab_file: null
+    merge_file: null
+    num_sentinel_tokens: 100
+
+  # precision
+  native_amp_init_scale: 4294967296 # 2 ** 32
+  native_amp_growth_interval: 1000
+  fused_fp16: True # False if using fp32 or bf16
+  fused_bf16: False # True if using bf16
+  fp32_residual_connection: False # Move residual connections to fp32
+  fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
+
+  # miscellaneous
+  seed: 1234
+  use_cpu_initialization: False # Init weights on the CPU (slow for large models)
+  onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
+
+  # not implemented in NeMo yet
+  activations_checkpoint_method: null # 'uniform', 'block'
+  activations_checkpoint_num_layers: 1 
+
+  data:
+    # data_prefix
+      # weight 
+      # path
+    data_prefix: 
+      - 1.0
+      - /raid/Data/NMT/Datasources/Monolingual/Pile/the-eye.eu/public/AI/pile/train/02_bert_tokenizer_text_document
+    data_impl: mmap
+    splits_string: 949,45,5
+    seq_length: 512
+    seq_length_dec: 128
+    skip_warmup: True
+    num_workers: 0
+    dataloader_type: single # cyclic
+    masked_lm_prob: 0.15
+    short_seq_prob: 0.1
+
+  optim:
+    name: adam
+    lr: 0.0004
+    weight_decay: 0.01
+    betas: 
+    - 0.9
+    - 0.98
+    sched:
+      name: InverseSquareRootAnnealing
+      warmup_steps: 10000
+      min_lr: 0.0
+      last_epoch: -1
