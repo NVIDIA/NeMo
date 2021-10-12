@@ -137,7 +137,8 @@ def get_tarred_dataset(
 
     Args:
         config: Config of the TarredAudioToBPEDataset.
-        tokenizer: An instance of a TokenizerSpec object if BPE dataset is needed. Passsing None would return a char-based dataset.
+        tokenizer: An instance of a TokenizerSpec object if BPE dataset is needed.
+            Passsing None would return a char-based dataset.
         shuffle_n: How many samples to look ahead and load to be shuffled.
             See WebDataset documentation for more details.
         global_rank: Global rank of this device.
@@ -299,10 +300,17 @@ def get_dali_bpe_dataset(
 
 
 def convert_to_config_list(initial_list):
-    if type(initial_list) is not ListConfig:
+    if initial_list is None or initial_list == []:
+        raise ValueError("manifest_filepaths and tarred_audio_filepaths may not be empty.")
+    if not isinstance(initial_list, ListConfig):
         initial_list = ListConfig([initial_list])
 
+    # for list_idx, list_val in enumerate(initial_list):
+    #     if type(list_val) is not ListConfig:
+    #         initial_list[list_idx] = ListConfig([list_val])
     for list_idx, list_val in enumerate(initial_list):
-        if type(list_val) is not ListConfig:
-            initial_list[list_idx] = ListConfig([list_val])
+        if type(list_val) != type(initial_list[0]):
+            raise ValueError("manifest_filepaths and tarred_audio_filepaths need to be a list of lists for bucketing or just a list of strings")
+    if type(initial_list[0]) is not ListConfig:
+        initial_list = ListConfig([initial_list])
     return initial_list
