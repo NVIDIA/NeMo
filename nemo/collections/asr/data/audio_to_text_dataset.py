@@ -17,7 +17,6 @@ from typing import Optional
 import torch
 from omegaconf import DictConfig, open_dict
 from omegaconf.listconfig import ListConfig
-
 from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dali
@@ -200,6 +199,8 @@ def get_tarred_bpe_dataset(
     for dataset_idx, (tarred_audio_filepath, manifest_filepath) in enumerate(
         zip(tarred_audio_filepaths, manifest_filepaths)
     ):
+        if len(tarred_audio_filepath) == 1:
+            tarred_audio_filepath = tarred_audio_filepath[0]
         datasets.append(
             audio_to_text.TarredAudioToBPEDataset(
                 audio_tar_filepaths=tarred_audio_filepath,
