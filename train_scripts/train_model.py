@@ -10,7 +10,6 @@ def create_slurm_file(
     new_script_path,
     train_cmd,
     job_name,
-    blend_path,
     flags="",
     dependency=None,
     time="04:00:00",
@@ -37,7 +36,6 @@ def create_slurm_file(
         if overcommit:
             f.writelines("#SBATCH --overcommit\n")
         f.writelines(f"#SBATCH --time={time}\n\n")
-        f.writelines(f". {blend_path}\n\n")
         f.writelines(f'srun {flags} sh -c "{train_cmd}"\n\n')
         f.writelines("set +x\n")
 
@@ -66,8 +64,6 @@ def main(cfg):
 
     # Run parameters
     name = run_cfg.get("name")
-    blend_path = run_cfg.get("blend_path")
-    full_blend_path = os.path.join(bignlp_path, blend_path)
     log_dir = os.path.join(bignlp_path, run_cfg.get("log_dir"), name)
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
@@ -84,7 +80,6 @@ def main(cfg):
     create_slurm_file(
         new_script_path=new_script_path,
         train_cmd=train_cmd,
-        blend_path=full_blend_path,
         job_name=f"bignlp:{name}",
         flags=flags,
         dependency=dependency,

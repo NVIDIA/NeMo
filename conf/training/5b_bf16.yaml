@@ -14,7 +14,6 @@ slurm:
 
 run:
   name: "5b_bf16"
-  blend_path: "prepare_dataset/gpt3_blend.sh"
   log_dir: "train_scripts/logs"
 
 
