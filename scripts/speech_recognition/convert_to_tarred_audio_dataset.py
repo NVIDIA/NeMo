@@ -570,7 +570,7 @@ def main():
         for i in range(args.buckets_num):
             min_duration = args.min_duration + i * bucket_length
             max_duration = min_duration + bucket_length
-            if i == len(args.buckets_num) - 1:
+            if i == args.buckets_num - 1:
                 # add a small number to cover the samples with exactly duration of max_duration in the last bucket.
                 max_duration += 1e-5
             target_dir = os.path.join(args.target_dir, f"bucket{i+1}")
