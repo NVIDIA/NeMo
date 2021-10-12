@@ -478,7 +478,7 @@ class Wav2VecEncoderModel(ModelPT):
                 return None
 
             shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
-            dataset = audio_to_text_dataset.get_tarred_char_dataset(
+            dataset = audio_to_text_dataset.get_tarred_dataset(
                 config=config,
                 shuffle_n=shuffle_n,
                 global_rank=self.global_rank,
