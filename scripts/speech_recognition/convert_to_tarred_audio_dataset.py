@@ -122,14 +122,9 @@ parser.add_argument(
     action='store_true',
     help="Whether or not to randomly shuffle the samples in the manifest before tarring/sharding.",
 )
-parser.add_argument(
-    "--sort",
-    action='store_true',
-    help="Whether or not to sort samples based on their duration.",
-)
 
 parser.add_argument(
-    "--sort_shard",
+    "--sort_in_shards",
     action='store_true',
     help="Whether or not to sort samples inside the shards based on their duration.",
 )
@@ -158,12 +153,11 @@ args = parser.parse_args()
 class ASRTarredDatasetConfig:
     num_shards: int = -1
     shuffle: bool = False
-    use_relative_paths: bool = False
-    sort: bool = True
-    sort_shard: bool = True
     max_duration: Optional[float] = None
     min_duration: Optional[float] = None
     shuffle_seed: Optional[int] = None
+    use_relative_paths: bool = False
+    sort_in_shards: bool = True
 
 
 @dataclass
@@ -256,8 +250,6 @@ class ASRTarredDatasetBuilder:
             print("Shuffling...")
             random.shuffle(entries)
 
-        if config.sort:
-            entries.sort(key=lambda x: x["duration"], reverse=False)
         # Create shards and updated manifest entries
         print(f"Number of samples added : {len(entries)}")
         print(f"Remainder: {len(entries) % config.num_shards}")
@@ -490,7 +482,7 @@ class ASRTarredDatasetBuilder:
     def _create_shard(self, entries, target_dir, shard_id):
         """Creates a tarball containing the audio files from `entries`.
         """
-        if self.config.sort_shard:
+        if self.config.sort_in_shards:
             entries.sort(key=lambda x: x["duration"], reverse=False)
 
         new_entries = []
@@ -562,11 +554,10 @@ def main():
     min_duration = args.min_duration
     shuffle = args.shuffle
     use_relative_paths = args.use_relative_paths
-    sort = args.sort
-    sort_shard = args.sort_shard
     seed = args.shuffle_seed if args.shuffle_seed else None
     write_metadata = args.write_metadata
     num_workers = args.workers
+    sort_in_shards = args.sort_in_shards
 
     builder = ASRTarredDatasetBuilder()
 
@@ -575,12 +566,11 @@ def main():
         dataset_cfg = ASRTarredDatasetConfig(
             num_shards=num_shards,
             shuffle=shuffle,
-            sort=sort,
-            sort_shard=sort_shard,
-            use_relative_paths=use_relative_paths,
             max_duration=max_duration,
             min_duration=min_duration,
             shuffle_seed=seed,
+            sort_in_shards=sort_in_shards,
+            use_relative_paths=use_relative_paths,
         )
         metadata.dataset_config = dataset_cfg
 
@@ -596,12 +586,11 @@ def main():
         config = ASRTarredDatasetConfig(
             num_shards=num_shards,
             shuffle=shuffle,
-            use_relative_paths=use_relative_paths,
-            sort=sort,
-            sort_shard=sort_shard,
             max_duration=max_duration,
             min_duration=min_duration,
             shuffle_seed=seed,
+            use_relative_paths=use_relative_paths,
+            sort_in_shards=sort_in_shards,
         )
         builder.configure(config)
         builder.create_new_dataset(manifest_path=manifest_path, target_dir=target_dir, num_workers=num_workers)
@@ -624,9 +613,8 @@ def main():
         metadata.dataset_config.max_duration = max_duration
         metadata.dataset_config.min_duration = min_duration
         metadata.dataset_config.shuffle = shuffle
-        metadata.dataset_config.sort = sort
-        metadata.dataset_config.sort_shard = sort_shard
         metadata.dataset_config.shuffle_seed = seed
+        metadata.dataset_config.sort_in_shards = sort_in_shards
 
         builder.configure(metadata.dataset_config)
 
