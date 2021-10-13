@@ -18,6 +18,7 @@ import shutil
 from itertools import repeat
 from multiprocessing import Pool
 
+import IPython.display as ipd
 import librosa
 import matplotlib.pyplot as plt
 import numpy as np
@@ -27,7 +28,7 @@ from pyannote.metrics import detection
 from sklearn.model_selection import ParameterGrid
 
 from nemo.utils import logging
-import IPython.display as ipd
+
 
 """
 This file contains all the utility functions required for voice activity detection. 
@@ -375,7 +376,7 @@ def binarization(sequence, per_args):
 
     onset = per_args.get('onset', 0.5)
     offset = per_args.get('offset', 0.5)
-    pad_onset = per_args.get('pad_onset', 0) 
+    pad_onset = per_args.get('pad_onset', 0)
     pad_offset = per_args.get('pad_offset', 0)
 
     onset, offset = cal_vad_onset_offset(per_args.get('scale', 'absolute'), onset, offset, sequence)
@@ -387,7 +388,7 @@ def binarization(sequence, per_args):
         if speech:
             # Switch from speech to non-speech
             if sequence[i] < offset:
-                if  i * shift_len + pad_offset > max(0, start - pad_onset):
+                if i * shift_len + pad_offset > max(0, start - pad_onset):
                     speech_segments.add((max(0, start - pad_onset), i * shift_len + pad_offset))
                 start = i * shift_len
                 speech = False
