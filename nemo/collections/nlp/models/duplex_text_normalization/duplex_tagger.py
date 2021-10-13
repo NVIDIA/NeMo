@@ -131,7 +131,7 @@ class DuplexTaggerModel(NLPModel):
 
     # Functions for inference
     @torch.no_grad()
-    def _infer(self, sents: List[List[str]], inst_directions: List[str], do_basic_tokenization=True):
+    def _infer(self, sents: List[List[str]], inst_directions: List[str]):
         """ Main function for Inference
 
         Args:
@@ -144,10 +144,8 @@ class DuplexTaggerModel(NLPModel):
             nb_spans: A list of ints where each int indicates the number of semiotic spans in input words.
             span_starts: A list of lists where each list contains the starting locations of semiotic spans in input words.
             span_ends: A list of lists where each list contains the ending locations of semiotic spans in input words.
-            do_basic_tokenization: whether to do a pre-processing to separate punctuation marks, recommended to set to True
         """
         self.eval()
-
         # Append prefix
         texts = []
         for ix, sent in enumerate(sents):
@@ -155,19 +153,11 @@ class DuplexTaggerModel(NLPModel):
                 prefix = constants.ITN_PREFIX
             elif inst_directions[ix] == constants.INST_FORWARD:
                 prefix = constants.TN_PREFIX
-            if do_basic_tokenization:
-                texts.append([prefix] + sent)
-            else:
-                texts.append(prefix + " " + sent)
+            texts.append([prefix] + sent)
 
         # Apply the model
-        if do_basic_tokenization:
-            is_split_into_words = True
-        else:
-            is_split_into_words = False
-
         encodings = self._tokenizer(
-            texts, is_split_into_words=is_split_into_words, padding=True, truncation=True, return_tensors='pt'
+            texts, is_split_into_words=True, padding=True, truncation=True, return_tensors='pt'
         )
 
         inputs = encodings
@@ -175,10 +165,7 @@ class DuplexTaggerModel(NLPModel):
 
         # check that the length of the 'input_ids' equals as least the length of the original input
         # if an input symbol is missing in the tokenizer's vocabulary (such as emoji or a Chinese character), it could be skipped
-        if do_basic_tokenization:
-            len_texts = [len(x) for x in texts]
-        else:
-            len_texts = [len(x.split()) for x in texts]
+        len_texts = [len(x) for x in texts]
         len_ids = [
             len(self._tokenizer.convert_ids_to_tokens(x, skip_special_tokens=True)) for x in encodings['input_ids']
         ]
@@ -343,7 +330,6 @@ class DuplexTaggerModel(NLPModel):
             tokenizer=self._tokenizer,
             tokenizer_name=self.transformer_name,
             mode=self.mode,
-            do_basic_tokenize=cfg.do_basic_tokenize,
             tagger_data_augmentation=tagger_data_augmentation,
             lang=self.lang,
             max_seq_length=self.max_sequence_len,
