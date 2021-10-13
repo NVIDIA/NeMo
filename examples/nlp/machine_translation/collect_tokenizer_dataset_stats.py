@@ -32,6 +32,8 @@ def tokenize_line(line, tokenizer):
     """
     tokens = tokenizer.text_to_ids(line)
 
+    return tokens
+
 
 def line_len(line, tokenizer):
     """
