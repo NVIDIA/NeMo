@@ -18,6 +18,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 import multiprocessing as mp
 from functools import partial
+import json
 
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
@@ -105,6 +106,8 @@ if __name__ == '__main__':
 
         fh = open(os.path.join(args.out_dir, "lengths.txt"), "w")
         fw.writelines(["{l}\n".format(l=l) for l in all_len])
+
+        json.dump(stats, open(os.path.join(args.out_dir, "stats.json"), "w"))
 
         fig = plt.hist(all_len)
         plt.savefig(os.path.join(args.out_dir, "lengths_hist.pdf"))
