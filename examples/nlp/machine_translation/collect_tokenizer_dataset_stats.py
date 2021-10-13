@@ -24,11 +24,13 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 # Auxiliary methods
 #=============================================================================#
 
+
 def tokenize_line(tokenizer, line):
     """
     Returns a tokenized line
     """
     tokens = tokenizer.text_to_ids(line.decode("utf-8"))
+
 
 def line_len(tokenizer, line):
     """
@@ -38,15 +40,19 @@ def line_len(tokenizer, line):
 
     return len(tokens)
 
+
 #=============================================================================#
 # Main script
 #=============================================================================#
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Collects statistics over tokenized dataset')
     parser.add_argument('input_files', metavar='N', type=str, nargs='+', help='Input files to parse')
-    parser.add_argument('--tokenizer_library', type=str, required=True, help='Path to pre-trained nemo-supported tokenizer model')
-    parser.add_argument('--tokenizer_model', type=str, required=True, help='Path to pre-trained nemo-supported tokenizer model')
-    parser.add_argument('--num_workers', type=int, default=mp.cpu_count(), help='Number of workers (default to number of CPUs)')
+    parser.add_argument('--tokenizer_library', type=str, required=True,
+                        help='Path to pre-trained nemo-supported tokenizer model')
+    parser.add_argument('--tokenizer_model', type=str, required=True,
+                        help='Path to pre-trained nemo-supported tokenizer model')
+    parser.add_argument('--num_workers', type=int, default=mp.cpu_count(),
+                        help='Number of workers (default to number of CPUs)')
     parser.add_argument('--max_lines', type=int, default=-1, help='Max number of lines to parse')
     parser.add_argument('--out_dir', type=str, default="", help='Path to store data and plots')
 
@@ -66,9 +72,13 @@ if __name__ == '__main__':
         lines = [l.strip() for l in fh.readlines()]
         if args.max_lines > 0:
             lines = lines[:args.max_lines]
+
         # tokenize lines
         with mp.Pool(args.num_workers) as p:
-            all_len.extend(p.map(line_len, lines))
+            all_len.extend(p.map(lambda l: line_len(
+                tokenizer=tokenizer,
+                line=l,
+            ), lines))
 
     # compute stats
 
@@ -76,7 +86,6 @@ if __name__ == '__main__':
     if args.out_dir:
         if not os.path.exists(args.out_dir):
             os.mkdir(args.out_dir)
-
 
     stats = {
         "samples": len(all_len),
