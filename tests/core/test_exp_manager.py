@@ -327,7 +327,7 @@ class TestExpManager:
         model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / "default.nemo"))
         out = float(model(torch.tensor([1.0, 1.0], device=model.device)))
         ans = 0.0554855540394783
-        assert math.fabs(out - ans) < 1e-5
+        assert math.fabs(out - ans) < 1e-3
 
     @pytest.mark.unit
     def test_nemo_checkpoint_save_best_model_2(self, tmp_path):
@@ -341,7 +341,7 @@ class TestExpManager:
         model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / "default.nemo"))
         out = float(model(torch.tensor([1.0, 1.0], device=model.device)))
         ans = 0.0554855540394783
-        assert math.fabs(out - ans) < 1e-5
+        assert math.fabs(out - ans) < 1e-3
 
     @pytest.mark.unit
     def test_nemo_checkpoint_always_save_nemo(self, tmp_path):
@@ -361,4 +361,4 @@ class TestExpManager:
         model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / "default.nemo"))
         out = float(model(torch.tensor([1.0, 1.0], device=model.device)))
         ans = 0.0554855540394783
-        assert math.fabs(out - ans) < 1e-5
+        assert math.fabs(out - ans) < 1e-3
