@@ -85,6 +85,8 @@ class StepTimingParams:
     reduction: Optional[str] = "mean"
     # if True torch.cuda.synchronize() is called on start/stop
     sync_cuda: Optional[bool] = False
+    # if positive, defines the size of a sliding window for computing mean
+    buffer_size: Optional[int] = -1
 
 
 @dataclass
@@ -122,7 +124,10 @@ class TimingCallback(Callback):
         self.timer = timers.NamedTimer(**timer_kwargs)
 
     def _on_batch_start(self, name):
-        self.timer.reset(name)
+        # reset only if we do not return mean of a sliding window
+        if self.timer.buffer_size <= 0:
+            self.timer.reset(name)
+
         self.timer.start(name)
 
     def _on_batch_end(self, name, pl_module):
