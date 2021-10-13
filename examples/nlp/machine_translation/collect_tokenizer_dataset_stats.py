@@ -33,7 +33,7 @@ def tokenize_line(line, tokenizer):
     tokens = tokenizer.text_to_ids(line.decode("utf-8"))
 
 
-def line_len(tokenizer, line):
+def line_len(line, tokenizer):
     """
     Returns a tokenized length of a text line
     """
