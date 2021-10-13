@@ -343,7 +343,7 @@ class ASR_DIAR_OFFLINE(object):
         
         elif 'conformer_transducer' in ASR_model_name or 'contextnet' in ASR_model_name:
             self.run_ASR = self.run_ASR_BPE_RNNT
-            self.get_speech_labels_list = self.save_SAD_labels_list
+            self.get_speech_labels_list = self.save_VAD_labels_list
             asr_model = EncDecRNNTBPEModel.from_pretrained(model_name=ASR_model_name, strict=False)
             self.model_stride_in_secs = 0.04
             self.asr_delay_sec = 0.0
@@ -483,7 +483,7 @@ class ASR_DIAR_OFFLINE(object):
             word_ts[p] = [max(round(word_ts[p][0]-self.asr_delay_sec,2), 0), round(word_ts[p][1]-self.asr_delay_sec,2)]
         return word_ts
 
-    def save_SAD_labels_list(self, word_ts_list, audio_file_list):
+    def save_VAD_labels_list(self, word_ts_list, audio_file_list):
         """
         Get non_speech labels from logit output. The logit output is obtained from
         run_ASR() function.
@@ -598,7 +598,7 @@ class ASR_DIAR_OFFLINE(object):
         config = OmegaConf.load(MODEL_CONFIG)
         if oracle_manifest == 'asr_based_vad':
             # Use ASR-based VAD for diarization.
-            self.save_SAD_labels_list(words_and_timestamps, audio_file_list)
+            self.save_VAD_labels_list(words_and_timestamps, audio_file_list)
             oracle_manifest = self.write_VAD_rttm(self.oracle_vad_dir, audio_file_list)
 
         elif oracle_manifest == 'system_vad':
@@ -621,15 +621,15 @@ class ASR_DIAR_OFFLINE(object):
         oracle_model = ClusteringDiarizer(cfg=config)
         oracle_model.diarize()
         if oracle_manifest == 'system_vad':
-            self.get_frame_level_SAD(oracle_model, audio_file_list)        
+            self.get_frame_level_VAD(oracle_model, audio_file_list)        
         diar_labels = self.get_diarization_labels(audio_file_list)
 
         return diar_labels
 
 
-    def get_frame_level_SAD(self, oracle_model, audio_file_list):
+    def get_frame_level_VAD(self, oracle_model, audio_file_list):
         """
-        Read frame-level SAD.
+        Read frame-level VAD.
         Args:
             oracle_model (ClusteringDiarizer):
                 ClusteringDiarizer instance.
@@ -728,7 +728,7 @@ class ASR_DIAR_OFFLINE(object):
     def closest_silence_start(self, vad_index_word_end, vad_frames, params, offset=10):
         c = vad_index_word_end + offset
         while c < len(vad_frames):
-            if vad_frames[c] <  params['SAD_threshold_for_word_ts']:
+            if vad_frames[c] <  params['VAD_threshold_for_word_ts']:
                 break
             else:
                 c += 1
@@ -779,11 +779,11 @@ class ASR_DIAR_OFFLINE(object):
 
         """
         total_riva_dict = {}
-        if self.params['fix_word_ts_with_SAD']:
+        if self.params['fix_word_ts_with_VAD']:
             if self.frame_VAD != {}:
                 word_ts_list = self.compensate_word_ts_list(audio_file_list, word_ts_list, self.params)
             else:
-                logging.info(f"VAD timestamps are not provided. Please check VAD model.")
+                logging.info(f"VAD timestamps are not provided and skipping word timestamp fix. Please check VAD model.")
 
         for k, audio_file_path in enumerate(audio_file_list):
             uniq_id = get_uniq_id_from_audio_path(audio_file_path)
