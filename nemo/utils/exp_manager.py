@@ -80,6 +80,13 @@ class CallbackParams:
 
 
 @dataclass
+class StepTimingParams:
+    reduction: Optional[str] = "mean"
+    # if positive, defines the size of a sliding window for computing mean
+    buffer_size: Optional[int] = -1
+
+
+@dataclass
 class ExpManagerConfig:
     # Log dir creation parameters
     explicit_log_dir: Optional[str] = None
@@ -102,6 +109,7 @@ class ExpManagerConfig:
     files_to_copy: Optional[List[str]] = None
     # logs timing of train/val/test steps
     log_step_timing: Optional[bool] = True
+    step_timing_kwargs: Optional[StepTimingParams] = StepTimingParams()
 
 
 class TimingCallback(Callback):
@@ -109,19 +117,19 @@ class TimingCallback(Callback):
     Logs execution time of train/val/test steps
     """
 
-    def __init__(self, timer=None):
-        # support external timer
-        if timer is None:
-            timer = timers.NamedTimer()
-        self.timer = timer
+    def __init__(self, timer_kwargs={}):
+        self.timer = timers.NamedTimer(**timer_kwargs)
 
     def _on_batch_start(self, name):
-        self.timer.reset(name)
+        # reset only if we do not return mean of a sliding window
+        if self.timer.buffer_size <= 0:
+            self.timer.reset(name)
+
         self.timer.start(name)
 
     def _on_batch_end(self, name, pl_module):
         self.timer.stop(name)
-        pl_module.log(name, self.timer[name], on_step=True, on_epoch=False)
+        pl_module.log(name, self.timer[name], on_step=True, on_epoch=False, prog_bar=True)
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
         self._on_batch_start("train_step_timing")
@@ -278,7 +286,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
     # add loggers timing callbacks
     if cfg.log_step_timing:
-        timing_callback = TimingCallback()
+        timing_callback = TimingCallback(timer_kwargs=cfg.step_timing_kwargs or {})
         trainer.callbacks.insert(0, timing_callback)
 
     if cfg.create_checkpoint_callback:
