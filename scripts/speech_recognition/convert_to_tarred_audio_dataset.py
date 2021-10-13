@@ -486,13 +486,10 @@ class ASRTarredDatasetBuilder:
                     filtered_duration += entry['duration']
 
         manifest_folder, _ = os.path.split(manifest_path)
-        for e in entries:
-            if not os.path.exists(e["audio_filepath"]):
-                e["audio_filepath"] = os.path.join(manifest_folder, e["audio_filepath"])
 
         return entries, filtered_entries, filtered_duration
 
-    def _create_shard(self, entries, target_dir, shard_id):
+    def _create_shard(self, entries, target_dir, shard_id, manifest_folder):
         """Creates a tarball containing the audio files from `entries`.
         """
         if self.config.sort_in_shards:
@@ -504,13 +501,20 @@ class ASRTarredDatasetBuilder:
         count = dict()
         for entry in entries:
             # We squash the filename since we do not preserve directory structure of audio files in the tarball.
-            base, ext = os.path.splitext(entry['audio_filepath'])
+            if os.path.exists(entry["audio_filepath"]):
+                audio_filepath = entry["audio_manifest"]
+            else:
+                audio_filepath = os.path.join(manifest_folder, entry["audio_filepath"])
+                if not os.path.exists(audio_filepath):
+                    raise FileNotFoundError(f"Could not find {entry['audio_filepath']}!")
+
+            base, ext = os.path.splitext(audio_filepath)
             base = base.replace('/', '_')
             # Need the following replacement as long as WebDataset splits on first period
             base = base.replace('.', '_')
             squashed_filename = f'{base}{ext}'
             if squashed_filename not in count:
-                tar.add(entry['audio_filepath'], arcname=squashed_filename)
+                tar.add(audio_filepath, arcname=squashed_filename)
 
             if 'label' in entry:
                 base, ext = os.path.splitext(squashed_filename)
