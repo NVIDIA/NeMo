@@ -60,9 +60,15 @@ pipeline {
     //   }
     // }
 
-    stage('Install PyTorch Lighting from Sandeep Fork') {
+    // stage('Install PyTorch Lighting from Sandeep Fork') {
+    //   steps{
+    //     sh 'cd / && git clone https://github.com/MaximumEntropy/pytorch-lightning.git && cd pytorch-lightning && pip install .'
+    //   }
+    // }
+
+    stage('Install PyTorch Lighting 1.5 RC') {
       steps{
-        sh 'cd / && git clone https://github.com/MaximumEntropy/pytorch-lightning.git && cd pytorch-lightning && pip install .'
+        sh 'pip install pytorch-lightning==1.5.0rc0'
       }
     }
 
