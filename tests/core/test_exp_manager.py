@@ -314,7 +314,7 @@ class TestExpManager:
 
     @pytest.mark.unit
     def test_nemo_checkpoint_save_best_model_1(self, tmp_path):
-        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4, deterministic=True)
+        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4)
         log_dir = exp_manager(
             test_trainer,
             {"checkpoint_callback_params": {"save_best_model": True}, "explicit_log_dir": str(tmp_path / "test")},
@@ -331,7 +331,7 @@ class TestExpManager:
 
     @pytest.mark.unit
     def test_nemo_checkpoint_save_best_model_2(self, tmp_path):
-        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4, deterministic=True)
+        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4)
         log_dir = exp_manager(test_trainer, {"explicit_log_dir": str(tmp_path / "test")},)
         model = ExampleModel()
         test_trainer.fit(model)
@@ -345,7 +345,7 @@ class TestExpManager:
 
     @pytest.mark.unit
     def test_nemo_checkpoint_always_save_nemo(self, tmp_path):
-        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4, deterministic=True)
+        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4)
         log_dir = exp_manager(
             test_trainer,
             {
