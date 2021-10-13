@@ -26,6 +26,19 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 # Auxiliary methods
 #=============================================================================#
 
+def read_batch(fh, batch_size):
+    """
+    Reads a batch (or smaller) chunk of lines.
+    """
+    lines = []
+    for i in range(batch_size):
+        l = fh.readline()
+        if l is None:
+            break
+        else:
+            lines.append(l.strip())
+
+    return lines
 
 def tokenize_line(line, tokenizer):
     """
@@ -58,6 +71,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_workers', type=int, default=mp.cpu_count(),
                         help='Number of workers (default to number of CPUs)')
     parser.add_argument('--max_lines', type=int, default=-1, help='Max number of lines to parse')
+    parser.add_argument('--batch_size', type=int, default=1000000, help='Batch size to parse in parallel')
     parser.add_argument('--out_dir', type=str, default="", help='Path to store data and plots')
 
     args = parser.parse_args()
@@ -73,13 +87,28 @@ if __name__ == '__main__':
         print(f"Parsing fn = {fn}")
         # read file
         fh = open(fn)
-        lines = [l.strip() for l in fh.readlines()]
-        if args.max_lines > 0:
-            lines = lines[:args.max_lines]
 
-        # tokenize lines
-        with mp.Pool(args.num_workers) as p:
-            all_len.extend(p.map(partial(line_len, tokenizer=tokenizer), lines))
+        # read all batches
+        while True:
+            lines = read_batch(fh, args.batch_size)
+
+            # move to next file when no lines are read
+            if not lines:
+                break
+
+            # tokenize lines
+            with mp.Pool(args.num_workers) as p:
+                all_len.extend(p.map(partial(line_len, tokenizer=tokenizer), lines))
+
+            # early stop, if required
+            if (args.max_lines > 0) and (len(all_len) >= args.max_lines):
+                lines = lines[:args.max_lines]
+                break
+
+        # early stop, if required
+        if (args.max_lines > 0) and (len(all_len) >= args.max_lines):
+            lines = lines[:args.max_lines]
+            break
 
     # compute stats
 
