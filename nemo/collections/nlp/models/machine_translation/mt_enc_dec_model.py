@@ -1017,4 +1017,75 @@ class MTEncDecModel(EncDecNLPModel):
         )
         result.append(model)
 
+        # 24x6 models
+        model = PretrainedModelInfo(
+            pretrained_model_name="nmt_en_de_transformer24x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/nmt_en_de_transformer24x6/versions/1.5/files/en_de_24x6.nemo",
+            description="En->De translation model. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_de_transformer24x6",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="nmt_de_en_transformer24x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/nmt_de_en_transformer24x6/versions/1.5/files/de_en_24x6.nemo",
+            description="De->En translation model. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_de_en_transformer24x6",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="nmt_en_es_transformer24x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/nmt_en_es_transformer24x6/versions/1.5/files/en_es_24x6.nemo",
+            description="En->Es translation model. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_es_transformer24x6",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="nmt_es_en_transformer24x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/nmt_es_en_transformer24x6/versions/1.5/files/es_en_24x6.nemo",
+            description="Es->En translation model. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_es_en_transformer24x6",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="nmt_en_fr_transformer24x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/nmt_en_fr_transformer24x6/versions/1.5/files/en_fr_24x6.nemo",
+            description="En->Fr translation model. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_fr_transformer24x6",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="nmt_fr_en_transformer24x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/nmt_fr_en_transformer24x6/versions/1.5/files/fr_en_24x6.nemo",
+            description="Fr->En translation model. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_fr_en_transformer24x6",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="nmt_en_ru_transformer24x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/nmt_en_ru_transformer24x6/versions/1.5/files/en_ru_24x6.nemo",
+            description="En->Ru translation model. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_ru_transformer24x6",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="nmt_ru_en_transformer24x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/nmt_ru_en_transformer24x6/versions/1.5/files/ru_en_24x6.nemo",
+            description="Ru->En translation model. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_ru_en_transformer24x6",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="nmt_en_zh_transformer24x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/nmt_en_zh_transformer24x6/versions/1.5/files/en_zh_24x6.nemo",
+            description="En->Zh translation model. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_zh_transformer24x6",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="nmt_zh_en_transformer24x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/nmt_zh_en_transformer24x6/versions/1.5/files/zh_en_24x6.nemo",
+            description="Zh->En translation model. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_zh_en_transformer24x6",
+        )
+        result.append(model)
+
         return result

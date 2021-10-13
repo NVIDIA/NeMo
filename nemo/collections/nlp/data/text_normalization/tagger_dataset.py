@@ -18,8 +18,9 @@ import pickle
 from tqdm import tqdm
 from transformers import PreTrainedTokenizerBase
 
+from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 from nemo.collections.nlp.data.text_normalization import constants
-from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize, read_data_file
+from nemo.collections.nlp.data.text_normalization.utils import read_data_file
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 from nemo.utils.decorators.experimental import experimental
@@ -41,7 +42,6 @@ class TextNormalizationTaggerDataset(Dataset):
         tokenizer: tokenizer of the model that will be trained on the dataset
         tokenizer_name: name of the tokenizer,
         mode: should be one of the values ['tn', 'itn', 'joint'].  `tn` mode is for TN only. `itn` mode is for ITN only. `joint` is for training a system that can do both TN and ITN at the same time.
-        do_basic_tokenize: a flag indicates whether to do some basic tokenization before using the tokenizer of the model
         tagger_data_augmentation (bool): a flag indicates whether to augment the dataset with additional data instances
         lang: language of the dataset
         use_cache: Enables caching to use pickle format to store and read data from,
@@ -54,7 +54,6 @@ class TextNormalizationTaggerDataset(Dataset):
         tokenizer: PreTrainedTokenizerBase,
         tokenizer_name: str,
         mode: str,
-        do_basic_tokenize: bool,
         tagger_data_augmentation: bool,
         lang: str,
         max_seq_length: int,
@@ -72,7 +71,7 @@ class TextNormalizationTaggerDataset(Dataset):
         data_dir, filename = os.path.split(input_file)
         tokenizer_name_normalized = tokenizer_name.replace('/', '_')
         cached_data_file = os.path.join(
-            data_dir, f'cached_tagger_{filename}_{tokenizer_name_normalized}_{lang}_{max_insts}_{max_seq_length}.pkl'
+            data_dir, f'cached_tagger_{filename}_{tokenizer_name_normalized}_{lang}_{max_insts}_{max_seq_length}.pkl',
         )
 
         if use_cache and os.path.exists(cached_data_file):
@@ -110,7 +109,7 @@ class TextNormalizationTaggerDataset(Dataset):
                         continue
 
                     # Create a new TaggerDataInstance
-                    inst = TaggerDataInstance(w_words, s_words, inst_dir, do_basic_tokenize)
+                    inst = TaggerDataInstance(w_words, s_words, inst_dir, lang=self.lang)
                     insts.append(inst)
                     # Data Augmentation (if enabled)
                     if tagger_data_augmentation:
@@ -120,7 +119,7 @@ class TextNormalizationTaggerDataset(Dataset):
                                 filtered_w_words.append(w)
                                 filtered_s_words.append(s)
                         if len(filtered_s_words) > 1:
-                            inst = TaggerDataInstance(filtered_w_words, filtered_s_words, inst_dir)
+                            inst = TaggerDataInstance(filtered_w_words, filtered_s_words, inst_dir, lang)
                             insts.append(inst)
 
             self.insts = insts
@@ -189,10 +188,13 @@ class TaggerDataInstance:
         w_words: List of words in a sentence in the written form
         s_words: List of words in a sentence in the spoken form
         direction: Indicates the direction of the instance (i.e., INST_BACKWARD for ITN or INST_FORWARD for TN).
-        do_basic_tokenize: a flag indicates whether to do some basic tokenization before using the tokenizer of the model
+        lang: Language
     """
 
-    def __init__(self, w_words, s_words, direction, do_basic_tokenize=False):
+    def __init__(self, w_words, s_words, direction, lang):
+        # moses tokenization before LM tokenization
+        # e.g., don't -> don 't, 12/3 -> 12 / 3
+        processor = MosesProcessor(lang_id=lang)
         # Build input_words and labels
         input_words, labels = [], []
         # Task Prefix
@@ -203,11 +205,9 @@ class TaggerDataInstance:
         labels.append(constants.TASK_TAG)
         # Main Content
         for w_word, s_word in zip(w_words, s_words):
-            # Basic tokenization (if enabled)
-            if do_basic_tokenize:
-                w_word = ' '.join(basic_tokenize(w_word, self.lang))
-                if not s_word in constants.SPECIAL_WORDS:
-                    s_word = ' '.join(basic_tokenize(s_word, self.lang))
+            w_word = processor.tokenize(w_word)
+            if not s_word in constants.SPECIAL_WORDS:
+                s_word = processor.tokenize(s_word)
             # Update input_words and labels
             if s_word == constants.SIL_WORD and direction == constants.INST_BACKWARD:
                 continue
