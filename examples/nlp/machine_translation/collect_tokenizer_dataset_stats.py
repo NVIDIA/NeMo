@@ -71,7 +71,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_workers', type=int, default=mp.cpu_count(),
                         help='Number of workers (default to number of CPUs)')
     parser.add_argument('--max_lines', type=int, default=-1, help='Max number of lines to parse')
-    parser.add_argument('--batch_size', type=int, default=1000000, help='Batch size to parse in parallel')
+    parser.add_argument('--batch_size', type=int, default=10000000, help='Batch size to parse in parallel')
     parser.add_argument('--out_dir', type=str, default="", help='Path to store data and plots')
 
     args = parser.parse_args()
@@ -99,6 +99,8 @@ if __name__ == '__main__':
             # tokenize lines
             with mp.Pool(args.num_workers) as p:
                 all_len.extend(p.map(partial(line_len, tokenizer=tokenizer), lines))
+
+            print(f"{fn}: Parsed {len(all_len)} lines")
 
             # early stop, if required
             if (args.max_lines > 0) and (len(all_len) >= args.max_lines):
