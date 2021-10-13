@@ -17,6 +17,7 @@ import os
 import numpy as np
 from matplotlib import pyplot as plt
 import multiprocessing as mp
+from functools import partial
 
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
@@ -25,7 +26,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 #=============================================================================#
 
 
-def tokenize_line(tokenizer, line):
+def tokenize_line(line, tokenizer):
     """
     Returns a tokenized line
     """
@@ -36,7 +37,7 @@ def line_len(tokenizer, line):
     """
     Returns a tokenized length of a text line
     """
-    tokens = tokenize_line(tokenizer, line)
+    tokens = tokenize_line(line, tokenizer)
 
     return len(tokens)
 
@@ -75,10 +76,7 @@ if __name__ == '__main__':
 
         # tokenize lines
         with mp.Pool(args.num_workers) as p:
-            all_len.extend(p.map(lambda l: line_len(
-                tokenizer=tokenizer,
-                line=l,
-            ), lines))
+            all_len.extend(p.map(partial(line_len, tokenizer=tokenizer), lines))
 
     # compute stats
 
