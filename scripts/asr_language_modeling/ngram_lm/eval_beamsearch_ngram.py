@@ -162,7 +162,10 @@ def main():
         description='Evaluate an ASR model with beam search decoding and n-gram KenLM language model.'
     )
     parser.add_argument(
-        "--nemo_model_file", required=True, type=str, help="The path of the '.nemo' file of the ASR model or name of a pretrained model"
+        "--nemo_model_file",
+        required=True,
+        type=str,
+        help="The path of the '.nemo' file of the ASR model or name of a pretrained model",
     )
     parser.add_argument(
         "--kenlm_model_file", required=False, default=None, type=str, help="The path of the KenLM binary model file"
@@ -219,8 +222,12 @@ def main():
     if args.nemo_model_file.endswith('.nemo'):
         asr_model = nemo_asr.models.ASRModel.restore_from(args.nemo_model_file, map_location=torch.device(args.device))
     else:
-        logging.warning("nemo_model_file does not end with .nemo, therefore trying to load a pretrained model with this name.")
-        asr_model = nemo_asr.models.ASRModel.from_pretrained(args.nemo_model_file, map_location=torch.device(args.device))
+        logging.warning(
+            "nemo_model_file does not end with .nemo, therefore trying to load a pretrained model with this name."
+        )
+        asr_model = nemo_asr.models.ASRModel.from_pretrained(
+            args.nemo_model_file, map_location=torch.device(args.device)
+        )
 
     target_transcripts = []
     with open(args.input_manifest, 'r') as manifest_file:

@@ -34,7 +34,6 @@ Part of this code is adopted from https://github.com/espnet/espnet
 
 import math
 
-import numpy as np
 import torch
 import torch.nn as nn
 
