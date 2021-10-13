@@ -81,8 +81,14 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         self.log_train_images = False
         self.mel_loss = MelLoss()
         loss_scale = 0.1 if self.learn_alignment else 1.0
-        self.pitch_loss = PitchLoss(loss_scale=loss_scale)
-        self.duration_loss = DurationLoss(loss_scale=loss_scale)
+        dur_loss_scale = loss_scale
+        pitch_loss_scale = loss_scale
+        if "dur_loss_scale" in cfg:
+            dur_loss_scale = cfg.dur_loss_scale
+        if "pitch_loss_scale" in cfg:
+            pitch_loss_scale = cfg.pitch_loss_scale
+        self.pitch_loss = PitchLoss(loss_scale=pitch_loss_scale)
+        self.duration_loss = DurationLoss(loss_scale=dur_loss_scale)
         input_fft_kwargs = {}
         if self.learn_alignment:
             self.aligner = instantiate(self._cfg.alignment_module)
