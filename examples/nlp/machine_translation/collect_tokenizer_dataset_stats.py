@@ -105,7 +105,7 @@ if __name__ == '__main__':
             os.makedirs(args.out_dir, exist_ok=True)
 
         fh = open(os.path.join(args.out_dir, "lengths.txt"), "w")
-        fw.writelines(["{l}\n".format(l=l) for l in all_len])
+        fh.writelines(["{l}\n".format(l=l) for l in all_len])
 
         json.dump(stats, open(os.path.join(args.out_dir, "stats.json"), "w"))
 
