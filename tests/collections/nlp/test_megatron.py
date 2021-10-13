@@ -63,6 +63,7 @@ class TestMegatron:
     @pytest.mark.with_downloads()
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
+    @pytest.mark.skip("Megatron-LM BERT support deprecated. Supported in NeMo < 1.5")
     def test_onnx_export(self):
         model = get_pretrained_bert_345m_uncased_model()
         assert model
