@@ -131,12 +131,12 @@ def get_tarred_dataset(
     world_size: int,
     tokenizer: Optional['TokenizerSpec'] = None,
     augmentor: Optional['AudioAugmentor'] = None,
-) -> Union[audio_to_text.TarredAudioToBPEDataset, audio_to_text.TarredAudioToDataset]:
+) -> Union[audio_to_text.TarredAudioToBPEDataset, audio_to_text.TarredAudioToCharDataset]:
     """
-    Instantiates a Word Piece/BPE Encoding based TarredAudioToBPEDataset or a char based TarredAudioToDataset.
+    Instantiates a Word Piece/BPE Encoding based TarredAudioToBPEDataset or a char based TarredAudioToCharDataset.
 
     Args:
-        config: Config of the TarredAudioToBPEDataset or TarredAudioToDataset.
+        config: Config of the TarredAudioToBPEDataset or TarredAudioToCharDataset.
         tokenizer: An instance of a TokenizerSpec object if BPE dataset is needed.
             Passsing None would return a char-based dataset.
         shuffle_n: How many samples to look ahead and load to be shuffled.
@@ -146,7 +146,7 @@ def get_tarred_dataset(
         augmentor: Optional AudioAugmentor object for augmentations on audio data.
 
     Returns:
-        An instance of TarredAudioToBPEDataset or TarredAudioToDataset.
+        An instance of TarredAudioToBPEDataset or TarredAudioToCharDataset.
     """
     tarred_audio_filepaths = config['tarred_audio_filepaths']
     manifest_filepaths = config['manifest_filepath']
