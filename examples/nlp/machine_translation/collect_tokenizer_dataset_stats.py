@@ -13,18 +13,20 @@
 # limitations under the License.
 
 import argparse
+import json
+import multiprocessing as mp
 import os
+from functools import partial
+
 import numpy as np
 from matplotlib import pyplot as plt
-import multiprocessing as mp
-from functools import partial
-import json
 
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
-#=============================================================================#
+# =============================================================================#
 # Auxiliary methods
-#=============================================================================#
+# =============================================================================#
+
 
 def read_batch(fh, batch_size):
     """
@@ -39,6 +41,7 @@ def read_batch(fh, batch_size):
             lines.append(l.strip())
 
     return lines
+
 
 def tokenize_line(line, tokenizer):
     """
@@ -58,28 +61,28 @@ def line_len(line, tokenizer):
     return len(tokens)
 
 
-#=============================================================================#
+# =============================================================================#
 # Main script
-#=============================================================================#
+# =============================================================================#
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Collects statistics over tokenized dataset')
     parser.add_argument('input_files', metavar='N', type=str, nargs='+', help='Input files to parse')
-    parser.add_argument('--tokenizer_library', type=str, required=True,
-                        help='Path to pre-trained nemo-supported tokenizer model')
-    parser.add_argument('--tokenizer_model', type=str, required=True,
-                        help='Path to pre-trained nemo-supported tokenizer model')
-    parser.add_argument('--num_workers', type=int, default=mp.cpu_count(),
-                        help='Number of workers (default to number of CPUs)')
+    parser.add_argument(
+        '--tokenizer_library', type=str, required=True, help='Path to pre-trained nemo-supported tokenizer model'
+    )
+    parser.add_argument(
+        '--tokenizer_model', type=str, required=True, help='Path to pre-trained nemo-supported tokenizer model'
+    )
+    parser.add_argument(
+        '--num_workers', type=int, default=mp.cpu_count(), help='Number of workers (default to number of CPUs)'
+    )
     parser.add_argument('--max_lines', type=int, default=-1, help='Max number of lines to parse')
     parser.add_argument('--batch_size', type=int, default=10000000, help='Batch size to parse in parallel')
     parser.add_argument('--out_dir', type=str, default="", help='Path to store data and plots')
 
     args = parser.parse_args()
 
-    tokenizer = get_nmt_tokenizer(
-        library=args.tokenizer_library,
-        tokenizer_model=args.tokenizer_model,
-    )
+    tokenizer = get_nmt_tokenizer(library=args.tokenizer_library, tokenizer_model=args.tokenizer_model,)
 
     all_len = []
 
@@ -104,12 +107,12 @@ if __name__ == '__main__':
 
             # early stop, if required
             if (args.max_lines > 0) and (len(all_len) >= args.max_lines):
-                lines = lines[:args.max_lines]
+                lines = lines[: args.max_lines]
                 break
 
         # early stop, if required
         if (args.max_lines > 0) and (len(all_len) >= args.max_lines):
-            lines = lines[:args.max_lines]
+            lines = lines[: args.max_lines]
             break
 
     # compute stats
