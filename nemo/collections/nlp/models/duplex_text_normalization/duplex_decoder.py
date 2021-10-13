@@ -26,6 +26,7 @@ from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSe
 
 import nemo.collections.nlp.data.text_normalization.constants as constants
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
+from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset
 from nemo.collections.nlp.data.text_normalization.decoder_dataset import (
     TarredTextNormalizationDecoderDataset,
     TextNormalizationDecoderDataset,
@@ -66,7 +67,7 @@ class DuplexDecoderModel(NLPModel):
 
         super().__init__(cfg=cfg, trainer=trainer)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(cfg.transformer)
-        self.max_sequence_len = cfg.get('max_seq_length', self._tokenizer.model_max_length)
+        self.max_sequence_len = cfg.get('max_sequence_len', self._tokenizer.model_max_length)
         self.mode = cfg.get('mode', 'joint')
 
         self.transformer_name = cfg.transformer
@@ -153,6 +154,7 @@ class DuplexDecoderModel(NLPModel):
         )
 
         input_centers = self._tokenizer.batch_decode(batch['input_center'], skip_special_tokens=True)
+
         direction = [x[0].item() for x in batch['direction']]
         direction_str = [constants.DIRECTIONS_ID_TO_NAME[x] for x in direction]
         # apply post_processing
@@ -161,9 +163,12 @@ class DuplexDecoderModel(NLPModel):
         for idx, class_id in enumerate(batch['semiotic_class_id']):
             direction = constants.TASK_ID_TO_MODE[batch['direction'][idx][0].item()]
             class_name = self._val_id_to_class[dataloader_idx][class_id[0].item()]
-            results[f"correct_{class_name}_{direction}"] += torch.tensor(
-                labels_str[idx] == generated_texts[idx], dtype=torch.int
-            ).to(self.device)
+
+            pred_result = TextNormalizationTestDataset.is_same(
+                generated_texts[idx], labels_str[idx], constants.DIRECTIONS_TO_MODE[direction]
+            )
+
+            results[f"correct_{class_name}_{direction}"] += torch.tensor(pred_result, dtype=torch.int).to(self.device)
             results[f"total_{class_name}_{direction}"] += torch.tensor(1).to(self.device)
 
         results[f"{split}_loss"] = val_loss
@@ -309,10 +314,6 @@ class DuplexDecoderModel(NLPModel):
         if sum(nb_spans) == 0:
             return [[]] * len(sents)
         model, tokenizer = self.model, self._tokenizer
-        try:
-            model_max_len = model.config.n_positions
-        except AttributeError:
-            model_max_len = 512
         ctx_size = constants.DECODE_CTX_SIZE
         extra_id_0 = constants.EXTRA_ID_0
         extra_id_1 = constants.EXTRA_ID_1
@@ -320,7 +321,7 @@ class DuplexDecoderModel(NLPModel):
         """
         Build all_inputs - extracted spans to be transformed by the decoder model
         Inputs for TN direction have "0" prefix, while the backward, ITN direction, has prefix "1"
-        "input_centers" - List[str] - ground-truth labels for the span #TODO: rename
+        "input_centers" - List[str] - ground-truth labels for the span
         """
         input_centers, input_dirs, all_inputs = [], [], []
         for ix, sent in enumerate(sents):
@@ -351,11 +352,12 @@ class DuplexDecoderModel(NLPModel):
         input_ids = batch['input_ids'].to(self.device)
 
         generated_texts, generated_ids, sequence_toks_scores = self._generate_predictions(
-            input_ids=input_ids, model_max_len=model_max_len
+            input_ids=input_ids, model_max_len=self.max_sequence_len
         )
 
         # Use covering grammars (if enabled)
         if self.use_cg:
+
             # Compute sequence probabilities
             sequence_probs = torch.ones(len(all_inputs)).to(self.device)
             for ix, cur_toks_scores in enumerate(sequence_toks_scores):
@@ -528,7 +530,6 @@ class DuplexDecoderModel(NLPModel):
                 if data_split == "train"
                 else False,
                 lang=self.lang,
-                do_basic_tokenize=cfg.do_basic_tokenize,
                 use_cache=cfg.get('use_cache', False),
                 max_insts=cfg.get('max_insts', -1),
                 do_tokenize=True,
