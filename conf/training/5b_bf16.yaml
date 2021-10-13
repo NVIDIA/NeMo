@@ -32,7 +32,7 @@ trainer:
   val_check_interval: 2000
   limit_val_batches: 50
   limit_test_batches: 50
-  accumulate_grad_batches: 1
+  accumulate_grad_batches: 8
   gradient_clip_val: 1.0
 
 
