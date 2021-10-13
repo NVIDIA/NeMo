@@ -504,7 +504,7 @@ class ASRTarredDatasetBuilder:
         for entry in entries:
             # We squash the filename since we do not preserve directory structure of audio files in the tarball.
             if os.path.exists(entry["audio_filepath"]):
-                audio_filepath = entry["audio_manifest"]
+                audio_filepath = entry["audio_filepath"]
             else:
                 audio_filepath = os.path.join(manifest_folder, entry["audio_filepath"])
                 if not os.path.exists(audio_filepath):

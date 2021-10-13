@@ -136,7 +136,7 @@ def get_tarred_dataset(
     Instantiates a Word Piece/BPE Encoding based TarredAudioToBPEDataset or a char based TarredAudioToDataset.
 
     Args:
-        config: Config of the TarredAudioToBPEDataset.
+        config: Config of the TarredAudioToBPEDataset or TarredAudioToDataset.
         tokenizer: An instance of a TokenizerSpec object if BPE dataset is needed.
             Passsing None would return a char-based dataset.
         shuffle_n: How many samples to look ahead and load to be shuffled.
