@@ -18,11 +18,11 @@ import tarfile
 from typing import Any, Dict, List, Optional, Union
 
 import pytorch_lightning as pl
-from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
 import torch
 from apex.transformer import parallel_state, tensor_parallel
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
+from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.plugins.precision.precision_plugin import PrecisionPlugin
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
