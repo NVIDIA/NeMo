@@ -79,7 +79,7 @@ if __name__ == '__main__':
         "median": np.median(all_len),
     }
 
-    print(f"{stats}")
+    print(f"stats = \n{stats}")
 
     # save all results
     if args.out_dir:
