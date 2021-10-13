@@ -52,7 +52,7 @@ class WarmupHoldSchedulerParams(WarmupSchedulerParams):
 
 
 @dataclass
-class WarmupAnnealingHoldSchedulerParams(WarmupHoldSchedulerParams):
+class WarmupAnnealingHoldSchedulerParams(WarmupSchedulerParams):
     """
     Base configuration for all schedulers.
     It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
@@ -60,6 +60,7 @@ class WarmupAnnealingHoldSchedulerParams(WarmupHoldSchedulerParams):
 
     constant_steps: Optional[float] = None
     constant_ratio: Optional[float] = None
+    min_lr: float = 0.0
 
 
 @dataclass

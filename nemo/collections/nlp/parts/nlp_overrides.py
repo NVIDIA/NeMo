@@ -18,6 +18,7 @@ import tarfile
 from typing import Any, Dict, List, Optional, Union
 
 import pytorch_lightning as pl
+from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
 import torch
 from apex.transformer import parallel_state, tensor_parallel
 from pytorch_lightning.overrides import LightningDistributedModule
@@ -56,9 +57,10 @@ class NLPDDPPlugin(DDPPlugin):
         num_nodes: int = 1,
         cluster_environment: ClusterEnvironment = None,
         sync_batchnorm: bool = False,
+        checkpoint_io: Optional[CheckpointIO] = None,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
-        super().__init__(parallel_devices, num_nodes, cluster_environment, sync_batchnorm, **kwargs)
+        super().__init__(parallel_devices, num_nodes, cluster_environment, checkpoint_io, sync_batchnorm, **kwargs)
 
     def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
         # call PTL init ddp
