@@ -48,13 +48,14 @@ def main():
     parser.add_argument(
         "--tensor_model_parallel_size", type=int, default=1, required=True,
     )
+    parser.add_argument("--precision", default=32, help="PyTorch Lightning Trainer precision flag")
 
     args = parser.parse_args()
 
     torch.set_grad_enabled(False)
 
     # trainer required for restoring model parallel models
-    trainer = Trainer(plugins=NLPDDPPlugin(), gpus=args.tensor_model_parallel_size)
+    trainer = Trainer(plugins=NLPDDPPlugin(), gpus=args.tensor_model_parallel_size, precision=args.precision)
 
     app_state = AppState()
     if args.tensor_model_parallel_size is not None and args.tensor_model_parallel_size > 1:
