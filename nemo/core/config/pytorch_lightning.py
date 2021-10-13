@@ -66,7 +66,7 @@ class TrainerConfig:
     log_every_n_steps: int = 50
     accelerator: Optional[str] = None
     sync_batchnorm: bool = False
-    precision: str = '32'
+    precision: Any = 32
     weights_summary: Optional[str] = "full"  # ModelSummary.MODE_DEFAULT
     weights_save_path: Optional[str] = None
     num_sanity_val_steps: int = 2
