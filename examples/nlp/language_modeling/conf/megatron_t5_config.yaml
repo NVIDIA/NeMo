@@ -1,15 +1,15 @@
 trainer:
-  gpus: 2
+  gpus: 1
   num_nodes: 1
   accelerator: ddp
-  precision: 16
+  precision: 32
   logger: False # logger provided by exp_manager
   checkpoint_callback: False
   replace_sampler_ddp: False
   max_epochs: null
   max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
-  val_check_interval: 100
+  val_check_interval: 20
   limit_val_batches: 50
   limit_test_batches: 500
   accumulate_grad_batches: 1
@@ -70,7 +70,7 @@ model:
   # precision
   native_amp_init_scale: 4294967296 # 2 ** 32
   native_amp_growth_interval: 1000
-  fused_fp16: True # False if using fp32 or bf16
+  fused_fp16: False # False if using fp32 or bf16
   fused_bf16: False # True if using bf16
   fp32_residual_connection: False # Move residual connections to fp32
   fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
