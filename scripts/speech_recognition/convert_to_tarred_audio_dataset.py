@@ -139,12 +139,6 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--use_relative_paths",
-    action='store_true',
-    help="Whether or not consider the paths in the manifest relative to the path of the manifest file itself.",
-)
-
-parser.add_argument(
     "--buckets_num", type=int, default=1, help="Number of buckets to create based on duration.",
 )
 
@@ -169,7 +163,6 @@ class ASRTarredDatasetConfig:
     max_duration: Optional[float] = None
     min_duration: Optional[float] = None
     shuffle_seed: Optional[int] = None
-    use_relative_paths: bool = False
     sort_in_shards: bool = True
 
 
@@ -249,11 +242,6 @@ class ASRTarredDatasetBuilder:
 
         # Read the existing manifest
         entries, filtered_entries, filtered_duration = self._read_manifest(manifest_path, config)
-
-        if config.use_relative_paths:
-            for e in entries:
-                manifest_folder, _ = os.path.split(manifest_path)
-                e["audio_filepath"] = os.path.join(manifest_folder, e["audio_filepath"])
 
         if len(filtered_entries) > 0:
             print(f"Filtered {len(filtered_entries)} files which amounts to {filtered_duration} seconds of audio.")
@@ -497,6 +485,11 @@ class ASRTarredDatasetBuilder:
                     filtered_entries.append(entry)
                     filtered_duration += entry['duration']
 
+        manifest_folder, _ = os.path.split(manifest_path)
+        for e in entries:
+            if not os.path.exists(e["audio_filepath"]):
+                e["audio_filepath"] = os.path.join(manifest_folder, e["audio_filepath"])
+
         return entries, filtered_entries, filtered_duration
 
     def _create_shard(self, entries, target_dir, shard_id):
@@ -594,7 +587,6 @@ def create_tar_datasets(min_duration: float, max_duration: float, target_dir: st
             min_duration=min_duration,
             shuffle_seed=args.shuffle_seed,
             sort_in_shards=args.sort_in_shards,
-            use_relative_paths=args.use_relative_paths,
         )
         metadata.dataset_config = dataset_cfg
 
@@ -613,7 +605,6 @@ def create_tar_datasets(min_duration: float, max_duration: float, target_dir: st
             max_duration=max_duration,
             min_duration=min_duration,
             shuffle_seed=args.shuffle_seed,
-            use_relative_paths=args.use_relative_paths,
             sort_in_shards=args.sort_in_shards,
         )
         builder.configure(config)

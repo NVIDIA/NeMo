@@ -26,6 +26,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch import nn
+from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.losses.wav2vecloss import Wav2VecLoss
@@ -37,7 +38,6 @@ from nemo.core import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, EncodedRepresentation, LossType, MaskType, NeuralType
 from nemo.core.neural_types.elements import BoolType, FloatType
-from torch.utils.data import ChainDataset
 
 
 def buffered_arange(max):

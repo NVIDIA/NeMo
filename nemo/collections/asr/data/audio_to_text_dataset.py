@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
+from typing import Optional, Union
 
 import torch
 from omegaconf import DictConfig, open_dict
 from omegaconf.listconfig import ListConfig
 from torch.utils.data import ChainDataset
-from typing import Union
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dali
 from nemo.utils import logging
@@ -134,7 +133,7 @@ def get_tarred_dataset(
     augmentor: Optional['AudioAugmentor'] = None,
 ) -> Union[audio_to_text.TarredAudioToBPEDataset, audio_to_text.TarredAudioToDataset]:
     """
-    Instantiates a Byte Pair Encoding / Word Piece Encoding based TarredAudioToBPEDataset.
+    Instantiates a Word Piece/BPE Encoding based TarredAudioToBPEDataset or a char based TarredAudioToDataset.
 
     Args:
         config: Config of the TarredAudioToBPEDataset.
