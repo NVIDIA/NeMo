@@ -18,6 +18,7 @@ import shutil
 from itertools import repeat
 from multiprocessing import Pool
 
+import IPython.display as ipd
 import librosa
 import matplotlib.pyplot as plt
 import numpy as np
@@ -375,7 +376,7 @@ def binarization(sequence, per_args):
 
     onset = per_args.get('onset', 0.5)
     offset = per_args.get('offset', 0.5)
-    pad_onset = per_args.get('pad_onset', 0)  # 0.0
+    pad_onset = per_args.get('pad_onset', 0)
     pad_offset = per_args.get('pad_offset', 0)
 
     onset, offset = cal_vad_onset_offset(per_args.get('scale', 'absolute'), onset, offset, sequence)
@@ -387,10 +388,8 @@ def binarization(sequence, per_args):
         if speech:
             # Switch from speech to non-speech
             if sequence[i] < offset:
-                if start - pad_onset >= 0:
-                    speech_segments.add((start - pad_onset, i * shift_len + pad_offset))
-                else:
-                    speech_segments.add((0, i * shift_len + pad_offset))
+                if i * shift_len + pad_offset > max(0, start - pad_onset):
+                    speech_segments.add((max(0, start - pad_onset), i * shift_len + pad_offset))
                 start = i * shift_len
                 speech = False
 
@@ -403,7 +402,7 @@ def binarization(sequence, per_args):
 
     # if it's speech at the end, add final segment
     if speech:
-        speech_segments.add((start - pad_onset, i * shift_len + pad_offset))
+        speech_segments.add((max(0, start - pad_onset), i * shift_len + pad_offset))
 
     # Merge the overlapped speech segments due to padding
     speech_segments = merge_overlap_segment(speech_segments)  # not sorted
@@ -756,7 +755,7 @@ def plot(
     ax2.legend(loc='lower right', shadow=True)
     ax2.set_ylabel('Preds and Probas')
     ax2.set_ylim([-0.1, 1.1])
-    return None
+    return ipd.Audio(audio, rate=16000)
 
 
 def gen_pred_from_speech_segments(speech_segments, prob, shift_len=0.01):
