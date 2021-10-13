@@ -25,7 +25,7 @@ ReLU, and dropout:
 
     .. image:: images/jasper_vertical.png
         :align: center
-        :alt: japer model
+        :alt: jasper model
         :scale: 50%
 
 Jasper models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModel` class.
@@ -46,6 +46,8 @@ ReLU, and dropout:
 
 QuartzNet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModel` class.
 
+.. _Citrinet_model:
+
 Citrinet
 --------
 
@@ -60,13 +62,29 @@ obtain highly accurate audio transcripts while utilizing a non-autoregressive CT
 
 Citrinet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecCTCModelBPE` class.
 
+.. _ContextNet_model:
+
+ContextNet
+----------
+
+ContextNet is a model uses Transducer/RNNT loss/decoder and is introduced in :cite:`asr-models-han2020contextnet`.
+It uses Squeeze-and-Excitation mechanism :cite:`asr-models-hu2018squeeze` to model larger context.
+Unlike Citrinet, it has an autoregressive decoding scheme.
+
+ContextNet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecRNNTBPEModel` class for a
+model with sub-word encoding and :class:`~nemo.collections.asr.models.EncDecRNNTModel` for char-based encoding.
+
+You may find the example config files of ContextNet model with character-based encoding at
+``<NeMo_git_root>/examples/asr/conf/contextnet_rnnt/contextnet_rnnt_char.yaml`` and
+with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/contextnet_rnnt/contextnet_rnnt.yaml``.
+
 .. _Conformer-CTC_model:
 
 Conformer-CTC
 -------------
 
 Conformer-CTC is a CTC-based variant of the Conformer model introduced in :cite:`asr-models-gulati2020conformer`. Conformer-CTC has a
-similar encoder as the original Conformer but uses CTC loss and decoding instead of RNNT loss, which makes it a non-autoregressive model.
+similar encoder as the original Conformer but uses CTC loss and decoding instead of RNNT/Transducer loss, which makes it a non-autoregressive model.
 We also drop the LSTM decoder and instead use a linear decoder on the top of the encoder. This model uses the combination of 
 self-attention and convolution modules to achieve the best of the two approaches, the self-attention layers can learn the global 
 interaction while the convolutions efficiently capture the local correlations. The self-attention modules support both regular 
@@ -87,6 +105,28 @@ character-based variant is based on :class:`~nemo.collections.asr.models.EncDecC
 You may find the example config files of Conformer-CTC model with character-based encoding at
 ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_char.yaml`` and
 with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_bpe.yaml``.
+
+.. _Conformer-Transducer_model:
+
+Conformer-Transducer
+--------------------
+
+Conformer-Transducer is the Conformer model introduced in :cite:`asr-models-gulati2020conformer` and uses RNNT/Transducer loss/decoder.
+It has the same encoder as Conformer-CTC but utilizes RNNT/Transducer loss/decoder which makes it an autoregressive model.
+
+Most of the config file for Conformer-Transducer models are similar to Conformer-CTC except the sections related to the decoder and loss: decoder, loss, joint, decoding.
+You may take a look at our `tutorials page <../starthere/tutorials.html>` on Transducer models to become familiar with their configs:
+`Introduction to Transducers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Intro_to_Transducers.ipynb>` and `ASR with Transducers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_with_Transducers.ipynb>`
+You can find more details on the config files for the Conformer-Transducer models at `Conformer-CTC <./configs.html#conformer-ctc>`.
+
+This model supports both the sub-word level and character level encodings. The variant with sub-word encoding is a BPE-based model
+which can be instantiated using the :class:`~nemo.collections.asr.models.EncDecRNNTBPEModel` class, while the
+character-based variant is based on :class:`~nemo.collections.asr.models.EncDecRNNTModel`.
+
+You may find the example config files of Conformer-Transducer model with character-based encoding at
+``<NeMo_git_root>/examples/asr/conf/conformer/conformer_transducer_char.yaml`` and
+with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_transducer_bpe.yaml``.
+
 
 References
 ----------

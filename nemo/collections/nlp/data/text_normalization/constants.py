@@ -51,13 +51,14 @@ INST_FORWARD = 'FORWARD'
 INST_DIRECTIONS = [INST_BACKWARD, INST_FORWARD]
 DIRECTIONS_TO_ID = {INST_BACKWARD: ITN_TASK, INST_FORWARD: TN_TASK}
 DIRECTIONS_ID_TO_NAME = {ITN_TASK: INST_BACKWARD, TN_TASK: INST_FORWARD}
+DIRECTIONS_TO_MODE = {ITN_MODE: INST_BACKWARD, TN_MODE: INST_FORWARD}
 
 # TAGS
 SAME_TAG = 'SAME'  # Tag indicates that a token can be kept the same without any further transformation
 TASK_TAG = 'TASK'  # Tag indicates that a token belongs to a task prefix (the prefix indicates whether the current task is TN or ITN)
 PUNCT_TAG = 'PUNCT'  # Tag indicates that a token is a punctuation
 TRANSFORM_TAG = 'TRANSFORM'  # Tag indicates that a token needs to be transformed by the decoder
-ALL_TAGS = [TASK_TAG, SAME_TAG, PUNCT_TAG, TRANSFORM_TAG]
+ALL_TAGS = [TASK_TAG, SAME_TAG, TRANSFORM_TAG]
 
 # ALL_TAG_LABELS
 ALL_TAG_LABELS = []

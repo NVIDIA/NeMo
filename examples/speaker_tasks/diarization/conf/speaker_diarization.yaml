@@ -31,6 +31,6 @@ diarizer:
 
   speaker_embeddings:
     oracle_vad_manifest: null
-    model_path: ??? #.nemo local model path or pretrained model name (speakerverification_speakernet or speakerdiarization_speakernet)
+    model_path: ??? #.nemo local model path or pretrained model name (ecapa_tdnn or speakerverification_speakernet)
     window_length_in_sec: 1.5 # window length in sec for speaker embedding extraction
     shift_length_in_sec: 0.75 # shift length in sec for speaker embedding extraction
