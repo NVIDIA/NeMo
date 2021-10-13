@@ -30,7 +30,7 @@ def tokenize_line(line, tokenizer):
     """
     Returns a tokenized line
     """
-    tokens = tokenizer.text_to_ids(line.decode("utf-8"))
+    tokens = tokenizer.text_to_ids(line)
 
 
 def line_len(line, tokenizer):
