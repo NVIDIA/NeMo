@@ -32,11 +32,11 @@ parser.add_argument("--reference_rttmfile_list_path", default=None, type=str, he
 parser.add_argument("--output_path", default=None, type=str, help="Path to the folder where output files are generated")
 parser.add_argument("--pretrained_vad_model", default=None, type=str, help="Fullpath of the VAD model (*.nemo).")
 parser.add_argument("--external_vad_manifest", default=None, type=str, help="External VAD file for diarization")
-parser.add_argument('--asr_based_vad', default=False, action='store_true', help="Whether to use ASR-based VAD")
+parser.add_argument('--asr_based_vad', default=True, action='store_true', help="Whether to use ASR-based VAD")
 parser.add_argument('--generate_oracle_manifest', default=False, action='store_true', help="Whether to generate and use oracle VAD")
 parser.add_argument("--pretrained_speaker_model", type=str, help="Fullpath of the Speaker embedding extractor model (*.nemo).", required=True,)
 parser.add_argument("--oracle_num_speakers", help="Either int or text file that contains number of speakers")
-parser.add_argument("--threshold", default=50, type=int, help="Threshold for ASR based VAD")
+parser.add_argument("--threshold", default=10, type=int, help="Threshold for ASR based VAD")
 parser.add_argument("--diar_config_url", default=CONFIG_URL, type=str, help="Config yaml file for running speaker diarization")
 parser.add_argument("--csv", default='result.csv', type=str, help="")
 args = parser.parse_args()
@@ -70,7 +70,7 @@ params = {
     "shift_length_in_sec": 0.75,
     "print_transcript": False,
     "lenient_overlap_WDER": True,
-    "fix_word_ts_with_SAD": False,
+    "fix_word_ts_with_SAD": True,
     "SAD_threshold_for_word_ts": 0.7,
     "max_word_ts_length_in_sec": 0.6,
     "word_gap_in_sec": 0.01,
@@ -79,7 +79,6 @@ params = {
     "asr_based_vad": args.asr_based_vad,
     "diar_config_url": args.diar_config_url,
     "ASR_model_name": 'stt_en_conformer_ctc_large',
-    # "ASR_model_name": 'QuartzNet15x5Base-En', 
 }
 
 asr_diar_offline = ASR_DIAR_OFFLINE(params)
@@ -114,7 +113,7 @@ if args.reference_rttmfile_list_path:
     WDER_dict = asr_diar_offline.get_WDER(audio_file_list, total_riva_dict, DER_result_dict, ref_labels_list)
     
     effective_wder = asr_diar_offline.get_effective_WDER(DER_result_dict, WDER_dict)
-    # print(effective_wder)
+
     logging.info(
         f"\nDER  : {DER_result_dict['total']['DER']:.4f} \
           \nFA   : {DER_result_dict['total']['FA']:.4f} \

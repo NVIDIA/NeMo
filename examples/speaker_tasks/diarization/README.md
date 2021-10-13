@@ -126,12 +126,13 @@ Using the script `asr_with_diarization.py`, you can transcribe your audio record
 [00:12.10 - 00:13.97] speaker_0: well it's the middle of the week or whatever so
 ```
 
-Currently, asr_with_diarization only supports QuartzNet English model ([`QuartzNet15x5Base`](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/models.html#id110)). 
+Currently, asr_with_diarization supports QuartzNet English model and ConformerCTC model (`QuartzNet15x5Base`, `stt_en_conformer_ctc_large`). 
 
 #### Example script
 
 ```bash
 python asr_with_diarization.py \
+    --asr_based_vad \
     --pretrained_speaker_model='ecapa_tdnn' \
     --audiofile_list_path='my_wav.list' \
 ```
@@ -139,6 +140,7 @@ If you have reference rttm files or oracle number of speaker information, you ca
 
 ```bash
 python asr_with_diarization.py \
+    --asr_based_vad \
     --pretrained_speaker_model='ecapa_tdnn' \
     --audiofile_list_path='my_wav.list' \
     --reference_rttmfile_list_path='my_wav_rttm.list'\

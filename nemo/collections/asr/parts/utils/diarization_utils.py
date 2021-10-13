@@ -103,6 +103,7 @@ class WERBPE_TS(WERBPE):
     ) -> List[str]:
         hypotheses, timestamps, word_timestamps = [], [], []
         # Drop predictions to CPU
+        unk = '⁇'
         prediction_cpu_tensor = predictions.long().cpu()
         # iterate over batch
         self.time_stride = time_stride
@@ -122,8 +123,9 @@ class WERBPE_TS(WERBPE):
                 previous = p
 
             hypothesis = self.decode_tokens_to_str_with_ts(decoded_prediction)
+            hypothesis = hypothesis.replace(unk, '')
             word_ts = self.get_ts_from_decoded_prediction(decoded_prediction, hypothesis, char_ts)
-
+            
             hypotheses.append(hypothesis)
             timestamps.append(timestamp_list)
             word_timestamps.append(word_ts)
@@ -140,8 +142,9 @@ class WERBPE_TS(WERBPE):
     def get_ts_from_decoded_prediction(self, decoded_prediction, hypothesis, char_ts):
         decoded_char_list = self.tokenizer.ids_to_tokens(decoded_prediction)
         stt_idx, end_idx = 0, len(decoded_char_list)-1 
+        stt_ch_idx, end_ch_idx = 0, 0
         space = '▁'
-        word_ts = []
+        word_ts, word_seq = [], []
         word_open_flag = False
         for idx, ch in enumerate(decoded_char_list):
             if idx != end_idx and (space == ch and space in decoded_char_list[idx+1]):
@@ -149,17 +152,17 @@ class WERBPE_TS(WERBPE):
 
             if (idx == stt_idx or space == decoded_char_list[idx-1] or (space in ch and len(ch) > 1)) and (ch != space):
                 _stt = char_ts[idx]
+                stt_ch_idx = idx
                 word_open_flag = True
             
             if word_open_flag and ch != space and (idx == end_idx or space in decoded_char_list[idx+1]):
                 _end = round(char_ts[idx] + self.time_stride, 2)
+                end_ch_idx = idx
                 word_open_flag = False
                 word_ts.append([_stt, _end])
-        try:
-            assert len(hypothesis.split()) == len(word_ts), "Hypothesis does not match word time stamp."
-        except:
-            import ipdb
-            ipdb.set_trace()
+                stitched_word = ''.join(decoded_char_list[stt_ch_idx: end_ch_idx+1]).replace(space, '')
+                word_seq.append(stitched_word)
+        assert len(word_ts) == len(hypothesis.split()), "Hypothesis does not match word time stamp."
         return word_ts
 
 class WER_TS(WER):
@@ -237,6 +240,8 @@ def get_wer_feat_logit(audio_file_list, asr, frame_len, tokens_per_chunk, delay,
     sample_list = []
     # with open(mfst, "r") as mfst_f:
     for idx, audio_file_path in enumerate(audio_file_list):
+        # if audio_file_path != "/disk2/datasets/amicorpus/TS3007d/audio/TS3007d.Mix-Headset.wav":
+            # continue
         asr.reset()
         # row = json.loads(l.strip())
         samples = asr.read_audio_file_and_return(audio_file_path, delay, model_stride_in_secs)
@@ -300,6 +305,16 @@ class ASR_DIAR_OFFLINE(object):
         self.frame_VAD = {}
 
     def set_asr_model(self, ASR_model_name):
+        """
+        Setup the parameters for the given ASR model
+        Currently, the following models are supported:
+            stt_en_conformer_ctc_large
+            stt_en_conformer_ctc_medium
+            stt_en_conformer_ctc_small
+            QuartzNet15x5Base-En
+
+        """
+
         if 'QuartzNet' in ASR_model_name:
             self.run_ASR = self.run_ASR_QuartzNet_CTC
             # self.get_speech_labels_list = self.get_speech_labels_list_QuartzNet_CTC
@@ -434,7 +449,7 @@ class ASR_DIAR_OFFLINE(object):
         )
 
         with torch.cuda.amp.autocast():
-            print("Performing ASR...") 
+            print("Running ASR...") 
             hyps, tokens_list, sample_list= get_wer_feat_logit(
                 audio_file_list,
                 frame_asr,
@@ -481,10 +496,8 @@ class ASR_DIAR_OFFLINE(object):
         """
         for i, word_timestamps in enumerate(word_ts_list):
             
-            # if not self.params['external_oracle_vad']:
             if self.params['asr_based_vad']:
                 speech_labels_float = self._get_speech_labels_from_decoded_prediction(word_timestamps)
-                print("speech_labels_float:", speech_labels_float)
                 speech_labels = self.get_str_speech_labels(speech_labels_float)
                 self.write_VAD_rttm_from_speech_labels(self.root_path, audio_file_list[i], speech_labels)
     
@@ -549,7 +562,6 @@ class ASR_DIAR_OFFLINE(object):
     def run_diarization(self, 
                         audio_file_list, 
                         words_and_timestamps, 
-                        # oracle_vad_manifest=None,
                         oracle_manifest=None,
                         oracle_num_speakers=None, 
                         pretrained_speaker_model=None,
@@ -590,6 +602,7 @@ class ASR_DIAR_OFFLINE(object):
             oracle_manifest = self.write_VAD_rttm(self.oracle_vad_dir, audio_file_list)
 
         elif oracle_manifest == 'system_vad':
+            # Use System VAD for diarization.
             logging.info(f"Using the provided system VAD model for diarization: {pretrained_vad_model}")
             config.diarizer.vad.model_path = pretrained_vad_model
         else:
@@ -630,8 +643,6 @@ class ASR_DIAR_OFFLINE(object):
             frame_vad_list = get_file_lists(frame_vad)
             frame_vad_float_list = [ float(x) for x in frame_vad_list] 
             self.frame_VAD[uniq_id] = frame_vad_float_list 
-
-
 
     def get_diarization_labels(self, audio_file_list):
         """
@@ -725,7 +736,7 @@ class ASR_DIAR_OFFLINE(object):
         return round(c/100.0, 2)
 
 
-    def get_enhanced_word_ts_list(self, audio_file_list, word_ts_list, params):
+    def compensate_word_ts_list(self, audio_file_list, word_ts_list, params):
         enhanced_word_ts_list = []
         for idx, word_ts_seq_list in enumerate(word_ts_list):
             uniq_id = get_uniq_id_from_audio_path(audio_file_list[idx])
@@ -733,19 +744,13 @@ class ASR_DIAR_OFFLINE(object):
             enhanced_word_ts_buffer = []
             for k, word_ts in enumerate(word_ts_seq_list):
                 if k < N-1:
-                    # Case 1 where word length is shorter than minimum word length
                     vad_index_word_end = int(100*word_ts[1])
                     closest_sil_stt = self.closest_silence_start(vad_index_word_end, self.frame_VAD[uniq_id], params)
                     vad_est_len = round(closest_sil_stt - word_ts[0], 2)
                     word_len = round(word_ts[1] - word_ts[0], 2)
                     len_to_next_word = round(word_ts_seq_list[k+1][0] - word_ts[0] - 0.01,2)
-                    print(f"vad_est_len: {vad_est_len} word_len:{word_len} len_to_next_word:{len_to_next_word}") 
-                    fixed_word_len = min(vad_est_len, len_to_next_word) 
-                    fixed_word_len = max(min(params['max_word_ts_length_in_sec'], fixed_word_len), word_len)
-                    # else:
-                    print(f"fixed_word_len: {fixed_word_len}")
-                    # if fixed_word_len < 0.05:
-                        # import ipdb; ipdb.set_trace()
+                    min_candidate= min(vad_est_len, len_to_next_word) 
+                    fixed_word_len = max(min(params['max_word_ts_length_in_sec'], min_candidate), word_len)
                     enhanced_word_ts_buffer.append([word_ts[0], word_ts[0]+fixed_word_len])
             enhanced_word_ts_list.append(enhanced_word_ts_buffer)
         return enhanced_word_ts_list
@@ -775,7 +780,11 @@ class ASR_DIAR_OFFLINE(object):
         """
         total_riva_dict = {}
         if self.params['fix_word_ts_with_SAD']:
-            word_ts_list = self.get_enhanced_word_ts_list(audio_file_list, word_ts_list, self.params)
+            if self.frame_VAD != {}:
+                word_ts_list = self.compensate_word_ts_list(audio_file_list, word_ts_list, self.params)
+            else:
+                logging.info(f"VAD timestamps are not provided. Please check VAD model.")
+
         for k, audio_file_path in enumerate(audio_file_list):
             uniq_id = get_uniq_id_from_audio_path(audio_file_path)
             labels = diar_labels[k]
