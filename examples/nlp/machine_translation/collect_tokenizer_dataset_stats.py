@@ -89,12 +89,12 @@ if __name__ == '__main__':
             os.mkdir(args.out_dir)
 
     stats = {
-        "samples": len(all_len),
-        "mean": np.mean(all_len),
-        "stdev": np.std(all_len),
-        "min": np.min(all_len),
-        "max": np.max(all_len),
-        "median": np.median(all_len),
+        "samples": int(len(all_len)),
+        "mean": float(np.mean(all_len)),
+        "stdev": float(np.std(all_len)),
+        "min": float(np.min(all_len)),
+        "max": float(np.max(all_len)),
+        "median": float(np.median(all_len)),
     }
 
     print(f"stats = \n{stats}")
