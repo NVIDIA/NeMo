@@ -25,6 +25,8 @@ from pytorch_lightning import Trainer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
 
 import nemo.collections.nlp.data.text_normalization.constants as constants
+from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
+from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset
 from nemo.collections.nlp.data.text_normalization.decoder_dataset import (
     TarredTextNormalizationDecoderDataset,
     TextNormalizationDecoderDataset,
@@ -65,7 +67,7 @@ class DuplexDecoderModel(NLPModel):
 
         super().__init__(cfg=cfg, trainer=trainer)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(cfg.transformer)
-        self.model_max_len = cfg.get('max_seq_length', 512)
+        self.max_sequence_len = cfg.get('max_sequence_len', self._tokenizer.model_max_length)
         self.mode = cfg.get('mode', 'joint')
 
         self.transformer_name = cfg.transformer
@@ -79,6 +81,9 @@ class DuplexDecoderModel(NLPModel):
         self.use_cg = cfg.get('use_cg', False) and self.lang == constants.ENGLISH
         if self.use_cg:
             self.setup_cgs(cfg)
+
+        # setup processor for detokenization
+        self.processor = MosesProcessor(lang_id=self.lang)
 
     # Setup covering grammars (if enabled)
     def setup_cgs(self, cfg: DictConfig):
@@ -126,7 +131,7 @@ class DuplexDecoderModel(NLPModel):
         return {'loss': train_loss, 'lr': lr}
 
     # Validation and Testing
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+    def validation_step(self, batch, batch_idx, dataloader_idx=0, split="val"):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
@@ -145,10 +150,11 @@ class DuplexDecoderModel(NLPModel):
             skip_special_tokens=True,
         )
         generated_texts, _, _ = self._generate_predictions(
-            input_ids=batch['input_ids'], model_max_len=self.model_max_len
+            input_ids=batch['input_ids'], model_max_len=self.max_sequence_len
         )
 
         input_centers = self._tokenizer.batch_decode(batch['input_center'], skip_special_tokens=True)
+
         direction = [x[0].item() for x in batch['direction']]
         direction_str = [constants.DIRECTIONS_ID_TO_NAME[x] for x in direction]
         # apply post_processing
@@ -157,22 +163,25 @@ class DuplexDecoderModel(NLPModel):
         for idx, class_id in enumerate(batch['semiotic_class_id']):
             direction = constants.TASK_ID_TO_MODE[batch['direction'][idx][0].item()]
             class_name = self._val_id_to_class[dataloader_idx][class_id[0].item()]
-            results[f"correct_{class_name}_{direction}"] += torch.tensor(
-                labels_str[idx] == generated_texts[idx], dtype=torch.int
-            ).to(self.device)
+
+            pred_result = TextNormalizationTestDataset.is_same(
+                generated_texts[idx], labels_str[idx], constants.DIRECTIONS_TO_MODE[direction]
+            )
+
+            results[f"correct_{class_name}_{direction}"] += torch.tensor(pred_result, dtype=torch.int).to(self.device)
             results[f"total_{class_name}_{direction}"] += torch.tensor(1).to(self.device)
 
-        results["val_loss"] = val_loss
+        results[f"{split}_loss"] = val_loss
         return dict(results)
 
-    def multi_validation_epoch_end(self, outputs: List, dataloader_idx=0):
+    def multi_validation_epoch_end(self, outputs: List, dataloader_idx=0, split="val"):
         """
         Called at the end of validation to aggregate outputs.
 
         Args:
             outputs: list of individual outputs of each validation step.
         """
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        avg_loss = torch.stack([x[f'{split}_loss'] for x in outputs]).mean()
 
         # create a dictionary to store all the results
         results = {}
@@ -201,7 +210,10 @@ class DuplexDecoderModel(NLPModel):
                 all_results[key].append(v)
 
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-            val_name = self._validation_names[dataloader_idx].upper()
+            if split == "test":
+                val_name = self._test_names[dataloader_idx].upper()
+            else:
+                val_name = self._validation_names[dataloader_idx].upper()
             final_results = defaultdict(int)
             for key, v in all_results.items():
                 for _v in v:
@@ -240,13 +252,13 @@ class DuplexDecoderModel(NLPModel):
                 logging.info(report)
                 accuracies[mode]['AVG'] = [all_acc]
 
-        self.log('val_loss', avg_loss)
+        self.log(f'{split}_loss', avg_loss)
         if self.trainer.is_global_zero:
             for mode in accuracies:
                 for class_name, values in accuracies[mode].items():
                     self.log(f'{val_name}_{mode.upper()}_acc_{class_name.upper()}', values[0], rank_zero_only=True)
         return {
-            'val_loss': avg_loss,
+            f'{split}_loss': avg_loss,
         }
 
     def test_step(self, batch, batch_idx, dataloader_idx: int = 0):
@@ -254,14 +266,14 @@ class DuplexDecoderModel(NLPModel):
         Lightning calls this inside the test loop with the data from the test dataloader
         passed in as `batch`.
         """
-        return self.validation_step(batch, batch_idx, dataloader_idx)
+        return self.validation_step(batch, batch_idx, dataloader_idx, split="test")
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         """
         Called at the end of test to aggregate outputs.
         outputs: list of individual outputs of each test step.
         """
-        return self.multi_validation_epoch_end(outputs, dataloader_idx)
+        return self.multi_validation_epoch_end(outputs, dataloader_idx, split="test")
 
     @torch.no_grad()
     def _generate_predictions(self, input_ids: torch.Tensor, model_max_len: int = 512):
@@ -302,10 +314,6 @@ class DuplexDecoderModel(NLPModel):
         if sum(nb_spans) == 0:
             return [[]] * len(sents)
         model, tokenizer = self.model, self._tokenizer
-        try:
-            model_max_len = model.config.n_positions
-        except AttributeError:
-            model_max_len = 512
         ctx_size = constants.DECODE_CTX_SIZE
         extra_id_0 = constants.EXTRA_ID_0
         extra_id_1 = constants.EXTRA_ID_1
@@ -313,7 +321,7 @@ class DuplexDecoderModel(NLPModel):
         """
         Build all_inputs - extracted spans to be transformed by the decoder model
         Inputs for TN direction have "0" prefix, while the backward, ITN direction, has prefix "1"
-        "input_centers" - List[str] - ground-truth labels for the span #TODO: rename
+        "input_centers" - List[str] - ground-truth labels for the span
         """
         input_centers, input_dirs, all_inputs = [], [], []
         for ix, sent in enumerate(sents):
@@ -344,11 +352,12 @@ class DuplexDecoderModel(NLPModel):
         input_ids = batch['input_ids'].to(self.device)
 
         generated_texts, generated_ids, sequence_toks_scores = self._generate_predictions(
-            input_ids=input_ids, model_max_len=model_max_len
+            input_ids=input_ids, model_max_len=self.max_sequence_len
         )
 
         # Use covering grammars (if enabled)
         if self.use_cg:
+
             # Compute sequence probabilities
             sequence_probs = torch.ones(len(all_inputs)).to(self.device)
             for ix, cur_toks_scores in enumerate(sequence_toks_scores):
@@ -458,6 +467,11 @@ class DuplexDecoderModel(NLPModel):
             val_data_config = self._cfg.validation_ds
         return super().setup_multiple_validation_data(val_data_config)
 
+    def setup_multiple_test_data(self, test_data_config: Union[DictConfig, Dict] = None):
+        if test_data_config is None:
+            test_data_config = self._cfg.test_ds
+        return super().setup_multiple_test_data(test_data_config)
+
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         if not test_data_config or test_data_config.data_path is None:
             logging.info(
@@ -511,12 +525,11 @@ class DuplexDecoderModel(NLPModel):
                 tokenizer=self._tokenizer,
                 tokenizer_name=self.transformer_name,
                 mode=self.mode,
-                max_len=self._cfg.get('max_sequence_len', self._tokenizer.model_max_length),
+                max_len=self.max_sequence_len,
                 decoder_data_augmentation=cfg.get('decoder_data_augmentation', False)
                 if data_split == "train"
                 else False,
                 lang=self.lang,
-                do_basic_tokenize=cfg.do_basic_tokenize,
                 use_cache=cfg.get('use_cache', False),
                 max_insts=cfg.get('max_insts', -1),
                 do_tokenize=True,

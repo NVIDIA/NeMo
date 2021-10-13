@@ -231,6 +231,8 @@ class GLUEDataset(Dataset):
 
         features = []
         for ex_index, example in enumerate(examples):
+            if example.label == "-":  # skip examples without a consensus label (e.g. in SNLI data set)
+                continue
             if ex_index % 10000 == 0:
                 logging.info("Writing example %d of %d" % (ex_index, len(examples)))
 
