@@ -617,6 +617,8 @@ def create_tar_datasets(min_duration: float, max_duration: float, target_dir: st
         builder.create_new_dataset(manifest_path=args.manifest_path, target_dir=target_dir, num_workers=args.workers)
 
     else:
+        if args.buckets_num > 1:
+            raise ValueError("Concatenation feature does not support buckets_num > 1.")
         print("Concatenating multiple tarred datasets ...")
 
         # Implicitly update config from base details
