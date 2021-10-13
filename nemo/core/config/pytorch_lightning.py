@@ -77,6 +77,7 @@ class TrainerConfig:
     reload_dataloaders_every_epoch: bool = False
     auto_lr_find: Any = False
     replace_sampler_ddp: bool = True
+    detect_anomaly: bool = False
     terminate_on_nan: bool = False
     auto_scale_batch_size: Any = False
     prepare_data_per_node: bool = True
