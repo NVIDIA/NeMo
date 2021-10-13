@@ -18,7 +18,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 import multiprocessing as mp
 
-from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTDataPreproc
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
 #=============================================================================#
 # Auxiliary methods
@@ -44,7 +44,7 @@ def line_len(tokenizer, line):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Collects statistics over tokenized dataset')
     parser.add_argument('input_files', metavar='N', type=str, nargs='+', help='Input files to parse')
-    parser.add_argument('--tokenizer_name', type=str, required=True, help='Path to pre-trained nemo-supported tokenizer model')
+    parser.add_argument('--tokenizer_library', type=str, required=True, help='Path to pre-trained nemo-supported tokenizer model')
     parser.add_argument('--tokenizer_model', type=str, required=True, help='Path to pre-trained nemo-supported tokenizer model')
     parser.add_argument('--num_workers', type=int, default=mp.cpu_count(), help='Number of workers (default to number of CPUs)')
     parser.add_argument('--max_lines', type=int, default=-1, help='Max number of lines to parse')
@@ -52,8 +52,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    tokenizer = MTDataPreproc.get_monolingual_tokenizer(
-        tokenizer_name=args.tokenizer_name,
+    tokenizer = get_nmt_tokenizer(
+        library=args.tokenizer_library,
         tokenizer_model=args.tokenizer_model,
     )
 
