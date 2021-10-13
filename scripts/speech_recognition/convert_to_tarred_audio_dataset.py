@@ -272,10 +272,12 @@ class ASRTarredDatasetBuilder:
             start_indices.append(start_idx)
             end_indices.append(end_idx)
 
+        manifest_folder, _ = os.path.split(manifest_path)
+
         with Parallel(n_jobs=num_workers, verbose=config.num_shards) as parallel:
             # Call parallel tarfile construction
             new_entries_list = parallel(
-                delayed(self._create_shard)(entries[start_idx:end_idx], target_dir, i)
+                delayed(self._create_shard)(entries[start_idx:end_idx], target_dir, i, manifest_folder)
                 for i, (start_idx, end_idx) in enumerate(zip(start_indices, end_indices))
             )
 
@@ -412,10 +414,12 @@ class ASRTarredDatasetBuilder:
             end_indices.append(end_idx)
             shard_indices.append(shard_idx)
 
+        manifest_folder, _ = os.path.split(base_manifest_path)
+
         with Parallel(n_jobs=num_workers, verbose=num_added_shards) as parallel:
             # Call parallel tarfile construction
             new_entries_list = parallel(
-                delayed(self._create_shard)(entries[start_idx:end_idx], target_dir, shard_idx)
+                delayed(self._create_shard)(entries[start_idx:end_idx], target_dir, shard_idx, manifest_folder)
                 for i, (start_idx, end_idx, shard_idx) in enumerate(zip(start_indices, end_indices, shard_indices))
             )
 
@@ -484,8 +488,6 @@ class ASRTarredDatasetBuilder:
                 else:
                     filtered_entries.append(entry)
                     filtered_duration += entry['duration']
-
-        manifest_folder, _ = os.path.split(manifest_path)
 
         return entries, filtered_entries, filtered_duration
 
