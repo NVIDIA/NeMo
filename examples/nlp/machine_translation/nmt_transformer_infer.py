@@ -167,6 +167,7 @@ def main():
         )
     else:
         model = models[0]
+        ensemble_generator = None
         if lm_model is not None:
             model.beam_search = BeamSearchSequenceGeneratorWithLanguageModel(
                 embedding=model.decoder.embedding,
