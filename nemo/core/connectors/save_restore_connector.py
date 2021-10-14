@@ -27,6 +27,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
+from nemo.utils.get_rank import is_global_rank_zero
 
 
 class SaveRestoreConnector:
@@ -48,16 +49,19 @@ class SaveRestoreConnector:
             save_path: Path to .nemo file where model instance should be saved
 		"""
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            config_yaml = os.path.join(tmpdir, self.model_config_yaml)
-            model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
-            model.to_config_file(path2yaml_file=config_yaml)
-            if hasattr(model, 'artifacts') and model.artifacts is not None:
-                self._handle_artifacts(model, nemo_file_folder=tmpdir)
-                # We should not update self._cfg here - the model can still be in use
-                self._update_artifact_paths(model, path2yaml_file=config_yaml)
-            self._save_state_dict_to_disk(model.state_dict(), model_weights)
-            self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
+        if is_global_rank_zero():
+            with tempfile.TemporaryDirectory() as tmpdir:
+                config_yaml = os.path.join(tmpdir, self.model_config_yaml)
+                model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
+                model.to_config_file(path2yaml_file=config_yaml)
+                if hasattr(model, 'artifacts') and model.artifacts is not None:
+                    self._handle_artifacts(model, nemo_file_folder=tmpdir)
+                    # We should not update self._cfg here - the model can still be in use
+                    self._update_artifact_paths(model, path2yaml_file=config_yaml)
+                self._save_state_dict_to_disk(model.state_dict(), model_weights)
+                self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
+        else:
+            return
 
     def restore_from(
         self,
