@@ -513,7 +513,7 @@ pipeline {
             +trainer.max_steps=1 \
             +trainer.num_sanity_val_steps=1 \
             exp_manager.exp_dir=examples/asr/speech_to_text_results'
-            //sh 'rm -rf examples/asr/speech_to_text_results'
+            sh 'rm -rf examples/asr/speech_to_text_results'
           }
         }
 
@@ -534,7 +534,7 @@ pipeline {
             ~model.preprocessor.n_mfcc \
             ~model.preprocessor.n_fft \
             exp_manager.exp_dir=examples/asr/speech_to_label_results'
-            //sh 'rm -rf examples/asr/speech_to_label_results'
+            sh 'rm -rf examples/asr/speech_to_label_results'
           }
         }
       }

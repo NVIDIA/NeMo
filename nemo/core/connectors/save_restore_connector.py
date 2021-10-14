@@ -375,6 +375,8 @@ class SaveRestoreConnector:
 
     @staticmethod
     def _make_nemo_file_from_folder(filename, source_dir):
+        dirname = os.path.dirname(filename)
+        os.makedirs(dirname, exist_ok=True)
         with tarfile.open(filename, "w:gz") as tar:
             tar.add(source_dir, arcname=".")
 
