@@ -35,6 +35,48 @@ from nemo.collections.nlp.modules.common.transformer import (
 from nemo.utils import logging
 
 
+def translate_text(models, args, src_text, tgt_text, tgt_text_all, src_texts, all_scores):
+    if len(models) > 1:
+        src_ids, src_mask = models[0].prepare_inference_batch(src_text)
+        best_translations = ensemble_generator(src_ids, src_mask, return_beam_scores=args.write_scores)
+        if args.write_scores:
+            all_results, scores, best_translations = (
+                best_translations[0],
+                best_translations[1],
+                best_translations[2],
+            )
+            scores = scores.view(-1).data.cpu().numpy().tolist()
+            all_scores += scores
+            src_texts += [item for item in src_text for i in range(args.beam_size)]
+            all_results = models[0].ids_to_postprocessed_text(
+                all_results, models[0].decoder_tokenizer, models[0].target_processor
+            )
+            tgt_text_all += all_results
+        best_translations = models[0].ids_to_postprocessed_text(
+            best_translations, models[0].decoder_tokenizer, models[0].target_processor
+        )
+        tgt_text += best_translations
+    else:
+        best_translations = model.translate(
+            text=src_text,
+            source_lang=args.source_lang,
+            target_lang=args.target_lang,
+            return_beam_scores=args.write_scores,
+        )
+        if args.write_scores:
+            all_results, scores, best_translations = (
+                best_translations[0],
+                best_translations[1],
+                best_translations[2],
+            )
+            all_scores += scores
+            src_texts += [item for item in src_text for i in range(args.beam_size)]
+            tgt_text_all += all_results
+        tgt_text += best_translations
+    src_text[:] = []
+    print(f"Translated {count} sentences")
+
+
 def main():
     parser = ArgumentParser()
     parser.add_argument(
@@ -159,87 +201,28 @@ def main():
     with open(args.srctext, 'r') as src_f:
         for line in src_f:
             src_text.append(line.strip())
-            if len(src_text) == args.batch_size:
-                if len(models) > 1:
-                    src_ids, src_mask = models[0].prepare_inference_batch(src_text)
-                    best_translations = ensemble_generator(src_ids, src_mask, return_beam_scores=args.write_scores)
-                    if args.write_scores:
-                        all_results, scores, best_translations = (
-                            best_translations[0],
-                            best_translations[1],
-                            best_translations[2],
-                        )
-                        scores = scores.view(-1).data.cpu().numpy().tolist()
-                        all_scores += scores
-                        src_texts += [item for item in src_text for i in range(args.beam_size)]
-                        all_results = models[0].ids_to_postprocessed_text(
-                            all_results, models[0].decoder_tokenizer, models[0].target_processor
-                        )
-                        tgt_text_all += all_results
-                    best_translations = models[0].ids_to_postprocessed_text(
-                        best_translations, models[0].decoder_tokenizer, models[0].target_processor
-                    )
-                    tgt_text += best_translations
-                else:
-                    best_translations = model.translate(
-                        text=src_text,
-                        source_lang=args.source_lang,
-                        target_lang=args.target_lang,
-                        return_beam_scores=args.write_scores,
-                    )
-                    if args.write_scores:
-                        all_results, scores, best_translations = (
-                            best_translations[0],
-                            best_translations[1],
-                            best_translations[2],
-                        )
-                        all_scores += scores
-                        src_texts += [item for item in src_text for i in range(args.beam_size)]
-                        tgt_text_all += all_results
-                    tgt_text += best_translations
-                src_text = []
-                print(f"Translated {count + 1} sentences")
             count += 1
+            if len(src_text) == args.batch_size:
+                translate_text(
+                    models=models,
+                    args=args,
+                    src_text=src_text,
+                    tgt_text=tgt_text,
+                    tgt_text_all=tgt_text_all,
+                    src_texts=src_texts,
+                    all_scores=all_scores,
+                )
+
         if len(src_text) > 0:
-            if len(models) > 1:
-                src_ids, src_mask = models[0].prepare_inference_batch(src_text)
-                best_translations = ensemble_generator(src_ids, src_mask, return_beam_scores=args.write_scores)
-                if args.write_scores:
-                    all_results, scores, best_translations = (
-                        best_translations[0],
-                        best_translations[1],
-                        best_translations[2],
-                    )
-                    scores = scores.view(-1).data.cpu().numpy().tolist()
-                    all_scores += scores
-                    src_texts += [item for item in src_text for i in range(args.beam_size)]
-                    all_results = models[0].ids_to_postprocessed_text(
-                        all_results, models[0].decoder_tokenizer, models[0].target_processor
-                    )
-                    tgt_text_all += all_results
-                best_translations = models[0].ids_to_postprocessed_text(
-                    best_translations, models[0].decoder_tokenizer, models[0].target_processor
-                )
-                tgt_text += best_translations
-            else:
-                best_translations = model.translate(
-                    text=src_text,
-                    source_lang=args.source_lang,
-                    target_lang=args.target_lang,
-                    return_beam_scores=args.write_scores,
-                )
-                if args.write_scores:
-                    all_results, scores, best_translations = (
-                        best_translations[0],
-                        best_translations[1],
-                        best_translations[2],
-                    )
-                    all_scores += scores
-                    src_texts += [item for item in src_text for i in range(args.beam_size)]
-                    tgt_text_all += all_results
-                tgt_text += best_translations
-            src_text = []
-            print(f"Translated {count} sentences")
+            translate_text(
+                models=models,
+                args=args,
+                src_text=src_text,
+                tgt_text=tgt_text,
+                tgt_text_all=tgt_text_all,
+                src_texts=src_texts,
+                all_scores=all_scores,
+            )
 
     with open(args.tgtout, 'w') as tgt_f:
         for line in tgt_text:
