@@ -75,7 +75,7 @@ def translate_text(models, args, src_text, tgt_text, tgt_text_all, src_texts, al
             tgt_text_all += all_results
         tgt_text += best_translations
     src_text[:] = []
-    print(f"Translated {count} sentences")
+    print(f"Translated {len(tgt_text)} sentences")
 
 
 def main():
@@ -199,11 +199,9 @@ def main():
 
     logging.info(f"Translating: {args.srctext}")
 
-    count = 0
     with open(args.srctext, 'r') as src_f:
         for line in src_f:
             src_text.append(line.strip())
-            count += 1
             if len(src_text) == args.batch_size:
                 translate_text(
                     models=models,
