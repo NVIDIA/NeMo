@@ -73,8 +73,9 @@ def translate_text(models, args, src_text, tgt_text, tgt_text_all, src_texts, al
             all_scores += scores
             src_texts += [item for item in src_text for i in range(args.beam_size)]
             tgt_text_all += all_results
+
         tgt_text += best_translations
-    src_text[:] = []
+
     print(f"Translated {len(tgt_text)} sentences")
 
 
@@ -213,6 +214,7 @@ def main():
                     all_scores=all_scores,
                     ensemble_generator=ensemble_generator,
                 )
+                src_text = []
 
         if len(src_text) > 0:
             translate_text(
