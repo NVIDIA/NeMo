@@ -22,8 +22,9 @@ USAGE Example:
 """
 
 
-from argparse import ArgumentParser
 import json
+from argparse import ArgumentParser
+
 import torch
 
 import nemo.collections.nlp as nemo_nlp
@@ -35,8 +36,9 @@ from nemo.collections.nlp.modules.common.transformer import (
 from nemo.utils import logging
 
 
-def translate_text(models, args, src_text, tgt_text, tgt_text_all, src_texts,
-                   all_scores, all_timing, ensemble_generator):
+def translate_text(
+    models, args, src_text, tgt_text, tgt_text_all, src_texts, all_scores, all_timing, ensemble_generator
+):
     if len(models) > 1:
         src_ids, src_mask = models[0].prepare_inference_batch(src_text)
         best_translations = ensemble_generator(src_ids, src_mask, return_beam_scores=args.write_scores)
