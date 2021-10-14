@@ -23,7 +23,7 @@ USAGE Example:
 
 
 from argparse import ArgumentParser
-
+import json
 import torch
 
 import nemo.collections.nlp as nemo_nlp
@@ -35,7 +35,8 @@ from nemo.collections.nlp.modules.common.transformer import (
 from nemo.utils import logging
 
 
-def translate_text(models, args, src_text, tgt_text, tgt_text_all, src_texts, all_scores, ensemble_generator):
+def translate_text(models, args, src_text, tgt_text, tgt_text_all, src_texts,
+                   all_scores, all_timing, ensemble_generator):
     if len(models) > 1:
         src_ids, src_mask = models[0].prepare_inference_batch(src_text)
         best_translations = ensemble_generator(src_ids, src_mask, return_beam_scores=args.write_scores)
@@ -63,7 +64,15 @@ def translate_text(models, args, src_text, tgt_text, tgt_text_all, src_texts, al
             source_lang=args.source_lang,
             target_lang=args.target_lang,
             return_beam_scores=args.write_scores,
+            log_timing=args.write_timing,
         )
+
+        if args.write_timing:
+            *best_translations, timing_dict = best_translations
+            all_timing.append(timing_dict)
+        else:
+            best_translations = (best_translations,)
+
         if args.write_scores:
             all_results, scores, best_translations = (
                 best_translations[0],
@@ -73,6 +82,8 @@ def translate_text(models, args, src_text, tgt_text, tgt_text_all, src_texts, al
             all_scores += scores
             src_texts += [item for item in src_text for i in range(args.beam_size)]
             tgt_text_all += all_results
+        else:
+            best_translations = best_translations[0]
 
         tgt_text += best_translations
 
@@ -115,6 +126,11 @@ def main():
         action="store_true",
         help="Whether to write a separate file with scores not including length penalties corresponding to each beam hypothesis (.score suffix)",
     )
+    parser.add_argument(
+        "--write_timing",
+        action="store_true",
+        help="Whether to write a separate file with detailed timing info (.timing.json suffix)",
+    )
     # shallow fusion specific parameters
     parser.add_argument(
         "--lm_model",
@@ -136,11 +152,15 @@ def main():
         model = nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(restore_path=model_path).eval()
         models.append(model)
 
+    if (len(models) > 1) and (args.write_timing):
+        raise RuntimeError("Cannot measure timing when more than 1 model is used")
+
     src_text = []
     tgt_text = []
     tgt_text_all = []
     src_texts = []
     all_scores = []
+    all_timing = []
 
     if torch.cuda.is_available():
         models = [model.cuda() for model in models]
@@ -212,6 +232,7 @@ def main():
                     tgt_text_all=tgt_text_all,
                     src_texts=src_texts,
                     all_scores=all_scores,
+                    all_timing=all_timing,
                     ensemble_generator=ensemble_generator,
                 )
                 src_text = []
@@ -225,6 +246,7 @@ def main():
                 tgt_text_all=tgt_text_all,
                 src_texts=src_texts,
                 all_scores=all_scores,
+                all_timing=all_timing,
                 ensemble_generator=ensemble_generator,
             )
 
@@ -236,6 +258,10 @@ def main():
         with open(args.tgtout + '.score', 'w') as tgt_f_scores:
             for line, score, inp in zip(tgt_text_all, all_scores, src_texts):
                 tgt_f_scores.write(inp + "\t" + line + "\t" + str(score) + "\n")
+
+    if args.write_timing:
+        with open(args.tgtout + '.timing.json', 'w') as timing_fh:
+            json.dump(all_timing, timing_fh)
 
 
 if __name__ == '__main__':
