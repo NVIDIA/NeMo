@@ -17,8 +17,8 @@
 import torch
 import torch.nn.functional as F
 from apex.transformer import parallel_state, tensor_parallel
+from apex.transformer.enums import AttnMaskType, LayerType
 
-from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (

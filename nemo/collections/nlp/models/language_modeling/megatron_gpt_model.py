@@ -26,7 +26,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.modules.common.megatron import fused_kernels
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
 from nemo.collections.nlp.modules.common.megatron.megatron_init import (
     initialize_model_parallel_for_nemo,
@@ -37,7 +36,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_ltor_masks_and_position_ids,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.collections.nlp.parts.nlp_overrides import NLPNativeBfloat16PrecisionPlugin, NLPNativeMixedPrecisionPlugin
+from nemo.collections.nlp.parts.nlp_overrides import NLPNativeMixedPrecisionPlugin
 from nemo.utils import AppState, logging
 
 
@@ -63,8 +62,6 @@ class MegatronGPTModel(NLPModel):
 
         if not self.cfg.get('fused_bf16'):
             set_jit_fusion_options()
-
-        fused_kernels.load()
 
         self.tokenizer = get_nmt_tokenizer(
             library=self.cfg.tokenizer.library,

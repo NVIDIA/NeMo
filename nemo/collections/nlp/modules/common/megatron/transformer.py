@@ -18,17 +18,17 @@ import math
 
 import torch
 import torch.nn.functional as F
+from apex.normalization.fused_layer_norm import MixedFusedLayerNorm as LayerNorm
 from apex.transformer import parallel_state, tensor_parallel
+from apex.transformer.enums import AttnMaskType, AttnType, LayerType
+from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
 
-from nemo.collections.nlp.modules.common.megatron.enums import AttnMaskType, AttnType, LayerType
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import (
     BiasDropoutAddFusedInference,
     BiasDropoutAddFusedTrain,
     bias_dropout_add,
 )
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import FusedBiasGeLU
-from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import MixedFusedLayerNorm as LayerNorm
-from nemo.collections.nlp.modules.common.megatron.fused_softmax import FusedScaleMaskSoftmax
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import attention_mask_func, erf_gelu
 
