@@ -545,13 +545,16 @@ class ASR_DIAR_OFFLINE(object):
         start_stamp_in_sec = round(char_ts[0] * self.params['time_stride'] - self.asr_delay_sec, 2)
         end_stamp_in_sec = round(end_stamp * self.params['time_stride'] - self.asr_delay_sec, 2)
         word_timetamps_middle = [
-            [round(_spaces_in_sec[k][1] - self.asr_delay_sec,2), round(_spaces_in_sec[k + 1][0] - self.asr_delay_sec,2)]
+            [
+                round(_spaces_in_sec[k][1] - self.asr_delay_sec, 2),
+                round(_spaces_in_sec[k + 1][0] - self.asr_delay_sec, 2),
+            ]
             for k in range(len(_spaces_in_sec) - 1)
         ]
         word_timestamps = (
-            [[start_stamp_in_sec, round(_spaces_in_sec[0][0] - self.asr_delay_sec,2)]]
+            [[start_stamp_in_sec, round(_spaces_in_sec[0][0] - self.asr_delay_sec, 2)]]
             + word_timetamps_middle
-            + [[round(_spaces_in_sec[-1][1] - self.asr_delay_sec,2), end_stamp_in_sec]]
+            + [[round(_spaces_in_sec[-1][1] - self.asr_delay_sec, 2), end_stamp_in_sec]]
         )
         return word_timestamps
 
@@ -769,7 +772,7 @@ class ASR_DIAR_OFFLINE(object):
         """
 
         c = vad_index_word_end + offset
-        limit = int(100*params['max_word_ts_length_in_sec'] + vad_index_word_end)
+        limit = int(100 * params['max_word_ts_length_in_sec'] + vad_index_word_end)
         while c < len(vad_frames):
             if vad_frames[c] < params['VAD_threshold_for_word_ts']:
                 break
@@ -806,7 +809,9 @@ class ASR_DIAR_OFFLINE(object):
                     len_to_next_word = round(word_ts_seq_list[k + 1][0] - word_ts[0] - 0.01, 2)
                     if uniq_id in self.frame_VAD:
                         vad_index_word_end = int(100 * word_ts[1])
-                        closest_sil_stt = self.closest_silence_start(vad_index_word_end, self.frame_VAD[uniq_id], params)
+                        closest_sil_stt = self.closest_silence_start(
+                            vad_index_word_end, self.frame_VAD[uniq_id], params
+                        )
                         vad_est_len = round(closest_sil_stt - word_ts[0], 2)
                     else:
                         vad_est_len = len_to_next_word
