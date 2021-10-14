@@ -356,4 +356,7 @@ class NLPModel(ModelPT, Exportable):
                 logging.warning("Tried using default SaveRestoreConnector with a model parallel NLP model.")
                 logging.warning("Swapping SaveRestoreConnector for NLPSaveRestoreConnector.")
                 self._save_restore_connector = NLPSaveRestoreConnector()
-        super(NLPModel, self).save_to(save_path=save_path)
+            save_path = os.path.abspath(os.path.expanduser(save_path))
+            self._save_restore_connector.save_to(self, save_path)
+        else:
+            super(NLPModel, self).save_to(save_path=save_path)

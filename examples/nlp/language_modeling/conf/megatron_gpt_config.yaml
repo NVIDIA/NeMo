@@ -35,8 +35,6 @@ exp_manager:
 
 
 model:
-  nemo_file_path: null # after each training run save .nemo file to this location
-
   # model parallelism 
   micro_batch_size: 4
   tensor_model_parallel_size: 1

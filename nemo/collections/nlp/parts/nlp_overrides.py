@@ -15,6 +15,7 @@
 import os
 import shutil
 import tarfile
+import tempfile
 from typing import Any, Dict, List, Optional, Union
 
 import pytorch_lightning as pl
@@ -273,43 +274,38 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
             # first we save .nemo file for each model parallel rank
             if app_state.data_parallel_rank == 0:
-                super().save_to(model, mp_save_path)
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    config_yaml = os.path.join(tmpdir, self.model_config_yaml)
+                    model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
+                    model.to_config_file(path2yaml_file=config_yaml)
+                    if hasattr(model, 'artifacts') and model.artifacts is not None:
+                        self._handle_artifacts(model, nemo_file_folder=tmpdir)
+                        self._update_artifact_paths(model, path2yaml_file=config_yaml)
+                    self._save_state_dict_to_disk(model.state_dict(), model_weights)
+                    self._make_nemo_file_from_folder(filename=mp_save_path, source_dir=tmpdir)
 
-            # we need a barrier for data_parallel_rank 0 when using model parallel so that all processes have finished writing their weights before creating .nemo file
-            # torch.distributed.barrier(group=parallel_state.get_tensor_model_parallel_group())
-            # torch.distributed.barrier()
+            torch.distributed.barrier()
 
+            # create nemo file from folder with all mp_ranks
             if app_state.model_parallel_rank == 0 and app_state.data_parallel_rank == 0:
-                # extract all tar files
-                for mp_rank in range(app_state.model_parallel_size):
-                    mp_tar_path = f'{base_path}_mp_rank_{mp_rank:02d}.nemo'
-                    mp_tar = tarfile.open(mp_tar_path, 'r:gz')
-                    mp_tar.extractall(path=os.path.join(base_dir, f'mp_rank_{mp_rank:02d}'))
-                    mp_tar.close()
-                    os.remove(mp_tar_path)
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    # extract all tar files
+                    for mp_rank in range(app_state.model_parallel_size):
+                        mp_tar_path = f'{base_path}_mp_rank_{mp_rank:02d}.nemo'
+                        mp_tar = tarfile.open(mp_tar_path, 'r:gz')
+                        mp_tar.extractall(path=os.path.join(tmpdir, f'mp_rank_{mp_rank:02d}'))
+                        mp_tar.close()
+                        os.remove(mp_tar_path)
 
-                # move rank 0 .nemo extract to base_path
-                shutil.move(os.path.join(base_dir, 'mp_rank_00'), base_path)
+                    config_yaml = os.path.join(tmpdir, self.model_config_yaml)
+                    model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
+                    model.to_config_file(path2yaml_file=config_yaml)
+                    if hasattr(model, 'artifacts') and model.artifacts is not None:
+                        self._handle_artifacts(model, nemo_file_folder=tmpdir)
+                        self._update_artifact_paths(model, path2yaml_file=config_yaml)
 
-                # move mp_rank_00 checkpoint to mp_rank_00 directory inside base_path
-                os.mkdir(os.path.join(base_path, 'mp_rank_00'))
-                shutil.move(os.path.join(base_path, 'model_weights.ckpt'), os.path.join(base_path, 'mp_rank_00'))
-
-                # move other mp_rank checkpoints from base_dir to base_path
-                for mp_rank in range(1, app_state.model_parallel_size):
-                    os.mkdir(os.path.join(base_path, f'mp_rank_{mp_rank:02d}'))
-                    shutil.move(
-                        os.path.join(base_dir, f'mp_rank_{mp_rank:02d}', 'model_weights.ckpt'),
-                        os.path.join(base_path, f'mp_rank_{mp_rank:02d}'),
-                    )
-                    # clean up leftover directory
-                    shutil.rmtree(os.path.join(base_dir, f'mp_rank_{mp_rank:02d}'))
-
-                # create tar file from base_path
-                self._make_nemo_file_from_folder(save_path, base_path)
-
-                # clean up base_path
-                shutil.rmtree(base_path)
+                    # create tar file
+                    self._make_nemo_file_from_folder(save_path, tmpdir)
 
         else:
             return super().save_to(model, save_path)
