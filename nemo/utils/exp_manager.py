@@ -84,6 +84,7 @@ class StepTimingParams:
     reduction: Optional[str] = "mean"
     # if positive, defines the size of a sliding window for computing mean
     buffer_size: Optional[int] = -1
+    interval: Optional[int] = 1
 
 
 @dataclass
@@ -120,34 +121,34 @@ class TimingCallback(Callback):
     def __init__(self, timer_kwargs={}):
         self.timer = timers.NamedTimer(**timer_kwargs)
 
-    def _on_batch_start(self, name):
+    def _on_batch_start(self, name, use_interval, reset=False):
         # reset only if we do not return mean of a sliding window
-        if self.timer.buffer_size <= 0:
+        if self.timer.buffer_size <= 0 or reset:
             self.timer.reset(name)
 
-        self.timer.start(name)
+        self.timer.start(name, use_interval)
 
-    def _on_batch_end(self, name, pl_module):
-        self.timer.stop(name)
+    def _on_batch_end(self, name, pl_module, use_interval):
+        self.timer.stop(name, use_interval)
         pl_module.log(name, self.timer[name], on_step=True, on_epoch=False, prog_bar=True)
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
-        self._on_batch_start("train_step_timing")
+        self._on_batch_start("train_step_timing", use_interval=True)
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
-        self._on_batch_end("train_step_timing", pl_module)
+        self._on_batch_end("train_step_timing", pl_module, use_interval=True)
 
     def on_validation_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
-        self._on_batch_start("validation_step_timing")
+        self._on_batch_start("validation_step_timing", use_interval=False, reset=True)
 
     def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
-        self._on_batch_end("validation_step_timing", pl_module)
+        self._on_batch_end("validation_step_timing", pl_module, use_interval=False)
 
     def on_test_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
-        self._on_batch_start("test_step_timing")
+        self._on_batch_start("test_step_timing", use_interval=False, reset=True)
 
     def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
-        self._on_batch_end("test_step_timing", pl_module)
+        self._on_batch_end("test_step_timing", pl_module, use_interval=False)
 
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Path:
     """
