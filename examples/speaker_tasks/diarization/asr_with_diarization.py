@@ -20,7 +20,7 @@ from nemo.utils import logging
 """
 Currently Supported ASR models:
 
-QuartzNet15x5Base
+QuartzNet15x5Base-En
 stt_en_conformer_ctc_large
 """
 
@@ -38,7 +38,7 @@ parser.add_argument(
 )
 parser.add_argument("--pretrained_vad_model", default=None, type=str, help="Fullpath of the VAD model (*.nemo).")
 parser.add_argument("--external_vad_manifest", default=None, type=str, help="External VAD file for diarization")
-parser.add_argument('--asr_based_vad', default=True, action='store_true', help="Whether to use ASR-based VAD")
+parser.add_argument("--asr_based_vad", default=False, action='store_true', help="Whether to use ASR-based VAD")
 parser.add_argument(
     '--generate_oracle_manifest', default=False, action='store_true', help="Whether to generate and use oracle VAD"
 )
@@ -65,7 +65,7 @@ vad_choices = [
 ]
 if not sum(bool(c) for c in vad_choices) == 1:
     raise ValueError(
-        "Please either provide ONE and ONLY ONE method for VAD. \n \
+        "Please provide ONE and ONLY ONE method for VAD. \n \
             (1) External manifest external_vad_manifest \n \
             (2) Use a pretrained_vad_model \n \
             (3) Use ASR-based VAD or \n \
@@ -75,7 +75,6 @@ if not sum(bool(c) for c in vad_choices) == 1:
         raise ValueError(
             "Please provide reference_rttmfile_list_path so we can generate oracle manifest automatically"
         )
-
 
 if args.asr_based_vad:
     oracle_manifest = 'asr_based_vad'
@@ -95,13 +94,11 @@ params = {
     "shift_length_in_sec": 0.75,
     "print_transcript": False,
     "lenient_overlap_WDER": True,
-    "fix_word_ts_with_VAD": True,
     "VAD_threshold_for_word_ts": 0.7,
     "max_word_ts_length_in_sec": 0.6,
     "word_gap_in_sec": 0.01,
     "minimum": True,
     "threshold": args.threshold,  # minimun width to consider non-speech activity
-    "asr_based_vad": args.asr_based_vad,
     "diar_config_url": args.diar_config_url,
     "ASR_model_name": 'stt_en_conformer_ctc_large',
 }
@@ -114,7 +111,7 @@ asr_diar_offline.create_directories(args.output_path)
 
 audio_file_list = get_file_lists(args.audiofile_list_path)
 
-word_list, word_ts_list = asr_diar_offline.run_ASR(asr_model, audio_file_list)
+word_list, word_ts_list = asr_diar_offline.run_ASR(audio_file_list, asr_model)
 
 diar_labels = asr_diar_offline.run_diarization(
     audio_file_list,
