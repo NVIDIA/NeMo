@@ -560,8 +560,8 @@ def _build_train_valid_test_datasets(
     print_split_stats('test', 2)
 
     def build_dataset(index, name):
-        from nemo.collections.nlp.data.language_modeling.megatron.ict_dataset import ICTDataset
-        from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
+        # from nemo.collections.nlp.data.language_modeling.megatron.ict_dataset import ICTDataset
+        # from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
         from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
 
         dataset = None
