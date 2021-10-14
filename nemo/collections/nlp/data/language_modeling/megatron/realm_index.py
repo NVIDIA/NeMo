@@ -5,8 +5,8 @@ import shutil
 
 import numpy as np
 import torch
-from megatron import get_args
 from apex.transformer import tensor_parallel
+from megatron import get_args
 
 
 def detach(tensor):

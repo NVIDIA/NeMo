@@ -12,38 +12,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ctypes import Union
 import hashlib
 import json
-
-from torch.serialization import save
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 import os
+from ctypes import Union
 from typing import Any, Callable, Dict, Optional
 
-
+import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
 from pytorch_lightning.utilities import rank_zero_only
-from pytorch_lightning.utilities.migration import pl_legacy_patch
 from pytorch_lightning.utilities.cloud_io import load as pl_load
-import torch
+from pytorch_lightning.utilities.migration import pl_legacy_patch
+from torch.serialization import save
 from transformers import TRANSFORMERS_CACHE
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-from nemo.collections.nlp.modules import MegatronBertEncoder
-from nemo.collections.nlp.modules import BertModule
+from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
+from nemo.collections.nlp.modules.common.megatron.megatron_bert import (
+    get_megatron_checkpoint_version,
+    set_megatron_checkpoint_version,
+)
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder import MegatronEncoderModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector, NLPSaveRestoreConnector
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import AppState, logging
-from nemo.collections.nlp.modules.common.megatron.megatron_bert import (
-    get_megatron_checkpoint_version,
-    set_megatron_checkpoint_version,
-)
 
 __all__ = ['NLPModel']
 

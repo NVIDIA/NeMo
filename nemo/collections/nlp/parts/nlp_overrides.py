@@ -12,38 +12,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.modules.common.megatron.megatron_bert import (
-    get_megatron_checkpoint_version,
-    set_megatron_checkpoint_version,
-)
-from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
-from pytorch_lightning.plugins.precision.precision_plugin import PrecisionPlugin
-from pytorch_lightning.trainer.trainer import Trainer
+import os
 import shutil
 import tarfile
-from pytorch_lightning.utilities.enums import GradClipAlgorithmType
-from torch.nn.modules.module import Module
-
-from torch.optim.optimizer import Optimizer
-from nemo.utils.get_rank import is_global_rank_zero
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
-import os
 from typing import Any, Dict, List, Optional, Union
 
 import pytorch_lightning as pl
 import torch
-from apex.transformer import tensor_parallel
-from apex.transformer import parallel_state
+from apex.transformer import parallel_state, tensor_parallel
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
-from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
+from pytorch_lightning.plugins.precision.precision_plugin import PrecisionPlugin
+from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
+from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities import rank_zero_warn
 from pytorch_lightning.utilities.cloud_io import atomic_save
+from pytorch_lightning.utilities.enums import GradClipAlgorithmType
+from torch.nn.modules.module import Module
 from torch.nn.parallel import DistributedDataParallel
+from torch.optim.optimizer import Optimizer
 
+from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
+from nemo.collections.nlp.modules.common.megatron.megatron_bert import (
+    get_megatron_checkpoint_version,
+    set_megatron_checkpoint_version,
+)
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import AppState, logging
+from nemo.utils.get_rank import is_global_rank_zero
 
 
 class NLPDDPPlugin(DDPPlugin):

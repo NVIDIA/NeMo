@@ -337,4 +337,3 @@ def get_megatron_tokenizer(pretrained_model_name: str):
     """
     _check_megatron_name(pretrained_model_name)
     return MEGATRON_CONFIG_MAP[pretrained_model_name]["tokenizer_name"]
-

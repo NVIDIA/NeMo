@@ -15,7 +15,7 @@
 """Megatron Module"""
 
 import torch
-from apex.transformer import tensor_parallel, parallel_state
+from apex.transformer import parallel_state, tensor_parallel
 
 
 def param_is_not_shared(param):

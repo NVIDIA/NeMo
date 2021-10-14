@@ -15,10 +15,10 @@
 """T5 model."""
 
 import torch
-from megatron import get_args
 from apex.transformer import tensor_parallel
-
 from apex.transformer.enums import AttnMaskType
+from megatron import get_args
+
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model, parallel_lm_logits
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import LayerNorm
