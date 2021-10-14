@@ -131,7 +131,7 @@ class SaveRestoreConnector:
                     return instance
                 else:
                     app_state = AppState()
-                    if app_state.model_parallel_rank is not None:
+                    if app_state.model_parallel_rank is not None and app_state.model_parallel_size > 1:
                         model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
                     else:
                         model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
