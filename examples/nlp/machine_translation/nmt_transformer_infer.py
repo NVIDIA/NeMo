@@ -35,7 +35,7 @@ from nemo.collections.nlp.modules.common.transformer import (
 from nemo.utils import logging
 
 
-def translate_text(models, args, src_text, tgt_text, tgt_text_all, src_texts, all_scores):
+def translate_text(models, args, src_text, tgt_text, tgt_text_all, src_texts, all_scores, ensemble_generator):
     if len(models) > 1:
         src_ids, src_mask = models[0].prepare_inference_batch(src_text)
         best_translations = ensemble_generator(src_ids, src_mask, return_beam_scores=args.write_scores)
@@ -57,6 +57,7 @@ def translate_text(models, args, src_text, tgt_text, tgt_text_all, src_texts, al
         )
         tgt_text += best_translations
     else:
+        model = models[0]
         best_translations = model.translate(
             text=src_text,
             source_lang=args.source_lang,
@@ -211,6 +212,7 @@ def main():
                     tgt_text_all=tgt_text_all,
                     src_texts=src_texts,
                     all_scores=all_scores,
+                    ensemble_generator=ensemble_generator,
                 )
 
         if len(src_text) > 0:
@@ -222,6 +224,7 @@ def main():
                 tgt_text_all=tgt_text_all,
                 src_texts=src_texts,
                 all_scores=all_scores,
+                ensemble_generator=ensemble_generator,
             )
 
     with open(args.tgtout, 'w') as tgt_f:
