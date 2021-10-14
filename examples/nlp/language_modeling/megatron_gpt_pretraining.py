@@ -56,7 +56,6 @@ def main(cfg) -> None:
     else:
         trainer = Trainer(plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes), NLPPrecisionPlugin()], **cfg.trainer)
 
-    # TODO: possibly add model parallel size arg to exp_manager
     exp_manager(trainer, cfg.exp_manager)
 
     # update resume from checkpoint found by exp_manager

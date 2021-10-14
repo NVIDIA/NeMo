@@ -261,44 +261,32 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         # TODO: make save_to work with always_save_nemo for model parallel
         app_state = AppState()
         if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
-            # each model parallel rank creates a .nemo file
-            # after all .nemo files are created, each rank
-            # will add their checkpoint to global rank 0
 
-            base_dir = os.path.dirname(save_path)  # use the directory to merge mp_rank .nemo files into one
+            dir_name = os.path.dirname(save_path)
 
-            # update save_path based on model parallel_rank
-            base_path = os.path.splitext(save_path)[0]  # everything except the extension
-
-            mp_save_path = f'{base_path}_mp_rank_{app_state.model_parallel_rank:02d}.nemo'
-
-            # first we save .nemo file for each model parallel rank
+            # first we save the weights for each model parallel rank
             if app_state.data_parallel_rank == 0:
-                with tempfile.TemporaryDirectory() as tmpdir:
-                    config_yaml = os.path.join(tmpdir, self.model_config_yaml)
-                    model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
-                    model.to_config_file(path2yaml_file=config_yaml)
-                    if hasattr(model, 'artifacts') and model.artifacts is not None:
-                        self._handle_artifacts(model, nemo_file_folder=tmpdir)
-                        self._update_artifact_paths(model, path2yaml_file=config_yaml)
-                    self._save_state_dict_to_disk(model.state_dict(), model_weights)
-                    self._make_nemo_file_from_folder(filename=mp_save_path, source_dir=tmpdir)
+                mp_model_weights = os.path.join(
+                    dir_name, f'mp_rank_{app_state.model_parallel_rank:02d}_' + self.model_weights_ckpt
+                )
+                self._save_state_dict_to_disk(model.state_dict(), mp_model_weights)
 
             torch.distributed.barrier()
 
-            # create nemo file from folder with all mp_ranks
+            # create nemo file from folder with all mp_ranks checkpoints
             if app_state.model_parallel_rank == 0 and app_state.data_parallel_rank == 0:
                 with tempfile.TemporaryDirectory() as tmpdir:
-                    # extract all tar files
-                    for mp_rank in range(app_state.model_parallel_size):
-                        mp_tar_path = f'{base_path}_mp_rank_{mp_rank:02d}.nemo'
-                        mp_tar = tarfile.open(mp_tar_path, 'r:gz')
-                        mp_tar.extractall(path=os.path.join(tmpdir, f'mp_rank_{mp_rank:02d}'))
-                        mp_tar.close()
-                        os.remove(mp_tar_path)
 
+                    # move weights to the tmpdir
+                    for mp_rank in range(app_state.model_parallel_size):
+                        os.makedirs(os.path.join(tmpdir, f'mp_rank_{mp_rank:02d}'))
+                        mp_model_weights = os.path.join(dir_name, f'mp_rank_{mp_rank:02d}_' + self.model_weights_ckpt)
+                        shutil.move(
+                            mp_model_weights, os.path.join(tmpdir, f'mp_rank_{mp_rank:02d}', self.model_weights_ckpt)
+                        )
+
+                    # create config and artifacts in tmpdir
                     config_yaml = os.path.join(tmpdir, self.model_config_yaml)
-                    model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
                     model.to_config_file(path2yaml_file=config_yaml)
                     if hasattr(model, 'artifacts') and model.artifacts is not None:
                         self._handle_artifacts(model, nemo_file_folder=tmpdir)
