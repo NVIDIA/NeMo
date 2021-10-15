@@ -151,6 +151,8 @@ class MegatronT5Model(NLPModel):
         self.log('reduced_train_loss', averaged_loss[0], prog_bar=True)
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr)
+        self.log('global_step', self.trainer.global_step, prog_bar=True)
+        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step), prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -312,7 +314,7 @@ class MegatronT5Model(NLPModel):
             * self.cfg.micro_batch_size
             * self.trainer.accumulate_grad_batches
         )
-        return consumed_samples
+        return int(consumed_samples)
 
     def on_before_optimizer_step(self, optimizer, optimizer_idx):
         """PTL hook that is called after unscaling gradients when using native amp.
