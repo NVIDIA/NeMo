@@ -105,7 +105,6 @@ class WERBPE_TS(WERBPE):
         self, time_stride, predictions: torch.Tensor, predictions_len: torch.Tensor = None
     ) -> List[str]:
         hypotheses, timestamps, word_timestamps = [], [], []
-        # Drop predictions to CPU
         unk = '⁇'
         prediction_cpu_tensor = predictions.long().cpu()
         # iterate over batch
@@ -244,19 +243,14 @@ def get_wer_feat_logit(audio_file_list, asr, frame_len, tokens_per_chunk, delay,
     hyps = []
     tokens_list = []
     sample_list = []
-    # with open(mfst, "r") as mfst_f:
     for idx, audio_file_path in enumerate(audio_file_list):
-        # if audio_file_path != "/disk2/datasets/amicorpus/TS3007d/audio/TS3007d.Mix-Headset.wav":
-        # continue
         asr.reset()
-        # row = json.loads(l.strip())
         samples = asr.read_audio_file_and_return(audio_file_path, delay, model_stride_in_secs)
         logging.info(f"[{idx+1}/{len(audio_file_list)}] FrameBatchASR: {audio_file_path}")
         hyp, tokens = asr.transcribe_with_ts(tokens_per_chunk, delay)
         hyps.append(hyp)
         tokens_list.append(tokens)
         sample_list.append(samples)
-        # refs.append(row['text'])
     return hyps, tokens_list, sample_list
 
 
