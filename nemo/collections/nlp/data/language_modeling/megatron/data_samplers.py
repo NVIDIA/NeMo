@@ -17,6 +17,8 @@
 
 import torch
 
+from nemo.utils import logging
+
 
 class MegatronPretrainingSampler:
     def __init__(
@@ -29,6 +31,10 @@ class MegatronPretrainingSampler:
         self.data_parallel_rank = data_parallel_rank
         self.micro_batch_times_data_parallel_size = self.micro_batch_size * data_parallel_size
         self.drop_last = drop_last
+
+        logging.info(
+            f'Instantiating MegatronPretrainingSampler with total_samples: {total_samples} and consumed_samples: {consumed_samples}'
+        )
 
         # Sanity checks.
         assert self.total_samples > 0, 'no sample to consume: {}'.format(self.total_samples)
