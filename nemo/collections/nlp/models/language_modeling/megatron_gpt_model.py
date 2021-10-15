@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from typing import Any, Dict, Optional
+import re
 
 import torch
 from apex.transformer import parallel_state, tensor_parallel
@@ -221,6 +222,7 @@ class MegatronGPTModel(NLPModel):
         if dataset is None:
             return None
 
+        logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
         # Megatron sampler
         if self.cfg.data.dataloader_type == 'single':
             batch_sampler = MegatronPretrainingSampler(
@@ -256,9 +258,11 @@ class MegatronGPTModel(NLPModel):
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
-            if self.trainer.checkpoint_connector._loaded_checkpoint:
-                global_step = self.trainer.checkpoint_connector._loaded_checkpoint['global_step']
-                consumed_samples = self.compute_consumed_samples(global_step)
+            resume_checkpoint_path = self.trainer.checkpoint_connector.resume_checkpoint_path
+            if resume_checkpoint_path:
+                consumed_samples = int(
+                    float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
+                )
             else:
                 consumed_samples = 0
             self._train_dl = self.build_pretraining_data_loader(self._train_ds, consumed_samples)
@@ -281,7 +285,7 @@ class MegatronGPTModel(NLPModel):
             * self.cfg.micro_batch_size
             * self.trainer.accumulate_grad_batches
         )
-        return consumed_samples
+        return int(consumed_samples)
 
     def on_before_optimizer_step(self, optimizer, optimizer_idx):
         """PTL hook that is called after unscaling gradients when using native amp.
