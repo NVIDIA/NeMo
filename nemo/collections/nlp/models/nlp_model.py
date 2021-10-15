@@ -61,16 +61,16 @@ class NLPModel(ModelPT, Exportable):
 
         if trainer.precision == 32:
             if cfg.fused_bf16 or cfg.fused_fp16:
-                raise ValueError(f"Cannot use fp16/bf16 fused kernels with trainer.precision=32")
+                raise ValueError(f"Cannot use fp16/bf16 fused kernels with trainer.precision=32. If you are restoring a model, please update the config or supply the appropriate overrides and restore again.")
         # trainer.precision only stores 'mixed' here instead of 16/bf16. TODO: Figure out a better way to check if fp16/bf16?
         elif not trainer.precision_plugin.is_bfloat16:
             if cfg.fused_bf16:
-                raise ValueError(f"Cannot use bf16 fused kernels with trainer.precision=16, set fused_fp16=True instead")
+                raise ValueError(f"Cannot use bf16 fused kernels with trainer.precision=16, set fused_fp16=True instead. If you are restoring a model, please update the config or supply the appropriate overrides and restore again.")
             if not cfg.fused_fp16:
                 logging.info(f"Found model.fused_fp16=False, you can set model.fused_fp16=True to make your model faster.")
         else:
             if cfg.fused_fp16:
-                raise ValueError(f"Cannot use fp16 fused kernels with trainer.precision=bf16, set fused_bf16=True instead")
+                raise ValueError(f"Cannot use fp16 fused kernels with trainer.precision=bf16, set fused_bf16=True instead. If you are restoring a model, please update the config or supply the appropriate overrides and restore again.")
             if not cfg.fused_bf16:
                 logging.info(f"Found model.fused_bf16=False, you can set model.fused_bf16=True to make your model faster.")
 
