@@ -206,7 +206,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecJointModel):
 
     @torch.no_grad()
     def transcribe(
-        self, paths2audio_files: List[str], batch_size: int = 4, return_hypotheses: bool = False
+        self, paths2audio_files: List[str], batch_size: int = 4, return_hypotheses: bool = False, num_workers: int = 0
     ) -> (List[str], Optional[List['Hypothesis']]):
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
@@ -220,6 +220,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecJointModel):
         Bigger will result in better throughput performance but would use more memory.
             return_hypotheses: (bool) Either return hypotheses or text
         With hypotheses can do some postprocessing like getting timestamp or rescoring
+            num_workers: (int) Number of workers for dataloader
 
         Returns:
             A list of transcriptions in the same order as paths2audio_files. Will also return
@@ -254,7 +255,8 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecJointModel):
                         entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
                         fp.write(json.dumps(entry) + '\n')
 
-                config = {'paths2audio_files': paths2audio_files, 'batch_size': batch_size, 'temp_dir': tmpdir}
+                config = {'paths2audio_files': paths2audio_files, 'batch_size': batch_size, 'temp_dir': tmpdir,
+                          'num_workers': num_workers}
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
                 for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):

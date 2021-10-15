@@ -354,6 +354,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             'sample_rate': self.preprocessor._sample_rate,
             'batch_size': min(config['batch_size'], len(config['paths2audio_files'])),
             'shuffle': False,
+            'num_workers': config.get('num_workers', 0)
         }
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
