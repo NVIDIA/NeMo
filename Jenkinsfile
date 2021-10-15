@@ -53,19 +53,7 @@ pipeline {
       }
     }
 
-    // stage('Install latest apex') {
-    //   steps {
-    //     sh 'pip uninstall -y apex'
-    //     sh 'cd / && git clone https://github.com/NVIDIA/apex.git && cd apex && pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./'
-    //   }
-    // }
-
-    // stage('Install PyTorch Lighting from Sandeep Fork') {
-    //   steps{
-    //     sh 'cd / && git clone https://github.com/MaximumEntropy/pytorch-lightning.git && cd pytorch-lightning && pip install .'
-    //   }
-    // }
-
+    // Revert once import guards are added by PTL or version comparing is fixed
     stage('Install PyTorch Lighting 1.5 RC') {
       steps{
         sh 'pip install pytorch-lightning==1.5.0rc0 && sed -i "s/from pytorch_lightning.callbacks.quantization import QuantizationAwareTraining/try:\\n\\tfrom pytorch_lightning.callbacks.quantization import QuantizationAwareTraining\\nexcept:\\n\\tpass/g" /opt/conda/lib/python3.8/site-packages/pytorch_lightning/callbacks/__init__.py'
@@ -78,6 +66,7 @@ pipeline {
       }
     }
 
+    // remove make once we add online compilation
     stage('Installation') {
       steps {
         sh './reinstall.sh release'

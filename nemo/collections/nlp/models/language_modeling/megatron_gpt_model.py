@@ -222,7 +222,6 @@ class MegatronGPTModel(NLPModel):
         if dataset is None:
             return None
 
-        logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
         # Megatron sampler
         if self.cfg.data.dataloader_type == 'single':
             batch_sampler = MegatronPretrainingSampler(
@@ -265,16 +264,25 @@ class MegatronGPTModel(NLPModel):
                 )
             else:
                 consumed_samples = 0
+            logging.info(
+                f'Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}'
+            )
             self._train_dl = self.build_pretraining_data_loader(self._train_ds, consumed_samples)
 
     def setup_validation_data(self, cfg):
         if hasattr(self, '_validation_ds'):
             consumed_samples = 0
+            logging.info(
+                f'Setting up validation dataloader with len(len(self._validation_ds)): {len(self._validation_ds)} and consumed samples: {consumed_samples}'
+            )
             self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples)
 
     def setup_test_data(self, cfg):
         if hasattr(self, '_test_ds'):
             consumed_samples = 0
+            logging.info(
+                f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
+            )
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
 
     def compute_consumed_samples(self, global_step):

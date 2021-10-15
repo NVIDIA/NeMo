@@ -112,7 +112,6 @@ class TestOptimizersSchedulers:
     MAX_STEPS = 10
 
     # fused_adam is looking for CUDA and this test is being run on CPU only tests
-    @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_get_optimizer(self):
         model = TempModel()
