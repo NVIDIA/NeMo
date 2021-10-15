@@ -484,8 +484,121 @@ Conformer-Transducer
 
 Please refer to the model page of `Conformer-Transducer <./models.html#Conformer-Transducer>`__ for more information on this model.
 
-Fine-tuning Configurations
+Transducer Configurations
 -------------------------
+
+All CTC-based ASR model configs can be modified to support Transducer loss training. Below, we discuss the modifications required in the config to enable Transducer training. All modifications are made to the ``model`` config.
+
+Model Defaults
+~~~~~~~~~~~~~~~~~~~~
+
+It is a subsection to the model config representing the default values shared across the entire model represented as ``model.model_defaults``.
+
+There are three values that are primary components of a transducer model. They are :
+
+* ``enc_hidden``: The hidden dimension of the final layer of the Encoder network.
+* ``pred_hidden``: The hidden dimension of the final layer of the Prediction network.
+* ``joint_hidden``: The hidden dimension of the intermediate layer of the Joint network.
+
+One can access these values inside the config by using OmegaConf interpolation as follows :
+
+.. code-block:: yaml
+
+    model:
+      ...
+      model_defaults:
+        enc_hidden: 256
+        pred_hidden: 256
+        joint_hidden: 256
+      ...
+      decoder:
+        ...
+        prednet:
+          pred_hidden: ${model.model_defaults.pred_hidden}
+
+Acoustic Encoder Model
+~~~~~~~~~~~~~~~~~~~~~~
+
+The transducer model is comprised of three models combined. One of these models is the Acoustic (encoder) model. We should be able to drop in any CTC Acoustic model config into this section of the transducer config.
+
+The only condition that needs to be met is that **the final layer of the acoustic model must have the hidden dimension defined in ``model_defaults.enc_hidden``**.
+
+Decoder / Prediction Model
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The Prediction model is generally an autoregressive, causal model that consumes text tokens and returns embeddings that will be used by the Joint model. The base config for an LSTM based Prediction network can be found in the the ``decoder`` section of `ContextNet <./models.html#ContextNet>`__ or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
+
+**This config can be copy-pasted into any custom transducer model with no modification.**
+
+Let us discuss some of the important arguments:
+
+* ``blank_as_pad``: In ordinary transducer models, the embedding matrix does not acknowledge the ``Transducer Blank`` token (similar to CTC Blank). However, this causes the autoregressive loop to be more complicated and less efficient. Instead, this flag which is set by default, will add the ``Transducer Blank`` token to the embedding matrix - and use it as a pad value (zeros tensor). This enables more efficient inference without harming training. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
+
+* ``prednet.pred_hidden``: The hidden dimension of the LSTM and the output dimension of the Prediction network.
+
+Joint Model
+~~~~~~~~~~~
+
+The Joint model is a simple feed-forward Multi-Layer Perceptron network. This MLP accepts the output of the Acoustic and Prediction models and computes a joint probability distribution over the entire vocabulary space. The base config for the Joint network can be found in the the ``joint`` section of `ContextNet <./models.html#ContextNet>`__ or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
+
+**This config can be copy-pasted into any custom transducer model with no modification.**
+
+The Joint model config has several essential components which we discuss below :
+
+* ``log_softmax``: Due to the cost of computing softmax on such large tensors, the Numba CUDA implementation of RNNT loss will implicitly compute the log softmax when called (so its inputs should be logits). The CPU version of the loss doesn't face such memory issues so it requires log-probabilities instead. Since the behaviour is different for CPU-GPU, the ``None`` value will automatically switch behaviour dependent on whether the input tensor is on a CPU or GPU device.
+
+* ``preserve_memory``: This flag will call ``torch.cuda.empty_cache()`` at certain critical sections when computing the Joint tensor. While this operation might allow us to preserve some memory, the empty_cache() operation is tremendously slow and will slow down training by an order of magnitude or more. It is available to use but not recommended.
+
+* ``fuse_loss_wer``: This flag performs "batch splitting" and then "fused loss + metric" calculation. It will be discussed in detail in the next tutorial that will train a Transducer model.
+
+* ``fused_batch_size``: When the above flag is set to True, the model will have two distinct "batch sizes". The batch size provided in the three data loader configs (``model.*_ds.batch_size``) will now be the ``Acoustic model`` batch size, whereas the ``fused_batch_size`` will be the batch size of the ``Prediction model``, the ``Joint model``, the ``transducer loss`` module and the ``decoding`` module.
+
+* ``jointnet.joint_hidden``: The hidden intermediate dimension of the joint network.
+
+Transducer Decoding
+~~~~~~~~~~~~~~~~~~~
+
+Models which have been trained with CTC can transcribe text simply by performing a regular argmax over the output of their decoder. For transducer-based models, the three networks must operate in a synchronized manner in order to transcribe the acoustic features. The base config for the Transducer decoding step can be found in the the ``decoding`` section of `ContextNet <./models.html#ContextNet>`__ or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
+
+**This config can be copy-pasted into any custom transducer model with no modification.**
+
+The most important component at the top level is the ``strategy``. It can take one of many values:
+
+* ``greedy``: This is sample-level greedy decoding. It is generally exceptionally slow as each sample in the batch will be decoded independently. For publications, this should be used alongside batch size of 1 for exact results.
+
+* ``greedy_batch``: This is the general default and should nearly match the ``greedy`` decoding scores (if the acoustic features are not affected by feature mixing in batch mode). Even for small batch sizes, this strategy is significantly faster than ``greedy``.
+
+* ``beam``: Runs beam search with the implicit language model of the Prediction model. It will generally be quite slow, and might need some tuning of the beam size to get better transcriptions.
+
+* ``tsd``: Time synchronous decoding. Please refer to the paper: `Alignment-Length Synchronous Decoding for RNN Transducer <https://ieeexplore.ieee.org/document/9053040>`_ for details on the algorithm implemented. Time synchronous decoding (TSD) execution time grows by the factor T * max_symmetric_expansions. For longer sequences, T is greater and can therefore take a long time for beams to obtain good results. TSD also requires more memory to execute.
+
+* ``alsd``: Alignment-length synchronous decoding. Please refer to the paper: `Alignment-Length Synchronous Decoding for RNN Transducer <https://ieeexplore.ieee.org/document/9053040>`_ for details on the algorithm implemented. Alignment-length synchronous decoding (ALSD) execution time is faster than TSD, with a growth factor of T + U_max, where U_max is the maximum target length expected during execution. Generally, T + U_max < T * max_symmetric_expansions. However, ALSD beams are non-unique. Therefore it is required to use larger beam sizes to achieve the same (or close to the same) decoding accuracy as TSD. For a given decoding accuracy, it is possible to attain faster decoding via ALSD than TSD.
+
+* ``maes``: Modified Adaptive Expansion Search Decoding. Please refer to the paper `Accelerating RNN Transducer Inference via Adaptive Expansion Search <https://ieeexplore.ieee.org/document/9250505>`_. Modified Adaptive Synchronous Decoding (mAES) execution time is adaptive w.r.t the number of expansions (for tokens) required per timestep. The number of expansions can usually be constrained to 1 or 2, and in most cases 2 is sufficient. This beam search technique can possibly obtain superior WER while sacrificing some evaluation time.
+
+Transducer Loss
+~~~~~~~~~~~~~~~
+
+This section configures the type of Transducer loss itself, along with possible sub-sections. By default, an optimized implementation of Transducer loss will be used which depends on Numba for CUDA acceleration. The base config for the Transducer loss section can be found in the the ``loss`` section of `ContextNet <./models.html#ContextNet>`__ or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
+
+**This config can be copy-pasted into any custom transducer model with no modification.**
+
+The loss config is based on a resolver pattern and can be used as follows:
+
+1) ``loss_name``: ``default`` is generally a good option. Will select one of the available resolved losses and match the kwargs from a sub-configs passed via explicit ``{loss_name}_kwargs`` sub-config.
+
+2) ``{loss_name}_kwargs``: This sub-config is passed to the resolved loss above and can be used to configure the resolved loss.
+
+FastEmit Regularization
+^^^^^^^^^^^^^^^^^^^^^^^
+
+FastEmit Regularization is supported for the default Numba based WarpRNNT loss. Recently proposed regularization approach - `FastEmit: Low-latency Streaming ASR with Sequence-level Emission Regularization <https://arxiv.org/abs/2010.11148>`_ allows us near-direct control over the latency of transducer models.
+
+Refer to the above paper for results and recommendations of ``fastemit_lambda``.
+
+
+Fine-tuning Configurations
+--------------------------
 
 All ASR scripts support easy fine-tuning by partially/fully loading the pretrained weights from a checkpoint into the currently instantiated model. Pre-trained weights can be provided in multiple ways -
 
