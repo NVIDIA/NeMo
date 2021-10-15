@@ -14,6 +14,7 @@
 
 import re
 from typing import Any, Dict, Optional
+import re
 
 import torch
 from apex.transformer import parallel_state, tensor_parallel
@@ -231,6 +232,7 @@ class MegatronGPTModel(NLPModel):
         if dataset is None:
             return None
 
+        logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
         # Megatron sampler
         if hasattr(self.cfg.data, 'dataloader_type') and self.cfg.data.dataloader_type is not None:
             if self.cfg.data.dataloader_type == 'single':
