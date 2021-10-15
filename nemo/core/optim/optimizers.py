@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional, Union
 import hydra
 import torch.optim as optim
 from omegaconf import DictConfig, OmegaConf
+import torch
 from torch.optim import adadelta, adagrad, adamax, rmsprop, rprop
 from torch.optim.optimizer import Optimizer
 
@@ -167,6 +168,9 @@ def get_optimizer(name: str, **kwargs: Optional[Dict[str, Any]]) -> Optimizer:
         raise ValueError(
             f"Cannot resolve optimizer '{name}'. Available optimizers are : " f"{AVAILABLE_OPTIMIZERS.keys()}"
         )
+    if name == 'fused_adam':
+        if not torch.cuda.is_available():
+            raise ValueError(f'CUDA must be available to use fused_adam.')
 
     optimizer = AVAILABLE_OPTIMIZERS[name]
     optimizer = partial(optimizer, **kwargs)

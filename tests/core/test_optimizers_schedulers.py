@@ -117,6 +117,9 @@ class TestOptimizersSchedulers:
         model = TempModel()
 
         for opt_name in AVAILABLE_OPTIMIZERS.keys():
+            if opt_name == 'fused_adam':
+                if not torch.cuda.is_available():
+                    continue
             opt_cls = optim.get_optimizer(opt_name)
             opt = opt_cls(model.parameters(), lr=self.INITIAL_LR)
 

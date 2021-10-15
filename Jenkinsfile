@@ -66,7 +66,7 @@ pipeline {
       }
     }
 
-    // remove make once we add online compilation
+    // remove make once we add online compilation for megatron helpers
     stage('Installation') {
       steps {
         sh './reinstall.sh release'
@@ -79,12 +79,12 @@ pipeline {
         sh 'python -c "import pytorch_lightning; print(pytorch_lightning.__version__)"'
       }
     }
-    // TODO: add after 21.10 container is out
-    // stage('PyTorch Lightning DDP Checks') {
-    //   steps {
-    //     sh 'python "tests/core_ptl/check_for_ranks.py"'
-    //   }
-    // }
+
+    stage('PyTorch Lightning DDP Checks') {
+      steps {
+        sh 'python "tests/core_ptl/check_for_ranks.py"'
+      }
+    }
 
     stage('Basic Import Checks') {
       steps {
