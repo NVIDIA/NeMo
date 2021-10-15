@@ -20,12 +20,12 @@ from abc import ABC
 
 import numpy as np
 import torch
-from megatron import get_args, get_tokenizer
 from apex.transformer import tensor_parallel
-from nemo.utils import logging
+from megatron import get_args, get_tokenizer
 from torch.utils.data import Dataset
 
 from nemo.collections.nlp.data.language_modeling.megatron.biencoder_dataset_utils import make_attention_mask
+from nemo.utils import logging
 
 
 def get_open_retrieval_wiki_dataset():

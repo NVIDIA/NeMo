@@ -14,5 +14,5 @@
 
 # from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertModel
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
-# from nemo.collections.nlp.models.language_modeling.megatron.t5_model import T5Model
 
+# from nemo.collections.nlp.models.language_modeling.megatron.t5_model import T5Model

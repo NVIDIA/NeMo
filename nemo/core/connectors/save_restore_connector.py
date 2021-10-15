@@ -19,11 +19,11 @@ import tarfile
 import tempfile
 import uuid
 from typing import Optional, Union
-from pytorch_lightning.trainer.trainer import Trainer
 
 import torch
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.omegaconf import open_dict
+from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState

@@ -17,9 +17,6 @@
 import os
 
 import torch
-
-
-from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from apex.transformer.enums import AttnMaskType
 from apex.transformer.parallel_state import (
     get_model_parallel_group,
@@ -30,6 +27,7 @@ from apex.transformer.parallel_state import (
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
+from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from nemo.core.classes import typecheck
 from nemo.utils import logging
 from nemo.utils.app_state import AppState

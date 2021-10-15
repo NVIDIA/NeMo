@@ -149,6 +149,7 @@ class TimingCallback(Callback):
     def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
         self._on_batch_end("test_step_timing", pl_module)
 
+
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Path:
     """
     exp_manager is a helper function used to manage folders for experiments. It follows the pytorch lightning paradigm

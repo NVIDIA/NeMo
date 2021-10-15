@@ -38,11 +38,11 @@ import time
 import numpy as np
 import torch
 from apex.transformer import parallel_state
-from nemo.utils import logging
 
 from nemo.collections.nlp.data.language_modeling.megatron import helpers
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
+from nemo.utils import logging
 
 DSET_TYPE_BERT = 'standard_bert'
 DSET_TYPE_ICT = 'ict'

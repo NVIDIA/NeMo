@@ -22,7 +22,6 @@ from omegaconf import DictConfig, OmegaConf
 from torch.optim import adadelta, adagrad, adamax, rmsprop, rprop
 from torch.optim.optimizer import Optimizer
 
-
 from nemo.core.config import OptimizerParams, get_optimizer_config, register_optimizer_params
 from nemo.core.optim.novograd import Novograd
 from nemo.core.optim.adafactor import Adafactor

@@ -34,8 +34,9 @@ __all__ = ['get_tokenizer', 'get_tokenizer_list']
 megatron_tokenizer_model_map = {
     'BertWordPieceLowerCase': 'megatron-bert-345m-uncased',
     'BertWordPieceCase': 'megatron-bert-345m-cased',
-    'GPT2BPETokenizer': 'megatron-gpt-345m'
+    'GPT2BPETokenizer': 'megatron-gpt-345m',
 }
+
 
 def get_tokenizer_list() -> List[str]:
     """
@@ -111,7 +112,11 @@ def get_tokenizer(
         f"Getting HuggingFace AutoTokenizer with pretrained_model_name: {tokenizer_name}, vocab_file: {vocab_file}, special_tokens_dict: {special_tokens_dict}, and use_fast: {use_fast}"
     )
     return AutoTokenizer(
-        pretrained_model_name=tokenizer_name, vocab_file=vocab_file, merges_file=merges_file, **special_tokens_dict, use_fast=use_fast
+        pretrained_model_name=tokenizer_name,
+        vocab_file=vocab_file,
+        merges_file=merges_file,
+        **special_tokens_dict,
+        use_fast=use_fast,
     )
 
 
@@ -149,7 +154,11 @@ def get_nmt_tokenizer(
     elif library == 'huggingface':
         logging.info(f'Getting HuggingFace AutoTokenizer with pretrained_model_name: {model_name}')
         return AutoTokenizer(
-            pretrained_model_name=model_name, vocab_file=vocab_file, merges_file=merges_file, **special_tokens_dict, use_fast=use_fast
+            pretrained_model_name=model_name,
+            vocab_file=vocab_file,
+            merges_file=merges_file,
+            **special_tokens_dict,
+            use_fast=use_fast,
         )
     elif library == 'sentencepiece':
         logging.info(f'Getting SentencePiece with model: {tokenizer_model}')

@@ -15,8 +15,8 @@
 from abc import ABC, abstractmethod
 
 import torch
-from megatron import get_args
 from apex.transformer import tensor_parallel
+from megatron import get_args
 from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
 
 from .module import MegatronModule

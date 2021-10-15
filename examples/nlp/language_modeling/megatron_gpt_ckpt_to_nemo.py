@@ -14,12 +14,14 @@
 
 
 import os
+from argparse import ArgumentParser
+
 import torch.multiprocessing as mp
+from pytorch_lightning.trainer.trainer import Trainer
+
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from nemo.utils import app_state, logging, AppState
-from pytorch_lightning.trainer.trainer import Trainer
-from argparse import ArgumentParser
+from nemo.utils import AppState, app_state, logging
 
 
 def get_args():

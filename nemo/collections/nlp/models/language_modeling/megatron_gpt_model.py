@@ -13,8 +13,10 @@
 # limitations under the License.
 
 from typing import Any, Dict, Optional
+import re
+
 import torch
-from apex.transformer import tensor_parallel, parallel_state
+from apex.transformer import parallel_state, tensor_parallel
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -25,16 +27,16 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
 from nemo.collections.nlp.modules.common.megatron.megatron_init import (
     initialize_model_parallel_for_nemo,
     set_jit_fusion_options,
 )
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_ltor_masks_and_position_ids,
 )
-from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPNativeMixedPrecisionPlugin
 from nemo.utils import AppState, logging
 
@@ -220,6 +222,7 @@ class MegatronGPTModel(NLPModel):
         if dataset is None:
             return None
 
+        logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
         # Megatron sampler
         if self.cfg.data.dataloader_type == 'single':
             batch_sampler = MegatronPretrainingSampler(
@@ -255,9 +258,11 @@ class MegatronGPTModel(NLPModel):
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
-            if self.trainer.checkpoint_connector._loaded_checkpoint:
-                global_step = self.trainer.checkpoint_connector._loaded_checkpoint['global_step']
-                consumed_samples = self.compute_consumed_samples(global_step)
+            resume_checkpoint_path = self.trainer.checkpoint_connector.resume_checkpoint_path
+            if resume_checkpoint_path:
+                consumed_samples = int(
+                    float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
+                )
             else:
                 consumed_samples = 0
             self._train_dl = self.build_pretraining_data_loader(self._train_ds, consumed_samples)
@@ -280,7 +285,7 @@ class MegatronGPTModel(NLPModel):
             * self.cfg.micro_batch_size
             * self.trainer.accumulate_grad_batches
         )
-        return consumed_samples
+        return int(consumed_samples)
 
     def on_before_optimizer_step(self, optimizer, optimizer_idx):
         """PTL hook that is called after unscaling gradients when using native amp.
