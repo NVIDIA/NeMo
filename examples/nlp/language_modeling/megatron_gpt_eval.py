@@ -52,7 +52,9 @@ def main():
 
     args = parser.parse_args()
 
-    torch.set_grad_enabled(False)
+    # cast precision to int if 32 or 16
+    if args.precision in ["32", "16"]:
+        args.precision = int(float(args.precision))
 
     # trainer required for restoring model parallel models
     trainer = Trainer(plugins=NLPDDPPlugin(), gpus=args.tensor_model_parallel_size, precision=args.precision)
@@ -63,6 +65,8 @@ def main():
         app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
 
     model = MegatronGPTModel.restore_from(restore_path=args.model_file, trainer=trainer)
+
+    model.freeze()
 
     request = {
         "prompt": args.prompt,
