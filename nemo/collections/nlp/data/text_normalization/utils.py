@@ -37,7 +37,7 @@ def input_preprocessing(sent: str, lang: str):
     such as Δ or λ (if any).
 
     Args:
-        sents: input text.
+        sent: input text.
         lang: language
 
     Returns: preprocessed input text.
@@ -138,12 +138,9 @@ def process_url(tokens: List[str], outputs: List[str], lang: str):
     return outputs
 
 
-def normalize_str(input_str, lang):
+def normalize_str(input_str):
     """ Normalize an input string """
-    input_str_tokens = basic_tokenize(input_str.strip().lower(), lang)
-    input_str = ' '.join(input_str_tokens)
-    input_str = input_str.replace('  ', ' ')
-    return input_str
+    return input_str.strip().lower().replace("  ", " ")
 
 
 def remove_puncts(input_str):

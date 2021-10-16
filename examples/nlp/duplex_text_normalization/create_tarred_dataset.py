@@ -126,7 +126,6 @@ def _write_batches_to_tarfiles(
         max_len=max_seq_len,
         decoder_data_augmentation=decoder_data_augmentation,
         lang=lang,
-        do_basic_tokenize=False,
         use_cache=False,
         max_insts=-1,
         do_tokenize=False,
@@ -187,12 +186,12 @@ if __name__ == '__main__':
     parser.add_argument(
         '--num_batches_per_tarfile',
         type=int,
-        default=2,
+        default=1000,
         help='Number batches, i.e., pickle files, included in a single .tar file.',
     )
     parser.add_argument('--n_jobs', type=int, default=-2, help='The maximum number of concurrently running jobs.')
     parser.add_argument(
-        '--batch_size', type=int, default=16, help='Batch size, i.e., number of examples in a single pickle file'
+        '--batch_size', type=int, default=32, help='Batch size, i.e., number of examples in a single pickle file'
     )
     parser.add_argument(
         '--factor', default=8, type=int, help='The final number of tar files will be divisible by the "factor" value'

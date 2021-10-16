@@ -27,8 +27,9 @@ from torch.utils.data import IterableDataset
 from tqdm import tqdm
 from transformers import PreTrainedTokenizerBase
 
+from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 from nemo.collections.nlp.data.text_normalization import constants
-from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize, read_data_file
+from nemo.collections.nlp.data.text_normalization.utils import read_data_file
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 from nemo.utils.decorators.experimental import experimental
@@ -58,7 +59,6 @@ class TextNormalizationDecoderDataset(Dataset):
             instances that may help the decoder become more robust against the tagger's errors.
             Refer to the doc for more info.
         lang: language of the dataset
-        do_basic_tokenize: a flag indicates whether to do some basic tokenization for the inputs
         use_cache: Enables caching to use pickle format to store and read data from
         max_insts: Maximum number of instances (-1 means no limit)
         do_tokenize: Tokenize each instance (set to False for Tarred dataset)
@@ -75,7 +75,6 @@ class TextNormalizationDecoderDataset(Dataset):
         max_len: int = 512,
         decoder_data_augmentation: bool = False,
         lang: str = "en",
-        do_basic_tokenize: bool = False,
         use_cache: bool = False,
         max_insts: int = -1,
         do_tokenize: bool = True,
@@ -95,7 +94,7 @@ class TextNormalizationDecoderDataset(Dataset):
         data_dir, filename = os.path.split(input_file)
         tokenizer_name_normalized = tokenizer_name.replace('/', '_')
         cached_data_file = os.path.join(
-            data_dir, f'cached_decoder_{filename}_{tokenizer_name_normalized}_{lang}_{max_insts}_{mode}_{max_len}.pkl'
+            data_dir, f'cached_decoder_{filename}_{tokenizer_name_normalized}_{lang}_{max_insts}_{mode}_{max_len}.pkl',
         )
 
         if use_cache and os.path.exists(cached_data_file):
@@ -117,7 +116,7 @@ class TextNormalizationDecoderDataset(Dataset):
 
             logging.debug(f"Converting raw instances to DecoderDataInstance for {input_file}...")
             self.insts, all_semiotic_classes = self.__process_raw_entries(
-                raw_instances, decoder_data_augmentation=decoder_data_augmentation, do_basic_tokenize=do_basic_tokenize
+                raw_instances, decoder_data_augmentation=decoder_data_augmentation
             )
             logging.debug(
                 f"Extracted {len(self.insts)} DecoderDateInstances out of {len(raw_instances)} raw instances."
@@ -134,7 +133,7 @@ class TextNormalizationDecoderDataset(Dataset):
                 logging.debug(f'Processing samples, total number: {len(self.insts)}')
                 self.__tokenize_samples(use_cache=use_cache, cached_data_file=cached_data_file)
 
-    def __process_raw_entries(self, raw_instances: List[Tuple[str]], decoder_data_augmentation, do_basic_tokenize):
+    def __process_raw_entries(self, raw_instances: List[Tuple[str]], decoder_data_augmentation):
         """
         Converts raw instances to DecoderDataInstance
 
@@ -142,7 +141,6 @@ class TextNormalizationDecoderDataset(Dataset):
         decoder_data_augmentation (bool): a flag indicates whether to augment the dataset with additional data
             instances that may help the decoder become more robust against the tagger's errors.
             Refer to the doc for more info.
-        do_basic_tokenize: a flag indicates whether to do some basic tokenization for the inputs
 
         Returns:
             converted instances and all semiotic classes present in the data
@@ -161,14 +159,7 @@ class TextNormalizationDecoderDataset(Dataset):
                         continue
                     # Create a DecoderDataInstance
                     inst = DecoderDataInstance(
-                        w_words,
-                        s_words,
-                        inst_dir,
-                        start_idx=ix,
-                        end_idx=ix + 1,
-                        lang=self.lang,
-                        semiotic_class=_class,
-                        do_basic_tokenize=do_basic_tokenize,
+                        w_words, s_words, inst_dir, start_idx=ix, end_idx=ix + 1, lang=self.lang, semiotic_class=_class
                     )
                     insts.append(inst)
 
@@ -183,7 +174,6 @@ class TextNormalizationDecoderDataset(Dataset):
                             end_idx=ix + 1 + noise_right,
                             semiotic_class=_class,
                             lang=self.lang,
-                            do_basic_tokenize=do_basic_tokenize,
                         )
                         insts.append(inst)
 
@@ -358,7 +348,6 @@ class DecoderDataInstance:
         end_idx: The ending index of the input span (exclusively)
         lang: Language of the instance
         semiotic_class: The semiotic class of the input span (can be set to None if not available)
-        do_basic_tokenize: a flag indicates whether to do some basic tokenization for the inputs
     """
 
     def __init__(
@@ -370,8 +359,8 @@ class DecoderDataInstance:
         end_idx: int,
         lang: str,
         semiotic_class: str = None,
-        do_basic_tokenize: bool = False,
     ):
+        processor = MosesProcessor(lang_id=lang)
         start_idx = max(start_idx, 0)
         end_idx = min(end_idx, len(w_words))
         ctx_size = constants.DECODE_CTX_SIZE
@@ -409,11 +398,16 @@ class DecoderDataInstance:
                 c_s_words[jx] = c_w_words[jx]
 
         # Extract input_words and output_words
-        if do_basic_tokenize:
-            c_w_words = basic_tokenize(' '.join(c_w_words), lang)
-            c_s_words = basic_tokenize(' '.join(c_s_words), lang)
+        c_w_words = processor.tokenize(' '.join(c_w_words)).split()
+        c_s_words = processor.tokenize(' '.join(c_s_words)).split()
+
+        # for cases when nearby words are actually multiple tokens, e.g. '1974,'
+        w_left = processor.tokenize(' '.join(w_left)).split()[-constants.DECODE_CTX_SIZE :]
+        w_right = processor.tokenize(' '.join(w_right)).split()[: constants.DECODE_CTX_SIZE]
+
         w_input = w_left + [extra_id_0] + c_w_words + [extra_id_1] + w_right
         s_input = s_left + [extra_id_0] + c_s_words + [extra_id_1] + s_right
+
         if inst_dir == constants.INST_BACKWARD:
             input_center_words = c_s_words
             input_words = [constants.ITN_PREFIX] + s_input
