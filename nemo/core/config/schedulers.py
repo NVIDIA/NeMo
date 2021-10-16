@@ -26,6 +26,15 @@ class SchedulerParams:
 
     last_epoch: int = -1
 
+@dataclass
+class SquareRootConstantSchedulerParams(SchedulerParams):
+    """
+    Base configuration for all schedulers.
+    It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
+    """
+
+    constant_steps: Optional[float] = None
+    constant_ratio: Optional[float] = None
 
 @dataclass
 class WarmupSchedulerParams(SchedulerParams):
@@ -255,6 +264,7 @@ AVAILABLE_SCHEDULER_PARAMS = {
     'SquareAnnealingParams': SquareAnnealingParams,
     'SquareRootAnnealingParams': SquareRootAnnealingParams,
     'InverseSquareRootAnnealingParams': InverseSquareRootAnnealingParams,
+    'SquareRootConstantSchedulerParams': SquareRootConstantSchedulerParams,
     'CosineAnnealingParams': CosineAnnealingParams,
     'NoamAnnealingParams': NoamAnnealingParams,
     'WarmupAnnealingParams': WarmupAnnealingParams,
