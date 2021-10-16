@@ -81,6 +81,56 @@ class WarmupPolicy(_LRScheduler):
         """Simple const lr policy"""
         return self.base_lrs
 
+class SquareRootConstantPolicy(_LRScheduler):
+    """Adds warmup kwargs and warmup logic to lr policy.
+    All arguments should be passed as kwargs for clarity,
+    Args:
+        warmup_steps: Number of training steps in warmup stage
+        warmup_ratio: Ratio of warmup steps to total steps
+        max_steps: Total number of steps while training or `None` for
+            infinite training
+    """
+
+    def __init__(self, optimizer, *, constant_steps=None, constant_ratio=None, max_steps=None, min_lr=0.0, last_epoch=-1):
+        assert not (
+            constant_steps is not None and constant_ratio is not None
+        ), "Either use particular number of step or ratio"
+        assert constant_ratio is None or max_steps is not None, "If there is a ratio, there should be a total steps"
+
+        # It is necessary to assign all attributes *before* __init__,
+        # as class is wrapped by an inner class.
+        self.max_steps = max_steps
+        if constant_steps is not None:
+            self.constant_steps = constant_steps
+        elif constant_ratio is not None:
+            self.constant_steps = int(constant_ratio * max_steps)
+        else:
+            self.constant_steps = 0
+
+        self.constant_lr = 1 / (constant_steps ** 0.5)
+        self.min_lr = min_lr
+        super().__init__(optimizer, last_epoch)
+
+    def get_lr(self):
+        if not self._get_lr_called_within_step:
+            warnings.warn(
+                "To get the last learning rate computed by the scheduler, please use `get_last_lr()`.", UserWarning
+            )
+
+        step = self.last_epoch
+
+        if step <= self.constant_steps:
+            return [self.constant_lr for _ in self.base_lrs]
+
+        if step > self.max_steps:
+            return [self.min_lr for _ in self.base_lrs]
+
+        return self._get_lr(step)
+
+    def _get_lr(self, step):
+        """Simple const lr policy"""
+        return self.base_lrs
+
 
 class WarmupHoldPolicy(WarmupPolicy):
     """Variant of WarmupPolicy which maintains high learning rate for a defined number of steps.
@@ -432,6 +482,12 @@ class InverseSquareRootAnnealing(WarmupPolicy):
         out_lr = [initial_lr / denom for initial_lr in self.base_lrs]
         return out_lr
 
+class T5InverseSquareRootAnnealing(SquareRootConstantPolicy):
+    def __init__(self, optimizer, *, max_steps, last_epoch=-1, min_lr=0.0, **kwargs):
+        super().__init__(optimizer=optimizer, max_steps=max_steps, **kwargs, last_epoch=last_epoch, min_lr=min_lr)
+
+    def _get_lr(self, step):
+        return [1 / (step ** 0.5) for _ in self.base_lrs]
 
 class PolynomialDecayAnnealing(WarmupPolicy):
     def __init__(self, optimizer, *, max_steps, min_lr=0.0, power=1.0, cycle=False, last_epoch=-1, **kwargs):
@@ -800,6 +856,7 @@ AVAILABLE_SCHEDULERS = {
     'NoamAnnealing': NoamAnnealing,
     'WarmupAnnealing': WarmupAnnealing,
     'InverseSquareRootAnnealing': InverseSquareRootAnnealing,
+    'T5InverseSquareRootAnnealing': T5InverseSquareRootAnnealing,
     'SquareRootAnnealing': SquareRootAnnealing,
     'PolynomialDecayAnnealing': PolynomialDecayAnnealing,
     'PolynomialHoldDecayAnnealing': PolynomialHoldDecayAnnealing,
