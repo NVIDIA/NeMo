@@ -485,9 +485,8 @@ def _loss_class_test(
                         assert batch_result.isnan()
                     else:
                         assert (
-                            np.allclose(batch_result.numpy(), sk_batch_result, atol=atol),
-                            f"batch_result = {batch_result.numpy()}, sk_batch_result = {sk_batch_result}",
-                        )
+                            np.allclose(batch_result.numpy(), sk_batch_result, atol=atol)
+                        ), f"batch_result = {batch_result.numpy()}, sk_batch_result = {sk_batch_result}"
         else:
             ls = loss_sum_or_avg[i : i + 1]
             nm = num_measurements[i : i + 1]
@@ -498,9 +497,8 @@ def _loss_class_test(
                     assert batch_result.isnan()
                 else:
                     assert (
-                        np.allclose(batch_result.numpy(), sk_batch_result, atol=atol),
-                        f"batch_result = {batch_result.numpy()}, sk_batch_result = {sk_batch_result}",
-                    )
+                        np.allclose(batch_result.numpy(), sk_batch_result, atol=atol)
+                    ), f"batch_result = {batch_result.numpy()}, sk_batch_result = {sk_batch_result}"
     # check on all batches on all ranks
     result = loss_metric.compute()
     assert isinstance(result, torch.Tensor)
@@ -511,9 +509,8 @@ def _loss_class_test(
         assert result.isnan()
     else:
         assert (
-            np.allclose(result.numpy(), sk_result, atol=atol),
-            f"result = {result.numpy()}, sk_result = {sk_result}",
-        )
+            np.allclose(result.numpy(), sk_result, atol=atol)
+        ), f"result = {result.numpy()}, sk_result = {sk_result}"
 
 
 class LossTester(MetricTester):
