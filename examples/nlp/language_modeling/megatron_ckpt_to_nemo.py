@@ -20,6 +20,8 @@ import torch.multiprocessing as mp
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
+
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import AppState, logging
 
@@ -49,8 +51,8 @@ def get_args():
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )
     parser.add_argument("--nemo_file_path", type=str, default=None, required=True, help="Path to output .nemo file.")
-
     parser.add_argument("--tensor_model_parallel_size", type=int, required=True, default=None)
+    parser.add_argument("--model_type", type=str, required=True, default="gpt", choices=["gpt", "t5"])
 
     args = parser.parse_args()
     return args
@@ -64,7 +66,10 @@ def convert(rank, world_size, args):
     # TODO: reach out to PTL For an API-safe local rank override
     trainer.accelerator.training_type_plugin._local_rank = rank
     checkpoint_path = os.path.join(args.checkpoint_folder, f'mp_rank_{rank:02d}', args.checkpoint_name)
-    model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
+    if args.model_type == 'gpt':
+        model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
+    elif args.model_type == 't5':
+        model = MegatronT5Model.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
     model._save_restore_connector = NLPSaveRestoreConnector()
     model.save_to(args.nemo_file_path)
     logging.info(f'NeMo model saved to: {args.nemo_file_path}')

@@ -19,6 +19,7 @@ import json
 import multiprocessing
 import sys
 import time
+import gzip
 
 import torch
 
@@ -153,7 +154,10 @@ def main():
     startup_start = time.time()
 
     print("Opening", args.input)
-    fin = open(args.input, 'r', encoding='utf-8')
+    if args.input.endswith('.gz'):
+        fin = gzip.open(args.input, 'r')
+    else:
+        fin = open(args.input, 'r', encoding='utf-8')
 
     if nltk_available and args.split_sentences:
         nltk.download("punkt", quiet=True)
