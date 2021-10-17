@@ -375,6 +375,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
     @staticmethod
     def _remove_margins(tensor, margin_size, keep_left, keep_right):
+        tensor = tensor.detach().clone()
         if not keep_left:
             tensor = tensor[margin_size + 1 :]  # remove left margin and CLS token
         if not keep_right:
@@ -466,8 +467,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         Returns:
             numpy array of shape ``[A + N, L]``
         """
-        acc_prob *= update[: acc_prob.shape[0]]
-        acc_prob = np.concatenate([acc_prob, update[acc_prob.shape[0] :]], axis=0)
+        acc_prob = np.concatenate([acc_prob * update[: acc_prob.shape[0]], update[acc_prob.shape[0] :]], axis=0)
         return acc_prob
 
     def apply_punct_capit_predictions(self, query: str, punct_preds: List[int], capit_preds: List[int]) -> str:
