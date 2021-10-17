@@ -60,7 +60,6 @@ class GlobalAverageLossMetric(Metric):
             num_measurements: An integer zero dimensional ``torch.Tensor`` which contains a number of loss measurements.
                 The sum or mean of the results of these measurements are in the ``loss`` parameter.
         """
-        print("(GlobalAverageLossMetric.update)self.take_avg_loss:", self.take_avg_loss)
         if self.take_avg_loss:
             self.loss_sum += loss.detach() * num_measurements
         else:
