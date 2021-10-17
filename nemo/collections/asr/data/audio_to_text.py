@@ -116,7 +116,7 @@ class ASRManifestProcessor:
         self.parser = parser
 
         self.collection = collections.ASRAudioText(
-            manifests_files=manifest_filepath.split(','),
+            manifests_files=manifest_filepath,
             parser=parser,
             min_duration=min_duration,
             max_duration=max_duration,
@@ -984,7 +984,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         world_size: int = 0,
     ):
         self.collection = collections.ASRAudioText(
-            manifests_files=manifest_filepath.split(','),
+            manifests_files=manifest_filepath,
             parser=parser,
             min_duration=min_duration,
             max_duration=max_duration,
