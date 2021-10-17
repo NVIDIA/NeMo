@@ -51,12 +51,14 @@ def _speech_collate_fn(batch, pad_id):
                encoded tokens, and encoded tokens length.  This collate func
                assumes the signals are 1d torch tensors (i.e. mono audio).
     """
-    if len(batch) == 5:
-        _, audio_lengths, _, tokens_lengths, sample_ids = zip(*batch)
-    elif len(batch) == 4:
-        _, audio_lengths, _, tokens_lengths = zip(*batch)
+    unpacked_batch = list(zip(*batch))
+    if len(unpacked_batch) == 5:
+        _, audio_lengths, _, tokens_lengths, sample_ids = unpacked_batch
+    elif len(unpacked_batch) == 4:
         sample_ids = None
-
+        _, audio_lengths, _, tokens_lengths = unpacked_batch
+    else:
+        raise ValueError("Expects 4 or 5 tensors in the batch!")
     max_audio_len = 0
     has_audio = audio_lengths[0] is not None
     if has_audio:
