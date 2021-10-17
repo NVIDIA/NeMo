@@ -264,9 +264,9 @@ def pad_and_convert_to_numpy(
     tokens_dec_in = np.array(t5_decoder_in + filler_dec, dtype=np.int64)
 
     # Create attention masks
-    enc_mask = make_attention_mask(tokens_enc, tokens_enc)
-    enc_dec_mask = make_attention_mask(tokens_dec_in, tokens_enc)
-    dec_mask = make_attention_mask(tokens_dec_in, tokens_dec_in)
+    enc_mask = make_attention_mask(tokens_enc, tokens_enc, pad_id)
+    enc_dec_mask = make_attention_mask(tokens_dec_in, tokens_enc, pad_id)
+    dec_mask = make_attention_mask(tokens_dec_in, tokens_dec_in, pad_id)
     dec_mask = dec_mask * make_history_mask(tokens_dec_in)
 
     # Labels mask.
@@ -280,25 +280,25 @@ def pad_and_convert_to_numpy(
     return tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, enc_dec_mask, loss_mask
 
 
-def make_attention_mask(source_block, target_block):
+def make_attention_mask(source_block, target_block, pad_id):
     """
     Returns a 2-dimensional (2-D) attention mask
     :param source_block: 1-D array
     :param target_block: 1-D array
     """
-    mask = (target_block[None, :] >= 1) * (source_block[:, None] >= 1)
+    mask = (target_block[None, :] != pad_id) * (source_block[:, None] != pad_id)
     mask = mask.astype(np.int64)
     # (source_length, target_length)
     return mask
 
 
-def make_attention_mask_3d(source_block, target_block):
+def make_attention_mask_3d(source_block, target_block, pad_id):
     """
     Returns a 3-dimensional (3-D) attention mask
     :param source_block: 1-D array
     :param target_block: 1-D array
     """
-    mask = (target_block[:, None, :] >= 1) * (source_block[:, :, None] >= 1)
+    mask = (target_block[:, None, :] != pad_id) * (source_block[:, :, None] != pad_id)
     # (batch, source_length, target_length)
     # mask = mask.astype(np.int64)
     return mask

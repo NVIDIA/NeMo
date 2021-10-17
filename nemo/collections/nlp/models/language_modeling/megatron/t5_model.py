@@ -26,6 +26,9 @@ from nemo.collections.nlp.modules.common.megatron.utils import init_method_norma
 def t5_extended_attention_mask(attention_mask_list):
     def attn_mask_postprocess(attn_mask):
         # [b, 1, s, s]
+        # Attn_masks for enc-dec attn and dec attn is None when trying to get just the encoder hidden states.
+        if attn_mask is None:
+            return None
         extended_attention_mask = attn_mask.unsqueeze(1)
         return extended_attention_mask
 
@@ -163,6 +166,7 @@ class T5Model(MegatronModule):
         tokentype_ids=None,
         lm_labels=None,
         enc_hidden_states=None,
+        output_enc_hidden=False
     ):
 
         # Converting the attention masks to proper parameter settings
@@ -171,7 +175,9 @@ class T5Model(MegatronModule):
         )
 
         encoder_position_ids = t5_position_ids(encoder_input_ids)
-        decoder_position_ids = t5_position_ids(decoder_input_ids)
+
+        # Handle case when decoder_input_ids is None to get just the encoder hidden states.
+        decoder_position_ids = t5_position_ids(decoder_input_ids) if decoder_input_ids is not None else None
 
         lm_output = self.language_model(
             encoder_input_ids,
@@ -183,7 +189,11 @@ class T5Model(MegatronModule):
             encoder_decoder_attn_mask,
             tokentype_ids=tokentype_ids,
             enc_hidden_states=enc_hidden_states,
+            output_enc_hidden=output_enc_hidden
         )
+
+        if output_enc_hidden:
+            return lm_output
 
         decoder_output, encoder_output = lm_output
 
