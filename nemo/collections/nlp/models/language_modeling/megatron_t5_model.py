@@ -388,12 +388,14 @@ class MegatronT5Model(NLPModel):
         response['tokenized_prompt'] = request['tokenized_prompt']
         # naive greedy slow loop
         # TODO: add option for BeamSearchDecoder
+
         response['prompt'] = request['prompt']
-        batch = request['training_sample']
-        tokens_enc, tokens_dec, loss_mask, labels, \
-            enc_mask, dec_mask, enc_dec_mask = self.process_batch(batch)
+        tokens_enc = request['masked_sample']
+        predicted_tokens_dec = torch.LongTensor([self.tokenizer.cls_id]).unsqueeze(0).to(tokens_enc.device)
 
         response['masked_input'] = ' '.join(self.tokenizer.ids_to_tokens(tokens_enc[0]))
+        enc_mask = self.make_inference_attention_mask_3d(tokens_enc, tokens_enc, self.tokenizer.pad_id)
+        enc_mask = enc_mask < 0.5
 
         encoder_hidden_states = self(
             encoder_input_ids=tokens_enc,
@@ -406,8 +408,6 @@ class MegatronT5Model(NLPModel):
             enc_hidden_states=None,
             output_enc_hidden=True
         )
-
-        predicted_tokens_dec = tokens_dec[:, 0].unsqueeze(1)
 
         for i in range(request.get("tokens_to_generate", 16)):
             # Overwrite the decoder token since we want to predict
