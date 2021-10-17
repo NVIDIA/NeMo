@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict
+from typing import Any, Dict, Optional
 import re
 import torch
 from apex.transformer import tensor_parallel, parallel_state
@@ -24,6 +24,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
+from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import make_attention_mask_3d, make_history_mask_3d
 from nemo.collections.nlp.models.language_modeling.megatron.t5_model import T5Model
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import (
@@ -116,9 +117,10 @@ class MegatronT5Model(NLPModel):
         encoder_decoder_attn_mask,
         tokentype_ids=None,
         lm_labels=None,
-        enc_hidden_states=None
+        enc_hidden_states=None,
+        output_enc_hidden=False
     ):
-        logits, encoder_hidden_states = self.model(
+        result = self.model(
             encoder_input_ids,
             decoder_input_ids,
             encoder_attn_mask,
@@ -126,9 +128,13 @@ class MegatronT5Model(NLPModel):
             encoder_decoder_attn_mask,
             tokentype_ids,
             lm_labels,
-            enc_hidden_states
+            enc_hidden_states,
+            output_enc_hidden=output_enc_hidden
         )
-        return logits, encoder_hidden_states
+        if not output_enc_hidden:
+            return result[0], result[1]
+        else:
+            return result
 
     def training_step(self, batch, batch_idx):
         tokens_enc, tokens_dec, loss_mask, labels, \
@@ -280,6 +286,8 @@ class MegatronT5Model(NLPModel):
         )
 
     def setup(self, stage=None):
+        if stage == 'predict':
+            return
         self.build_train_valid_test_datasets()
         self.setup_training_data(self.cfg.data)
         self.setup_validation_data(self.cfg.data)
@@ -333,6 +341,100 @@ class MegatronT5Model(NLPModel):
             clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
         else:
             return
+
+    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
+        request = batch
+        response = self.complete(request)
+        logging.info(f"response: {response}")
+        return response
+    
+    def make_inference_attention_mask_3d(self, source_block, target_block, pad_id):
+        """
+        Returns a 3-dimensional (3-D) attention mask
+        :param source_block: 2-D array
+        :param target_block: 2-D array
+        """
+        mask = (target_block[:, None, :] != pad_id) * (source_block[:, :, None] != pad_id)
+        return mask
+
+    def make_inference_history_mask_3d(self, block):
+        batch, length = block.shape
+        arange = torch.arange(length, device=block.device)
+        history_mask = (arange[None,] <= arange[:, None])[
+            None,
+        ]
+        history_mask = history_mask.expand(batch, length, length)
+        return history_mask
+
+    def complete(self, request: Dict):
+        """
+            Autoregressively invokes language model in the inference mode
+        Args:	
+            request: Dictionary with the following fields
+                * prompt: a string which text the model should complete.
+                * tokens_to_generate: how many tokens to generate while doing prompt completion.
+        Returns:	
+            response: A python dictionary with the following fields
+                * prompt: original text of the prompt
+                * tokenized_prompt: list of (str) tokens from prompt
+                * completion: a python dictionary with the following subfields:
+                    * tokens: a list of triples (token, token_id, log_prob) comprising completion
+                    * text: completion text (as a single string)
+                
+        """
+        response = {}
+        self.eval()
+        logsoftmaxlayer = torch.nn.LogSoftmax(dim=-1)
+        response['tokenized_prompt'] = request['tokenized_prompt']
+        # naive greedy slow loop
+        # TODO: add option for BeamSearchDecoder
+        response['prompt'] = request['prompt']
+        batch = request['training_sample']
+        tokens_enc, tokens_dec, loss_mask, labels, \
+            enc_mask, dec_mask, enc_dec_mask = self.process_batch(batch)
+
+        response['masked_input'] = ' '.join(self.tokenizer.ids_to_tokens(tokens_enc[0]))
+
+        encoder_hidden_states = self(
+            encoder_input_ids=tokens_enc,
+            decoder_input_ids=None,
+            encoder_attn_mask=enc_mask,
+            decoder_attn_mask=None,
+            encoder_decoder_attn_mask=None,
+            tokentype_ids=None,
+            lm_labels=None,
+            enc_hidden_states=None,
+            output_enc_hidden=True
+        )
+
+        predicted_tokens_dec = tokens_dec[:, 0].unsqueeze(1)
+
+        for i in range(request.get("tokens_to_generate", 16)):
+            # Overwrite the decoder token since we want to predict
+            enc_dec_mask = self.make_inference_attention_mask_3d(predicted_tokens_dec, tokens_enc, self.tokenizer.pad_id)
+            dec_mask = self.make_inference_attention_mask_3d(predicted_tokens_dec, predicted_tokens_dec, self.tokenizer.pad_id)
+            dec_mask = dec_mask * self.make_inference_history_mask_3d(predicted_tokens_dec)
+
+            enc_dec_mask = enc_dec_mask < 0.5
+            dec_mask = dec_mask < 0.5
+
+            output_tensor, _ = self(
+                encoder_input_ids=tokens_enc,
+                decoder_input_ids=predicted_tokens_dec,
+                encoder_attn_mask=enc_mask,
+                decoder_attn_mask=dec_mask,
+                encoder_decoder_attn_mask=enc_dec_mask,
+                tokentype_ids=None,
+                lm_labels=None,
+                enc_hidden_states=encoder_hidden_states,
+                output_enc_hidden=False
+            )
+            output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
+            log_probs, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
+            predicted_tokens_dec = torch.cat([predicted_tokens_dec, token_ids[:, -1].unsqueeze(1)], 1)
+
+        response['completion'] = ' '.join(self.tokenizer.ids_to_tokens(predicted_tokens_dec[0]))
+        return response
 
     def _vocab_size_with_padding(self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size):
         """Pad vocab size so it is divisible by model parallel size and
