@@ -427,6 +427,7 @@ def reference_loss_func(loss_sum_or_avg: torch.Tensor, num_measurements: torch.T
         take_avg_loss: if ``True`` then ``loss_sum_or_avg`` contains mean losses else ``loss_sum_or_avg`` contains
             sums of losses.
     """
+    loss_sum_or_avg = torch.tensor(loss_sum_or_avg)
     if take_avg_loss:
         for i in range(loss_sum_or_avg.shape[0]):
             loss_sum_or_avg[i] *= num_measurements[i]
@@ -455,8 +456,8 @@ def _loss_class_test(
             loss_sum_or_avg: a one dimensional float torch tensor with loss sums or means.
             num_measurements: a one dimensional integer torch tensor with number of values on which sums or means from
                 ``loss_sum_or_avg`` were computed.
-            dist_sync_on_step: bool, if true will synchronize metric state across
-                processes at each ``forward()``
+            dist_sync_on_step: bool, if true will synchronize metric state across processes at each call of the
+                method :meth:`forward()`
             take_avg_loss: dict with additional arguments used for class initialization
             check_dist_sync_on_step: bool, if true will check if the metric is also correctly
                 calculated per batch per device (and not just at the end)
@@ -468,7 +469,7 @@ def _loss_class_test(
         compute_on_step=True, dist_sync_on_step=dist_sync_on_step, take_avg_loss=take_avg_loss
     )
 
-    # verify perplexity works after being loaded from pickled state
+    # verify loss works after being loaded from pickled state
     pickled_metric = pickle.dumps(loss_metric)
     loss_metric = pickle.loads(pickled_metric)
 
@@ -486,7 +487,7 @@ def _loss_class_test(
                     else:
                         assert np.allclose(
                             batch_result.numpy(), sk_batch_result, atol=atol
-                        ), f"batch_result = {batch_result.numpy()}, sk_batch_result = {sk_batch_result}"
+                        ), f"batch_result = {batch_result.numpy()}, sk_batch_result = {sk_batch_result}, i = {i}"
         else:
             ls = loss_sum_or_avg[i : i + 1]
             nm = num_measurements[i : i + 1]
@@ -498,7 +499,7 @@ def _loss_class_test(
                 else:
                     assert np.allclose(
                         batch_result.numpy(), sk_batch_result, atol=atol
-                    ), f"batch_result = {batch_result.numpy()}, sk_batch_result = {sk_batch_result}"
+                    ), f"batch_result = {batch_result.numpy()}, sk_batch_result = {sk_batch_result}, i = {i}"
     # check on all batches on all ranks
     result = loss_metric.compute()
     assert isinstance(result, torch.Tensor)
