@@ -51,7 +51,7 @@ def _speech_collate_fn(batch, pad_id):
                encoded tokens, and encoded tokens length.  This collate func
                assumes the signals are 1d torch tensors (i.e. mono audio).
     """
-    _, audio_lengths, _, tokens_lengths = zip(*batch)
+    _, audio_lengths, _, tokens_lengths, sample_ids = zip(*batch)
     max_audio_len = 0
     has_audio = audio_lengths[0] is not None
     if has_audio:
@@ -59,7 +59,7 @@ def _speech_collate_fn(batch, pad_id):
     max_tokens_len = max(tokens_lengths).item()
 
     audio_signal, tokens = [], []
-    for sig, sig_len, tokens_i, tokens_i_len in batch:
+    for sig, sig_len, tokens_i, tokens_i_len, _ in batch:
         if has_audio:
             sig_len = sig_len.item()
             if sig_len < max_audio_len:
@@ -79,8 +79,8 @@ def _speech_collate_fn(batch, pad_id):
         audio_signal, audio_lengths = None, None
     tokens = torch.stack(tokens)
     tokens_lengths = torch.stack(tokens_lengths)
-
-    return audio_signal, audio_lengths, tokens, tokens_lengths
+    sample_ids = torch.IntTensor(sample_ids)
+    return audio_signal, audio_lengths, tokens, tokens_lengths, sample_ids
 
 
 class ASRManifestProcessor:
@@ -176,6 +176,7 @@ class _AudioTextDataset(Dataset):
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
+            'sample_id': NeuralType(tuple('B'), LengthsType()),
         }
 
     def __init__(
@@ -206,6 +207,9 @@ class _AudioTextDataset(Dataset):
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
         self.trim = trim
 
+    def get_sample(self, sample_id):
+        return self.manifest_processor.collection[sample_id]
+
     def __getitem__(self, index):
         sample = self.manifest_processor.collection[index]
         offset = sample.offset
@@ -220,7 +224,7 @@ class _AudioTextDataset(Dataset):
 
         t, tl = self.manifest_processor.process_text(index)
 
-        output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+        output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long(), index
 
         return output
 
@@ -270,6 +274,7 @@ class AudioToCharDataset(_AudioTextDataset):
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
+            'sample_id': NeuralType(tuple('B'), LengthsType()),
         }
 
     def __init__(
@@ -452,7 +457,7 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
     def __getitem__(self, item):
         audio, audio_len = None, None
         if self.load_audio:
-            audio, audio_len, _, _ = super().__getitem__(item)  # noqa
+            audio, audio_len, _, _, _ = super().__getitem__(item)  # noqa
 
         text = self.id2enc_text[item]
         text, text_len = torch.tensor(text).long(), torch.tensor(len(text)).long()
@@ -598,7 +603,7 @@ class AudioToCharWithPriorDataset(AudioToCharDataset):
         return np.array(mel_text_probs)
 
     def __getitem__(self, item):
-        audio, audio_len, _, _ = super().__getitem__(item)  # noqa
+        audio, audio_len, _, _, _ = super().__getitem__(item)  # noqa
 
         text = self.id2enc_text[item]
 
@@ -734,7 +739,7 @@ class FastPitchDataset(_AudioTextDataset):
         }
 
     def __getitem__(self, item):
-        audio, audio_len, text, text_len = super().__getitem__(item)  # noqa
+        audio, audio_len, text, text_len, _ = super().__getitem__(item)  # noqa
 
         audio_path = self.manifest_processor.collection[item].audio_file
         durs_path = audio_path.replace('/wavs/', '/fastpitch/durations/').replace('.wav', '.pt')
@@ -816,6 +821,7 @@ class AudioToBPEDataset(_AudioTextDataset):
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
+            'sample_id': NeuralType(tuple('B'), LengthsType()),
         }
 
     def __init__(
@@ -960,7 +966,7 @@ class _TarredAudioToTextDataset(IterableDataset):
     def __init__(
         self,
         audio_tar_filepaths: Union[str, List[str]],
-        manifest_filepath: Union[str, List[str]],
+        manifest_filepath: str,
         parser: Callable,
         sample_rate: int,
         int_values: bool = False,
@@ -978,7 +984,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         world_size: int = 0,
     ):
         self.collection = collections.ASRAudioText(
-            manifests_files=manifest_filepath,
+            manifests_files=manifest_filepath.split(','),
             parser=parser,
             min_duration=min_duration,
             max_duration=max_duration,
@@ -1086,8 +1092,8 @@ class _TarredAudioToTextDataset(IterableDataset):
         audio_bytes, audio_filename = tup
 
         # Grab manifest entry from self.collection
-        file_id, _ = os.path.splitext(os.path.basename(audio_filename))
-        manifest_idx = self.collection.mapping[file_id]
+        sample_id, _ = os.path.splitext(os.path.basename(audio_filename))
+        manifest_idx = self.collection.mapping[sample_id]
         manifest_entry = self.collection[manifest_idx]
 
         offset = manifest_entry.offset
@@ -1117,7 +1123,10 @@ class _TarredAudioToTextDataset(IterableDataset):
             t = t + [self.eos_id]
             tl += 1
 
-        return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+        return f, fl, torch.tensor(t).long(), torch.tensor(tl).long(), manifest_idx
+
+    def get_sample(self, sample_id):
+        return self.collection[sample_id]
 
     def __iter__(self):
         return self._dataset.__iter__()
@@ -1336,7 +1345,7 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
     def __init__(
         self,
         audio_tar_filepaths: Union[str, List[str]],
-        manifest_filepath: Union[str, List[str]],
+        manifest_filepath: str,
         tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
         sample_rate: int,
         int_values: bool = False,

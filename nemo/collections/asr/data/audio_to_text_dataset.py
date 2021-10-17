@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+from dataclasses import dataclass
+from typing import Any, List, Optional
+
 from typing import Optional, Union
 
 import torch
@@ -19,8 +23,29 @@ from omegaconf import DictConfig, open_dict
 from omegaconf.listconfig import ListConfig
 from torch.utils.data import ChainDataset
 
+import torch
+from omegaconf import DictConfig, open_dict
+from pytorch_lightning.callbacks import BasePredictionWriter
+
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dali
+from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.utils import logging
+
+
+@dataclass
+class ASRDatasetConfig:
+    manifest_filepath: Optional[str] = None
+    is_tarred: Optional[bool] = False
+    tarred_audio_filepaths: Optional[str] = None
+    sample_rate: Optional[int] = 16000
+    batch_size: Optional[int] = 1
+    shuffle: Optional[bool] = False
+    num_workers: Optional[int] = 4
+    pin_memory: Optional[bool] = True
+    use_start_end_token: Optional[bool] = False
+    trim_silence: Optional[bool] = False
+    max_duration: Optional[float] = None
+    min_duration: Optional[float] = None
 
 
 def inject_dataloader_value_from_model_config(model_cfg: dict, dataloader_cfg: DictConfig, key: str):
@@ -122,7 +147,6 @@ def get_bpe_dataset(
         use_start_end_token=config.get('use_start_end_token', True),
     )
     return dataset
-
 
 def get_tarred_dataset(
     config: dict,
@@ -298,6 +322,49 @@ def get_dali_bpe_dataset(
     )
     return dataset
 
+
+class ASRPredictionWriter(BasePredictionWriter):
+    def __init__(self, dataset, output_file: str, use_cer=False):
+        super().__init__(write_interval="batch")
+        self.outf = open(output_file, 'w')
+        self.dataset = dataset
+        self.use_cer = use_cer
+        self.samples_num = 0
+
+    def write_on_batch_end(
+        self,
+        trainer,
+        pl_module: 'LightningModule',
+        prediction: Any,
+        batch_indices: List[int],
+        batch: Any,
+        batch_idx: int,
+        dataloader_idx: int,
+    ):
+        for sample_id, transcribed_text in prediction:
+            item = {}
+            # sample = self.dataset_collection[self.dataset_collection.mapping[batch[4][sample_id]]]
+            # sample = self.dataset_collection[batch[4][sample_id]]
+            # sample = self.dataset_collection[sample_id]
+            sample = self.dataset.get_sample(sample_id)
+            item["audio_filepath"] = sample.audio_file
+            item["duration"] = sample.duration
+            item["text"] = sample.text_raw
+            item["pred_text"] = transcribed_text
+            wer_cer = word_error_rate(
+                hypotheses=[transcribed_text], references=[sample.text_raw], use_cer=self.use_cer
+            )
+            if self.use_cer:
+                item["cer"] = wer_cer
+            else:
+                item["wer"] = wer_cer
+            self.outf.write(json.dumps(item) + "\n")
+            self.samples_num += 1
+        return
+
+    def close_output_file(self):
+        self.outf.close()
+        return self.samples_num
 
 def convert_to_config_list(initial_list):
     if initial_list is None or initial_list == []:

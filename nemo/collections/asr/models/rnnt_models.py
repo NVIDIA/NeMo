@@ -20,9 +20,10 @@ from math import ceil
 from typing import Dict, List, Optional, Union
 
 import torch
+from torch.utils.data import ChainDataset
+
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
-from torch.utils.data import ChainDataset
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
@@ -573,7 +574,12 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecJointModel):
 
     @typecheck()
     def forward(
-        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None
+        self,
+        input_signal=None,
+        input_signal_length=None,
+        processed_signal=None,
+        processed_signal_length=None,
+        sample_id=None,
     ):
         """
         Forward pass of the model. Note that for RNNT Models, the forward pass of the model is a 3 step process,
@@ -625,7 +631,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecJointModel):
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
-        signal, signal_len, transcript, transcript_len = batch
+        signal, signal_len, transcript, transcript_len, sample_id = batch
 
         # forward() only performs encoder forward
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
@@ -692,8 +698,47 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecJointModel):
 
         return {'loss': loss_value}
 
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        signal, signal_len, transcript, transcript_len, sample_id = batch
+
+        # forward() only performs encoder forward
+        if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
+            encoded, encoded_len = self.forward(processed_signal=signal, processed_signal_length=signal_len)
+        else:
+            encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
+        del signal
+
+        # If experimental fused Joint-Loss-WER is not used
+        # if not self.joint.fuse_loss_wer:
+        #     self.wer.update(encoded, encoded_len, transcript, transcript_len)
+        #     wer, wer_num, wer_denom = self.wer.compute()
+        #     self.wer.reset()
+        # else:
+        #     # If experimental fused Joint-Loss-WER is used
+        #     compute_wer = True
+        #
+        #     decoded = None
+        #     target_len = transcript_len
+        #
+        #     # Fused joint step
+        #     # loss_value, wer, wer_num, wer_denom = self.joint(
+        #     #     encoder_outputs=encoded,
+        #     #     decoder_outputs=decoded,
+        #     #     encoder_lengths=encoded_len,
+        #     #     transcripts=transcript,
+        #     #     transcript_lengths=target_len,
+        #     #     compute_wer=compute_wer,
+        #     # )
+
+        best_hyp_text, all_hyp_text = self.decoding.rnnt_decoder_predictions_tensor(
+            encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=False
+        )
+
+        sample_id = sample_id.cpu().detach().numpy()
+        return list(zip(sample_id, best_hyp_text))
+
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        signal, signal_len, transcript, transcript_len = batch
+        signal, signal_len, transcript, transcript_len, sample_id = batch
 
         # forward() only performs encoder forward
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
