@@ -427,7 +427,7 @@ def reference_loss_func(loss_sum_or_avg: torch.Tensor, num_measurements: torch.T
         take_avg_loss: if ``True`` then ``loss_sum_or_avg`` contains mean losses else ``loss_sum_or_avg`` contains
             sums of losses.
     """
-    loss_sum_or_avg = torch.tensor(loss_sum_or_avg)
+    loss_sum_or_avg = loss_sum_or_avg.clone().detach()
     if take_avg_loss:
         loss_sum_or_avg *= num_measurements
     nm_sum = num_measurements.sum()
