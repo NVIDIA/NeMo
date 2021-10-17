@@ -427,7 +427,7 @@ def reference_loss_func(loss_sum_or_avg: torch.Tensor, num_measurements: torch.T
         take_avg_loss: if ``True`` then ``loss_sum_or_avg`` contains mean losses else ``loss_sum_or_avg`` contains
             sums of losses.
     """
-    #loss_sum_or_avg = loss_sum_or_avg.clone().detach()
+    loss_sum_or_avg = loss_sum_or_avg.clone().detach()
     if take_avg_loss:
         loss_sum_or_avg *= num_measurements
     nm_sum = num_measurements.sum()
@@ -471,10 +471,7 @@ def _loss_class_test(
     # verify loss works after being loaded from pickled state
     pickled_metric = pickle.dumps(loss_metric)
     loss_metric = pickle.loads(pickled_metric)
-
     for i in range(rank, NUM_BATCHES, worldsize):
-        if take_avg_loss and dist_sync_on_step:
-            print(loss_sum_or_avg, num_measurements)
         batch_result = loss_metric(loss_sum_or_avg[i], num_measurements[i])
         if loss_metric.dist_sync_on_step:
             if rank == 0:
