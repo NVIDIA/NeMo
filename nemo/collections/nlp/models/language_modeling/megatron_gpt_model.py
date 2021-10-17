@@ -117,7 +117,6 @@ class MegatronGPTModel(NLPModel):
         tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
         output_tensor = self(tokens, position_ids, attention_mask, labels)
         loss = self.loss_func(loss_mask, output_tensor)
-        # self.log('train_loss', loss)
         reduced_loss = average_losses_across_data_parallel_group([loss])
 
         # cache reduced loss while accumulating gradients

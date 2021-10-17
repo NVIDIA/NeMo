@@ -73,8 +73,6 @@ def main(cfg) -> None:
 
     model = MegatronGPTModel(cfg.model, trainer)
 
-    model._save_restore_connector = NLPSaveRestoreConnector()
-
     trainer.fit(model)
 
 

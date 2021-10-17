@@ -55,6 +55,8 @@ class NLPModel(ModelPT, Exportable):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg, trainer)
+        # handles model parallel save and restore logic
+        self._save_restore_connector = NLPSaveRestoreConnector()
         self.set_world_size(trainer)
 
     def register_artifact(
@@ -352,10 +354,10 @@ class NLPModel(ModelPT, Exportable):
         app_state = AppState()
         # Add NeMo rank check as well
         if app_state.model_parallel_size is not None:
-            if app_state.model_parallel_size > 1 and isinstance(self._save_restore_connector, SaveRestoreConnector):
-                logging.warning("Tried using default SaveRestoreConnector with a model parallel NLP model.")
-                logging.warning("Swapping SaveRestoreConnector for NLPSaveRestoreConnector.")
-                self._save_restore_connector = NLPSaveRestoreConnector()
+            if app_state.model_parallel_size > 1:
+                logging.info(
+                    f"Using {self._save_restore_connector.__class__} to save a model parallel model. If not using NLPSaveRestoreConnector, make sure the connector supports model parallelism."
+                )
             save_path = os.path.abspath(os.path.expanduser(save_path))
             self._save_restore_connector.save_to(self, save_path)
         else:
