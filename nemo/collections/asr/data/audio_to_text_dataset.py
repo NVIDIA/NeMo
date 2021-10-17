@@ -14,18 +14,13 @@
 
 import json
 from dataclasses import dataclass
-from typing import Any, List, Optional
-
-from typing import Optional, Union
+from typing import Any, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig, open_dict
 from omegaconf.listconfig import ListConfig
-from torch.utils.data import ChainDataset
-
-import torch
-from omegaconf import DictConfig, open_dict
 from pytorch_lightning.callbacks import BasePredictionWriter
+from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dali
 from nemo.collections.asr.metrics.wer import word_error_rate
@@ -147,6 +142,7 @@ def get_bpe_dataset(
         use_start_end_token=config.get('use_start_end_token', True),
     )
     return dataset
+
 
 def get_tarred_dataset(
     config: dict,
@@ -365,6 +361,7 @@ class ASRPredictionWriter(BasePredictionWriter):
     def close_output_file(self):
         self.outf.close()
         return self.samples_num
+
 
 def convert_to_config_list(initial_list):
     if initial_list is None or initial_list == []:
