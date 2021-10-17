@@ -429,8 +429,7 @@ def reference_loss_func(loss_sum_or_avg: torch.Tensor, num_measurements: torch.T
     """
     loss_sum_or_avg = torch.tensor(loss_sum_or_avg)
     if take_avg_loss:
-        for i in range(loss_sum_or_avg.shape[0]):
-            loss_sum_or_avg[i] *= num_measurements[i]
+        loss_sum_or_avg *= num_measurements
     nm_sum = num_measurements.sum()
     if nm_sum.eq(0):
         return torch.tensor(float('nan'))
