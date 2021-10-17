@@ -12,6 +12,53 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+# ASR transcribe/inference with multi-GPU/multi-node support for large datasets
+# It supports both tarred and non-tarred datasets
+# Arguments
+#    model: path to a nemo/PTL checkpoint file or name of a pretrained model
+#    predict_ds: config of the dataset/dataloader
+#    output_path: path to store the predictions
+#    return_predictions: whether to return the predictions as output other than writing into the files
+#    use_cer: whether to calculate the error in terms of CER or use the default WER
+#
+# Results of each GPU/worker is written into a file named 'predictions_{rank}.json, and aggregated results of all workers are written into 'predictions_all.json'
+
+Example for non-tarred datasets:
+
+python transcribe_speech_parallel.py \
+    model=stt_en_conformer_ctc_large \
+    predict_ds.manifest_filepath=/dataset/manifest_file.json \
+    predict_ds.batch_size=16 \
+    output_path=/tmp/
+
+Example for tarred datasets:
+
+python transcribe_speech_parallel.py \
+    predict_ds.is_tarred=true \
+    predict_ds.manifest_filepath=/tarred_dataset/tarred_audio_manifest.json \
+    predict_ds.tarred_audio_filepaths=/tarred_dataset/audio__OP_0..127_CL_.tar \
+    ...
+
+By default the trainer uses all the GPUs available and default precision is FP32.
+By setting the trainer config you may control these configs. For example to do the predictions with AMP on just two GPUs:
+
+python transcribe_speech_parallel.py \
+    trainer.precision=16 \
+    trainer.gpus=2 \
+    ...
+
+You may control the dataloader's config by setting the predict_ds:
+
+python transcribe_speech_parallel.py \
+    predict_ds.num_workers=8 \
+    predict_ds.min_duration=2 \
+    predict_ds.sample_rate=16000 \
+    model=stt_en_conformer_ctc_small \
+    ...
+
+"""
+
 
 import itertools
 import os
