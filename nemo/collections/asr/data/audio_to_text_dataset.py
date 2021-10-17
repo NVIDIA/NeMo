@@ -339,9 +339,6 @@ class ASRPredictionWriter(BasePredictionWriter):
     ):
         for sample_id, transcribed_text in prediction:
             item = {}
-            # sample = self.dataset_collection[self.dataset_collection.mapping[batch[4][sample_id]]]
-            # sample = self.dataset_collection[batch[4][sample_id]]
-            # sample = self.dataset_collection[sample_id]
             sample = self.dataset.get_sample(sample_id)
             item["audio_filepath"] = sample.audio_file
             item["duration"] = sample.duration

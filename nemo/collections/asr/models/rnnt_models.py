@@ -707,28 +707,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecJointModel):
             encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
         del signal
 
-        # If experimental fused Joint-Loss-WER is not used
-        # if not self.joint.fuse_loss_wer:
-        #     self.wer.update(encoded, encoded_len, transcript, transcript_len)
-        #     wer, wer_num, wer_denom = self.wer.compute()
-        #     self.wer.reset()
-        # else:
-        #     # If experimental fused Joint-Loss-WER is used
-        #     compute_wer = True
-        #
-        #     decoded = None
-        #     target_len = transcript_len
-        #
-        #     # Fused joint step
-        #     # loss_value, wer, wer_num, wer_denom = self.joint(
-        #     #     encoder_outputs=encoded,
-        #     #     decoder_outputs=decoded,
-        #     #     encoder_lengths=encoded_len,
-        #     #     transcripts=transcript,
-        #     #     transcript_lengths=target_len,
-        #     #     compute_wer=compute_wer,
-        #     # )
-
         best_hyp_text, all_hyp_text = self.decoding.rnnt_decoder_predictions_tensor(
             encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=False
         )

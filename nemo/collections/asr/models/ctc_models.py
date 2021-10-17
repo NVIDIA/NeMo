@@ -615,25 +615,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             predictions=predictions, predictions_len=encoded_len, return_hypotheses=False,
         )
 
-        # self._wer.update(
-        #     predictions=predictions,
-        #     targets=transcript,
-        #     target_lengths=transcript_len,
-        #     predictions_lengths=encoded_len,
-        # )
-
-        # wer, wer_num, wer_denom = self._wer.compute()
-        # self._wer.reset()
-        # logs = {
-        #     'predict_wer_num': wer_num,
-        #     'predict_wer_denom': wer_denom,
-        #     'predict_wer': wer,
-        # }
-
         sample_id = sample_id.cpu().detach().numpy()
         return list(zip(sample_id, transcribed_texts))
-        # return transcribed_texts #predictions.cpu().detach()
-        # return {'sample_id': sample_id, "transcribed_texts": transcribed_texts} #, "log": logs}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         signal, signal_len, transcript, transcript_len, sample_id = batch
