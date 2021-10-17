@@ -48,32 +48,20 @@ class T5RequestDataset(Dataset):
         tokens = self.tokenizer.text_to_ids(request['prompt'])
         self.request['tokens'] = torch.tensor(tokens)
         self.mask_prompt(self.request['prompt'])
-        '''
-        enc_ids = self.tokenizer.ids_to_tokens(self.request['training_sample']['text_enc'])
-        dec_ids = self.tokenizer.ids_to_tokens(self.request['training_sample']['text_dec'])
-        import ipdb; ipdb.set_trace()
-        '''
 
     def mask_prompt(self, sample):
-        sample = [self.tokenizer.text_to_ids(sample)]
-        training_sample = build_training_sample(
-            sample=sample,
-            target_seq_length=len(sample[0]),
-            max_seq_length=len(sample[0]),
-            max_seq_length_dec=128,
-            vocab_id_list=self.tokenizer.vocab,
-            vocab_id_to_token_dict={idx: token for idx, token in enumerate(self.tokenizer.vocab)},
-            cls_id=self.tokenizer.cls_id,
-            sep_id=self.tokenizer.sep_id,
-            mask_id=self.tokenizer.mask_id,
-            pad_id=self.tokenizer.pad_id,
-            masked_lm_prob=0.15,
-            np_rng=np.random.RandomState(seed=1337),
-            bos_id=self.tokenizer.bos_id,
-            eos_id=self.tokenizer.eos_id,
-            sentinel_tokens=self.tokenizer.tokenizer.additional_special_tokens_ids,
-        )
-        self.request['training_sample'] = training_sample
+        if '<mask>' not in sample:
+            raise ValueError(f"Did not find any <mask> tokens in prompt {sample}.")
+        
+        sample = sample.split()
+        sentinel_idx = 0
+        for i, word in enumerate(sample):
+            if word == '<mask>':
+                sample[i] = f'<extra_id_{sentinel_idx}>'
+                sentinel_idx += 1
+        sample = ' '.join(sample)
+        sample = torch.LongTensor(self.tokenizer.text_to_ids(sample))
+        self.request['masked_sample'] = sample
 
     def __len__(self):
         return 1
