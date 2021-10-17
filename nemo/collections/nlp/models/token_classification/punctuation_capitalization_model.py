@@ -595,7 +595,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             acc_capit_probs: List[Optional[np.ndarray]] = [None for _ in queries]
             d = self.device
             for batch_i, batch in tqdm(
-                enumerate(infer_datalayer), total=ceil(len(infer_datalayer.dataset) / batch_size)
+                enumerate(infer_datalayer), total=ceil(len(infer_datalayer.dataset) / batch_size), unit="batch"
             ):
                 inp_ids, inp_type_ids, inp_mask, subtokens_mask, start_word_ids, query_ids, is_first, is_last = batch
                 punct_logits, capit_logits = self.forward(
