@@ -51,7 +51,12 @@ def _speech_collate_fn(batch, pad_id):
                encoded tokens, and encoded tokens length.  This collate func
                assumes the signals are 1d torch tensors (i.e. mono audio).
     """
-    _, audio_lengths, _, tokens_lengths, sample_ids = zip(*batch)
+    if len(batch) == 5:
+        _, audio_lengths, _, tokens_lengths, sample_ids = zip(*batch)
+    elif len(batch) == 4:
+        _, audio_lengths, _, tokens_lengths = zip(*batch)
+        sample_ids = None
+
     max_audio_len = 0
     has_audio = audio_lengths[0] is not None
     if has_audio:
@@ -79,8 +84,11 @@ def _speech_collate_fn(batch, pad_id):
         audio_signal, audio_lengths = None, None
     tokens = torch.stack(tokens)
     tokens_lengths = torch.stack(tokens_lengths)
-    sample_ids = torch.IntTensor(sample_ids)
-    return audio_signal, audio_lengths, tokens, tokens_lengths, sample_ids
+    if sample_ids is None:
+        return audio_signal, audio_lengths, tokens, tokens_lengths
+    else:
+        sample_ids = torch.IntTensor(sample_ids)
+        return audio_signal, audio_lengths, tokens, tokens_lengths, sample_ids
 
 
 class ASRManifestProcessor:

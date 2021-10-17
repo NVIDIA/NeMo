@@ -52,7 +52,7 @@ You may control the dataloader's config by setting the predict_ds:
 
 python transcribe_speech_parallel.py \
     predict_ds.num_workers=8 \
-    predict_ds.min_duration=2 \
+    predict_ds.min_duration=2.0 \
     predict_ds.sample_rate=16000 \
     model=stt_en_conformer_ctc_small \
     ...
