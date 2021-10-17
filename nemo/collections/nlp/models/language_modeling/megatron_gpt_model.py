@@ -53,6 +53,9 @@ class MegatronGPTModel(NLPModel):
         if self.cfg.get('use_cpu_initialization', False) is False:
             torch.cuda.set_device(trainer.local_rank)
 
+        # buffer used during train_step for logging average loss over gradient accumulation steps
+        self._reduced_loss_buffer = []
+
         initialize_model_parallel_for_nemo(
             world_size=trainer.world_size,
             global_rank=trainer.global_rank,
@@ -114,14 +117,21 @@ class MegatronGPTModel(NLPModel):
         tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
         output_tensor = self(tokens, position_ids, attention_mask, labels)
         loss = self.loss_func(loss_mask, output_tensor)
-        self.log('train_loss', loss)
-        # Reduced loss for logging.
-        averaged_loss = average_losses_across_data_parallel_group([loss])
-        self.log('reduced_train_loss', averaged_loss[0], prog_bar=True)
-        lr = self._optimizer.param_groups[0]['lr']
-        self.log('lr', lr)
-        self.log('global_step', self.trainer.global_step, prog_bar=True)
-        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step), prog_bar=True)
+        # self.log('train_loss', loss)
+        reduced_loss = average_losses_across_data_parallel_group([loss])
+
+        # cache reduced loss while accumulating gradients
+        self._reduced_loss_buffer.append(reduced_loss[0])
+
+        if (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
+            # Reduced loss for logging.
+            average_reduced_loss = sum(self._reduced_loss_buffer) / len(self._reduced_loss_buffer)
+            self.log('reduced_train_loss', average_reduced_loss, prog_bar=True)
+            lr = self._optimizer.param_groups[0]['lr']
+            self.log('lr', lr)
+            self.log('global_step', self.trainer.global_step, prog_bar=True)
+            self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step), prog_bar=True)
+            self._reduced_loss_buffer = []
         return loss
 
     def validation_step(self, batch, batch_idx):
