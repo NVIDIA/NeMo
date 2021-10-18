@@ -385,11 +385,10 @@ class MegatronT5Model(NLPModel):
         response = {}
         self.eval()
         logsoftmaxlayer = torch.nn.LogSoftmax(dim=-1)
-        response['tokenized_prompt'] = request['tokenized_prompt']
         # naive greedy slow loop
         # TODO: add option for BeamSearchDecoder
 
-        response['prompt'] = request['prompt']
+        response['prompt'] = request['prompt'][0]
         tokens_enc = request['masked_sample']
         predicted_tokens_dec = torch.LongTensor([self.tokenizer.cls_id]).unsqueeze(0).to(tokens_enc.device)
 
