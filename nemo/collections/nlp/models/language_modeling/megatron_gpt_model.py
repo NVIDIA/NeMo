@@ -232,24 +232,27 @@ class MegatronGPTModel(NLPModel):
             return None
 
         # Megatron sampler
-        if self.cfg.data.dataloader_type == 'single':
-            batch_sampler = MegatronPretrainingSampler(
-                total_samples=len(dataset),
-                consumed_samples=consumed_samples,
-                micro_batch_size=self.cfg.micro_batch_size,
-                data_parallel_rank=parallel_state.get_data_parallel_rank(),
-                data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            )
-        elif self.cfg.data.dataloader_type == 'cyclic':
-            batch_sampler = MegatronPretrainingRandomSampler(
-                total_samples=len(dataset),
-                consumed_samples=consumed_samples,
-                micro_batch_size=self.cfg.micro_batch_size,
-                data_parallel_rank=parallel_state.get_data_parallel_rank(),
-                data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            )
+        if hasattr(self.cfg.data, 'dataloader_type') and self.cfg.data.dataloader_type is not None:
+            if self.cfg.data.dataloader_type == 'single':
+                batch_sampler = MegatronPretrainingSampler(
+                    total_samples=len(dataset),
+                    consumed_samples=consumed_samples,
+                    micro_batch_size=self.cfg.micro_batch_size,
+                    data_parallel_rank=parallel_state.get_data_parallel_rank(),
+                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                )
+            elif self.cfg.data.dataloader_type == 'cyclic':
+                batch_sampler = MegatronPretrainingRandomSampler(
+                    total_samples=len(dataset),
+                    consumed_samples=consumed_samples,
+                    micro_batch_size=self.cfg.micro_batch_size,
+                    data_parallel_rank=parallel_state.get_data_parallel_rank(),
+                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                )
+            else:
+                raise ValueError('cfg.data.dataloader_type must be "single" or "cyclic"')
         else:
-            raise Exception('{} dataloader type is not supported.'.format(self.cfg.dataloader_type))
+            raise ValueError('cfg.data.dataloader_type not found. Must be "single" or "cyclic"')
 
         # Torch dataloader.
         return torch.utils.data.DataLoader(
