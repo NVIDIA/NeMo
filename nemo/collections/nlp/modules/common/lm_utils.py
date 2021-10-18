@@ -181,6 +181,9 @@ def get_transformer(
         )
 
     elif library == 'megatron':
+        raise ValueError(
+            f'megatron-lm bert support has been deprecated in NeMo 1.5+. Please use NeMo 1.4 for support.'
+        )
         model = get_megatron_transformer(
             model_name=model_name,
             pretrained=pretrained,
