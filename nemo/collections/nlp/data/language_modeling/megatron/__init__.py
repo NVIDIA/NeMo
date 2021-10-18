@@ -17,6 +17,4 @@ from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import
 
 # TODO: refactor these datasets to work without megatron-lm dependency
 # from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
-# from nemo.collections.nlp.data.language_modeling.megatron.orqa_wiki_dataset import OpenRetrievalEvidenceDataset
-# from nemo.collections.nlp.data.language_modeling.megatron.realm_index import FaissMIPSIndex, OpenRetreivalDataStore
 # from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
