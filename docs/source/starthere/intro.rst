@@ -47,12 +47,12 @@ This NeMo Quick Start Guide is a starting point for users who want to try out Ne
 
 If you're new to NeMo, the best way to get started is to take a look at the following tutorials:
 
-* `Text Classification (Sentiment Analysis) <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/Text_Classification_Sentiment_Analysis>`__ - demonstrates the Text Classification model using the NeMo NLP collection.
+* `Text Classification (Sentiment Analysis) <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/nlp/Text_Classification_Sentiment_Analysis.ipynb>`__ - demonstrates the Text Classification model using the NeMo NLP collection.
 * `NeMo Primer <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/00_NeMo_Primer.ipynb>`__ - introduces NeMo, PyTorch Lightning, and OmegaConf, and shows how to use, modify, save, and restore NeMo models.
 * `NeMo Models <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/01_NeMo_Models.ipynb>`__ - explains the fundamental concepts of the NeMo model.
 * `NeMo voice swap demo <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/NeMo_voice_swap_app.ipynb>`__ - demonstrates how to swap a voice in the audio fragment with a computer generated one using NeMo.
 
-Below we is the code snippet of Audio Translator application.
+Below we is the code snippet of Audio Transator application.
 
 .. code-block:: python
 
