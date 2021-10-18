@@ -349,7 +349,7 @@ class MegatronGPTModel(NLPModel):
                 
         """
         response = {}
-        self.eval()
+        self.freeze()
         logsoftmaxlayer = torch.nn.LogSoftmax(dim=-1)
         response['tokenized_prompt'] = request['tokenized_prompt']
         tokens = request['tokens']
@@ -384,6 +384,7 @@ class MegatronGPTModel(NLPModel):
                 break
             tokens = torch.unsqueeze(tokens, 0)
         response['completion']["text"] = self.tokenizer.ids_to_text(x[1] for x in response['completion']["tokens"])
+        self.unfreeze()
         return response
 
     def list_available_models():
