@@ -21,7 +21,6 @@ import numpy as np
 import torch
 from apex.transformer import parallel_state
 
-from nemo.collections.nlp.data.language_modeling.megatron import helpers
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
     get_datasets_weights_and_num_samples,
@@ -30,6 +29,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_dataset import MegatronDataset
 from nemo.utils import logging
+from nemo.utils.get_rank import is_global_rank_zero
 
 
 def build_train_valid_test_datasets(
@@ -285,6 +285,15 @@ def _build_index_mappings(name, data_prefix, documents, sizes, num_samples, seq_
             # First compile and then import.
             assert doc_idx.dtype == np.int32
             assert sizes.dtype == np.int32
+            try:
+                if is_global_rank_zero():
+                    from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import compile_helper
+
+                    compile_helper()
+                from nemo.collections.nlp.data.language_modeling.megatron import helpers
+            except:
+                raise Exception(f'Could not compile helpers.')
+
             sample_idx = helpers.build_sample_idx(sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch)
             # sample_idx = _build_sample_idx(sizes, doc_idx, seq_length,
             #                               num_epochs, tokens_per_epoch)

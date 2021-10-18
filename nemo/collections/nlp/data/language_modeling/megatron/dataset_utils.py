@@ -39,10 +39,10 @@ import numpy as np
 import torch
 from apex.transformer import parallel_state
 
-from nemo.collections.nlp.data.language_modeling.megatron import helpers
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
 from nemo.utils import logging
+from nemo.utils.get_rank import is_global_rank_zero
 
 DSET_TYPE_BERT = 'standard_bert'
 DSET_TYPE_ICT = 'ict'
@@ -90,7 +90,7 @@ def compile_helper():
     path = os.path.abspath(os.path.dirname(__file__))
     ret = subprocess.run(['make', '-C', path])
     if ret.returncode != 0:
-        print("Making C++ dataset helpers module failed, exiting.")
+        logging.error("Making C++ dataset helpers module failed, exiting.")
         import sys
 
         sys.exit(1)
@@ -577,7 +577,7 @@ def _build_train_valid_test_datasets(
                     masked_lm_prob=masked_lm_prob,
                     max_seq_length_dec=max_seq_length_dec,
                     short_seq_prob=short_seq_prob,
-                    **kwargs
+                    **kwargs,
                 )
             elif dataset_type == DSET_TYPE_BERT:
                 dataset = BertDataset(
@@ -585,7 +585,7 @@ def _build_train_valid_test_datasets(
                     masked_lm_prob=masked_lm_prob,
                     short_seq_prob=short_seq_prob,
                     binary_head=binary_head,
-                    **kwargs
+                    **kwargs,
                 )
             else:
                 raise NotImplementedError("Dataset type not fully implemented.")
@@ -688,6 +688,12 @@ def get_samples_mapping(
         logging.info(' > building samples index mapping for {} ...'.format(name))
         # First compile and then import.
 
+        try:
+            if is_global_rank_zero():
+                compile_helper()
+            from nemo.collections.nlp.data.language_modeling.megatron import helpers
+        except:
+            raise Exception(f'Could not compile helpers.')
         samples_mapping = helpers.build_mapping(
             indexed_dataset.doc_idx,
             indexed_dataset.sizes,

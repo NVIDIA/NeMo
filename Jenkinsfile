@@ -66,11 +66,9 @@ pipeline {
       }
     }
 
-    // remove make once we add online compilation for megatron helpers
-    stage('Installation') {
+    stage('NeMo Installation') {
       steps {
         sh './reinstall.sh release'
-        sh 'cd nemo/collections/nlp/data/language_modeling/megatron && make'
       }
     }
 
