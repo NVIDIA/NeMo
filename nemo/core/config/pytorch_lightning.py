@@ -82,7 +82,7 @@ class TrainerConfig:
     auto_scale_batch_size: Any = False
     prepare_data_per_node: bool = True
     amp_backend: str = 'native'
-    amp_level: Optional[str] = None,
+    amp_level: Optional[str] = None
     plugins: Optional[Any] = None  # Optional[Union[str, list]]
     move_metrics_to_cpu: bool = False
     multiple_trainloader_mode: str = 'max_size_cycle'
