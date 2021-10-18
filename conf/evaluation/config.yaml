@@ -1,0 +1,26 @@
+bignlp_path: ??? # Path to where the bignlp-scripts repo is. Should end with /.../bignlp-scripts
+container: nvcr.io/nvidian/swdl/bignlp:21.10-py3-base
+
+slurm:
+  partition: batch
+  account: null
+  time_limit: "4:00:00"
+  nodes: 1
+  exclusive: True
+  mem: 0
+  overcommit: True
+  ntasks_per_node: 8
+  gpus_per_task: 1
+  dependency: "singleton"
+  job_name: "bignlp-gpt3:evaluation"
+
+eval:
+    name: eval_tasks
+    tasks: lambada  # supported: lambada, boolq, race, piqa, hellaswag, winogrande, wikitext2, wikitext103 OR all_tasks
+    output_path: results
+
+model:
+    type: nemo-gpt3
+    checkpoint: ???
+    tensor_model_parallel_size: 1
+    eval_batch_size: 1
