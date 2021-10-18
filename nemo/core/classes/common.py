@@ -15,6 +15,7 @@
 
 """Interfaces common to all Neural Modules and Models."""
 import hashlib
+import inspect
 import traceback
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
@@ -429,7 +430,7 @@ class Typing(ABC):
 
 class Serialization(ABC):
     @classmethod
-    def from_config_dict(cls, config: 'DictConfig', trainer=None):
+    def from_config_dict(cls, config: 'DictConfig', trainer: Optional['Trainer'] = None):
         """Instantiates object using DictConfig-based configuration"""
         # Resolve the config dict
         if _HAS_HYDRA:
@@ -470,7 +471,12 @@ class Serialization(ABC):
                         imported_cls = cls
 
                     try:
-                        instance = imported_cls(cfg=config)
+                        accepts_trainer = Serialization._inspect_signature_for_trainer(imported_cls)
+                        if accepts_trainer:
+                            instance = imported_cls(cfg=config, trainer=trainer)
+                        else:
+                            instance = imported_cls(cfg=config)
+
                     except Exception as e:
                         imported_cls_tb = traceback.format_exc()
                         instance_init_error = str(e)
@@ -485,6 +491,18 @@ class Serialization(ABC):
                         f"{imported_cls_tb}"
                     )
                 instance = cls(cfg=config, trainer=trainer)
+                try:
+                    accepts_trainer = Serialization._inspect_signature_for_trainer(cls)
+                    if accepts_trainer:
+                        instance = cls(cfg=config, trainer=trainer)
+                    else:
+                        instance = cls(cfg=config)
+
+                except Exception as e:
+                    if imported_cls_tb is not None:
+                        logging.error(f"Instance failed restore_from due to: {instance_init_error}")
+                        logging.error(f"{imported_cls_tb}")
+                    raise e
 
         if not hasattr(instance, '_cfg'):
             instance._cfg = config
@@ -509,6 +527,17 @@ class Serialization(ABC):
                 'to_config_dict() can currently only return object._cfg but current object does not have it.'
             )
 
+    @classmethod
+    def _inspect_signature_for_trainer(cls, check_cls):
+        if hasattr(check_cls, '__init__'):
+            signature = inspect.signature(check_cls.__init__)
+            if 'trainer' in signature.parameters:
+                return True
+            else:
+                return False
+        else:
+            return False
+
 
 class FileIO(ABC):
     def save_to(self, save_path: str):
@@ -523,6 +552,8 @@ class FileIO(ABC):
         map_location: Optional['torch.device'] = None,
         strict: bool = True,
         return_config: bool = False,
+        trainer: Optional['Trainer'] = None,
+        save_restore_connector: SaveRestoreConnector = None,
     ):
         """Restores module/model with weights"""
         raise NotImplementedError()
@@ -638,6 +669,7 @@ class Model(Typing, Serialization, FileIO):
         map_location: Optional['torch.device'] = None,
         strict: bool = True,
         return_config: bool = False,
+        trainer: Optional['Trainer'] = None,
         save_restore_connector: SaveRestoreConnector = None,
     ):
         """
@@ -702,6 +734,7 @@ class Model(Typing, Serialization, FileIO):
             map_location=map_location,
             strict=strict,
             return_config=return_config,
+            trainer=trainer,
             save_restore_connector=save_restore_connector,
         )
         return instance
