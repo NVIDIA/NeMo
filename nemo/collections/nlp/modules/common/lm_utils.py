@@ -89,6 +89,7 @@ def get_lm_model(
         )
 
     if "megatron" in pretrained_model_name:
+        raise ValueError('megatron-lm BERT models have been deprecated in NeMo 1.5+. Please use NeMo 1.4 for support.')
         model, checkpoint_file = get_megatron_lm_model(
             config_dict=config_dict,
             config_file=config_file,
