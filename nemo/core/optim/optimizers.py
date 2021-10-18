@@ -17,9 +17,9 @@ from functools import partial
 from typing import Any, Dict, List, Optional, Union
 
 import hydra
+import torch
 import torch.optim as optim
 from omegaconf import DictConfig, OmegaConf
-import torch
 from torch.optim import adadelta, adagrad, adamax, rmsprop, rprop
 from torch.optim.optimizer import Optimizer
 
