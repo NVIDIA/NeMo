@@ -655,8 +655,10 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             'sample_rate': self.preprocessor._sample_rate,
             'labels': self.decoder.vocabulary,
             'batch_size': min(config['batch_size'], len(config['paths2audio_files'])),
-            'trim_silence': True,
+            'trim_silence': False,
             'shuffle': False,
+            'num_workers': os.cpu_count() - 1,
+            'pin_memory': True,
         }
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
