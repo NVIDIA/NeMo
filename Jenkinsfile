@@ -734,7 +734,6 @@ pipeline {
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
-            trainer.amp_level=O1 \
             trainer.gpus=[0] \
             exp_manager=null'
           }
@@ -756,7 +755,6 @@ pipeline {
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.dataset.version_2_with_negative=true \
             trainer.precision=16 \
-            trainer.amp_level=O1 \
             trainer.gpus=[1] \
             exp_manager=null'
           }
@@ -805,7 +803,6 @@ pipeline {
     //     model.dataset.use_cache=false \
     //     trainer.accelerator=ddp \
     //     trainer.precision=16 \
-    //     trainer.amp_level=O1 \
     //     trainer.gpus=[1] \
     //     +trainer.fast_dev_run=true \
     //     exp_manager=null'
@@ -844,7 +841,6 @@ pipeline {
             model.language_model.pretrained_model_name=distilbert-base-uncased  \
             model.dataset.version_2_with_negative=true \
             trainer.precision=16 \
-            trainer.amp_level=O1 \
             trainer.gpus=[1] \
             exp_manager=null'
           }
@@ -866,7 +862,6 @@ pipeline {
             model.language_model.pretrained_model_name=roberta-base \
             model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
-            trainer.amp_level=O1 \
             trainer.gpus=[0] \
             exp_manager=null'
           }
@@ -919,7 +914,6 @@ pipeline {
     //     trainer.num_nodes=1 \
     //     trainer.precision=16 \
     //     trainer.gradient_clip_val=1.0 \
-    //     ~trainer.amp_level \
     //     +trainer.fast_dev_run=true \
     //     model.dataset.num_classes=6 \
     //     model.train_ds.file_path=/home/TestData/nlp/retail_text_classification/train.tsv \
@@ -949,7 +943,6 @@ pipeline {
     //     trainer.precision=16 \
     //     trainer.gradient_clip_val=1.0 \
     //     trainer.max_epochs=1 \
-    //     ~trainer.amp_level \
     //     +trainer.fast_dev_run=true \
     //     model.dataset.num_classes=6 \
     //     model.train_ds.file_path=/home/TestData/nlp/retail_text_classification/train.tsv \
@@ -1104,7 +1097,6 @@ pipeline {
               --config-name=bert_pretraining_from_text_config.yaml \
               trainer.gpus=[0] \
               trainer.precision=16 \
-              trainer.amp_level=O1 \
               +trainer.fast_dev_run=true \
               model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
               model.train_ds.batch_size=32 \
@@ -1131,7 +1123,6 @@ pipeline {
               --config-name=bert_pretraining_from_preprocessed_config.yaml \
               trainer.gpus=[1] \
               trainer.precision=16 \
-              trainer.amp_level=O1 \
               +trainer.fast_dev_run=true \
               model.train_ds.data_file=/home/TestData/nlp/wiki_book_mini/training \
               model.train_ds.batch_size=8 \
