@@ -28,6 +28,7 @@ from transformers import TRANSFORMERS_CACHE
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
+from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import VOCAB_FILE_NAME
 from nemo.collections.nlp.modules.common.megatron.megatron_bert import (
     get_megatron_checkpoint_version,
     set_megatron_checkpoint_version,
