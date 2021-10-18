@@ -140,6 +140,7 @@ class AutocastModuleWrapper(torch.nn.Module):
     def __init__(self, fp16=False, bf16=False):
         super(AutocastModuleWrapper, self).__init__()
 
+        # TODO: @titu1994 Maybe useful to make this adaptive - prefer bf16 over fp16 when both flags are set and both dtypes are supported?
         assert not (fp16 and bf16)
         if fp16 or bf16:
             self.precision = torch.float16 if fp16 else torch.bfloat16
