@@ -174,8 +174,11 @@ class NeMo_GPT3LM_TP(LM):
         # TODO: automatic batch size detection for vectorization
 
         loglikelihoods = []
+        len_rolling_token_windows = [0]
+        all_rolling_token_windows = []
         with torch.no_grad():
-            for string, in tqdm(requests):
+
+            for string, in requests:
                 rolling_token_windows = list(map(utils.make_disjoint_window, utils.get_rolling_token_windows(
                     token_list=self.tokenizer.text_to_ids(string),
                     prefix_token=50256,
@@ -184,15 +187,15 @@ class NeMo_GPT3LM_TP(LM):
                 )))
 
                 rolling_token_windows = [(None,) + x for x in rolling_token_windows]
+                len_rolling_token_windows.append(len(rolling_token_windows)+len_rolling_token_windows[-1])
+                all_rolling_token_windows.extend(rolling_token_windows)
 
-                # TODO: extract out this call so it only gets called once and also somehow figure out partial caching for that
-                string_nll = self._loglikelihood_tokens(rolling_token_windows)
-
-                # discard is_greedy
-                string_nll = [x[0] for x in string_nll]
-
-                string_nll = sum(string_nll)
-                loglikelihoods.append(string_nll)
+            # TODO: extract out this call so it only gets called once and also somehow figure out partial caching for that
+            string_nll = self._loglikelihood_tokens(all_rolling_token_windows)
+            string_nll = [x[0] for x in string_nll]
+            # discard is_greedy
+            for i in range(len(len_rolling_token_windows)-1):
+                loglikelihoods.append(sum(string_nll[len_rolling_token_windows[i]:len_rolling_token_windows[i+1]]))
 
         return loglikelihoods
 

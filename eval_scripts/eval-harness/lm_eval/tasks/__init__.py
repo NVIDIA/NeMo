@@ -1,11 +1,12 @@
 from pprint import pprint
 
-from . import wsc273
+from . import superglue
 from . import winogrande
 from . import hellaswag
 from . import lambada
 from . import race
 from . import piqa
+from . import wikitext
 
 
 ########################################
@@ -25,10 +26,12 @@ gpt3_translation_benchmarks = {
 
 TASK_REGISTRY = {
     "lambada": lambada.LAMBADA,
+    "boolq": superglue.BoolQ,
     "piqa": piqa.PiQA,
     "hellaswag": hellaswag.HellaSwag,
     "race": race.RACE,
-    "wsc273": wsc273.WinogradSchemaChallenge273,
+    "wikitext2": wikitext.WikiText,
+    "wikitext103": wikitext.WikiText103,
     "winogrande": winogrande.Winogrande,
 }
 

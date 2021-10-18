@@ -66,9 +66,9 @@ def evaluate(lm, task_dict, provide_description, num_fewshot, limit, bootstrap_i
                                                  filter_shot_examples=filter_shots,
                                                  **kwargs
                                                 )
-
-            doc['doc_id'] = doc_id
-            doc['shot_ids'] = shot_ids
+            if isinstance(doc, dict):
+                doc['doc_id'] = doc_id
+                doc['shot_ids'] = shot_ids
             docs[(task_name, doc_id)] = doc
             reqs = task.construct_requests(doc, ctx)  # GEO: this is a tuple, like (ll_true, ll_false)
             if not isinstance(reqs, (list, tuple)): reqs = [reqs]

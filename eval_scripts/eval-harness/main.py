@@ -12,13 +12,9 @@ from datetime import datetime
 import subprocess
 import torch
 
-# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
-#     "NeMo")))
 
 from lm_eval import models, tasks, evaluator, base, utils
 
-# logging.getLogger("openai").setLevel(logging.WARNING)
-# logging.getLogger("megatron").setLevel(logging.WARNING)
 logger = logging.getLogger('__main__')
 
 try:
@@ -53,7 +49,8 @@ def parse_args(parser_main):
                         help="If set, the model's predictions (and other information) will be serialized to disk.")
     # H/W configuration
     parser.add_argument('--batch_size', type=int, default=1)
-    # parser.add_argument('--device', type=str, default='cuda')
+    # Warning: cuda device is the only way it could work.
+    parser.add_argument('--device', type=str, default='cuda')
     # Model
     parser.add_argument('--model', required=True)
     parser.add_argument('--model_args', default="")
@@ -187,6 +184,8 @@ def main():
     args = eval_args
 
     assert args is not None
+    if args.model == "nemo-gpt3" or "nemo-gpt3-tp":
+        assert args.device == 'cuda', "devices == 'cuda' are required to run nemo evaluations."
 
     model_args = utils.simple_parse_args_string(args.model_args)
     if args.model == "nemo-gpt3" \
