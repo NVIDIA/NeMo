@@ -432,7 +432,11 @@ class MegatronT5Model(NLPModel):
             log_probs, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
             predicted_tokens_dec = torch.cat([predicted_tokens_dec, token_ids[:, -1].unsqueeze(1)], 1)
 
-        response['completion'] = ' '.join(self.tokenizer.ids_to_tokens(predicted_tokens_dec[0]))
+        predicted_tokens_dec = self.tokenizer.ids_to_tokens(predicted_tokens_dec[0])
+        if '[SEP]' in predicted_tokens_dec:
+            idx = predicted_tokens_dec.index('[SEP]')
+            predicted_tokens_dec = predicted_tokens_dec[:idx]
+        response['completion'] = self.tokenizer.tokens_to_text(predicted_tokens_dec)
         return response
 
     def _vocab_size_with_padding(self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size):
