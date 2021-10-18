@@ -37,7 +37,7 @@ import time
 
 import numpy as np
 import torch
-from apex.transformer import tensor_parallel
+from apex.transformer import parallel_state
 
 from nemo.collections.nlp.data.language_modeling.megatron import helpers
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
@@ -548,7 +548,6 @@ def _build_train_valid_test_datasets(
     print_split_stats('test', 2)
 
     def build_dataset(index, name):
-        from nemo.collections.nlp.data.language_modeling.megatron.ict_dataset import ICTDataset
         from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
         from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
 
@@ -572,17 +571,7 @@ def _build_train_valid_test_datasets(
                 seed=seed,
             )
 
-            if dataset_type == DSET_TYPE_ICT:
-                args = get_args()
-                dataset = ICTDataset(
-                    block_dataset=indexed_dataset,
-                    title_dataset=title_dataset,
-                    query_in_block_prob=args.query_in_block_prob,
-                    use_one_sent_docs=args.use_one_sent_docs,
-                    binary_head=binary_head,
-                    **kwargs
-                )
-            elif dataset_type == DSET_TYPE_T5:
+            if dataset_type == DSET_TYPE_T5:
                 dataset = T5Dataset(
                     indexed_dataset=indexed_dataset,
                     masked_lm_prob=masked_lm_prob,
