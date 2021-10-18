@@ -1,0 +1,51 @@
+from pprint import pprint
+
+from . import wsc273
+from . import winogrande
+from . import hellaswag
+from . import lambada
+from . import race
+from . import piqa
+
+
+########################################
+# Translation tasks
+########################################
+
+# 6 total
+gpt3_translation_benchmarks = {
+    "wmt14": ['en-fr', 'fr-en'],  # French
+    "wmt16": ['en-ro', 'ro-en', 'de-en', 'en-de'],  # German, Romanian
+}
+
+########################################
+# All tasks
+########################################
+
+
+TASK_REGISTRY = {
+    "lambada": lambada.LAMBADA,
+    "piqa": piqa.PiQA,
+    "hellaswag": hellaswag.HellaSwag,
+    "race": race.RACE,
+    "wsc273": wsc273.WinogradSchemaChallenge273,
+    "winogrande": winogrande.Winogrande,
+}
+
+ALL_TASKS = sorted(list(TASK_REGISTRY))
+
+
+def get_task(task_name):
+    try:
+        return TASK_REGISTRY[task_name]
+    except KeyError as e:
+        print("Available tasks:")
+        pprint(TASK_REGISTRY)
+        raise KeyError(f"Missing task {task_name}")
+
+
+def get_task_dict(task_name_list):
+    return {
+        task_name: get_task(task_name)()
+        for task_name in task_name_list
+    }
