@@ -118,7 +118,7 @@ def get_ltor_masks_and_position_ids(data, eod_token, reset_position_ids, reset_a
             if reset_position_ids:
                 eod_index = eod_index.clone()
 
-            # Loop through EOD indecies:
+            # Loop through EOD indicies:
             prev_index = 0
             for j in range(eod_index.size()[0]):
                 i = eod_index[j]
