@@ -15,10 +15,8 @@
 import hashlib
 import json
 import os
-from ctypes import Union
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Dict, Optional
 
-import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
@@ -39,7 +37,6 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector, NLPSaveRestoreConnector
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import AppState, logging
 
 __all__ = ['NLPModel']
