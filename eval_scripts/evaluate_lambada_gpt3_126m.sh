@@ -6,40 +6,24 @@ DIR="/bignlp-scripts"
 DATETIME=`date +'date_%y-%m-%d_time_%H-%M-%S'`
 mkdir -p $PWD/logs_eval
 
-name="126m-eval-lambada"
-TASK="LAMBADA"
+NAME="126m-eval-lambada"
+TASK="lambada"
+mkdir -p $PWD/logs_eval/$NAME
 
-TEST_DATA="/bignlp-scripts/prepare_dataset/test_data/lambada_test.jsonl"
-BPE_DIR="${DIR}/prepare_dataset/bpe"
-VOCAB_FILE=${BPE_DIR}/vocab.json
-MERGE_FILE=${BPE_DIR}/merges.txt
-
-CHECKPOINT_NAME="126m"
-CHECKPOINT_CONTAINER_DIR="${DIR}/train_scripts/checkpoints/${CHECKPOINT_NAME}"
+# Make sure checkpoint ends with .nemo
+CHECKPOINT_NAME="126m/???.nemo"
+CHECKPOINT="${DIR}/train_scripts/checkpoints/${CHECKPOINT_NAME}"
 
 eval_options=" \
-               --task $TASK \
-               --valid-data $TEST_DATA \
-               --tokenizer-type GPT2BPETokenizer \
-               --strict-lambada \
-               --vocab-file $VOCAB_FILE \
-               --merge-file $MERGE_FILE \
-               --load $CHECKPOINT_CONTAINER_DIR \
-               --tensor-model-parallel-size 1 \
-		       --pipeline-model-parallel-size 1 \
-               --num-layers 12 \
-               --hidden-size 768 \
-               --num-attention-heads 12 \
-               --micro-batch-size 4 \
-               --checkpoint-activations \
-               --seq-length 2048 \
-               --max-position-embeddings 2048 \
-               --log-interval 10 \
-               --fp16 \
-               --no-load-optim \
-               --no-load-rng"
+               --name=${NAME} \
+               --model nemo-gpt3 \
+               --tasks ${TASK}  \
+               --batch_size 1 \
+               --model_args nemo_model=${CHECKPOINT},tensor_model_parallel_size=1 \
+               --output_path $PWD/logs_eval/$NAME
+"
 
-run_cmd="${DIR}/train_scripts/bind.sh --cpu=${DIR}/train_scripts/dgxa100_ccx.sh --mem=${DIR}/train_scripts/dgxa100_ccx.sh python -u ${DIR}/megatron-lm/tasks/main.py $@ ${eval_options}"
+run_cmd="${DIR}/train_scripts/bind.sh --cpu=${DIR}/train_scripts/dgxa100_ccx.sh --mem=${DIR}/train_scripts/dgxa100_ccx.sh python -u ${DIR}/eval_scripts/eval-harness/main.py $@ ${eval_options}"
 
 srun -l \
      --container-image "nvcr.io#nvidia/pytorch:20.12-py3" \
