@@ -310,6 +310,7 @@ class NLPModel(ModelPT, Exportable):
         checkpoint = None
         try:
             cls._set_model_restore_state(is_being_restored=True)
+            # TODO: replace with proper PTL API
             with pl_legacy_patch():
                 if map_location is not None:
                     checkpoint = pl_load(checkpoint_path, map_location=map_location)
