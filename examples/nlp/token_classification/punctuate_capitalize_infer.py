@@ -143,16 +143,17 @@ def get_args():
         "--save_labels_instead_of_text",
         "-B",
         action="store_true",
-        help="If this option is set save punctuation and capitalization labels instead text with restored punctuation "
-        "and capitalization. Labels are saved in format described here https://docs.nvidia.com/deeplearning/nemo/"
+        help="If this option is set, then punctuation and capitalization labels are saved instead text with restored "
+        "punctuation and capitalization. Labels are saved in format described here "
+        "https://docs.nvidia.com/deeplearning/nemo/"
         "user-guide/docs/en/main/nlp/punctuation_and_capitalization.html#nemo-data-format",
     )
     parser.add_argument(
         "--device",
         "-d",
         choices=['cpu', 'cuda'],
-        help="Which device to use. If device is not set and CUDA is available GPU will be used. If device is not set "
-        "and CUDA is not available CPU is used.",
+        help="Which device to use. If device is not set and CUDA is available, then GPU will be used. If device is "
+        "not set and CUDA is not available, then CPU is used.",
     )
     args = parser.parse_args()
     if args.input_manifest is None and args.output_manifest is not None:
