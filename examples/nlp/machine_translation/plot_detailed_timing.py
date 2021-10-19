@@ -31,6 +31,7 @@ def plot_timing(lengths, timings, lengths_name, timings_name, fig=None):
 # Main script
 #=============================================================================#
 if __name__ == "__main__":
+    print("Usage: plot_detailed_timing.py <JSON FILE> <SJON FILE> ...")
     for timing_fn in sys.argv[1:]:
         # load data
         print(f"Parsing file = {timing_fn}")
