@@ -4,14 +4,15 @@ This script takes as an input XXXX.json files
 (i.e., the output of nmt_transformer_infer.py --write_timing)
 and creates plots XXX.PLOT_NAME.png at the same path.
 """
-from matplotlib import pyplot as plt
 import json
-import sys
 import os
+import sys
 
-#=============================================================================#
+from matplotlib import pyplot as plt
+
+# =============================================================================#
 # Helper functions
-#=============================================================================#
+# =============================================================================#
 
 
 def plot_timing(lengths, timings, lengths_name, timings_name, fig=None):
@@ -27,9 +28,9 @@ def plot_timing(lengths, timings, lengths_name, timings_name, fig=None):
     return fig
 
 
-#=============================================================================#
+# =============================================================================#
 # Main script
-#=============================================================================#
+# =============================================================================#
 if __name__ == "__main__":
     print("Usage: plot_detailed_timing.py <JSON FILE> <SJON FILE> ...")
     for timing_fn in sys.argv[1:]:
@@ -62,7 +63,6 @@ if __name__ == "__main__":
             lengths_name="tgt length",
             timings_name="sampler",
         )
-
 
         # save data
         base_fn = os.path.splitext(timing_fn)[0]
