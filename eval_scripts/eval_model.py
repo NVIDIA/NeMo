@@ -45,11 +45,12 @@ def main(cfg):
     # Read config
     bignlp_path = cfg.get("bignlp_path")
     container = cfg.get("container")
-    eval_cfg = cfg.get("eval")
-    model_cfg = cfg.get("model")
+    eval_cfg = cfg.get("evaluation")
+    run_cfg = eval_cfg.get("run")
+    model_cfg = eval_cfg.get("model")
 
     # SLURM parameters
-    slurm_cfg = cfg.get("slurm")
+    slurm_cfg = eval_cfg.get("slurm")
     partition = slurm_cfg.get("partition")
     account = slurm_cfg.get("account")
     time_limit = slurm_cfg.get("time_limit")
@@ -67,9 +68,9 @@ def main(cfg):
     batch_size = model_cfg.get("eval_batch_size")
 
     # Run parameters
-    name = eval_cfg.get("name")
-    tasks = eval_cfg.get("tasks")
-    log_dir = os.path.join(bignlp_path, eval_cfg.get("output_path"), name)
+    name = run_cfg.get("name")
+    tasks = run_cfg.get("tasks")
+    log_dir = os.path.join(bignlp_path, run_cfg.get("output_path"), name)
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
@@ -80,7 +81,7 @@ def main(cfg):
         f"-e {log_dir}/{name}-%j.error "
     )
     new_script_path = os.path.join(bignlp_path, "eval_scripts/eval_script.sh")
-    code_path = os.path.join(bignlp_path, "eval_scripts/eval-harness/main.py")
+    code_path = os.path.join(bignlp_path, "eval_scripts/eval-harness/evaluate.py")
     eval_cmd = f"python3 -u {code_path} " \
                f"--name {name}" \
                f"--model {model_type}" \
