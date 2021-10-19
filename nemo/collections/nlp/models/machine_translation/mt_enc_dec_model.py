@@ -895,7 +895,9 @@ class MTEncDecModel(EncDecNLPModel):
 
         if log_timing:
             timing = timer.export()
-            timing["mean_length"] = src_mask.sum().cpu().item() / src_mask.shape[0]
+            timing["mean_src_length"] = src_mask.sum().cpu().item() / src_mask.shape[0]
+            import pudb; pudb.set_trace()
+            # timing["mean_tgt_length"] = tgt_mask.sum().cpu().item() / tgt_mask.shape[0]
 
             if type(return_val) is tuple:
                 return_val = return_val + (timing,)
