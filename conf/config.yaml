@@ -1,7 +1,8 @@
 defaults:
   - _self_
   - data_preparation: download_pile
-  - training: 126m
+  - training: 126m_fp16  # Must match training_config below.
+  - evlauation: evaluate_lambada
   - override hydra/job_logging: stdout
 
 hydra:
@@ -9,4 +10,6 @@ hydra:
     dir: .
   output_subdir: null
 
-bignlp_path: ???
+training_config: 126m_fp16  # Must match - training above.
+bignlp_path: ??? # Path to where the bignlp-scripts repo is. Should end with /.../bignlp-scripts
+container: nvcr.io/nvidian/swdl/bignlp:21.10-py3-base

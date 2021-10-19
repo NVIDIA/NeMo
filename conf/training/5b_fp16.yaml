@@ -1,0 +1,126 @@
+slurm:
+  partition: batch
+  account: null
+  time_limit: "4:00:00"
+  nodes: 20
+  exclusive: True
+  mem: 0
+  overcommit: True
+  ntasks_per_node: 8
+  gpus_per_task: 1
+  dependency: "singleton"
+  job_name: "bignlp-gpt3:5b_fp16"
+
+
+run:
+  name: "5b_fp16"
+  log_dir: "train_scripts/logs"
+
+
+trainer:
+  gpus: 8
+  num_nodes: 20
+  accelerator: ddp
+  precision: 16
+  amp_backend: native
+  logger: False # logger provided by exp_manager
+  checkpoint_callback: False
+  replace_sampler_ddp: False
+  max_epochs: null
+  max_steps: 750000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  log_every_n_steps: 100
+  val_check_interval: 2000
+  limit_val_batches: 50
+  limit_test_batches: 50
+  accumulate_grad_batches: 8
+  gradient_clip_val: 1.0
+
+
+exp_manager:
+  explicit_log_dir: ???
+  exp_dir: null
+  name: megatron_gpt
+  create_wandb_logger: False
+  wandb_logger_kwargs:
+    project: nemo_gpt_pretraining
+    name: dev
+  resume_if_exists: True
+  resume_ignore_no_checkpoint: True
+  create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: val_loss
+    save_top_k: 10
+    mode: min
+    always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
+    filename: 'megatron_gpt--{val_loss:.2f}-{step}'
+
+
+model:
+  nemo_file_path: ???  # after each training run save .nemo file to this location
+
+  # model parallelism 
+  micro_batch_size: 2
+  tensor_model_parallel_size: 2
+
+  # model architecture
+  encoder_seq_length: 2048
+  max_position_embeddings: 2048
+  num_layers: 24
+  hidden_size: 4096
+  ffn_hidden_size: 16384  # Transformer FFN hidden size. Usually 4 * hidden_size.
+  num_attention_heads: 32
+  init_method_std: 0.014  # Standard deviation of the zero mean normal distribution used for weight initialization.')
+  hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
+  kv_channels: null  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
+  apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
+  layernorm_epsilon: 1e-5
+  make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
+  pre_process: True # add embedding
+  post_process: True # add pooler
+  activations_checkpoint_method: block
+  activations_checkpoint_num_layers: 3
+
+  tokenizer:
+    library: 'megatron'
+    type: 'GPT2BPETokenizer'
+    model: null
+    vocab_file: ???
+    merge_file: ???
+
+  # precision
+  native_amp_init_scale: 4294967296 # 2 ** 32
+  native_amp_growth_interval: 1000
+  fused_fp16: True # False if using fp32 or bf16
+  fused_bf16: False # True if using bf16
+  fp32_residual_connection: False # Move residual connections to fp32
+  fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
+
+  # miscellaneous
+  seed: 1234
+  use_cpu_initialization: False # Init weights on the CPU (slow for large models)
+  onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
+
+  optim:
+    name: fused_adam
+    lr: 1.2e-4
+    weight_decay: 0.1 
+    betas: 
+    - 0.9
+    - 0.95
+    sched:
+      name: CosineAnnealing
+      warmup_steps: 190
+      constant_steps: 20000
+      min_lr: 1.2e-5
+
+  data:
+    data_impl: mmap
+    splits_string: 99990,9,1
+    seq_length: 2048
+    skip_warmup: True
+    num_workers: 0
+    dataloader_type: single # cyclic
+    reset_position_ids: False # Reset position ids after end-of-document token
+    reset_attention_mask: False # Reset attention mask after end-of-document token
+    eod_mask_loss: False # Mask loss for the end of document tokens
+    data_prefix: ??? # Should be weight path weight path... for a blended dataset

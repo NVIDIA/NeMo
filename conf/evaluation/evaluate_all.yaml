@@ -1,0 +1,23 @@
+slurm:
+  partition: batch
+  account: null
+  time_limit: "4:00:00"
+  nodes: 1
+  exclusive: True
+  mem: 0
+  overcommit: True
+  ntasks_per_node: 8
+  gpus_per_task: 1
+  dependency: "singleton"
+  job_name: "bignlp-gpt3:evaluation"
+
+run:
+    name: eval_tasks
+    tasks: all_tasks  # supported: lambada, boolq, race, piqa, hellaswag, winogrande, wikitext2, wikitext103 OR all_tasks
+    output_path: results
+
+model:
+    type: nemo-gpt3
+    checkpoint_path: /path/to/???.nemo # absolute path of checkpoint; must be .nemo file
+    tensor_model_parallel_size: 1
+    eval_batch_size: 1

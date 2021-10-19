@@ -5,28 +5,6 @@ import tqdm
 import zstandard as zstd
 
 
-def download_vocab(cfg):
-    download_vocab_url = cfg["download_vocab_url"]
-    vocab_save_dir = cfg.get("vocab_save_dir")
-    assert (
-        vocab_save_dir is not None
-    ), "A directory must be given to store the vocab file."
-    download_single_file(
-        url=download_vocab_url, save_dir=vocab_save_dir, file_name="vocab.json"
-    )
-
-
-def download_merges(cfg):
-    download_merges_url = cfg["download_merges_url"]
-    merges_save_dir = cfg.get("merges_save_dir")
-    assert (
-        merges_save_dir is not None
-    ), "A directory must be given to store the merges file."
-    download_single_file(
-        url=download_merges_url, save_dir=merges_save_dir, file_name="merges.txt"
-    )
-
-
 def download_single_file(url, save_dir, file_name):
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)

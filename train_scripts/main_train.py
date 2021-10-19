@@ -3,43 +3,50 @@ import os
 import subprocess
 
 import hydra
+from omegaconf import OmegaConf
 
 
 def create_slurm_file(
-    new_file_name,
+    new_script_path,
     train_cmd,
     job_name,
-    blend_path,
     flags="",
-    depend=None,
+    dependency=None,
     time="04:00:00",
     exclusive=True,
+    mem=0,
+    overcommit=True,
     nodes=1,
-    partition="A100",
+    ntasks_per_node=8,
+    gpus_per_task=1,
+    partition="batch",
 ):
-    path_to_file = os.path.join(os.environ.get("PWD"), new_file_name)
-    with open(path_to_file, "w") as f:
+    with open(new_script_path, "w") as f:
         f.writelines("#!/bin/bash\n")
         f.writelines(f"#SBATCH --nodes={nodes}\n")
-        if depend is not None:
-            f.writelines(f"#SBATCH --depend={depend}\n")
+        f.writelines(f"#SBATCH --ntasks-per-node={ntasks_per_node}\n")
+        f.writelines(f"#SBATCH --gpus-per-task={gpus_per_task}\n")
+        if dependency is not None:
+            f.writelines(f"#SBATCH --dependency={dependency}\n")
         f.writelines(f"#SBATCH -p {partition}\n")
         f.writelines(f"#SBATCH --job-name={job_name}\n")
+        f.writelines(f"#SBATCH --mem={mem}\n")
         if exclusive:
             f.writelines("#SBATCH --exclusive\n")
+        if overcommit:
+            f.writelines("#SBATCH --overcommit\n")
         f.writelines(f"#SBATCH --time={time}\n\n")
-
-        f.writelines(f". {blend_path}\n\n")
-
         f.writelines(f'srun {flags} sh -c "{train_cmd}"\n\n')
         f.writelines("set +x\n")
-    return path_to_file
 
 
 @hydra.main(config_path="../conf", config_name="config")
 def main(cfg):
+    hydra_args = " ".join(sys.argv[1:])
+
     # Read config
     bignlp_path = cfg.get("bignlp_path")
+    container = cfg.get("container")
     train_cfg = cfg.get("training")
     run_cfg = train_cfg.get("run")
     megatron_cfg = train_cfg.get("megatron")
@@ -59,54 +66,34 @@ def main(cfg):
 
     # Run parameters
     name = run_cfg.get("name")
-    container = run_cfg.get("container")
-    blend_path = os.path.join(bignlp_path, run_cfg.get("blend_path"))
-    log_dir = os.path.join(bignlp_path, run_cfg.get("log_dir"))
+    log_dir = os.path.join(bignlp_path, run_cfg.get("log_dir"), name)
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
-    if run_cfg.get("bind_script") is not None:
-        bind_script = os.path.join(bignlp_path, run_cfg.get("bind_script"))
-    if run_cfg.get("mem_script") is not None:
-        mem_script = os.path.join(bignlp_path, run_cfg.get("mem_script"))
-    if run_cfg.get("cpu_script") is not None:
-        cpu_script = os.path.join(bignlp_path, run_cfg.get("cpu_script"))
 
-    # Megatron parameters
-    # Convert YAML values to flags: --key value
-    train_args_list = []
-    for k, v in megatron_cfg.items():
-        if isinstance(v, bool):
-            train_args_list.append(f"--{k.replace('_', '-')}")
-        else:
-            train_args_list.append(f"--{k.replace('_', '-')} {v}")
-    train_args = " ".join(train_args_list)
-
-    train_file_name = "train_script.sh"
     flags = (
-        f"-l "
         f"--container-image {container} "
         f"--container-mounts {bignlp_path}:{bignlp_path} "
-        f"--output {log_dir}/{name}-%j.log"
+        f"-o {log_dir}/{name}-%j.log "
+        f"-e {log_dir}/{name}-%j.error "
     )
-
-    train_cmd = ""
-    if run_cfg.get("bind_script") is not None:
-        train_cmd = f"{bind_script} --cpu={cpu_script} --mem={mem_script} "
-    train_cmd += f"python -u {bignlp_path}/megatron-lm/pretrain_gpt.py {train_args}"
-
-    path_to_train_file = create_slurm_file(
-        new_file_name=train_file_name,
+    new_script_path = os.path.join(bignlp_path, "train_scripts/train_script.sh")
+    code_path = os.path.join(bignlp_path, "train_scripts/pretrain_gpt.py")
+    train_cmd = f"python3 -u {code_path} {hydra_args}"
+    create_slurm_file(
+        new_script_path=new_script_path,
         train_cmd=train_cmd,
-        blend_path=blend_path,
-        job_name="bignlp:gpt3-126m",
+        job_name=f"bignlp:{name}",
         flags=flags,
-        depend=dependency,
+        dependency=dependency,
+        exclusive=exclusive,
+        mem=mem,
+        overcommit=overcommit,
         time=time_limit,
         nodes=nodes,
         partition=partition,
     )
     job_id = subprocess.check_output(
-        [f"sbatch --parsable {path_to_train_file}"], shell=True
+        [f"sbatch --parsable {new_script_path}"], shell=True
     )
     job_id = job_id.decode("utf-8")
     print(f"Submitted Training script with job id: {job_id}")
