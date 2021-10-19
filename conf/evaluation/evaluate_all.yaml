@@ -18,6 +18,7 @@ run:
 
 model:
     type: nemo-gpt3
-    checkpoint: ???  # must end in .nemo
+    checkpoint_path: ???
+    checkpoint_name: ???.nemo  # must be a .nemo
     tensor_model_parallel_size: 1
     eval_batch_size: 1

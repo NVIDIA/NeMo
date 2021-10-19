@@ -63,7 +63,9 @@ def main(cfg):
     job_name = slurm_cfg.get("job_name")
 
     model_type = model_cfg.get("type")
-    checkpoint = model_cfg.get("checkpoint")
+    checkpoint = os.path.join(
+        model_cfg.get("checkpoint_path"), model_cfg.get("checkpoint_name"))
+
     tensor_model_parallel_size = model_cfg.get("tensor_model_parallel_size")
     batch_size = model_cfg.get("eval_batch_size")
 
@@ -86,6 +88,7 @@ def main(cfg):
                f"--name {name}" \
                f"--model {model_type}" \
                f"--tasks {tasks}" \
+               f"--batch_size {batch_size}" \
                f"--output_path {log_dir}" \
                f"--model_args nemo_model={checkpoint},tensor_model_parallel_size={tensor_model_parallel_size}"
 
