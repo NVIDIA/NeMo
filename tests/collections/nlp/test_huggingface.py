@@ -82,5 +82,5 @@ class TestHuggingFace:
         model_name = 'asafaya/bert-base-arabic'
         model = nemo_nlp.modules.get_lm_model(pretrained_model_name=model_name)
         assert isinstance(model, nemo_nlp.modules.BertModule)
-        tokenizer = get_tokenizer(tokenizer_name=model_name, use_fast=False)
+        tokenizer = get_tokenizer(tokenizer_name=model_name)
         assert isinstance(tokenizer, AutoTokenizer)
