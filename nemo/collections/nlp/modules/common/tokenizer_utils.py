@@ -66,7 +66,7 @@ def get_tokenizer(
     vocab_file: Optional[str] = None,
     merges_file: Optional[str] = None,
     special_tokens: Optional[Dict[str, str]] = None,
-    use_fast: Optional[bool] = True,
+    use_fast: Optional[bool] = False,
     bpe_dropout: Optional[float] = 0.0,
 ):
     """

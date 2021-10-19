@@ -41,7 +41,7 @@ class AutoTokenizer(TokenizerSpec):
         sep_token: Optional[str] = None,
         cls_token: Optional[str] = None,
         unk_token: Optional[str] = None,
-        use_fast: Optional[bool] = True,
+        use_fast: Optional[bool] = False,
     ):
 
         """
