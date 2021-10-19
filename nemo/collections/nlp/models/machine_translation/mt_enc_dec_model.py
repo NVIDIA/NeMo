@@ -888,16 +888,16 @@ class MTEncDecModel(EncDecNLPModel):
                 )
                 return_val = all_translations, scores, best_translations
             else:
-                _, translations = self.batch_translate(src, src_mask, return_beam_scores=False, cache=cache)
-                return_val = translations
+                _, best_translations = self.batch_translate(src, src_mask, return_beam_scores=False, cache=cache)
+                return_val = best_translations
         finally:
             self.train(mode=mode)
 
         if log_timing:
             timing = timer.export()
             timing["mean_src_length"] = src_mask.sum().cpu().item() / src_mask.shape[0]
-            import pudb; pudb.set_trace()
-            # timing["mean_tgt_length"] = tgt_mask.sum().cpu().item() / tgt_mask.shape[0]
+            tgt, tgt_mask = self.prepare_inference_batch(best_translations, prepend_ids)
+            timing["mean_tgt_length"] = tgt_mask.sum().cpu().item() / tgt_mask.shape[0]
 
             if type(return_val) is tuple:
                 return_val = return_val + (timing,)
