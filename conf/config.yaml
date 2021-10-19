@@ -2,6 +2,7 @@ defaults:
   - _self_
   - data_preparation: download_pile
   - training: 126m_fp16  # Must match training_config below.
+  - evlauation: evaluate_lambada
   - override hydra/job_logging: stdout
 
 hydra:
