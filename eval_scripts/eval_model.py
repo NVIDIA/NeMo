@@ -63,8 +63,7 @@ def main(cfg):
     job_name = slurm_cfg.get("job_name")
 
     model_type = model_cfg.get("type")
-    checkpoint = os.path.join(
-        model_cfg.get("checkpoint_path"), model_cfg.get("checkpoint_name"))
+    checkpoint = model_cfg.get("checkpoint_path")
 
     tensor_model_parallel_size = model_cfg.get("tensor_model_parallel_size")
     batch_size = model_cfg.get("eval_batch_size")
