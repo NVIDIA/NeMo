@@ -41,7 +41,7 @@ class AutoTokenizer(TokenizerSpec):
         sep_token: Optional[str] = None,
         cls_token: Optional[str] = None,
         unk_token: Optional[str] = None,
-        use_fast: Optional[bool] = False,
+        use_fast: Optional[bool] = True,
     ):
 
         """
@@ -61,22 +61,16 @@ class AutoTokenizer(TokenizerSpec):
             use_fast: whether to use fast HuggingFace tokenizer
         """
         try:
-            if vocab_file is not None:
-                message = 'Using "slow" HuggingFace tokenizer'
-                if use_fast:
-                    message += f'{vocab_file} is ignored in "fast" tokenizers, using a "slow" version'
-                self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                    pretrained_model_name_or_path=pretrained_model_name,
-                    vocab_file=vocab_file,
-                    merges_file=merges_file,
-                    use_fast=False,
-                )
-            else:
-                self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                    pretrained_model_name_or_path=pretrained_model_name, use_fast=use_fast
-                )
+            self.tokenizer = AUTOTOKENIZER.from_pretrained(
+                pretrained_model_name_or_path=pretrained_model_name,
+                vocab_file=vocab_file,
+                merges_file=merges_file,
+                use_fast=use_fast,
+            )
         except Exception as e:
-            raise ValueError(f'{pretrained_model_name} is not supported by HuggingFace. {e}')
+            raise ValueError(
+                f'Unable to instantiate HuggingFace AUTOTOKENIZER for {pretrained_model_name}. Exception: {e}'
+            )
 
         special_tokens_dict = {}
 
