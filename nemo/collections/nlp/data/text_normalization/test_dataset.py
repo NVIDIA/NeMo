@@ -17,6 +17,7 @@ from typing import List
 
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 from nemo.collections.nlp.data.text_normalization import constants
+from nemo.utils import logging
 from nemo.collections.nlp.data.text_normalization.utils import normalize_str, read_data_file, remove_puncts
 from nemo.utils.decorators.experimental import experimental
 
@@ -223,7 +224,11 @@ class TextNormalizationTestDataset:
             return 'NA'
         class2stats, class2correct = defaultdict(int), defaultdict(int)
         for ix, (sent, tags) in enumerate(zip(inputs, tag_preds)):
-            assert len(sent) == len(tags)
+            try:
+                assert len(sent) == len(tags)
+            except:
+                logging.warning(f"Error: skipping example {ix}")
+                continue
             cur_words = [[] for _ in range(nb_spans[ix])]
             jx, span_idx = 0, 0
             cur_spans = output_spans[ix]
