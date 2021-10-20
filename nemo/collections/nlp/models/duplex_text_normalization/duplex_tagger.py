@@ -14,6 +14,7 @@
 
 from time import perf_counter
 from typing import List, Optional
+
 import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
@@ -28,7 +29,6 @@ from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 from nemo.utils.decorators.experimental import experimental
-
 
 __all__ = ['DuplexTaggerModel']
 

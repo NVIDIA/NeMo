@@ -195,7 +195,7 @@ class DuplexTextNormalizationModel(nn.Module):
                         error_f.write('Forward Problem (TN)\n')
                         tn_error_ctx += 1
 
-                    formatted_input_str = get_formatted_string(basic_tokenize(_input, lang=self.lang))
+                    formatted_input_str = get_formatted_string(self.decoder.processor.tokenize(_input).split())
                     formatted_tag_pred_str = get_formatted_string(tag_pred)
                     class_str = " ".join(classes)
                     error_f.write(f'Original Input : {_input}\n')
