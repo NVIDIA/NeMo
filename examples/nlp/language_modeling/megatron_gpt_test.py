@@ -62,6 +62,8 @@ def main(cfg) -> None:
         cfg.restore_from_path, trainer=trainer, save_restore_connector=NLPSaveRestoreConnector(),
     )
 
+    # Note: most nemo models must have the data paths configured before instantiating the model
+    # MegatronGPTMOdel sets up the data in the PTL method .setup which happens after DDP spawns.
     model.cfg.data.splits_string = cfg.model.data.splits_string
 
     trainer.test(model)
