@@ -15,7 +15,6 @@
 """Utilities for models."""
 
 import math
-from contextlib import contextmanager
 
 import torch
 from apex.transformer import parallel_state
