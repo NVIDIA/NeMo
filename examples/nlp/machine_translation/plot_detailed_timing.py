@@ -51,10 +51,10 @@ if __name__ == "__main__":
         print(f"Parsing file = {timing_fn}")
         all_data = json.load(open(timing_fn))
 
-        # parse data
-        data = {}
-        for k in all_data[0].keys():
-            data[k] = [d[k] for d in all_data]
+        # # parse data
+        # data = {}
+        # for k in all_data[0].keys():
+        #     data[k] = [d[k] for d in all_data]
 
         # plot data
         gifs_dict = {}
