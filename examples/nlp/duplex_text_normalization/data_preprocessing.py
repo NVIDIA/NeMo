@@ -1,85 +1,31 @@
-import glob
-import os
+from genericpath import exists
 import sys
-from copy import deepcopy
 from argparse import ArgumentParser
 import multiprocessing
-import glob
-
+import os
+from nemo.utils import logging
 import inflect
 import regex as re
 from tqdm import tqdm
 
 import wordninja
 
-parser = ArgumentParser(description="TN cleaning")
-parser.add_argument("--output_dir", required=True, type=str, help='Path to output directory')
-parser.add_argument("--input_dir", required=True, type=str, help='Path to input file')
-parser.add_argument("--size", default=multiprocessing.cpu_count(), type=int, help='cpu count')
+parser = ArgumentParser(description="Text Normalization Data Preprocessing for English")
+parser.add_argument("--output_dir", required=True, type=str, help='Path to output directory.')
+parser.add_argument("--input_path", required=True, type=str, help='Path to input file or input directory.')
+parser.add_argument("--max_integer_length", default=4, type=int, help='Maximum number of digits for integers that are allowed. Beyond this, the integers are verbalized digit by digit.')
+parser.add_argument("--max_denominator_length", default=3, type=int, help='Maximum number of digits for denominators that are allowed. Beyond this, the denominator is verbalized digit by digit.')
 args = parser.parse_args()
+
 engine = inflect.engine()
 
-def process_url(o):
-    """
-    The function is used to process the spoken form of every URL in an example.
-    E.g., "dot h_letter  _letter t_letter  _letter m_letter  _letter l_letter" ->
-          "dot h t m l"
-
-    Args:
-        tokens: The tokens of the written form
-        outputs: The expected outputs for the spoken form
-        lang: Selected language.
-    Return:
-        outputs: The outputs for the spoken form with preprocessed URLs.
-    """
-    
-    def flatten(l):
-        """ flatten a list of lists """
-        return [item for sublist in l for item in sublist]
-
-    if o != '<self>' and '_letter' in o:
-        o_tokens = o.split(' ')
-        all_spans, cur_span = [], []
-        for j in range(len(o_tokens)):
-            if len(o_tokens[j]) == 0:
-                continue
-            if o_tokens[j] == '_letter':
-                all_spans.append(cur_span)
-                all_spans.append([' '])
-                cur_span = []
-            else:
-                o_tokens[j] = o_tokens[j].replace('_letter', '')
-                cur_span.append(o_tokens[j])
-        if len(cur_span) > 0:
-            all_spans.append(cur_span)
-        o_tokens = flatten(all_spans)
-
-        o = ''
-        for o_token in o_tokens:
-            if len(o_token) > 1:
-                o += ' ' + o_token + ' '
-            else:
-                o += o_token
-        o = o.strip()
-        o_tokens = wordninja.split(o)
-        o = ' '.join(o_tokens)
-
-    return o
-
-
-digit = "0123456789"
-
-num_words = list(range(0, 20)) + list(range(20, 100, 10))
-num_words = (
-    [engine.number_to_words(x, zero="zero").replace("-", " ").replace(",", "") for x in num_words]
+number_verbalizations = list(range(0, 20)) + list(range(20, 100, 10))
+number_verbalizations = (
+    [engine.number_to_words(x, zero="zero").replace("-", " ").replace(",", "") for x in number_verbalizations]
     + ["hundred", "thousand", "million", "billion", "trillion"]
     + ["point"]
-    + ["zero"]
 )
-in_mani = sys.argv[1]
-out_mani = sys.argv[2]
-
-LENGTH = 5
+digit = "0123456789"
 
 EN_GREEK_TO_SPOKEN = {
     'Τ': 'tau',
@@ -120,7 +66,64 @@ EN_GREEK_TO_SPOKEN = {
     'ω': 'omega',
     'χ': 'chi',
 }
-def int2num(digits):
+
+
+def process_url(o):
+    """
+    The function is used to process the spoken form of every URL in an example.
+    E.g., "dot h_letter  _letter t_letter  _letter m_letter  _letter l_letter" ->
+          "dot h t m l"
+    Args:
+        o: The expected outputs for the spoken form
+    Return:
+        o: The outputs for the spoken form with preprocessed URLs.
+    """
+    
+    def flatten(l):
+        """ flatten a list of lists """
+        return [item for sublist in l for item in sublist]
+
+    if o != '<self>' and '_letter' in o:
+        o_tokens = o.split(' ')
+        all_spans, cur_span = [], []
+        for j in range(len(o_tokens)):
+            if len(o_tokens[j]) == 0:
+                continue
+            if o_tokens[j] == '_letter':
+                all_spans.append(cur_span)
+                all_spans.append([' '])
+                cur_span = []
+            else:
+                o_tokens[j] = o_tokens[j].replace('_letter', '')
+                cur_span.append(o_tokens[j])
+        if len(cur_span) > 0:
+            all_spans.append(cur_span)
+        o_tokens = flatten(all_spans)
+
+        o = ''
+        for o_token in o_tokens:
+            if len(o_token) > 1:
+                o += ' ' + o_token + ' '
+            else:
+                o += o_token
+        o = o.strip()
+        o_tokens = wordninja.split(o)
+        o = ' '.join(o_tokens)
+
+    return o
+
+
+def int2digits(digits: str):
+    """
+    Verbalizes integer digit by digit, e.g. "12,000.12" -> "one two zero zero zero point one two"
+    It can also take in a string that has an integer as prefix and outputs only the verbalized part of that, e.g. "12 kg" -> "one two"
+    and outputs a warning
+
+    Args:
+        digits: integer in string format
+    Return:
+        res: number verbalization of the integer prefix of the input
+    """
     res = []
     for i, x in enumerate(digits):
         if x in digit:
@@ -130,14 +133,20 @@ def int2num(digits):
         elif x in [" ", ","]:
             continue
         else:
-            print(f"remove {digits[:i]} from {digits[i:]}")
+            logging.warning(f"remove {digits[:i]} from {digits[i:]}")
             break
-    return " ".join(res)
+    res = " ".join(res)
+    return res 
 
-
-def convert(example):
-    cls, written, spoken = example
-
+def convert_fraction(written: str):
+    """
+    converts fraction to standard form, e.g "½" -> "1/2", "1 ½" -> "1 1/2"
+    
+    Args:
+        written: written form
+    Returns:
+        written: modified form
+    """
     written = re.sub(" ½", " 1/2", written)
     written = re.sub(" ⅓", " 1/3", written)
     written = re.sub(" ⅔", " 2/3", written)
@@ -152,9 +161,7 @@ def convert(example):
     written = re.sub(" ⅛", " 1/8", written)
     written = re.sub(" ⅜", " 3/8", written)
     written = re.sub(" ⅝", " 5/8", written)
-    written = re.sub(" ⅞", " 7/8", written)
-
-    
+    written = re.sub(" ⅞", " 7/8", written)    
     written = re.sub("^½", "1/2", written)
     written = re.sub("^⅓", "1/3", written)
     written = re.sub("^⅔", "2/3", written)
@@ -170,7 +177,6 @@ def convert(example):
     written = re.sub("^⅜", "3/8", written)
     written = re.sub("^⅝", "5/8", written)
     written = re.sub("^⅞", "7/8", written)
-
     written = re.sub("-½", "-1/2", written)
     written = re.sub("-⅓", "-1/3", written)
     written = re.sub("-⅔", "-2/3", written)
@@ -186,7 +192,6 @@ def convert(example):
     written = re.sub("-⅜", "-3/8", written)
     written = re.sub("-⅝", "-5/8", written)
     written = re.sub("-⅞", "-7/8", written)
-
     written = re.sub("([0-9])\s?½", "\\1 1/2", written)
     written = re.sub("([0-9])\s?⅓", "\\1 1/3", written)
     written = re.sub("([0-9])\s?⅔", "\\1 2/3", written)
@@ -202,19 +207,20 @@ def convert(example):
     written = re.sub("([0-9])\s?⅜", "\\1 3/8", written)
     written = re.sub("([0-9])\s?⅝", "\\1 5/8", written)
     written = re.sub("([0-9])\s?⅞", "\\1 7/8", written)
+    return written
 
-    
+def convert(example):
+    cls, written, spoken = example
+
+    written = convert_fraction(written)
     written = re.sub("é", "e", written)
-
-    
     written = re.sub("²", "2", written)
     written = re.sub("³", "3", written)
 
-    if cls in ["TIME"]:
+    if cls == "TIME":
         written = re.sub("([0-9]): ([0-9])", "\\1:\\2", written)
     if cls == "MEASURE":
         written = re.sub("([0-9])\s?''", '\\1"',written)
-    example[1] = written
     spoken = process_url(spoken)
 
 
@@ -235,50 +241,37 @@ def convert(example):
         spoken = re.sub(" sil ", " ", spoken)
         spoken = re.sub(" sil$", "", spoken)
 
+
+    example[1] = written
     example[2] = spoken
 
 
-    l = LENGTH - 3
+    l = args.max_integer_length - 2
+
+    # if written form does not fulfill this format return
     if not re.search("[0-9]{%s}[,\s]?[0-9]{3}" % l, written):
         if cls != "FRACTION":
             return
-        
         idx = written.index("/")
         denominator = written[idx + 1 :].strip()
-        if not re.search(r"[0-9]{4}", denominator):
+        if not re.search(r"[0-9]{%s}" % (args.max_denominator_length + 1), denominator):
             return
-        else:
-            print(written)
 
-        
-
-    if re.search("[0-9]{%s}\s[0-9]{3}" % l, written):
-        print(f"more found {cls}\t{written}\t{spoken}")
+    # convert spoken forms for different classes
     if cls == "CARDINAL":
-
         if written[0] == "-":
-            digits = "minus " + int2num(written[1:])
+            digits = "minus " + int2digits(written[1:])
         else:
-            digits = int2num(written)
-
+            digits = int2digits(written)
         spoken = digits
-
     elif cls == "ADDRESS":
-
-        res = []
-        if written[0] == "-":
-            res.append("minus")
-            written = written[1:]
         idx = re.search("[0-9]", written).start()
-        number = int2num(written[idx:].strip())
+        number = int2digits(written[idx:].strip())
         s_words = spoken.split()
         for i, x in enumerate(s_words):
-            if x in num_words:
+            if x in number_verbalizations:
                 break
         spoken = " ".join(s_words[:i]) + " " + number
-        if res:
-            spoken = "minus " + spoken
-
     elif cls == "DECIMAL":
         res = []
         for i, x in enumerate(written):
@@ -292,7 +285,6 @@ def convert(example):
         m = re.search("([a-z]+)", written)
         if m:
             spoken += " " + m.group(1)
-
     elif cls == "FRACTION":
         res = []
         if written[0] == "-":
@@ -301,40 +293,31 @@ def convert(example):
         idx = written.index("/")
         numerator = written[:idx].strip()
         denominator = written[idx + 1 :].strip()
-        if len(numerator) >= LENGTH:
-            numerator = int2num(numerator)
+        if len(numerator) > args.max_integer_length:
+            numerator = int2digits(numerator)
         else:
             numerator = engine.number_to_words(str(numerator), zero="zero").replace("-", " ").replace(",", "")
-        if len(denominator) >= 4:
-            denominator = int2num(denominator)
+        if len(denominator) > args.max_denominator_length:
+            denominator = int2digits(denominator)
         else:
             denominator = engine.number_to_words(str(denominator),zero="zero").replace("-", " ").replace(",", "")
-
         spoken = numerator + " slash " + denominator
         if res:
             spoken = "minus " + spoken
-
     elif cls == "MEASURE":
-
         res = []
         if written[0] == "-":
             res.append("minus")
             written = written[1:]
-        try:
-            idx = re.search("(?s:.*)([0-9]\s?[a-zA-Zµμ\/%Ω'])", written).end()
-        except:
-            import ipdb
-
-            ipdb.set_trace()
-        number = int2num(written[:idx].strip())
+        idx = re.search("(?s:.*)([0-9]\s?[a-zA-Zµμ\/%Ω'])", written).end()
+        number = int2digits(written[:idx].strip())
         s_words = spoken.split()
         for i, x in enumerate(s_words):
-            if x not in num_words:
+            if x not in number_verbalizations:
                 break
         spoken = number + " " + " ".join(s_words[i:])
         if res:
             spoken = "minus " + spoken
-
     elif cls == "MONEY":
         res = []
         if written[0] == "-":
@@ -345,21 +328,19 @@ def convert(example):
         idx_end = len(written)
         if m:
             idx_end = m.start() + idx
-        number = int2num(written[idx:idx_end].strip())
+        number = int2digits(written[idx:idx_end].strip())
         s_words = spoken.split()
         for i, x in enumerate(s_words):
-            if x not in num_words:
+            if x not in number_verbalizations:
                 break
         spoken = number + " " + " ".join(s_words[i:])
         if res:
             spoken = "minus " + spoken
-
     elif cls == "ORDINAL":
         res = []
         if written[0] == "-":
             res.append("minus")
             written = written[1:]
-
         if "th" in written.lower():
             idx = written.lower().index("th")
         elif "rd" in written.lower():
@@ -368,48 +349,39 @@ def convert(example):
             idx = written.lower().index("nd")
         elif "st" in written.lower():
             idx = written.lower().index("st")
-        
         if re.search(r"[¿¡ºª]", written) is None:
-            try:
-                spoken = int2num(written[:idx].strip()) + " " + written[idx:].lower()
-            except:
-                import ipdb
-
-                ipdb.set_trace()
+            spoken = int2digits(written[:idx].strip()) + " " + written[idx:].lower()
         if res:
             spoken = "minus " + spoken
-
-
     example[2] = spoken
 
 
 def ignore(example):
-    cls, written, spoken = example
+    """
+    This function ignores specific data examples, e.g. of class 'PLAIN', 'ELECTRONIC' etc., so they are not used for training the neural decoder.
+    
+    Args:
+        example: data example
+    """
+    cls, _, _ = example
     if cls in ["PLAIN", "LETTERS", "ELECTRONIC", "VERBATIM", "PUNCT"]:
         example[2] = "<self>"
     
-    return example
 
-
-def read_data_file(fp):
-    """ Reading the raw data from a file of NeMo format
+def process_file(fp):
+    """ Reading the raw data from a file of NeMo format and preprocesses it. Write is out to the output directory.
     For more info about the data format, refer to the
     `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`.
 
     Args:
-        fp: file paths
-    Returns:
-        insts: List of sentences parsed as list of words
+        fp: file path
     """
-
     file_name = fp.split("/")[-1]
-    
     output_path = f"{args.output_dir}/{file_name}"
-    print("-----output_path--------", output_path)
+    logging.info(f"-----input_file--------\n{fp}")
+    logging.info(f"-----output_file--------\n{output_path}")
 
     insts, w_words, s_words, classes = [], [], [], []
-    # Read input file
-
     delete_sentence = False
     with open(fp, 'r', encoding='utf-8') as f:
         for line in tqdm(f):
@@ -420,22 +392,20 @@ def read_data_file(fp):
                     insts.append(inst)
                 # Reset
                 w_words, s_words, classes = [], [], []
-                
                 delete_sentence = False
             else:
+                # convert data sample
                 convert(es)
-
+                # decide if this data sample should be ignored for decoder
                 ignore(es)
-
+                
                 characters_ignore = "¿¡ºª"+"".join(EN_GREEK_TO_SPOKEN.keys())
+                # delete sentence with greek symbols, etc.
                 if re.search(rf"[{characters_ignore}]", es[1]) is not None:
                     delete_sentence = True
-                    # print(f"delete {es[1]}")
+                # delete characters from chinese, japanese, korean
                 if re.search(r'[\u4e00-\u9fff]+', es[1]) is not None:
                     delete_sentence = True
-                    # print(f"CJK {es[1]}")
-
-
 
                 classes.append(es[0])
                 w_words.append(es[1])
@@ -445,7 +415,7 @@ def read_data_file(fp):
         insts.append(inst)
 
     output_f = open(output_path, 'w+', encoding='utf-8')
-    for ix, inst in enumerate(insts):
+    for _, inst in enumerate(insts):
         cur_classes, cur_tokens, cur_outputs = inst
         for c, t, o in zip(cur_classes, cur_tokens, cur_outputs):
             output_f.write(f'{c}\t{t}\t{o}\n')
@@ -456,11 +426,21 @@ def read_data_file(fp):
 
 
 def main():
-    # input_files = glob.glob(f"{args.input_dir}/output-*")
+    if not os.path.exists(args.input_path):
+        raise ValueError(f"Input path {args.input_path} does not exist")
+    if os.path.exists(args.output_dir):
+        logging.info(f"Output directory {args.output_dir} exists already. Existing files could be potentially overwritten.")
+    else:
+        logging.info(f"Creating output directory {args.output_dir}.")
+        os.makedirs(args.output_dir, exist_ok=True)
 
-    # with multiprocessing.Pool(args.size) as pool:
-    #     pool.map(read_data_file, input_files)
-    read_data_file(args.input_dir)
+    if os.path.isdir(args.input_path):
+        input_paths = sorted([os.path.join(args.input_path, f) for f in os.listdir(args.input_path)])
+    else:
+        input_paths = [args.input_path]
+
+    for input_file in input_paths:
+        process_file(input_file)
 
 if __name__=="__main__":
     main()
