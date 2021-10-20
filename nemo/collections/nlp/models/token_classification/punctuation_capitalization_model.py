@@ -13,12 +13,14 @@
 # limitations under the License.
 
 import os
+from math import ceil
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
+from tqdm import tqdm
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
@@ -375,6 +377,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
     @staticmethod
     def _remove_margins(tensor, margin_size, keep_left, keep_right):
+        tensor = tensor.detach().clone()
         if not keep_left:
             tensor = tensor[margin_size + 1 :]  # remove left margin and CLS token
         if not keep_right:
@@ -466,8 +469,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         Returns:
             numpy array of shape ``[A + N, L]``
         """
-        acc_prob *= update[: acc_prob.shape[0]]
-        acc_prob = np.concatenate([acc_prob, update[acc_prob.shape[0] :]], axis=0)
+        acc_prob = np.concatenate([acc_prob * update[: acc_prob.shape[0]], update[acc_prob.shape[0] :]], axis=0)
         return acc_prob
 
     def apply_punct_capit_predictions(self, query: str, punct_preds: List[int], capit_preds: List[int]) -> str:
@@ -592,7 +594,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             acc_punct_probs: List[Optional[np.ndarray]] = [None for _ in queries]
             acc_capit_probs: List[Optional[np.ndarray]] = [None for _ in queries]
             d = self.device
-            for batch_i, batch in enumerate(infer_datalayer):
+            for batch_i, batch in tqdm(
+                enumerate(infer_datalayer), total=ceil(len(infer_datalayer.dataset) / batch_size), unit="batch"
+            ):
                 inp_ids, inp_type_ids, inp_mask, subtokens_mask, start_word_ids, query_ids, is_first, is_last = batch
                 punct_logits, capit_logits = self.forward(
                     input_ids=inp_ids.to(d), token_type_ids=inp_type_ids.to(d), attention_mask=inp_mask.to(d),
