@@ -49,12 +49,7 @@ if __name__ == "__main__":
     for timing_fn in sys.argv[1:]:
         # load data
         print(f"Parsing file = {timing_fn}")
-        all_data = json.load(open(timing_fn))
-
-        # # parse data
-        # data = {}
-        # for k in all_data[0].keys():
-        #     data[k] = [d[k] for d in all_data]
+        data = json.load(open(timing_fn))
 
         # plot data
         gifs_dict = {}
