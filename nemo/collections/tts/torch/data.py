@@ -36,7 +36,7 @@ from nemo.collections.tts.torch.tts_data_types import (
     LogMel,
     NLPTokens,
     Pitch,
-    WithLens, NLPDurationPrior,
+    WithLens,
 )
 from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishCharsTokenizer, EnglishPhonemesTokenizer
 from nemo.core.classes import Dataset
@@ -524,7 +524,7 @@ class MixerTTSDataset(TTSDataset):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def _albert(self, without_matching):
+    def _albert(self):
         from transformers import AlbertTokenizer  # noqa pylint: disable=import-outside-toplevel
 
         self.nlp_model_tokenizer = AlbertTokenizer.from_pretrained('albert-base-v2')
@@ -534,85 +534,33 @@ class MixerTTSDataset(TTSDataset):
         self.id2nlp_tokens = {}
         for i, d in enumerate(self.data):
             raw_text = d["raw_text"]
-            enc_text = d["text_tokens"]
 
-            if without_matching:
-                assert isinstance(self.text_tokenizer, EnglishPhonemesTokenizer) or isinstance(self.text_tokenizer, EnglishCharsTokenizer)
-                if isinstance(self.text_tokenizer, EnglishPhonemesTokenizer):
-                    preprocess_text_as_tts_input = self.text_tokenizer.g2p.text_preprocessing_func(raw_text)
-                else:
-                    preprocess_text_as_tts_input = self.text_tokenizer.text_preprocessing_func(raw_text)
-
-                nlp_tokens_as_ids = self.nlp_model_tokenizer.encode(
-                    preprocess_text_as_tts_input, add_special_tokens=False
-                )
-
-                if self.text_tokenizer.pad_with_space:
-                    nlp_tokens_as_ids = [space_value] + nlp_tokens_as_ids + [space_value]
-
-                self.id2nlp_tokens[i] = nlp_tokens_as_ids
+            assert isinstance(self.text_tokenizer, EnglishPhonemesTokenizer) or isinstance(self.text_tokenizer, EnglishCharsTokenizer)
+            if isinstance(self.text_tokenizer, EnglishPhonemesTokenizer):
+                preprocess_text_as_tts_input = self.text_tokenizer.g2p.text_preprocessing_func(raw_text)
             else:
-                assert isinstance(self.text_tokenizer, EnglishCharsTokenizer)
-                assert self.text_tokenizer.pad_with_space
+                preprocess_text_as_tts_input = self.text_tokenizer.text_preprocessing_func(raw_text)
 
-                tts_tokens = [
-                    self.text_tokenizer._id2token[t] for t in enc_text if t not in self.text_tokenizer._util_ids
-                ]
-                tts_tokens_as_str = "".join(tts_tokens)
-                nlp_tokens_as_ids = self.nlp_model_tokenizer.encode(tts_tokens_as_str, add_special_tokens=False)
+            nlp_tokens_as_ids = self.nlp_model_tokenizer.encode(
+                preprocess_text_as_tts_input, add_special_tokens=False
+            )
 
+            if self.text_tokenizer.pad_with_space:
                 nlp_tokens_as_ids = [space_value] + nlp_tokens_as_ids + [space_value]
 
-                nlp_tokens = self.nlp_model_tokenizer.tokenize(tts_tokens_as_str)
-                nlp_tokens = [
-                    s_t.replace("▁", "") if j == 0 and len(s_t) > 1 else s_t.replace("▁", " ")
-                    for j, s_t in enumerate(nlp_tokens)
-                ]
-                nlp_tokens = [" "] + nlp_tokens + [" "]
-
-                self.id2nlp_tokens[i] = self.match_nlp_tokens_to_tts_tokens(nlp_tokens, tts_tokens, nlp_tokens_as_ids)
-
-    @staticmethod
-    def match_nlp_tokens_to_tts_tokens(nlp_tokens, tts_tokens, nlp_tokens_as_ids):
-        matched_nlp_token_ids = []
-        i, cur_nlp_t_idx, cur_nlp_t_pos = 0, 0, 0
-        while i < len(tts_tokens):
-            tts_token = tts_tokens[i]
-            tts_token_size = len(tts_token)
-            cur_nlp_token_suffix = nlp_tokens[cur_nlp_t_idx][cur_nlp_t_pos : cur_nlp_t_pos + tts_token_size]
-
-            if len(cur_nlp_token_suffix) != tts_token_size or cur_nlp_token_suffix != tts_token:
-                cur_nlp_t_idx, cur_nlp_t_pos = cur_nlp_t_idx + 1, 0
-                continue
-
-            matched_nlp_token_ids.append(nlp_tokens_as_ids[cur_nlp_t_idx])
-
-            if cur_nlp_t_pos + tts_token_size < len(nlp_tokens[cur_nlp_t_idx]):
-                cur_nlp_t_pos = cur_nlp_t_pos + tts_token_size
-            else:
-                cur_nlp_t_idx, cur_nlp_t_pos = cur_nlp_t_idx + 1, 0
-            i += 1
-
-        return matched_nlp_token_ids
+            self.id2nlp_tokens[i] = nlp_tokens_as_ids
 
     def add_nlp_tokens(self, **kwargs):
         nlp_model = kwargs.pop('nlp_model')
-        without_matching = kwargs.pop('without_matching')
 
         if nlp_model == "albert":
-            self._albert(without_matching)
+            self._albert()
         else:
             raise NotImplementedError(
                 f"{nlp_model} nlp model is not supported. Only albert is supported at this moment."
             )
 
-    def add_nlp_duration_prior(self, **kwargs):
-        pass
-
     def __getitem__(self, index):
-        sample = self.data[index]
-        audio_stem = Path(sample["audio_filepath"]).stem
-
         audio, audio_length, text, text_length, log_mel, log_mel_length, \
         durations, duration_prior, pitch, pitch_length, energy, energy_length = super().__getitem__(index)
 
@@ -620,28 +568,14 @@ class MixerTTSDataset(TTSDataset):
         if NLPTokens in self.sup_data_types_set:
             nlp_tokens = torch.tensor(self.id2nlp_tokens[index]).long()
 
-        nlp_duration_prior = None
-        if NLPDurationPrior in self.sup_data_types_set:
-            nlp_prior_path = Path(self.sup_data_path) / f"nlp_pr_{audio_stem}.pt"
-
-            if nlp_prior_path.exists():
-                nlp_duration_prior = torch.load(nlp_prior_path)
-            else:
-                log_mel_length = torch.tensor(self.get_log_mel(audio).squeeze(0).shape[1]).long()
-                nlp_tokens_length = len(self.id2nlp_tokens[index])
-                nlp_duration_prior = beta_binomial_prior_distribution(nlp_tokens_length, log_mel_length)
-                nlp_duration_prior = torch.from_numpy(nlp_duration_prior)
-                torch.save(nlp_duration_prior, nlp_prior_path)
-
         return audio, audio_length, text, text_length, log_mel, \
                log_mel_length, durations, duration_prior, pitch, pitch_length, \
-               energy, energy_length, nlp_tokens, nlp_duration_prior
+               energy, energy_length, nlp_tokens
 
     def _collate_fn(self, batch):
         batch = list(zip(*batch))
         data_dict = self.general_collate_fn(list(zip(*batch[:12])))
         nlp_tokens_list = batch[12]
-        nlp_duration_prior_list = batch[13]
 
         if NLPTokens in self.sup_data_types_set:
             nlp_tokens = torch.full(
@@ -652,22 +586,6 @@ class MixerTTSDataset(TTSDataset):
                 nlp_tokens[i, : nlp_tokens_i.shape[0]] = nlp_tokens_i
 
             data_dict[NLPTokens.name] = nlp_tokens
-
-        if NLPDurationPrior in self.sup_data_types_set:
-            nlp_duration_priors = (
-                torch.zeros(
-                    len(nlp_duration_prior_list),
-                    max([prior_i.shape[0] for prior_i in nlp_duration_prior_list]),
-                    max([prior_i.shape[1] for prior_i in nlp_duration_prior_list]),
-                )
-                if NLPDurationPrior in self.sup_data_types_set
-                else []
-            )
-
-            for i, nlp_duration_prior_i in enumerate(nlp_duration_prior_list):
-                nlp_duration_priors[i, : nlp_duration_prior_i.shape[0], : nlp_duration_prior_i.shape[1]] = nlp_duration_prior_i
-
-            data_dict[NLPDurationPrior.name] = nlp_duration_priors
 
         joined_data = self.join_data(data_dict)
         return joined_data

@@ -59,25 +59,15 @@ class SameLensMaskedConv1d(nn.Module):
                 groups=groups,
             )
         else:
-            self.conv = nn.Conv1d(
+            self.conv = nn.Conv2d(
                 in_channels,
                 out_channels,
-                kernel_size=kernel_size,
-                stride=stride,
-                dilation=dilation,
-                padding=padding,
+                kernel_size=(1, kernel_size),
+                stride=(1, stride),
+                dilation=(1, dilation),
+                padding=(0, padding),
                 groups=groups,
-            )
-            # self.conv = nn.Conv2d(
-            #     in_channels,
-            #     out_channels,
-            #     kernel_size=(1, kernel_size),
-            #     stride=(1, stride),
-            #     dilation=(1, dilation),
-            #     padding=(0, padding),
-            #     groups=groups,
-            # )
-            # ).to(memory_format=torch.channels_last)
+            ).to(memory_format=torch.channels_last)
 
         self.use_conv_2d_with_last_channel_format = use_conv_2d_with_last_channel_format
 

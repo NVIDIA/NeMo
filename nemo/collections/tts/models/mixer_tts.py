@@ -646,7 +646,6 @@ class MixerTTSModel(SpectrogramGenerator):
         tokens_len: Optional[torch.Tensor] = None,
         nlp_tokens: Optional[torch.Tensor] = None,
         raw_texts: Optional[List[str]] = None,
-        without_matching: bool = True,
         **kwargs,
     ):
         if tokens is not None:
@@ -673,46 +672,22 @@ class MixerTTSModel(SpectrogramGenerator):
             nlp_padding_value = nlp_model_tokenizer._convert_token_to_id('<pad>')
             nlp_space_value = nlp_model_tokenizer._convert_token_to_id('▁')
 
-            if without_matching:
-                assert isinstance(self.tokenizer, EnglishCharsTokenizer) or isinstance(self.tokenizer, EnglishPhonemesTokenizer)
+            assert isinstance(self.tokenizer, EnglishCharsTokenizer) or isinstance(self.tokenizer, EnglishPhonemesTokenizer)
 
-                preprocess_texts_as_tts_input = [
-                    self.tokenizer.g2p.text_preprocessing_func(t)
-                    if isinstance(self.tokenizer, EnglishPhonemesTokenizer)
-                    else self.tokenizer.text_preprocessing_func(t)
-                    for t in raw_texts
-                ]
+            preprocess_texts_as_tts_input = [
+                self.tokenizer.g2p.text_preprocessing_func(t)
+                if isinstance(self.tokenizer, EnglishPhonemesTokenizer)
+                else self.tokenizer.text_preprocessing_func(t)
+                for t in raw_texts
+            ]
+            nlp_tokens_as_ids_list = [
+                nlp_model_tokenizer.encode(t, add_special_tokens=False) for t in preprocess_texts_as_tts_input
+            ]
+
+            if self.tokenizer.pad_with_space:
                 nlp_tokens_as_ids_list = [
-                    nlp_model_tokenizer.encode(t, add_special_tokens=False) for t in preprocess_texts_as_tts_input
+                    [nlp_space_value] + t + [nlp_space_value] for t in nlp_tokens_as_ids_list
                 ]
-
-                if self.tokenizer.pad_with_space:
-                    nlp_tokens_as_ids_list = [
-                        [nlp_space_value] + t + [nlp_space_value] for t in nlp_tokens_as_ids_list
-                    ]
-            else:
-                nlp_tokens_as_ids_list = []
-                for raw_text in raw_texts:
-                    enc_text = self.tokenizer(raw_text)
-                    tts_tokens = [self.tokenizer._id2token[t] for t in enc_text if t not in self.tokenizer._util_ids]
-                    tts_tokens_as_str = "".join(tts_tokens)
-                    nlp_tokens_as_ids = nlp_model_tokenizer.encode(tts_tokens_as_str, add_special_tokens=False)
-
-                    if self.tokenizer.pad_with_space:
-                        nlp_tokens_as_ids = [nlp_space_value] + nlp_tokens_as_ids + [nlp_space_value]
-
-                    nlp_tokens = nlp_model_tokenizer.tokenize(tts_tokens_as_str)
-                    nlp_tokens = [
-                        s_t.replace("▁", "") if j == 0 and len(s_t) > 1 else s_t.replace("▁", " ")
-                        for j, s_t in enumerate(nlp_tokens)
-                    ]
-
-                    if self.tokenizer.pad_with_space:
-                        nlp_tokens = [" "] + nlp_tokens + [" "]
-
-                    nlp_tokens_as_ids_list.append(
-                        MixerTTSDataset.match_nlp_tokens_to_tts_tokens(nlp_tokens, tts_tokens, nlp_tokens_as_ids)
-                    )
 
             nlp_tokens = torch.full(
                 (len(nlp_tokens_as_ids_list), max([len(t) for t in nlp_tokens_as_ids_list])),

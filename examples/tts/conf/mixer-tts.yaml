@@ -31,7 +31,6 @@ conditioning_on_nlp_model_text_encoder: False
 conditioning_on_nlp_model_text_decoder: False
 extract_nlp_features_via_nlp_aligner: False
 nlp_model: null
-without_matching: null
 
 phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b-030921"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921"
@@ -77,7 +76,6 @@ model:
       pitch_fmax: ${pitch_fmax}
 
       nlp_model: ${nlp_model}
-      without_matching: ${without_matching}
 
       text_tokenizer:
         _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
@@ -123,7 +121,6 @@ model:
       pitch_fmax: ${pitch_fmax}
 
       nlp_model: ${nlp_model}
-      without_matching: ${without_matching}
 
       text_tokenizer:
         _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
