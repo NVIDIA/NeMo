@@ -228,6 +228,7 @@ def main():
             if len(src_text) == args.batch_size:
                 # warmup when measuring timing
                 if not all_timing:
+                    print("running a warmup batch")
                     translate_text(
                         models=models,
                         args=args,
