@@ -31,11 +31,10 @@ from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
-from pytorch_lightning.utilities import rank_zero_only
 from pytorch_lightning.utilities.types import _METRIC
 
 from nemo.constants import NEMO_ENV_VARNAME_VERSION
-from nemo.utils import app_state, logging, timers
+from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
@@ -379,7 +378,6 @@ def check_resume(
         NotFoundError: If resume is True, resume_ignore_no_checkpoint is False, and checkpoints could not be found.
         ValueError: If resume is True, and there were more than 1 checkpoint could found.
     """
-    app_state = AppState()
 
     if not log_dir:
         raise ValueError(f"Resuming requires the log_dir {log_dir} to be passed to exp_manager")

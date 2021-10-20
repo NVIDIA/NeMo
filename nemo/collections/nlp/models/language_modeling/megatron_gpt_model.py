@@ -387,7 +387,7 @@ class MegatronGPTModel(NLPModel):
         self.unfreeze()
         return response
 
-    def list_available_models():
+    def list_available_models(self):
         return None
 
     def _vocab_size_with_padding(self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size):

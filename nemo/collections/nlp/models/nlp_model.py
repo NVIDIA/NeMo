@@ -23,7 +23,6 @@ from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hpara
 from pytorch_lightning.utilities import rank_zero_only
 from pytorch_lightning.utilities.cloud_io import load as pl_load
 from pytorch_lightning.utilities.migration import pl_legacy_patch
-from torch.serialization import save
 from transformers import TRANSFORMERS_CACHE
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -179,32 +178,6 @@ class NLPModel(ModelPT, Exportable):
                 logging.info(
                     f'Registering tokenizer vocab for {self.tokenizer} is not yet supported. Please override this method if needed.'
                 )
-
-    def setup(self, stage: str) -> None:
-        """ PTL hook that is called on all DDP processes. """
-
-        if stage == 'fit':
-
-            # adds self.bert_model config to .nemo file
-            if hasattr(self, 'bert_model') and self.bert_model is not None:
-                self.register_bert_model()
-
-            app_state = AppState()
-
-            if app_state.model_parallel_size is not None:
-
-                self._trainer.checkpoint_connector = NLPCheckpointConnector(self._trainer)
-
-                # # Configure checkpointing for model parallel
-                # if app_state.create_checkpoint_callback:
-                #     # global rank 0 is configured by exp_manager
-                #     if not is_global_rank_zero() and app_state.data_parallel_rank == 0:
-                #         configure_checkpointing(
-                #             self._trainer,
-                #             app_state.log_dir,
-                #             app_state.checkpoint_name,
-                #             app_state.checkpoint_callback_params,
-                #         )
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         """ LightningModule hook that's used to save things in addition to model weights. """

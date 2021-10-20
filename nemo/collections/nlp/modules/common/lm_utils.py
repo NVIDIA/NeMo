@@ -90,13 +90,14 @@ def get_lm_model(
 
     if "megatron" in pretrained_model_name:
         raise ValueError('megatron-lm BERT models have been deprecated in NeMo 1.5+. Please use NeMo 1.4 for support.')
-        model, checkpoint_file = get_megatron_lm_model(
-            config_dict=config_dict,
-            config_file=config_file,
-            pretrained_model_name=pretrained_model_name,
-            checkpoint_file=checkpoint_file,
-            vocab_file=vocab_file,
-        )
+        # TODO: enable megatron bert in nemo
+        # model, checkpoint_file = get_megatron_lm_model(
+        #     config_dict=config_dict,
+        #     config_file=config_file,
+        #     pretrained_model_name=pretrained_model_name,
+        #     checkpoint_file=checkpoint_file,
+        #     vocab_file=vocab_file,
+        # )
     else:
         model = get_huggingface_lm_model(
             config_dict=config_dict, config_file=config_file, pretrained_model_name=pretrained_model_name,
@@ -184,13 +185,14 @@ def get_transformer(
         raise ValueError(
             f'megatron-lm bert support has been deprecated in NeMo 1.5+. Please use NeMo 1.4 for support.'
         )
-        model = get_megatron_transformer(
-            model_name=model_name,
-            pretrained=pretrained,
-            config_dict=config_dict,
-            encoder=encoder,
-            checkpoint_file=checkpoint_file,
-        )
+        # TODO: enable megatron bert in nemo
+        # model = get_megatron_transformer(
+        #     model_name=model_name,
+        #     pretrained=pretrained,
+        #     config_dict=config_dict,
+        #     encoder=encoder,
+        #     checkpoint_file=checkpoint_file,
+        # )
 
     else:
         raise ValueError("Libary must be 'nemo', 'huggingface' or 'megatron'")

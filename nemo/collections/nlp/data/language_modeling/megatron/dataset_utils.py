@@ -33,6 +33,7 @@
 import collections
 import math
 import os
+import subprocess
 import time
 
 import numpy as np
@@ -84,8 +85,6 @@ def get_datasets_weights_and_num_samples(data_prefix, train_valid_test_num_sampl
 def compile_helper():
     """Compile helper function ar runtime. Make sure this
     is invoked on a single process."""
-    import os
-    import subprocess
 
     path = os.path.abspath(os.path.dirname(__file__))
     ret = subprocess.run(['make', '-C', path])
