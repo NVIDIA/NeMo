@@ -21,7 +21,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from nemo.utils import AppState, app_state, logging
+from nemo.utils import AppState, logging
 
 
 def get_args():

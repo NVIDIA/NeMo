@@ -24,7 +24,6 @@ from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTra
 from nemo.collections.nlp.modules.common.megatron.utils import (
     get_linear_layer,
     init_method_normal,
-    openai_gelu,
     scaled_init_method_normal,
 )
 

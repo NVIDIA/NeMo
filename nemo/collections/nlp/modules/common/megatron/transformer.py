@@ -452,7 +452,12 @@ class ParallelTransformerLayer_(MegatronModule):
 
         if self.layer_type == LayerType.decoder:
             self.inter_attention = ParallelAttention(
-                init_method, output_layer_init_method, layer_number, attention_type=AttnType.cross_attn
+                init_method,
+                output_layer_init_method,
+                layer_number,
+                num_attention_heads,
+                hidden_size,
+                attention_type=AttnType.cross_attn,
             )
             # Layernorm on the attention output.
             self.post_inter_attention_layernorm = LayerNorm(

@@ -50,43 +50,47 @@ class MegatronBertEncoder(BertModule):
 
         super().__init__()
 
-        self._model_parallel_size = model_parallel_size
-        self._model_parallel_rank = model_parallel_rank
-        self._restore_path = None
-        self._app_state = None
-        self._model_name = model_name
-
-        if 'vocab_size' in config:
-            self._vocab_size = config.pop('vocab_size')
-        else:
-            self._vocab_size = None
-
-        self._hidden_size = config.get('hidden_size')
-
-        if not os.path.exists(vocab_file):
-            raise ValueError(f'Vocab file not found at {vocab_file}')
-
-        # convert config to dictionary
-        if isinstance(config, DictConfig):
-            config = OmegaConf.to_container(config)
-        config["vocab_file"] = vocab_file
-        config['tokenizer_type'] = 'BertWordPieceLowerCase'
-        config['lazy_mpu_init'] = True
-        config['onnx_safe'] = True
-
-        num_tokentypes = config.pop('num_tokentypes', 2)
-
-        # configure globals for megatron
-        set_pipeline_model_parallel_rank(0)  # pipeline model parallelism not implemented in NeMo
-        set_pipeline_model_parallel_world_size(1)  # pipeline model parallelism not implemented in NeMo
-
-        self.language_model, self._language_model_key = get_language_model(
-            encoder_attn_mask_type=AttnMaskType.padding, num_tokentypes=num_tokentypes, add_pooler=False
+        raise ValueError(
+            f'megatron-lm bert has been deprecated in NeMo 1.5. Please use an earlier release of NeMo. Megatron bert support will be added back to NeMo in a future release.'
         )
 
-        self.config = OmegaConf.create(config)
-        # key used for checkpoints
-        self._hidden_size = self.language_model.hidden_size
+        # self._model_parallel_size = model_parallel_size
+        # self._model_parallel_rank = model_parallel_rank
+        # self._restore_path = None
+        # self._app_state = None
+        # self._model_name = model_name
+
+        # if 'vocab_size' in config:
+        #     self._vocab_size = config.pop('vocab_size')
+        # else:
+        #     self._vocab_size = None
+
+        # self._hidden_size = config.get('hidden_size')
+
+        # if not os.path.exists(vocab_file):
+        #     raise ValueError(f'Vocab file not found at {vocab_file}')
+
+        # # convert config to dictionary
+        # if isinstance(config, DictConfig):
+        #     config = OmegaConf.to_container(config)
+        # config["vocab_file"] = vocab_file
+        # config['tokenizer_type'] = 'BertWordPieceLowerCase'
+        # config['lazy_mpu_init'] = True
+        # config['onnx_safe'] = True
+
+        # num_tokentypes = config.pop('num_tokentypes', 2)
+
+        # # configure globals for megatron
+        # set_pipeline_model_parallel_rank(0)  # pipeline model parallelism not implemented in NeMo
+        # set_pipeline_model_parallel_world_size(1)  # pipeline model parallelism not implemented in NeMo
+
+        # self.language_model, self._language_model_key = get_language_model(
+        #     encoder_attn_mask_type=AttnMaskType.padding, num_tokentypes=num_tokentypes, add_pooler=False
+        # )
+
+        # self.config = OmegaConf.create(config)
+        # # key used for checkpoints
+        # self._hidden_size = self.language_model.hidden_size
 
     @property
     def hidden_size(self):

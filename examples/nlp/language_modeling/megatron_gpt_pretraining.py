@@ -25,7 +25,6 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     NLPNativeBfloat16PrecisionPlugin,
     NLPNativeMixedPrecisionPlugin,
     NLPPrecisionPlugin,
-    NLPSaveRestoreConnector,
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
