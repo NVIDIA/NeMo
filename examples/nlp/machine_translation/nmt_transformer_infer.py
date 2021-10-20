@@ -227,7 +227,7 @@ def main():
             src_text.append(line.strip())
             if len(src_text) == args.batch_size:
                 # warmup when measuring timing
-                if nor all_timing:
+                if not all_timing:
                     translate_text(
                         models=models,
                         args=args,
