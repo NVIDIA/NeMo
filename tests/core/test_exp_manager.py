@@ -36,7 +36,12 @@ class MyTestOptimizer(torch.optim.Optimizer):
         self._step = 0
         super().__init__(params, {})
 
-    def step(self, *args, **kwargs):
+    @torch.no_grad()
+    def step(self, closure=None):
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
         for group in self.param_groups:
             for p in group['params']:
                 if self._step == 0:
@@ -46,7 +51,7 @@ class MyTestOptimizer(torch.optim.Optimizer):
                 else:
                     p.data = 0.01 * torch.ones(p.shape)
         self._step += 1
-        return None
+        return loss
 
 
 class OnesDataset(torch.utils.data.Dataset):
@@ -88,8 +93,8 @@ class ExampleModel(ModelPT):
         return self(batch)
 
     def configure_optimizers(self):
-        # return MyTestOptimizer(self.parameters())
-        return torch.optim.Adam(self.parameters(), lr=0.1)
+        return MyTestOptimizer(self.parameters())
+        # return torch.optim.Adam(self.parameters(), lr=0.1)
 
     def list_available_models(self):
         pass
@@ -325,9 +330,7 @@ class TestExpManager:
         assert Path(str(tmp_path / "test" / "checkpoints" / "default.nemo")).exists()
 
         model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / "default.nemo"))
-        out = float(model(torch.tensor([1.0, 1.0], device=model.device)))
-        ans = 0.0554855540394783
-        assert math.fabs(out - ans) < 1e-3
+        assert float(model(torch.tensor([1.0, 1.0], device=model.device))) == 0.0
 
     @pytest.mark.unit
     def test_nemo_checkpoint_save_best_model_2(self, tmp_path):
@@ -339,9 +342,7 @@ class TestExpManager:
         assert Path(str(tmp_path / "test" / "checkpoints" / "default.nemo")).exists()
 
         model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / "default.nemo"))
-        out = float(model(torch.tensor([1.0, 1.0], device=model.device)))
-        ans = 0.0554855540394783
-        assert math.fabs(out - ans) < 1e-3
+        assert math.fabs(float(model(torch.tensor([1.0, 1.0], device=model.device))) - 0.03) < 1e-5
 
     @pytest.mark.unit
     def test_nemo_checkpoint_always_save_nemo(self, tmp_path):
@@ -359,6 +360,4 @@ class TestExpManager:
         assert Path(str(tmp_path / "test" / "checkpoints" / "default.nemo")).exists()
 
         model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / "default.nemo"))
-        out = float(model(torch.tensor([1.0, 1.0], device=model.device)))
-        ans = 0.0554855540394783
-        assert math.fabs(out - ans) < 1e-3
+        assert float(model(torch.tensor([1.0, 1.0], device=model.device))) == 0.0
