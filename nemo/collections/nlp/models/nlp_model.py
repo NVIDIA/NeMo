@@ -354,9 +354,11 @@ class NLPModel(ModelPT, Exportable):
         # Add NeMo rank check as well
         if app_state.model_parallel_size is not None:
             if app_state.model_parallel_size > 1:
-                logging.info(
-                    f"Using {self._save_restore_connector.__class__} to save a model parallel model. If not using NLPSaveRestoreConnector, make sure the connector supports model parallelism."
-                )
+                if not isinstance(self._save_restore_connector, NLPSaveRestoreConnector):
+                    logging.warning(
+                        f"Using {self._save_restore_connector.__class__} to save a model parallel model.  Overriding with NLPSaveRestoreConnector. Make sure to subclass NLPSaveRestoreConnector."
+                    )
+                    self._save_restore_connector = NLPSaveRestoreConnector()
             save_path = os.path.abspath(os.path.expanduser(save_path))
             self._save_restore_connector.save_to(self, save_path)
         else:
