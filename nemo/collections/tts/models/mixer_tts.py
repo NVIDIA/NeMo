@@ -80,18 +80,8 @@ class MixerTTSModel(SpectrogramGenerator):
                 cfg.self_attention_module, n_lm_tokens_channels=self.lm_embeddings.weight.shape[1]
             )
 
-        if cfg.encoder._target_ == "nemo.collections.tts.modules.mixer_tts.MixerTTSModule":
-            self.encoder_type = "mixer"
-            self.encoder = instantiate(cfg.encoder, num_tokens=num_tokens, padding_idx=self.tokenizer.pad)
-            self.symbol_emb = self.encoder.to_embed
-        elif cfg.encoder._target_ == "nemo.collections.tts.modules.transformer.FFTransformerEncoder":
-            self.encoder_type = "transformer"
-            self.encoder = instantiate(cfg.encoder, n_embed=num_tokens, padding_idx=self.tokenizer.pad)
-            self.symbol_emb = self.encoder.word_emb
-        else:
-            raise NotImplementedError(
-                f"{cfg.decoder._target_} is not supported for encoder. Only MixerTTSModule or FFTransformerDecoder are supported at this moment."
-            )
+        self.encoder = instantiate(cfg.encoder, num_tokens=num_tokens, padding_idx=self.tokenizer.pad)
+        self.symbol_emb = self.encoder.to_embed
 
         self.duration_predictor = instantiate(cfg.duration_predictor)
 
@@ -102,16 +92,6 @@ class MixerTTSModel(SpectrogramGenerator):
         self.preprocessor = instantiate(cfg.preprocessor)
 
         self.decoder = instantiate(cfg.decoder)
-
-        if cfg.decoder._target_ == "nemo.collections.tts.modules.mixer_tts.MixerTTSModule":
-            self.decoder_type = "mixer"
-        elif cfg.decoder._target_ == "nemo.collections.tts.modules.transformer.FFTransformerDecoder":
-            self.decoder_type = "transformer"
-        else:
-            raise NotImplementedError(
-                f"{cfg.decoder._target_} is not supported for decoder. Only MixerTTSModule or FFTransformerDecoder are supported at this moment."
-            )
-
         self.proj = nn.Linear(self.decoder.d_model, cfg.n_mel_channels)
 
     def _get_lm_model_tokenizer(self, lm_model="albert"):
@@ -210,12 +190,7 @@ class MixerTTSModel(SpectrogramGenerator):
 
         text_mask = get_mask_from_lengths(text_len).unsqueeze(2)
 
-        if self.encoder_type == "transformer":
-            enc_out, enc_mask = self.encoder(input=text, conditioning=0)
-        elif self.encoder_type == "mixer":
-            enc_out, enc_mask = self.encoder(text, text_mask)
-        else:
-            raise NotImplementedError
+        enc_out, enc_mask = self.encoder(text, text_mask)
 
         # aligner
         text_emb = self.symbol_emb(text)
@@ -259,13 +234,7 @@ class MixerTTSModel(SpectrogramGenerator):
         # regulate length
         len_regulated_enc_out, dec_lens = regulate_len(attn_hard_dur, enc_out)
 
-        if self.decoder_type == "transformer":
-            dec_out, _ = self.decoder(input=len_regulated_enc_out, seq_lens=dec_lens)
-        elif self.decoder_type == "mixer":
-            dec_out, dec_lens = self.decoder(len_regulated_enc_out, get_mask_from_lengths(dec_lens).unsqueeze(2))
-        else:
-            raise NotImplementedError
-
+        dec_out, dec_lens = self.decoder(len_regulated_enc_out, get_mask_from_lengths(dec_lens).unsqueeze(2))
         pred_spect = self.proj(dec_out)
 
         return (
@@ -292,12 +261,7 @@ class MixerTTSModel(SpectrogramGenerator):
     ):
         text_mask = get_mask_from_lengths(text_len).unsqueeze(2)
 
-        if self.encoder_type == "transformer":
-            enc_out, enc_mask = self.encoder(input=text, conditioning=0)
-        elif self.encoder_type == "mixer":
-            enc_out, enc_mask = self.encoder(text, text_mask)
-        else:
-            raise NotImplementedError
+        enc_out, enc_mask = self.encoder(text, text_mask)
 
         # aligner
         attn_hard_dur = None
@@ -340,13 +304,7 @@ class MixerTTSModel(SpectrogramGenerator):
         else:
             len_regulated_enc_out, dec_lens = regulate_len(durs_predicted, enc_out)
 
-        if self.decoder_type == "transformer":
-            dec_out, _ = self.decoder(input=len_regulated_enc_out, seq_lens=dec_lens)
-        elif self.decoder_type == "mixer":
-            dec_out, _ = self.decoder(len_regulated_enc_out, get_mask_from_lengths(dec_lens).unsqueeze(2))
-        else:
-            raise NotImplementedError
-
+        dec_out, _ = self.decoder(len_regulated_enc_out, get_mask_from_lengths(dec_lens).unsqueeze(2))
         pred_spect = self.proj(dec_out)
 
         return pred_spect
