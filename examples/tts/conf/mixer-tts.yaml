@@ -27,8 +27,6 @@ pitch_loss_scale: 0.1
 durs_loss_scale: 0.1
 mel_loss_scale: 1.0
 
-conditioning_on_nlp_model_text_encoder: False
-conditioning_on_nlp_model_text_decoder: False
 extract_nlp_features_via_nlp_aligner: False
 nlp_model: null
 
@@ -47,8 +45,6 @@ model:
   durs_loss_scale: ${durs_loss_scale}
   mel_loss_scale: ${mel_loss_scale}
 
-  conditioning_on_nlp_model_text_encoder: ${conditioning_on_nlp_model_text_encoder}
-  conditioning_on_nlp_model_text_decoder: ${conditioning_on_nlp_model_text_decoder}
   extract_nlp_features_via_nlp_aligner: ${extract_nlp_features_via_nlp_aligner}
 
   pitch_mean: ${pitch_mean}
