@@ -1,13 +1,54 @@
-from genericpath import exists
-import sys
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""
+This script can be used to clean the splits of English Google Text Normalization dataset
+for better training performance. 
+The operations include:
+    - numbers that are longer than `max_integer_length` will be verbalized digit by digit, e.g. the mapping "10001" -> "ten thousand and one" in the data
+will be changed to "10001" -> "one zero zero zero one"
+    - denominators of fractions that are longer than `max_denominator_length` will be verbalized digit by digit
+    - sentences with non-English characters will be removed
+    - some class formats converted to standardized format, e.g. for `Fraction` "½" become "1/2"   
+    - urls that have a spoken form of "*_letter" e.g. "dot h_letter  _letter t_letter  _letter m_letter  _letter l_letter" are converted to "dot h t m l"
+    - for class types "PLAIN", "LETTERS", "ELECTRONIC", "VERBATIM", "PUNCT" the spoken form is changed to "<self>" which means this class should be left unchanged
+
+
+USAGE Example:
+1. Download the Google TN dataset from https://www.kaggle.com/google-nlu/text-normalization
+2. Unzip the English subset (e.g., by running `tar zxvf  en_with_types.tgz`). Then there will a folder named `en_with_types`.
+3. Run the data_split.py scripts to obtain the data splits
+4. Run this script on the different splits
+# python data_preprocessing.py       \
+        --input_path=data_split/train           \
+        --output_dir=train_processed \
+        --max_integer_length=4  \
+        --max_denominator_length=3 
+
+In this example, the cleaned files will be in train_processed/.
+
+After this script, you can use upsample.py to create a more class balanced training dataset for better performance.
+"""
+
+
+
 from argparse import ArgumentParser
-import multiprocessing
 import os
 from nemo.utils import logging
 import inflect
 import regex as re
 from tqdm import tqdm
-
 import wordninja
 
 parser = ArgumentParser(description="Text Normalization Data Preprocessing for English")
@@ -221,9 +262,8 @@ def convert(example):
         written = re.sub("([0-9]): ([0-9])", "\\1:\\2", written)
     if cls == "MEASURE":
         written = re.sub("([0-9])\s?''", '\\1"',written)
+
     spoken = process_url(spoken)
-
-
     
     if cls in ["TELEPHONE", "DIGIT", "MEASURE", "DECIMAL", "MONEY", "ADDRESS"]:
         spoken = re.sub(" o ", " zero ", spoken)
@@ -240,7 +280,6 @@ def convert(example):
         spoken = re.sub(" sil ", " ", spoken)
         spoken = re.sub(" sil ", " ", spoken)
         spoken = re.sub(" sil$", "", spoken)
-
 
     example[1] = written
     example[2] = spoken
@@ -358,7 +397,7 @@ def convert(example):
 
 def ignore(example):
     """
-    This function ignores specific data examples, e.g. of class 'PLAIN', 'ELECTRONIC' etc., so they are not used for training the neural decoder.
+    This function makes sure specific class types like 'PLAIN', 'ELECTRONIC' etc. are left unchanged.
     
     Args:
         example: data example
@@ -396,7 +435,7 @@ def process_file(fp):
             else:
                 # convert data sample
                 convert(es)
-                # decide if this data sample should be ignored for decoder
+                # decide if this data sample's spoken form should be same as written form 
                 ignore(es)
                 
                 characters_ignore = "¿¡ºª"+"".join(EN_GREEK_TO_SPOKEN.keys())
