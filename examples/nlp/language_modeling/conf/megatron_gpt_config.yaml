@@ -20,12 +20,12 @@ trainer:
 
 exp_manager:
   explicit_log_dir: null
-  exp_dir: /raid/nemo_experiments/
+  exp_dir: null
   name: megatron_gpt
   create_wandb_logger: True
   wandb_logger_kwargs:
-    project: nemo_megatron_gpt_pretraining
-    name: dev
+    project: null
+    name: null
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
@@ -62,8 +62,8 @@ model:
     library: 'megatron'
     type: 'GPT2BPETokenizer'
     model: null
-    vocab_file: /raid/data/gpt/vocab.json
-    merge_file: /raid/data/gpt/merges.txt
+    vocab_file: null
+    merge_file: null 
 
   # precision
   native_amp_init_scale: 4294967296 # 2 ** 32
@@ -84,14 +84,15 @@ model:
   activations_checkpoint_num_layers: 1 
 
   data:
-    # data_prefix
-      # weight 
-      # path
-    data_prefix: 
-      - .5
-      - /raid/data/pile/my-gpt3_00_text_document
-      - .5
-      - /raid/data/pile/my-gpt3_01_text_document
+    # Path to data must be specified by the user.
+    # can override from the CLI: "model.data.data_prefix=[.5,/raid/data/pile/my-gpt3_00_text_document,.5,/raid/data/pile/my-gpt3_01_text_document]",
+    # Or see example below: 
+    # data_prefix: 
+    #   - .5
+    #   - /raid/data/pile/my-gpt3_00_text_document
+    #   - .5
+    #   - /raid/data/pile/my-gpt3_01_text_document
+    data_prefix: ???
     data_impl: mmap
     splits_string: 900,50,50
     seq_length: 1024
