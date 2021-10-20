@@ -226,6 +226,19 @@ def main():
         for line in src_f:
             src_text.append(line.strip())
             if len(src_text) == args.batch_size:
+                # warmup when measuring timing
+                if nor all_timing:
+                    translate_text(
+                        models=models,
+                        args=args,
+                        src_text=src_text,
+                        tgt_text=[],
+                        tgt_text_all=[],
+                        src_texts=[],
+                        all_scores=[],
+                        all_timing=[],
+                        ensemble_generator=ensemble_generator,
+                    )
                 translate_text(
                     models=models,
                     args=args,
