@@ -262,8 +262,14 @@ def main():
                 tgt_f_scores.write(inp + "\t" + line + "\t" + str(score) + "\n")
 
     if args.write_timing:
+        # collect list of dicts to a dict of lists
+        timing_dict = {}
+        if len(all_timing):
+            for k in all_timing[0].keys():
+                timing_dict[k] = [t[k] for t in all_timing]
+
         with open(args.tgtout + '.timing.json', 'w') as timing_fh:
-            json.dump(all_timing, timing_fh)
+            json.dump(timing_dict, timing_fh)
 
 
 if __name__ == '__main__':
