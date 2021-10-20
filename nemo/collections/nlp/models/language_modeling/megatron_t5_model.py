@@ -288,6 +288,8 @@ class MegatronT5Model(NLPModel):
     def setup(self, stage=None):
         if stage == 'predict':
             return
+        if self._train_dl is not None and self._validation_dl is not None:
+            return
         self.build_train_valid_test_datasets()
         self.setup_training_data(self.cfg.data)
         self.setup_validation_data(self.cfg.data)

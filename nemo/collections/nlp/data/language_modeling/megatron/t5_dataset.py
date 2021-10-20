@@ -89,23 +89,24 @@ class T5Dataset(torch.utils.data.Dataset):
         # Note that this rng state should be numpy and not python since
         # python randint is inclusive whereas the numpy one is exclusive.
         np_rng = np.random.RandomState(seed=(self.seed + idx))
-        return build_training_sample(
-            sample,
-            seq_length,
-            self.max_seq_length,  # needed for padding
-            self.max_seq_length_dec,
-            self.vocab_id_list,
-            self.vocab_id_to_token_dict,
-            self.cls_id,
-            self.sep_id,
-            self.mask_id,
-            self.pad_id,
-            self.masked_lm_prob,
-            np_rng,
-            self.bos_id,
-            self.eos_id,
-            self.sentinel_tokens,
+        training_sample = build_training_sample(
+            sample=sample,
+            target_seq_length=seq_length,
+            max_seq_length=self.max_seq_length,
+            max_seq_length_dec=self.max_seq_length_dec,
+            vocab_id_list=self.vocab_id_list,
+            vocab_id_to_token_dict=self.vocab_id_to_token_dict,
+            cls_id=self.cls_id,
+            sep_id=self.sep_id,
+            mask_id=self.mask_id,
+            pad_id=self.pad_id,
+            masked_lm_prob=self.masked_lm_prob,
+            np_rng=np_rng,
+            bos_id=self.bos_id,
+            eos_id=self.eos_id,
+            sentinel_tokens=self.sentinel_tokens,
         )
+        return training_sample
 
 
 def build_training_sample(
