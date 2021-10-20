@@ -37,7 +37,19 @@ def main(cfg) -> None:
     trainer = None
     if cfg.trainer.precision == 16:
         trainer = Trainer(
-            plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes), NLPNativeMixedPrecisionPlugin()], **cfg.trainer
+            plugins=[
+                NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes),
+                NLPNativeMixedPrecisionPlugin(
+                    init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
+                    growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
+                ),
+            ],
+            **cfg.trainer,
+        )
+    elif cfg.trainer.precision == 'bf16':
+        trainer = Trainer(
+            plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes), NLPNativeBfloat16PrecisionPlugin(),],
+            **cfg.trainer,
         )
     else:
         trainer = Trainer(plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes), NLPPrecisionPlugin()], **cfg.trainer)
@@ -47,7 +59,7 @@ def main(cfg) -> None:
     app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
 
     model = MegatronGPTModel.restore_from(
-        '~/tmp/gpt_dev.nemo', trainer=trainer, save_restore_connector=NLPSaveRestoreConnector(),
+        cfg.restore_from_path, trainer=trainer, save_restore_connector=NLPSaveRestoreConnector(),
     )
 
     model.cfg.data.splits_string = cfg.model.data.splits_string

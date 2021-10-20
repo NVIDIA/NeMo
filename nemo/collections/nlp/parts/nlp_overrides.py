@@ -14,13 +14,12 @@
 
 import os
 import shutil
-import tarfile
 import tempfile
 from typing import Any, Dict, List, Optional, Union
 
 import pytorch_lightning as pl
 import torch
-from apex.transformer import parallel_state, tensor_parallel
+from apex.transformer import parallel_state
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
@@ -43,7 +42,6 @@ from nemo.collections.nlp.modules.common.megatron.megatron_bert import (
 )
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import AppState, logging
-from nemo.utils.get_rank import is_global_rank_zero
 
 
 class NLPDDPPlugin(DDPPlugin):
