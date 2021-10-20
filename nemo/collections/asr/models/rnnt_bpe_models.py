@@ -19,6 +19,7 @@ from typing import Dict, List, Optional
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
+from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.losses.rnnt import RNNTLoss
@@ -86,9 +87,23 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         results.append(model)
 
         model = PretrainedModelInfo(
-            pretrained_model_name="stt_en_conformer_transducer_large_mls",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_transducer_large_mls",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_conformer_transducer_large_mls/versions/1.4.0/files/stt_en_conformer_transducer_large_mls.nemo",
+            pretrained_model_name="stt_en_conformer_transducer_small",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_transducer_small",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_conformer_transducer_small/versions/1.4.0/files/stt_en_conformer_transducer_small.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_conformer_transducer_medium",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_transducer_medium",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_conformer_transducer_medium/versions/1.4.0/files/stt_en_conformer_transducer_medium.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_conformer_transducer_large",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_transducer_large",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_conformer_transducer_large/versions/1.4.0/files/stt_en_conformer_transducer_large.nemo",
         )
         results.append(model)
 
@@ -285,7 +300,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
                 return None
 
             shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
-            dataset = audio_to_text_dataset.get_tarred_bpe_dataset(
+            dataset = audio_to_text_dataset.get_tarred_dataset(
                 config=config,
                 tokenizer=self.tokenizer,
                 shuffle_n=shuffle_n,
@@ -303,10 +318,15 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
                 config=config, tokenizer=self.tokenizer, augmentor=augmentor
             )
 
+        if type(dataset) is ChainDataset:
+            collate_fn = dataset.datasets[0].collate_fn
+        else:
+            collate_fn = dataset.collate_fn
+
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=config['batch_size'],
-            collate_fn=dataset.collate_fn,
+            collate_fn=collate_fn,
             drop_last=config.get('drop_last', False),
             shuffle=shuffle,
             num_workers=config.get('num_workers', 0),
@@ -334,6 +354,9 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             'sample_rate': self.preprocessor._sample_rate,
             'batch_size': min(config['batch_size'], len(config['paths2audio_files'])),
             'shuffle': False,
+            'num_workers': os.cpu_count() - 1,
+            'pin_memory': True,
+            'use_start_end_token': self.cfg.validation_ds.get('use_start_end_token', False),
         }
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))

@@ -321,3 +321,8 @@ class InputExample(object):
         self.text_a = text_a
         self.text_b = text_b
         self.label = label
+
+    def __repr__(self):
+        return (
+            f"InputExample(guid='{self.guid}', text_a='{self.text_a}', text_b='{self.text_b}', label='{self.label}')"
+        )

@@ -31,6 +31,7 @@ try:
 except (ModuleNotFoundError, ImportError):
     ASR_AVAILABLE = False
 
+
 try:
     import pynini
     from pynini.lib import rewrite
@@ -81,9 +82,17 @@ class NormalizerWithAudio(Normalizer):
         lang: language
         cache_dir: path to a dir with .far grammar file. Set to None to avoid using cache.
         overwrite_cache: set to True to overwrite .far files
+        whitelist: path to a file with whitelist replacements
     """
 
-    def __init__(self, input_case: str, lang: str = 'en', cache_dir: str = None, overwrite_cache: bool = False):
+    def __init__(
+        self,
+        input_case: str,
+        lang: str = 'en',
+        cache_dir: str = None,
+        overwrite_cache: bool = False,
+        whitelist: str = None,
+    ):
 
         super().__init__(
             input_case=input_case,
@@ -91,6 +100,7 @@ class NormalizerWithAudio(Normalizer):
             deterministic=False,
             cache_dir=cache_dir,
             overwrite_cache=overwrite_cache,
+            whitelist=whitelist,
         )
 
     def normalize(
@@ -141,6 +151,10 @@ class NormalizerWithAudio(Normalizer):
             raise ValueError()
         if punct_post_process:
             normalized_texts = [post_process_punctuation(t) for t in normalized_texts]
+
+            # do post-processing based on Moses detokenizer
+            if self.processor:
+                normalized_texts = [self.processor.detokenize([t]) for t in normalized_texts]
         normalized_texts = set(normalized_texts)
         return normalized_texts
 
@@ -258,6 +272,7 @@ def parse_args():
         "--no_punct_post_process", help="set to True to disable punctuation post processing", action="store_true"
     )
     parser.add_argument("--overwrite_cache", help="set to True to re-create .far grammar files", action="store_true")
+    parser.add_argument("--whitelist", help="path to a file with with whitelist", default=None, type=str)
     parser.add_argument(
         "--cache_dir",
         help="path to a dir with .far grammar file. Set to None to avoid using cache",
@@ -291,7 +306,11 @@ def normalize_manifest(args):
         args.audio_data: path to .json manifest file.
     """
     normalizer = NormalizerWithAudio(
-        input_case=args.input_case, lang=args.language, cache_dir=args.cache_dir, overwrite_cache=args.overwrite_cache
+        input_case=args.input_case,
+        lang=args.language,
+        cache_dir=args.cache_dir,
+        overwrite_cache=args.overwrite_cache,
+        whitelist=args.whitelist,
     )
     manifest_out = args.audio_data.replace('.json', '_normalized.json')
     with open(args.audio_data, 'r') as f:
@@ -317,12 +336,14 @@ if __name__ == "__main__":
     if not ASR_AVAILABLE and args.audio_data:
         raise ValueError("NeMo ASR collection is not installed.")
     start = time.time()
+    args.whitelist = os.path.abspath(args.whitelist) if args.whitelist else None
     if args.text:
         normalizer = NormalizerWithAudio(
             input_case=args.input_case,
             lang=args.language,
             cache_dir=args.cache_dir,
             overwrite_cache=args.overwrite_cache,
+            whitelist=args.whitelist,
         )
 
         if os.path.exists(args.text):

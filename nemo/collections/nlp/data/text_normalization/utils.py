@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import re
 import string
 from copy import deepcopy
 from typing import List
@@ -20,6 +21,7 @@ from nltk import word_tokenize
 from tqdm import tqdm
 
 from nemo.collections.nlp.data.text_normalization import constants
+from nemo.utils import logging
 
 __all__ = ['read_data_file', 'normalize_str', 'flatten', 'process_url']
 
@@ -35,7 +37,7 @@ def input_preprocessing(sent: str, lang: str):
     such as Δ or λ (if any).
 
     Args:
-        sents: input text.
+        sent: input text.
         lang: language
 
     Returns: preprocessed input text.
@@ -136,12 +138,9 @@ def process_url(tokens: List[str], outputs: List[str], lang: str):
     return outputs
 
 
-def normalize_str(input_str, lang):
+def normalize_str(input_str):
     """ Normalize an input string """
-    input_str_tokens = basic_tokenize(input_str.strip().lower(), lang)
-    input_str = ' '.join(input_str_tokens)
-    input_str = input_str.replace('  ', ' ')
-    return input_str
+    return input_str.strip().lower().replace("  ", " ")
 
 
 def remove_puncts(input_str):
@@ -161,3 +160,50 @@ def basic_tokenize(input_str, lang):
     if lang == constants.ENGLISH:
         return word_tokenize(input_str)
     return input_str.strip().split(' ')
+
+
+def post_process_punct(input: str, nn_output: str):
+    """
+    Post-processing of the normalized output to match input in terms of spaces around punctuation marks.
+    After NN normalization, Moses detokenization puts a space after
+    punctuation marks, and attaches an opening quote "'" to the word to the right.
+    E.g., input to the TN NN model is "12 test' example",
+    after normalization and detokenization -> "twelve test 'example" (the quote is considered to be an opening quote,
+    but it doesn't match the input and can cause issues during TTS voice generation.)
+    The current function will match the punctuation and spaces of the normalized text with the input sequence.
+    "12 test' example" -> "twelve test 'example" -> "twelve test' example" (the quote was shifted to match the input).
+
+    Args:
+        input: input text (original input to the NN, before normalization or tokenization)
+        nn_output: output text (output of the TN NN model)
+    """
+    input = [x for x in input]
+    nn_output = [x for x in nn_output]
+    punct_marks = string.punctuation
+
+    try:
+        for punct in punct_marks:
+            if input.count(punct) != nn_output.count(punct):
+                continue
+            idx_in, idx_out = 0, 0
+            while punct in input[idx_in:]:
+                idx_in = input.index(punct, idx_in)
+                idx_out = nn_output.index(punct, idx_out)
+                if idx_in > 0 and idx_out > 0:
+                    if nn_output[idx_out - 1] == " " and input[idx_in - 1] != " ":
+                        nn_output[idx_out - 1] = ""
+
+                    elif nn_output[idx_out - 1] != " " and input[idx_in - 1] == " ":
+                        nn_output[idx_out - 1] += " "
+
+                if idx_in < len(input) - 1 and idx_out < len(nn_output) - 1:
+                    if nn_output[idx_out + 1] == " " and input[idx_in + 1] != " ":
+                        nn_output[idx_out + 1] = ""
+                    elif nn_output[idx_out + 1] != " " and input[idx_in + 1] == " ":
+                        nn_output[idx_out] = nn_output[idx_out] + " "
+                idx_out += 1
+                idx_in += 1
+    except:
+        logging.warning(f"Skipping post-processing of {''.join(nn_output)}")
+    nn_output = "".join(nn_output)
+    return re.sub(r' +', ' ', nn_output)

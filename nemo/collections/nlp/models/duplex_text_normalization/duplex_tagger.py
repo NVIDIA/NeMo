@@ -21,6 +21,7 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch import nn
 from transformers import AutoModelForTokenClassification, AutoTokenizer, DataCollatorForTokenClassification
+from transformers.tokenization_utils_base import BatchEncoding
 
 from nemo.collections.nlp.data.text_normalization import TextNormalizationTaggerDataset, constants
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
@@ -50,6 +51,7 @@ class DuplexTaggerModel(NLPModel):
 
         self.model = AutoModelForTokenClassification.from_pretrained(cfg.transformer, num_labels=self.num_labels)
         self.transformer_name = cfg.transformer
+        self.max_sequence_len = cfg.get('max_sequence_len', self._tokenizer.model_max_length)
 
         # Loss Functions
         self.loss_fct = nn.CrossEntropyLoss(ignore_index=constants.LABEL_PAD_TOKEN_ID)
@@ -131,9 +133,11 @@ class DuplexTaggerModel(NLPModel):
     @torch.no_grad()
     def _infer(self, sents: List[List[str]], inst_directions: List[str]):
         """ Main function for Inference
+
         Args:
             sents: A list of inputs tokenized by a basic tokenizer.
-            inst_directions: A list of str where each str indicates the direction of the corresponding instance (i.e., INST_BACKWARD for ITN or INST_FORWARD for TN).
+            inst_directions: A list of str where each str indicates the direction of the corresponding instance
+                (i.e., INST_BACKWARD for ITN or INST_FORWARD for TN).
 
         Returns:
             all_tag_preds: A list of list where each list contains the raw tag predictions for the corresponding input words in sents.
@@ -142,7 +146,6 @@ class DuplexTaggerModel(NLPModel):
             span_ends: A list of lists where each list contains the ending locations of semiotic spans in input words.
         """
         self.eval()
-
         # Append prefix
         texts = []
         for ix, sent in enumerate(sents):
@@ -156,24 +159,65 @@ class DuplexTaggerModel(NLPModel):
         encodings = self._tokenizer(
             texts, is_split_into_words=True, padding=True, truncation=True, return_tensors='pt'
         )
-        logits = self.model(**encodings.to(self.device)).logits
+
+        inputs = encodings
+        encodings_reduced = None
+
+        # check that the length of the 'input_ids' equals as least the length of the original input
+        # if an input symbol is missing in the tokenizer's vocabulary (such as emoji or a Chinese character), it could be skipped
+        len_texts = [len(x) for x in texts]
+        len_ids = [
+            len(self._tokenizer.convert_ids_to_tokens(x, skip_special_tokens=True)) for x in encodings['input_ids']
+        ]
+        idx_valid = [i for i, (t, enc) in enumerate(zip(len_texts, len_ids)) if enc >= t]
+
+        if len(idx_valid) != len(texts):
+            logging.warning(
+                'Some of the examples have symbols that were skipped during the tokenization. Such examples will be skipped.'
+            )
+            for i in range(len(texts)):
+                if i not in idx_valid:
+                    logging.warning(f'Invalid input: {texts[i]}')
+            # skip these sentences and fall back to the input
+            # exclude invalid examples from the encodings
+            encodings_reduced = {k: tensor[idx_valid, :] for k, tensor in encodings.items()}
+            for k, tensor in encodings_reduced.items():
+                if tensor.ndim == 1:
+                    encodings_reduced[k] = tensor.unsqueeze(dim=0)
+            inputs = BatchEncoding(data=encodings_reduced)
+
+        # skip the batch if no valid inputs are present
+        if encodings_reduced and encodings_reduced['input_ids'].numel() == 0:
+            # -1 to exclude tag for the prompt token
+            all_tag_preds = [[constants.SAME_TAG] * (len(x) - 1) for x in texts]
+            nb_spans = [0] * len(texts)
+            span_starts = [] * len(texts)
+            span_ends = [] * len(texts)
+            return all_tag_preds, nb_spans, span_starts, span_ends
+
+        logits = self.model(**inputs.to(self.device)).logits
         pred_indexes = torch.argmax(logits, dim=-1).tolist()
 
         # Extract all_tag_preds for words
         all_tag_preds = []
         batch_size, max_len = encodings['input_ids'].size()
+        pred_idx = 0
         for ix in range(batch_size):
-            raw_tag_preds = [
-                constants.ALL_TAG_LABELS[p] for p in pred_indexes[ix][2:]
-            ]  # remove first special token and task prefix token
-            tag_preds, previous_word_idx = [], None
-            word_ids = encodings.word_ids(batch_index=ix)[2:]
-            for jx, word_idx in enumerate(word_ids):
-                if word_idx is None:
-                    continue
-                if word_idx != previous_word_idx:
-                    tag_preds.append(raw_tag_preds[jx])  # without special token at index 0
-                previous_word_idx = word_idx
+            if ix in idx_valid:
+                # remove first special token and task prefix token
+                raw_tag_preds = [constants.ALL_TAG_LABELS[p] for p in pred_indexes[pred_idx][2:]]
+                tag_preds, previous_word_idx = [], None
+                word_ids = encodings.word_ids(batch_index=ix)[2:]
+                for jx, word_idx in enumerate(word_ids):
+                    if word_idx is None:
+                        continue
+                    if word_idx != previous_word_idx:
+                        tag_preds.append(raw_tag_preds[jx])  # without special token at index 0
+                    previous_word_idx = word_idx
+                pred_idx += 1
+            else:
+                # for excluded examples, use SAME tags for all words
+                tag_preds = [constants.SAME_TAG] * (len(texts[ix]) - 1)
             all_tag_preds.append(tag_preds)
 
         # Post-correction of simple tagger mistakes, i.e. I- tag is proceeding the B- tag in a span
@@ -184,7 +228,6 @@ class DuplexTaggerModel(NLPModel):
 
         # Decoding
         nb_spans, span_starts, span_ends = self.decode_tag_preds(all_tag_preds)
-
         return all_tag_preds, nb_spans, span_starts, span_ends
 
     def _postprocess_tag_preds(self, words: List[str], inst_dir: str, preds: List[str]):
@@ -287,10 +330,9 @@ class DuplexTaggerModel(NLPModel):
             tokenizer=self._tokenizer,
             tokenizer_name=self.transformer_name,
             mode=self.mode,
-            do_basic_tokenize=cfg.do_basic_tokenize,
             tagger_data_augmentation=tagger_data_augmentation,
             lang=self.lang,
-            max_seq_length=self._cfg.get('max_sequence_len', self._tokenizer.model_max_length),
+            max_seq_length=self.max_sequence_len,
             use_cache=cfg.get('use_cache', False),
             max_insts=cfg.get('max_insts', -1),
         )
