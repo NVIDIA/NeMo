@@ -53,7 +53,7 @@ class MNISTOptimizer(Config):
     name: str = "novograd"
     lr: float = 0.01
 
-    params: NovogradParams = NovogradParams(betas=(0.8, 0.5))
+    args: NovogradParams = NovogradParams(betas=(0.8, 0.5))
     # sched: NovogradScheduler = NovogradScheduler()
 
 
