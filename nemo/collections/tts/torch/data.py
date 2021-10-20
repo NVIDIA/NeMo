@@ -33,8 +33,8 @@ from nemo.collections.tts.torch.tts_data_types import (
     DurationPrior,
     Durations,
     Energy,
+    LMTokens,
     LogMel,
-    NLPTokens,
     Pitch,
     WithLens,
 )
@@ -527,65 +527,89 @@ class MixerTTSDataset(TTSDataset):
     def _albert(self):
         from transformers import AlbertTokenizer  # noqa pylint: disable=import-outside-toplevel
 
-        self.nlp_model_tokenizer = AlbertTokenizer.from_pretrained('albert-base-v2')
-        self.nlp_padding_value = self.nlp_model_tokenizer._convert_token_to_id('<pad>')
-        space_value = self.nlp_model_tokenizer._convert_token_to_id('▁')
+        self.lm_model_tokenizer = AlbertTokenizer.from_pretrained('albert-base-v2')
+        self.lm_padding_value = self.lm_model_tokenizer._convert_token_to_id('<pad>')
+        space_value = self.lm_model_tokenizer._convert_token_to_id('▁')
 
-        self.id2nlp_tokens = {}
+        self.id2lm_tokens = {}
         for i, d in enumerate(self.data):
             raw_text = d["raw_text"]
 
-            assert isinstance(self.text_tokenizer, EnglishPhonemesTokenizer) or isinstance(self.text_tokenizer, EnglishCharsTokenizer)
+            assert isinstance(self.text_tokenizer, EnglishPhonemesTokenizer) or isinstance(
+                self.text_tokenizer, EnglishCharsTokenizer
+            )
             if isinstance(self.text_tokenizer, EnglishPhonemesTokenizer):
                 preprocess_text_as_tts_input = self.text_tokenizer.g2p.text_preprocessing_func(raw_text)
             else:
                 preprocess_text_as_tts_input = self.text_tokenizer.text_preprocessing_func(raw_text)
 
-            nlp_tokens_as_ids = self.nlp_model_tokenizer.encode(
-                preprocess_text_as_tts_input, add_special_tokens=False
-            )
+            lm_tokens_as_ids = self.lm_model_tokenizer.encode(preprocess_text_as_tts_input, add_special_tokens=False)
 
             if self.text_tokenizer.pad_with_space:
-                nlp_tokens_as_ids = [space_value] + nlp_tokens_as_ids + [space_value]
+                lm_tokens_as_ids = [space_value] + lm_tokens_as_ids + [space_value]
 
-            self.id2nlp_tokens[i] = nlp_tokens_as_ids
+            self.id2lm_tokens[i] = lm_tokens_as_ids
 
-    def add_nlp_tokens(self, **kwargs):
-        nlp_model = kwargs.pop('nlp_model')
+    def add_lm_tokens(self, **kwargs):
+        lm_model = kwargs.pop('lm_model')
 
-        if nlp_model == "albert":
+        if lm_model == "albert":
             self._albert()
         else:
             raise NotImplementedError(
-                f"{nlp_model} nlp model is not supported. Only albert is supported at this moment."
+                f"{lm_model} lm model is not supported. Only albert is supported at this moment."
             )
 
     def __getitem__(self, index):
-        audio, audio_length, text, text_length, log_mel, log_mel_length, \
-        durations, duration_prior, pitch, pitch_length, energy, energy_length = super().__getitem__(index)
+        (
+            audio,
+            audio_length,
+            text,
+            text_length,
+            log_mel,
+            log_mel_length,
+            durations,
+            duration_prior,
+            pitch,
+            pitch_length,
+            energy,
+            energy_length,
+        ) = super().__getitem__(index)
 
-        nlp_tokens = None
-        if NLPTokens in self.sup_data_types_set:
-            nlp_tokens = torch.tensor(self.id2nlp_tokens[index]).long()
+        lm_tokens = None
+        if LMTokens in self.sup_data_types_set:
+            lm_tokens = torch.tensor(self.id2lm_tokens[index]).long()
 
-        return audio, audio_length, text, text_length, log_mel, \
-               log_mel_length, durations, duration_prior, pitch, pitch_length, \
-               energy, energy_length, nlp_tokens
+        return (
+            audio,
+            audio_length,
+            text,
+            text_length,
+            log_mel,
+            log_mel_length,
+            durations,
+            duration_prior,
+            pitch,
+            pitch_length,
+            energy,
+            energy_length,
+            lm_tokens,
+        )
 
     def _collate_fn(self, batch):
         batch = list(zip(*batch))
         data_dict = self.general_collate_fn(list(zip(*batch[:12])))
-        nlp_tokens_list = batch[12]
+        lm_tokens_list = batch[12]
 
-        if NLPTokens in self.sup_data_types_set:
-            nlp_tokens = torch.full(
-                (len(nlp_tokens_list), max([nlp_tokens.shape[0] for nlp_tokens in nlp_tokens_list])),
-                fill_value=self.nlp_padding_value,
+        if LMTokens in self.sup_data_types_set:
+            lm_tokens = torch.full(
+                (len(lm_tokens_list), max([lm_tokens.shape[0] for lm_tokens in lm_tokens_list])),
+                fill_value=self.lm_padding_value,
             )
-            for i, nlp_tokens_i in enumerate(nlp_tokens_list):
-                nlp_tokens[i, : nlp_tokens_i.shape[0]] = nlp_tokens_i
+            for i, lm_tokens_i in enumerate(lm_tokens_list):
+                lm_tokens[i, : lm_tokens_i.shape[0]] = lm_tokens_i
 
-            data_dict[NLPTokens.name] = nlp_tokens
+            data_dict[LMTokens.name] = lm_tokens
 
         joined_data = self.join_data(data_dict)
         return joined_data

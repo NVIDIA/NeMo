@@ -4,7 +4,7 @@ sample_rate: 22050
 train_dataset: ???
 validation_datasets: ???
 sup_data_path: ???
-sup_data_types: [ "duration_prior", "pitch", "nlp_tokens" ]
+sup_data_types: [ "duration_prior", "pitch", "lm_tokens" ]
 
 # LJSpeech stats (per frame), train
 pitch_mean: 212.35873413085938
@@ -27,8 +27,8 @@ pitch_loss_scale: 0.1
 durs_loss_scale: 0.1
 mel_loss_scale: 1.0
 
-extract_nlp_features_via_nlp_aligner: False
-nlp_model: null
+cond_on_lm_embeddings: False
+lm_model: null
 
 phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b-030921"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921"
@@ -45,7 +45,7 @@ model:
   durs_loss_scale: ${durs_loss_scale}
   mel_loss_scale: ${mel_loss_scale}
 
-  extract_nlp_features_via_nlp_aligner: ${extract_nlp_features_via_nlp_aligner}
+  cond_on_lm_embeddings: ${cond_on_lm_embeddings}
 
   pitch_mean: ${pitch_mean}
   pitch_std: ${pitch_std}
@@ -71,7 +71,7 @@ model:
       pitch_fmin: ${pitch_fmin}
       pitch_fmax: ${pitch_fmax}
 
-      nlp_model: ${nlp_model}
+      lm_model: ${lm_model}
 
       text_tokenizer:
         _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
@@ -116,7 +116,7 @@ model:
       pitch_fmin: ${pitch_fmin}
       pitch_fmax: ${pitch_fmax}
 
-      nlp_model: ${nlp_model}
+      lm_model: ${lm_model}
 
       text_tokenizer:
         _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
@@ -169,13 +169,13 @@ model:
     _target_: nemo.collections.tts.modules.aligner.AlignmentEncoder
     n_text_channels: ${model.symbols_embedding_dim}
 
-  nlp_aligner:
-    _target_: nemo.collections.tts.modules.mixer_tts.NLPAligner
+  self_attention_module:
+    _target_: nemo.collections.tts.modules.mixer_tts.SelfAttentionModule
     n_text_channels: ${model.symbols_embedding_dim}
-    n_nlp_channels: 100 # dummy value, real value is set in model constructor
+    n_lm_tokens_channels: 100 # dummy value, real value is set in model constructor
 
   encoder:
-    _target_: nemo.collections.tts.modules.mixer_tts.TTSMixerModule
+    _target_: nemo.collections.tts.modules.mixer_tts.MixerTTSModule
     num_tokens: 100 # dummy value, real value is set in model constructor
     padding_idx: 100 # dummy value, real value is set in model constructor
     feature_dim: 384
@@ -185,7 +185,7 @@ model:
     dropout: 0.15
 
   decoder:
-    _target_: nemo.collections.tts.modules.mixer_tts.TTSMixerModule
+    _target_: nemo.collections.tts.modules.mixer_tts.MixerTTSModule
     num_tokens: -1
     feature_dim: 384
     kernel_sizes: [15, 17, 19, 21, 23, 25, 27, 29, 31]
@@ -208,13 +208,6 @@ model:
     filter_size: 256
     dropout: 0.15
     n_layers: 2
-
-  nlp_emb:
-    _target_: torch.nn.Conv1d
-    in_channels: 100 # dummy value, real value is set in model constructor
-    out_channels: ${model.symbols_embedding_dim}
-    kernel_size: 3
-    padding: 1
 
   pitch_emb:
     _target_: torch.nn.Conv1d

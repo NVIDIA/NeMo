@@ -21,22 +21,6 @@ from nemo.collections.tts.modules.aligner import ConvNorm
 from nemo.collections.tts.modules.transformer import PositionalEmbedding
 
 
-def average_f(f, durs):
-    durs_cums_ends = torch.cumsum(durs, dim=1).long()
-    durs_cums_starts = torch.nn.functional.pad(durs_cums_ends[:, :-1], (1, 0))
-    f_cums = torch.nn.functional.pad(torch.cumsum(f, dim=2), (1, 0))
-
-    bs, l = durs_cums_ends.size()
-    n_f = f.size(1)
-
-    dcs = durs_cums_starts[:, None, :].expand(bs, n_f, l)
-    dce = durs_cums_ends[:, None, :].expand(bs, n_f, l)
-
-    f_sums = torch.gather(f_cums, 2, dce) - torch.gather(f_cums, 2, dcs)
-
-    return f_sums / (durs.unsqueeze(1).float() + 1e-9)
-
-
 def get_same_padding(kernel_size, stride, dilation) -> int:
     if stride > 1 and dilation > 1:
         raise ValueError("Only stride OR dilation may be greater than 1")
@@ -44,63 +28,39 @@ def get_same_padding(kernel_size, stride, dilation) -> int:
 
 
 class SameLensMaskedConv1d(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, dilation, padding, groups,
-                 use_conv_2d_with_last_channel_format=False):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, dilation, padding, groups):
         super().__init__()
 
-        if not use_conv_2d_with_last_channel_format:
-            self.conv = nn.Conv1d(
-                in_channels,
-                out_channels,
-                kernel_size=kernel_size,
-                stride=stride,
-                dilation=dilation,
-                padding=padding,
-                groups=groups,
-            )
-        else:
-            self.conv = nn.Conv2d(
-                in_channels,
-                out_channels,
-                kernel_size=(1, kernel_size),
-                stride=(1, stride),
-                dilation=(1, dilation),
-                padding=(0, padding),
-                groups=groups,
-            ).to(memory_format=torch.channels_last)
-
-        self.use_conv_2d_with_last_channel_format = use_conv_2d_with_last_channel_format
+        self.conv = nn.Conv1d(
+            in_channels,
+            out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            dilation=dilation,
+            padding=padding,
+            groups=groups,
+        )
 
     def forward(self, x, mask):
-        if not self.use_conv_2d_with_last_channel_format:
-            x = self.conv(x.transpose(1, 2)).transpose(1, 2) * mask
-        else:
-            # x = x.transpose(1, 2).unsqueeze(-2) # .to(memory_format=torch.channels_last)
-            # x = self.conv(x.transpose(1, 2).unsqueeze(-2)).squeeze(2).transpose(1, 2) * mask
-            x = self.conv(x) * mask
+        x = self.conv(x.transpose(1, 2)).transpose(1, 2) * mask
         return x, mask
 
 
 class SameLensMaskedLinear(nn.Module):
-    def __init__(self, in_channels, out_channels, use_conv_2d_with_last_channel_format):
+    def __init__(self, in_channels, out_channels):
         super().__init__()
-        self.use_conv_2d_with_last_channel_format = use_conv_2d_with_last_channel_format
-        if not use_conv_2d_with_last_channel_format:
-            self.linear = nn.Linear(in_channels, out_channels)
-        else:
-            self.linear = torch.nn.Conv1d(in_channels, out_channels, kernel_size=1)
+        self.linear = nn.Linear(in_channels, out_channels)
 
     def forward(self, x, mask):
         x = self.linear(x) * mask
         return x, mask
 
 
-def create_time_mix_layer(in_feat, out_feat, use_conv_2d_with_last_channel_format):
-    return SameLensMaskedLinear(in_feat, out_feat, use_conv_2d_with_last_channel_format)
+def create_channel_mix_layer(in_feat, out_feat):
+    return SameLensMaskedLinear(in_feat, out_feat)
 
 
-def create_channel_mix_layer(in_feat, out_feat, kernel_size=3, stride=1, conv_type="depth-wise", dilation=1,
-                             use_conv_2d_with_last_channel_format=False):
+def create_time_mix_layer(in_feat, out_feat, kernel_size=3, stride=1, conv_type="depth-wise", dilation=1):
     padding = get_same_padding(kernel_size, stride=stride, dilation=dilation)
 
     if conv_type == "original":
@@ -111,14 +71,13 @@ def create_channel_mix_layer(in_feat, out_feat, kernel_size=3, stride=1, conv_ty
         raise NotImplementedError
 
     conv = SameLensMaskedConv1d(
-        in_feat, out_feat, kernel_size=kernel_size, stride=stride, dilation=dilation, padding=padding, groups=groups,
-        use_conv_2d_with_last_channel_format=use_conv_2d_with_last_channel_format
+        in_feat, out_feat, kernel_size=kernel_size, stride=stride, dilation=dilation, padding=padding, groups=groups
     )
 
     return conv
 
 
-class MLPBlock(nn.Module):
+class Mix(nn.Module):
     def __init__(self, first_mix_layer, second_mix_layer, dropout):
         super().__init__()
 
@@ -138,65 +97,50 @@ class MLPBlock(nn.Module):
 
 
 class PreNormResidual(nn.Module):
-    def __init__(self, fn, feature_dim, use_conv_2d_with_last_channel_format):
+    def __init__(self, fn, feature_dim):
         super().__init__()
         self.fn = fn
         self.norm = nn.LayerNorm(feature_dim)
-        self.use_conv_2d_with_last_channel_format = use_conv_2d_with_last_channel_format
 
     def forward(self, x, mask):
-        if not self.use_conv_2d_with_last_channel_format:
-            new_x, mask = self.fn(self.norm(x), mask)
-        else:
-            new_x, mask = self.fn(self.norm(x.transpose(1, 2)).transpose(1, 2), mask)
-
+        new_x, mask = self.fn(self.norm(x), mask)
         x = x + new_x
         return x, mask
 
 
-class MixerBlock(nn.Module):
-    def __init__(self, in_feat, expansion_factor, kernel_size, conv_type, dropout, use_conv_2d_with_last_channel_format=False):
+class MixerTTSBlock(nn.Module):
+    def __init__(self, in_feat, expansion_factor, kernel_size, conv_type, dropout):
         super().__init__()
 
-        self.channel_mix = PreNormResidual(
-            fn=MLPBlock(
-                first_mix_layer=create_channel_mix_layer(
-                    in_feat=in_feat, out_feat=in_feat, kernel_size=kernel_size, conv_type=conv_type,
-                    use_conv_2d_with_last_channel_format=use_conv_2d_with_last_channel_format
-                ),
-                second_mix_layer=create_channel_mix_layer(
-                    in_feat=in_feat, out_feat=in_feat, kernel_size=kernel_size, conv_type=conv_type,
-                    use_conv_2d_with_last_channel_format=use_conv_2d_with_last_channel_format
-                ),
-                dropout=dropout,
-            ),
-            feature_dim=in_feat,
-            use_conv_2d_with_last_channel_format=use_conv_2d_with_last_channel_format
-        )
-
         self.time_mix = PreNormResidual(
-            fn=MLPBlock(
+            fn=Mix(
                 first_mix_layer=create_time_mix_layer(
-                    in_feat=in_feat, out_feat=expansion_factor * in_feat,
-                    use_conv_2d_with_last_channel_format=use_conv_2d_with_last_channel_format
+                    in_feat=in_feat, out_feat=in_feat, kernel_size=kernel_size, conv_type=conv_type,
                 ),
                 second_mix_layer=create_time_mix_layer(
-                    in_feat=expansion_factor * in_feat, out_feat=in_feat,
-                    use_conv_2d_with_last_channel_format=use_conv_2d_with_last_channel_format
+                    in_feat=in_feat, out_feat=in_feat, kernel_size=kernel_size, conv_type=conv_type,
                 ),
                 dropout=dropout,
             ),
             feature_dim=in_feat,
-            use_conv_2d_with_last_channel_format=use_conv_2d_with_last_channel_format
+        )
+
+        self.channel_mix = PreNormResidual(
+            fn=Mix(
+                first_mix_layer=create_channel_mix_layer(in_feat=in_feat, out_feat=expansion_factor * in_feat,),
+                second_mix_layer=create_channel_mix_layer(in_feat=expansion_factor * in_feat, out_feat=in_feat,),
+                dropout=dropout,
+            ),
+            feature_dim=in_feat,
         )
 
     def forward(self, x, mask):
-        x, mask = self.channel_mix(x, mask)
         x, mask = self.time_mix(x, mask)
+        x, mask = self.channel_mix(x, mask)
         return x, mask
 
 
-class TTSMixerModule(nn.Module):
+class MixerTTSModule(nn.Module):
     def __init__(
         self,
         num_tokens,
@@ -207,7 +151,6 @@ class TTSMixerModule(nn.Module):
         conv_type="depth-wise",
         expansion_factor=4,
         dropout=0.0,
-        use_conv_2d_with_last_channel_format=False
     ):
         super().__init__()
 
@@ -218,10 +161,9 @@ class TTSMixerModule(nn.Module):
         self.to_embed = (
             nn.Embedding(num_tokens, feature_dim, padding_idx=padding_idx) if num_tokens != -1 else nn.Identity()
         )
-        self.use_conv_2d_with_last_channel_format = use_conv_2d_with_last_channel_format
         self.mixer_blocks = nn.Sequential(
             *[
-                MixerBlock(feature_dim, expansion_factor, kernel_size, conv_type, dropout, use_conv_2d_with_last_channel_format)
+                MixerTTSBlock(feature_dim, expansion_factor, kernel_size, conv_type, dropout)
                 for kernel_size in kernel_sizes
             ],
         )
@@ -231,34 +173,23 @@ class TTSMixerModule(nn.Module):
         x = self.to_embed(x)
         x = x + conditioning
 
-        if self.use_conv_2d_with_last_channel_format:
-            x = x.transpose(1, 2).contiguous()
-            mask = mask.transpose(1, 2).contiguous()
-
         x = x * mask
         for block in self.mixer_blocks:
             x, lens = block(x, mask)
 
-        if not self.use_conv_2d_with_last_channel_format:
-            x = self.norm(x)
-        else:
-            x = self.norm(x.transpose(1, 2)).transpose(1, 2)
-
-        if self.use_conv_2d_with_last_channel_format:
-            x = x.transpose(1, 2).contiguous()
-            mask = mask.transpose(1, 2).contiguous()
+        x = self.norm(x)
 
         return x, mask
 
 
-class NLPAligner(nn.Module):
-    """Module for alignment nlp tokens and text. """
+class SelfAttentionModule(nn.Module):
+    """Self-attention for lm tokens and text. """
 
-    def __init__(self, n_text_channels=384, n_nlp_channels=128):
+    def __init__(self, n_text_channels=384, n_lm_tokens_channels=128):
         super().__init__()
 
         self.text_pos_emb = PositionalEmbedding(n_text_channels)
-        self.nlp_pos_emb = PositionalEmbedding(n_nlp_channels)
+        self.lm_pos_emb = PositionalEmbedding(n_lm_tokens_channels)
 
         self.query_proj = nn.Sequential(
             ConvNorm(n_text_channels, n_text_channels, kernel_size=3, bias=True, w_init_gain='relu'),
@@ -267,13 +198,13 @@ class NLPAligner(nn.Module):
         )
 
         self.key_proj = nn.Sequential(
-            ConvNorm(n_nlp_channels, n_text_channels, kernel_size=3, bias=True, w_init_gain='relu'),
+            ConvNorm(n_lm_tokens_channels, n_text_channels, kernel_size=3, bias=True, w_init_gain='relu'),
             torch.nn.ReLU(),
             ConvNorm(n_text_channels, n_text_channels, kernel_size=1, bias=True),
         )
 
         self.value_proj = nn.Sequential(
-            ConvNorm(n_nlp_channels, n_text_channels, kernel_size=3, bias=True, w_init_gain='relu'),
+            ConvNorm(n_lm_tokens_channels, n_text_channels, kernel_size=3, bias=True, w_init_gain='relu'),
             torch.nn.ReLU(),
             ConvNorm(n_text_channels, n_text_channels, kernel_size=1, bias=True),
         )
@@ -281,7 +212,7 @@ class NLPAligner(nn.Module):
         self.scale = math.sqrt(n_text_channels)
 
     def forward(self, queries, keys, values, q_mask=None, kv_mask=None):
-        """Forward pass of the aligner encoder.
+        """Forward pass of self-attention.
 
         Args:
             queries (torch.tensor): B x T1 x C1 tensor
@@ -296,7 +227,7 @@ class NLPAligner(nn.Module):
         pos_kv_seq = torch.arange(keys.size(-2), device=queries.device).to(queries.dtype)
 
         pos_q_emb = self.text_pos_emb(pos_q_seq)
-        pos_kv_emb = self.nlp_pos_emb(pos_kv_seq)
+        pos_kv_emb = self.lm_pos_emb(pos_kv_seq)
 
         if q_mask is not None:
             pos_q_emb = pos_q_emb * q_mask.unsqueeze(2)
