@@ -4,7 +4,7 @@ sample_rate: 22050
 train_dataset: ???
 validation_datasets: ???
 sup_data_path: ???
-sup_data_types: [ "duration_prior", "pitch" ]
+sup_data_types: [ "duration_prior", "pitch", "lm_tokens" ]
 
 # LJSpeech stats (per frame), train
 pitch_mean: 212.35873413085938
@@ -27,8 +27,8 @@ pitch_loss_scale: 0.1
 durs_loss_scale: 0.1
 mel_loss_scale: 1.0
 
-phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b-030921"
-heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921"
+cond_on_lm_embeddings: True
+lm_model: "albert"
 
 model:
   # aligner
@@ -41,6 +41,8 @@ model:
   pitch_loss_scale: ${pitch_loss_scale}
   durs_loss_scale: ${durs_loss_scale}
   mel_loss_scale: ${mel_loss_scale}
+
+  cond_on_lm_embeddings: ${cond_on_lm_embeddings}
 
   pitch_mean: ${pitch_mean}
   pitch_std: ${pitch_std}
@@ -66,21 +68,15 @@ model:
       pitch_fmin: ${pitch_fmin}
       pitch_fmax: ${pitch_fmax}
 
+      lm_model: ${lm_model}
+
       text_tokenizer:
-        _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
+        _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishCharsTokenizer"
         punct: True
-        stresses: True
-        chars: True
-        space: ' '
-        silence: null
         apostrophe: True
-        sep: '|'
         add_blank_at: null
         pad_with_space: True
-        g2p:
-          _target_: "nemo.collections.tts.torch.g2ps.EnglishG2p"
-          phoneme_dict: ${phoneme_dict_path}
-          heteronyms: ${heteronyms_path}
+
     dataloader_params:
       drop_last: false
       shuffle: true
@@ -109,21 +105,14 @@ model:
       pitch_fmin: ${pitch_fmin}
       pitch_fmax: ${pitch_fmax}
 
+      lm_model: ${lm_model}
+
       text_tokenizer:
-        _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
+        _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishCharsTokenizer"
         punct: True
-        stresses: True
-        chars: True
-        space: ' '
-        silence: null
         apostrophe: True
-        sep: '|'
         add_blank_at: null
         pad_with_space: True
-        g2p:
-          _target_: "nemo.collections.tts.torch.g2ps.EnglishG2p"
-          phoneme_dict: ${phoneme_dict_path}
-          heteronyms: ${heteronyms_path}
 
     dataloader_params:
       drop_last: false
@@ -159,6 +148,11 @@ model:
   alignment_module:
     _target_: nemo.collections.tts.modules.aligner.AlignmentEncoder
     n_text_channels: ${model.symbols_embedding_dim}
+
+  self_attention_module:
+    _target_: nemo.collections.tts.modules.mixer_tts.SelfAttentionModule
+    n_text_channels: ${model.symbols_embedding_dim}
+    n_lm_tokens_channels: 100 # dummy value, real value is set in model constructor
 
   encoder:
     _target_: nemo.collections.tts.modules.mixer_tts.MixerTTSModule
