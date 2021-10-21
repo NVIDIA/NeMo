@@ -65,6 +65,7 @@ class MegatronBertEncoder(BertModule):
         # else:
         #     self._vocab_size = None
 
+<<<<<<< HEAD
         # self._hidden_size = config.get('hidden_size')
 
         # if not os.path.exists(vocab_file):
@@ -91,6 +92,19 @@ class MegatronBertEncoder(BertModule):
         # self.config = OmegaConf.create(config)
         # # key used for checkpoints
         # self._hidden_size = self.language_model.hidden_size
+=======
+        # configure globals for megatron
+        set_pipeline_model_parallel_rank(0)  # pipeline model parallelism not implemented in NeMo
+        set_pipeline_model_parallel_world_size(1)  # pipeline model parallelism not implemented in NeMo
+
+        self.language_model, self._language_model_key = get_language_model(
+            encoder_attn_mask_type=AttnMaskType.padding, num_tokentypes=num_tokentypes, add_pooler=False
+        )
+
+        self.config = OmegaConf.create(config)
+        # key used for checkpoints
+        self._hidden_size = self.language_model.hidden_size
+>>>>>>> fc2da2293d3cb0f59a0b8f213d15670240fcf219
 
     @property
     def hidden_size(self):

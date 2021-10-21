@@ -318,7 +318,6 @@ def _build_index_mappings(name, data_prefix, documents, sizes, num_samples, seq_
             )
 
     torch.distributed.barrier()
-
     counts = torch.cuda.LongTensor([1])
     torch.distributed.all_reduce(counts, group=parallel_state.get_data_parallel_group())
     torch.distributed.all_reduce(counts, group=parallel_state.get_pipeline_model_parallel_group())

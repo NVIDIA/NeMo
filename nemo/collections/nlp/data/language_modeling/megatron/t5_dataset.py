@@ -15,10 +15,11 @@
 """T5 Style dataset."""
 
 import collections
+
 import numpy as np
 import torch
 
-from nemo.collections.common.tokenizers import YouTokenToMeTokenizer, SentencePieceTokenizer
+from nemo.collections.common.tokenizers import YouTokenToMeTokenizer, SentencePieceTokenizer, AutoTokenizer
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_dataset import MegatronDataset
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
     create_masked_lm_predictions,

@@ -23,7 +23,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import Meg
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from nemo.utils import AppState, logging
+from nemo.utils import AppState, app_state, logging
 
 
 def get_args():
@@ -63,7 +63,6 @@ def convert(rank, world_size, args):
     app_state = AppState()
     app_state.data_parallel_rank = 0
     trainer = Trainer(gpus=args.tensor_model_parallel_size)
-    # TODO: reach out to PTL For an API-safe local rank override
     trainer.accelerator.training_type_plugin._local_rank = rank
     checkpoint_path = os.path.join(args.checkpoint_folder, f'mp_rank_{rank:02d}', args.checkpoint_name)
     if args.model_type == 'gpt':

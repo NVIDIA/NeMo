@@ -48,7 +48,6 @@ def main():
     parser.add_argument(
         "--tensor_model_parallel_size", type=int, default=1, required=True,
     )
-<<<<<<< HEAD
     parser.add_argument("--precision", default=32, help="PyTorch Lightning Trainer precision flag")
 
     args = parser.parse_args()
@@ -59,15 +58,9 @@ def main():
 
     # trainer required for restoring model parallel models
     trainer = Trainer(plugins=NLPDDPPlugin(), gpus=args.tensor_model_parallel_size, precision=args.precision)
-=======
-
     args = parser.parse_args()
 
     torch.set_grad_enabled(False)
-
-    # trainer required for restoring model parallel models
-    trainer = Trainer(plugins=NLPDDPPlugin(), gpus=args.tensor_model_parallel_size)
->>>>>>> fc2da2293d3cb0f59a0b8f213d15670240fcf219
 
     app_state = AppState()
     if args.tensor_model_parallel_size is not None and args.tensor_model_parallel_size > 1:
@@ -75,12 +68,7 @@ def main():
         app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
 
     model = MegatronGPTModel.restore_from(restore_path=args.model_file, trainer=trainer)
-
-<<<<<<< HEAD
     model.freeze()
-
-=======
->>>>>>> fc2da2293d3cb0f59a0b8f213d15670240fcf219
     request = {
         "prompt": args.prompt,
         "tokens_to_generate": args.tokens_to_generate,
