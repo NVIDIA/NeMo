@@ -23,6 +23,16 @@ import sys
 
 from matplotlib import pyplot as plt
 
+#=============================================================================#
+# Control Variables
+#=============================================================================#
+
+PLOTS_EXT = "pdf"
+PLOT_TITLE = False
+PLOT_XLABEL = True
+PLOT_YLABEL = True
+PLOT_GRID = True
+
 # =============================================================================#
 # Helper functions
 # =============================================================================#
@@ -33,10 +43,14 @@ def plot_timing(lengths, timings, lengths_name, timings_name, fig=None):
         fig = plt.figure()
 
     plt.scatter(lengths, timings, label=timings_name)
-    plt.xlabel(f"{lengths_name} [tokens]")
-    plt.ylabel(f"{timings_name} [sec]")
-    plt.grid(True)
-    plt.title(f"{timings_name} vs. {lengths_name}")
+    if PLOT_XLABEL:
+        plt.xlabel(f"{lengths_name} [tokens]")
+    if PLOT_YLABEL:
+        plt.ylabel(f"{timings_name} [sec]")
+    if PLOT_GRID:
+        plt.grid(True)
+    if PLOT_TITLE:
+        plt.title(f"{timings_name} vs. {lengths_name}")
 
     return fig
 
@@ -75,6 +89,6 @@ if __name__ == "__main__":
         # save data
         base_fn = os.path.splitext(timing_fn)[0]
         for name, fig in gifs_dict.items():
-            plot_fn = f"{base_fn}.{name}.png"
+            plot_fn = f"{base_fn}.{name}.{PLOTS_EXT}"
             print(f"Saving pot = {plot_fn}")
             fig.savefig(plot_fn)
