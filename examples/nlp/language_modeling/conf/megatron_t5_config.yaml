@@ -17,7 +17,7 @@ trainer:
 
 exp_manager:
   explicit_log_dir: null
-  exp_dir: /home/sandeepsub/nemo_t5
+  exp_dir: /raid/nemo_t5
   name: megatron_t5
   create_wandb_logger: True
   wandb_logger_kwargs:
@@ -89,7 +89,7 @@ model:
       # path
     data_prefix: 
       - 1.0
-      - /raid/Data/NMT/Datasources/Monolingual/Pile/the-eye.eu/public/AI/pile/train/02_bert_tokenizer_text_document
+      - /raid/00_bert_tokenizer_text_document
     data_impl: mmap
     splits_string: 949,45,5
     seq_length: 512
@@ -108,7 +108,7 @@ model:
     - 0.9
     - 0.98
     sched:
-      name: T5InverseSquareRootAnnealing
-      constant_steps: 100
+      name: InverseSquareRootAnnealing
+      warmup_steps: 10000
       min_lr: 0.0
       last_epoch: -1
