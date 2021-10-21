@@ -81,6 +81,7 @@ class WarmupPolicy(_LRScheduler):
         """Simple const lr policy"""
         return self.base_lrs
 
+
 class SquareRootConstantPolicy(_LRScheduler):
     """Adds warmup kwargs and warmup logic to lr policy.
     All arguments should be passed as kwargs for clarity,
@@ -91,7 +92,9 @@ class SquareRootConstantPolicy(_LRScheduler):
             infinite training
     """
 
-    def __init__(self, optimizer, *, constant_steps=None, constant_ratio=None, max_steps=None, min_lr=0.0, last_epoch=-1):
+    def __init__(
+        self, optimizer, *, constant_steps=None, constant_ratio=None, max_steps=None, min_lr=0.0, last_epoch=-1
+    ):
         assert not (
             constant_steps is not None and constant_ratio is not None
         ), "Either use particular number of step or ratio"
@@ -481,12 +484,14 @@ class InverseSquareRootAnnealing(WarmupPolicy):
         out_lr = [initial_lr / denom for initial_lr in self.base_lrs]
         return out_lr
 
+
 class T5InverseSquareRootAnnealing(SquareRootConstantPolicy):
     def __init__(self, optimizer, *, max_steps, last_epoch=-1, min_lr=0.0, **kwargs):
         super().__init__(optimizer=optimizer, max_steps=max_steps, **kwargs, last_epoch=last_epoch, min_lr=min_lr)
 
     def _get_lr(self, step):
         return [1 / (step ** 0.5) for _ in self.base_lrs]
+
 
 class PolynomialDecayAnnealing(WarmupPolicy):
     def __init__(self, optimizer, *, max_steps, min_lr=0.0, power=1.0, cycle=False, last_epoch=-1, **kwargs):

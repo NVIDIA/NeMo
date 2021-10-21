@@ -15,11 +15,11 @@
 """Processing data for megatron pretraining."""
 
 import argparse
+import gzip
 import json
 import multiprocessing
 import sys
 import time
-import gzip
 
 import torch
 

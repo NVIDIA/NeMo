@@ -22,6 +22,7 @@ from nemo.collections.nlp.modules.common.megatron.language_model import get_lang
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal, scaled_init_method_normal
 
+
 def t5_attention_mask_func(attention_scores, attention_mask):
     attention_scores.masked_fill_(attention_mask, -10000)
     return attention_scores
@@ -168,7 +169,7 @@ class T5Model(MegatronModule):
         tokentype_ids=None,
         lm_labels=None,
         enc_hidden_states=None,
-        output_enc_hidden=False
+        output_enc_hidden=False,
     ):
 
         # Converting the attention masks to proper parameter settings
@@ -191,7 +192,7 @@ class T5Model(MegatronModule):
             encoder_decoder_attn_mask,
             tokentype_ids=tokentype_ids,
             enc_hidden_states=enc_hidden_states,
-            output_enc_hidden=output_enc_hidden
+            output_enc_hidden=output_enc_hidden,
         )
 
         if output_enc_hidden:

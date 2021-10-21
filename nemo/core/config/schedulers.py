@@ -26,6 +26,7 @@ class SchedulerParams:
 
     last_epoch: int = -1
 
+
 @dataclass
 class SquareRootConstantSchedulerParams(SchedulerParams):
     """
@@ -35,6 +36,7 @@ class SquareRootConstantSchedulerParams(SchedulerParams):
 
     constant_steps: Optional[float] = None
     constant_ratio: Optional[float] = None
+
 
 @dataclass
 class WarmupSchedulerParams(SchedulerParams):

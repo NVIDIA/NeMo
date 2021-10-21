@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, Optional
 import re
+from typing import Any, Dict, Optional
+
 import torch
-from apex.transformer import tensor_parallel, parallel_state
+from apex.transformer import parallel_state, tensor_parallel
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -24,19 +25,22 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
-from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import make_attention_mask_3d, make_history_mask_3d
+from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import (
+    make_attention_mask_3d,
+    make_history_mask_3d,
+)
 from nemo.collections.nlp.models.language_modeling.megatron.t5_model import T5Model
 from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
 from nemo.collections.nlp.modules.common.megatron.megatron_init import (
     initialize_model_parallel_for_nemo,
     set_jit_fusion_options,
 )
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_ltor_masks_and_position_ids,
 )
-from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPNativeBfloat16PrecisionPlugin, NLPNativeMixedPrecisionPlugin
 from nemo.utils import AppState, logging
 
@@ -118,7 +122,7 @@ class MegatronT5Model(NLPModel):
         tokentype_ids=None,
         lm_labels=None,
         enc_hidden_states=None,
-        output_enc_hidden=False
+        output_enc_hidden=False,
     ):
         result = self.model(
             encoder_input_ids,
@@ -129,7 +133,7 @@ class MegatronT5Model(NLPModel):
             tokentype_ids,
             lm_labels,
             enc_hidden_states,
-            output_enc_hidden=output_enc_hidden
+            output_enc_hidden=output_enc_hidden,
         )
         if not output_enc_hidden:
             return result[0], result[1]
@@ -137,17 +141,10 @@ class MegatronT5Model(NLPModel):
             return result
 
     def training_step(self, batch, batch_idx):
-        tokens_enc, tokens_dec, loss_mask, labels, \
-            enc_mask, dec_mask, enc_dec_mask = self.process_batch(batch)
+        tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask, enc_dec_mask = self.process_batch(batch)
 
         output_tensor, encoder_hidden_states = self(
-            tokens_enc,
-            tokens_dec,
-            enc_mask,
-            dec_mask,
-            enc_dec_mask,
-            tokentype_ids=None,
-            lm_labels=labels
+            tokens_enc, tokens_dec, enc_mask, dec_mask, enc_dec_mask, tokentype_ids=None, lm_labels=labels
         )
 
         loss = self.loss_func(loss_mask, output_tensor)
@@ -162,17 +159,10 @@ class MegatronT5Model(NLPModel):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        tokens_enc, tokens_dec, loss_mask, labels, \
-            enc_mask, dec_mask, enc_dec_mask = self.process_batch(batch)
+        tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask, enc_dec_mask = self.process_batch(batch)
 
         output_tensor, encoder_hidden_states = self(
-            tokens_enc,
-            tokens_dec,
-            enc_mask,
-            dec_mask,
-            enc_dec_mask,
-            tokentype_ids=None,
-            lm_labels=labels
+            tokens_enc, tokens_dec, enc_mask, dec_mask, enc_dec_mask, tokentype_ids=None, lm_labels=labels
         )
         loss = self.loss_func(loss_mask, output_tensor)
         return loss
@@ -191,8 +181,7 @@ class MegatronT5Model(NLPModel):
     def process_batch(self, batch):
         """Build the batch."""
 
-        keys = ['text_enc', 'text_dec', 'labels', 'loss_mask',
-                'enc_mask', 'dec_mask', 'enc_dec_mask']
+        keys = ['text_enc', 'text_dec', 'labels', 'loss_mask', 'enc_mask', 'dec_mask', 'enc_dec_mask']
         datatype = torch.int64
 
         data = batch
@@ -204,9 +193,9 @@ class MegatronT5Model(NLPModel):
         labels = data_b['labels'].long()
         loss_mask = data_b['loss_mask'].float()
 
-        enc_mask = (data_b['enc_mask'] < 0.5)
-        dec_mask = (data_b['dec_mask'] < 0.5)
-        enc_dec_mask = (data_b['enc_dec_mask'] < 0.5)
+        enc_mask = data_b['enc_mask'] < 0.5
+        dec_mask = data_b['dec_mask'] < 0.5
+        enc_dec_mask = data_b['enc_dec_mask'] < 0.5
 
         if self.cfg.debug:
             logging.info('debugging')
@@ -217,13 +206,14 @@ class MegatronT5Model(NLPModel):
             logging.info(f'detokenize dec tokens: {self.tokenizer.ids_to_text(tokens_dec_list)}')
             logging.info(f'detokenize labels: {self.tokenizer.ids_to_text(labels_list)}')
 
-        return tokens_enc, tokens_dec, loss_mask, labels, \
-            enc_mask, dec_mask, enc_dec_mask
+        return tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask, enc_dec_mask
 
     def build_train_valid_test_datasets(self):
         logging.info('Building T5 datasets.')
         if self.cfg.data.seq_length_dec < self.cfg.data.seq_length * self.cfg.data.masked_lm_prob:
-            raise ValueError(f"Cannot have decoder max sequence length ({self.cfg.data.seq_length_dec}) less than encoder sequence length ({self.cfg.data.seq_length}) * masked_lm_prob ({self.cfg.data.masked_lm_prob})")
+            raise ValueError(
+                f"Cannot have decoder max sequence length ({self.cfg.data.seq_length_dec}) less than encoder sequence length ({self.cfg.data.seq_length}) * masked_lm_prob ({self.cfg.data.masked_lm_prob})"
+            )
         global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size / self.cfg.tensor_model_parallel_size
         eval_iters = (self.trainer.max_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
         test_iters = self.trainer.limit_test_batches
@@ -246,7 +236,7 @@ class MegatronT5Model(NLPModel):
             short_seq_prob=self.cfg.data.short_seq_prob,
             seed=self.cfg.seed,
             skip_warmup=self.cfg.data.skip_warmup,
-            dataset_type='t5'
+            dataset_type='t5',
         )
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
         logging.info(f'Length of val dataset: {len(self._validation_ds)}')
@@ -349,7 +339,7 @@ class MegatronT5Model(NLPModel):
         response = self.complete(request)
         logging.info(f"response: {response}")
         return response
-    
+
     def make_inference_attention_mask_3d(self, source_block, target_block, pad_id):
         """
         Returns a 3-dimensional (3-D) attention mask
@@ -407,13 +397,17 @@ class MegatronT5Model(NLPModel):
             tokentype_ids=None,
             lm_labels=None,
             enc_hidden_states=None,
-            output_enc_hidden=True
+            output_enc_hidden=True,
         )
 
         for i in range(request.get("tokens_to_generate", 16)):
             # Overwrite the decoder token since we want to predict
-            enc_dec_mask = self.make_inference_attention_mask_3d(predicted_tokens_dec, tokens_enc, self.tokenizer.pad_id)
-            dec_mask = self.make_inference_attention_mask_3d(predicted_tokens_dec, predicted_tokens_dec, self.tokenizer.pad_id)
+            enc_dec_mask = self.make_inference_attention_mask_3d(
+                predicted_tokens_dec, tokens_enc, self.tokenizer.pad_id
+            )
+            dec_mask = self.make_inference_attention_mask_3d(
+                predicted_tokens_dec, predicted_tokens_dec, self.tokenizer.pad_id
+            )
             dec_mask = dec_mask * self.make_inference_history_mask_3d(predicted_tokens_dec)
 
             enc_dec_mask = enc_dec_mask < 0.5
@@ -428,7 +422,7 @@ class MegatronT5Model(NLPModel):
                 tokentype_ids=None,
                 lm_labels=None,
                 enc_hidden_states=encoder_hidden_states,
-                output_enc_hidden=False
+                output_enc_hidden=False,
             )
             output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
             log_probs, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
@@ -457,15 +451,12 @@ class MegatronT5Model(NLPModel):
     def _add_special_tokens_to_tokenizer(self):
         if self.cfg.tokenizer.library == 'huggingface' or self.cfg.tokenizer.library == 'megatron':
             additional_tokens = {
-                'additional_special_tokens':
-                [f'<extra_id_{i}>' for i in range(self.num_sentinel_tokens)]
+                'additional_special_tokens': [f'<extra_id_{i}>' for i in range(self.num_sentinel_tokens)]
             }
             self.tokenizer.add_special_tokens(additional_tokens)
 
         if self.cfg.tokenizer.library == 'sentencepiece':
-            additional_tokens = [
-                f'<extra_id_{i}>' for i in range(self.num_sentinel_tokens)
-            ]
+            additional_tokens = [f'<extra_id_{i}>' for i in range(self.num_sentinel_tokens)]
             self.tokenizer.add_special_tokens(additional_tokens)
 
     def list_available_models():

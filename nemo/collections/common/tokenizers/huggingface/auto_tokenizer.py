@@ -175,10 +175,7 @@ class AutoTokenizer(TokenizerSpec):
 
     @property
     def additional_special_tokens_ids(self):
-        return [
-            self.token_to_id(token)
-            for token in self.additional_special_tokens
-        ]
+        return [self.token_to_id(token) for token in self.additional_special_tokens]
 
     def text_to_tokens(self, text):
         tokens = self.tokenizer.tokenize(text)

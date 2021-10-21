@@ -15,10 +15,12 @@
 
 from typing import Dict
 
-import torch
 import numpy as np
+import torch
 from torch.utils.data.dataset import Dataset
+
 from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import build_training_sample
+
 
 class GPTRequestDataset(Dataset):
     def __init__(self, request: Dict, tokenizer) -> None:
@@ -37,6 +39,7 @@ class GPTRequestDataset(Dataset):
     def __getitem__(self, index):
         return self.request
 
+
 class T5RequestDataset(Dataset):
     def __init__(self, request: Dict, tokenizer) -> None:
         super().__init__()
@@ -52,7 +55,7 @@ class T5RequestDataset(Dataset):
     def mask_prompt(self, sample):
         if '<mask>' not in sample:
             raise ValueError(f"Did not find any <mask> tokens in prompt {sample}.")
-        
+
         sample = sample.split()
         sentinel_idx = 0
         for i, word in enumerate(sample):

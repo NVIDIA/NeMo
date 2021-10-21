@@ -14,7 +14,6 @@
 
 import re
 from typing import Any, Dict, Optional
-import re
 
 import torch
 from apex.transformer import parallel_state, tensor_parallel

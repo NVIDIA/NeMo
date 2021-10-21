@@ -40,11 +40,11 @@ import numpy as np
 import torch
 from apex.transformer import parallel_state
 
+from nemo.collections.nlp.data.language_modeling.megatron import helpers
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.collections.nlp.data.language_modeling.megatron import helpers
 
 DSET_TYPE_BERT = 'standard_bert'
 DSET_TYPE_ICT = 'ict'
@@ -591,7 +591,7 @@ def _build_train_valid_test_datasets(
                     query_in_block_prob=args.query_in_block_prob,
                     use_one_sent_docs=args.use_one_sent_docs,
                     binary_head=binary_head,
-                    **kwargs
+                    **kwargs,
                 )
             elif dataset_type == DSET_TYPE_T5:
                 dataset = T5Dataset(

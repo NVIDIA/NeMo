@@ -19,12 +19,12 @@ import collections
 import numpy as np
 import torch
 
-from nemo.collections.common.tokenizers import YouTokenToMeTokenizer, SentencePieceTokenizer, AutoTokenizer
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_dataset import MegatronDataset
+from nemo.collections.common.tokenizers import AutoTokenizer, SentencePieceTokenizer, YouTokenToMeTokenizer
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
     create_masked_lm_predictions,
     get_samples_mapping,
 )
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_dataset import MegatronDataset
 
 
 class T5Dataset(MegatronDataset):
@@ -73,7 +73,7 @@ class T5Dataset(MegatronDataset):
 
         if isinstance(self.tokenizer, YouTokenToMeTokenizer):
             raise ValueError(f"YTTM does not support special tokens and cannot be used with T5 datasets.")
-        
+
         if isinstance(self.tokenizer, SentencePieceTokenizer):
             if not self.tokenizer.legacy:
                 raise ValueError("Sentencepiece Tokenizer must have legacy = False to add special tokens.")

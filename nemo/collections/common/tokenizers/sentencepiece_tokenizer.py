@@ -236,15 +236,13 @@ class SentencePieceTokenizer(TokenizerSpec):
 
     @property
     def vocab(self):
-        main_vocab = [
-            self.tokenizer.id_to_piece(id)
-            for id in range(self.tokenizer.get_piece_size())
-        ]
+        main_vocab = [self.tokenizer.id_to_piece(id) for id in range(self.tokenizer.get_piece_size())]
         special_tokens = [
             self.id_to_special_token[self.original_vocab_size + i]
             for i in range(self.vocab_size - self.original_vocab_size)
         ]
         return main_vocab + special_tokens
+
 
 def create_spt_model(
     data_file: str,
