@@ -47,14 +47,14 @@ NONE_LIST = ['None', 'none', 'null', '']
 
 
 def dump_json_to_file(file_path, riva_dict):
-    """Write json file from the riva_dict dictionary.
+    """Write a json file from the riva_dict dictionary.
     """
     with open(file_path, "w") as outfile:
         json.dump(riva_dict, outfile, indent=4)
 
 
 def write_txt(w_path, val):
-    """Write text file from the string input.
+    """Write a text file from the string input.
     """
     with open(w_path, "w") as output:
         output.write(val + '\n')
@@ -67,7 +67,7 @@ def get_uniq_id_from_audio_path(audio_file_path):
     return '.'.join(os.path.basename(audio_file_path).split('.')[:-1])
 
 
-def get_file_lists(file_list_path):
+def read_file_paths(file_list_path):
     """Read file paths from the given list
     """
     out_path_list = []
@@ -83,10 +83,11 @@ def get_file_lists(file_list_path):
 
 class WERBPE_TS(WERBPE):
     """
-    This is WER class that is modified for generating word_timestamps with logits.
-    The functions in WER class is modified to save the word_timestamps whenever character
-    is being saved into a list. Please refer to the definition of WER class for
-    more information.
+    This is WERBPE_TS class that is modified for generating word_timestamps with logits.
+    The functions in WER class is modified to save the word_timestamps whenever BPE token
+    is being saved into a list.
+    This class is designed to support ASR models based on CTC and BPE.
+    Please refer to the definition of WERBPE class for more information.
     """
 
     def __init__(
@@ -105,6 +106,7 @@ class WERBPE_TS(WERBPE):
         self, time_stride, predictions: torch.Tensor, predictions_len: torch.Tensor = None
     ) -> List[str]:
         hypotheses, timestamps, word_timestamps = [], [], []
+        # '⁇' string should removed since it causes error on string split.
         unk = '⁇'
         prediction_cpu_tensor = predictions.long().cpu()
         # iterate over batch
@@ -174,8 +176,9 @@ class WER_TS(WER):
     """
     This is WER class that is modified for generating timestamps with logits.
     The functions in WER class is modified to save the timestamps whenever character
-    is being saved into a list. Please refer to the definition of WER class for
-    more information.
+    is being saved into a list.
+    This class is designed to support ASR models based on CTC and Character-level tokens.
+    Please refer to the definition of WER class for more information.
     """
 
     def __init__(
@@ -192,9 +195,9 @@ class WER_TS(WER):
     def decode_tokens_to_str_with_ts(self, tokens: List[int], timestamps: List[int]) -> str:
         """
         Accepts frame-level tokens and timestamp list and collects the timestamps for
-        start and end of the each word.
+        start and end of each word.
         """
-        hypothesis_list, timestamp_list = self.decode_ids_to_tokens_with_ts(tokens, timestamps)
+        token_list, timestamp_list = self.decode_ids_to_tokens_with_ts(tokens, timestamps)
         hypothesis = ''.join(self.decode_ids_to_tokens(tokens))
         return hypothesis, timestamp_list
 
@@ -237,9 +240,11 @@ class WER_TS(WER):
 
 
 def get_wer_feat_logit(audio_file_list, asr, frame_len, tokens_per_chunk, delay, model_stride_in_secs, device):
-    # Create a preprocessor to convert audio samples into raw features,
-    # Normalization will be done per buffer in frame_bufferer
-    # Do not normalize whatever the model's preprocessor setting is
+    """
+    Create a preprocessor to convert audio samples into raw features,
+    Normalization will be done per buffer in frame_bufferer.
+    """
+
     hyps = []
     tokens_list = []
     sample_list = []
@@ -255,6 +260,8 @@ def get_wer_feat_logit(audio_file_list, asr, frame_len, tokens_per_chunk, delay,
 
 
 def get_samples(audio_file, target_sr=16000):
+    """Read samples from the given audio_file path.
+    """
     with sf.SoundFile(audio_file, 'r') as f:
         dtype = 'int16'
         sample_rate = f.samplerate
@@ -268,16 +275,15 @@ def get_samples(audio_file, target_sr=16000):
 
 class FrameBatchASR_Logits(FrameBatchASR):
     """
-    class for streaming frame-based ASR use reset() method to reset FrameASR's
-    state call transcribe(frame) to do ASR on contiguous signal's frames
+    A class for streaming frame-based ASR.
+    Inherits from FrameBatchASR and adds new capability of returning the logit output.
+    Please refer to FrameBatchASR for more detailed information.
     """
-
     def __init__(self, asr_model, frame_len=1.6, total_buffer=4.0, batch_size=4):
         super().__init__(asr_model, frame_len, total_buffer, batch_size)
 
     def read_audio_file_and_return(self, audio_filepath: str, delay, model_stride_in_secs):
         samples = get_samples(audio_filepath)
-        sample_length = len(samples)
         samples = np.pad(samples, (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)))
         frame_reader = AudioFeatureIterator(samples, self.frame_len, self.raw_preprocessor, self.asr_model.device)
         self.set_frame_reader(frame_reader)
@@ -297,7 +303,6 @@ class FrameBatchASR_Logits(FrameBatchASR):
 class ASR_DIAR_OFFLINE(object):
     """
     A Class designed for performing ASR and diarization together.
-
     """
 
     def __init__(self, params):
@@ -316,12 +321,10 @@ class ASR_DIAR_OFFLINE(object):
             stt_en_conformer_ctc_medium
             stt_en_conformer_ctc_small
             QuartzNet15x5Base-En
-
         """
 
         if 'QuartzNet' in ASR_model_name:
             self.run_ASR = self.run_ASR_QuartzNet_CTC
-            # self.get_speech_labels_list = self.get_speech_labels_list_QuartzNet_CTC
             asr_model = EncDecCTCModel.from_pretrained(model_name=ASR_model_name, strict=False)
             self.params['offset'] = -0.18
             self.model_stride_in_secs = 0.02
@@ -388,17 +391,22 @@ class ASR_DIAR_OFFLINE(object):
 
     def run_ASR_QuartzNet_CTC(self, audio_file_list, _asr_model):
         """
-        Run an ASR model and collect logit, timestamps and text output
+        Run an QuartzNet ASR model and collect logit, timestamps and text output
 
         Args:
             audio_file_list (list):
-                The list of audio file paths.
+                List of audio file paths.
             _asr_model (class):
                 The loaded NeMo ASR model.
+
+        Returns:
+            words_list (list):
+                List of the sequence of words from hypothesis.
+            words_ts_list (list):
+                List of the time-stamps of words.
         """
         words_list, word_ts_list = [], []
 
-        # A part of decoder instance
         wer_ts = WER_TS(
             vocabulary=_asr_model.decoder.vocabulary,
             batch_dim_index=0,
@@ -434,7 +442,19 @@ class ASR_DIAR_OFFLINE(object):
 
     def run_ASR_BPE_CTC(self, audio_file_list, _asr_model):
         """
-        Not implemented Yet
+        Run a CTC-BPE based ASR model and collect logit, timestamps and text output
+
+        Args:
+            audio_file_list (list):
+                List of audio file paths.
+            _asr_model (class):
+                The loaded NeMo ASR model.
+
+        Returns:
+            words_list (list):
+                List of the sequence of words from hypothesis.
+            words_ts_list (list):
+                List of the time-stamps of words.
         """
         torch.manual_seed(0)
         words_list, word_ts_list = [], []
@@ -494,7 +514,10 @@ class ASR_DIAR_OFFLINE(object):
         Compensate the constant delay in the decoder output.
 
         Arg:
-            word_ts (List): The list contains the timestamps of the word sequences.
+            word_ts (list): List contains the timestamps of the word sequences.
+
+        Return:
+            word_ts (list): List of the delay-applied word-timestamp values.
         """
         for p in range(len(word_ts)):
             word_ts[p] = [
@@ -510,9 +533,10 @@ class ASR_DIAR_OFFLINE(object):
 
         Args:
             word_ts_list (list):
-                The list that contains word timestamps.
+                List that contains word timestamps.
             audio_file_list (list):
-                The list of audio file paths.
+                List of audio file paths.
+
         """
         for i, word_timestamps in enumerate(word_ts_list):
             speech_labels_float = self._get_speech_labels_from_decoded_prediction(word_timestamps)
@@ -520,6 +544,17 @@ class ASR_DIAR_OFFLINE(object):
             self.write_VAD_rttm_from_speech_labels(self.root_path, audio_file_list[i], speech_labels)
 
     def _get_speech_labels_from_decoded_prediction(self, input_word_ts):
+        """
+        Extract speech labels from the ASR output (decoded predictions)
+
+        Args:
+            input_word_ts (list):
+                List that contains word timestamps.
+
+        Return:
+            word_ts (list):
+                The ranges of the speech segments, which are merged ranges of input_word_ts.
+        """
         speech_labels = []
         word_ts = copy.deepcopy(input_word_ts)
         if word_ts == []:
@@ -536,6 +571,21 @@ class ASR_DIAR_OFFLINE(object):
         return word_ts
 
     def get_word_ts_from_spaces(self, char_ts, _spaces_in_sec, end_stamp):
+        """
+        Get word-timestamps from the spaces in the decoded prediction.
+
+        Args:
+            char_ts (list):
+                The time-stamps for each character.
+            _spaces_in_sec (list):
+                List contains the start and the end time of each space.
+            end_stamp (float):
+                The end time of the session in sec.
+
+        Return:
+            word_timestamps (list):
+                List of the timestamps for the resulting words.
+        """
         start_stamp_in_sec = round(char_ts[0] * self.params['time_stride'] - self.asr_delay_sec, 2)
         end_stamp_in_sec = round(end_stamp * self.params['time_stride'] - self.asr_delay_sec, 2)
         word_timetamps_middle = [
@@ -552,39 +602,6 @@ class ASR_DIAR_OFFLINE(object):
         )
         return word_timestamps
 
-    @staticmethod
-    def _get_silence_timestamps(probs, symbol_idx, state_symbol):
-        """
-        Get timestamps for blanks or spaces (for CTC decoder).
-
-        Args:
-            symbol_idx: (int)
-                symbol index of blank or space in the ASR decoder.
-            state_symbol: (str)
-                The string that indicates the current state.
-        """
-        spaces = []
-        idx_state = 0
-        state = ''
-
-        if np.argmax(probs[0]) == symbol_idx:
-            state = state_symbol
-
-        for idx in range(1, probs.shape[0]):
-            current_char_idx = np.argmax(probs[idx])
-            if state == state_symbol and current_char_idx != 0 and current_char_idx != symbol_idx:
-                spaces.append([idx_state, idx - 1])
-                state = ''
-            if state == '':
-                if current_char_idx == symbol_idx:
-                    state = state_symbol
-                    idx_state = idx
-
-        if state == state_symbol:
-            spaces.append([idx_state, len(probs) - 1])
-
-        return spaces
-
     def run_diarization(
         self,
         audio_file_list,
@@ -595,20 +612,25 @@ class ASR_DIAR_OFFLINE(object):
         pretrained_vad_model=None,
     ):
         """
-        Run diarization process using the given VAD timestamp (oracle_manifest).
+        Run the diarization process using the given VAD timestamp (oracle_manifest).
 
         Args:
             audio_file_list (list):
-                The list of audio file paths.
+                List of audio file paths.
             word_and_timestamps (list):
-                The list contains words and word-timestamps.
+                List contains words and word-timestamps.
             oracle_manifest (str):
-                json file path which contains timestamp of VAD output.
+                A json file path which contains the timestamps of the VAD output.
                 if None, we use word-timestamps for VAD and segmentation.
             oracle_num_speakers (int):
                 Oracle number of speakers. If None, the number of speakers is estimated.
             pretrained_speaker_model (str):
                 NeMo model file path for speaker embedding extractor model.
+
+        Returns:
+            diar_labels (list):
+                List that contains diarization result in the form of
+                speaker labels and time stamps.
         """
 
         if oracle_num_speakers != None:
@@ -661,13 +683,13 @@ class ASR_DIAR_OFFLINE(object):
             oracle_model (ClusteringDiarizer):
                 ClusteringDiarizer instance.
             audio_file_path (List):
-                The list contains file paths for audio files.
+                List contains file paths for audio files.
         """
         for k, audio_file_path in enumerate(audio_file_list):
             uniq_id = get_uniq_id_from_audio_path(audio_file_path)
             vad_pred_diar = oracle_model.vad_pred_dir
             frame_vad = os.path.join(vad_pred_diar, uniq_id + '.median')
-            frame_vad_list = get_file_lists(frame_vad)
+            frame_vad_list = read_file_paths(frame_vad)
             frame_vad_float_list = [float(x) for x in frame_vad_list]
             self.frame_VAD[uniq_id] = frame_vad_float_list
 
@@ -677,7 +699,11 @@ class ASR_DIAR_OFFLINE(object):
 
         Arg:
             audio_file_list (list):
-                The list of audio file paths.
+                List of audio file paths.
+
+        Return:
+            diar_labels (list):
+                List of the speaker labels for each speech segment.
         """
         diar_labels = []
         for k, audio_file_path in enumerate(audio_file_list):
@@ -697,9 +723,15 @@ class ASR_DIAR_OFFLINE(object):
 
         Args:
             audio_file_list (list):
-                The list of audio file paths.
+                List of audio file paths.
             ref_rttm_file_list (list):
-                The list of refrence rttm paths.
+                List of reference rttm paths.
+
+        Returns:
+            ref_labels_list (list):
+                Return ref_labels_list for future use.
+            DER_result_dict (dict):
+                A dictionary that contains evaluation results.
         """
         ref_labels_list = []
         all_hypotheses, all_references = [], []
@@ -756,13 +788,19 @@ class ASR_DIAR_OFFLINE(object):
     def closest_silence_start(vad_index_word_end, vad_frames, params, offset=10):
         """
         Find the closest silence frame from the given starting position.
-        vad_index_word_end (float):
-            The timestamp of the end of the current word.
-        vad_frames (numpy.array):
-            The numpy array that contains frame-level VAD probability.
-        params (dict):
-            Contains the parameters for diarization and ASR decoding.
 
+        Args:
+            vad_index_word_end (float):
+                The timestamp of the end of the current word.
+            vad_frames (numpy.array):
+                The numpy array that contains frame-level VAD probability.
+            params (dict):
+                Contains the parameters for diarization and ASR decoding.
+
+        Returns:
+            c (float):
+                A timestamp of the earliest start of a silence region from
+                the given time point, vad_index_word_end.
         """
 
         c = vad_index_word_end + offset
@@ -775,22 +813,28 @@ class ASR_DIAR_OFFLINE(object):
                 if c > limit:
                     break
         c = min(len(vad_frames) - 1, c)
-        return round(c / 100.0, 2)
+        c = round(c / 100.0, 2)
+        return c
 
     def compensate_word_ts_list(self, audio_file_list, word_ts_list, params):
         """
-        Compensate the word timestamps by using VAD output.
+        Compensate the word timestamps based on the VAD output.
         The length of each word is capped by params['max_word_ts_length_in_sec'].
 
-        audio_file_list (list):
-            The list that contains audio file paths.
-        word_ts_list (list):
-            Contains word_ts_stt_end lists.
-            word_ts_stt_end = [stt, end]
-                stt: Start of the word in sec.
-                end: End of the word in sec.
-        params (dict):
-            Contains the parameters for diarization and ASR decoding.
+        Args:
+            audio_file_list (list):
+                List that contains audio file paths.
+            word_ts_list (list):
+                Contains word_ts_stt_end lists.
+                word_ts_stt_end = [stt, end]
+                    stt: Start of the word in sec.
+                    end: End of the word in sec.
+            params (dict):
+                The parameter dictionary for diarization and ASR decoding.
+
+        Return:
+            enhanced_word_ts_list (list):
+                List of the enhanced word timestamp values.
         """
         enhanced_word_ts_list = []
         for idx, word_ts_seq_list in enumerate(word_ts_list):
@@ -819,22 +863,25 @@ class ASR_DIAR_OFFLINE(object):
         self, audio_file_list, diar_labels, word_list, word_ts_list,
     ):
         """
-        Matches the diarization result with ASR output.
-        The words and timestamps for the corresponding words are matched
-        in the for loop.
+        Matches the diarization result with the ASR output.
+        The words and the timestamps for the corresponding words are matched
+        in a for loop.
 
         Args:
             audio_file_list (list):
-                The list that contains audio file paths.
+                List that contains audio file paths.
             diar_labels (list):
-                Diarization output labels in str.
+                List of the Diarization output labels in str.
             word_list (list):
-                The list of words from ASR inference.
+                List of words from ASR inference.
             word_ts_list (list):
                 Contains word_ts_stt_end lists.
                 word_ts_stt_end = [stt, end]
                     stt: Start of the word in sec.
                     end: End of the word in sec.
+        Return:
+            total_riva_dict (dict):
+                A dictionary contains word timestamps, speaker labels and words.
 
         """
         total_riva_dict = {}
@@ -842,7 +889,7 @@ class ASR_DIAR_OFFLINE(object):
             word_ts_list = self.compensate_word_ts_list(audio_file_list, word_ts_list, self.params)
             if self.frame_VAD == {}:
                 logging.info(
-                    f"VAD timestamps are not provided and skipping word timestamp fix. Please check VAD model."
+                    f"VAD timestamps are not provided and skipping word timestamp fix. Please check the VAD model."
                 )
 
         for k, audio_file_path in enumerate(audio_file_list):
@@ -894,20 +941,24 @@ class ASR_DIAR_OFFLINE(object):
 
     def get_WDER(self, audio_file_list, total_riva_dict, DER_result_dict, ref_labels_list):
         """
-        Calculate Word-level Diarization Error Rate (WDER). WDER is calculated by
+        Calculate word-level diarization error rate (WDER). WDER is calculated by
         counting the the wrongly diarized words and divided by the total number of words
         recognized by the ASR model.
 
         Args:
-            total_riva_dict: (dict)
-                The dictionary that stores riva_dict(dict)indexed by uniq_id variable.
-            DER_result_dict: (dict)
+            total_riva_dict (dict):
+                The dictionary that stores riva_dict(dict) indexed by uniq_id variable.
+            DER_result_dict (dict):
                 The dictionary that stores DER, FA, Miss, CER, mapping, the estimated
                 number of speakers and speaker counting accuracy.
-            audio_file_list: (list)
-                The list that contains audio file paths.
-            ref_labels_list: (list)
-                The list that contains the ground truth speaker labels for each segment.
+            audio_file_list (list):
+                List that contains audio file paths.
+            ref_labels_list (list):
+                List that contains the ground truth speaker labels for each segment.
+
+        Return:
+            wder_dict (dict):
+                A dictionary contains WDER value for each session and total WDER.
         """
         wder_dict = {}
         grand_total_word_count, grand_correct_word_count = 0, 0
@@ -961,6 +1012,8 @@ class ASR_DIAR_OFFLINE(object):
         return wder_dict
 
     def get_str_speech_labels(self, speech_labels_float):
+        """Convert speech_labels_float to a list contains string values
+        """
         speech_labels = []
         for start, end in speech_labels_float:
             speech_labels.append("{:.3f} {:.3f} speech".format(start, end))
@@ -969,7 +1022,7 @@ class ASR_DIAR_OFFLINE(object):
     def write_result_in_csv(self, args, WDER_dict, DER_result_dict, effective_WDER):
         """
         This function is for development use.
-        Saves the diariazation result into a csv file.
+        Saves the diarization result into a csv file.
         """
         row = [
             args.threshold,
@@ -989,13 +1042,19 @@ class ASR_DIAR_OFFLINE(object):
     @staticmethod
     def _get_spaces(trans, char_ts, time_stride):
         """
-        Collect the space symboles with list of words.
+        Collect the space symbols with a list of words.
 
         Args:
             trans (list):
-                The list of character output (str).
+                List of character output (str).
             timestamps (list):
-                The list of timestamps (int) for each character.
+                List of timestamps (int) for each character.
+
+        Returns:
+            spaces_in_sec (list):
+                List of the ranges of spaces
+            word_list (list):
+                List of the words from ASR inference.
         """
         assert (len(trans) > 0) and (len(char_ts) > 0), "Transcript and char_ts length should not be 0."
         assert len(trans) == len(char_ts), "Transcript and timestamp lengths do not match."
@@ -1035,9 +1094,15 @@ class ASR_DIAR_OFFLINE(object):
 
         Args:
             trans (list):
-                The list of character output (str).
+                List of character output (str).
             char_ts (list):
-                The list of timestamps (int) for each character.
+                List of timestamps (int) for each character.
+
+        Return:
+            trans (list):
+                List of the cleaned character output.
+            char_ts (list):
+                List of the cleaned timestamps for each character.
         """
         assert (len(trans) > 0) and (len(char_ts) > 0)
         assert len(trans) == len(char_ts)
@@ -1073,7 +1138,11 @@ class ASR_DIAR_OFFLINE(object):
             oracle_vad_dir (str):
                 The path of oracle VAD folder.
             audio_file_list (list):
-                The list of audio file paths.
+                List of audio file paths.
+
+        Return:
+            oracle_manifest (str):
+                Returns the full path of orcale_manifest.json file.
         """
         if not reference_rttmfile_list_path:
             reference_rttmfile_list_path = []

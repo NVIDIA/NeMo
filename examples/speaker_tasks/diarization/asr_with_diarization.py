@@ -14,7 +14,7 @@
 
 import argparse
 
-from nemo.collections.asr.parts.utils.diarization_utils import ASR_DIAR_OFFLINE, get_file_lists
+from nemo.collections.asr.parts.utils.diarization_utils import ASR_DIAR_OFFLINE, read_file_paths
 from nemo.utils import logging
 
 """
@@ -24,7 +24,7 @@ QuartzNet15x5Base-En
 stt_en_conformer_ctc_large
 """
 
-CONFIG_URL = "https://raw.githubusercontent.com/NVIDIA/NeMo/main/examples/speaker_tasks/diarization/conf/speaker_diarization.yaml"
+DEFAULT_URL = "https://raw.githubusercontent.com/NVIDIA/NeMo/main/examples/speaker_tasks/diarization/conf/speaker_diarization.yaml"
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -37,10 +37,10 @@ parser.add_argument(
     "--output_path", default=None, type=str, help="Path to the folder where output files are generated"
 )
 parser.add_argument("--pretrained_vad_model", default=None, type=str, help="Fullpath of the VAD model (*.nemo).")
-parser.add_argument("--external_vad_manifest", default=None, type=str, help="External VAD file for diarization")
-parser.add_argument("--asr_based_vad", default=False, action='store_true', help="Whether to use ASR-based VAD")
+parser.add_argument("--external_vad_manifest", default=None, type=str, help="External VAD output manifest for diarization")
+parser.add_argument("--asr_based_vad", default=False, action='store_true', help="Use ASR-based VAD")
 parser.add_argument(
-    '--generate_oracle_manifest', default=False, action='store_true', help="Whether to generate and use oracle VAD"
+    '--generate_oracle_manifest', default=False, action='store_true', help="use RTTM ground truth as VAD input"
 )
 parser.add_argument(
     "--pretrained_speaker_model",
@@ -51,7 +51,7 @@ parser.add_argument(
 parser.add_argument("--oracle_num_speakers", help="Either int or text file that contains number of speakers")
 parser.add_argument("--threshold", default=10, type=int, help="Threshold for ASR based VAD")
 parser.add_argument(
-    "--diar_config_url", default=CONFIG_URL, type=str, help="Config yaml file for running speaker diarization"
+    "--diar_config_url", default=DEFAULT_URL, type=str, help="Config yaml file for running speaker diarization"
 )
 parser.add_argument("--csv", default='result.csv', type=str, help="")
 args = parser.parse_args()
@@ -109,7 +109,7 @@ asr_model = asr_diar_offline.set_asr_model(params['ASR_model_name'])
 
 asr_diar_offline.create_directories(args.output_path)
 
-audio_file_list = get_file_lists(args.audiofile_list_path)
+audio_file_list = read_file_paths(args.audiofile_list_path)
 
 word_list, word_ts_list = asr_diar_offline.run_ASR(audio_file_list, asr_model)
 
@@ -124,7 +124,7 @@ diar_labels = asr_diar_offline.run_diarization(
 
 if args.reference_rttmfile_list_path:
 
-    ref_rttm_file_list = get_file_lists(args.reference_rttmfile_list_path)
+    ref_rttm_file_list = read_file_paths(args.reference_rttmfile_list_path)
 
     ref_labels_list, DER_result_dict = asr_diar_offline.eval_diarization(
         audio_file_list, diar_labels, ref_rttm_file_list
@@ -147,6 +147,4 @@ if args.reference_rttmfile_list_path:
     )
 
 else:
-    diar_labels = asr_diar_offline.get_diarization_labels(audio_file_list)
-
     total_riva_dict = asr_diar_offline.write_json_and_transcript(audio_file_list, diar_labels, word_list, word_ts_list)
