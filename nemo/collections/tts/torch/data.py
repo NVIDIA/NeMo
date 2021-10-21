@@ -24,7 +24,6 @@ from nemo_text_processing.text_normalization.normalize import Normalizer
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
-from nemo.collections.common.parts.patch_utils import stft_patch
 from nemo.collections.tts.torch.helpers import beta_binomial_prior_distribution, general_padding
 from nemo.collections.tts.torch.tts_data_types import (
     DATA_STR2DATA_CLASS,
@@ -251,7 +250,7 @@ class TTSDataset(Dataset):
             'none': None,
         }.get(self.window, None)
 
-        self.stft = lambda x: stft_patch(
+        self.stft = lambda x: torch.stft(
             input=x,
             n_fft=self.n_fft,
             hop_length=self.hop_len,
