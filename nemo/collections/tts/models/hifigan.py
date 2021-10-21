@@ -126,7 +126,7 @@ class HifiGanModel(Vocoder, Exportable):
     def convert_spectrogram_to_audio(self, spec: 'torch.tensor') -> 'torch.tensor':
         return self(spec=spec).squeeze(1)
 
-    def training_step(self, batch, batch_idx, optimizer_idx):
+    def training_step(self, batch, batch_idx):
         # if in finetune mode the mels are pre-computed using a
         # spectrogram generator
         if self.input_as_mel:

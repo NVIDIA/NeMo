@@ -36,7 +36,12 @@ class MyTestOptimizer(torch.optim.Optimizer):
         self._step = 0
         super().__init__(params, {})
 
-    def step(self, *args, **kwargs):
+    @torch.no_grad()
+    def step(self, closure=None):
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
         for group in self.param_groups:
             for p in group['params']:
                 if self._step == 0:
@@ -46,7 +51,7 @@ class MyTestOptimizer(torch.optim.Optimizer):
                 else:
                     p.data = 0.01 * torch.ones(p.shape)
         self._step += 1
-        return None
+        return loss
 
 
 class OnesDataset(torch.utils.data.Dataset):
@@ -65,6 +70,7 @@ class ExampleModel(ModelPT):
     def __init__(self, *args, **kwargs):
         cfg = OmegaConf.structured({})
         super().__init__(cfg)
+        pl.seed_everything(1234)
         self.l1 = torch.nn.modules.Linear(in_features=2, out_features=1)
 
     def train_dataloader(self):

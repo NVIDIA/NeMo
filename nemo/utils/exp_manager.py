@@ -31,11 +31,10 @@ from pytorch_lightning.callbacks import Callback, ModelCheckpoint
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
-from pytorch_lightning.utilities import rank_zero_only
 from pytorch_lightning.utilities.types import _METRIC
 
 from nemo.constants import NEMO_ENV_VARNAME_VERSION
-from nemo.utils import app_state, logging, timers
+from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
@@ -72,7 +71,6 @@ class CallbackParams:
     save_top_k: Optional[int] = 3
     save_weights_only: Optional[bool] = False
     mode: Optional[str] = "min"
-    period: Optional[int] = None
     every_n_val_epochs: Optional[int] = 1
     prefix: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     postfix: str = ".nemo"
@@ -380,6 +378,7 @@ def check_resume(
         NotFoundError: If resume is True, resume_ignore_no_checkpoint is False, and checkpoints could not be found.
         ValueError: If resume is True, and there were more than 1 checkpoint could found.
     """
+
     if not log_dir:
         raise ValueError(f"Resuming requires the log_dir {log_dir} to be passed to exp_manager")
 
@@ -707,58 +706,55 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         for _ in range(models_to_delete):
             model = best_k_models.pop(-1)
             self.best_k_models.pop(model)
-            self._del_model(model)
+            self._del_model_without_trainer(model)
             logging.debug(f"Removed checkpoint: {model}")
 
         self.kth_best_model_path = best_k_models[-1]
         self.best_model_path = best_k_models[0]
         self.best_model_score = self.best_k_models[self.best_model_path]
 
-    @rank_zero_only
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
         output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
-
         if not self.always_save_nemo:
             return output
 
-        # Load the best model and then re-save it
-        app_state = AppState()
-        # since we are creating tarfile artifacts we need to update .nemo path
-        app_state.model_restore_path = os.path.abspath(
-            os.path.expanduser(os.path.join(self.dirpath, self.prefix + self.postfix))
-        )
-        if self.save_best_model:
-            if not os.path.exists(self.best_model_path):
-                return output
-
-            if self.best_model_path == self.previous_best_path:
-                return output
-
-            self.previous_model_path = self.best_model_path
-            old_state_dict = deepcopy(pl_module.state_dict())
-            checkpoint = torch.load(self.best_model_path, map_location='cpu')
-            if 'state_dict' in checkpoint:
-                checkpoint = checkpoint['state_dict']
-            # get a new instanace of the model
-            pl_module.load_state_dict(checkpoint, strict=True)
-            pl_module.save_to(save_path=app_state.model_restore_path)
-            pl_module.load_state_dict(old_state_dict, strict=True)
         else:
-            pl_module.save_to(save_path=app_state.model_restore_path)
-        return output
+            # Load the best model and then re-save it
+            app_state = AppState()
+            if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+                raise ValueError(f'always_save_nemo is not implemented for model parallel models.')
+            # since we are creating tarfile artifacts we need to update .nemo path
+            app_state.model_restore_path = os.path.abspath(
+                os.path.expanduser(os.path.join(self.dirpath, self.prefix + self.postfix))
+            )
+            if self.save_best_model:
+                if not os.path.exists(self.best_model_path):
+                    return output
 
-    @rank_zero_only
+                if self.best_model_path == self.previous_best_path:
+                    return output
+
+                self.previous_model_path = self.best_model_path
+                old_state_dict = deepcopy(pl_module.state_dict())
+                checkpoint = torch.load(self.best_model_path, map_location='cpu')
+                if 'state_dict' in checkpoint:
+                    checkpoint = checkpoint['state_dict']
+                # get a new instanace of the model
+                pl_module.load_state_dict(checkpoint, strict=True)
+                pl_module.save_to(save_path=app_state.model_restore_path)
+                pl_module.load_state_dict(old_state_dict, strict=True)
+            else:
+                pl_module.save_to(save_path=app_state.model_restore_path)
+            return output
+
     def on_train_end(self, trainer, pl_module):
         if trainer.fast_dev_run:
             return None
-        app_state = AppState()
-        if app_state.model_parallel_size is not None:
-            return None
 
-        # TODO: make this work for model parallel, need to call on data parallel rank 0 and update best_model_path
         # Load the best model and then re-save it
         if self.save_best_model:
             trainer.checkpoint_connector.restore(self.best_model_path)
+
         pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
 
     def _del_model(self, trainer: "pl.Trainer", filepath: str) -> None:
@@ -768,17 +764,35 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         app_state = AppState()
         if app_state.model_parallel_size is not None:
             # filepath needs to be updated to include mp_rank
+            # TODO: figure out a good way to update these filepaths
             dirname = os.path.dirname(filepath)
             basename = os.path.basename(filepath)
             filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
 
             # each model parallel rank needs to remove its model
             if app_state.data_parallel_rank == 0:
-                super()._del_model(trainer, filepath)
-                logging.info(f"Removed model parallel checkpoint: {filepath}")
+                if self._fs.exists(filepath):
+                    self._fs.rm(filepath)
+                    logging.info(f"Removed model parallel checkpoint: {filepath}")
 
         else:
             return super()._del_model(trainer, filepath)
+
+    def _del_model_without_trainer(self, filepath: str) -> None:
+        app_state = AppState()
+        if app_state.model_parallel_size is not None:
+            # filepath needs to be updated to include mp_rank
+            dirname = os.path.dirname(filepath)
+            basename = os.path.basename(filepath)
+            filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
+
+        # each model parallel rank needs to remove its model
+        if is_global_rank_zero() or (app_state.model_parallel_size is not None and app_state.data_parallel_rank == 0):
+            try:
+                self._fs.rm(filepath)
+                logging.info(f"Removed checkpoint: {filepath}")
+            except:
+                logging.info(f"Tried to remove checkpoint: {filepath} but failed.")
 
     def _save_last_checkpoint(self, trainer: 'pl.Trainer', monitor_candidates: Dict[str, _METRIC]) -> None:
         """ Overrides PTL method to account for model parallel checkpoints.
@@ -792,11 +806,18 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             filepath = self._format_checkpoint_name(self.CHECKPOINT_NAME_LAST, monitor_candidates)
             filepath = os.path.join(self.dirpath, f"{filepath}{self.FILE_EXTENSION}")
 
-            self._save_model(trainer, filepath)
+            trainer.save_checkpoint(filepath)
+
+            # TODO: figure out where self.last_model_path is being set
+            if self.last_model_path is not None:
+                if 'mp_rank' in self.last_model_path:
+                    last_model_path = Path(self.last_model_path)
+                    last_model_path = last_model_path.parent.parent.joinpath(last_model_path.name)
+                    self.last_model_path = str(last_model_path)
 
             # for model parallel we need to delete models for each model parallel rank
             if self.last_model_path and self.last_model_path != filepath and app_state.data_parallel_rank == 0:
-                self._del_model(self.last_model_path)
+                self._del_model(trainer, self.last_model_path)
 
             self.last_model_path = filepath
 
@@ -813,7 +834,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 return
 
             filepath = self._get_metric_interpolated_filepath_name(monitor_candidates, trainer)
-            self._save_model(trainer, filepath)
+
+            trainer.save_checkpoint(filepath)
 
             if (
                 self.save_top_k is None
@@ -821,7 +843,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 and self.best_model_path != filepath
                 and app_state.data_parallel_rank == 0
             ):
-                self._del_model(self.best_model_path)
+                self._del_model(trainer, self.best_model_path)
 
             self.best_model_path = filepath
         else:
@@ -887,14 +909,6 @@ def configure_checkpointing(
                 f"{trainer.check_val_every_n_epoch} epochs to ensure that checkpointing will not error out."
             )
 
-    if params.period is not None:
-        logging.warning(
-            "The use of `period` in the checkpoint callback is deprecrated, please use `every_n_val_epochs` instead. "
-            "Overwriting `every_n_val_epochs` with `period`."
-        )
-        params.every_n_val_epochs = params.period
-
-    # NOTE: checkpoint_callback should be called last
     checkpoint_callback = NeMoModelCheckpoint(n_resume=resume, **params)
     checkpoint_callback.last_model_path = trainer.checkpoint_connector.resume_checkpoint_path or ""
     trainer.callbacks.append(checkpoint_callback)
