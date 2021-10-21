@@ -21,7 +21,7 @@ import torch.nn as nn
 from tqdm import tqdm
 
 from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset, constants
-from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize, post_process_punct
+from nemo.collections.nlp.data.text_normalization.utils import post_process_punct
 from nemo.collections.nlp.models.duplex_text_normalization.utils import get_formatted_string
 from nemo.utils import logging
 from nemo.utils.decorators.experimental import experimental
@@ -195,7 +195,7 @@ class DuplexTextNormalizationModel(nn.Module):
                         error_f.write('Forward Problem (TN)\n')
                         tn_error_ctx += 1
 
-                    formatted_input_str = get_formatted_string(basic_tokenize(_input, lang=self.lang))
+                    formatted_input_str = get_formatted_string(self.decoder.processor.tokenize(_input).split())
                     formatted_tag_pred_str = get_formatted_string(tag_pred)
                     class_str = " ".join(classes)
                     error_f.write(f'Original Input : {_input}\n')
