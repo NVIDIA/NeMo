@@ -536,6 +536,20 @@ Let us discuss some of the important arguments:
 
 * ``prednet.pred_hidden``: The hidden dimension of the LSTM and the output dimension of the Prediction network.
 
+.. code-block:: yaml
+
+  decoder:
+    _target_: nemo.collections.asr.modules.RNNTDecoder
+    normalization_mode: null
+    random_state_sampling: false
+    blank_as_pad: true
+
+    prednet:
+      pred_hidden: ${model.model_defaults.pred_hidden}
+      pred_rnn_layers: 1
+      t_max: null
+      dropout: 0.0
+
 Joint Model
 ~~~~~~~~~~~
 
@@ -554,6 +568,78 @@ The Joint model config has several essential components which we discuss below :
 * ``fused_batch_size``: When the above flag is set to True, the model will have two distinct "batch sizes". The batch size provided in the three data loader configs (``model.*_ds.batch_size``) will now be the ``Acoustic model`` batch size, whereas the ``fused_batch_size`` will be the batch size of the ``Prediction model``, the ``Joint model``, the ``transducer loss`` module and the ``decoding`` module.
 
 * ``jointnet.joint_hidden``: The hidden intermediate dimension of the joint network.
+
+.. code-block:: yaml
+
+  joint:
+    _target_: nemo.collections.asr.modules.RNNTJoint
+    log_softmax: null  # sets it according to cpu/gpu device
+
+    # fused mode
+    fuse_loss_wer: false
+    fused_batch_size: 16
+
+    jointnet:
+      joint_hidden: ${model.model_defaults.joint_hidden}
+      activation: "relu"
+      dropout: 0.0
+
+
+Effect of Batch Splitting / Fused Batch step
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The following information below explain why memory is an issue when training Transducer models and how NeMo tackles the issue with its Fused Batch step. The material can be read for a thorough understanding, otherwise, it can be skipped. You can also follow these steps in the "ASR_with_Transducers" tutorial.
+
+**Diving deeper into the memory costs of Transducer Joint**
+
+One of the significant limitations of Transducers is the exorbitant memory cost of computing the Joint module. The Joint module is comprised of two steps.
+
+1) Projecting the Acoustic and Transcription feature dimensions to some standard hidden dimension (specified by model.model_defaults.joint_hidden)
+
+2) Projecting this intermediate hidden dimension to the final vocabulary space to obtain the transcription.
+
+Take the following example.
+
+BS=32 ; T (after 2x stride) = 800, U (with character encoding) = 400-450 tokens, Vocabulary size V = 28 (26 alphabet chars, space and apostrophe). Let the hidden dimension of the Joint model be 640 (Most Google Transducer papers use hidden dimension of 640).
+
+* :math:`Memory \, (Hidden, \, gb) = 32 \times 800 \times 450 \times 640 \times 4 = 29.49` gigabytes (4 bytes per float).
+
+* :math:`Memory \, (Joint, \, gb) = 32 \times 800 \times 450 \times 28 \times 4 = 1.290` gigabytes (4 bytes per float)
+
+**NOTE**: This is just for the forward pass! We need to double this memory to store gradients! This much memory is also just for the Joint model **alone**. Far more memory is required for the Prediction model as well as the large Acoustic model itself and its gradients!
+
+Even with mixed precision, that's $\sim 30$ GB of GPU RAM for just 1 part of the network + its gradients.
+
+Effect of Fused Batch Step
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The fundamental problem is that the joint tensor grows in size when ``[T x U]`` grows in size. This growth in memory cost is due to many reasons - either by model construction (downsampling) or the choice of dataset preprocessing (character tokenization vs. sub-word tokenization).
+
+Another dimension that NeMo can control is **batch**. Due to how we batch our samples, small and large samples all get clumped together into a single batch. So even though the individual samples are not all as long as the maximum length of T and U in that batch, when a batch of such samples is constructed, it will consume a significant amount of memory for the sake of compute efficiency.
+
+So as is always the case - **trade-off compute speed for memory savings**.
+
+The fused operation goes as follows :
+
+1) Forward the entire acoustic model in a single pass. (Use global batch size here for acoustic model - found in ``model.*_ds.batch_size``)
+
+2) Split the Acoustic Model's logits by ``fused_batch_size`` and loop over these sub-batches.
+
+3) Construct a sub-batch of same ``fused_batch_size`` for the Prediction model. Now the target sequence length is :math:`U_{sub-batch} < U`.
+
+4) Feed this :math:`U_{sub-batch}` into the Joint model, along with a sub-batch from the Acoustic model (with :math:`T_{sub-batch} < T)`. Remember, we only have to slice off a part of the acoustic model here since we have the full batch of samples :math:`(B, T, D)` from the acoustic model.
+
+5) Performing steps (3) and (4) yields :math:`T_{sub-batch}` and :math:`U_{sub-batch}`. Perform sub-batch joint step - costing an intermediate :math:`(B, T_{sub-batch}, U_{sub-batch}, V)` in memory.
+
+6) Compute loss on sub-batch and preserve in a list to be later concatenated.
+
+7) Compute sub-batch metrics (such as Character / Word Error Rate) using the above Joint tensor and sub-batch of ground truth labels. Preserve the scores to be averaged across the entire batch later.
+
+8) Delete the sub-batch joint matrix  :math:`(B, T_{sub-batch}, U_{sub-batch}, V)`. Only gradients from .backward() are preserved now in the computation graph.
+
+9) Repeat steps (3) - (8) until all sub-batches are consumed.
+
+10) Cleanup step. Compute full batch WER and log. Concatenate loss list and pass to PTL to compute the equivalent of the original (full batch) Joint step. Delete ancillary objects necessary for sub-batching.
 
 Transducer Decoding
 ~~~~~~~~~~~~~~~~~~~
@@ -576,6 +662,27 @@ The most important component at the top level is the ``strategy``. It can take o
 
 * ``maes``: Modified Adaptive Expansion Search Decoding. Please refer to the paper `Accelerating RNN Transducer Inference via Adaptive Expansion Search <https://ieeexplore.ieee.org/document/9250505>`_. Modified Adaptive Synchronous Decoding (mAES) execution time is adaptive w.r.t the number of expansions (for tokens) required per timestep. The number of expansions can usually be constrained to 1 or 2, and in most cases 2 is sufficient. This beam search technique can possibly obtain superior WER while sacrificing some evaluation time.
 
+.. code-block:: yaml
+
+  decoding:
+    strategy: "greedy_batch"
+
+    # greedy strategy config
+    greedy:
+      max_symbols: 30
+
+    # beam strategy config
+    beam:
+      beam_size: 2
+      score_norm: true
+      softmax_temperature: 1.0  # scale the logits by some temperature prior to softmax
+      tsd_max_sym_exp: 10  # for Time Synchronous Decoding, int > 0
+      alsd_max_target_len: 5.0  # for Alignment-Length Synchronous Decoding, float > 1.0
+      maes_num_steps: 2  # for modified Adaptive Expansion Search, int > 0
+      maes_prefix_alpha: 1  # for modified Adaptive Expansion Search, int > 0
+      maes_expansion_beta: 2  # for modified Adaptive Expansion Search, int >= 0
+      maes_expansion_gamma: 2.3  # for modified Adaptive Expansion Search, float >= 0
+
 Transducer Loss
 ~~~~~~~~~~~~~~~
 
@@ -588,6 +695,14 @@ The loss config is based on a resolver pattern and can be used as follows:
 1) ``loss_name``: ``default`` is generally a good option. Will select one of the available resolved losses and match the kwargs from a sub-configs passed via explicit ``{loss_name}_kwargs`` sub-config.
 
 2) ``{loss_name}_kwargs``: This sub-config is passed to the resolved loss above and can be used to configure the resolved loss.
+
+
+.. code-block:: yaml
+
+  loss:
+    loss_name: "default"
+    warprnnt_numba_kwargs:
+      fastemit_lambda: 0.0
 
 FastEmit Regularization
 ^^^^^^^^^^^^^^^^^^^^^^^
