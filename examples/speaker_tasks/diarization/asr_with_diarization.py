@@ -40,7 +40,7 @@ parser.add_argument("--pretrained_vad_model", default=None, type=str, help="Full
 parser.add_argument("--external_vad_manifest", default=None, type=str, help="External VAD output manifest for diarization")
 parser.add_argument("--asr_based_vad", default=False, action='store_true', help="Use ASR-based VAD")
 parser.add_argument(
-    '--generate_oracle_manifest', default=False, action='store_true', help="use RTTM ground truth as VAD input"
+    '--generate_oracle_manifest', default=False, action='store_true', help="Use RTTM ground truth as VAD input"
 )
 parser.add_argument(
     "--pretrained_speaker_model",
