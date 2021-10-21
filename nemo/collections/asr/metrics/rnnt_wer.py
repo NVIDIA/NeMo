@@ -379,6 +379,28 @@ class RNNTDecoding(AbstractRNNTDecoding):
                         By default, a float of 2.0 is used so that a target sequence can be at most twice
                         as long as the acoustic model output length T.
 
+                                maes_num_steps: Number of adaptive steps to take. From the paper, 2 steps is generally sufficient,
+                    and can be reduced to 1 to improve decoding speed while sacrificing some accuracy. int > 0.
+
+                maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to keep this as 1
+                    in order to reduce expensive beam search cost later. int >= 0.
+
+                maes_expansion_beta: Maximum number of prefix expansions allowed, in addition to the beam size.
+                    Effectively, the number of hypothesis = beam_size + maes_expansion_beta. Must be an int >= 0,
+                    and affects the speed of inference since large values will perform large beam search in the next step.
+
+                maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
+                    The default (2.3) is selected from the paper. It performs a comparison (max_log_prob - gamma <= log_prob[v])
+                    where v is all vocabulary indices in the Vocab set and max_log_prob is the "most" likely token to be
+                    predicted. Gamma therefore provides a margin of additional tokens which can be potential candidates for
+                    expansion apart from the "most likely" candidate.
+                    Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
+                    but hurting accuracy). Higher values will increase the number of expansions (by reducing pruning-by-value,
+                    thereby reducing speed but potentially improving accuracy). This is a hyper parameter to be experimentally
+                    tuned on a validation set.
+
+                softmax_temperature: Scales the logits of the joint prior to computing log_softmax.
+
         decoder: The Decoder/Prediction network module.
         joint: The Joint network module.
         vocabulary: The vocabulary (excluding the RNNT blank token) which will be used for decoding.
