@@ -201,7 +201,6 @@ class ModelPT(LightningModule, Model):
 
         return self._save_restore_connector.register_artifact(self, config_path, src, verify_src_exists)
 
-    @rank_zero_only
     def save_to(self, save_path: str):
         """
         Saves model instance (weights and configuration) into .nemo file
@@ -215,12 +214,24 @@ class ModelPT(LightningModule, Model):
             save_path: Path to .nemo file where model instance should be saved
         """
 
+        app_state = AppState()
         # Add NeMo rank check as well
-        if not is_global_rank_zero():
-            return
-        else:
+        if app_state.model_parallel_size is not None:
+            if app_state.model_parallel_size > 1:
+                if isinstance(self._save_restore_connector, SaveRestoreConnector):
+                    raise ValueError(
+                        'Default NeMo SaveRestoreConnector will not work in model parallel mode. You should use a connector which supports model parallel mode, such as NLPSaveRestoreConnector in NLP. You can also you custom one.'
+                    )
+
             save_path = os.path.abspath(os.path.expanduser(save_path))
+            # connector checks for ranks properly, no need to check here
             self._save_restore_connector.save_to(self, save_path)
+        else:
+            if not is_global_rank_zero():
+                return
+            else:
+                save_path = os.path.abspath(os.path.expanduser(save_path))
+                self._save_restore_connector.save_to(self, save_path)
 
     @classmethod
     def restore_from(
@@ -231,6 +242,7 @@ class ModelPT(LightningModule, Model):
         strict: bool = True,
         return_config: bool = False,
         save_restore_connector: SaveRestoreConnector = None,
+        trainer: Optional[Trainer] = None,
     ):
         """
         Restores model instance (weights and configuration) from .nemo file.
@@ -244,6 +256,8 @@ class ModelPT(LightningModule, Model):
             strict: Passed to load_state_dict. By default True.
             return_config: If set to true, will return just the underlying config of the restored
                 model as an OmegaConf DictConfig object without instantiating the model.
+            trainer: Optional, a pytorch lightning Trainer object that will be forwarded to the
+                instantiated model's constructor.
             save_restore_connector (SaveRestoreConnector): Can be overrided to add custom save and restore logic.
 
             Example:
@@ -268,7 +282,7 @@ class ModelPT(LightningModule, Model):
 
         cls.update_save_restore_connector(save_restore_connector)
         instance = cls._save_restore_connector.restore_from(
-            cls, restore_path, override_config_path, map_location, strict, return_config
+            cls, restore_path, override_config_path, map_location, strict, return_config, trainer
         )
         if isinstance(instance, ModelPT):
             instance._save_restore_connector = save_restore_connector

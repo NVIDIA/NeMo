@@ -23,9 +23,11 @@ from typing import Optional, Union
 import torch
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.omegaconf import open_dict
+from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
+from nemo.utils.get_rank import is_global_rank_zero
 
 
 class SaveRestoreConnector:
@@ -47,16 +49,19 @@ class SaveRestoreConnector:
             save_path: Path to .nemo file where model instance should be saved
 		"""
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            config_yaml = os.path.join(tmpdir, self.model_config_yaml)
-            model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
-            model.to_config_file(path2yaml_file=config_yaml)
-            if hasattr(model, 'artifacts') and model.artifacts is not None:
-                self._handle_artifacts(model, nemo_file_folder=tmpdir)
-                # We should not update self._cfg here - the model can still be in use
-                self._update_artifact_paths(model, path2yaml_file=config_yaml)
-            self._save_state_dict_to_disk(model.state_dict(), model_weights)
-            self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
+        if is_global_rank_zero():
+            with tempfile.TemporaryDirectory() as tmpdir:
+                config_yaml = os.path.join(tmpdir, self.model_config_yaml)
+                model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
+                model.to_config_file(path2yaml_file=config_yaml)
+                if hasattr(model, 'artifacts') and model.artifacts is not None:
+                    self._handle_artifacts(model, nemo_file_folder=tmpdir)
+                    # We should not update self._cfg here - the model can still be in use
+                    self._update_artifact_paths(model, path2yaml_file=config_yaml)
+                self._save_state_dict_to_disk(model.state_dict(), model_weights)
+                self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
+        else:
+            return
 
     def restore_from(
         self,
@@ -66,6 +71,7 @@ class SaveRestoreConnector:
         map_location: Optional[torch.device] = None,
         strict: bool = True,
         return_config: bool = False,
+        trainer: Trainer = None,
     ):
         """
 		Restores model instance (weights and configuration) into .nemo file
@@ -125,7 +131,7 @@ class SaveRestoreConnector:
                     return instance
                 else:
                     app_state = AppState()
-                    if app_state.model_parallel_rank is not None:
+                    if app_state.model_parallel_rank is not None and app_state.model_parallel_size > 1:
                         model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
                     else:
                         model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
@@ -133,7 +139,7 @@ class SaveRestoreConnector:
                 os.chdir(cwd)
                 # get the class
                 calling_cls._set_model_restore_state(is_being_restored=True, folder=tmpdir)
-                instance = calling_cls.from_config_dict(config=conf)
+                instance = calling_cls.from_config_dict(config=conf, trainer=trainer)
                 instance = instance.to(map_location)
                 # add load_state_dict override
                 instance.load_state_dict(
@@ -369,6 +375,8 @@ class SaveRestoreConnector:
 
     @staticmethod
     def _make_nemo_file_from_folder(filename, source_dir):
+        dirname = os.path.dirname(filename)
+        os.makedirs(dirname, exist_ok=True)
         with tarfile.open(filename, "w:gz") as tar:
             tar.add(source_dir, arcname=".")
 
