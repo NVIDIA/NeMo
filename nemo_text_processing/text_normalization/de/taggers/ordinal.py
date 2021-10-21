@@ -17,8 +17,8 @@
 # Russian minimally supervised number grammar.
 
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, GraphFst
-from nemo_text_processing.text_normalization.ru.utils import get_abs_path
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, GraphFst, NEMO_DIGIT
+from nemo_text_processing.text_normalization.de.utils import get_abs_path
 
 try:
     import pynini
@@ -41,33 +41,15 @@ class OrdinalFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, number_names: dict, alternative_formats: dict, deterministic=False):
+    def __init__(self, cardinal: GraphFst, deterministic=False):
         super().__init__(name="ordinal", kind="classify", deterministic=deterministic)
 
-        one_thousand_alternative = alternative_formats['one_thousand_alternative']
-        separators = alternative_formats['separators']
-
-        ordinal = number_names['ordinal_number_names']
-
-        ordinal |= ordinal @ one_thousand_alternative
-        ordinal_numbers = separators @ ordinal
-
-        # to handle cases like 2-ая
-        endings = pynini.string_file(get_abs_path("data/numbers/ordinal_endings.tsv"))
-        not_dash = pynini.closure(pynini.difference(NEMO_SIGMA, "-"))
-        del_ending = pynini.cdrewrite(pynini.cross("-" + not_dash, ""), "", "[EOS]", NEMO_SIGMA)
-        ordinal_numbers_marked = (
-            ((separators @ ordinal).optimize() + pynini.accep("-") + not_dash).optimize()
-            @ (NEMO_SIGMA + endings).optimize()
-            @ del_ending
+        cardinal_graph = cardinal.graph
+        endings = ["ter", "tes", "tem", "te", "ten", "."]
+        self.graph = (
+            (pynini.closure(NEMO_DIGIT | pynini.accep(",")) + pynutil.delete(pynini.union(*endings))) @ cardinal_graph
         ).optimize()
-
-        self.ordinal_numbers = ordinal_numbers
-        # "03" -> remove leading zeros and verbalize
-        leading_zeros = pynini.closure(pynini.cross("0", ""))
-        self.ordinal_numbers_with_leading_zeros = (leading_zeros + ordinal_numbers).optimize()
-
-        final_graph = (ordinal_numbers | ordinal_numbers_marked).optimize()
-        final_graph = pynutil.insert("integer: \"") + final_graph + pynutil.insert("\"")
+        final_graph = pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
+
