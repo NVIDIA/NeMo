@@ -52,7 +52,10 @@ class CardinalFst(GraphFst):
         super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
 
         self.graph = ITNCardinalFst().graph_no_exception.invert()
-        self.graph = self.graph @ pynini.cdrewrite(delete_space, "[BOS]", "", NEMO_SIGMA)
+        self.graph = self.graph @ pynini.cdrewrite(delete_space|pynutil.delete("und"), "[BOS]", "", NEMO_SIGMA)
+        self.graph_hundred_component_at_least_one_none_zero_digit = (
+            pynini.closure(NEMO_DIGIT, 2, 3) | pynini.difference(NEMO_DIGIT, pynini.accep("0"))
+        ) @  self.graph
 
         self.optional_graph_negative = pynini.closure(
             pynutil.insert("negative: ") + pynini.cross("-", "\"true\"") + insert_space, 0, 1

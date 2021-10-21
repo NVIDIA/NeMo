@@ -14,10 +14,8 @@
 
 from collections import defaultdict
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, NEMO_SPACE, GraphFst, insert_space
-from nemo_text_processing.text_normalization.en.utils import load_labels
-from nemo_text_processing.text_normalization.ru.utils import get_abs_path
-
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, NEMO_SPACE, GraphFst, insert_space, delete_space, delete_extra_space
+from nemo_text_processing.text_normalization.de.utils import load_labels, get_abs_path
 try:
     import pynini
     from pynini.lib import pynutil
@@ -29,83 +27,80 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-def prepare_labels_for_insertion(file_path: str):
+
+def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstLike') -> 'pynini.FstLike':
     """
-    Read the file and creates a union insertion graph
+    Returns FST that transforms either a cardinal or decimal followed by a quantity into a numeral,
+    e.g. 1 million -> integer_part: "one" quantity: "million"
+    e.g. 1.5 million -> integer_part: "one" fractional_part: "five" quantity: "million"
 
-    Args:
-        file_path: path to a file (3 columns: a label type e.g.
-        "@@decimal_delimiter@@", a label e.g. "целого", and a weight e.g. "0.1").
-
-    Returns dictionary mapping from label type to an fst that inserts the labels with the specified weights.
-
+    Args: 
+        decimal: decimal FST
+        cardinal_up_to_hundred: cardinal FST
     """
-    labels = load_labels(file_path)
-    mapping = defaultdict(list)
-    for k, v, w in labels:
-        mapping[k].append((v, w))
-
-    for k in mapping:
-        mapping[k] = (
-            insert_space
-            + pynini.union(*[pynutil.add_weight(pynutil.insert(end), weight) for end, weight in mapping[k]])
-        ).optimize()
-    return mapping
+    numbers = cardinal_up_to_hundred
+    suffix = pynini.union(
+        "million",
+        "millionen",
+        "milliarde",
+        "milliarden",
+        "billion",
+        "billionen",
+        "billiarde",
+        "billiarden",
+        "trillion",
+        "trillionen",
+        "trilliarde",
+        "trilliarden",
+    )
+    res = (
+        pynutil.insert("integer_part: \"")
+        + numbers
+        + pynutil.insert("\"")
+        + delete_extra_space
+        + pynutil.insert("quantity: \"")
+        + suffix
+        + pynutil.insert("\"")
+    )
+    res |= decimal + delete_extra_space + pynutil.insert("quantity: \"") + (suffix | "tausend") + pynutil.insert("\"")
+    return res
 
 
 class DecimalFst(GraphFst):
     """
     Finite state transducer for classifying decimal, e.g. 
-        "1,08" -> tokens { decimal { integer_part: "одно целая" fractional_part: "восемь сотых} }
+        -12.5006 billion -> decimal { negative: "true" integer_part: "12"  fractional_part: "five o o six" quantity: "billion" }
+        1 billion -> decimal { integer_part: "one" quantity: "billion" }
 
-    Args:
-        cardinal: CardinalFst
-        deterministic: if True will provide a single transduction option,
-                for False multiple transduction are generated (used for audio-based normalization)
+    cardinal: CardinalFst
     """
 
-    def __init__(self, cardinal: GraphFst, deterministic: bool = False):
+    def __init__(self, cardinal: GraphFst, deterministic: bool):
         super().__init__(name="decimal", kind="classify", deterministic=deterministic)
 
-        integer_part = cardinal.cardinal_numbers_default
-        cardinal_numbers_with_leading_zeros = cardinal.cardinal_numbers_with_leading_zeros
+        cardinal_graph = cardinal.graph
 
-        delimiter_map = prepare_labels_for_insertion(get_abs_path("data/numbers/decimal_delimiter.tsv"))
-        delimiter = (
-            pynini.cross(",", "") + delimiter_map['@@decimal_delimiter@@'] + pynini.closure(pynutil.insert(" и"), 0, 1)
-        ).optimize()
+        graph_decimal = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
+        graph_decimal |= pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
+        self.graph = pynini.invert(graph_decimal).optimize()
 
-        decimal_endings_map = prepare_labels_for_insertion(get_abs_path("data/numbers/decimal_endings.tsv"))
+        point = pynutil.delete(".")
+        optional_graph_negative = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
 
-        self.integer_part = integer_part + delimiter
-        graph_integer = pynutil.insert("integer_part: \"") + self.integer_part + pynutil.insert("\"")
-
-        graph_fractional = NEMO_DIGIT @ cardinal_numbers_with_leading_zeros + decimal_endings_map['10']
-        graph_fractional |= (NEMO_DIGIT + NEMO_DIGIT) @ cardinal_numbers_with_leading_zeros + decimal_endings_map[
-            '100'
-        ]
-        graph_fractional |= (
-            NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT
-        ) @ cardinal_numbers_with_leading_zeros + decimal_endings_map['1000']
-        graph_fractional |= (
-            NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT
-        ) @ cardinal_numbers_with_leading_zeros + decimal_endings_map['10000']
-
-        self.optional_quantity = pynini.string_file(get_abs_path("data/numbers/quantity.tsv")).optimize()
-
-        self.graph_fractional = graph_fractional
-        graph_fractional = pynutil.insert("fractional_part: \"") + graph_fractional + pynutil.insert("\"")
-        optional_quantity = pynini.closure(
-            (pynutil.add_weight(pynini.accep(NEMO_SPACE), -0.1) | insert_space)
-            + pynutil.insert("quantity: \"")
-            + self.optional_quantity
-            + pynutil.insert("\""),
-            0,
-            1,
-        )
-        self.final_graph = (
-            cardinal.optional_graph_negative + graph_integer + insert_space + graph_fractional + optional_quantity
+        self.graph_fractional = pynutil.insert("fractional_part: \"") + self.graph + pynutil.insert("\"")
+        self.graph_integer = pynutil.insert("integer_part: \"") + cardinal_graph + pynutil.insert("\"")
+        final_graph_wo_sign = (
+            pynini.closure(self.graph_integer + pynutil.insert(" "), 0, 1)
+            + point
+            + pynutil.insert(" ")
+            + self.graph_fractional
         )
 
-        self.final_graph = self.add_tokens(self.final_graph)
-        self.fst = self.final_graph.optimize()
+        self.final_graph_wo_negative = final_graph_wo_sign | get_quantity(
+            final_graph_wo_sign, cardinal.graph_hundred_component_at_least_one_none_zero_digit
+        )
+
+        final_graph = optional_graph_negative + self.final_graph_wo_negative
+
+        final_graph = self.add_tokens(final_graph)
+        self.fst = final_graph.optimize()

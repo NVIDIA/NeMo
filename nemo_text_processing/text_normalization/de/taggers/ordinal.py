@@ -17,8 +17,7 @@
 # Russian minimally supervised number grammar.
 
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, GraphFst, NEMO_DIGIT
-from nemo_text_processing.text_normalization.de.utils import get_abs_path
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, NEMO_DIGIT
 
 try:
     import pynini
