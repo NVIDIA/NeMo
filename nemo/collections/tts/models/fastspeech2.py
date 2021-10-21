@@ -150,7 +150,7 @@ class FastSpeech2Model(SpectrogramGenerator):
         self.log(name="train_loss", value=total_loss)
         return {"loss": total_loss, "outputs": [spec, mel]}
 
-    def training_epoch_end(self, training_step_outputs):
+    def training_epoch_end(self, outputs):
         if self.log_train_images and self.logger is not None and self.logger.experiment is not None:
             tb_logger = self.logger.experiment
             if isinstance(self.logger, LoggerCollection):
@@ -158,7 +158,7 @@ class FastSpeech2Model(SpectrogramGenerator):
                     if isinstance(logger, TensorBoardLogger):
                         tb_logger = logger.experiment
                         break
-            spec_target, spec_predict = training_step_outputs[0]["outputs"]
+            spec_target, spec_predict = outputs[0]["outputs"]
             tb_logger.add_image(
                 "train_mel_target",
                 plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()),
@@ -170,6 +170,8 @@ class FastSpeech2Model(SpectrogramGenerator):
                 "train_mel_predicted", plot_spectrogram_to_numpy(spec_predict.T), self.global_step, dataformats="HWC",
             )
             self.log_train_images = False
+
+            return super().training_epoch_end(outputs)
 
     def validation_step(self, batch, batch_idx):
         f, fl, t, tl, _, _, _ = batch
