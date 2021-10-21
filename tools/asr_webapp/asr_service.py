@@ -371,4 +371,4 @@ atexit.register(remove_tmp_dir_at_exit)
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(False)
