@@ -31,7 +31,7 @@ PLOTS_EXT = "pdf"
 PLOT_TITLE = False
 PLOT_XLABEL = True
 PLOT_YLABEL = True
-PLOT_LABEL_FONT_SIZE=40
+PLOT_LABEL_FONT_SIZE=16
 PLOT_GRID = True
 
 # =============================================================================#
@@ -52,6 +52,10 @@ def plot_timing(lengths, timings, lengths_name, timings_name, fig=None):
         plt.grid(True)
     if PLOT_TITLE:
         plt.title(f"{timings_name} vs. {lengths_name}")
+
+    plt.xticks(fontsize=PLOT_LABEL_FONT_SIZE)
+    plt.yticks(fontsize=PLOT_LABEL_FONT_SIZE)
+    plt.tight_layout()
 
     return fig
 
