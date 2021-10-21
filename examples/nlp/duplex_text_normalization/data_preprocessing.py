@@ -42,20 +42,31 @@ After this script, you can use upsample.py to create a more class balanced train
 """
 
 
-
-from argparse import ArgumentParser
 import os
-from nemo.utils import logging
+from argparse import ArgumentParser
+
 import inflect
 import regex as re
-from tqdm import tqdm
 import wordninja
+from tqdm import tqdm
+
+from nemo.utils import logging
 
 parser = ArgumentParser(description="Text Normalization Data Preprocessing for English")
 parser.add_argument("--output_dir", required=True, type=str, help='Path to output directory.')
 parser.add_argument("--input_path", required=True, type=str, help='Path to input file or input directory.')
-parser.add_argument("--max_integer_length", default=4, type=int, help='Maximum number of digits for integers that are allowed. Beyond this, the integers are verbalized digit by digit.')
-parser.add_argument("--max_denominator_length", default=3, type=int, help='Maximum number of digits for denominators that are allowed. Beyond this, the denominator is verbalized digit by digit.')
+parser.add_argument(
+    "--max_integer_length",
+    default=4,
+    type=int,
+    help='Maximum number of digits for integers that are allowed. Beyond this, the integers are verbalized digit by digit.',
+)
+parser.add_argument(
+    "--max_denominator_length",
+    default=3,
+    type=int,
+    help='Maximum number of digits for denominators that are allowed. Beyond this, the denominator is verbalized digit by digit.',
+)
 args = parser.parse_args()
 
 engine = inflect.engine()
@@ -119,7 +130,7 @@ def process_url(o):
     Return:
         o: The outputs for the spoken form with preprocessed URLs.
     """
-    
+
     def flatten(l):
         """ flatten a list of lists """
         return [item for sublist in l for item in sublist]
@@ -168,7 +179,7 @@ def int2digits(digits: str):
     res = []
     for i, x in enumerate(digits):
         if x in digit:
-            res.append(engine.number_to_words(str(x),  zero="zero").replace("-", " ").replace(",", ""))
+            res.append(engine.number_to_words(str(x), zero="zero").replace("-", " ").replace(",", ""))
         elif x == ".":
             res.append("point")
         elif x in [" ", ","]:
@@ -177,7 +188,8 @@ def int2digits(digits: str):
             logging.warning(f"remove {digits[:i]} from {digits[i:]}")
             break
     res = " ".join(res)
-    return res 
+    return res
+
 
 def convert_fraction(written: str):
     """
@@ -202,7 +214,7 @@ def convert_fraction(written: str):
     written = re.sub(" ⅛", " 1/8", written)
     written = re.sub(" ⅜", " 3/8", written)
     written = re.sub(" ⅝", " 5/8", written)
-    written = re.sub(" ⅞", " 7/8", written)    
+    written = re.sub(" ⅞", " 7/8", written)
     written = re.sub("^½", "1/2", written)
     written = re.sub("^⅓", "1/3", written)
     written = re.sub("^⅔", "2/3", written)
@@ -250,6 +262,7 @@ def convert_fraction(written: str):
     written = re.sub("([0-9])\s?⅞", "\\1 7/8", written)
     return written
 
+
 def convert(example):
     cls, written, spoken = example
 
@@ -261,10 +274,10 @@ def convert(example):
     if cls == "TIME":
         written = re.sub("([0-9]): ([0-9])", "\\1:\\2", written)
     if cls == "MEASURE":
-        written = re.sub("([0-9])\s?''", '\\1"',written)
+        written = re.sub("([0-9])\s?''", '\\1"', written)
 
     spoken = process_url(spoken)
-    
+
     if cls in ["TELEPHONE", "DIGIT", "MEASURE", "DECIMAL", "MONEY", "ADDRESS"]:
         spoken = re.sub(" o ", " zero ", spoken)
         spoken = re.sub(" o ", " zero ", spoken)
@@ -283,7 +296,6 @@ def convert(example):
 
     example[1] = written
     example[2] = spoken
-
 
     l = args.max_integer_length - 2
 
@@ -339,7 +351,7 @@ def convert(example):
         if len(denominator) > args.max_denominator_length:
             denominator = int2digits(denominator)
         else:
-            denominator = engine.number_to_words(str(denominator),zero="zero").replace("-", " ").replace(",", "")
+            denominator = engine.number_to_words(str(denominator), zero="zero").replace("-", " ").replace(",", "")
         spoken = numerator + " slash " + denominator
         if res:
             spoken = "minus " + spoken
@@ -405,7 +417,7 @@ def ignore(example):
     cls, _, _ = example
     if cls in ["PLAIN", "LETTERS", "ELECTRONIC", "VERBATIM", "PUNCT"]:
         example[2] = "<self>"
-    
+
 
 def process_file(fp):
     """ Reading the raw data from a file of NeMo format and preprocesses it. Write is out to the output directory.
@@ -435,10 +447,10 @@ def process_file(fp):
             else:
                 # convert data sample
                 convert(es)
-                # decide if this data sample's spoken form should be same as written form 
+                # decide if this data sample's spoken form should be same as written form
                 ignore(es)
-                
-                characters_ignore = "¿¡ºª"+"".join(EN_GREEK_TO_SPOKEN.keys())
+
+                characters_ignore = "¿¡ºª" + "".join(EN_GREEK_TO_SPOKEN.keys())
                 # delete sentence with greek symbols, etc.
                 if re.search(rf"[{characters_ignore}]", es[1]) is not None:
                     delete_sentence = True
@@ -462,13 +474,13 @@ def process_file(fp):
         output_f.write(f'<eos>\t<eos>\n')
 
 
-
-
 def main():
     if not os.path.exists(args.input_path):
         raise ValueError(f"Input path {args.input_path} does not exist")
     if os.path.exists(args.output_dir):
-        logging.info(f"Output directory {args.output_dir} exists already. Existing files could be potentially overwritten.")
+        logging.info(
+            f"Output directory {args.output_dir} exists already. Existing files could be potentially overwritten."
+        )
     else:
         logging.info(f"Creating output directory {args.output_dir}.")
         os.makedirs(args.output_dir, exist_ok=True)
@@ -481,5 +493,6 @@ def main():
     for input_file in input_paths:
         process_file(input_file)
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     main()

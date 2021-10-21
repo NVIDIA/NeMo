@@ -32,7 +32,9 @@ The folder should contain three subfolders `train`, 'dev', and `test` with `.tsv
 from argparse import ArgumentParser
 from os import listdir, mkdir
 from os.path import isdir, isfile, join
+
 from tqdm import tqdm
+
 from nemo.collections.nlp.data.text_normalization import constants
 
 # Local Constants
@@ -70,7 +72,7 @@ def read_google_data(data_file: str, lang: str, split: str):
                 # Reset
                 cur_classes, cur_tokens, cur_outputs = [], [], []
                 continue
-        
+
             # Remove _trans (for Russian)
             if lang == constants.RUSSIAN:
                 es[2] = es[2].replace('_trans', '')
@@ -104,7 +106,7 @@ if __name__ == '__main__':
             continue
         if not fn.startswith('output'):
             continue
-        
+
         # Determine the current split
         split_nb = int(fn.split('-')[1])
         if split_nb < 90:
@@ -126,6 +128,3 @@ if __name__ == '__main__':
             output_f.write('<eos>\t<eos>\n')
 
         print(f'{cur_split}_sentences: {len(data)}')
-
-
-

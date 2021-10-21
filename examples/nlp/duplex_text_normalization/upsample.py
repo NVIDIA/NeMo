@@ -33,14 +33,13 @@ In this example, the final file will be train_upsampled.tsv.
 """
 
 
-
-from argparse import ArgumentParser
-import regex as re
 import glob
+from argparse import ArgumentParser
 from collections import defaultdict
-import numpy as np
 from typing import List
 
+import numpy as np
+import regex as re
 
 parser = ArgumentParser(description="English Text Normalization upsampling")
 parser.add_argument("--input_dir", required=True, type=str, help='Path to input directory with preprocessed data')
@@ -56,13 +55,36 @@ TIME_PATTERNS = defaultdict(int)
 FRACTION_PATTERNS = defaultdict(int)
 
 # global templates/stencils for creating patterns
-money_templates=["([0-9]|\.|,)+"]
-measure_templates=["^-?([0-9]|\.|,|/|\s)+"]
-time_templates=["^[0-9]+:[0-9][0-9]$", "^[0-9]+:[0-9][0-9]\s?[a-zA-Z]+$",  "^[0-9]+\s(p|P|A|a)\.?(m|M)\.?",  "^[0-9]+(p|P|A|a)\.?(m|M)\.?", "^[0-9]:[0-9][0-9]\s(p|P|A|a)\.?(m|M)\.?", "^[0-9][0-9]:[0-9][0-9]\s(p|P|A|a)\.?(m|M)\.?", "^[0-9]:[0-9][0-9](p|P|A|a)\.?(m|M)\.?", "^[0-9][0-9]:[0-9][0-9](p|P|A|a)\.?(m|M)\.?", "^[0-9]+.[0-9][0-9]\s?(p|P|A|a)\.?(m|M)\.?", "^[0-9]+:[0-9]+:[0-9]+", "^[0-9]+:[0-9]+.[0-9]+", "^[0-9]+.[0-9]+$", "^[0-9]+.[0-9]+\s?[a-zA-Z]+$"]
-fraction_templates=["^-?[0-9]+\s?\/\s?[0-9]{3}$", "^-?[0-9]{3}\s?\/\s?[0-9]+$", "^[0-9]+\s[0-9]+\/[0-9]+$", "^[0-9]+\s[0-9]+\/[0-9]+$", "^[0-9]+\s[0-9]+\s\/\s[0-9]+$", "^-?[0-9]+\s\/\s[0-9]+$", "^-?[0-9]+\/[0-9]+$"]
+money_templates = ["([0-9]|\.|,)+"]
+measure_templates = ["^-?([0-9]|\.|,|/|\s)+"]
+time_templates = [
+    "^[0-9]+:[0-9][0-9]$",
+    "^[0-9]+:[0-9][0-9]\s?[a-zA-Z]+$",
+    "^[0-9]+\s(p|P|A|a)\.?(m|M)\.?",
+    "^[0-9]+(p|P|A|a)\.?(m|M)\.?",
+    "^[0-9]:[0-9][0-9]\s(p|P|A|a)\.?(m|M)\.?",
+    "^[0-9][0-9]:[0-9][0-9]\s(p|P|A|a)\.?(m|M)\.?",
+    "^[0-9]:[0-9][0-9](p|P|A|a)\.?(m|M)\.?",
+    "^[0-9][0-9]:[0-9][0-9](p|P|A|a)\.?(m|M)\.?",
+    "^[0-9]+.[0-9][0-9]\s?(p|P|A|a)\.?(m|M)\.?",
+    "^[0-9]+:[0-9]+:[0-9]+",
+    "^[0-9]+:[0-9]+.[0-9]+",
+    "^[0-9]+.[0-9]+$",
+    "^[0-9]+.[0-9]+\s?[a-zA-Z]+$",
+]
+fraction_templates = [
+    "^-?[0-9]+\s?\/\s?[0-9]{3}$",
+    "^-?[0-9]{3}\s?\/\s?[0-9]+$",
+    "^[0-9]+\s[0-9]+\/[0-9]+$",
+    "^[0-9]+\s[0-9]+\/[0-9]+$",
+    "^[0-9]+\s[0-9]+\s\/\s[0-9]+$",
+    "^-?[0-9]+\s\/\s[0-9]+$",
+    "^-?[0-9]+\/[0-9]+$",
+]
 
 # classes that still need to be upsampled, and required number of instances needed
 classes_to_upsample = defaultdict(int)
+
 
 def include_sentence(sentence_patterns) -> bool:
     """
@@ -92,34 +114,35 @@ def include_sentence(sentence_patterns) -> bool:
         for k, v in sentence_patterns["MONEY"].items():
             if v > 0 and k in MONEY_PATTERNS:
                 MONEY_PATTERNS[k] += v
-                if MONEY_PATTERNS[k]-v < args.thresh and MONEY_PATTERNS[k] >= args.thresh:
+                if MONEY_PATTERNS[k] - v < args.thresh and MONEY_PATTERNS[k] >= args.thresh:
                     classes_to_upsample["MONEY"] -= 1
                     if classes_to_upsample["MONEY"] <= 0:
                         classes_to_upsample.pop("MONEY")
         for k, v in sentence_patterns["MEASURE"].items():
             if v > 0 and k in MEASURE_PATTERNS:
                 MEASURE_PATTERNS[k] += v
-                if MEASURE_PATTERNS[k]-v < args.thresh and MEASURE_PATTERNS[k] >= args.thresh:
+                if MEASURE_PATTERNS[k] - v < args.thresh and MEASURE_PATTERNS[k] >= args.thresh:
                     classes_to_upsample["MEASURE"] -= 1
                     if classes_to_upsample["MEASURE"] <= 0:
                         classes_to_upsample.pop("MEASURE")
         for k, v in sentence_patterns["TIME"].items():
             if v > 0 and k in TIME_PATTERNS:
                 TIME_PATTERNS[k] += v
-                if TIME_PATTERNS[k]-v < args.thresh and TIME_PATTERNS[k] >= args.thresh:
+                if TIME_PATTERNS[k] - v < args.thresh and TIME_PATTERNS[k] >= args.thresh:
                     classes_to_upsample["TIME"] -= 1
                     if classes_to_upsample["TIME"] <= 0:
                         classes_to_upsample.pop("TIME")
         for k, v in sentence_patterns["FRACTION"].items():
             if v > 0 and k in FRACTION_PATTERNS:
                 FRACTION_PATTERNS[k] += v
-                if FRACTION_PATTERNS[k]-v < args.thresh and FRACTION_PATTERNS[k] >= args.thresh:
+                if FRACTION_PATTERNS[k] - v < args.thresh and FRACTION_PATTERNS[k] >= args.thresh:
                     classes_to_upsample["FRACTION"] -= 1
                     if classes_to_upsample["FRACTION"] <= 0:
                         classes_to_upsample.pop("FRACTION")
     return include
 
-def read_data_file(fp : str, upsample_file: bool = False):
+
+def read_data_file(fp: str, upsample_file: bool = False):
     """ Reading the raw data from a file of NeMo format
     For more info about the data format, refer to the
     `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`.
@@ -133,7 +156,12 @@ def read_data_file(fp : str, upsample_file: bool = False):
 
     insts, w_words, s_words, classes = [], [], [], []
     with open(fp, 'r', encoding='utf-8') as f:
-        sentence_patterns = {"FRACTION": defaultdict(int), "MEASURE": defaultdict(int),"TIME": defaultdict(int), "MONEY": defaultdict(int),}
+        sentence_patterns = {
+            "FRACTION": defaultdict(int),
+            "MEASURE": defaultdict(int),
+            "TIME": defaultdict(int),
+            "MONEY": defaultdict(int),
+        }
         for line in f:
             es = [e.strip() for e in line.strip().split('\t')]
             if es[0] == '<eos>':
@@ -141,14 +169,19 @@ def read_data_file(fp : str, upsample_file: bool = False):
                     inst = (classes, w_words, s_words)
                     insts.append(inst)
                 else:
-                    ok = include_sentence(sentence_patterns) 
+                    ok = include_sentence(sentence_patterns)
                     if ok:
                         inst = (classes, w_words, s_words)
                         insts.append(inst)
                 # Reset
                 w_words, s_words, classes = [], [], []
-                sentence_patterns = {"FRACTION": defaultdict(int), "MEASURE": defaultdict(int),"TIME": defaultdict(int),"MONEY": defaultdict(int),}
-                
+                sentence_patterns = {
+                    "FRACTION": defaultdict(int),
+                    "MEASURE": defaultdict(int),
+                    "TIME": defaultdict(int),
+                    "MONEY": defaultdict(int),
+                }
+
             else:
                 classes.append(es[0])
                 w_words.append(es[1])
@@ -175,6 +208,7 @@ def update_patterns(patterns: dict, new_patterns: dict):
     """
     for k, v in new_patterns.items():
         patterns[k] += v
+
 
 def register_patterns(cls: str, input_str: str, pretty: bool = False):
     """
@@ -216,7 +250,7 @@ def lookup_patterns(cls: str, input_str: str) -> dict:
     if cls == "FRACTION":
         new_dict = create_pattern(FRACTION_PATTERNS.keys(), input_str)
     return new_dict
-    
+
 
 def create_pattern(templates: List[str], input_str: str, pretty: bool = False):
     """
@@ -236,6 +270,7 @@ def create_pattern(templates: List[str], input_str: str, pretty: bool = False):
         else:
             res[re.sub(template, "@", input_str)] += 1
     return res
+
 
 def print_stats():
     """
@@ -288,11 +323,5 @@ def main():
         output_f.write(f'<eos>\t<eos>\n')
 
 
-
-
-
-
-
-if __name__=="__main__":
+if __name__ == "__main__":
     main()
-
