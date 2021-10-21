@@ -460,6 +460,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         device: torch.device,
         partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
     ):
+        if partial_hypotheses is not None:
+            raise NotImplementedError("`partial_hypotheses` support is not supported")
+
         with torch.no_grad():
             # x: [B, T, D]
             # out_len: [B]
@@ -622,6 +625,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         device: torch.device,
         partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
     ):
+        if partial_hypotheses is not None:
+            raise NotImplementedError("`partial_hypotheses` support is not supported")
+
         # x: [B, T, D]
         # out_len: [B]
         # device: torch.device
@@ -640,9 +646,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             # alignments is a 3-dimensional dangling list representing B x T x U
             for hyp in hypotheses:
                 hyp.alignments = [[]]
-            # alignments = []
-            # for _ in range(batchsize):
-            #     alignments.append([[]])
         else:
             alignments = None
 
@@ -870,8 +873,12 @@ class ONNXGreedyBatchedRNNTInfer:
             inseq = encoder_output  # [B, T, D]
             hypotheses, timestamps = self._greedy_decode(inseq, logitlen)
 
-            # # Pack the hypotheses results
-            packed_result = pack_hypotheses(hypotheses, timestamps, logitlen, None)
+            # Pack the hypotheses results
+            packed_result = [rnnt_utils.Hypothesis(score=-1.0, y_sequence=[]) for _ in range(len(hypotheses))]
+            for i in range(len(packed_result)):
+                packed_result[i].y_sequence = torch.tensor(hypotheses[i], dtype=torch.long)
+                packed_result[i].length = timestamps[i]
+
             del hypotheses
 
         return packed_result

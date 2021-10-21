@@ -41,6 +41,26 @@ from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType
 from nemo.utils import logging
 
 
+def pack_hypotheses(hypotheses: List[Hypothesis]) -> List[Hypothesis]:
+    for idx, hyp in enumerate(hypotheses):  # type: rnnt_utils.Hypothesis
+        hyp.y_sequence = torch.tensor(hyp.y_sequence, dtype=torch.long)
+
+        if hyp.dec_state is not None:
+            hyp.dec_state = _states_to_device(hyp.dec_state)
+
+    return hypotheses
+
+
+def _states_to_device(dec_state, device='cpu'):
+    if torch.is_tensor(dec_state):
+        dec_state = dec_state.to(device)
+
+    elif isinstance(dec_state, (list, tuple)):
+        dec_state = tuple(_states_to_device(dec_i, device) for dec_i in dec_state)
+
+    return dec_state
+
+
 class BeamRNNTInfer(Typing):
     """
     Beam Search implementation ported from ESPNet implementation -
@@ -322,6 +342,9 @@ class BeamRNNTInfer(Typing):
                             inseq, logitlen, partial_hypotheses=partial_hypothesis
                         )  # sorted list of hypothesis
 
+                        # Prepare the list of hypotheses
+                        nbest_hyps = pack_hypotheses(nbest_hyps)
+
                         # Pack the result
                         if self.return_best_hypothesis:
                             best_hypothesis = nbest_hyps[0]  # type: Hypothesis
@@ -374,6 +397,13 @@ class BeamRNNTInfer(Typing):
         hyp = Hypothesis(
             score=0.0, y_sequence=[self.blank], dec_state=dec_state, timestep=[-1], length=encoded_lengths
         )
+
+        if partial_hypotheses is not None:
+            if len(partial_hypotheses.y_sequence) > 0:
+                hyp.y_sequence = [int(partial_hypotheses.y_sequence[-1].cpu().numpy())]
+                hyp.dec_state = partial_hypotheses.dec_state
+                hyp.dec_state = _states_to_device(hyp.dec_state, h.device)
+
         cache = {}
 
         # Initialize state and first token
@@ -424,6 +454,13 @@ class BeamRNNTInfer(Typing):
 
         # attach alignments to hypothesis
         hyp.alignments = alignments
+
+        # Unpack the hidden states
+        # hyp.dec_state = self.decoder.batch_select_state(hyp.dec_state, 0)
+
+        # Remove the original input label if partial hypothesis was provided
+        if partial_hypotheses is not None:
+            hyp.y_sequence = hyp.y_sequence[1:]
 
         return [hyp]
 

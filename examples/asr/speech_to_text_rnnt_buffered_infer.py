@@ -131,7 +131,8 @@ def main():
     # Change decoding strategy
     decoding_cfg = asr_model.cfg.decoding
     with open_dict(decoding_cfg):
-        decoding_cfg.strategy = "greedy"
+        decoding_cfg.strategy = "beam"
+        decoding_cfg.beam.beam_size = 1
         decoding_cfg.preserve_alignments = True
 
     asr_model.change_decoding_strategy(decoding_cfg)
