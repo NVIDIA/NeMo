@@ -48,8 +48,10 @@ def get_model_names():
     for model_info in nemo_asr.models.ASRModel.list_available_models():
         for superclass in model_info.class_.mro():
             if 'CTC' in superclass.__name__ or 'RNNT' in superclass.__name__:
+                if 'align' in model_info.pretrained_model_name:
+                    continue
+
                 nemo_model_names.add(model_info.pretrained_model_name)
-                break
     nemo_model_names = list(sorted(nemo_model_names))
     return nemo_model_names, local_model_names
 
