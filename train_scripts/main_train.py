@@ -42,6 +42,8 @@ def create_slurm_file(
 
 @hydra.main(config_path="../conf", config_name="config")
 def main(cfg):
+    hydra_args = " ".join(sys.argv[1:])
+
     # Read config
     bignlp_path = cfg.get("bignlp_path")
     container = cfg.get("container")
@@ -76,7 +78,7 @@ def main(cfg):
     )
     new_script_path = os.path.join(bignlp_path, "train_scripts/train_script.sh")
     code_path = os.path.join(bignlp_path, "train_scripts/pretrain_gpt.py")
-    train_cmd = f"python3 -u {code_path}"
+    train_cmd = f"python3 -u {code_path} {hydra_args}"
     create_slurm_file(
         new_script_path=new_script_path,
         train_cmd=train_cmd,

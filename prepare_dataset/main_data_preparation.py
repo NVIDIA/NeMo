@@ -12,6 +12,7 @@ def create_slurm_file(
     code_path,
     log_dir="./",
     flags="",
+    hydra_args="",
     dependency=None,
     time="04:00:00",
     exclusive=True,
@@ -35,12 +36,14 @@ def create_slurm_file(
         f.writelines(f"#SBATCH --time={time}\n")
         f.writelines(f"#SBATCH --array={file_numbers}%{nodes}\n")
         f.writelines(f"#SBATCH -o {log_dir}/log-{task}-%j_%a.out\n")
-        f.writelines(f"srun {flags} python3 {code_path} &\n")
+        f.writelines(f"srun {flags} python3 {code_path} {hydra_args} &\n")
         f.writelines("wait\n")
 
 
 @hydra.main(config_path="../conf", config_name="config")
 def main(cfg):
+    hydra_args = " ".join(sys.argv[1:])
+
     # Read config
     data_cfg = cfg["data_preparation"]
     bignlp_path = cfg.get("bignlp_path")
@@ -103,6 +106,7 @@ def main(cfg):
             code_path=download_code_path,
             log_dir=full_log_dir,
             flags=flags,
+            hydra_args=hydra_args,
             time=time_limit,
             file_numbers=file_numbers,
             nodes=nodes,
@@ -129,6 +133,7 @@ def main(cfg):
             code_path=extract_code_path,
             log_dir=full_log_dir,
             flags=flags,
+            hydra_args=hydra_args,
             dependency=dependency,
             time=time_limit,
             file_numbers=file_numbers,
@@ -160,6 +165,7 @@ def main(cfg):
             code_path=preprocess_code_path,
             log_dir=full_log_dir,
             flags=flags,
+            hydra_args=hydra_args,
             dependency=dependency,
             time=time_limit,
             file_numbers=file_numbers,

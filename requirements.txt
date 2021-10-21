@@ -1,6 +1,6 @@
 hydra-core==1.1.1
 requests==2.26.0
-tqdm==4.62.2
+tqdm==4.62.3
 zstandard==0.15.2
 black==20.8b1
 best_download>=0.0.6
