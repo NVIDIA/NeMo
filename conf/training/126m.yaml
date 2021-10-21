@@ -182,5 +182,5 @@ model:
       - data_preparation/the_pile/my-gpt3_27_text_document
       - .0333
       - data_preparation/the_pile/my-gpt3_28_text_document
-      - .0333
+      - .0334
       - data_preparation/the_pile/my-gpt3_29_text_document
