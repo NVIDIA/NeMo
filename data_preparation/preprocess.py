@@ -9,7 +9,6 @@ def main(cfg):
     data_cfg = cfg["data_preparation"]
     data_save_dir = data_cfg.get("data_save_dir")
     assert data_save_dir is not None, "data_save_dir must be a valid path"
-    full_data_save_dir = os.path.join(bignlp_path, data_save_dir)
 
     # Vocab
     vocab_dir = data_cfg.get("vocab_save_dir")
@@ -22,9 +21,9 @@ def main(cfg):
     merges_path = os.path.join(bignlp_path, merges_dir, "merges.txt")
 
     file_number = int(os.environ.get("SLURM_ARRAY_TASK_ID"))
-    extracted_path = os.path.join(full_data_save_dir, f"{file_number:02d}.jsonl")
+    extracted_path = os.path.join(data_save_dir, f"{file_number:02d}.jsonl")
     code_path = "/opt/bignlp/NeMo/examples/nlp/language_modeling/preprocess_data_for_megatron.py"
-    output_prefix = os.path.join(full_data_save_dir, f"my-gpt3_{file_number:02d}")
+    output_prefix = os.path.join(data_save_dir, f"my-gpt3_{file_number:02d}")
 
     flags = (
         f"--input {extracted_path} "

@@ -23,10 +23,14 @@ def download_single_file(url, save_dir, file_name):
             unit_scale=True,
             desc=file_name,
         ) as pbar:
+            update_len = 0
             for chunk in read_file.iter_content(chunk_size=8192):
                 if chunk:
                     write_file.write(chunk)
-                    pbar.update(len(chunk))
+                    update_len += len(chunk)
+                    if update_len >= 1000000:
+                        pbar.update(update_len)
+                        update_len = 0
     return save_path
 
 
@@ -49,9 +53,13 @@ def extract_single_zst_file(input_path, save_dir, file_name):
         read_size = 131075
         write_size = int(read_size * 4)
         save_path = os.path.join(save_dir, file_name)
+        update_len = 0
         with open(input_path, "rb") as in_f, open(save_path, "wb") as out_f:
             for chunk in dctx.read_to_iter(
                 in_f, read_size=read_size, write_size=write_size
             ):
                 out_f.write(chunk)
-                pbar.update(read_size)
+                update_len += read_size
+                if update_len >= 3000000:
+                    pbar.update(update_len)
+                    update_len = 0

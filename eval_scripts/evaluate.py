@@ -3,7 +3,6 @@ import os
 import subprocess
 
 import hydra
-from omegaconf import OmegaConf
 
 
 def create_slurm_file(
@@ -25,8 +24,11 @@ def create_slurm_file(
         f.writelines("#!/bin/bash\n")
         f.writelines(f"#SBATCH --nodes={nodes}\n")
         f.writelines(f"#SBATCH --ntasks-per-node={ntasks_per_node}\n")
-        f.writelines(f"#SBATCH --gpus-per-task={gpus_per_task}\n")
+        if gpus_per_task is not None:
+            f.writelines(f"#SBATCH --gpus-per-task={gpus_per_task}\n")
         if dependency is not None:
+            if dependency != "singleton":
+                dependency = f"afterany:{dependency}"
             f.writelines(f"#SBATCH --dependency={dependency}\n")
         f.writelines(f"#SBATCH -p {partition}\n")
         f.writelines(f"#SBATCH --job-name={job_name}\n")
@@ -40,8 +42,7 @@ def create_slurm_file(
         f.writelines("set +x\n")
 
 
-@hydra.main(config_path="../conf", config_name="config")
-def main(cfg):
+def run_evaluation(cfg, dependency=None):
     # Read config
     bignlp_path = cfg.get("bignlp_path")
     container = cfg.get("container")
@@ -59,7 +60,9 @@ def main(cfg):
     mem = slurm_cfg.get("mem")
     overcommit = slurm_cfg.get("overcommit")
     ntasks_per_node = slurm_cfg.get("ntasks_per_node")
-    dependency = slurm_cfg.get("dependency")
+    gpus_per_task = slurm_cfg.get("gpus_per_task")
+    if dependency is None:
+        dependency = slurm_cfg.get("dependency")
     job_name = slurm_cfg.get("job_name")
 
     model_type = model_cfg.get("type")
@@ -82,7 +85,7 @@ def main(cfg):
         f"-e {log_dir}/{name}-%j.error "
     )
     new_script_path = os.path.join(bignlp_path, "eval_scripts/eval_script.sh")
-    code_path = os.path.join(bignlp_path, "eval_scripts/eval-harness/evaluate.py")
+    code_path = os.path.join(bignlp_path, "eval_scripts/eval_harness/evaluate.py")
     eval_cmd = f"python3 -u {code_path} " \
                f"--name {name}" \
                f"--model {model_type}" \
@@ -102,14 +105,13 @@ def main(cfg):
         overcommit=overcommit,
         time=time_limit,
         nodes=nodes,
+        ntasks_per_node=ntasks_per_node,
+        gpus_per_task=gpus_per_task,
         partition=partition,
     )
     job_id = subprocess.check_output(
         [f"sbatch --parsable {new_script_path}"], shell=True
     )
-    job_id = job_id.decode("utf-8")
-    print(f"Submitted Training script with job id: {job_id}")
-
-
-if __name__ == "__main__":
-    main()
+    dependency = job_id.decode("utf-8")
+    print(f"Submitted Evaluation script with job id: {dependency}")
+    return dependency

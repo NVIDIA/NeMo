@@ -25,8 +25,11 @@ def create_slurm_file(
         f.writelines("#!/bin/bash\n")
         f.writelines(f"#SBATCH --nodes={nodes}\n")
         f.writelines(f"#SBATCH --ntasks-per-node={ntasks_per_node}\n")
-        f.writelines(f"#SBATCH --gpus-per-task={gpus_per_task}\n")
+        if gpus_per_task is not None:
+            f.writelines(f"#SBATCH --gpus-per-task={gpus_per_task}\n")
         if dependency is not None:
+            if dependency != "singleton":
+                dependency = f"afterany:{dependency}"
             f.writelines(f"#SBATCH --dependency={dependency}\n")
         f.writelines(f"#SBATCH -p {partition}\n")
         f.writelines(f"#SBATCH --job-name={job_name}\n")
@@ -40,10 +43,7 @@ def create_slurm_file(
         f.writelines("set +x\n")
 
 
-@hydra.main(config_path="../conf", config_name="config")
-def main(cfg):
-    hydra_args = " ".join(sys.argv[1:])
-
+def run_training(cfg, hydra_args="", dependency=None):
     # Read config
     bignlp_path = cfg.get("bignlp_path")
     container = cfg.get("container")
@@ -61,12 +61,14 @@ def main(cfg):
     mem = slurm_cfg.get("mem")
     overcommit = slurm_cfg.get("overcommit")
     ntasks_per_node = slurm_cfg.get("ntasks_per_node")
-    dependency = slurm_cfg.get("dependency")
+    gpus_per_task = slurm_cfg.get("gpus_per_task")
+    if dependency is None:
+        dependency = slurm_cfg.get("dependency")
     job_name = slurm_cfg.get("job_name")
 
     # Run parameters
     name = run_cfg.get("name")
-    log_dir = os.path.join(bignlp_path, run_cfg.get("log_dir"), name)
+    log_dir = run_cfg.get("log_dir")
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
@@ -90,14 +92,13 @@ def main(cfg):
         overcommit=overcommit,
         time=time_limit,
         nodes=nodes,
+        ntasks_per_node=ntasks_per_node,
+        gpus_per_task=gpus_per_task,
         partition=partition,
     )
     job_id = subprocess.check_output(
         [f"sbatch --parsable {new_script_path}"], shell=True
     )
-    job_id = job_id.decode("utf-8")
-    print(f"Submitted Training script with job id: {job_id}")
-
-
-if __name__ == "__main__":
-    main()
+    dependency = job_id = job_id.decode("utf-8")
+    print(f"Submitted Training script with job id: {dependency}")
+    return dependency
