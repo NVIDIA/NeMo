@@ -31,6 +31,7 @@ PLOTS_EXT = "pdf"
 PLOT_TITLE = False
 PLOT_XLABEL = True
 PLOT_YLABEL = True
+PLOT_LABEL_FONT_SIZE=40
 PLOT_GRID = True
 
 # =============================================================================#
@@ -44,9 +45,9 @@ def plot_timing(lengths, timings, lengths_name, timings_name, fig=None):
 
     plt.scatter(lengths, timings, label=timings_name)
     if PLOT_XLABEL:
-        plt.xlabel(f"{lengths_name} [tokens]")
+        plt.xlabel(f"{lengths_name} [tokens]", fontsize=PLOT_LABEL_FONT_SIZE)
     if PLOT_YLABEL:
-        plt.ylabel(f"{timings_name} [sec]")
+        plt.ylabel(f"{timings_name} [sec]", fontsize=PLOT_LABEL_FONT_SIZE)
     if PLOT_GRID:
         plt.grid(True)
     if PLOT_TITLE:
