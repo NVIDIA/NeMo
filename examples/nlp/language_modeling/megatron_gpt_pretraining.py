@@ -25,6 +25,10 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     NLPNativeBfloat16PrecisionPlugin,
     NLPNativeMixedPrecisionPlugin,
     NLPPrecisionPlugin,
+<<<<<<< HEAD
+=======
+    NLPSaveRestoreConnector,
+>>>>>>> fc2da2293d3cb0f59a0b8f213d15670240fcf219
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -55,6 +59,10 @@ def main(cfg) -> None:
     else:
         trainer = Trainer(plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes), NLPPrecisionPlugin()], **cfg.trainer)
 
+<<<<<<< HEAD
+=======
+    # TODO: possibly add model parallel size arg to exp_manager
+>>>>>>> fc2da2293d3cb0f59a0b8f213d15670240fcf219
     exp_manager(trainer, cfg.exp_manager)
 
     # update resume from checkpoint found by exp_manager
@@ -72,8 +80,18 @@ def main(cfg) -> None:
 
     model = MegatronGPTModel(cfg.model, trainer)
 
+<<<<<<< HEAD
     trainer.fit(model)
 
+=======
+    model._save_restore_connector = NLPSaveRestoreConnector()
+
+    trainer.fit(model)
+
+    if cfg.model.get('nemo_file_path', None) is not None:
+        model.save_to(cfg.model.nemo_file_path)
+
+>>>>>>> fc2da2293d3cb0f59a0b8f213d15670240fcf219
 
 if __name__ == '__main__':
     main()

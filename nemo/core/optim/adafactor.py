@@ -12,6 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+# Most of the code here has been copied from:
+# fairseq/optim/adafactor.py
+
 import math
 import torch
 from torch.optim.optimizer import Optimizer

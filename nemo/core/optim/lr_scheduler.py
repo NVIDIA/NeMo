@@ -251,6 +251,8 @@ class WarmupAnnealHoldPolicy(_LRScheduler):
         else:
             self.warmup_steps = 0
 
+        assert constant_steps is not None or constant_ratio is not None
+
         if constant_steps is not None:
             self.constant_steps = constant_steps
             self.decay_steps = max_steps - (self.constant_steps + self.warmup_steps)
@@ -259,9 +261,6 @@ class WarmupAnnealHoldPolicy(_LRScheduler):
             self.constant_steps = int(constant_ratio * max_steps)
             self.decay_steps = max_steps - (self.constant_steps + self.warmup_steps)
             assert self.decay_steps > 0
-        else:
-            self.constant_steps = 0
-            self.decay_steps = max_steps - self.warmup_steps
 
         self.min_lr = min_lr
         super().__init__(optimizer, last_epoch)

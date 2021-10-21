@@ -14,7 +14,7 @@
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import GPTDataset
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import IndexedDataset, MMapIndexedDataset
+from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
 
 # TODO: refactor these datasets to work without megatron-lm dependency
 # from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
-# from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset

@@ -34,19 +34,17 @@ class NamedTimer(object):
 
     _REDUCTION_TYPE = ["mean", "sum", "min", "max", "none"]
 
-    def __init__(self, reduction="mean", sync_cuda=False, buffer_size=-1):
+    def __init__(self, reduction="mean", buffer_size=-1):
         """
         Args:
             reduction (str): reduction over multiple timings of the same timer
                              (none - returns the list instead of a scalar)
-            sync_cuda (bool): if True torch.cuda.synchronize() is called for start/stop
             buffer_size (int): if positive, limits the number of stored measures per name
         """
         if reduction not in self._REDUCTION_TYPE:
             raise ValueError(f"Unknown reduction={reduction} please use one of {self._REDUCTION_TYPE}")
 
         self._reduction = reduction
-        self._sync_cuda = sync_cuda
         self._buffer_size = buffer_size
 
         self.reset()
@@ -92,7 +90,7 @@ class NamedTimer(object):
             raise RuntimeError(f"Cannot start timer = '{name}' since it is already active")
 
         # synchronize pytorch cuda execution if supported
-        if self._sync_cuda and torch.cuda.is_initialized():
+        if torch.cuda.is_initialized():
             torch.cuda.synchronize()
 
         timer_data["start"] = time.time()
@@ -111,7 +109,7 @@ class NamedTimer(object):
             raise RuntimeError(f"Cannot end timer = '{name}' since it is not active")
 
         # synchronize pytorch cuda execution if supported
-        if self._sync_cuda and torch.cuda.is_initialized():
+        if torch.cuda.is_initialized():
             torch.cuda.synchronize()
 
         # compute dt and make timer inactive

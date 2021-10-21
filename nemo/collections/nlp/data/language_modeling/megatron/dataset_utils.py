@@ -44,6 +44,8 @@ from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset impo
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+from nemo.utils import logging
 
 DSET_TYPE_BERT = 'standard_bert'
 DSET_TYPE_ICT = 'ict'
@@ -422,6 +424,9 @@ def pad_and_convert_to_numpy(tokens, tokentypes, masked_positions, masked_labels
 
 
 def build_train_valid_test_datasets(
+    cfg,
+    trainer,
+    tokenizer,
     data_prefix,
     data_impl,
     splits_string,
@@ -438,6 +443,9 @@ def build_train_valid_test_datasets(
 
     if len(data_prefix) == 1:
         return _build_train_valid_test_datasets(
+            cfg,
+            trainer,
+            tokenizer,
             data_prefix[0],
             data_impl,
             splits_string,
@@ -462,6 +470,9 @@ def build_train_valid_test_datasets(
     test_datasets = []
     for i in range(len(prefixes)):
         train_ds, valid_ds, test_ds = _build_train_valid_test_datasets(
+            cfg,
+            trainer,
+            tokenizer,
             prefixes[i],
             data_impl,
             splits_string,
@@ -472,6 +483,7 @@ def build_train_valid_test_datasets(
             seed,
             skip_warmup,
             binary_head,
+            max_seq_length_dec,
             dataset_type=dataset_type,
         )
         if train_ds:
@@ -496,6 +508,9 @@ def build_train_valid_test_datasets(
 
 
 def _build_train_valid_test_datasets(
+    cfg,
+    trainer,
+    tokenizer,
     data_prefix,
     data_impl,
     splits_string,
@@ -517,7 +532,6 @@ def _build_train_valid_test_datasets(
     indexed_dataset = get_indexed_dataset_(data_prefix, data_impl, skip_warmup)
 
     if dataset_type == DSET_TYPE_ICT:
-        args = get_args()
         title_dataset = get_indexed_dataset_(args.titles_data_path, data_impl, skip_warmup)
 
     # Get start and end indices of train/valid/train into doc-idx
@@ -547,7 +561,8 @@ def _build_train_valid_test_datasets(
     print_split_stats('test', 2)
 
     def build_dataset(index, name):
-        from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
+        # from nemo.collections.nlp.data.language_modeling.megatron.ict_dataset import ICTDataset
+        # from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
         from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
 
         dataset = None
@@ -570,8 +585,20 @@ def _build_train_valid_test_datasets(
                 seed=seed,
             )
 
-            if dataset_type == DSET_TYPE_T5:
+            if dataset_type == DSET_TYPE_ICT:
+                dataset = ICTDataset(
+                    block_dataset=indexed_dataset,
+                    title_dataset=title_dataset,
+                    query_in_block_prob=args.query_in_block_prob,
+                    use_one_sent_docs=args.use_one_sent_docs,
+                    binary_head=binary_head,
+                    **kwargs
+                )
+            elif dataset_type == DSET_TYPE_T5:
                 dataset = T5Dataset(
+                    cfg=cfg,
+                    trainer=trainer,
+                    tokenizer=tokenizer,
                     indexed_dataset=indexed_dataset,
                     masked_lm_prob=masked_lm_prob,
                     max_seq_length_dec=max_seq_length_dec,

@@ -42,6 +42,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_bert import (
 )
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import AppState, logging
+from nemo.utils.get_rank import is_global_rank_zero
 
 
 class NLPDDPPlugin(DDPPlugin):
