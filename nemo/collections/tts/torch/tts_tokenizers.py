@@ -174,17 +174,12 @@ class EnglishCharsTokenizer(BaseTokenizer):
             # Add space if last one isn't one
             if c == space and len(cs) > 0 and cs[-1] != space:
                 cs.append(c)
-                continue
-
             # Add next char
-            if (c.isalnum() or c == "'") and c in tokens:
+            elif (c.isalnum() or c == "'") and c in tokens:
                 cs.append(c)
-                continue
-
             # Add punct
-            if (c in self.PUNCT_LIST) and self.punct:
+            elif (c in self.PUNCT_LIST) and self.punct:
                 cs.append(c)
-                continue
 
         # Remove trailing spaces
         while cs[-1] == space:
@@ -294,17 +289,12 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
             # Add space if last one isn't one
             if p == space and len(ps) > 0 and ps[-1] != space:
                 ps.append(p)
-                continue
-
             # Add next phoneme or char (if chars=True)
-            if (p.isalnum() or p == "'") and p in tokens:
+            elif (p.isalnum() or p == "'") and p in tokens:
                 ps.append(p)
-                continue
-
             # Add punct
-            if (p in self.PUNCT_LIST) and self.punct:
+            elif (p in self.PUNCT_LIST) and self.punct:
                 ps.append(p)
-                continue
 
         # Remove trailing spaces
         while ps[-1] == space:

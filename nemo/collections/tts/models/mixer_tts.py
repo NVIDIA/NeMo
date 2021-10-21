@@ -46,7 +46,6 @@ class MixerTTSModel(SpectrogramGenerator):
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg=cfg, trainer=trainer)
-        typecheck.set_typecheck_enabled(enabled=False)
         cfg = self._cfg
 
         self.tokenizer = instantiate(cfg.train_ds.dataset.text_tokenizer)
