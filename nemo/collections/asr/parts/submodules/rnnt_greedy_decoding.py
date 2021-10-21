@@ -281,7 +281,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         # out_len: [seq_len]
 
         # Initialize blank state and empty label set in Hypothesis
-        hypothesis = rnnt_utils.Hypothesis(score=-1.0, y_sequence=[], dec_state=None, timestep=[])
+        hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[])
 
         if partial_hypotheses is not None:
             if len(partial_hypotheses.y_sequence) > 0:
@@ -344,6 +344,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                 else:
                     # Append token to label set, update RNN state.
                     hypothesis.y_sequence.append(k)
+                    hypothesis.score += float(v)
                     hypothesis.timestep.append(time_idx)
                     hypothesis.dec_state = hidden_prime
 
@@ -468,10 +469,10 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             # out_len: [B]
             # device: torch.device
 
-            # Initialize list of Hypothesis (TODO: CLEANUP)
+            # Initialize list of Hypothesis
             batchsize = x.shape[0]
             hypotheses = [
-                rnnt_utils.Hypothesis(score=-1.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batchsize)
+                rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batchsize)
             ]
 
             # Initialize Hidden state matrix (shared by entire batch)
@@ -531,7 +532,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                     # Get index k, of max prob for batch
                     v, k = logp.max(1)
-                    del v, g
+                    del g
 
                     # Update blank mask with current predicted blanks
                     # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
@@ -602,6 +603,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                             if blank_mask[kidx] == 0:
                                 hypotheses[kidx].y_sequence.append(ki)
                                 hypotheses[kidx].timestep.append(time_idx)
+                                hypotheses[kidx].score += float(v[kidx])
 
                         symbols_added += 1
 
@@ -635,7 +637,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         # Initialize state
         batchsize = x.shape[0]
         hypotheses = [
-            rnnt_utils.Hypothesis(score=-1.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batchsize)
+            rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batchsize)
         ]
 
         # Initialize Hidden state matrix (shared by entire batch)
@@ -702,7 +704,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                 # Get index k, of max prob for batch
                 v, k = logp.max(1)
-                del v, g
+                del g
 
                 # Update blank mask with current predicted blanks
                 # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
@@ -771,6 +773,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         if blank_mask[kidx] == 0:
                             hypotheses[kidx].y_sequence.append(ki)
                             hypotheses[kidx].timestep.append(time_idx)
+                            hypotheses[kidx].score += float(v[kidx])
 
                 symbols_added += 1
 

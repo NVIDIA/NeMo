@@ -455,9 +455,6 @@ class BeamRNNTInfer(Typing):
         # attach alignments to hypothesis
         hyp.alignments = alignments
 
-        # Unpack the hidden states
-        # hyp.dec_state = self.decoder.batch_select_state(hyp.dec_state, 0)
-
         # Remove the original input label if partial hypothesis was provided
         if partial_hypotheses is not None:
             hyp.y_sequence = hyp.y_sequence[1:]
@@ -496,6 +493,12 @@ class BeamRNNTInfer(Typing):
         # Initialize first hypothesis for the beam (blank)
         kept_hyps = [Hypothesis(score=0.0, y_sequence=[self.blank], dec_state=dec_state, timestep=[-1], length=0)]
         cache = {}
+
+        if partial_hypotheses is not None:
+            if len(partial_hypotheses.y_sequence) > 0:
+                kept_hyps[0].y_sequence = [int(partial_hypotheses.y_sequence[-1].cpu().numpy())]
+                kept_hyps[0].dec_state = partial_hypotheses.dec_state
+                kept_hyps[0].dec_state = _states_to_device(kept_hyps[0].dec_state, h.device)
 
         if self.preserve_alignments:
             kept_hyps[0].alignments = [[]]
@@ -578,6 +581,12 @@ class BeamRNNTInfer(Typing):
                 if len(h.alignments[-1]) == 0:
                     del h.alignments[-1]
 
+        # Remove the original input label if partial hypothesis was provided
+        if partial_hypotheses is not None:
+            for hyp in kept_hyps:
+                if hyp.y_sequence[0] == partial_hypotheses.y_sequence[-1] and len(hyp.y_sequence) > 1:
+                    hyp.y_sequence = hyp.y_sequence[1:]
+
         return self.sort_nbest(kept_hyps)
 
     def time_sync_decoding(
@@ -594,6 +603,9 @@ class BeamRNNTInfer(Typing):
         """
         if self.preserve_alignments:
             raise NotImplementedError("`preseve_alignments` is not implemented for Time-Synchronous Decoding.")
+
+        if partial_hypotheses is not None:
+            raise NotImplementedError("`partial_hypotheses` support is not supported")
 
         # Precompute some constants for blank position
         ids = list(range(self.vocab_size + 1))
@@ -713,6 +725,9 @@ class BeamRNNTInfer(Typing):
             raise NotImplementedError(
                 "`preseve_alignments` is not implemented for Alignment-length Synchronous Decoding."
             )
+
+        if partial_hypotheses is not None:
+            raise NotImplementedError("`partial_hypotheses` support is not supported")
 
         # Precompute some constants for blank position
         ids = list(range(self.vocab_size + 1))
@@ -894,6 +909,9 @@ class BeamRNNTInfer(Typing):
             raise NotImplementedError(
                 "`preseve_alignments` is not implemented for Alignment-length Synchronous Decoding."
             )
+
+        if partial_hypotheses is not None:
+            raise NotImplementedError("`partial_hypotheses` support is not supported")
 
         h = h[0]  # [T, D]
 
