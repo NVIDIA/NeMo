@@ -20,7 +20,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     delete_space,
     insert_space,
 )
-from nemo_text_processing.text_normalization.ru.utils import get_abs_path
+from nemo_text_processing.text_normalization.en.utils import get_abs_path
 
 try:
     import pynini
@@ -45,7 +45,7 @@ class DateFst(GraphFst):
     def __init__(self, number_names: dict, deterministic: bool):
         super().__init__(name="date", kind="classify", deterministic=deterministic)
 
-        # Ru format: DD-MM-YYYY or DD-MM-YY
+        # DE format: DD-MM-YYYY or DD-MM-YY
         month_abbr_to_names = pynini.string_file(get_abs_path("data/months/abbr_to_name.tsv")).optimize()
 
         delete_sep = pynutil.add_weight(pynini.cross(".", " "), 1.09) | pynutil.add_weight(
