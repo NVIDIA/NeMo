@@ -279,6 +279,7 @@ class FrameBatchASR_Logits(FrameBatchASR):
     Inherits from FrameBatchASR and adds new capability of returning the logit output.
     Please refer to FrameBatchASR for more detailed information.
     """
+
     def __init__(self, asr_model, frame_len=1.6, total_buffer=4.0, batch_size=4):
         super().__init__(asr_model, frame_len, total_buffer, batch_size)
 
@@ -627,7 +628,7 @@ class ASR_DIAR_OFFLINE(object):
             pretrained_speaker_model (str):
                 NeMo model file path for speaker embedding extractor model.
 
-        Returns:
+        Return:
             diar_labels (list):
                 List that contains diarization result in the form of
                 speaker labels and time stamps.
@@ -797,7 +798,7 @@ class ASR_DIAR_OFFLINE(object):
             params (dict):
                 Contains the parameters for diarization and ASR decoding.
 
-        Returns:
+        Return:
             c (float):
                 A timestamp of the earliest start of a silence region from
                 the given time point, vad_index_word_end.
@@ -879,6 +880,7 @@ class ASR_DIAR_OFFLINE(object):
                 word_ts_stt_end = [stt, end]
                     stt: Start of the word in sec.
                     end: End of the word in sec.
+
         Return:
             total_riva_dict (dict):
                 A dictionary contains word timestamps, speaker labels and words.
@@ -1098,7 +1100,7 @@ class ASR_DIAR_OFFLINE(object):
             char_ts (list):
                 List of timestamps (int) for each character.
 
-        Return:
+        Returns:
             trans (list):
                 List of the cleaned character output.
             char_ts (list):
