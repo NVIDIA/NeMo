@@ -118,21 +118,19 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         if model_path is not None and model_path.endswith('.nemo'):
             self._speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(model_path)
             logging.info("Speaker Model restored locally from {}".format(model_path))
+        elif model_path.endswith('.ckpt'):
+            self._speaker_model = ExtractSpeakerEmbeddingsModel.load_from_checkpoint(model_path)
+            logging.info("Speaker Model restored locally from {}".format(model_path))
         else:
             if model_path not in get_available_model_names(ExtractSpeakerEmbeddingsModel):
                 logging.warning(
                     "requested {} model name not available in pretrained models, instead".format(model_path)
                 )
-                model_path = "speakerdiarization_speakernet"
+                model_path = "ecapa_tdnn"
             logging.info("Loading pretrained {} model from NGC".format(model_path))
             self._speaker_model = ExtractSpeakerEmbeddingsModel.from_pretrained(model_name=model_path)
 
         self._speaker_dir = os.path.join(self._out_dir, 'speaker_outputs')
-
-    def set_vad_model(self, vad_config):
-        with open_dict(self._cfg):
-            self._cfg.diarizer.vad = vad_config
-        self._init_vad_model()
 
     def _init_vad_model(self):
         model_path = self._cfg.diarizer.vad.model_path
