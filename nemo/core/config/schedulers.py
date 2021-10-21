@@ -52,6 +52,18 @@ class WarmupHoldSchedulerParams(WarmupSchedulerParams):
 
 
 @dataclass
+class WarmupAnnealingHoldSchedulerParams(WarmupSchedulerParams):
+    """
+    Base configuration for all schedulers.
+    It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
+    """
+
+    constant_steps: Optional[float] = None
+    constant_ratio: Optional[float] = None
+    min_lr: float = 0.0
+
+
+@dataclass
 class SquareAnnealingParams(WarmupSchedulerParams):
     """
     Square Annealing parameter config
@@ -72,7 +84,7 @@ class SquareRootAnnealingParams(WarmupSchedulerParams):
 
 
 @dataclass
-class CosineAnnealingParams(WarmupSchedulerParams):
+class CosineAnnealingParams(WarmupAnnealingHoldSchedulerParams):
     """
     Cosine Annealing parameter config
     It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
@@ -98,7 +110,7 @@ class WarmupAnnealingParams(WarmupSchedulerParams):
     It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
     """
 
-    warmup_ratio: 0.0
+    warmup_ratio: float = 0.0
 
 
 @dataclass
@@ -240,6 +252,7 @@ AVAILABLE_SCHEDULER_PARAMS = {
     'SchedulerParams': SchedulerParams,
     'WarmupPolicyParams': WarmupSchedulerParams,
     'WarmupHoldPolicyParams': WarmupHoldSchedulerParams,
+    'WarmupAnnealingHoldSchedulerParams': WarmupAnnealingHoldSchedulerParams,
     'SquareAnnealingParams': SquareAnnealingParams,
     'SquareRootAnnealingParams': SquareRootAnnealingParams,
     'InverseSquareRootAnnealingParams': InverseSquareRootAnnealingParams,

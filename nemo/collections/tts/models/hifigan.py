@@ -76,26 +76,29 @@ class HifiGanModel(Vocoder, Exportable):
             self._cfg.optim, params=itertools.chain(self.msd.parameters(), self.mpd.parameters()),
         )
 
-        self.scheduler_g = CosineAnnealing(
-            optimizer=self.optim_g,
-            max_steps=self._cfg.max_steps,
-            min_lr=self._cfg.sched.min_lr,
-            warmup_steps=self._cfg.sched.warmup_ratio * self._cfg.max_steps,
-        )  # Use warmup to delay start
-        sch1_dict = {
-            'scheduler': self.scheduler_g,
-            'interval': 'step',
-        }
+        if hasattr(self._cfg, 'sched'):
+            self.scheduler_g = CosineAnnealing(
+                optimizer=self.optim_g,
+                max_steps=self._cfg.max_steps,
+                min_lr=self._cfg.sched.min_lr,
+                warmup_steps=self._cfg.sched.warmup_ratio * self._cfg.max_steps,
+            )  # Use warmup to delay start
+            sch1_dict = {
+                'scheduler': self.scheduler_g,
+                'interval': 'step',
+            }
 
-        self.scheduler_d = CosineAnnealing(
-            optimizer=self.optim_d, max_steps=self._cfg.max_steps, min_lr=self._cfg.sched.min_lr,
-        )
-        sch2_dict = {
-            'scheduler': self.scheduler_d,
-            'interval': 'step',
-        }
+            self.scheduler_d = CosineAnnealing(
+                optimizer=self.optim_d, max_steps=self._cfg.max_steps, min_lr=self._cfg.sched.min_lr,
+            )
+            sch2_dict = {
+                'scheduler': self.scheduler_d,
+                'interval': 'step',
+            }
 
-        return [self.optim_g, self.optim_d], [sch1_dict, sch2_dict]
+            return [self.optim_g, self.optim_d], [sch1_dict, sch2_dict]
+        else:
+            return [self.optim_g, self.optim_d]
 
     @property
     def input_types(self):
@@ -123,7 +126,7 @@ class HifiGanModel(Vocoder, Exportable):
     def convert_spectrogram_to_audio(self, spec: 'torch.tensor') -> 'torch.tensor':
         return self(spec=spec).squeeze(1)
 
-    def training_step(self, batch, batch_idx, optimizer_idx):
+    def training_step(self, batch, batch_idx):
         # if in finetune mode the mels are pre-computed using a
         # spectrogram generator
         if self.input_as_mel:
@@ -169,9 +172,11 @@ class HifiGanModel(Vocoder, Exportable):
         self.optim_g.step()
 
         # run schedulers
-        sch1, sch2 = self.lr_schedulers()
-        sch1.step()
-        sch2.step()
+        schedulers = self.lr_schedulers()
+        if schedulers is not None:
+            sch1, sch2 = schedulers
+            sch1.step()
+            sch2.step()
 
         metrics = {
             "g_loss_fm_mpd": loss_fm_mpd,

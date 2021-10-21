@@ -31,23 +31,13 @@ class BertModule(NeuralModule, Exportable):
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "attention_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
             "token_type_ids": NeuralType(('B', 'T'), ChannelType(), optional=True),
+            "attention_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
         }
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"last_hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        """Restores module/model with weights"""
-        pass
-
-    @classmethod
-    def save_to(self, save_path: str):
-        """Saves module/model with weights"""
-        pass
 
     def restore_weights(self, restore_path: str):
         """Restores module/model's weights"""
@@ -89,5 +79,6 @@ class BertModule(NeuralModule, Exportable):
         """
         sample = next(self.parameters())
         input_ids = torch.randint(low=0, high=2048, size=(2, 16), device=sample.device)
+        token_type_ids = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
         attention_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
-        return tuple([input_ids, attention_mask, attention_mask])
+        return tuple([input_ids, token_type_ids, attention_mask])

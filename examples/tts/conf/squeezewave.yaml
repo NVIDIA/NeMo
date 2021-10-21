@@ -95,7 +95,6 @@ trainer:
   log_every_n_steps: 200
   check_val_every_n_epoch: 25
   precision: 16
-  amp_level: O1
 
 exp_manager:
   exp_dir: null
