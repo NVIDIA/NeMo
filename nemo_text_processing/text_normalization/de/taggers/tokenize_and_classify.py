@@ -24,7 +24,7 @@ from nemo_text_processing.text_normalization.en.taggers.punctuation import Punct
 from nemo_text_processing.text_normalization.en.taggers.word import WordFst
 from nemo_text_processing.text_normalization.de.taggers.cardinal import CardinalFst
 # from nemo_text_processing.text_normalization.de.taggers.date import DateFst
-# from nemo_text_processing.text_normalization.de.taggers.decimals import DecimalFst
+from nemo_text_processing.text_normalization.de.taggers.decimals import DecimalFst
 # from nemo_text_processing.text_normalization.de.taggers.electronic import ElectronicFst
 # from nemo_text_processing.text_normalization.de.taggers.measure import MeasureFst
 # from nemo_text_processing.text_normalization.de.taggers.money import MoneyFst
@@ -95,8 +95,8 @@ class ClassifyFst(GraphFst):
             )
             ordinal_graph = self.ordinal.fst
 
-            # self.decimal = DecimalFst(cardinal=self.cardinal, deterministic=deterministic)
-            # decimal_graph = self.decimal.fst
+            self.decimal = DecimalFst(cardinal=self.cardinal, deterministic=deterministic)
+            decimal_graph = self.decimal.fst
 
             # self.measure = MeasureFst(cardinal=self.cardinal, decimal=self.decimal, deterministic=deterministic)
             # measure_graph = self.measure.fst
@@ -119,10 +119,10 @@ class ClassifyFst(GraphFst):
                 # pynutil.add_weight(whitelist_graph, 1.01)
                 # | pynutil.add_weight(time_graph, 1.1)
                 # | pynutil.add_weight(date_graph, 1.09)
-                # | pynutil.add_weight(decimal_graph, 1.1)
                 # | pynutil.add_weight(measure_graph, 0.9)
                 pynutil.add_weight(cardinal_graph, 1.1)
                 | pynutil.add_weight(ordinal_graph, 1.1)
+                | pynutil.add_weight(decimal_graph, 1.1)
                 # | pynutil.add_weight(money_graph, 1.1)
                 # | pynutil.add_weight(telephone_graph, 1.1)
                 # | pynutil.add_weight(electronic_graph, 1.1)
