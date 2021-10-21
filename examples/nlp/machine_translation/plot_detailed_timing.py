@@ -31,7 +31,7 @@ PLOTS_EXT = "pdf"
 PLOT_TITLE = False
 PLOT_XLABEL = True
 PLOT_YLABEL = True
-PLOT_LABEL_FONT_SIZE=16
+PLOT_LABEL_FONT_SIZE = 16
 PLOT_GRID = True
 
 # =============================================================================#
