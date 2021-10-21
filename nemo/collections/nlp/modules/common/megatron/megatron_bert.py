@@ -17,11 +17,8 @@
 import os
 
 import torch
-from megatron import get_args, initialize_megatron
-from megatron.checkpointing import set_checkpoint_version
-from megatron.model import get_language_model
-from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
-from megatron.mpu import (
+from apex.transformer.enums import AttnMaskType
+from apex.transformer.parallel_state import (
     get_model_parallel_group,
     model_parallel_is_initialized,
     set_pipeline_model_parallel_rank,
@@ -30,18 +27,12 @@ from megatron.mpu import (
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
+from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from nemo.core.classes import typecheck
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 
 __all__ = ['MegatronBertEncoder']
-
-
-def complete_lazy_init(self):
-    # finish megatron-lm initialization
-    if hasattr(self, "_lazy_init_fn") and self._lazy_init_fn is not None:
-        self._lazy_init_fn()
-        self._lazy_init_fn = None
 
 
 class MegatronBertEncoder(BertModule):
@@ -59,96 +50,47 @@ class MegatronBertEncoder(BertModule):
 
         super().__init__()
 
-        self._model_parallel_size = model_parallel_size
-        self._model_parallel_rank = model_parallel_rank
-        self._restore_path = None
-        self._app_state = None
-        self._model_name = model_name
-
-        if 'vocab_size' in config:
-            self._vocab_size = config.pop('vocab_size')
-        else:
-            self._vocab_size = None
-
-        self._hidden_size = config.get('hidden_size')
-
-        if not os.path.exists(vocab_file):
-            raise ValueError(f'Vocab file not found at {vocab_file}')
-
-        # convert config to dictionary
-        if isinstance(config, DictConfig):
-            config = OmegaConf.to_container(config)
-        config["vocab_file"] = vocab_file
-        config['tokenizer_type'] = 'BertWordPieceLowerCase'
-        config['lazy_mpu_init'] = True
-        config['onnx_safe'] = True
-
-        num_tokentypes = config.pop('num_tokentypes', 2)
-
-        # if 'model_parallel_size' in config:
-        if self._model_parallel_size is not None:
-            app_state = AppState()
-            self._app_state = app_state
-
-            # must be set for model parallel megatron-lm
-            os.environ["WORLD_SIZE"] = str(app_state.world_size)
-            os.environ["RANK"] = str(self._model_parallel_rank)
-
-            extra_args_provider = self._update_megatron_args(tensor_model_parallel_size=self._model_parallel_size)
-
-        else:
-            extra_args_provider = self._update_megatron_args()
-
-        # configure globals for megatron
-        set_pipeline_model_parallel_rank(0)  # pipeline model parallelism not implemented in NeMo
-        set_pipeline_model_parallel_world_size(1)  # pipeline model parallelism not implemented in NeMo
-
-        # Initialize part of Megatron global state that is needed for its constructor.
-        # We set 'lazy_mpu_init' flag on to make Megatron do only the initialization that does not depend
-        # on ddp be initialized yet (and we don't want Megatron to initialize DDP itself either)
-        # and to return a hook for us to call after PTL has torch.distributed initialized.
-        # (or if no PTL in case of inference - then we'll initialize torch.distributed)
-        # We call and clear this hook on first call to forward()
-        self._lazy_init_fn = initialize_megatron(
-            extra_args_provider=extra_args_provider, args_defaults=config, ignore_unknown_args=True
+        raise ValueError(
+            f'megatron-lm bert has been deprecated in NeMo 1.5. Please use an earlier release of NeMo. Megatron bert support will be added back to NeMo in a future release.'
         )
 
-        # read Megatron arguments back
-        args = get_args()
-        logging.info(f'Megatron-lm argparse args: {args}')
+        # self._model_parallel_size = model_parallel_size
+        # self._model_parallel_rank = model_parallel_rank
+        # self._restore_path = None
+        # self._app_state = None
+        # self._model_name = model_name
 
-        self.language_model, self._language_model_key = get_language_model(
-            attention_mask_func=bert_attention_mask_func, num_tokentypes=num_tokentypes, add_pooler=False
-        )
+        # if 'vocab_size' in config:
+        #     self._vocab_size = config.pop('vocab_size')
+        # else:
+        #     self._vocab_size = None
 
-        self.config = OmegaConf.create(config)
-        # key used for checkpoints
-        self._hidden_size = self.language_model.hidden_size
+        # self._hidden_size = config.get('hidden_size')
 
-    def _update_megatron_args(
-        self,
-        micro_batch_size=1,
-        tensor_model_parallel_size=1,
-        scaled_masked_softmax_fusion=False,
-        bias_gelu_fusion=False,
-        bias_dropout_fusion=False,
-    ):
-        def extra_args_provider(parser):
-            parser.set_defaults(micro_batch_size=micro_batch_size)
-            parser.set_defaults(tensor_model_parallel_size=tensor_model_parallel_size)
-            parser.set_defaults(scaled_masked_softmax_fusion=scaled_masked_softmax_fusion)
-            parser.set_defaults(bias_gelu_fusion=bias_gelu_fusion)
-            parser.set_defaults(bias_dropout_fusion=bias_dropout_fusion)
+        # if not os.path.exists(vocab_file):
+        #     raise ValueError(f'Vocab file not found at {vocab_file}')
 
-            return parser
+        # # convert config to dictionary
+        # if isinstance(config, DictConfig):
+        #     config = OmegaConf.to_container(config)
+        # config["vocab_file"] = vocab_file
+        # config['tokenizer_type'] = 'BertWordPieceLowerCase'
+        # config['lazy_mpu_init'] = True
+        # config['onnx_safe'] = True
 
-        return extra_args_provider
+        # num_tokentypes = config.pop('num_tokentypes', 2)
 
-    def complete_lazy_init(self):
-        # finish megatron-lm initialization
-        if hasattr(self, "_lazy_init_fn") and self._lazy_init_fn is not None:
-            self._lazy_init_fn()
-            self._lazy_init_fn = None
+        # # configure globals for megatron
+        # set_pipeline_model_parallel_rank(0)  # pipeline model parallelism not implemented in NeMo
+        # set_pipeline_model_parallel_world_size(1)  # pipeline model parallelism not implemented in NeMo
+
+        # self.language_model, self._language_model_key = get_language_model(
+        #     encoder_attn_mask_type=AttnMaskType.padding, num_tokentypes=num_tokentypes, add_pooler=False
+        # )
+
+        # self.config = OmegaConf.create(config)
+        # # key used for checkpoints
+        # self._hidden_size = self.language_model.hidden_size
 
     @property
     def hidden_size(self):
@@ -172,17 +114,14 @@ class MegatronBertEncoder(BertModule):
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids=None):
-        app_state = AppState()
-        if app_state.model_parallel_size is None:
-            self.complete_lazy_init()
 
         extended_attention_mask = bert_extended_attention_mask(attention_mask)
         position_ids = bert_position_ids(input_ids)
 
         sequence_output = self.language_model(
-            input_ids=input_ids,
-            position_ids=position_ids,
-            attention_mask=extended_attention_mask,
+            enc_input_ids=input_ids,
+            enc_position_ids=position_ids,
+            enc_attn_mask=extended_attention_mask,
             tokentype_ids=token_type_ids,
         )
         return sequence_output
@@ -196,13 +135,13 @@ class MegatronBertEncoder(BertModule):
         state_dict = torch.load(filename, map_location='cpu')
         if 'checkpoint_version' in state_dict:
             if state_dict['checkpoint_version'] is not None:
-                set_checkpoint_version(state_dict['checkpoint_version'])
+                set_megatron_checkpoint_version(state_dict['checkpoint_version'])
                 logging.info(
                     f"Megatron-lm checkpoint version found. Setting checkpoint_version to {state_dict['checkpoint_version']}."
                 )
         else:
             logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
-            set_checkpoint_version(0)
+            set_megatron_checkpoint_version(0)
         # to load from Megatron pretrained checkpoint
         if 'model' in state_dict:
             self.language_model.load_state_dict(state_dict['model'][self._language_model_key])
@@ -233,3 +172,39 @@ class MegatronBertEncoder(BertModule):
                 logging.info(f'torch.distributed not initialized yet. Will not restore model parallel checkpoint')
         else:
             logging.error(f'restore_path: {restore_path} must be a file or directory.')
+
+
+def get_megatron_checkpoint_version():
+    app_state = AppState()
+    return app_state._megatron_checkpoint_version
+
+
+def set_megatron_checkpoint_version(version: int = None):
+    app_state = AppState()
+    app_state._megatron_checkpoint_version = version
+
+
+def bert_extended_attention_mask(attention_mask):
+    # We create a 3D attention mask from a 2D tensor mask.
+    # [b, 1, s]
+    attention_mask_b1s = attention_mask.unsqueeze(1)
+    # [b, s, 1]
+    attention_mask_bs1 = attention_mask.unsqueeze(2)
+    # [b, s, s]
+    attention_mask_bss = attention_mask_b1s * attention_mask_bs1
+    # [b, 1, s, s]
+    extended_attention_mask = attention_mask_bss.unsqueeze(1)
+
+    # Convert attention mask to binary:
+    extended_attention_mask = extended_attention_mask < 0.5
+
+    return extended_attention_mask
+
+
+def bert_position_ids(token_ids):
+    # Create position ids
+    seq_length = token_ids.size(1)
+    position_ids = torch.arange(seq_length, dtype=torch.long, device=token_ids.device)
+    position_ids = position_ids.unsqueeze(0).expand_as(token_ids)
+
+    return position_ids

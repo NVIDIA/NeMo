@@ -39,16 +39,6 @@ class BertModule(NeuralModule, Exportable):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"last_hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        """Restores module/model with weights"""
-        pass
-
-    @classmethod
-    def save_to(self, save_path: str):
-        """Saves module/model with weights"""
-        pass
-
     def restore_weights(self, restore_path: str):
         """Restores module/model's weights"""
         logging.info(f"Restoring weights from {restore_path}")

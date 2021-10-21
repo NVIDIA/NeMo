@@ -62,13 +62,7 @@ def main(cfg: DictConfig) -> None:
     else:
         gpu = 1 if cfg.trainer.gpus != 0 else 0
 
-    trainer = pl.Trainer(
-        gpus=gpu,
-        precision=cfg.trainer.precision,
-        amp_level=cfg.trainer.amp_level,
-        logger=False,
-        checkpoint_callback=False,
-    )
+    trainer = pl.Trainer(gpus=gpu, precision=cfg.trainer.precision, logger=False, checkpoint_callback=False,)
     exp_dir = exp_manager(trainer, cfg.exp_manager)
 
     if not cfg.pretrained_model:

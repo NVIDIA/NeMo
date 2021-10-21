@@ -17,7 +17,6 @@ import os
 from collections import defaultdict
 from typing import Dict, List, Optional, Union
 
-import nltk
 import torch
 import wordninja
 from omegaconf import DictConfig
@@ -43,8 +42,6 @@ try:
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
-
-nltk.download('punkt')
 
 
 __all__ = ['DuplexDecoderModel']

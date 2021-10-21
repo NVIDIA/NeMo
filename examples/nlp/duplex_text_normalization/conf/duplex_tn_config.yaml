@@ -15,7 +15,6 @@ tagger_trainer:
   logger: false  # provided by exp_manager
   accumulate_grad_batches: 1 # accumulates grads every k batches
   gradient_clip_val: 0.0
-  amp_level: O0 # O1/O2 for mixed precision
   precision: 32 # Should be set to 16 for O1 and O2 to enable the AMP.
   accelerator: ddp
 
@@ -66,7 +65,6 @@ decoder_trainer:
   logger: false  # provided by exp_manager
   accumulate_grad_batches: 1 # accumulates grads every k batches
   gradient_clip_val: 0.0
-  amp_level: O0 # O1/O2 for mixed precision
   precision: 32 # Should be set to 16 for O1 and O2 to enable the AMP.
   accelerator: ddp
   log_every_n_steps: 1  # Interval of logging.
