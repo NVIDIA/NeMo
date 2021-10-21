@@ -111,11 +111,15 @@ class TestOptimizersSchedulers:
     MIN_LR = 1e-3
     MAX_STEPS = 10
 
+    # fused_adam is looking for CUDA and this test is being run on CPU only tests
     @pytest.mark.unit
     def test_get_optimizer(self):
         model = TempModel()
 
         for opt_name in AVAILABLE_OPTIMIZERS.keys():
+            if opt_name == 'fused_adam':
+                if not torch.cuda.is_available():
+                    continue
             opt_cls = optim.get_optimizer(opt_name)
             opt = opt_cls(model.parameters(), lr=self.INITIAL_LR)
 

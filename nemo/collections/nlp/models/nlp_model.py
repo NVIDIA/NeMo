@@ -15,32 +15,29 @@
 import hashlib
 import json
 import os
-import shutil
-import tarfile
-import tempfile
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
-import torch
-from megatron import mpu
-from megatron.checkpointing import get_checkpoint_version, set_checkpoint_version
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
-from pytorch_lightning.accelerators.accelerator import Accelerator
+from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
 from pytorch_lightning.utilities import rank_zero_only
+from pytorch_lightning.utilities.cloud_io import load as pl_load
+from pytorch_lightning.utilities.migration import pl_legacy_patch
 from transformers import TRANSFORMERS_CACHE
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import VOCAB_FILE_NAME
+from nemo.collections.nlp.modules.common.megatron.megatron_bert import (
+    get_megatron_checkpoint_version,
+    set_megatron_checkpoint_version,
+)
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder import MegatronEncoderModule
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
-from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector
+from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector, NLPSaveRestoreConnector
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import AppState, logging
-from nemo.utils.get_rank import is_global_rank_zero
 
 __all__ = ['NLPModel']
 
@@ -55,6 +52,8 @@ class NLPModel(ModelPT, Exportable):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg, trainer)
+        # handles model parallel save and restore logic
+        self._save_restore_connector = NLPSaveRestoreConnector()
         self.set_world_size(trainer)
 
     def register_artifact(
@@ -180,274 +179,31 @@ class NLPModel(ModelPT, Exportable):
                     f'Registering tokenizer vocab for {self.tokenizer} is not yet supported. Please override this method if needed.'
                 )
 
-    def _clip_gradients(self, optimizer, clip_val=None):
-        """ Override of PTL Gradient Clipping.
-            Enables model parallel gradient clipping from Megatron-LM.
-
-        Args:
-            optimizer ([type]): [description]
-            clip_val ([type], optional): [description]. Defaults to None.
-        """
-        app_state = AppState()
-
-        # get clip_val from trainer if None is provided
-        if clip_val is None:
-            clip_val = float(self._trainer.gradient_clip_val)
-
-        if app_state.model_parallel_size is not None:
-            model = self._trainer.get_model()
-            parameters = model.parameters()
-            if mpu.model_parallel_is_initialized():
-                mpu.grads.clip_grad_norm(parameters=parameters, max_norm=clip_val)
-            else:
-                raise ValueError('Model parallel groups must be intialized to use model parallel gradient clipping.')
-
-        else:
-            return Accelerator._clip_gradients(self, optimizer, clip_val)
-
-    def setup(self, stage: str) -> None:
-        """ PTL hook that is called on all DDP processes. """
-
-        if stage == 'fit':
-
-            # adds self.bert_model config to .nemo file
-            if hasattr(self, 'bert_model') and self.bert_model is not None:
-                self.register_bert_model()
-
-            app_state = AppState()
-
-            if app_state.model_parallel_size is not None:
-
-                self._trainer.checkpoint_connector = NLPCheckpointConnector(self._trainer)
-
-                # # Configure checkpointing for model parallel
-                # if app_state.create_checkpoint_callback:
-                #     # global rank 0 is configured by exp_manager
-                #     if not is_global_rank_zero() and app_state.data_parallel_rank == 0:
-                #         configure_checkpointing(
-                #             self._trainer,
-                #             app_state.log_dir,
-                #             app_state.checkpoint_name,
-                #             app_state.checkpoint_callback_params,
-                #         )
-
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         """ LightningModule hook that's used to save things in addition to model weights. """
 
         if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
-            checkpoint['checkpoint_version'] = get_checkpoint_version()
+            checkpoint['checkpoint_version'] = get_megatron_checkpoint_version()
         return None
 
     def on_load_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         """ LightningModule hook that's used to restore things saved with on_save_checkpoint."""
 
         if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
-            if get_checkpoint_version():
+            if get_megatron_checkpoint_version():
                 assert (
-                    checkpoint['checkpoint_version'] == get_checkpoint_version()
-                ), 'checkpoint version found on_load_checkpoint different than get_checkpoint_version'
+                    checkpoint['checkpoint_version'] == get_megatron_checkpoint_version()
+                ), 'checkpoint version found on_load_checkpoint different than get_megatron_checkpoint_version'
             else:
-                set_checkpoint_version(checkpoint['checkpoint_version'])
+                set_megatron_checkpoint_version(checkpoint['checkpoint_version'])
                 logging.info(f"Setting Megatron checkpoint version: {checkpoint['checkpoint_version']}")
         return None
-
-    # no rank check as model parallel models need to be saved on data parallel rank 0
-    def save_to(self, save_path: str):
-        """
-        Saves model instance (weights and configuration) into .nemo file
-         You can use "restore_from" method to fully restore instance from .nemo file.
-
-        .nemo file is an archive (tar.gz) with the following:
-            model_config.yaml - model configuration in .yaml format. You can deserialize this into cfg argument for model's constructor
-            model_weights.ckpt - model checkpoint
-
-        Args:
-            save_path: Path to .nemo file where model instance should be saved
-        """
-        save_path = os.path.abspath(save_path)
-        app_state = AppState()
-        if app_state.model_parallel_size is not None:
-            self._default_save_to(save_path)
-        else:
-            # super.save_to only runs on global rank 0
-            return super().save_to(save_path)
-
-    def _default_save_to(self, save_path: str):
-        app_state = AppState()
-        if app_state.model_parallel_size is not None:
-            # each model parallel rank creates a .nemo file
-            # after all .nemo files are created, each rank
-            # will add their checkpoint to global rank 0
-
-            base_dir = os.path.dirname(save_path)  # use the directory to merge mp_rank .nemo files into one
-
-            # update save_path based on model parallel_rank
-            base_path = os.path.splitext(save_path)[0]  # everything except the extension
-
-            mp_save_path = f'{base_path}_mp_rank_{app_state.model_parallel_rank:02d}.nemo'
-
-            if app_state.data_parallel_rank == 0:
-                super()._default_save_to(mp_save_path)
-
-            # barrier so that all processes have finished writing their weights before creating .nemo file
-            torch.distributed.barrier()
-
-            if is_global_rank_zero():
-                # extract all tar files
-                for mp_rank in range(app_state.model_parallel_size):
-                    mp_tar_path = f'{base_path}_mp_rank_{mp_rank:02d}.nemo'
-                    mp_tar = tarfile.open(mp_tar_path, 'r:gz')
-                    mp_tar.extractall(path=os.path.join(base_dir, f'mp_rank_{mp_rank:02d}'))
-                    mp_tar.close()
-                    os.remove(mp_tar_path)
-
-                # move rank 0 .nemo extract to base_path
-                shutil.move(os.path.join(base_dir, 'mp_rank_00'), base_path)
-
-                # move mp_rank_00 checkpoint to mp_rank_00 directory inside base_path
-                os.mkdir(os.path.join(base_path, 'mp_rank_00'))
-                shutil.move(os.path.join(base_path, 'model_weights.ckpt'), os.path.join(base_path, 'mp_rank_00'))
-
-                # move other mp_rank checkpoints from base_dir to base_path
-                for mp_rank in range(1, app_state.model_parallel_size):
-                    os.mkdir(os.path.join(base_path, f'mp_rank_{mp_rank:02d}'))
-                    shutil.move(
-                        os.path.join(base_dir, f'mp_rank_{mp_rank:02d}', 'model_weights.ckpt'),
-                        os.path.join(base_path, f'mp_rank_{mp_rank:02d}'),
-                    )
-                    # clean up leftover directory
-                    shutil.rmtree(os.path.join(base_dir, f'mp_rank_{mp_rank:02d}'))
-
-                # create tar file from base_path
-                self._make_nemo_file_from_folder(save_path, base_path)
-
-                # clean up base_path
-                shutil.rmtree(base_path)
-
-        elif is_global_rank_zero():
-            return super()._default_save_to(save_path)
-        else:
-            return
-
-    @classmethod
-    def restore_from(
-        cls,
-        restore_path: str,
-        override_config_path: Optional[Union[OmegaConf, str]] = None,
-        map_location: Optional[torch.device] = None,
-        strict: bool = True,
-        return_config: bool = False,
-        trainer: Trainer = None,
-        save_restore_connector: SaveRestoreConnector = None,
-    ):
-        """
-        Restores model instance (weights and configuration) from .nemo file.
-
-        Args:
-            restore_path: path to .nemo file from which model should be instantiated
-            override_config_path: path to a yaml config that will override the internal
-                config file or an OmegaConf / DictConfig object representing the model config.
-            map_location: Optional torch.device() to map the instantiated model to a device.
-                By default (None), it will select a GPU if available, falling back to CPU otherwise.
-            strict: Passed to load_state_dict. Set to True by default.
-            return_config: If set to true, will return just the underlying config of the restored
-                model as an OmegaConf DictConfig object without instantiating the model.
-            trainer: PyTorch Lightning trainer. Must be passed in order to use model parallel .nemo
-
-            Example:
-                ```
-                model = nemo.collections.nlp.models.TokenClassificationModel.restore_from('token_classification.nemo')
-                assert isinstance(model, nemo.collections.nlp.models.TokenClassificationModel)
-                ```
-
-        Returns:
-            An instance of type cls or its underlying config (if return_config is set).
-        """
-        if save_restore_connector is None:
-            save_restore_connector = SaveRestoreConnector()
-
-        if not os.path.exists(restore_path):
-            raise FileNotFoundError(f"Can't find {restore_path}")
-
-        app_state = AppState()
-        app_state.model_restore_path = os.path.abspath(os.path.expanduser(restore_path))
-
-        # detect if we have a model parallel .nemo file
-        with tempfile.TemporaryDirectory() as tmpdir:
-            cwd = os.getcwd()
-            os.chdir(tmpdir)
-            # detect if model parallel from tarfile
-            tar = tarfile.open(app_state.model_restore_path, "r:gz")
-            names = tar.getnames()
-            mp_ranks = []
-            for name in names:
-                if 'mp_rank' in name:
-                    mp_ranks.append(name)
-            if mp_ranks:
-                app_state.model_parallel_size = len(mp_ranks) // 2  # directory and file are included in getnames()
-
-                # get checkpoint version
-                checkpoint_version_member = None
-                for member in tar.getmembers():
-                    if 'megatron_checkpoint_version.json' in member.name:
-                        checkpoint_version_member = member
-                tar.extract(checkpoint_version_member, tmpdir)
-                with open(checkpoint_version_member.name, 'r') as f:
-                    checkpoint_version = json.load(f).get('checkpoint_version', None)
-                logging.info(
-                    (
-                        f'Detected model parallel .nemo file: {restore_path}. '
-                        f'Assuming megatron model parallelism with '
-                        f'model_parallel_size: {app_state.model_parallel_size} '
-                        f'and checkpoint version: {checkpoint_version}'
-                    )
-                )
-            tar.close()
-            os.chdir(cwd)
-
-        if app_state.model_parallel_size is not None:
-            if not isinstance(trainer, Trainer):
-                raise ValueError("trainer must be a PyTorch Lightning Trainer to restore model parallel .nemo files.")
-
-            if checkpoint_version is None:
-                raise ValueError(
-                    "Restoring from megatron model parallel .nemo but could not find megatron checkpoint version."
-                )
-            else:
-                logging.info(f"Setting megatron checkpoint version: {checkpoint_version}")
-                set_checkpoint_version(checkpoint_version)
-
-            app_state.world_size = trainer.num_gpus * trainer.num_nodes
-
-            if trainer.local_rank is not None:
-                app_state.local_rank = trainer.local_rank
-            else:
-                raise ValueError("trainer.local_rank is None. local_rank needed to restore model parallel models.")
-
-            model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
-            app_state.model_parallel_rank = model_parallel_rank
-
-            cls.update_save_restore_connector(save_restore_connector)
-            restored_model = cls._save_restore_connector.restore_from(
-                cls, app_state.model_restore_path, override_config_path, map_location, strict, return_config
-            )
-            restored_model.set_trainer(trainer)
-            return restored_model
-        else:
-            return super().restore_from(
-                app_state.model_restore_path,
-                override_config_path,
-                map_location,
-                strict,
-                return_config,
-                save_restore_connector=save_restore_connector,
-            )
 
     @rank_zero_only
     def register_megatron_checkpoint_version(self):
         """ Adds checkpoint version to .nemo archive """
         if self.has_megatron_encoder:
-            checkpoint_version = get_checkpoint_version()
+            checkpoint_version = get_megatron_checkpoint_version()
             if checkpoint_version is None:
                 raise ValueError('Unable to get megatron checkpoint version.')
             else:
@@ -511,3 +267,72 @@ class NLPModel(ModelPT, Exportable):
             if isinstance(self.encoder, MegatronEncoderModule):
                 logging.info(f"Restoring from pretrained model parallel checkpoint: {self.encoder.checkpoint_file}")
                 self.encoder._encoder.restore_weights(self.encoder.checkpoint_file)
+
+    @classmethod
+    def load_from_checkpoint(
+        cls,
+        checkpoint_path: str,
+        map_location: Any = None,
+        hparams_file: Optional[str] = None,
+        strict: bool = True,
+        **kwargs,
+    ):
+        """
+        Loads ModelPT from checkpoint, with some maintenance of restoration.
+        For documentation, please refer to LightningModule.load_from_checkpoin() documentation.
+        """
+        checkpoint = None
+        try:
+            cls._set_model_restore_state(is_being_restored=True)
+            # TODO: replace with proper PTL API
+            with pl_legacy_patch():
+                if map_location is not None:
+                    checkpoint = pl_load(checkpoint_path, map_location=map_location)
+                else:
+                    checkpoint = pl_load(checkpoint_path, map_location=lambda storage, loc: storage)
+
+            if hparams_file is not None:
+                extension = hparams_file.split(".")[-1]
+                if extension.lower() == "csv":
+                    hparams = load_hparams_from_tags_csv(hparams_file)
+                elif extension.lower() in ("yml", "yaml"):
+                    hparams = load_hparams_from_yaml(hparams_file)
+                else:
+                    raise ValueError(".csv, .yml or .yaml is required for `hparams_file`")
+
+                hparams["on_gpu"] = False
+
+                # overwrite hparams by the given file
+                checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY] = hparams
+
+            # for past checkpoint need to add the new key
+            if cls.CHECKPOINT_HYPER_PARAMS_KEY not in checkpoint:
+                checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY] = {}
+            # override the hparams with values that were passed in
+            # TODO: can we do this without overriding?
+            config_kwargs = kwargs.copy()
+            if 'trainer' in config_kwargs:
+                config_kwargs.pop('trainer')
+            checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].update(config_kwargs)
+
+            model = cls._load_model_state(checkpoint, strict=strict, **kwargs)
+            checkpoint = model
+
+        finally:
+            cls._set_model_restore_state(is_being_restored=False)
+        return checkpoint
+
+    def save_to(self, save_path: str):
+        app_state = AppState()
+        # Add NeMo rank check as well
+        if app_state.model_parallel_size is not None:
+            if app_state.model_parallel_size > 1:
+                if not isinstance(self._save_restore_connector, NLPSaveRestoreConnector):
+                    logging.warning(
+                        f"Using {self._save_restore_connector.__class__} to save a model parallel model.  Overriding with NLPSaveRestoreConnector. Make sure to subclass NLPSaveRestoreConnector."
+                    )
+                    self._save_restore_connector = NLPSaveRestoreConnector()
+            save_path = os.path.abspath(os.path.expanduser(save_path))
+            self._save_restore_connector.save_to(self, save_path)
+        else:
+            super(NLPModel, self).save_to(save_path=save_path)
