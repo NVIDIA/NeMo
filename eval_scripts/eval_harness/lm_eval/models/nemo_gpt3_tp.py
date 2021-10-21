@@ -37,6 +37,14 @@ except ModuleNotFoundError:
 
 from .nemo_gpt3 import CustomSaveRestoreConnector
 
+
+class CustomNLPDDPPlugin(NLPDDPPlugin):
+    def setup_distributed(self, global_rank=None, world_size=None):
+        app_state = AppState()
+        if app_state.model_parallel_size is not None and app_state.data_parallel_group is None:
+            super().setup_distributed(global_rank, world_size)
+
+
 class RequestDataset(Dataset):
     def __init__(self, model, tokens):
         self.model = model
@@ -62,10 +70,12 @@ class CustomModel(MegatronGPTModel):
     def predict_prep(self, inplens, conts):
         self.inplens = inplens
         self.conts = conts
+
     def predict_step(self, batch, batch_idx, dataloader_idx=None):
-        tokens, position_ids, attention_mask= batch
+        tokens, position_ids, attention_mask = batch
         inplens = self.inplens[batch_idx]
         conts = self.conts[batch_idx]
+        batch_size = len(tokens)
 
         output_tensor = self(tokens, position_ids, attention_mask, labels=None)
         # torch.distributed.barrier()
@@ -111,7 +121,8 @@ def setup_trainer_and_model(args):
     logging.info(f"**** Loading checkpoint from {args['nemo_model']}")
     # if args['nemo_model'].rstrip().endswith(".nemo"):
     trainer = Trainer(
-        plugins=NLPDDPPlugin(), gpus=args['tensor_model_parallel_size'], accelerator="ddp", enable_progress_bar=True)
+        plugins=CustomNLPDDPPlugin(), gpus=args['tensor_model_parallel_size'], accelerator="ddp",
+        enable_progress_bar=True)
     app_state = AppState()
     app_state.model_parallel_size = args['tensor_model_parallel_size']
     app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
@@ -187,18 +198,19 @@ class NeMo_GPT3LM_TP(LM):
                 )))
 
                 rolling_token_windows = [(None,) + x for x in rolling_token_windows]
-                len_rolling_token_windows.append(len(rolling_token_windows)+len_rolling_token_windows[-1])
+                len_rolling_token_windows.append(len(rolling_token_windows) + len_rolling_token_windows[-1])
                 all_rolling_token_windows.extend(rolling_token_windows)
 
             # TODO: extract out this call so it only gets called once and also somehow figure out partial caching for that
             string_nll = self._loglikelihood_tokens(all_rolling_token_windows)
-            string_nll = [x[0] for x in string_nll]
-            # discard is_greedy
-            for i in range(len(len_rolling_token_windows)-1):
-                loglikelihoods.append(sum(string_nll[len_rolling_token_windows[i]:len_rolling_token_windows[i+1]]))
+            if self.can_access_output():
+                string_nll = [x[0] for x in string_nll]
+                # discard is_greedy
+                for i in range(len(len_rolling_token_windows) - 1):
+                    loglikelihoods.append(
+                        sum(string_nll[len_rolling_token_windows[i]:len_rolling_token_windows[i + 1]]))
 
         return loglikelihoods
-
 
     def _loglikelihood_tokens(self, requests, disable_tqdm=False):
         # TODO: implement some kind of efficient-request-middleware that lumps together requests with the same context
@@ -274,8 +286,7 @@ class NeMo_GPT3LM_TP(LM):
 
             res = self.trainer.predict(self.gpt3, request_dl)
 
-        return reord.get_original(unbatch(res))
-
+        return reord.get_original(unbatch(res)) if self.can_access_output() else None
 
     def greedy_until(self, requests):
         raise NotImplementedError
