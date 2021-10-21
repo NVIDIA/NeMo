@@ -37,7 +37,15 @@ from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import average_pitch, regulate_len
 from nemo.collections.tts.torch.tts_tokenizers import EnglishCharsTokenizer, EnglishPhonemesTokenizer
-from nemo.core.classes import typecheck
+from nemo.core.classes.common import typecheck
+from nemo.core.neural_types.elements import (
+    LengthsType,
+    MelSpectrogramType,
+    ProbsType,
+    RegressionValuesType,
+    TokenIndex,
+)
+from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 
 
@@ -73,7 +81,7 @@ class MixerTTSModel(SpectrogramGenerator):
                 else self._get_lm_padding_value(cfg.train_ds.dataset.lm_model)
             )
             self.lm_embeddings = self._get_lm_embeddings(cfg.train_ds.dataset.lm_model)
-            self.lm_embeddings.weight.requires_grad = True
+            self.lm_embeddings.weight.requires_grad = False
 
             self.self_attention_module = instantiate(
                 cfg.self_attention_module, n_lm_tokens_channels=self.lm_embeddings.weight.shape[1]
@@ -183,6 +191,17 @@ class MixerTTSModel(SpectrogramGenerator):
 
         return loss, durs_loss, acc, acc_dist_1, acc_dist_3, pitch_loss, mel_loss, ctc_loss, bin_loss
 
+    @typecheck(
+        input_types={
+            "text": NeuralType(('B', 'T'), TokenIndex()),
+            "text_len": NeuralType(('B'), LengthsType()),
+            "pitch": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
+            "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType(), optional=True),
+            "spect_len": NeuralType(('B'), LengthsType(), optional=True),
+            "attn_prior": NeuralType(('B', 'T', 'T'), ProbsType(), optional=True),
+            "lm_tokens": NeuralType(('B', 'T'), TokenIndex(), optional=True),
+        }
+    )
     def forward(self, text, text_len, pitch=None, spect=None, spect_len=None, attn_prior=None, lm_tokens=None):
         if self.training:
             assert pitch is not None
@@ -486,6 +505,15 @@ class MixerTTSModel(SpectrogramGenerator):
 
             self.logger.experiment.log({"specs": specs, "pitches": pitches})
 
+    @typecheck(
+        input_types={
+            "text": NeuralType(('B', 'T'), TokenIndex(), optional=True),
+            "text_len": NeuralType(('B'), LengthsType(), optional=True),
+            "lm_tokens": NeuralType(('B', 'T'), TokenIndex(), optional=True),
+            "raw_texts": NeuralType(optional=True),
+            "lm_model": NeuralType(optional=True),
+        }
+    )
     def generate_spectrogram(
         self,
         tokens: Optional[torch.Tensor] = None,
@@ -493,7 +521,6 @@ class MixerTTSModel(SpectrogramGenerator):
         lm_tokens: Optional[torch.Tensor] = None,
         raw_texts: Optional[List[str]] = None,
         lm_model: str = "albert",
-        **kwargs,
     ):
         if tokens is not None:
             if tokens_len is None:
