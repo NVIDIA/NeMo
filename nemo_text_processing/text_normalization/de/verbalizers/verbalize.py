@@ -14,7 +14,6 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.de.verbalizers.cardinal import CardinalFst
-
 from nemo_text_processing.text_normalization.de.verbalizers.date import DateFst
 from nemo_text_processing.text_normalization.de.verbalizers.decimal import DecimalFst
 

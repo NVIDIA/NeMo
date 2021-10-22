@@ -13,7 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, NEMO_NOT_QUOTE, delete_extra_space, delete_space
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_NOT_QUOTE,
+    GraphFst,
+    delete_extra_space,
+    delete_space,
+)
 
 try:
     import pynini
@@ -34,15 +39,11 @@ class DateFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, ordinal:GraphFst, deterministic: bool = True):
+    def __init__(self, ordinal: GraphFst, deterministic: bool = True):
         super().__init__(name="date", kind="verbalize", deterministic=deterministic)
 
         month = pynini.closure(NEMO_NOT_QUOTE, 1)
-        day_cardinal = (
-            pynutil.delete("day: \"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
-        )
+        day_cardinal = pynutil.delete("day: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
         day = day_cardinal @ ordinal.suffix
 
         if not deterministic:
@@ -50,19 +51,10 @@ class DateFst(GraphFst):
 
         month = pynutil.delete("month: \"") + month + pynutil.delete("\"")
 
-        year = (
-            pynutil.delete("year: \"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
-        )
+        year = pynutil.delete("year: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
 
         # day month year
-        graph_dmy = (
-            day
-            + delete_extra_space
-            + month
-            + pynini.closure(delete_extra_space + year, 0, 1)
-        )
+        graph_dmy = day + delete_extra_space + month + pynini.closure(delete_extra_space + year, 0, 1)
 
         optional_preserve_order = pynini.closure(
             pynutil.delete("preserve_order:") + delete_space + pynutil.delete("true") + delete_space
@@ -74,10 +66,7 @@ class DateFst(GraphFst):
             + delete_space
         )
 
-        final_graph = (
-            (graph_dmy| year)  + delete_space + optional_preserve_order
-        )
+        final_graph = (graph_dmy | year) + delete_space + optional_preserve_order
 
         delete_tokens = self.delete_tokens(final_graph)
         self.fst = delete_tokens.optimize()
-
