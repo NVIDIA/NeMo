@@ -14,10 +14,10 @@ slurm:
 run:
     name: eval_tasks
     tasks: all_tasks  # supported: lambada, boolq, race, piqa, hellaswag, winogrande, wikitext2, wikitext103 OR all_tasks
-    output_path: results
+    output_path: eval_scripts/results
 
 model:
     type: nemo-gpt3
-    checkpoint_path: /path/to/???.nemo # absolute path of checkpoint; must be .nemo file
+    checkpoint_path: train_scripts/logs/126m_fp16_gpt3.nemo # path of checkpoint; must be .nemo file
     tensor_model_parallel_size: 1
     eval_batch_size: 1
