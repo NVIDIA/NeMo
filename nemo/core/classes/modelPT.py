@@ -231,10 +231,10 @@ class ModelPT(LightningModule, Model):
             if app_state.data_parallel_rank == 0:
                 make_save_dir(save_path)
             # connector checks for ranks properly, no need to check here
-            self._save_restore_connector.save_to(self, save_path)
+            self._save_restore_connector.save_to(self, str(save_path))  # downstream tasks expect str, not Path
         elif is_global_rank_zero():
             make_save_dir(save_path)
-            self._save_restore_connector.save_to(self, save_path)
+            self._save_restore_connector.save_to(self, str(save_path))  # downstream tasks expect str, not Path
 
     @classmethod
     def restore_from(

@@ -366,7 +366,7 @@ class TestExpManager:
 
     @pytest.mark.unit
     def test_nemo_checkpoint_make_checkpoint_dir(self, tmp_path):
-        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4, every_n_epochs=5)
+        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4, check_val_every_n_epoch=5)
         exp_manager(
             test_trainer,
             {
