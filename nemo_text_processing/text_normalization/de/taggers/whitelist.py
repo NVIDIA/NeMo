@@ -13,9 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo_text_processing.text_normalization.de.utils import get_abs_path, load_labels
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_CHAR, GraphFst, convert_space
-from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA, TO_CYRILLIC
-from nemo_text_processing.text_normalization.ru.utils import get_abs_path, load_labels
 
 try:
     import pynini
@@ -61,10 +60,7 @@ class WhiteListFst(GraphFst):
             graph = _get_whitelist_graph(input_case, input_file)
 
         units_graph = _get_whitelist_graph(input_case, file=get_abs_path("data/measurements.tsv"))
-        # do not replace single letter units, like `м`, `°` and `%` will be replaced
-        units_graph = pynini.compose((NEMO_CHAR ** (2, ...) | pynini.difference(NEMO_CHAR, RU_ALPHA)), units_graph)
         graph |= units_graph.optimize()
-        graph |= TO_CYRILLIC + pynini.closure(pynutil.insert(" ") + TO_CYRILLIC)
 
         self.final_graph = convert_space(graph)
         self.fst = (pynutil.insert("name: \"") + self.final_graph + pynutil.insert("\"")).optimize()
