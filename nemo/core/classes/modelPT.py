@@ -222,7 +222,7 @@ class ModelPT(LightningModule, Model):
         app_state = AppState()
         if app_state.model_parallel_size is not None:
             if app_state.model_parallel_size > 1:
-                if isinstance(self._save_restore_connector, SaveRestoreConnector):
+                if type(self._save_restore_connector) == SaveRestoreConnector:
                     raise ValueError(
                         'Default NeMo SaveRestoreConnector will not work in model parallel mode. You should use a '
                         'connector which supports model parallel mode, such as NLPSaveRestoreConnector in NLP. You '
