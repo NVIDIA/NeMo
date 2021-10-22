@@ -41,7 +41,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from nemo.collections.common.parts.patch_utils import stft_patch
 from nemo.collections.tts.helpers.helpers import OperationMode
 from nemo.core.classes import Exportable, NeuralModule, typecheck
 from nemo.core.neural_types.elements import IntType, LengthsType, SpectrogramType
@@ -518,7 +517,7 @@ class DegliModule(NeuralModule, Exportable):
         self.mode = OperationMode.infer
 
     def stft(self, x):
-        return stft_patch(x, n_fft=self.n_fft, hop_length=self.hop_length, window=self.window, return_complex=False)
+        return torch.stft(x, n_fft=self.n_fft, hop_length=self.hop_length, window=self.window, return_complex=False)
 
     @typecheck()
     def forward(self, x, mag, max_length=None, repeat=2):
