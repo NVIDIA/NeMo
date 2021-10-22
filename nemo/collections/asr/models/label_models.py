@@ -25,6 +25,8 @@ from omegaconf.omegaconf import open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataset
+from nemo.collections.asr.data import audio_to_label_dataset
+from torch.utils.data import ChainDataset
 from nemo.collections.asr.losses.angularloss import AngularSoftmaxLoss
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
@@ -103,6 +105,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             self.loss = CELoss()
         self.task = None
         self._accuracy = TopKClassificationAccuracy(top_k=[1])
+        self.labels = None
 
     def __setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:
@@ -113,32 +116,62 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         featurizer = WaveformFeaturizer(
             sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=augmentor
         )
-        self.dataset = AudioToSpeechLabelDataset(
-            manifest_filepath=config['manifest_filepath'],
-            labels=config['labels'],
-            featurizer=featurizer,
-            max_duration=config.get('max_duration', None),
-            min_duration=config.get('min_duration', None),
-            trim=False,
-            time_length=config.get('time_length', 8),
-            shift_length=config.get('shift_length', 0.75),
-        )
+        shuffle = config.get('shuffle', False)
+        if config.get('is_tarred', False):
+            if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
+                'manifest_filepath' in config and config['manifest_filepath'] is None
+            ):
+                logging.warning(
+                    "Could not load dataset as `manifest_filepath` was None or "
+                    f"`tarred_audio_filepaths` is None. Provided config : {config}"
+                )
+                return None
+
+            shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
+            dataset = audio_to_label_dataset.get_tarred_speech_label_dataset(
+                config=config,
+                shuffle_n=shuffle_n,
+                global_rank=self.global_rank,
+                world_size=self.world_size,
+            )
+            shuffle = False
+        else:
+            if 'manifest_filepath' in config and config['manifest_filepath'] is None:
+                logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
+                return None
+
+            dataset = AudioToSpeechLabelDataset(
+                manifest_filepath=config['manifest_filepath'],
+                labels=config['labels'],
+                featurizer=featurizer,
+                max_duration=config.get('max_duration', None),
+                min_duration=config.get('min_duration', None),
+                trim=config.get('trim_silence', False),
+                time_length=config.get('time_length', 8),
+                shift_length=config.get('shift_length', 0.75),
+                normalize_audio=config.get('normalize_audio', False),
+            )
+
+        if type(dataset) is ChainDataset:
+            collate_ds = dataset.datasets[0]
+        else:
+            collate_ds = dataset
+
+        self.labels = collate_ds.labels
 
         if self.task == 'diarization':
             logging.info("Setting up diarization parameters")
-            _collate_func = self.dataset.sliced_seq_collate_fn
-            batch_size = config['batch_size']
+            collate_fn = collate_ds.sliced_seq_collate_fn
             shuffle = False
         else:
             logging.info("Setting up identification parameters")
-            _collate_func = self.dataset.fixed_seq_collate_fn
-            batch_size = config['batch_size']
-            shuffle = config.get('shuffle', False)
+            collate_fn = collate_ds.fixed_seq_collate_fn
 
+        batch_size = config['batch_size']
         return torch.utils.data.DataLoader(
-            dataset=self.dataset,
+            dataset=dataset,
             batch_size=batch_size,
-            collate_fn=_collate_func,
+            collate_fn=collate_fn,
             drop_last=config.get('drop_last', False),
             shuffle=shuffle,
             num_workers=config.get('num_workers', 0),
@@ -152,13 +185,13 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self._train_dl = self.__setup_dataloader_from_config(config=train_data_layer_config)
 
     def setup_validation_data(self, val_data_layer_config: Optional[Union[DictConfig, Dict]]):
-        val_data_layer_config['labels'] = self.dataset.labels
+        val_data_layer_config['labels'] = self.labels
         self.task = 'identification'
         self._validation_dl = self.__setup_dataloader_from_config(config=val_data_layer_config)
 
     def setup_test_data(self, test_data_layer_params: Optional[Union[DictConfig, Dict]]):
         if hasattr(self, 'dataset'):
-            test_data_layer_params['labels'] = self.dataset.labels
+            test_data_layer_params['labels'] = self.labels
 
         if 'task' in test_data_layer_params and test_data_layer_params['task']:
             self.task = test_data_layer_params['task'].lower()
@@ -299,11 +332,6 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         make sure you set num_classes correctly for finetune data
         Returns: None
         """
-        if hasattr(self, 'dataset'):
-            scratch_labels = self.dataset.labels
-        else:
-            scratch_labels = None
-
         logging.info("Setting up data loaders with manifests provided from model_config")
 
         if 'train_ds' in model_config and model_config.train_ds is not None:
@@ -311,8 +339,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         else:
             raise KeyError("train_ds is not found in model_config but you need it for fine tuning")
 
-        if self.dataset.labels is None or len(self.dataset.labels) == 0:
-            raise ValueError(f'New labels must be non-empty list of labels. But I got: {self.dataset.labels}')
+        if self.labels is None or len(self.labels) == 0:
+            raise ValueError(f'New labels must be non-empty list of labels. But I got: {self.labels}')
 
         if 'validation_ds' in model_config and model_config.validation_ds is not None:
             self.setup_multiple_validation_data(model_config.validation_ds)
@@ -320,21 +348,21 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         if 'test_ds' in model_config and model_config.test_ds is not None:
             self.setup_multiple_test_data(model_config.test_ds)
 
-        if scratch_labels == self.dataset.labels:  # checking for new finetune dataset labels
+        if self.labels is not None:  # checking for new finetune dataset labels
             logging.warning(
                 "Trained dataset labels are same as finetune dataset labels -- continuing change of decoder parameters"
             )
-        elif scratch_labels is None:
+        else:
             logging.warning(
                 "Either you provided a dummy manifest file during training from scratch or you restored from a pretrained nemo file"
             )
 
         decoder_config = model_config.decoder
         new_decoder_config = copy.deepcopy(decoder_config)
-        if new_decoder_config['num_classes'] != len(self.dataset.labels):
+        if new_decoder_config['num_classes'] != len(self.labels):
             raise ValueError(
                 "number of classes provided {} is not same as number of different labels in finetuning data: {}".format(
-                    new_decoder_config['num_classes'], len(self.dataset.labels)
+                    new_decoder_config['num_classes'], len(self.labels)
                 )
             )
 

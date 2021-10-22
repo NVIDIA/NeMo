@@ -545,7 +545,7 @@ class _TarredAudioLabelDataset(IterableDataset):
         self,
         *,
         audio_tar_filepaths: Union[str, List[str]],
-        manifest_filepath: str,
+        manifest_filepath: Union[str, List[str]],
         labels: List[str],
         featurizer,
         shuffle_n: int = 0,
@@ -558,7 +558,7 @@ class _TarredAudioLabelDataset(IterableDataset):
         is_regression_task: bool = False,
     ):
         self.collection = collections.ASRSpeechLabel(
-            manifests_files=manifest_filepath.split(','),
+            manifests_files=manifest_filepath,
             min_duration=min_duration,
             max_duration=max_duration,
             index_by_file_id=True,  # Must set this so the manifest lines can be indexed by file ID
@@ -869,7 +869,7 @@ class TarredAudioToSpeechLabelDataset(_TarredAudioLabelDataset):
         self,
         *,
         audio_tar_filepaths: Union[str, List[str]],
-        manifest_filepath: str,
+        manifest_filepath: Union[str, List[str]],
         labels: List[str],
         featurizer,
         shuffle_n: int = 0,
