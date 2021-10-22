@@ -43,7 +43,7 @@ try:
     )
 
 except ModuleNotFoundError:
-    logging.warning("Apex was not found. Using megatron models will error out.")
+    logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
 
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import AppState, logging
