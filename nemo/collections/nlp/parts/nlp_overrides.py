@@ -19,7 +19,6 @@ from typing import Any, Dict, List, Optional, Union
 
 import pytorch_lightning as pl
 import torch
-from apex.transformer import parallel_state
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
@@ -35,11 +34,17 @@ from torch.nn.modules.module import Module
 from torch.nn.parallel import DistributedDataParallel
 from torch.optim.optimizer import Optimizer
 
-from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
-from nemo.collections.nlp.modules.common.megatron.megatron_bert import (
-    get_megatron_checkpoint_version,
-    set_megatron_checkpoint_version,
-)
+try:
+    from apex.transformer import parallel_state
+    from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
+    from nemo.collections.nlp.modules.common.megatron.megatron_bert import (
+        get_megatron_checkpoint_version,
+        set_megatron_checkpoint_version,
+    )
+
+except ModuleNotFoundError:
+    logging.warning("Apex was not found. Using megatron models will error out.")
+
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import AppState, logging
 
