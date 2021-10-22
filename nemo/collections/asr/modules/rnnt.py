@@ -555,9 +555,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         else:
             return None
 
-    def batch_concat_states(
-        self, batch_states: List[List[torch.Tensor]]
-    ) -> List[torch.Tensor]:
+    def batch_concat_states(self, batch_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
         """Concatenate a batch of decoder state to a packed state.
 
         Args:
@@ -584,8 +582,11 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         return state_list
 
     def batch_copy_states(
-            self, old_states: List[torch.Tensor], new_states: List[torch.Tensor], ids: List[int],
-            value: Optional[float] = None
+        self,
+        old_states: List[torch.Tensor],
+        new_states: List[torch.Tensor],
+        ids: List[int],
+        value: Optional[float] = None,
     ) -> List[torch.Tensor]:
         """Copy states from new state to old state at certain indices.
 
