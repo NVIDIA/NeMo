@@ -793,7 +793,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 )
             else:
                 trainer.checkpoint_connector.restore(self.best_model_path)
-
         pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
 
     def _del_model_without_trainer(self, filepath: str) -> None:
