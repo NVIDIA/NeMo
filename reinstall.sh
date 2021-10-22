@@ -9,6 +9,7 @@ PIP=pip
 echo 'Uninstalling stuff'
 ${PIP} uninstall -y nemo_toolkit
 ${PIP} uninstall -y sacrebleu
+${PIP} uninstall -y pytorch-lightning
 
 # Kept for legacy purposes
 ${PIP} uninstall -y nemo_asr
@@ -18,6 +19,9 @@ ${PIP} uninstall -y nemo_simple_gan
 ${PIP} uninstall -y nemo_cv
 
 ${PIP} install -U setuptools
+
+# TODO: update to PTL 1.5.0 when it's released
+${PIP} install pytorch-lightning --pre
 
 echo 'Installing nemo and nemo_text_processing'
 if [[ "$INSTALL_OPTION" == "dev" ]]; then
