@@ -36,12 +36,6 @@ pipeline {
       }
     }
 
-    stage('PyTorch STFT Patch check') {
-      steps {
-        sh 'python /home/TestData/check_stft_patch.py --dir .'
-      }
-    }
-
     stage('Torch TTS unit tests') {
       when {
         anyOf {
