@@ -96,7 +96,7 @@ class DateFst(GraphFst):
             month_abbr_graph | ((TO_LOWER + pynini.closure(NEMO_CHAR)) @ month_abbr_graph)
         ) + pynini.closure(pynutil.delete("."), 0, 1)
 
-        month_graph = pynini.string_file(get_abs_path("data/months/names.tsv")).optimize()
+        month_graph = pynini.string_file(get_abs_path("data/months.tsv")).optimize()
         month_graph |= (TO_LOWER + pynini.closure(NEMO_CHAR)) @ month_graph
         month_graph |= month_abbr_graph
 
@@ -123,8 +123,7 @@ class DateFst(GraphFst):
         ).optimize()
 
         month_abbr_to_names = pynini.string_file(get_abs_path("data/months/abbr_to_name.tsv")).optimize()
-        month_names = pynini.string_file(get_abs_path("data/months/months.tsv")).optimize()
-        month_name = (month_number | month_abbr_to_names | month_names | digit_month).optimize()
+        month_name = (month_number | month_abbr_to_names | month_graph | digit_month).optimize()
         month = (pynutil.insert("month: \"") + month_name + pynutil.insert("\"")).optimize()
         year = pynini.compose(((NEMO_DIGIT ** 4) | (NEMO_DIGIT ** 2)), numbers).optimize()
         year |= get_year_graph(cardinal=cardinal, deterministic=deterministic)

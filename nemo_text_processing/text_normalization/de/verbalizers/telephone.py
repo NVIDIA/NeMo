@@ -13,8 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
-from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space, insert_space
 
 try:
     import pynini
@@ -39,6 +38,18 @@ class TelephoneFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="telephone", kind="verbalize", deterministic=deterministic)
 
-        graph = pynutil.delete("number_part: \"") + pynini.closure(RU_ALPHA | " ", 1) + pynutil.delete("\"")
+        optional_country_code = pynini.closure(
+            pynutil.delete("country_code: \"")
+            + pynini.closure(NEMO_NOT_QUOTE, 1)
+            + pynutil.delete("\"")
+            + delete_space
+            + insert_space,
+            0,
+            1,
+        )
+
+        number_part = pynutil.delete("number_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+
+        graph = optional_country_code + number_part
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

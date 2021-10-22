@@ -22,8 +22,8 @@ from nemo_text_processing.text_normalization.de.taggers.electronic import Electr
 # from nemo_text_processing.text_normalization.de.taggers.measure import MeasureFst
 # from nemo_text_processing.text_normalization.de.taggers.money import MoneyFst
 from nemo_text_processing.text_normalization.de.taggers.ordinal import OrdinalFst
+from nemo_text_processing.text_normalization.de.taggers.telephone import TelephoneFst
 
-# from nemo_text_processing.text_normalization.de.taggers.telephone import TelephoneFst
 # from nemo_text_processing.text_normalization.de.taggers.time import TimeFst
 from nemo_text_processing.text_normalization.de.taggers.whitelist import WhiteListFst
 from nemo_text_processing.text_normalization.en.graph_utils import (
@@ -103,8 +103,8 @@ class ClassifyFst(GraphFst):
             word_graph = WordFst(deterministic=deterministic).fst
             # self.time = TimeFst(number_names=number_names, deterministic=deterministic)
             # time_graph = self.time.fst
-            # self.telephone = TelephoneFst(number_names=number_names, deterministic=deterministic)
-            # telephone_graph = self.telephone.fst
+            self.telephone = TelephoneFst(cardinal=self.cardinal, deterministic=deterministic)
+            telephone_graph = self.telephone.fst
             self.electronic = ElectronicFst(deterministic=deterministic)
             electronic_graph = self.electronic.fst
             # self.money = MoneyFst(cardinal=self.cardinal, decimal=self.decimal, deterministic=deterministic)
@@ -122,7 +122,7 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(ordinal_graph, 1.1)
                 | pynutil.add_weight(decimal_graph, 1.1)
                 # | pynutil.add_weight(money_graph, 1.1)
-                # | pynutil.add_weight(telephone_graph, 1.1)
+                | pynutil.add_weight(telephone_graph, 1.1)
                 | pynutil.add_weight(electronic_graph, 1.1)
                 | pynutil.add_weight(word_graph, 100)
             )

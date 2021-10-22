@@ -48,7 +48,7 @@ class CardinalFst(GraphFst):
 
         self.integer = delete_space + pynutil.delete("\"") + integer + pynutil.delete("\"")
 
-        integer = pynutil.delete("integer: \"") + self.integer
+        integer = pynutil.delete("integer:") + self.integer
 
         self.numbers = optional_sign + integer
         delete_tokens = self.delete_tokens(self.numbers)
