@@ -201,7 +201,7 @@ class ModelPT(LightningModule, Model):
 
         return self._save_restore_connector.register_artifact(self, config_path, src, verify_src_exists)
 
-    def save_to(self, save_path: str, make_dirs: bool = True):
+    def save_to(self, save_path: str):
         """
         Saves model instance (weights and configuration) into .nemo file
          You can use "restore_from" method to fully restore instance from .nemo file.
@@ -212,12 +212,13 @@ class ModelPT(LightningModule, Model):
 
         Args:
             save_path: Path to .nemo file where model instance should be saved
-            make_dirs(bool): Whether NeMo will make the directory is it doesn't exist. Defaults to False
         """
 
-        # save_path = Path(save_path).expanduser().resolve()
-        # if make_dirs and not save_path.parent.exists():
-        #     save_path.parent.mkdir(parents=True)
+        def make_save_dir(path: 'pathlib.Path'):
+            if not path.parent.exists():
+                path.parent.mkdir(parents=True)
+
+        save_path = Path(save_path).expanduser().resolve()
         app_state = AppState()
         if app_state.model_parallel_size is not None:
             if app_state.model_parallel_size > 1:
@@ -227,16 +228,13 @@ class ModelPT(LightningModule, Model):
                         'connector which supports model parallel mode, such as NLPSaveRestoreConnector in NLP. You '
                         'can also you custom one.'
                     )
-
-            save_path = os.path.abspath(os.path.expanduser(save_path))
+            if app_state.data_parallel_rank == 0:
+                make_save_dir(save_path)
             # connector checks for ranks properly, no need to check here
-            self._save_restore_connector.save_to(self, save_path, make_dirs)
-        else:
-            if not is_global_rank_zero():
-                return
-            else:
-                save_path = os.path.abspath(os.path.expanduser(save_path))
-                self._save_restore_connector.save_to(self, save_path, make_dirs)
+            self._save_restore_connector.save_to(self, save_path)
+        elif is_global_rank_zero():
+            make_save_dir(save_path)
+            self._save_restore_connector.save_to(self, save_path)
 
     @classmethod
     def restore_from(

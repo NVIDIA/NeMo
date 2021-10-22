@@ -760,7 +760,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 )
             else:
                 trainer.checkpoint_connector.restore(self.best_model_path)
-        pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix), make_dirs=True)
+        pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
 
     def _del_model(self, trainer: "pl.Trainer", filepath: str) -> None:
         """ Overrides PTL method to account for model parallel checkpoints.
