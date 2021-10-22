@@ -44,8 +44,10 @@ class AppState(metaclass=Singleton):
         self._world_size = None
         self._model_parallel_size = None
         self._model_parallel_group = None
+        self._is_megatron_initialized = False
         self._data_parallel_size = None
         self._data_parallel_group = None
+        self._megatron_checkpoint_version = None
 
         self._random_seed = None
 

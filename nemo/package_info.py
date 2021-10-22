@@ -14,9 +14,9 @@
 
 
 MAJOR = 1
-MINOR = 4
+MINOR = 5
 PATCH = 0
-PRE_RELEASE = ''
+PRE_RELEASE = 'b1'
 
 # Use the following formatting: (major, minor, patch, pre-release)
 VERSION = (MAJOR, MINOR, PATCH, PRE_RELEASE)
