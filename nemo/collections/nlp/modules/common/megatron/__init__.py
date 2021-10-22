@@ -17,10 +17,3 @@ from nemo.collections.nlp.modules.common.megatron.megatron_utils import (
     get_megatron_checkpoint,
     get_megatron_lm_models_list,
 )
-from nemo.utils import logging
-
-try:
-    import apex
-
-except ModuleNotFoundError:
-    logging.warning("Apex was not found. Using model parallel or megatron models will error out.")

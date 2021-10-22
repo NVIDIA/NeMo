@@ -39,14 +39,18 @@ from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state
-    from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
-    from nemo.collections.nlp.modules.common.megatron.megatron_bert import (
-        get_megatron_checkpoint_version,
-        set_megatron_checkpoint_version,
-    )
 
-except ModuleNotFoundError:
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+
     logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
+
+from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
+from nemo.collections.nlp.modules.common.megatron.megatron_bert import (
+    get_megatron_checkpoint_version,
+    set_megatron_checkpoint_version,
+)
 
 
 class NLPDDPPlugin(DDPPlugin):
@@ -65,6 +69,9 @@ class NLPDDPPlugin(DDPPlugin):
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
         super().__init__(parallel_devices, num_nodes, cluster_environment, checkpoint_io, sync_batchnorm, **kwargs)
+
+        if not HAVE_APEX:
+            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
 
     def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
         # call PTL init ddp
@@ -232,6 +239,8 @@ class NLPCheckpointConnector(CheckpointConnector):
 
     def __init__(self, trainer, resume_from_checkpoint):
         super().__init__(trainer, resume_from_checkpoint)
+        if not HAVE_APEX:
+            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
 
     def save_checkpoint(self, filepath, weights_only: bool = False) -> None:
         """Slightly modified version of PyTorch Lightning's save_checkpoint.
@@ -259,6 +268,8 @@ class NLPCheckpointConnector(CheckpointConnector):
 class NLPSaveRestoreConnector(SaveRestoreConnector):
     def __init__(self) -> None:
         super().__init__()
+        if not HAVE_APEX:
+            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
 
     def save_to(self, model, save_path: str):
         app_state = AppState()
@@ -323,6 +334,8 @@ class NLPNativeMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
 class NLPNativeBfloat16PrecisionPlugin(NativeMixedPrecisionPlugin):
     def __init__(self) -> None:
         super().__init__(precision='bf16')
+        if not HAVE_APEX:
+            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
 
     def clip_gradients(
         self,

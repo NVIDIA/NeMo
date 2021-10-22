@@ -39,6 +39,15 @@ from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
 from nemo.utils import AppState, logging
 
+try:
+    import apex
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
+
+
 __all__ = ['NLPModel']
 
 NEMO_NLP_TMP = os.path.join(os.path.dirname(str(TRANSFORMERS_CACHE)), "nemo_nlp_tmp")
@@ -55,6 +64,8 @@ class NLPModel(ModelPT, Exportable):
         # handles model parallel save and restore logic
         self._save_restore_connector = NLPSaveRestoreConnector()
         self.set_world_size(trainer)
+        if not HAVE_APEX:
+            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
 
     def register_artifact(
         self, config_path: str, src: str, verify_src_exists: bool = False,

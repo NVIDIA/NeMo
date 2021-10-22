@@ -14,15 +14,7 @@
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import GPTDataset
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import IndexedDataset, MMapIndexedDataset
-from nemo.utils import logging
 
 # TODO: refactor these datasets to work without megatron-lm dependency
 # from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
 # from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
-
-
-try:
-    import apex
-
-except ModuleNotFoundError:
-    logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
