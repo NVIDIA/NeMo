@@ -13,8 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, GraphFst, delete_space, insert_space
-from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA_OR_SPACE
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_DIGIT,
+    NEMO_SIGMA,
+    GraphFst,
+    delete_extra_space,
+    delete_space,
+    insert_space,
+)
+from nemo_text_processing.text_normalization.en.utils import get_abs_path
 
 try:
     import pynini
@@ -38,48 +45,47 @@ class TelephoneFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, number_names: dict, deterministic: bool = True):
+    def __init__(self, cardinal: GraphFst, deterministic: bool = True):
         super().__init__(name="telephone", kind="classify", deterministic=deterministic)
 
-        separator = pynini.cross("-", " ")  # between components
-        number = number_names["cardinal_names_nominative"]
+        digit = (
+            pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv"))).optimize()
+            | pynini.invert(pynini.string_file(get_abs_path("data/numbers/zero.tsv"))).optimize()
+        )
 
         country_code = (
             pynutil.insert("country_code: \"")
-            + pynini.closure(pynutil.add_weight(pynutil.delete("+"), 0.1), 0, 1)
-            + number
-            + separator
+            + pynini.closure(pynutil.delete("+"), 0, 1)
+            + pynini.closure(
+                (NEMO_DIGIT + NEMO_DIGIT) @ cardinal.graph_hundred_component_at_least_one_none_zero_digit
+                + insert_space,
+                0,
+                2,
+            )
+            + digit
             + pynutil.insert("\"")
         )
-        optional_country_code = pynini.closure(country_code + insert_space, 0, 1)
-
-        number_part = (
-            NEMO_DIGIT ** 3 @ number
-            + separator
-            + NEMO_DIGIT ** 3 @ number
-            + separator
-            + NEMO_DIGIT ** 2 @ number
-            + separator
-            + NEMO_DIGIT ** 2 @ (pynini.closure(pynini.cross("0", "ноль ")) + number)
+        optional_country_code = pynini.closure(
+            country_code + pynini.closure(pynutil.delete("-"), 0, 1) + delete_space + insert_space, 0, 1
         )
-        number_part = pynutil.insert("number_part: \"") + number_part + pynutil.insert("\"")
-        tagger_graph = (optional_country_code + number_part).optimize()
 
-        # verbalizer
-        verbalizer_graph = pynini.closure(
-            pynutil.delete("country_code: \"")
-            + pynini.closure(RU_ALPHA_OR_SPACE, 1)
-            + pynutil.delete("\"")
-            + delete_space,
-            0,
-            1,
-        )
-        verbalizer_graph += (
-            pynutil.delete("number_part: \"") + pynini.closure(RU_ALPHA_OR_SPACE, 1) + pynutil.delete("\"")
-        )
-        verbalizer_graph = verbalizer_graph.optimize()
+        del_separator = pynini.closure(pynini.union("-", " "), 0, 1)
 
-        self.final_graph = (tagger_graph @ verbalizer_graph).optimize()
-        self.fst = self.add_tokens(
-            pynutil.insert("number_part: \"") + self.final_graph + pynutil.insert("\"")
-        ).optimize()
+        numbers = pynini.cdrewrite(
+            (NEMO_DIGIT | (NEMO_DIGIT + NEMO_DIGIT)) @ cardinal.graph_hundred_component_at_least_one_none_zero_digit,
+            "",
+            "",
+            NEMO_SIGMA,
+        )
+
+        numbers = (numbers + del_separator) | (
+            pynutil.delete("(") + numbers + (pynutil.delete(") ") | pynutil.delete(")-")) + numbers
+        )
+
+        number_length = ((NEMO_DIGIT + pynini.union("-", " ", ")", "(", "+"))) ** 7
+        number_part = pynini.compose(number_length, numbers) @ pynini.cdrewrite(delete_extra_space, "", "", NEMO_SIGMA)
+        number = pynutil.insert("number_part: \"") + number_part + pynutil.insert("\"")
+
+        graph = optional_country_code + number_part
+        final_graph = self.add_tokens(graph)
+        self.fst = final_graph.optimize()
