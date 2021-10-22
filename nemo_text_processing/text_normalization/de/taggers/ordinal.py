@@ -17,7 +17,7 @@
 # Russian minimally supervised number grammar.
 
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, NEMO_DIGIT
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, GraphFst
 
 try:
     import pynini
@@ -51,4 +51,3 @@ class OrdinalFst(GraphFst):
         final_graph = pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
-

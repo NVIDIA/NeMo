@@ -13,8 +13,10 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_CHAR,
     NEMO_DIGIT,
     NEMO_NOT_QUOTE,
+    TO_LOWER,
     GraphFst,
     delete_extra_space,
     delete_space,
@@ -42,11 +44,21 @@ class DateFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, number_names: dict, deterministic: bool):
+    def __init__(self, cardinal: GraphFst, deterministic: bool):
         super().__init__(name="date", kind="classify", deterministic=deterministic)
 
         # DE format: DD-MM-YYYY or DD-MM-YY
-        month_abbr_to_names = pynini.string_file(get_abs_path("data/months/abbr_to_name.tsv")).optimize()
+        month_abbr_graph = pynini.string_file(get_abs_path("data/months/abbr_to_name.tsv")).optimize()
+        month_abbr_graph = (
+            month_abbr_graph | ((TO_LOWER + pynini.closure(NEMO_CHAR)) @ month_abbr_graph)
+        ) + pynini.closure(pynutil.delete("."), 0, 1)
+
+        month_graph = pynini.string_file(get_abs_path("data/months/names.tsv")).optimize()
+        month_graph |= (TO_LOWER + pynini.closure(NEMO_CHAR)) @ month_graph
+        month_graph |= month_abbr_graph
+
+        month_numbers_graph = pynini.string_file(get_abs_path("data/months/numbers.tsv")).optimize()
+        cardinal_graph = cardinal.graph_hundred_component_at_least_one_none_zero_digit
 
         delete_sep = pynutil.add_weight(pynini.cross(".", " "), 1.09) | pynutil.add_weight(
             pynini.cross(pynini.union("/", "-"), " "), 1.1

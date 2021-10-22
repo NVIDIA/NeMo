@@ -16,18 +16,17 @@
 # Adapted from https://github.com/google/TextNormalizationCoveringGrammars
 # Russian minimally supervised number grammar.
 
+from nemo_text_processing.inverse_text_normalization.de.taggers.cardinal import CardinalFst as ITNCardinalFst
+from nemo_text_processing.text_normalization.de.utils import get_abs_path
 from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_ALPHA,
     NEMO_DIGIT,
     NEMO_SIGMA,
     NEMO_SPACE,
     GraphFst,
+    delete_space,
     insert_space,
-    NEMO_ALPHA,
-    delete_space
 )
-from nemo_text_processing.inverse_text_normalization.de.taggers.cardinal import CardinalFst as ITNCardinalFst
-from nemo_text_processing.text_normalization.de.utils import get_abs_path
-
 
 try:
     import pynini
@@ -52,20 +51,17 @@ class CardinalFst(GraphFst):
         super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
 
         self.graph = ITNCardinalFst().graph_no_exception.invert()
-        self.graph = self.graph @ pynini.cdrewrite(delete_space|pynutil.delete("und"), "[BOS]", "", NEMO_SIGMA)
+        self.graph = self.graph @ pynini.cdrewrite(delete_space | pynutil.delete("und"), "[BOS]", "", NEMO_SIGMA)
         self.graph_hundred_component_at_least_one_none_zero_digit = (
             pynini.closure(NEMO_DIGIT, 2, 3) | pynini.difference(NEMO_DIGIT, pynini.accep("0"))
-        ) @  self.graph
+        ) @ self.graph
 
         self.optional_graph_negative = pynini.closure(
             pynutil.insert("negative: ") + pynini.cross("-", "\"true\"") + insert_space, 0, 1
         )
 
         self.cardinal_numbers_with_optional_negative = (
-            self.optional_graph_negative
-            + pynutil.insert("integer: \"")
-            + self.graph
-            + pynutil.insert("\"")
+            self.optional_graph_negative + pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
         )
 
         graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
@@ -74,7 +70,6 @@ class CardinalFst(GraphFst):
         single_digits_graph = pynini.invert(graph_digit | graph_zero)
         self.single_digits_graph = single_digits_graph + pynini.closure(insert_space + single_digits_graph)
 
-        
         serial_graph = self.get_serial_graph()
         final_graph = pynutil.add_weight(self.cardinal_numbers_with_optional_negative, -0.1)
         final_graph |= (

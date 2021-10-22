@@ -14,6 +14,15 @@
 
 import os
 
+from nemo_text_processing.text_normalization.de.taggers.cardinal import CardinalFst
+
+# from nemo_text_processing.text_normalization.de.taggers.date import DateFst
+from nemo_text_processing.text_normalization.de.taggers.decimals import DecimalFst
+
+# from nemo_text_processing.text_normalization.de.taggers.electronic import ElectronicFst
+# from nemo_text_processing.text_normalization.de.taggers.measure import MeasureFst
+# from nemo_text_processing.text_normalization.de.taggers.money import MoneyFst
+from nemo_text_processing.text_normalization.de.taggers.ordinal import OrdinalFst
 from nemo_text_processing.text_normalization.en.graph_utils import (
     GraphFst,
     delete_extra_space,
@@ -22,18 +31,13 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
 )
 from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
 from nemo_text_processing.text_normalization.en.taggers.word import WordFst
-from nemo_text_processing.text_normalization.de.taggers.cardinal import CardinalFst
-# from nemo_text_processing.text_normalization.de.taggers.date import DateFst
-from nemo_text_processing.text_normalization.de.taggers.decimals import DecimalFst
-# from nemo_text_processing.text_normalization.de.taggers.electronic import ElectronicFst
-# from nemo_text_processing.text_normalization.de.taggers.measure import MeasureFst
-# from nemo_text_processing.text_normalization.de.taggers.money import MoneyFst
-from nemo_text_processing.text_normalization.de.taggers.ordinal import OrdinalFst
+
+from nemo.utils import logging
+
 # from nemo_text_processing.text_normalization.de.taggers.telephone import TelephoneFst
 # from nemo_text_processing.text_normalization.de.taggers.time import TimeFst
 # from nemo_text_processing.text_normalization.de.taggers.whitelist import WhiteListFst
 
-from nemo.utils import logging
 
 try:
     import pynini
@@ -85,14 +89,10 @@ class ClassifyFst(GraphFst):
         else:
             logging.info(f"Creating ClassifyFst grammars. This might take some time...")
 
-            self.cardinal = CardinalFst(
-                 deterministic=deterministic
-            )
+            self.cardinal = CardinalFst(deterministic=deterministic)
             cardinal_graph = self.cardinal.fst
 
-            self.ordinal = OrdinalFst(
-                cardinal=self.cardinal, deterministic=deterministic
-            )
+            self.ordinal = OrdinalFst(cardinal=self.cardinal, deterministic=deterministic)
             ordinal_graph = self.ordinal.fst
 
             self.decimal = DecimalFst(cardinal=self.cardinal, deterministic=deterministic)

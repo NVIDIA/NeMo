@@ -14,8 +14,16 @@
 
 from collections import defaultdict
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, NEMO_SPACE, GraphFst, insert_space, delete_space, delete_extra_space
-from nemo_text_processing.text_normalization.de.utils import load_labels, get_abs_path
+from nemo_text_processing.text_normalization.de.utils import get_abs_path, load_labels
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_DIGIT,
+    NEMO_SPACE,
+    GraphFst,
+    delete_extra_space,
+    delete_space,
+    insert_space,
+)
+
 try:
     import pynini
     from pynini.lib import pynutil
@@ -25,7 +33,6 @@ try:
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
-
 
 
 def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstLike') -> 'pynini.FstLike':

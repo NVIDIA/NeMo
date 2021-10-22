@@ -13,15 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
-from nemo_text_processing.text_normalization.en.verbalizers.whitelist import WhiteListFst
 from nemo_text_processing.text_normalization.de.verbalizers.cardinal import CardinalFst
+
 # from nemo_text_processing.text_normalization.de.verbalizers.date import DateFst
 from nemo_text_processing.text_normalization.de.verbalizers.decimal import DecimalFst
+
 # from nemo_text_processing.text_normalization.de.verbalizers.electronic import ElectronicFst
 # from nemo_text_processing.text_normalization.de.verbalizers.measure import MeasureFst
 # from nemo_text_processing.text_normalization.de.verbalizers.money import MoneyFst
 from nemo_text_processing.text_normalization.de.verbalizers.ordinal import OrdinalFst
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
+from nemo_text_processing.text_normalization.en.verbalizers.whitelist import WhiteListFst
+
 # from nemo_text_processing.text_normalization.de.verbalizers.telephone import TelephoneFst
 # from nemo_text_processing.text_normalization.de.verbalizers.time import TimeFst
 

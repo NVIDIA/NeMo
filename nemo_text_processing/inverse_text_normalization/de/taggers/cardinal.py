@@ -15,11 +15,7 @@
 
 from collections import defaultdict
 
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import (
-    NEMO_DIGIT,
-    NEMO_SPACE,
-    GraphFst,
-)
+from nemo_text_processing.inverse_text_normalization.de.graph_utils import NEMO_DIGIT, NEMO_SPACE, GraphFst
 from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path, load_labels
 
 try:
