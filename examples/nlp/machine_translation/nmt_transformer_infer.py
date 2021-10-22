@@ -22,6 +22,7 @@ USAGE Example:
 """
 
 
+import json
 from argparse import ArgumentParser
 
 import torch
@@ -33,6 +34,62 @@ from nemo.collections.nlp.modules.common.transformer import (
     EnsembleBeamSearchSequenceGenerator,
 )
 from nemo.utils import logging
+
+
+def translate_text(
+    models, args, src_text, tgt_text, tgt_text_all, src_texts, all_scores, all_timing, ensemble_generator
+):
+    if len(models) > 1:
+        src_ids, src_mask = models[0].prepare_inference_batch(src_text)
+        best_translations = ensemble_generator(src_ids, src_mask, return_beam_scores=args.write_scores)
+        if args.write_scores:
+            all_results, scores, best_translations = (
+                best_translations[0],
+                best_translations[1],
+                best_translations[2],
+            )
+            scores = scores.view(-1).data.cpu().numpy().tolist()
+            all_scores += scores
+            src_texts += [item for item in src_text for i in range(args.beam_size)]
+            all_results = models[0].ids_to_postprocessed_text(
+                all_results, models[0].decoder_tokenizer, models[0].target_processor
+            )
+            tgt_text_all += all_results
+        best_translations = models[0].ids_to_postprocessed_text(
+            best_translations, models[0].decoder_tokenizer, models[0].target_processor
+        )
+        tgt_text += best_translations
+    else:
+        model = models[0]
+        best_translations = model.translate(
+            text=src_text,
+            source_lang=args.source_lang,
+            target_lang=args.target_lang,
+            return_beam_scores=args.write_scores,
+            log_timing=args.write_timing,
+        )
+
+        if args.write_timing:
+            *best_translations, timing_dict = best_translations
+            all_timing.append(timing_dict)
+        else:
+            best_translations = (best_translations,)
+
+        if args.write_scores:
+            all_results, scores, best_translations = (
+                best_translations[0],
+                best_translations[1],
+                best_translations[2],
+            )
+            all_scores += scores
+            src_texts += [item for item in src_text for i in range(args.beam_size)]
+            tgt_text_all += all_results
+        else:
+            best_translations = best_translations[0]
+
+        tgt_text += best_translations
+
+    print(f"Translated {len(tgt_text)} sentences")
 
 
 def main():
@@ -71,6 +128,11 @@ def main():
         action="store_true",
         help="Whether to write a separate file with scores not including length penalties corresponding to each beam hypothesis (.score suffix)",
     )
+    parser.add_argument(
+        "--write_timing",
+        action="store_true",
+        help="Whether to write a separate file with detailed timing info (.timing.json suffix)",
+    )
     # shallow fusion specific parameters
     parser.add_argument(
         "--lm_model",
@@ -92,11 +154,15 @@ def main():
         model = nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(restore_path=model_path).eval()
         models.append(model)
 
+    if (len(models) > 1) and (args.write_timing):
+        raise RuntimeError("Cannot measure timing when more than 1 model is used")
+
     src_text = []
     tgt_text = []
     tgt_text_all = []
     src_texts = []
     all_scores = []
+    all_timing = []
 
     if torch.cuda.is_available():
         models = [model.cuda() for model in models]
@@ -124,6 +190,7 @@ def main():
         )
     else:
         model = models[0]
+        ensemble_generator = None
         if lm_model is not None:
             model.beam_search = BeamSearchSequenceGeneratorWithLanguageModel(
                 embedding=model.decoder.embedding,
@@ -155,91 +222,49 @@ def main():
 
     logging.info(f"Translating: {args.srctext}")
 
-    count = 0
     with open(args.srctext, 'r') as src_f:
         for line in src_f:
             src_text.append(line.strip())
             if len(src_text) == args.batch_size:
-                if len(models) > 1:
-                    src_ids, src_mask = models[0].prepare_inference_batch(src_text)
-                    best_translations = ensemble_generator(src_ids, src_mask, return_beam_scores=args.write_scores)
-                    if args.write_scores:
-                        all_results, scores, best_translations = (
-                            best_translations[0],
-                            best_translations[1],
-                            best_translations[2],
-                        )
-                        scores = scores.view(-1).data.cpu().numpy().tolist()
-                        all_scores += scores
-                        src_texts += [item for item in src_text for i in range(args.beam_size)]
-                        all_results = models[0].ids_to_postprocessed_text(
-                            all_results, models[0].decoder_tokenizer, models[0].target_processor
-                        )
-                        tgt_text_all += all_results
-                    best_translations = models[0].ids_to_postprocessed_text(
-                        best_translations, models[0].decoder_tokenizer, models[0].target_processor
+                # warmup when measuring timing
+                if not all_timing:
+                    print("running a warmup batch")
+                    translate_text(
+                        models=models,
+                        args=args,
+                        src_text=src_text,
+                        tgt_text=[],
+                        tgt_text_all=[],
+                        src_texts=[],
+                        all_scores=[],
+                        all_timing=[],
+                        ensemble_generator=ensemble_generator,
                     )
-                    tgt_text += best_translations
-                else:
-                    best_translations = model.translate(
-                        text=src_text,
-                        source_lang=args.source_lang,
-                        target_lang=args.target_lang,
-                        return_beam_scores=args.write_scores,
-                    )
-                    if args.write_scores:
-                        all_results, scores, best_translations = (
-                            best_translations[0],
-                            best_translations[1],
-                            best_translations[2],
-                        )
-                        all_scores += scores
-                        src_texts += [item for item in src_text for i in range(args.beam_size)]
-                        tgt_text_all += all_results
-                    tgt_text += best_translations
+                translate_text(
+                    models=models,
+                    args=args,
+                    src_text=src_text,
+                    tgt_text=tgt_text,
+                    tgt_text_all=tgt_text_all,
+                    src_texts=src_texts,
+                    all_scores=all_scores,
+                    all_timing=all_timing,
+                    ensemble_generator=ensemble_generator,
+                )
                 src_text = []
-                print(f"Translated {count + 1} sentences")
-            count += 1
+
         if len(src_text) > 0:
-            if len(models) > 1:
-                src_ids, src_mask = models[0].prepare_inference_batch(src_text)
-                best_translations = ensemble_generator(src_ids, src_mask, return_beam_scores=args.write_scores)
-                if args.write_scores:
-                    all_results, scores, best_translations = (
-                        best_translations[0],
-                        best_translations[1],
-                        best_translations[2],
-                    )
-                    scores = scores.view(-1).data.cpu().numpy().tolist()
-                    all_scores += scores
-                    src_texts += [item for item in src_text for i in range(args.beam_size)]
-                    all_results = models[0].ids_to_postprocessed_text(
-                        all_results, models[0].decoder_tokenizer, models[0].target_processor
-                    )
-                    tgt_text_all += all_results
-                best_translations = models[0].ids_to_postprocessed_text(
-                    best_translations, models[0].decoder_tokenizer, models[0].target_processor
-                )
-                tgt_text += best_translations
-            else:
-                best_translations = model.translate(
-                    text=src_text,
-                    source_lang=args.source_lang,
-                    target_lang=args.target_lang,
-                    return_beam_scores=args.write_scores,
-                )
-                if args.write_scores:
-                    all_results, scores, best_translations = (
-                        best_translations[0],
-                        best_translations[1],
-                        best_translations[2],
-                    )
-                    all_scores += scores
-                    src_texts += [item for item in src_text for i in range(args.beam_size)]
-                    tgt_text_all += all_results
-                tgt_text += best_translations
-            src_text = []
-            print(f"Translated {count} sentences")
+            translate_text(
+                models=models,
+                args=args,
+                src_text=src_text,
+                tgt_text=tgt_text,
+                tgt_text_all=tgt_text_all,
+                src_texts=src_texts,
+                all_scores=all_scores,
+                all_timing=all_timing,
+                ensemble_generator=ensemble_generator,
+            )
 
     with open(args.tgtout, 'w') as tgt_f:
         for line in tgt_text:
@@ -249,6 +274,16 @@ def main():
         with open(args.tgtout + '.score', 'w') as tgt_f_scores:
             for line, score, inp in zip(tgt_text_all, all_scores, src_texts):
                 tgt_f_scores.write(inp + "\t" + line + "\t" + str(score) + "\n")
+
+    if args.write_timing:
+        # collect list of dicts to a dict of lists
+        timing_dict = {}
+        if len(all_timing):
+            for k in all_timing[0].keys():
+                timing_dict[k] = [t[k] for t in all_timing]
+
+        with open(args.tgtout + '.timing.json', 'w') as timing_fh:
+            json.dump(timing_dict, timing_fh)
 
 
 if __name__ == '__main__':
