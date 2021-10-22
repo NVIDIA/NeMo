@@ -366,7 +366,7 @@ class TestExpManager:
 
     @pytest.mark.unit
     def test_nemo_checkpoint_make_checkpoint_dir(self, tmp_path):
-        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4, check_val_every_n_epoch=5)
+        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4, every_n_epochs=5)
         exp_manager(
             test_trainer,
             {
@@ -378,6 +378,3 @@ class TestExpManager:
         test_trainer.fit(model)
 
         assert Path(str(tmp_path / "test" / "checkpoints" / "default.nemo")).exists()
-
-        model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / "default.nemo"))
-        assert float(model(torch.tensor([1.0, 1.0], device=model.device))) == 0.0

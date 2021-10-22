@@ -665,6 +665,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         super().__init__(**kwargs)
 
         if self.save_top_k != -1 and n_resume:
+            logging.debug("Checking previous runs")
             self.nemo_topk_check_previous_run()
 
     def nemo_topk_check_previous_run(self):
