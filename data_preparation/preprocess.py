@@ -22,7 +22,7 @@ def main(cfg):
 
     file_number = int(os.environ.get("SLURM_ARRAY_TASK_ID"))
     extracted_path = os.path.join(data_save_dir, f"{file_number:02d}.jsonl")
-    code_path = "/opt/bignlp/NeMo/examples/nlp/language_modeling/preprocess_data_for_megatron.py"
+    code_path = "/opt/bignlp/NeMo/scripts/nlp_language_modeling/preprocess_data_for_megatron.py"
     output_prefix = os.path.join(data_save_dir, f"my-gpt3_{file_number:02d}")
 
     flags = (
