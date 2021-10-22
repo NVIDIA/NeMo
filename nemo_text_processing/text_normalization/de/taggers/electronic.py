@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+from nemo_text_processing.text_normalization.de.utils import get_abs_path
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_ALPHA,
     NEMO_DIGIT,
@@ -21,8 +22,6 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     delete_space,
     insert_space,
 )
-from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA, TO_CYRILLIC
-from nemo_text_processing.text_normalization.ru.utils import get_abs_path
 
 try:
     import pynini
@@ -71,7 +70,8 @@ class ElectronicFst(GraphFst):
 
         protocol_start = pynini.accep("https://") | pynini.accep("http://")
         protocol_symbols = pynini.closure(
-            (NEMO_ALPHA | pynutil.add_weight(graph_symbols | pynini.cross(":", "colon"), -0.1)) + pynutil.insert(" ")
+            (NEMO_ALPHA | pynutil.add_weight(graph_symbols | pynini.cross(":", "doppelpunkt"), -0.1))
+            + pynutil.insert(" ")
         )
         protocol_end = pynini.accep("www.")
         protocol = protocol_start | protocol_end | (protocol_start + protocol_end)
