@@ -14,11 +14,10 @@
 
 # from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertModel
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
+from nemo.utils import logging
 
 # from nemo.collections.nlp.models.language_modeling.megatron.t5_model import T5Model
 
-
-from nemo.utils import logging
 
 try:
     import apex

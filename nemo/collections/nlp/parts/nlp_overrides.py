@@ -34,6 +34,9 @@ from torch.nn.modules.module import Module
 from torch.nn.parallel import DistributedDataParallel
 from torch.optim.optimizer import Optimizer
 
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
+from nemo.utils import AppState, logging
+
 try:
     from apex.transformer import parallel_state
     from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
@@ -44,9 +47,6 @@ try:
 
 except ModuleNotFoundError:
     logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
-
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
-from nemo.utils import AppState, logging
 
 
 class NLPDDPPlugin(DDPPlugin):
