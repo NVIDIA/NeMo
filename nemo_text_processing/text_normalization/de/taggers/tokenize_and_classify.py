@@ -16,7 +16,7 @@ import os
 
 from nemo_text_processing.text_normalization.de.taggers.cardinal import CardinalFst
 
-# from nemo_text_processing.text_normalization.de.taggers.date import DateFst
+from nemo_text_processing.text_normalization.de.taggers.date import DateFst
 from nemo_text_processing.text_normalization.de.taggers.decimals import DecimalFst
 
 # from nemo_text_processing.text_normalization.de.taggers.electronic import ElectronicFst
@@ -100,8 +100,8 @@ class ClassifyFst(GraphFst):
 
             # self.measure = MeasureFst(cardinal=self.cardinal, decimal=self.decimal, deterministic=deterministic)
             # measure_graph = self.measure.fst
-            # self.date = DateFst(number_names=number_names, deterministic=deterministic)
-            # date_graph = self.date.fst
+            self.date = DateFst(cardinal=self.cardinal, deterministic=deterministic)
+            date_graph = self.date.fst
             word_graph = WordFst(deterministic=deterministic).fst
             # self.time = TimeFst(number_names=number_names, deterministic=deterministic)
             # time_graph = self.time.fst
@@ -118,9 +118,9 @@ class ClassifyFst(GraphFst):
             classify = (
                 # pynutil.add_weight(whitelist_graph, 1.01)
                 # | pynutil.add_weight(time_graph, 1.1)
-                # | pynutil.add_weight(date_graph, 1.09)
                 # | pynutil.add_weight(measure_graph, 0.9)
                 pynutil.add_weight(cardinal_graph, 1.1)
+                | pynutil.add_weight(date_graph, 1.09)
                 | pynutil.add_weight(ordinal_graph, 1.1)
                 | pynutil.add_weight(decimal_graph, 1.1)
                 # | pynutil.add_weight(money_graph, 1.1)
