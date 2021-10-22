@@ -256,7 +256,7 @@ class NLPModel(ModelPT, Exportable):
             return False
 
     def restore_megatron_encoder_weights(self):
-        """ Model parallel weights need to be restored after DDP is initialized and 
+        """ Model parallel weights need to be restored after DDP is initialized and
             model parallel ranks are known.
         """
         if hasattr(self, 'bert_model'):
@@ -321,18 +321,3 @@ class NLPModel(ModelPT, Exportable):
         finally:
             cls._set_model_restore_state(is_being_restored=False)
         return checkpoint
-
-    def save_to(self, save_path: str):
-        app_state = AppState()
-        # Add NeMo rank check as well
-        if app_state.model_parallel_size is not None:
-            if app_state.model_parallel_size > 1:
-                if not isinstance(self._save_restore_connector, NLPSaveRestoreConnector):
-                    logging.warning(
-                        f"Using {self._save_restore_connector.__class__} to save a model parallel model.  Overriding with NLPSaveRestoreConnector. Make sure to subclass NLPSaveRestoreConnector."
-                    )
-                    self._save_restore_connector = NLPSaveRestoreConnector()
-            save_path = os.path.abspath(os.path.expanduser(save_path))
-            self._save_restore_connector.save_to(self, save_path)
-        else:
-            super(NLPModel, self).save_to(save_path=save_path)
