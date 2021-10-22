@@ -25,7 +25,16 @@ from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
 from nemo.collections.common.tokenizers.youtokentome_tokenizer import YouTokenToMeTokenizer
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import get_huggingface_pretrained_lm_models_list
 from nemo.collections.nlp.modules.common.lm_utils import get_pretrained_lm_models_list
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_tokenizer
+from nemo.collections.nlp.parts.nlp_overrides import HAVE_APEX
+
+try:
+    from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_tokenizer
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
+
 from nemo.utils import logging
 
 __all__ = ['get_tokenizer', 'get_tokenizer_list']
@@ -88,6 +97,8 @@ def get_tokenizer(
         special_tokens_dict = special_tokens
 
     if 'megatron' in tokenizer_name:
+        if not HAVE_APEX:
+            raise RuntimeError("Apex required to use megatron.")
         if vocab_file is None:
             vocab_file = nemo.collections.nlp.modules.common.megatron.megatron_utils.get_megatron_vocab_file(
                 tokenizer_name

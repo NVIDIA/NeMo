@@ -173,4 +173,4 @@ def get_megatron_transformer(
     # else:
     #     raise ValueError('Megatron decoders are not currently supported.')
 
-    return model
+    # return model
