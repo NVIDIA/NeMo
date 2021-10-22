@@ -39,14 +39,14 @@ from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state
+    from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
 
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
 
-    logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
+    HAVE_APEX = False
 
-from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
 from nemo.collections.nlp.modules.common.megatron.megatron_bert import (
     get_megatron_checkpoint_version,
     set_megatron_checkpoint_version,
