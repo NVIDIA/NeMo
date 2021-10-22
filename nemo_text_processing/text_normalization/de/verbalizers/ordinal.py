@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst, NEMO_SIGMA
 from nemo_text_processing.text_normalization.de.utils import get_abs_path
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, NEMO_SIGMA, GraphFst
 
 try:
     import pynini
@@ -41,20 +41,13 @@ class OrdinalFst(GraphFst):
         graph_ties = pynini.string_file(get_abs_path("data/ordinals/ties.tsv")).invert()
         graph_thousands = pynini.string_file(get_abs_path("data/ordinals/thousands.tsv")).invert()
 
-        graph = (
-            pynutil.delete("integer: \"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
-        )
-        
+        graph = pynutil.delete("integer: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+
         suffixes = pynini.union("ten", "tem", "ter", "tes", "te")
         convert_rest = pynutil.insert(suffixes, weight=0.01)
 
         suffix = pynini.cdrewrite(
-            pynini.closure(graph_digit | graph_ties | graph_thousands, 0, 1) + convert_rest,
-            "",
-            "[EOS]",
-            NEMO_SIGMA,
+            pynini.closure(graph_digit | graph_ties | graph_thousands, 0, 1) + convert_rest, "", "[EOS]", NEMO_SIGMA,
         ).optimize()
         self.graph = pynini.compose(graph, suffix)
         self.suffix = suffix

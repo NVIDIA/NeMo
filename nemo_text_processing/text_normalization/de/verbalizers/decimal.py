@@ -13,9 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_extra_space, insert_space, delete_space
 from nemo_text_processing.text_normalization.de.utils import get_abs_path
-
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_NOT_QUOTE,
+    GraphFst,
+    delete_extra_space,
+    delete_space,
+    insert_space,
+)
 
 try:
     import pynini
@@ -24,7 +29,6 @@ try:
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
-\
 
 
 class DecimalFst(GraphFst):
