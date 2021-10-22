@@ -93,6 +93,9 @@ class TrainerConfig:
     reload_dataloaders_every_n_epochs: int = 0
     ipus: Optional[int] = None
     devices: Any = None
+    strategy: Any = None
+    enable_checkpointing: bool = True
+    enable_model_summary: bool = True
 
 
 # Register the trainer config.
