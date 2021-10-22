@@ -56,8 +56,6 @@ exp_manager:
 
 
 model:
-  nemo_file_path: train_scripts/logs/126m/126m_gpt3.nemo  # after each training run save .nemo file to this location
-
   # model parallelism 
   micro_batch_size: 4
   tensor_model_parallel_size: 1
