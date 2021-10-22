@@ -12,8 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.utils import logging
 from nemo.collections.nlp.modules.common.megatron.megatron_bert import MegatronBertEncoder
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import (
     get_megatron_checkpoint,
     get_megatron_lm_models_list,
 )
+
+try:
+    import apex
+
+except ModuleNotFoundError:
+    logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
