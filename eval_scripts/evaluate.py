@@ -46,6 +46,7 @@ def run_evaluation(cfg, dependency=None):
     # Read config
     bignlp_path = cfg.get("bignlp_path")
     container = cfg.get("container")
+    container_mounts = cfg.get("container_mounts")
     eval_cfg = cfg.get("evaluation")
     run_cfg = eval_cfg.get("run")
     model_cfg = eval_cfg.get("model")
@@ -77,10 +78,18 @@ def run_evaluation(cfg, dependency=None):
     log_dir = os.path.join(bignlp_path, run_cfg.get("output_path"), name)
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
+    
+    # Process container-mounts.
+    mounts_str = f"{bignlp_path}:{bignlp_path}"
+    if container_mounts is not None:
+        assert isinstance(container_mounts, omegaconf.listconfig.ListConfig), "container_mounts must be a list."
+        for mount in container_mounts:
+            if mount is not None and isinstance(mount, str):
+                mounts_str += f",{mount}:{mount}"
 
     flags = (
         f"--container-image {container} "
-        f"--container-mounts {bignlp_path}:{bignlp_path} "
+        f"--container-mounts {mounts_str} "
         f"-o {log_dir}/{name}-%j.log "
         f"-e {log_dir}/{name}-%j.error "
     )

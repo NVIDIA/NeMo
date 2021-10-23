@@ -12,6 +12,9 @@ from eval_scripts import evaluate
 
 def convert_to_absolute_path(cfg):
     base = cfg.bignlp_path
+    data_dir = cfg.data_dir
+    if data_dir[0] != "/":
+        cfg['data_dir'] = os.path.join(base, data_dir)
 
     data_cfg = cfg.data_preparation
     for k, v in data_cfg.items():
@@ -41,7 +44,7 @@ def convert_to_absolute_path(cfg):
                 if k2 == "data_prefix" and v2 is not None:
                     for index, elem in enumerate(v2):
                         if isinstance(elem, str) and elem[0] != "/":
-                            v2[index] = os.path.join(base, elem)
+                            v2[index] = os.path.join(cfg.data_dir, elem)
         if "_path" in k and v is not None and v[0] != "/":
             model_cfg[k] = os.path.join(base, v)
     return cfg

@@ -3,6 +3,7 @@ import os
 import subprocess
 
 import hydra
+import omegaconf
 
 from . import utils
 
@@ -44,6 +45,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
     # Read config
     data_cfg = cfg["data_preparation"]
     bignlp_path = cfg.get("bignlp_path")
+    container_mounts = cfg.get("container_mounts")
     slurm_cfg = data_cfg["slurm"]
     container = cfg["container"]
 
@@ -81,12 +83,21 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             file_name="merges.txt",
         )
 
+    # Process container-mounts.
+    mounts_str = f"{bignlp_path}:{bignlp_path}"
+    if container_mounts is not None:
+        assert isinstance(container_mounts, omegaconf.listconfig.ListConfig), "container_mounts must be a list."
+        for mount in container_mounts:
+            if mount is not None and isinstance(mount, str):
+                mounts_str += f",{mount}:{mount}"
+
+
     assert isinstance(download_the_pile, bool), "download_the_pile must be bool."
     if download_the_pile:
         # Download The Pile dataset files
         flags = (
             f"--container-image {container} "
-            f"--container-mounts {bignlp_path}:{bignlp_path}"
+            f"--container-mounts {mounts_str}"
         )
         download_script_path = os.path.join(
             bignlp_path, "data_preparation/download_script.sh"
@@ -113,7 +124,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         # Extract The Pile dataset files
         flags = (
             f"--container-image {container} "
-            f"--container-mounts {bignlp_path}:{bignlp_path}"
+            f"--container-mounts {mounts_str}"
         )
         extract_script_path = os.path.join(
             bignlp_path, "data_preparation/extract_script.sh"
@@ -142,7 +153,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         # Preprocess the dataset
         flags = (
             f"--container-image {container} "
-            f"--container-mounts {bignlp_path}:{bignlp_path}"
+            f"--container-mounts {mounts_str}"
         )
         preprocess_script_path = os.path.join(
             bignlp_path, "data_preparation/preprocess_script.sh"

@@ -3,7 +3,7 @@ import os
 import subprocess
 
 import hydra
-from omegaconf import OmegaConf
+import omegaconf
 
 
 def create_slurm_file(
@@ -46,6 +46,7 @@ def create_slurm_file(
 def run_training(cfg, hydra_args="", dependency=None):
     # Read config
     bignlp_path = cfg.get("bignlp_path")
+    container_mounts = cfg.get("container_mounts")
     container = cfg.get("container")
     train_cfg = cfg.get("training")
     run_cfg = train_cfg.get("run")
@@ -71,10 +72,19 @@ def run_training(cfg, hydra_args="", dependency=None):
     log_dir = run_cfg.get("log_dir")
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
+    
+    # Process container-mounts.
+    mounts_str = f"{bignlp_path}:{bignlp_path}"
+    if container_mounts is not None:
+        assert isinstance(container_mounts, omegaconf.listconfig.ListConfig), "container_mounts must be a list."
+        for mount in container_mounts:
+            if mount is not None and isinstance(mount, str):
+                mounts_str += f",{mount}:{mount}"
+
 
     flags = (
         f"--container-image {container} "
-        f"--container-mounts {bignlp_path}:{bignlp_path} "
+        f"--container-mounts {mounts_str} "
         f"-o {log_dir}/{name}-%j.log "
         f"-e {log_dir}/{name}-%j.error "
     )

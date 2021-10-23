@@ -123,62 +123,62 @@ model:
     eod_mask_loss: False # Mask loss for the end of document tokens
     data_prefix: # Should be weight path weight path... for a blended dataset
       - .0333
-      - data_preparation/the_pile/my-gpt3_00_text_document
+      - my-gpt3_00_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_01_text_document
+      - my-gpt3_01_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_02_text_document
+      - my-gpt3_02_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_03_text_document
+      - my-gpt3_03_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_04_text_document
+      - my-gpt3_04_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_05_text_document
+      - my-gpt3_05_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_06_text_document
+      - my-gpt3_06_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_07_text_document
+      - my-gpt3_07_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_08_text_document
+      - my-gpt3_08_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_09_text_document
+      - my-gpt3_09_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_10_text_document
+      - my-gpt3_10_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_11_text_document
+      - my-gpt3_11_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_12_text_document
+      - my-gpt3_12_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_13_text_document
+      - my-gpt3_13_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_14_text_document
+      - my-gpt3_14_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_15_text_document
+      - my-gpt3_15_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_16_text_document
+      - my-gpt3_16_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_17_text_document
+      - my-gpt3_17_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_18_text_document
+      - my-gpt3_18_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_19_text_document
+      - my-gpt3_19_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_20_text_document
+      - my-gpt3_20_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_21_text_document
+      - my-gpt3_21_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_22_text_document
+      - my-gpt3_22_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_23_text_document
+      - my-gpt3_23_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_24_text_document
+      - my-gpt3_24_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_25_text_document
+      - my-gpt3_25_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_26_text_document
+      - my-gpt3_26_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_27_text_document
+      - my-gpt3_27_text_document
       - .0333
-      - data_preparation/the_pile/my-gpt3_28_text_document
+      - my-gpt3_28_text_document
       - .0334
-      - data_preparation/the_pile/my-gpt3_29_text_document
+      - my-gpt3_29_text_document
