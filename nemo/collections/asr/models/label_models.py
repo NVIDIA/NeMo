@@ -23,10 +23,10 @@ import torch
 from omegaconf import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning import Trainer
+from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataset
-from nemo.collections.asr.data import audio_to_label_dataset
-from torch.utils.data import ChainDataset
+from nemo.collections.asr.data.audio_to_label_dataset import get_tarred_speech_label_dataset
 from nemo.collections.asr.losses.angularloss import AngularSoftmaxLoss
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
@@ -128,11 +128,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
                 return None
 
             shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
-            dataset = audio_to_label_dataset.get_tarred_speech_label_dataset(
-                config=config,
-                shuffle_n=shuffle_n,
-                global_rank=self.global_rank,
-                world_size=self.world_size,
+            dataset = get_tarred_speech_label_dataset(
+                config=config, shuffle_n=shuffle_n, global_rank=self.global_rank, world_size=self.world_size,
             )
             shuffle = False
         else:
