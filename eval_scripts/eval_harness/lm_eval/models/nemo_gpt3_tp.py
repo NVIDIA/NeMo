@@ -20,7 +20,6 @@ from torch.utils.data import Dataset, DataLoader
 try:
     import nemo.collections.nlp as nemo_nlp
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-    from nemo.collections.asr.metrics.wer import WER, word_error_rate
     from nemo.collections.asr.models import EncDecCTCModel
     from nemo.collections.nlp.modules.common.megatron.utils import (
         average_losses_across_data_parallel_group,
