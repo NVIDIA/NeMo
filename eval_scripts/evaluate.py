@@ -3,6 +3,7 @@ import os
 import subprocess
 
 import hydra
+import omegaconf
 
 
 def create_slurm_file(
