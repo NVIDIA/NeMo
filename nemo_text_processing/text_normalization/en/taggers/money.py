@@ -84,6 +84,51 @@ class MoneyFst(GraphFst):
 
         graph_integer |= singular_graph
 
+        currencies = load_labels(get_abs_path("data/currency/currency.tsv"))
+        zero_graph = pynini.cross("0", "") | pynini.accep("0")
+        # add minor currency part only when there are two digits after the point
+        # .01 -> {zero one cent, one cent}, .05 -> {oh five, five cents}
+        two_digits_fractional_part = (
+            NEMO_SIGMA
+            + pynini.closure(NEMO_DIGIT)
+            + (
+                (pynini.accep(".") + (NEMO_DIGIT ** (2) | zero_graph + (NEMO_DIGIT - "0")))
+                | pynutil.delete(".") + pynini.cross(pynini.closure("0", 1), "")
+            )
+        )
+
+        decimal_graph_with_minor = None
+
+        for curr_symbol, curr_name in currencies:
+            curr_symbol_graph = pynutil.delete(curr_symbol)
+            graph_end_maj = pynutil.insert(" currency_maj: \"" + curr_symbol + "\"")
+            graph_end_min = pynutil.insert(" currency_min: \"" + curr_symbol + "\"")
+            preserve_order = pynutil.insert(" preserve_order: true")
+            integer_part = decimal.graph_integer + graph_end_maj
+
+            minor_curr = (
+                (NEMO_DIGIT + NEMO_DIGIT) | (pynutil.delete("0") + NEMO_DIGIT)
+            ) @ cardinal.graph_hundred_component_at_least_one_none_zero_digit
+            minor_curr = pynutil.insert("fractional_part: \"") + minor_curr + pynutil.insert("\"")
+
+            decimal_graph_with_minor_curr = (
+                curr_symbol_graph
+                + pynini.closure(integer_part, 0, 1)
+                + pynini.cross(".", " ")
+                + minor_curr
+                + graph_end_min
+                + preserve_order
+            )
+
+            decimal_graph_with_minor_curr = pynini.compose(two_digits_fractional_part, decimal_graph_with_minor_curr)
+
+            decimal_graph_with_minor = (
+                decimal_graph_with_minor_curr
+                if decimal_graph_with_minor is None
+                else pynini.union(decimal_graph_with_minor, decimal_graph_with_minor_curr)
+            )
+
+        graph_decimal |= pynutil.add_weight(decimal_graph_with_minor, -0.01)
         final_graph = graph_integer | graph_decimal
 
         if not deterministic:

@@ -139,6 +139,7 @@ class Normalizer:
             print(tagged_text)
         self.parser(tagged_text)
         tokens = self.parser.parse()
+
         tags_reordered = self.generate_permutations(tokens)
         for tagged_text in tags_reordered:
             tagged_text = pynini.escape(tagged_text)
