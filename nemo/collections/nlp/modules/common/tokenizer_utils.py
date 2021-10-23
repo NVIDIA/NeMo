@@ -26,6 +26,7 @@ from nemo.collections.common.tokenizers.youtokentome_tokenizer import YouTokenTo
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import get_huggingface_pretrained_lm_models_list
 from nemo.collections.nlp.modules.common.lm_utils import get_pretrained_lm_models_list
 from nemo.collections.nlp.parts.nlp_overrides import HAVE_APEX
+from nemo.utils import logging
 
 try:
     from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_tokenizer
@@ -35,7 +36,6 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
-from nemo.utils import logging
 
 __all__ = ['get_tokenizer', 'get_tokenizer_list']
 
