@@ -127,7 +127,7 @@ class MoneyFst(GraphFst):
                 graph_integer
                 + delete_space
                 + insert_space
-                + pynini.closure(pynutil.insert("and "), 0, 1)
+                + pynini.closure(pynutil.insert("and ", weight=-0.0001), 0, 1)
                 + fractional_part_sing
             )
 
@@ -147,7 +147,7 @@ class MoneyFst(GraphFst):
                 graph_integer
                 + delete_space
                 + insert_space
-                + pynini.closure(pynutil.insert("and "), 0, 1)
+                + pynini.closure(pynutil.insert("and ", weight=-0.0001), 0, 1)
                 + fractional_part_plural
             )
 
