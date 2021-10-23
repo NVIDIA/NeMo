@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from audio_to_text_dataset import convert_to_config_list
+from nemo.collections.asr.data.audio_to_text_dataset import convert_to_config_list
 from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data import audio_to_label
