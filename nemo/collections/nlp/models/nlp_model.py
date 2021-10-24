@@ -202,19 +202,6 @@ class NLPModel(ModelPT, Exportable):
         else:
             return False
 
-    def restore_megatron_encoder_weights(self):
-        """ Model parallel weights need to be restored after DDP is initialized and
-            model parallel ranks are known.
-        """
-        if hasattr(self, 'bert_model'):
-            if isinstance(self.bert_model, MegatronBertEncoder):
-                logging.info(f"Restoring from pretrained model parallel checkpoint: {self.bert_model._restore_path}")
-                self.bert_model.restore_weights(self.bert_model._restore_path)
-        elif hasattr(self, 'encoder'):
-            if isinstance(self.encoder, MegatronEncoderModule):
-                logging.info(f"Restoring from pretrained model parallel checkpoint: {self.encoder.checkpoint_file}")
-                self.encoder._encoder.restore_weights(self.encoder.checkpoint_file)
-
     @classmethod
     def load_from_checkpoint(
         cls,
