@@ -129,7 +129,11 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
             shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
             dataset = get_tarred_speech_label_dataset(
-                featurizer=featurizer, config=config, shuffle_n=shuffle_n, global_rank=self.global_rank, world_size=self.world_size,
+                featurizer=featurizer,
+                config=config,
+                shuffle_n=shuffle_n,
+                global_rank=self.global_rank,
+                world_size=self.world_size,
             )
             shuffle = False
         else:
