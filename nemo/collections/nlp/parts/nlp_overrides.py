@@ -49,6 +49,16 @@ except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
 
+try:
+    from apex.transformer import parallel_state
+    from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_APEX = False
+
 
 class NLPDDPPlugin(DDPPlugin):
     """ DDP plugin for Pytorch Lightning. Needed to customize DDP for model parallel models.
