@@ -19,7 +19,6 @@ from typing import Any, Dict, List, Optional, Union
 
 import pytorch_lightning as pl
 import torch
-from apex.transformer import parallel_state
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
@@ -35,13 +34,18 @@ from torch.nn.modules.module import Module
 from torch.nn.parallel import DistributedDataParallel
 from torch.optim.optimizer import Optimizer
 
-from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
-from nemo.collections.nlp.modules.common.megatron.megatron_bert import (
-    get_megatron_checkpoint_version,
-    set_megatron_checkpoint_version,
-)
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import AppState, logging
+
+try:
+    from apex.transformer import parallel_state
+    from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_APEX = False
 
 
 class NLPDDPPlugin(DDPPlugin):
@@ -61,6 +65,9 @@ class NLPDDPPlugin(DDPPlugin):
     ) -> None:
         super().__init__(parallel_devices, num_nodes, cluster_environment, checkpoint_io, sync_batchnorm, **kwargs)
 
+        if not HAVE_APEX:
+            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
+
     def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
         # call PTL init ddp
         super().setup_distributed()
@@ -70,70 +77,6 @@ class NLPDDPPlugin(DDPPlugin):
 
         if app_state.model_parallel_size is not None:
             self.init_model_parallel(app_state.global_rank, app_state.world_size)
-            # if self.lightning_module.has_megatron_encoder and not self.lightning_module.is_model_parallel_initialized:
-            #     self.init_model_parallel(app_state.global_rank, app_state.world_size)
-
-    def start_training(self, trainer: 'Trainer') -> None:
-        """ PTL Hook that is called after DPP is initialized. """
-
-        if self.lightning_module.has_megatron_encoder:
-            app_state = AppState()
-            if app_state.model_parallel_size is not None:
-                # mpu grad clipping needs parameters to have the attribute model_parallel
-                parameters = self.lightning_module.parameters()
-                for p in parameters:
-                    if not hasattr(p, 'model_parallel'):
-                        p.model_parallel = False
-
-                if get_megatron_checkpoint_version() is not None:
-                    # megatron checkpoint already restored
-                    pass
-                elif trainer.checkpoint_connector.resume_checkpoint_path is not None:
-                    # PTL auto-resuming, need to update checkpoint name
-                    # update path based on model parallel rank
-                    filepath = trainer.checkpoint_connector.resume_checkpoint_path
-                    dirname = os.path.dirname(os.path.dirname(filepath))
-                    basename = os.path.basename(filepath)
-                    filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
-                    trainer.checkpoint_connector.resume_checkpoint_path = filepath
-                    logging.info(
-                        f'Resuming training from checkpoint {trainer.checkpoint_connector.resume_checkpoint_path}'
-                    )
-                    # need to set checkpoint version for megatron-lm
-                    checkpoint_version = torch.load(trainer.checkpoint_connector.resume_checkpoint_path).get(
-                        'checkpoint_version', None
-                    )
-                    if checkpoint_version is not None:
-                        set_megatron_checkpoint_version(checkpoint_version)
-                    else:
-                        logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
-                        set_megatron_checkpoint_version(0)
-                else:
-                    self.lightning_module.restore_megatron_encoder_weights()
-            else:
-                if get_megatron_checkpoint_version() is not None:
-                    # megatron checkpoint already restored
-                    pass
-                else:
-                    self.lightning_module.restore_megatron_encoder_weights()
-
-            self.lightning_module.register_megatron_checkpoint_version()
-
-        return super().start_training(trainer)
-
-    def start_testing(self, trainer: 'Trainer') -> None:
-        """ PTL Hook that is called after DPP is initialized. """
-        app_state = AppState()
-
-        if app_state.model_parallel_size is not None:
-
-            if self.has_megatron_encoder:
-                # check megatron checkpoint version
-                checkpoint_version = get_megatron_checkpoint_version()
-                if checkpoint_version is None:
-                    raise ValueError("Unable to find megatron checkpoint version.")
-
-        return super().start_testing(trainer)
 
     def configure_ddp(self):
         """ Override LightningModule ddp if using model parallel.
@@ -227,6 +170,8 @@ class NLPCheckpointConnector(CheckpointConnector):
 
     def __init__(self, trainer, resume_from_checkpoint):
         super().__init__(trainer, resume_from_checkpoint)
+        if not HAVE_APEX:
+            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
 
     def save_checkpoint(self, filepath, weights_only: bool = False) -> None:
         """Slightly modified version of PyTorch Lightning's save_checkpoint.
@@ -254,6 +199,8 @@ class NLPCheckpointConnector(CheckpointConnector):
 class NLPSaveRestoreConnector(SaveRestoreConnector):
     def __init__(self) -> None:
         super().__init__()
+        if not HAVE_APEX:
+            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
 
     def save_to(self, model, save_path: str):
         app_state = AppState()
@@ -318,6 +265,8 @@ class NLPNativeMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
 class NLPNativeBfloat16PrecisionPlugin(NativeMixedPrecisionPlugin):
     def __init__(self) -> None:
         super().__init__(precision='bf16')
+        if not HAVE_APEX:
+            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
 
     def clip_gradients(
         self,
