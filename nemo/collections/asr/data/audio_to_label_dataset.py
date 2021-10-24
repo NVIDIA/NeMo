@@ -129,7 +129,7 @@ def get_tarred_speech_label_dataset(
             tarred_audio_filepath = tarred_audio_filepath[0]
         dataset = audio_to_label.TarredAudioToSpeechLabelDataset(
             audio_tar_filepaths=tarred_audio_filepath,
-            manifest_filepath=manifest_filepaths,
+            manifest_filepath=manifest_filepath,
             labels=config['labels'],
             featurizer=featurizer,
             shuffle_n=shuffle_n,

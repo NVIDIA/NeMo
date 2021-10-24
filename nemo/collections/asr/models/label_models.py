@@ -91,7 +91,12 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         return result
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        self.world_size = 1
+        if trainer is not None:
+            self.world_size = trainer.num_nodes * trainer.num_gpus
+
         super().__init__(cfg=cfg, trainer=trainer)
+
         self.preprocessor = EncDecSpeakerLabelModel.from_config_dict(cfg.preprocessor)
         self.encoder = EncDecSpeakerLabelModel.from_config_dict(cfg.encoder)
         self.decoder = EncDecSpeakerLabelModel.from_config_dict(cfg.decoder)
