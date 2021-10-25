@@ -116,7 +116,7 @@ model:
     splits_string: "99990,9,1"
     seq_length: 2048
     skip_warmup: True
-    num_workers: 0
+    num_workers: 2
     dataloader_type: single # cyclic
     reset_position_ids: False # Reset position ids after end-of-document token
     reset_attention_mask: False # Reset attention mask after end-of-document token

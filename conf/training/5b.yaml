@@ -67,7 +67,7 @@ model:
   hidden_size: 4096
   ffn_hidden_size: 16384  # Transformer FFN hidden size. Usually 4 * hidden_size.
   num_attention_heads: 32
-  init_method_std: 0.014  # Standard deviation of the zero mean normal distribution used for weight initialization.')
+  init_method_std: 0.01  # Standard deviation of the zero mean normal distribution used for weight initialization.')
   hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
   kv_channels: null  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
@@ -116,7 +116,7 @@ model:
     splits_string: "99990,9,1"
     seq_length: 2048
     skip_warmup: True
-    num_workers: 0
+    num_workers: 2
     dataloader_type: single # cyclic
     reset_position_ids: False # Reset position ids after end-of-document token
     reset_attention_mask: False # Reset attention mask after end-of-document token
