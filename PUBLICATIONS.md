@@ -13,6 +13,7 @@ Here, we list a collection of research articles that utilize the NeMo Toolkit. I
   * [SPGISpeech: 5,000 hours of transcribed financial audio for fully formatted end-to-end speech recognition](https://www.isca-speech.org/archive/interspeech_2021/oneill21_interspeech.html)
   * [CarneliNet: Neural Mixture Model for Automatic Speech Recognition](https://arxiv.org/abs/2107.10708)
   * [CTC Variations Through New WFST Topologies](https://arxiv.org/abs/2110.03098)
+  * [A Toolbox for Construction and Analysis of Speech Datasets](https://openreview.net/pdf?id=oJ0oHQtAld)
   
 </details>
 
@@ -81,13 +82,23 @@ Here, we list a collection of research articles that utilize the NeMo Toolkit. I
 
 # Natural Language Processing (NLP)
 
+## Language Modelling
+
+<details>
+  <summary>2021</summary>
+  
+  * [BioMegatron: Larger Biomedical Domain Language Model  ](https://arxiv.org/abs/2105.08049)
+  
+</details>
+
+--------
+
 ## Dialog State Tracking
 
 <details>
   <summary>2021</summary>
   
-  * [SGD-QA: Fast Schema-Guided Dialogue State Tracking for Unseen Services
-](https://arxiv.org/abs/2105.08049)
+  * [SGD-QA: Fast Schema-Guided Dialogue State Tracking for Unseen Services](https://aclanthology.org/2020.emnlp-main.379/)
   
 </details>
 
@@ -115,6 +126,7 @@ Here, we list a collection of research articles that utilize the NeMo Toolkit. I
   <summary>2021</summary>
   
   * [NeMo Inverse Text Normalization: From Development to Production](https://www.isca-speech.org/archive/pdfs/interspeech_2021/zhang21ga_interspeech.pdf)
+  * [A Unified Transformer-based Framework for Duplex Text Normalization](https://arxiv.org/pdf/2108.09889.pdf )
   
 </details>
 
