@@ -33,6 +33,8 @@ try:
         ParallelConvASREncoder,
         SpeakerDecoder,
     )
+    from nemo.collections.asr.modules.perceiver_encoder import PerceiverEncoder
+
 except ModuleNotFoundError:
     from nemo.utils.exceptions import CheckInstall
 
