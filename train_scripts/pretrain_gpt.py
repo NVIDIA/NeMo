@@ -1,7 +1,13 @@
 import os
 import sys
+import re
 
 import hydra
+
+
+dgxa100_gpu2core = {0:'48-51,176-179' 1:'60-63,188-191', 2:'16-19,144-147', 3:'28-31,156-159', 4:'112-115,240-243', 5:'124-127,252-255', 6:'80-83,208-211', 7:'92-95,220-223'}
+dgxa100_gpu2mem = {0:'3', 1:'3', 2:'1', 3:'1', 4:'7', 5:'7', 6:'5', 7:'5'}
+rank2gpu = [0, 4, 2, 6, 1, 5, 3, 7]
 
 
 @hydra.main(config_path="../conf", config_name="config")
@@ -22,8 +28,10 @@ def main(cfg):
         "/opt/bignlp/NeMo/examples/nlp/language_modeling/megatron_gpt_pretraining.py"
     )
     training_config_path = os.path.join(bignlp_path, "conf/training")
+    gpu_mapping = "CUDA_VISIBLE_DEVICES={}".format(re.sub('[\[\] ]', '', str(rank2gpu)))
+    core_mapping = f"exec numactl --physcpubind={dgxa100_gpu2core[rank2gpu[int(os.environ.get('LOCAL_RANK'))]]} --membind={dgxa100_gpu2mem[rank2gpu[int(os.environ.get('LOCAL_RANK'))]]} -- "
     flags = f"--config-path={training_config_path} --config-name={training_config} "
-    cmd = f'cd /opt/bignlp/NeMo; git rev-parse HEAD; cd /opt/bignlp/NeMo/nemo/collections/nlp/data/language_modeling/megatron; make; export PYTHONPATH="/opt/bignlp/NeMo/.:$PYTHONPATH"; export TRANSFORMERS_CACHE="/temp_root/.cache/"; CUDA_VISIBLE_DEVICES=0,4,2,6,1,5,3,7 python3 {code_path} {hydra_train_args} {flags}'
+    cmd = f'cd /opt/bignlp/NeMo; git rev-parse HEAD; cd /opt/bignlp/NeMo/nemo/collections/nlp/data/language_modeling/megatron; make; export PYTHONPATH="/opt/bignlp/NeMo/.:$PYTHONPATH"; export TRANSFORMERS_CACHE="/temp_root/.cache/"; {gpu_mapping} {core_mapping} python3 {code_path} {hydra_train_args} {flags}'
     os.system(f"{cmd}")
 
 
