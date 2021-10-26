@@ -27,10 +27,9 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     NLPNativeMixedPrecisionPlugin,
     NLPPrecisionPlugin,
 )
-from nemo.utils.exp_manager import StatelessTimer
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from nemo.utils.exp_manager import exp_manager
+from nemo.utils.exp_manager import StatelessTimer, exp_manager
 
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_config")
@@ -74,9 +73,7 @@ def main(cfg) -> None:
     # Override timer callback to a stateless one
     for idx, callback in enumerate(trainer.callbacks):
         if isinstance(callback, Timer):
-            trainer.callbacks[idx] = StatelessTimer(
-                cfg.trainer.max_time,
-            )
+            trainer.callbacks[idx] = StatelessTimer(cfg.trainer.max_time,)
 
     model = MegatronGPTModel(cfg.model, trainer)
 
