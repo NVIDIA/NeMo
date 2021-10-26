@@ -33,9 +33,9 @@ from pytorch_lightning.callbacks.timer import Interval, Timer
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
-from pytorch_lightning.utilities.types import _METRIC
-from pytorch_lightning.utilities.distributed import rank_zero_info
 from pytorch_lightning.trainer.states import RunningStage
+from pytorch_lightning.utilities.distributed import rank_zero_info
+from pytorch_lightning.utilities.types import _METRIC
 
 from nemo.constants import NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
@@ -952,4 +952,6 @@ class StatelessTimer(Timer):
         trainer.should_stop = trainer.should_stop or should_stop
         if should_stop and self._verbose:
             rank_zero_info(f"Time limit reached. Signaling Trainer to stop.")
-            rank_zero_info(f"Spent {timedelta(seconds=train_duration)} seconds on training, {timedelta(seconds=validation_duration)} seconds on validation and {timedelta(seconds=test_duration)} seconds on testing")
+            rank_zero_info(
+                f"Spent {timedelta(seconds=train_duration)} seconds on training, {timedelta(seconds=validation_duration)} seconds on validation and {timedelta(seconds=test_duration)} seconds on testing"
+            )
