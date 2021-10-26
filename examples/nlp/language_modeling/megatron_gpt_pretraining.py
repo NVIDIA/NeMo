@@ -16,6 +16,7 @@ from pathlib import Path
 
 from omegaconf.omegaconf import OmegaConf
 from pytorch_lightning import Trainer
+from pytorch_lightning.callbacks.timer import Timer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
@@ -26,6 +27,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     NLPNativeMixedPrecisionPlugin,
     NLPPrecisionPlugin,
 )
+from nemo.utils.exp_manager import StatelessTimer
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -69,6 +71,12 @@ def main(cfg) -> None:
         logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
 
     trainer.checkpoint_connector = NLPCheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
+    # Override timer callback to a stateless one
+    for idx, callback in enumerate(trainer.callbacks):
+        if isinstance(callback, Timer):
+            trainer.callbacks[idx] = StatelessTimer(
+                cfg.trainer.max_time,
+            )
 
     model = MegatronGPTModel(cfg.model, trainer)
 
