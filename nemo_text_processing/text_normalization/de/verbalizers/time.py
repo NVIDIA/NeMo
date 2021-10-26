@@ -13,7 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space, insert_space
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_NOT_QUOTE,
+    NEMO_SIGMA,
+    GraphFst,
+    delete_space,
+    insert_space,
+)
 
 try:
     import pynini
@@ -37,26 +43,34 @@ class TimeFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="time", kind="verbalize", deterministic=deterministic)
 
-        hour = (
-            pynutil.delete("hours:")
+        hour = pynutil.delete("hours: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        minute = pynutil.delete("minutes: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        zone = pynutil.delete("zone: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        optional_zone = pynini.closure(delete_space + insert_space + zone, 0, 1)
+        second = pynutil.delete("seconds: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        graph_hms = (
+            hour
+            + pynutil.insert(" Uhr ")
             + delete_space
-            + pynutil.delete("\"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
-        )
-        minutes = (
-            pynutil.delete("minutes:")
+            + minute
+            + pynutil.insert(" Minuten ")
             + delete_space
-            + pynutil.delete("\"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
+            + second
+            + pynutil.insert(" Sekunden")
+            + optional_zone
         )
-
-        self.graph = (
-            hour + delete_space + insert_space + minutes + delete_space + pynutil.delete("preserve_order: true")
+        graph_hms @= pynini.cdrewrite(
+            pynini.cross("eine Minuten", "eine Minute")
+            | pynini.cross("eine Sekunden", "eine Sekunde")
+            | pynini.cross("eine Stunden", "one Stunde"),
+            pynini.union(" ", "[BOS]"),
+            "",
+            NEMO_SIGMA,
         )
-        self.graph |= hour + delete_space
-        self.graph |= minutes + delete_space + insert_space + hour + delete_space
-
-        delete_tokens = self.delete_tokens(self.graph)
+        graph = hour + delete_space + insert_space + minute + optional_zone
+        graph |= hour
+        graph |= hour + delete_space + pynutil.insert(" uhr ")
+        graph |= hour + delete_space + pynutil.insert(" uhr ") + minute + optional_zone
+        graph |= graph_hms
+        delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
