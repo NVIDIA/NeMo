@@ -35,7 +35,7 @@ def read_batch(fh, batch_size):
     lines = []
     for i in range(batch_size):
         l = fh.readline()
-        if l is None:
+        if not l:
             break
         else:
             lines.append(l.strip())
@@ -119,8 +119,7 @@ if __name__ == '__main__':
 
     # save all results
     if args.out_dir:
-        if not os.path.exists(args.out_dir):
-            os.mkdir(args.out_dir)
+        os.makedirs(args.out_dir, exist_ok=True)
 
     stats = {
         "samples": int(len(all_len)),
