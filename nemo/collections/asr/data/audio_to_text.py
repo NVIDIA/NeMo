@@ -1300,7 +1300,7 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
             shard_strategy=shard_strategy,
             global_rank=global_rank,
             world_size=world_size,
-            return_sample_id=return_sample_id
+            return_sample_id=return_sample_id,
         )
 
 
