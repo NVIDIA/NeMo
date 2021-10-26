@@ -27,6 +27,13 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 # Auxiliary methods
 # =============================================================================#
 
+worker_data = {
+    "tokenizer": None,
+}
+
+def init_tokenizer(library, tokenizer_model):
+    tokenizer = get_nmt_tokenizer(library=library, tokenizer_model=tokenizer_model)
+    worker_data["tokenizer"] = tokenizer
 
 def read_batch(fh, batch_size):
     """
@@ -52,10 +59,13 @@ def tokenize_line(line, tokenizer):
     return tokens
 
 
-def line_len(line, tokenizer):
+def line_len(line, tokenizer=None):
     """
     Returns a tokenized length of a text line
     """
+    if tokenizer is None:
+        tokenizer = worker_data["tokenizer"]
+
     tokens = tokenize_line(line, tokenizer)
 
     return len(tokens)
@@ -100,8 +110,10 @@ if __name__ == '__main__':
                 break
 
             # tokenize lines
-            with mp.Pool(args.num_workers) as p:
-                all_len.extend(p.map(partial(line_len, tokenizer=tokenizer), lines))
+            with mp.Pool(args.num_workers,
+                initializer=init_tokenizer,
+                initargs=(args.tokenizer_library, args.tokenizer_model)) as p:
+                all_len.extend(p.map(line_len, lines))
 
             print(f"{fn}: Parsed {len(all_len)} lines")
 
