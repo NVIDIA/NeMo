@@ -31,9 +31,11 @@ worker_data = {
     "tokenizer": None,
 }
 
+
 def init_tokenizer(library, tokenizer_model):
     tokenizer = get_nmt_tokenizer(library=library, tokenizer_model=tokenizer_model)
     worker_data["tokenizer"] = tokenizer
+
 
 def read_batch(fh, batch_size):
     """
@@ -110,9 +112,9 @@ if __name__ == '__main__':
                 break
 
             # tokenize lines
-            with mp.Pool(args.num_workers,
-                initializer=init_tokenizer,
-                initargs=(args.tokenizer_library, args.tokenizer_model)) as p:
+            with mp.Pool(
+                args.num_workers, initializer=init_tokenizer, initargs=(args.tokenizer_library, args.tokenizer_model)
+            ) as p:
                 all_len.extend(p.map(line_len, lines))
 
             print(f"{fn}: Parsed {len(all_len)} lines")
