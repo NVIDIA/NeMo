@@ -19,6 +19,7 @@ import sys
 import time
 from copy import deepcopy
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 from shutil import copy, move
 from typing import Any, Dict, List, Optional, Union
@@ -28,6 +29,7 @@ from hydra.core.hydra_config import HydraConfig
 from hydra.utils import get_original_cwd
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.callbacks import Callback, ModelCheckpoint
+from pytorch_lightning.callbacks.timer import Interval, Timer
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
@@ -925,3 +927,16 @@ def check_slurm(trainer):
         return trainer.accelerator_connector.is_slurm_managing_tasks
     except AttributeError:
         return False
+
+
+class StatelessTimer(Timer):
+    """Extension of PTL timers to be per run."""
+
+    def __init__(self, duration: timedelta = None, interval: str = Interval.step, verbose: bool = True,) -> None:
+        super().__init__(duration, interval, verbose)
+
+    def on_save_checkpoint(self, trainer, pl_module, checkpoint) -> Dict[str, Any]:
+        return
+
+    def on_load_checkpoint(self, trainer, pl_module, callback_state) -> None:
+        return
