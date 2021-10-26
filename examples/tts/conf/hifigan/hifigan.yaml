@@ -49,7 +49,8 @@ trainer:
   gpus: -1 # number of gpus
   max_steps: ${model.max_steps}
   num_nodes: 1
-  accelerator: ddp
+  accelerator: gpu
+  stratergy: ddp
   accumulate_grad_batches: 1
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager

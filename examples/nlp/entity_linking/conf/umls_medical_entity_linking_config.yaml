@@ -7,7 +7,8 @@ trainer:
   max_steps: null
   accumulate_grad_batches: 1
   precision: 16
-  accelerator: ddp
+  accelerator: gpu
+  stratergy: ddp
   gradient_clip_val: 0.0
   log_every_n_steps: 1
   val_check_interval: 1000

@@ -87,7 +87,8 @@ trainer:
   max_epochs: 10000
   max_steps: 600000
   num_nodes: 1
-  accelerator: ddp
+  accelerator: gpu
+  stratergy: ddp
   accumulate_grad_batches: 1
   checkpoint_callback: false  # Provided by exp_manager
   logger: false  # Provided by exp_manager

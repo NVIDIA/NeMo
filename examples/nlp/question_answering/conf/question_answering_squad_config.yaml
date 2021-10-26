@@ -10,7 +10,8 @@ trainer:
   max_steps: null # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
   precision: 16 # 16 to use AMP
-  accelerator: ddp
+  accelerator: gpu
+  stratergy: ddp
   gradient_clip_val: 0.0
   val_check_interval: 1.0 # check once per epoch .25 for 4 times per epoch
   checkpoint_callback: false # provided by exp_manager

@@ -265,7 +265,8 @@ trainer:
   max_epochs: 5
   max_steps: null # computed at runtime if not set
   num_nodes: 1
-  accelerator: ddp
+  accelerator: gpu
+  stratergy: ddp
   accumulate_grad_batches: 1
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager

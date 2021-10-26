@@ -129,7 +129,8 @@ trainer:
   max_epochs: 200
   max_steps: null # computed at runtime if not set
   num_nodes: 1
-  accelerator: ddp
+  accelerator: gpu
+  stratergy: ddp
   accumulate_grad_batches: 1
   deterministic: True
   checkpoint_callback: False

@@ -4,7 +4,8 @@ restore_from_path: null # used when starting from a .nemo file
 trainer:
   gpus: 1
   num_nodes: 1
-  accelerator: ddp
+  accelerator: gpu
+  stratergy: ddp
   precision: 16
   logger: False # logger provided by exp_manager
   checkpoint_callback: False

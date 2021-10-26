@@ -160,7 +160,8 @@ trainer:
   gpus: 1
   max_epochs: ???
   num_nodes: 1
-  accelerator: ddp
+  accelerator: gpu
+  stratergy: ddp
   accumulate_grad_batches: 1
   checkpoint_callback: False
   logger: False
