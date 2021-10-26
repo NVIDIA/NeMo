@@ -417,6 +417,10 @@ def ignore(example):
     cls, _, _ = example
     if cls in ["PLAIN", "LETTERS", "ELECTRONIC", "VERBATIM", "PUNCT"]:
         example[2] = "<self>"
+    if example[1] == 'I' and re.search("first", example[2]):
+        print("example[1]")
+        example[2] = "<self>"
+
 
 
 def process_file(fp):
