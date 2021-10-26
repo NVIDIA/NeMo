@@ -1,0 +1,147 @@
+diff --git a/model_analyzer/model_manager.py b/model_analyzer/model_manager.py
+index a5d2044..64bf38b 100644
+--- a/model_analyzer/model_manager.py
++++ b/model_analyzer/model_manager.py
+@@ -252,7 +252,7 @@ def _create_and_load_model_variant(self, original_name, variant_config):
+             except FileExistsError:
+                 pass
+ 
+-        if self._config.triton_launch_mode != 'c_api':
++        if self._config.triton_launch_mode not in ['c_api', 'remote']:
+             self._client.wait_for_server_ready(self._config.client_max_retries)
+ 
+             if self._client.load_model(model_name=variant_name) == -1:
+diff --git a/model_analyzer/result/result_manager.py b/model_analyzer/result/result_manager.py
+index 2677dee..887d008 100644
+--- a/model_analyzer/result/result_manager.py
++++ b/model_analyzer/result/result_manager.py
+@@ -46,7 +46,8 @@ class ResultManager:
+         'instance_group': 'Instance Group',
+         'dynamic_batch_sizes': 'Preferred Batch Sizes',
+         'satisfies_constraints': 'Satisfies Constraints',
+-        'gpu_uuid': 'GPU UUID'
++        'gpu_uuid': 'GPU UUID',
++        "backend_parameters": "Backend Parameters",
+     }
+ 
+     server_only_table_key = 'server_gpu_metrics'
+@@ -401,6 +402,7 @@ def _tabulate_measurements(self, result):
+         model_name = result.model_name()
+         instance_group = result.model_config().instance_group_string()
+         dynamic_batching = result.model_config().dynamic_batching_string()
++        backend_parameters = result.model_config().backend_parameters_string()
+         cpu_only = result.model_config().cpu_only()
+ 
+         passing_measurements = result.passing_measurements()
+@@ -415,10 +417,11 @@ def _tabulate_measurements(self, result):
+                                            dynamic_batching=dynamic_batching,
+                                            measurement=next_best_measurement,
+                                            passes=passes,
+-                                           cpu_only=cpu_only)
++                                           cpu_only=cpu_only,
++                                           backend_parameters=backend_parameters)
+ 
+-    def _tabulate_measurement(self, model_name, instance_group,
+-                              dynamic_batching, measurement, passes, cpu_only):
++    def _tabulate_measurement(self, *, model_name, instance_group,
++                              dynamic_batching, measurement, passes, cpu_only, backend_parameters):
+         """
+         Add a single measurement to the specified
+         table
+@@ -436,7 +439,8 @@ def _tabulate_measurement(self, model_name, instance_group,
+                                                    concurrency, satisfies,
+                                                    model_name, tmp_model_name,
+                                                    dynamic_batching,
+-                                                   instance_group)
++                                                   instance_group,
++                                                   backend_parameters)
+ 
+         for metric in measurement.non_gpu_data():
+             metric_tag_index = self._find_index_for_field(
+@@ -456,7 +460,7 @@ def _tabulate_measurement(self, model_name, instance_group,
+                                                      concurrency, satisfies,
+                                                      model_name, tmp_model_name,
+                                                      dynamic_batching,
+-                                                     instance_group)
++                                                     instance_group, backend_parameters)
+                 gpu_uuid_index = self._find_index_for_field(
+                     gpu_fields, 'gpu_uuid')
+                 if gpu_uuid_index is not None:
+@@ -471,7 +475,7 @@ def _tabulate_measurement(self, model_name, instance_group,
+ 
+     def _get_common_row_items(self, fields, batch_size, concurrency, satisfies,
+                               model_name, model_config_path, dynamic_batching,
+-                              instance_group):
++                              instance_group, backend_parameters):
+         row = [None] * len(fields)
+ 
+         # Model Name
+@@ -512,6 +516,12 @@ def _get_common_row_items(self, fields, batch_size, concurrency, satisfies,
+                                                         'instance_group')
+         if instance_group_idx is not None:
+             row[instance_group_idx] = instance_group
++
++        # Backend Parameters
++        parameters_idx = self._find_index_for_field(fields, 'backend_parameters')
++        if parameters_idx is not None:
++            row[parameters_idx] = backend_parameters
++
+         return row
+ 
+     def _add_server_data(self):
+diff --git a/model_analyzer/triton/client/client.py b/model_analyzer/triton/client/client.py
+index cc410c1..5c8c12d 100755
+--- a/model_analyzer/triton/client/client.py
++++ b/model_analyzer/triton/client/client.py
+@@ -165,8 +165,8 @@ def get_model_config(self, model_name, num_retries):
+             A dictionary containg the model config.
+         """
+ 
+-        self.load_model(model_name)
++        # self.load_model(model_name)
+         self.wait_for_model_ready(model_name, num_retries)
+         model_config_dict = self._client.get_model_config(model_name)
+-        self.unload_model(model_name)
++        # self.unload_model(model_name)
+         return model_config_dict
+diff --git a/model_analyzer/triton/client/grpc_client.py b/model_analyzer/triton/client/grpc_client.py
+index f868a9a..5d29a5b 100755
+--- a/model_analyzer/triton/client/grpc_client.py
++++ b/model_analyzer/triton/client/grpc_client.py
+@@ -50,9 +50,9 @@ def get_model_config(self, model_name, num_retries):
+             A dictionary containg the model config.
+         """
+ 
+-        self.load_model(model_name)
++        # self.load_model(model_name)
+         self.wait_for_model_ready(model_name, num_retries)
+         model_config_dict = self._client.get_model_config(model_name,
+                                                           as_json=True)
+-        self.unload_model(model_name)
++        # self.unload_model(model_name)
+         return model_config_dict['config']
+diff --git a/model_analyzer/triton/model/model_config.py b/model_analyzer/triton/model/model_config.py
+index 8327561..bf7369e 100644
+--- a/model_analyzer/triton/model/model_config.py
++++ b/model_analyzer/triton/model/model_config.py
+@@ -282,6 +282,20 @@ def dynamic_batching_string(self):
+         else:
+             return "Disabled"
+ 
++    def backend_parameters_string(self):
++        model_config = self.get_config()
++        PARAMS_OF_INTEREST = {"pipeline_para_size": "PP", "tensor_para_size": "TP", "is_half": "half", "max_input_len": "max_input", "max_seq_len": "max_seq"}
++        if 'parameters' in model_config:
++            parameters = model_config["parameters"]
++
++            def _get_entry(k):
++                value = parameters[k]["string_value"]
++                return f"{PARAMS_OF_INTEREST[k]}={value}"
++
++            return f"{' '.join([f'{_get_entry(k)}' for k in PARAMS_OF_INTEREST if k in parameters])}"
++        else:
++            return "Disabled"
++
+     def instance_group_string(self):
+         """
+         Returns

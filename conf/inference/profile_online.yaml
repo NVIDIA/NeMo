@@ -1,0 +1,14 @@
+# conversion and triton config related
+engine_count_per_device:
+  cpu: 1
+launch_mode: local
+# perf_analyzer related
+triton_launch_mode: remote
+perf_measurement_mode: count_windows
+perf_measurement_request_count: 500  # 500 req when used 'count_windows' mode
+perf_measurement_interval: 10000  # 10s when used 'time_windows' mode
+perf_analyzer_timeout: 1200  # 20min
+config_search_concurrency: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512]
+config_search_batch_sizes: [1]
+config_search_instance_counts:
+  cpu: [1]
