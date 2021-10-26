@@ -24,7 +24,6 @@ from nemo_text_processing.text_normalization.normalize import Normalizer
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
-from nemo.collections.common.parts.patch_utils import stft_patch
 from nemo.collections.tts.torch.helpers import beta_binomial_prior_distribution, general_padding
 from nemo.collections.tts.torch.tts_data_types import (
     DATA_STR2DATA_CLASS,
@@ -33,11 +32,12 @@ from nemo.collections.tts.torch.tts_data_types import (
     DurationPrior,
     Durations,
     Energy,
+    LMTokens,
     LogMel,
     Pitch,
     WithLens,
 )
-from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer
+from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishCharsTokenizer, EnglishPhonemesTokenizer
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
@@ -251,7 +251,7 @@ class TTSDataset(Dataset):
             'none': None,
         }.get(self.window, None)
 
-        self.stft = lambda x: stft_patch(
+        self.stft = lambda x: torch.stft(
             input=x,
             n_fft=self.n_fft,
             hop_length=self.hop_len,
@@ -515,5 +515,100 @@ class TTSDataset(Dataset):
 
     def _collate_fn(self, batch):
         data_dict = self.general_collate_fn(batch)
+        joined_data = self.join_data(data_dict)
+        return joined_data
+
+
+class MixerTTSDataset(TTSDataset):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def _albert(self):
+        from transformers import AlbertTokenizer  # noqa pylint: disable=import-outside-toplevel
+
+        self.lm_model_tokenizer = AlbertTokenizer.from_pretrained('albert-base-v2')
+        self.lm_padding_value = self.lm_model_tokenizer._convert_token_to_id('<pad>')
+        space_value = self.lm_model_tokenizer._convert_token_to_id('▁')
+
+        self.id2lm_tokens = {}
+        for i, d in enumerate(self.data):
+            raw_text = d["raw_text"]
+
+            assert isinstance(self.text_tokenizer, EnglishPhonemesTokenizer) or isinstance(
+                self.text_tokenizer, EnglishCharsTokenizer
+            )
+            if isinstance(self.text_tokenizer, EnglishPhonemesTokenizer):
+                preprocess_text_as_tts_input = self.text_tokenizer.g2p.text_preprocessing_func(raw_text)
+            else:
+                preprocess_text_as_tts_input = self.text_tokenizer.text_preprocessing_func(raw_text)
+
+            lm_tokens_as_ids = self.lm_model_tokenizer.encode(preprocess_text_as_tts_input, add_special_tokens=False)
+
+            if self.text_tokenizer.pad_with_space:
+                lm_tokens_as_ids = [space_value] + lm_tokens_as_ids + [space_value]
+
+            self.id2lm_tokens[i] = lm_tokens_as_ids
+
+    def add_lm_tokens(self, **kwargs):
+        lm_model = kwargs.pop('lm_model')
+
+        if lm_model == "albert":
+            self._albert()
+        else:
+            raise NotImplementedError(
+                f"{lm_model} lm model is not supported. Only albert is supported at this moment."
+            )
+
+    def __getitem__(self, index):
+        (
+            audio,
+            audio_length,
+            text,
+            text_length,
+            log_mel,
+            log_mel_length,
+            durations,
+            duration_prior,
+            pitch,
+            pitch_length,
+            energy,
+            energy_length,
+        ) = super().__getitem__(index)
+
+        lm_tokens = None
+        if LMTokens in self.sup_data_types_set:
+            lm_tokens = torch.tensor(self.id2lm_tokens[index]).long()
+
+        return (
+            audio,
+            audio_length,
+            text,
+            text_length,
+            log_mel,
+            log_mel_length,
+            durations,
+            duration_prior,
+            pitch,
+            pitch_length,
+            energy,
+            energy_length,
+            lm_tokens,
+        )
+
+    def _collate_fn(self, batch):
+        batch = list(zip(*batch))
+        data_dict = self.general_collate_fn(list(zip(*batch[:12])))
+        lm_tokens_list = batch[12]
+
+        if LMTokens in self.sup_data_types_set:
+            lm_tokens = torch.full(
+                (len(lm_tokens_list), max([lm_tokens.shape[0] for lm_tokens in lm_tokens_list])),
+                fill_value=self.lm_padding_value,
+            )
+            for i, lm_tokens_i in enumerate(lm_tokens_list):
+                lm_tokens[i, : lm_tokens_i.shape[0]] = lm_tokens_i
+
+            data_dict[LMTokens.name] = lm_tokens
+
         joined_data = self.join_data(data_dict)
         return joined_data

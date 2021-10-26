@@ -234,3 +234,42 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
                 ([L x (1, H)], [L x (1, H)])
         """
         raise NotImplementedError()
+
+    def batch_concat_states(self, batch_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
+        """Concatenate a batch of decoder state to a packed state.
+
+        Args:
+            batch_states (list): batch of decoder states
+                B x ([L x (H)], [L x (H)])
+
+        Returns:
+            (tuple): decoder states
+                (L x B x H, L x B x H)
+        """
+        raise NotImplementedError()
+
+    def batch_copy_states(
+        self,
+        old_states: List[torch.Tensor],
+        new_states: List[torch.Tensor],
+        ids: List[int],
+        value: Optional[float] = None,
+    ) -> List[torch.Tensor]:
+        """Copy states from new state to old state at certain indices.
+        
+        Args:
+            old_states(list): packed decoder states
+                (L x B x H, L x B x H)
+
+            new_states: packed decoder states
+                (L x B x H, L x B x H)
+
+            ids (list): List of indices to copy states at.
+
+            value (optional float): If a value should be copied instead of a state slice, a float should be provided
+
+        Returns:
+            batch of decoder states with partial copy at ids (or a specific value).
+                (L x B x H, L x B x H)
+        """
+        raise NotImplementedError()
