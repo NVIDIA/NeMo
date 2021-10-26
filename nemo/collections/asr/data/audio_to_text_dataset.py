@@ -41,6 +41,7 @@ class ASRDatasetConfig:
     trim_silence: Optional[bool] = False
     max_duration: Optional[float] = None
     min_duration: Optional[float] = None
+    return_sample_id: Optional[bool] = False
 
 
 def inject_dataloader_value_from_model_config(model_cfg: dict, dataloader_cfg: DictConfig, key: str):
@@ -111,6 +112,7 @@ def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None)
         normalize=config.get('normalize_transcripts', False),
         trim=config.get('trim_silence', False),
         parser=config.get('parser', 'en'),
+        return_sample_id=config.get('return_sample_id', False),
     )
     return dataset
 
@@ -140,6 +142,7 @@ def get_bpe_dataset(
         max_utts=config.get('max_utts', 0),
         trim=config.get('trim_silence', False),
         use_start_end_token=config.get('use_start_end_token', True),
+        return_sample_id=config.get('return_sample_id', False),
     )
     return dataset
 
@@ -202,6 +205,7 @@ def get_tarred_dataset(
                 shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
                 global_rank=global_rank,
                 world_size=world_size,
+                return_sample_id=config.get('return_sample_id', False),
             )
         else:
             dataset = audio_to_text.TarredAudioToBPEDataset(
@@ -220,6 +224,7 @@ def get_tarred_dataset(
                 shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
                 global_rank=global_rank,
                 world_size=world_size,
+                return_sample_id=config.get('return_sample_id', False),
             )
 
         datasets.append(dataset)

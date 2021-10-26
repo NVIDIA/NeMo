@@ -79,7 +79,7 @@ from nemo.utils.get_rank import is_global_rank_zero
 @dataclass
 class ParallelTranscriptionConfig:
     model: Optional[str] = None  # name
-    predict_ds: ASRDatasetConfig = ASRDatasetConfig()
+    predict_ds: ASRDatasetConfig = ASRDatasetConfig(return_sample_id=True)
     output_path: Optional[str] = None
     return_predictions: bool = False
     use_cer: bool = False
@@ -104,6 +104,7 @@ def main(cfg: ParallelTranscriptionConfig):
         model = ASRModel.from_pretrained(model_name=cfg.model, map_location="cpu")
 
     trainer = ptl.Trainer(**cfg.trainer)
+    cfg.predict_ds.return_sample_id = True
     data_loader = model._setup_dataloader_from_config(cfg.predict_ds)
 
     os.makedirs(cfg.output_path, exist_ok=True)
