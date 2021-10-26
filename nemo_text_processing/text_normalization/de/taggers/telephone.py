@@ -55,14 +55,8 @@ class TelephoneFst(GraphFst):
 
         country_code = (
             pynutil.insert("country_code: \"")
-            + pynini.closure(pynutil.delete("+"), 0, 1)
-            + pynini.closure(
-                (NEMO_DIGIT + NEMO_DIGIT) @ cardinal.graph_hundred_component_at_least_one_none_zero_digit
-                + insert_space,
-                0,
-                2,
-            )
-            + digit
+            + pynini.closure(pynini.cross("+", "plus "), 0, 1)
+            + (NEMO_DIGIT + NEMO_DIGIT) @ cardinal.graph_hundred_component_at_least_one_none_zero_digit
             + pynutil.insert("\"")
         )
         optional_country_code = pynini.closure(
@@ -71,21 +65,21 @@ class TelephoneFst(GraphFst):
 
         del_separator = pynini.closure(pynini.union("-", " "), 0, 1)
 
-        numbers = pynini.cdrewrite(
-            (NEMO_DIGIT | (NEMO_DIGIT + NEMO_DIGIT)) @ cardinal.graph_hundred_component_at_least_one_none_zero_digit,
-            "",
-            "",
-            NEMO_SIGMA,
+        numbers = pynini.closure(
+            (NEMO_DIGIT | (NEMO_DIGIT + NEMO_DIGIT)) @ cardinal.graph_hundred_component_at_least_one_none_zero_digit
+            + insert_space,
+            1,
         )
 
         numbers = (numbers + del_separator) | (
             pynutil.delete("(") + numbers + (pynutil.delete(") ") | pynutil.delete(")-")) + numbers
         )
 
-        number_length = ((NEMO_DIGIT + pynini.union("-", " ", ")", "(", "+"))) ** 7
+        number_length = pynini.closure((NEMO_DIGIT | pynini.union("-", " ", ")", "(")), 7)
         number_part = pynini.compose(number_length, numbers) @ pynini.cdrewrite(delete_extra_space, "", "", NEMO_SIGMA)
         number = pynutil.insert("number_part: \"") + number_part + pynutil.insert("\"")
 
-        graph = optional_country_code + number_part
+        graph = optional_country_code + number
+
         final_graph = self.add_tokens(graph)
         self.fst = final_graph.optimize()

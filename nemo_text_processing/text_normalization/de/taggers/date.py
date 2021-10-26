@@ -96,7 +96,7 @@ class DateFst(GraphFst):
             month_abbr_graph | ((TO_LOWER + pynini.closure(NEMO_CHAR)) @ month_abbr_graph)
         ) + pynini.closure(pynutil.delete("."), 0, 1)
 
-        month_graph = pynini.string_file(get_abs_path("data/months.tsv")).optimize()
+        month_graph = pynini.string_file(get_abs_path("data/months/months.tsv")).optimize()
         month_graph |= (TO_LOWER + pynini.closure(NEMO_CHAR)) @ month_graph
         month_graph |= month_abbr_graph
 
@@ -116,14 +116,10 @@ class DateFst(GraphFst):
 
         month_number = pynini.string_file(get_abs_path("data/months/numbers.tsv")).optimize()
         month_number = (
-            (
-                ((pynutil.add_weight(pynutil.delete("0"), -0.1) | pynini.accep("1")) + NEMO_DIGIT) | NEMO_DIGIT
-            ).optimize()
-            @ month_number
+            (((pynutil.delete("0") | pynini.accep("1")) + NEMO_DIGIT) | NEMO_DIGIT).optimize() @ month_number
         ).optimize()
 
-        month_abbr_to_names = pynini.string_file(get_abs_path("data/months/abbr_to_name.tsv")).optimize()
-        month_name = (month_number | month_abbr_to_names | month_graph | digit_month).optimize()
+        month_name = (month_number | month_graph | digit_month).optimize()
         month = (pynutil.insert("month: \"") + month_name + pynutil.insert("\"")).optimize()
         year = pynini.compose(((NEMO_DIGIT ** 4) | (NEMO_DIGIT ** 2)), numbers).optimize()
         year |= get_year_graph(cardinal=cardinal, deterministic=deterministic)
@@ -132,7 +128,7 @@ class DateFst(GraphFst):
         year_optional = pynini.closure(delete_sep + year_optional, 0, 1).optimize()
         year_only = pynutil.insert("year: \"") + year + pynutil.insert("\"")
 
-        graph_dmy = day + delete_sep + month + pynini.closure(pynutil.delete(","), 0, 1) + year_optional
+        graph_dmy = day + delete_sep + delete_space + month + pynini.closure(pynutil.delete(","), 0, 1) + year_optional
         graph_ymd = year + delete_sep + month + delete_sep + day
 
         final_graph = graph_dmy
