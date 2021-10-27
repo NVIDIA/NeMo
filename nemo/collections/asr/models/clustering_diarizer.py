@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+from multiprocessing import Value
 import os
 import pickle as pkl
 import shutil
@@ -272,15 +273,12 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         pkl.dump(out_embeddings, open(self._embeddings_file, 'wb'))
         logging.info("Saved embedding files to {}".format(embedding_dir))
 
-    def path2audio_files_to_manifest(self, paths2audio_files):
-        mfst_file = os.path.join(self._out_dir, 'manifest.json')
-        with open(mfst_file, 'w') as fp:
+    def path2audio_files_to_manifest(self, paths2audio_files,manifest_filepath):
+        with open(manifest_filepath, 'w') as fp:
             for audio_file in paths2audio_files:
                 audio_file = audio_file.strip()
                 entry = {'audio_filepath': audio_file, 'offset': 0.0, 'duration': None, 'text': '-', 'label': 'infer'}
                 fp.write(json.dumps(entry) + '\n')
-
-        return mfst_file
 
     def diarize(self, paths2audio_files: List[str] = None, batch_size: int = 1):
         """
@@ -296,27 +294,14 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         self._speaker_dir = os.path.join(self._out_dir, 'speaker_outputs')
 
         if paths2audio_files:
-            self.paths2audio_files = paths2audio_files
-        else:
-            if self._cfg.diarizer.paths2audio_files is None:
-                raise ValueError("Pass path2audio files either through config or to diarize method")
+            if type(paths2audio_files) is str:
+                paths2audio_files = [paths2audio_files]
+                self._diarizer_params.manifest_filepath = os.path.json(self._out_dir,'paths2audio_filepath.json')
+                self.path2audio_files_to_manifest(paths2audio_files,self._diarizer_params.manifest_filepath)
             else:
-                self.paths2audio_files = self._cfg.diarizer.paths2audio_files
+                raise ValueError("paths2audio_files must be of type list or path to file containing audio files")
 
-        if type(self.paths2audio_files) is str and os.path.isfile(self.paths2audio_files):
-            paths2audio_files = []
-            with open(self.paths2audio_files, 'r') as path2file:
-                for audiofile in path2file.readlines():
-                    audiofile = audiofile.strip()
-                    paths2audio_files.append(audiofile)
-
-        elif type(self.paths2audio_files) in [list, ListConfig]:
-            paths2audio_files = list(self.paths2audio_files)
-
-        else:
-            raise ValueError("paths2audio_files must be of type list or path to file containing audio files")
-
-        self.AUDIO_RTTM_MAP = audio_rttm_map(paths2audio_files, self._cfg.diarizer.path2groundtruth_rttm_files)
+        self.AUDIO_RTTM_MAP = audio_rttm_map(self._diarizer_params.manifest_filepath)
 
         if self.has_vad_model:
             logging.info("Performing VAD")
@@ -342,11 +327,15 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
             self._setup_vad_test_data(manifest_vad_input)
             self._run_vad(manifest_vad_input)
+        elif self._diarizer_params.vad.external_vad_manifest is not None:
+            self._speaker_manifest_path = self._diarizer_params.vad.external_vad_manifest
+        elif self._diarizer_params.oracle_vad is not None:
+            self._speaker_manifest_path = os.path.json(self._speaker_dir,'oracle_vad_manifest.json')
+            self._speaker_manifest_path = write_rttm2manifest(self.AUDIO_RTTM_MAP, self._speaker_manifest_path)
         else:
-            if not os.path.exists(self._speaker_manifest_path):
-                raise NotFoundError("Oracle VAD based manifest file not found")
+            raise ValueError("Only one of diarizer.oracle_vad, vad.model_path, vad.external_vad_manifest must be passed")
 
-        self.subsegments_manifest_path = os.path.join(self._out_dir, 'subsegments.json')
+        self.subsegments_manifest_path = os.path.join(self._speaker_dir, 'subsegments.json')
         self.subsegments_manifest_path = segments_manifest_to_subsegments_manifest(
             segments_manifest_file=self._speaker_manifest_path,
             subsegments_manifest_file=self.subsegments_manifest_path,
@@ -357,6 +346,8 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         out_rttm_dir = os.path.join(self._out_dir, 'pred_rttms')
         os.makedirs(out_rttm_dir, exist_ok=True)
 
+        import ipdb; ipdb.set_trace()
+        
         perform_diarization(
             embeddings_file=self._embeddings_file,
             reco2num=self._num_speakers,

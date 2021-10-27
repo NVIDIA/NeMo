@@ -16,10 +16,11 @@ import math
 import os
 import pickle as pkl
 from copy import deepcopy
+from re import split
 
 import numpy as np
 import torch
-from omegaconf import ListConfig
+from omegaconf import ListConfig, base
 from pyannote.core import Annotation, Segment
 from pyannote.metrics.diarization import DiarizationErrorRate
 from tqdm import tqdm
@@ -32,61 +33,43 @@ from nemo.utils import logging
 This file contains all the utility functions required for speaker embeddings part in diarization scripts
 """
 
-
-def audio_rttm_map(audio_file_list, rttm_file_list=None):
-    """
-    Returns a AUDIO_TO_RTTM dictionary thats maps all the unique file names with
-    audio file paths and corresponding ground truth rttm files calculated from audio
-    file list and rttm file list
-
-    Args:
-    audio_file_list(list,str): either list of audio file paths or file containing paths to audio files (required)
-    rttm_file_list(lisr,str): either list of rttm file paths or file containing paths to rttm files (optional)
-    [Required if DER needs to be calculated]
-    Returns:
-    AUDIO_RTTM_MAP (dict): dictionary thats maps all the unique file names with
-    audio file paths and corresponding ground truth rttm files
-    """
-    rttm_notfound = False
-    if type(audio_file_list) in [list, ListConfig]:
-        audio_files = audio_file_list
+def get_uniqname_from_filepath(filepath):
+    if type(filepath) is str:
+        basename = ''.join(os.path.basename(filepath).split('.')[:-1])
+        dirname = os.path.dirname(filepath).split('/')[-1]
+        return '@'.join([dirname,basename])
     else:
-        audio_pointer = open(audio_file_list, 'r')
-        audio_files = audio_pointer.read().splitlines()
+        raise TypeError("input must be filepath string")
 
-    if rttm_file_list:
-        if type(rttm_file_list) in [list, ListConfig]:
-            rttm_files = rttm_file_list
-        else:
-            rttm_pointer = open(rttm_file_list, 'r')
-            rttm_files = rttm_pointer.read().splitlines()
-    else:
-        rttm_notfound = True
-        rttm_files = ['-'] * len(audio_files)
-
-    assert len(audio_files) == len(rttm_files)
-
+def audio_rttm_map(manifest):
+    """
+    This function creates AUDIO_RTTM_MAP which is used by all diarization components to extract embeddings,
+    cluster and unify time stamps 
+    """
+    
     AUDIO_RTTM_MAP = {}
-    rttm_dict = {}
-    audio_dict = {}
-    for audio_file, rttm_file in zip(audio_files, rttm_files):
-        uniq_audio_name = audio_file.split('/')[-1].rsplit('.', 1)[0]
-        uniq_rttm_name = rttm_file.split('/')[-1].rsplit('.', 1)[0]
+    import ipdb;ipdb.set_trace()
+    with open(manifest,'r') as inp_file:
+        lines = inp_file.readlines()
+        for line in lines:
+            line = line.strip()
+            dic = json.loads(line)
 
-        if rttm_notfound:
-            uniq_rttm_name = uniq_audio_name
+            meta = {'audiofile_path':dic['audio_filepath'],
+            'rttmfile_path':dic.get('rttm_filepath',None),
+            'text': dic.get('text','-'),
+            'num_speakers': dic.get('num_speakers',None),
+            'uem_filepath': dic.get('uem_filepath')
+            }
+        
+            uniqname = get_uniqname_from_filepath(filepath=meta['audio_filepath'])
 
-        audio_dict[uniq_audio_name] = audio_file
-        rttm_dict[uniq_rttm_name] = rttm_file
-
-    for key, value in audio_dict.items():
-
-        AUDIO_RTTM_MAP[key] = {'audio_path': audio_dict[key], 'rttm_path': rttm_dict[key]}
-
-    assert len(rttm_dict.items()) == len(audio_dict.items())
+            if uniqname not in AUDIO_RTTM_MAP:
+                AUDIO_RTTM_MAP[uniqname] = meta
+            else:
+                raise KeyError("file {} is already part AUDIO_RTTM_Map, it might be duplicated".format(audio_filepath))
 
     return AUDIO_RTTM_MAP
-
 
 def get_contiguous_stamps(stamps):
     """
@@ -347,25 +330,24 @@ def perform_diarization(
         logging.warning("Skipping calculation of Diariazation Error Rate")
 
 
-def write_rttm2manifest(paths2audio_files, paths2rttm_files, manifest_file):
+def write_rttm2manifest(AUDIO_RTTM_MAP, manifest_file):
     """
     writes manifest file based on rttm files (or vad table out files). This manifest file would be used by 
     speaker diarizer to compute embeddings and cluster them. This function also takes care of overlap time stamps
 
     Args:
-    audio_file_list(list,str): either list of audio file paths or file containing paths to audio files (required)
-    rttm_file_list(lisr,str): either list of rttm file paths or file containing paths to rttm files (optional) 
+    AUDIO_RTTM_MAP: dict containing keys to uniqnames, that contains audio filepath and rttm_filepath as its contents,
+    these are used to extract oracle vad timestamps.
     manifest (str): path to write manifest file
 
     Returns:
     manifest (str): path to write manifest file
     """
-    AUDIO_RTTM_MAP = audio_rttm_map(paths2audio_files, paths2rttm_files)
 
     with open(manifest_file, 'w') as outfile:
         for key in AUDIO_RTTM_MAP:
-            f = open(AUDIO_RTTM_MAP[key]['rttm_path'], 'r')
-            audio_path = AUDIO_RTTM_MAP[key]['audio_path']
+            f = open(AUDIO_RTTM_MAP[key]['rttm_filepath'], 'r')
+            audio_path = AUDIO_RTTM_MAP[key]['audio_filepath']
             lines = f.readlines()
             time_tup = (-1, -1)
             for line in lines:
