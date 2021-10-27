@@ -14,13 +14,10 @@
 import json
 import math
 import os
-import pickle as pkl
 from copy import deepcopy
-from re import split
 
 import numpy as np
 import torch
-from omegaconf import ListConfig, base
 from pyannote.core import Annotation, Segment
 from pyannote.metrics.diarization import DiarizationErrorRate
 from tqdm import tqdm
@@ -51,6 +48,7 @@ def audio_rttm_map(manifest):
     AUDIO_RTTM_MAP = {}
     with open(manifest, 'r') as inp_file:
         lines = inp_file.readlines()
+        logging.info("Number of files to diarize: {}".format(len(lines)))
         for line in lines:
             line = line.strip()
             dic = json.loads(line)
@@ -154,62 +152,7 @@ def rttm_to_labels(rttm_filename):
     return labels
 
 
-def get_time_stamps(embeddings_file, reco2num, manifest_path):
-    """
-    Loads embedding file and generates time stamps based on window and shift for speaker embeddings 
-    clustering.
-
-    Args:
-    embeddings_file (str): Path to embeddings pickle file
-    reco2num (int,str): common integer number of speakers for every recording or path to 
-                        file that states unique_file id with number of speakers
-    manifest_path (str): path to manifest for time stamps matching
-    sample_rate (int): sample rate
-    window (float): window length in sec for speaker embeddings extraction
-    shift (float): shift length in sec for speaker embeddings extraction window shift
-
-    Returns:
-    embeddings (dict): Embeddings with key as unique_id
-    time_stamps (dict): time stamps list for each audio recording
-    speakers (dict): number of speaker for each audio recording
-    """
-    embeddings = pkl.load(open(embeddings_file, 'rb'))
-    all_uniq_files = list(embeddings.keys())
-    num_files = len(all_uniq_files)
-    logging.info("Number of files to diarize: {}".format(num_files))
-    sample = all_uniq_files[0]
-    logging.info("sample '{}' embeddings shape is {}\n".format(sample, embeddings[sample][0].shape))
-
-    speakers = {}
-    if isinstance(reco2num, int) or reco2num is None:
-        for key in embeddings.keys():
-            speakers[key] = reco2num
-    elif isinstance(reco2num, str) and os.path.exists(reco2num):
-        for key in open(reco2num).readlines():
-            key = key.strip()
-            wav_id, num = key.split()
-            speakers[wav_id] = int(num)
-    else:
-        raise TypeError("reco2num must be None, int or path to file containing number of speakers for each uniq id")
-
-    with open(manifest_path, 'r') as manifest:
-        time_stamps = {}
-        for line in manifest.readlines():
-            line = line.strip()
-            line = json.loads(line)
-            audio, offset, duration = line['audio_filepath'], line['offset'], line['duration']
-            audio = os.path.basename(audio).rsplit('.', 1)[0]
-            if audio not in time_stamps:
-                time_stamps[audio] = []
-            start = offset
-            end = start + duration
-            stamp = '{:.3f} {:.3f} '.format(start, end)
-            time_stamps[audio].append(stamp)
-
-    return embeddings, time_stamps, speakers
-
-
-def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rttm_dir, max_num_speakers=8):
+def perform_clustering(embeddings, time_stamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params):
     """
     performs spectral clustering on embeddings with time stamps generated from VAD output
     Args:
@@ -229,19 +172,25 @@ def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rt
     all_hypothesis = []
     all_reference = []
     no_references = False
+    max_num_speakers = clustering_params['max_num_speakers']
 
     cuda = True
     if not torch.cuda.is_available():
         logging.warning("cuda=False, using CPU for Eigen decompostion. This might slow down the clustering process.")
         cuda = False
 
-    for uniq_key in tqdm(embeddings.keys()):
-        NUM_speakers = speakers[uniq_key]
+    for uniq_key, value in tqdm(AUDIO_RTTM_MAP.items()):
+        if clustering_params.oracle_num_speakers:
+            num_speakers = value['num_speakers']
+            if num_speakers is None:
+                raise ValueError("Provided option as oracle num of speakers but num_speakers in manifest is null")
+        else:
+            num_speakers = None
         emb = embeddings[uniq_key]
         emb = np.asarray(emb)
 
         cluster_labels = COSclustering(
-            uniq_key, emb, oracle_num_speakers=NUM_speakers, max_num_speaker=max_num_speakers, cuda=cuda,
+            uniq_key, emb, oracle_num_speakers=num_speakers, max_num_speaker=max_num_speakers, cuda=cuda,
         )
 
         lines = time_stamps[uniq_key]
@@ -257,7 +206,7 @@ def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rt
         hypothesis = labels_to_pyannote_object(labels)
         all_hypothesis.append(hypothesis)
 
-        rttm_file = audio_rttm_map[uniq_key]['rttm_path']
+        rttm_file = value['rttm_filepath']
         if os.path.exists(rttm_file) and not no_references:
             ref_labels = rttm_to_labels(rttm_file)
             reference = labels_to_pyannote_object(ref_labels)
@@ -269,7 +218,7 @@ def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rt
     return all_reference, all_hypothesis
 
 
-def get_DER(all_reference, all_hypothesis, collar=0.5, skip_overlap=True):
+def score_labels(all_reference, all_hypothesis, collar=0.5, ignore_overlap=True):
     """
     calculates DER, CER, FA and MISS
 
@@ -289,7 +238,7 @@ def get_DER(all_reference, all_hypothesis, collar=0.5, skip_overlap=True):
     collar in md-eval.pl, 0.5s should be applied for pyannote.metrics.
 
     """
-    metric = DiarizationErrorRate(collar=collar, skip_overlap=skip_overlap, uem=None)
+    metric = DiarizationErrorRate(collar=collar, skip_overlap=ignore_overlap, uem=None)
 
     mapping_dict = {}
     for k, (reference, hypothesis) in enumerate(zip(all_reference, all_hypothesis)):
@@ -304,32 +253,6 @@ def get_DER(all_reference, all_hypothesis, collar=0.5, skip_overlap=True):
     metric.reset()
 
     return DER, CER, FA, MISS, mapping_dict
-
-
-def perform_diarization(
-    embeddings_file=None, reco2num=2, manifest_path=None, audio_rttm_map=None, out_rttm_dir=None, max_num_speakers=8,
-):
-    """
-    Performs diarization with embeddings generated based on VAD time stamps with recording 2 num of speakers (reco2num)
-    for spectral clustering 
-    """
-    embeddings, time_stamps, speakers = get_time_stamps(embeddings_file, reco2num, manifest_path)
-    logging.info("Performing Clustering")
-    all_reference, all_hypothesis = perform_clustering(
-        embeddings, time_stamps, speakers, audio_rttm_map, out_rttm_dir, max_num_speakers
-    )
-
-    if len(all_reference) and len(all_hypothesis):
-        DER, CER, FA, MISS, _ = get_DER(all_reference, all_hypothesis)
-        logging.info(
-            "Cumulative results of all the files:  \n FA: {:.4f}\t MISS {:.4f}\t \
-                Diarization ER: {:.4f}\t, Confusion ER:{:.4f}".format(
-                FA, MISS, DER, CER
-            )
-        )
-    else:
-        logging.warning("Please check if each ground truth RTTMs was present in provided path2groundtruth_rttm_files")
-        logging.warning("Skipping calculation of Diariazation Error Rate")
 
 
 def write_rttm2manifest(AUDIO_RTTM_MAP, manifest_file):

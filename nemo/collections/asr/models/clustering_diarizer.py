@@ -19,12 +19,11 @@ import shutil
 import tarfile
 import tempfile
 from collections import defaultdict
-from multiprocessing import Value
+from copy import deepcopy
 from typing import List, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf
-from omegaconf.listconfig import ListConfig
 from pytorch_lightning.utilities import rank_zero_only
 from tqdm import tqdm
 
@@ -34,7 +33,8 @@ from nemo.collections.asr.parts.mixins.mixins import DiarizationMixin
 from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
     get_uniqname_from_filepath,
-    perform_diarization,
+    perform_clustering,
+    score_labels,
     segments_manifest_to_subsegments_manifest,
     write_rttm2manifest,
 )
@@ -46,7 +46,6 @@ from nemo.collections.asr.parts.utils.vad_utils import (
 )
 from nemo.core.classes import Model
 from nemo.utils import logging, model_utils
-from nemo.utils.exp_manager import NotFoundError
 
 try:
     from torch.cuda.amp import autocast
@@ -90,6 +89,12 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         # init speaker model
         self._init_speaker_model()
         self._speaker_params = self._cfg.diarizer.speaker_embeddings.parameters
+        self._speaker_dir = os.path.join(self._diarizer_params.out_dir, 'speaker_outputs')
+        shutil.rmtree(self._speaker_dir, ignore_errors=True)
+        os.makedirs(self._speaker_dir)
+
+        # Clustering params
+        self._cluster_params = self._diarizer_params.clustering.parameters
 
         self._device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -226,7 +231,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             shift_len=self._vad_shift_length_in_sec,
             num_workers=self._cfg.num_workers,
         )
-        AUDIO_VAD_RTTM_MAP = self.AUDIO_RTTM_MAP.copy()
+        AUDIO_VAD_RTTM_MAP = deepcopy(self.AUDIO_RTTM_MAP.copy())
         for key in AUDIO_VAD_RTTM_MAP:
             AUDIO_VAD_RTTM_MAP[key]['rttm_filepath'] = os.path.join(table_out_dir, key + ".txt")
 
@@ -234,9 +239,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         self._speaker_manifest_path = self._vad_out_file
 
     def _run_segmentation(self):
-
-        shutil.rmtree(self._speaker_dir, ignore_errors=True)
-        os.makedirs(self._speaker_dir)
 
         self.subsegments_manifest_path = os.path.join(self._speaker_dir, 'subsegments.json')
         self.subsegments_manifest_path = segments_manifest_to_subsegments_manifest(
@@ -251,9 +253,10 @@ class ClusteringDiarizer(Model, DiarizationMixin):
     def _extract_embeddings(self, manifest_file):
         logging.info("Extracting embeddings for Diarization")
         self._setup_spkr_test_data(manifest_file)
-        out_embeddings = defaultdict(list)
+        self.embeddings = defaultdict(list)
         self._speaker_model = self._speaker_model.to(self._device)
         self._speaker_model.eval()
+        self.time_stamps = {}
 
         all_embs = []
         for test_batch in tqdm(self._speaker_model.test_dataloader()):
@@ -271,7 +274,13 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 line = line.strip()
                 dic = json.loads(line)
                 uniq_name = get_uniqname_from_filepath(dic['audio_filepath'])
-                out_embeddings[uniq_name].extend([all_embs[i]])
+                self.embeddings[uniq_name].extend([all_embs[i]])
+                if uniq_name not in self.time_stamps:
+                    self.time_stamps[uniq_name] = []
+                start = dic['offset']
+                end = start + dic['duration']
+                stamp = '{:.3f} {:.3f} '.format(start, end)
+                self.time_stamps[uniq_name].append(stamp)
 
         embedding_dir = os.path.join(self._speaker_dir, 'embeddings')
         if not os.path.exists(embedding_dir):
@@ -281,7 +290,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         name = os.path.join(embedding_dir, prefix)
         self._embeddings_file = name + '_embeddings.pkl'
-        pkl.dump(out_embeddings, open(self._embeddings_file, 'wb'))
+        pkl.dump(self.embeddings, open(self._embeddings_file, 'wb'))
         logging.info("Saved embedding files to {}".format(embedding_dir))
 
     def path2audio_files_to_manifest(self, paths2audio_files, manifest_filepath):
@@ -301,8 +310,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         self._vad_dir = os.path.join(self._out_dir, 'vad_outputs')
         self._vad_out_file = os.path.join(self._vad_dir, "vad_out.json")
-
-        self._speaker_dir = os.path.join(self._out_dir, 'speaker_outputs')
 
         if paths2audio_files:
             if type(paths2audio_files) is str:
@@ -342,7 +349,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         elif self._diarizer_params.vad.external_vad_manifest is not None:
             self._speaker_manifest_path = self._diarizer_params.vad.external_vad_manifest
         elif self._diarizer_params.oracle_vad is not None:
-            self._speaker_manifest_path = os.path.json(self._speaker_dir, 'oracle_vad_manifest.json')
+            self._speaker_manifest_path = os.path.join(self._speaker_dir, 'oracle_vad_manifest.json')
             self._speaker_manifest_path = write_rttm2manifest(self.AUDIO_RTTM_MAP, self._speaker_manifest_path)
         else:
             raise ValueError(
@@ -355,14 +362,29 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         out_rttm_dir = os.path.join(self._out_dir, 'pred_rttms')
         os.makedirs(out_rttm_dir, exist_ok=True)
 
-        perform_diarization(
-            embeddings_file=self._embeddings_file,
-            reco2num=self._num_speakers,
-            manifest_path=self.subsegments_manifest_path,
-            audio_rttm_map=self.AUDIO_RTTM_MAP,
+        all_reference, all_hypothesis = perform_clustering(
+            embeddings=self.embeddings,
+            time_stamps=self.time_stamps,
+            AUDIO_RTTM_MAP=self.AUDIO_RTTM_MAP,
             out_rttm_dir=out_rttm_dir,
-            max_num_speakers=self.max_num_speakers,
+            clustering_params=self._cluster_params,
         )
+
+        if len(all_reference) and len(all_hypothesis):
+            DER, CER, FA, MISS, _ = score_labels(all_reference, all_hypothesis)
+            logging.info(
+                "Cumulative results of all the files:  \n FA: {:.4f}\t MISS {:.4f}\t \
+                Diarization ER: {:.4f}\t, Confusion ER:{:.4f}".format(
+                    FA, MISS, DER, CER
+                )
+            )
+        else:
+            logging.warning(
+                "Please check if each ground truth RTTMs was present in provided path2groundtruth_rttm_files"
+            )
+            logging.warning("Skipping calculation of Diariazation Error Rate")
+
+        score_labels(all_reference, all_hypothesis, collar=0.25, ignore_overlap=True)
 
     @staticmethod
     def __make_nemo_file_from_folder(filename, source_dir):
