@@ -317,13 +317,18 @@ class MTBottleneckModel(MTEncDecModel):
             inputs: a list of string containing detokenized inputs
         """
         mode = self.training
+        timer = cache.get("timer", None)
         try:
             self.eval()
 
             # build posterior distribution q(x|z)
             if ("z" not in cache) or ("z_mean" not in cache) or ("z_mask" not in cache):
+                if timer is not None:
+                    timer.start("encoder")
                 enc_hiddens, enc_mask = self.encoder(input_ids=src, encoder_mask=src_mask, return_mask=True)
                 z, z_mean, _ = self.encode_latent(hidden=enc_hiddens)
+                if timer is not None:
+                    timer.stop("encoder")
             else:
                 enc_mask = cache["z_mask"]
                 z = cache["z"]
@@ -332,8 +337,8 @@ class MTBottleneckModel(MTEncDecModel):
             if getattr(self, "deterministic_translate", True):
                 z = z_mean
 
-            if cache.get("timer", None) is not None:
-                cache["timer"].start("sampler")
+            if timer is not None:
+                timer.start("sampler")
             # decoding cross attention context
             context_hiddens = self.latent2hidden(z)
 
@@ -342,8 +347,8 @@ class MTBottleneckModel(MTEncDecModel):
                 encoder_input_mask=enc_mask,
                 return_beam_scores=return_beam_scores,
             )
-            if cache.get("timer", None) is not None:
-                cache["timer"].stop("sampler")
+            if timer is not None:
+                timer.stop("sampler")
 
             if return_beam_scores:
                 all_translations, scores, best_translations = best_translations

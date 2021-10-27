@@ -25,8 +25,17 @@ from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
 from nemo.collections.common.tokenizers.youtokentome_tokenizer import YouTokenToMeTokenizer
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import get_huggingface_pretrained_lm_models_list
 from nemo.collections.nlp.modules.common.lm_utils import get_pretrained_lm_models_list
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_tokenizer
+from nemo.collections.nlp.parts.nlp_overrides import HAVE_APEX
 from nemo.utils import logging
+
+try:
+    from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_tokenizer
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
+
 
 __all__ = ['get_tokenizer', 'get_tokenizer_list']
 
@@ -88,6 +97,8 @@ def get_tokenizer(
         special_tokens_dict = special_tokens
 
     if 'megatron' in tokenizer_name:
+        if not HAVE_APEX:
+            raise RuntimeError("Apex required to use megatron.")
         if vocab_file is None:
             vocab_file = nemo.collections.nlp.modules.common.megatron.megatron_utils.get_megatron_vocab_file(
                 tokenizer_name
@@ -138,9 +149,9 @@ def get_nmt_tokenizer(
         special_tokens: dict of special tokens
         vocab_file: path to vocab file
         use_fast: (only for HuggingFace AutoTokenizer) set to True to use fast HuggingFace tokenizer
-        bpe_dropout: (only supported by YTTM tokenizer) BPE dropout tries to corrupt the standard segmentation procedure of BPE to help
-            model better learn word compositionality and become robust to segmentation errors. 
-            It has emperically been shown to improve inference time BLEU scores.
+        bpe_dropout: (only supported by YTTM tokenizer) BPE dropout tries to corrupt the standard segmentation procedure
+            of BPE to help model better learn word compositionality and become robust to segmentation errors.
+            It has empirically been shown to improve inference time BLEU scores.
         r2l: Whether to return subword IDs from right to left
     """
     if special_tokens is None:
@@ -177,5 +188,6 @@ def get_nmt_tokenizer(
         return get_tokenizer(tokenizer_name=model_name, vocab_file=vocab_file, merges_file=merges_file)
     else:
         raise NotImplementedError(
-            'Currently we only support "yttm", "huggingface", "sentencepiece", "megatron", and "byte-level" tokenizer libraries.'
+            'Currently we only support "yttm", "huggingface", "sentencepiece", "megatron", and "byte-level" tokenizer'
+            'libraries.'
         )

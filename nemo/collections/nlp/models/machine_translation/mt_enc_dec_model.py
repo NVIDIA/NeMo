@@ -46,7 +46,7 @@ from nemo.collections.nlp.modules.common.lm_utils import get_transformer
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TopKSequenceGenerator
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.utils import logging, model_utils
+from nemo.utils import logging, model_utils, timers
 
 __all__ = ['MTEncDecModel']
 
@@ -765,7 +765,9 @@ class MTEncDecModel(EncDecNLPModel):
         return translations
 
     @torch.no_grad()
-    def batch_translate(self, src: torch.LongTensor, src_mask: torch.LongTensor, return_beam_scores: bool = False):
+    def batch_translate(
+        self, src: torch.LongTensor, src_mask: torch.LongTensor, return_beam_scores: bool = False, cache={}
+    ):
         """
         Translates a minibatch of inputs from source language to target language.
         Args:
@@ -776,12 +778,20 @@ class MTEncDecModel(EncDecNLPModel):
             inputs: a list of string containing detokenized inputs
         """
         mode = self.training
+        timer = cache.get("timer", None)
         try:
             self.eval()
+            if timer is not None:
+                timer.start("encoder")
             src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
+            if timer is not None:
+                timer.stop("encoder")
+                timer.start("sampler")
             best_translations = self.beam_search(
                 encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask, return_beam_scores=return_beam_scores
             )
+            if timer is not None:
+                timer.stop("sampler")
             if return_beam_scores:
                 all_translations, scores, best_translations = best_translations
                 scores = scores.view(-1)
@@ -827,7 +837,12 @@ class MTEncDecModel(EncDecNLPModel):
     # TODO: We should drop source/target_lang arguments in favor of using self.src/tgt_language
     @torch.no_grad()
     def translate(
-        self, text: List[str], source_lang: str = None, target_lang: str = None, return_beam_scores: bool = False
+        self,
+        text: List[str],
+        source_lang: str = None,
+        target_lang: str = None,
+        return_beam_scores: bool = False,
+        log_timing: bool = False,
     ) -> List[str]:
         """
         Translates list of sentences from source language to target language.
@@ -855,19 +870,41 @@ class MTEncDecModel(EncDecNLPModel):
             elif tgt_symbol in self.multilingual_ids:
                 prepend_ids = [tgt_symbol]
 
+        if log_timing:
+            timer = timers.NamedTimer()
+        else:
+            timer = None
+
+        cache = {
+            "timer": timer,
+        }
+
         try:
             self.eval()
             src, src_mask = self.prepare_inference_batch(text, prepend_ids)
             if return_beam_scores:
                 _, all_translations, scores, best_translations = self.batch_translate(
-                    src, src_mask, return_beam_scores=True
+                    src, src_mask, return_beam_scores=True, cache=cache,
                 )
-                return all_translations, scores, best_translations
+                return_val = all_translations, scores, best_translations
             else:
-                _, translations = self.batch_translate(src, src_mask, return_beam_scores=False)
+                _, best_translations = self.batch_translate(src, src_mask, return_beam_scores=False, cache=cache)
+                return_val = best_translations
         finally:
             self.train(mode=mode)
-        return translations
+
+        if log_timing:
+            timing = timer.export()
+            timing["mean_src_length"] = src_mask.sum().cpu().item() / src_mask.shape[0]
+            tgt, tgt_mask = self.prepare_inference_batch(best_translations, prepend_ids, target=True)
+            timing["mean_tgt_length"] = tgt_mask.sum().cpu().item() / tgt_mask.shape[0]
+
+            if type(return_val) is tuple:
+                return_val = return_val + (timing,)
+            else:
+                return_val = (return_val, timing)
+
+        return return_val
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
