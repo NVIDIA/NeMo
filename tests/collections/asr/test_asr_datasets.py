@@ -396,7 +396,7 @@ class TestASRDatasets:
 
             count = 0
             for ref_data, dali_data in zip(ref_dataloader, dali_dataset):
-                ref_audio, ref_audio_len, _, _, _ = ref_data
+                ref_audio, ref_audio_len, _, _ = ref_data
                 ref_features, ref_features_len = ref_preprocessor(input_signal=ref_audio, length=ref_audio_len)
 
                 dali_features, dali_features_len, _, _ = dali_data

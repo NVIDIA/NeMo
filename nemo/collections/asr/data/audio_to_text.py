@@ -480,7 +480,7 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
     def __getitem__(self, item):
         audio, audio_len = None, None
         if self.load_audio:
-            audio, audio_len, _, _, _ = super().__getitem__(item)  # noqa
+            audio, audio_len, _, _ = super().__getitem__(item)  # noqa
 
         text = self.id2enc_text[item]
         text, text_len = torch.tensor(text).long(), torch.tensor(len(text)).long()
@@ -626,7 +626,7 @@ class AudioToCharWithPriorDataset(AudioToCharDataset):
         return np.array(mel_text_probs)
 
     def __getitem__(self, item):
-        audio, audio_len, _, _, _ = super().__getitem__(item)  # noqa
+        audio, audio_len, _, _ = super().__getitem__(item)  # noqa
 
         text = self.id2enc_text[item]
 
@@ -762,7 +762,7 @@ class FastPitchDataset(_AudioTextDataset):
         }
 
     def __getitem__(self, item):
-        audio, audio_len, text, text_len, _ = super().__getitem__(item)  # noqa
+        audio, audio_len, text, text_len = super().__getitem__(item)  # noqa
 
         audio_path = self.manifest_processor.collection[item].audio_file
         durs_path = audio_path.replace('/wavs/', '/fastpitch/durations/').replace('.wav', '.pt')
