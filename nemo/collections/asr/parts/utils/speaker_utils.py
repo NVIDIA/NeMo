@@ -33,34 +33,36 @@ from nemo.utils import logging
 This file contains all the utility functions required for speaker embeddings part in diarization scripts
 """
 
+
 def get_uniqname_from_filepath(filepath):
     if type(filepath) is str:
-        basename = ''.join(os.path.basename(filepath).split('.')[:-1])
-        dirname = os.path.dirname(filepath).split('/')[-1]
-        return '@'.join([dirname,basename])
+        basename = os.path.basename(filepath).rsplit('.', 1)[0]
+        return basename
     else:
         raise TypeError("input must be filepath string")
+
 
 def audio_rttm_map(manifest):
     """
     This function creates AUDIO_RTTM_MAP which is used by all diarization components to extract embeddings,
     cluster and unify time stamps 
     """
-    
+
     AUDIO_RTTM_MAP = {}
-    with open(manifest,'r') as inp_file:
+    with open(manifest, 'r') as inp_file:
         lines = inp_file.readlines()
         for line in lines:
             line = line.strip()
             dic = json.loads(line)
 
-            meta = {'audio_filepath':dic['audio_filepath'],
-            'rttm_filepath':dic.get('rttm_filepath',None),
-            'text': dic.get('text','-'),
-            'num_speakers': dic.get('num_speakers',None),
-            'uem_filepath': dic.get('uem_filepath')
+            meta = {
+                'audio_filepath': dic['audio_filepath'],
+                'rttm_filepath': dic.get('rttm_filepath', None),
+                'text': dic.get('text', '-'),
+                'num_speakers': dic.get('num_speakers', None),
+                'uem_filepath': dic.get('uem_filepath'),
             }
-        
+
             uniqname = get_uniqname_from_filepath(filepath=meta['audio_filepath'])
 
             if uniqname not in AUDIO_RTTM_MAP:
@@ -69,6 +71,7 @@ def audio_rttm_map(manifest):
                 raise KeyError("file {} is already part AUDIO_RTTM_Map, it might be duplicated".format(audio_filepath))
 
     return AUDIO_RTTM_MAP
+
 
 def get_contiguous_stamps(stamps):
     """

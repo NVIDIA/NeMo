@@ -13,13 +13,13 @@
 # limitations under the License.
 
 import json
-from multiprocessing import Value
 import os
 import pickle as pkl
 import shutil
 import tarfile
 import tempfile
 from collections import defaultdict
+from multiprocessing import Value
 from typing import List, Optional
 
 import torch
@@ -33,6 +33,7 @@ from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.mixins.mixins import DiarizationMixin
 from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
+    get_uniqname_from_filepath,
     perform_diarization,
     segments_manifest_to_subsegments_manifest,
     write_rttm2manifest,
@@ -95,7 +96,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
     @classmethod
     def list_available_models(cls):
         pass
-    
+
     def _init_vad_model(self):
         model_path = self._cfg.diarizer.vad.model_path
         if model_path.endswith('.nemo'):
@@ -131,7 +132,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             logging.info("Loading pretrained {} model from NGC".format(model_path))
             self._speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name=model_path)
 
-
     def _setup_vad_test_data(self, manifest_vad_input):
         vad_dl_config = {
             'manifest_filepath': manifest_vad_input,
@@ -150,8 +150,8 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             'manifest_filepath': manifest_file,
             'sample_rate': self._cfg.sample_rate,
             'batch_size': self._cfg.get('batch_size', 32),
-            'time_length': self._cfg.diarizer.speaker_embeddings.window_length_in_sec,
-            'shift_length': self._cfg.diarizer.speaker_embeddings.shift_length_in_sec,
+            'time_length': self._speaker_params.window_length_in_sec,
+            'shift_length': self._speaker_params.shift_length_in_sec,
             'trim_silence': False,
             'embedding_dir': self._speaker_dir,
             'labels': None,
@@ -161,7 +161,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         self._speaker_model.setup_test_data(spk_dl_config)
 
     def _run_vad(self, manifest_file):
-        
+
         shutil.rmtree(self._vad_dir, ignore_errors=True)
         os.makedirs(self._vad_dir)
 
@@ -174,8 +174,8 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         all_len = 0
         data = []
         for line in open(manifest_file, 'r'):
-            file = os.path.basename(json.loads(line)['audio_filepath'])
-            data.append(os.path.splitext(file)[0])
+            file = json.loads(line)['audio_filepath']
+            data.append(get_uniqname_from_filepath(file))
 
         status = get_vad_stream_status(data)
         for i, test_batch in enumerate(tqdm(self._vad_model.test_dataloader())):
@@ -219,27 +219,34 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             self.vad_pred_dir = smoothing_pred_dir
 
         logging.info("Converting frame level prediction to speech/no-speech segment in start and end times format.")
-        postprocessing_params = self._cfg.diarizer.vad.postprocessing_params
-        if self._cfg.diarizer.vad.get("threshold", None):
-            logging.info("threshold is not None. Use threshold and update onset=offset=threshold")
-            logging.warning("Support for threshold will be deprecated in release 1.5")
-            postprocessing_params['onset'] = self._cfg.diarizer.vad.threshold
-            postprocessing_params['offset'] = self._cfg.diarizer.vad.threshold
 
         table_out_dir = generate_vad_segment_table(
             vad_pred_dir=self.vad_pred_dir,
-            postprocessing_params=postprocessing_params,
+            postprocessing_params=self._vad_params,
             shift_len=self._vad_shift_length_in_sec,
             num_workers=self._cfg.num_workers,
         )
-        import ipdb; ipdb.set_trace()
-        # vad_table_list = [os.path.join(table_out_dir, key + ".txt") for key in self.AUDIO_RTTM_MAP]
         AUDIO_VAD_RTTM_MAP = self.AUDIO_RTTM_MAP.copy()
         for key in AUDIO_VAD_RTTM_MAP:
-            AUDIO_VAD_RTTM_MAP[key]['rttm_filepath'] = os.path.join(table_out_dir, key + ".txt") 
-        
+            AUDIO_VAD_RTTM_MAP[key]['rttm_filepath'] = os.path.join(table_out_dir, key + ".txt")
+
         write_rttm2manifest(AUDIO_VAD_RTTM_MAP, self._vad_out_file)
         self._speaker_manifest_path = self._vad_out_file
+
+    def _run_segmentation(self):
+
+        shutil.rmtree(self._speaker_dir, ignore_errors=True)
+        os.makedirs(self._speaker_dir)
+
+        self.subsegments_manifest_path = os.path.join(self._speaker_dir, 'subsegments.json')
+        self.subsegments_manifest_path = segments_manifest_to_subsegments_manifest(
+            segments_manifest_file=self._speaker_manifest_path,
+            subsegments_manifest_file=self.subsegments_manifest_path,
+            window=self._speaker_params.window_length_in_sec,
+            shift=self._speaker_params.shift_length_in_sec,
+        )
+
+        return None
 
     def _extract_embeddings(self, manifest_file):
         logging.info("Extracting embeddings for Diarization")
@@ -263,21 +270,21 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             for i, line in enumerate(manifest.readlines()):
                 line = line.strip()
                 dic = json.loads(line)
-                uniq_name = os.path.basename(dic['audio_filepath']).rsplit('.', 1)[0]
+                uniq_name = get_uniqname_from_filepath(dic['audio_filepath'])
                 out_embeddings[uniq_name].extend([all_embs[i]])
 
         embedding_dir = os.path.join(self._speaker_dir, 'embeddings')
         if not os.path.exists(embedding_dir):
             os.makedirs(embedding_dir, exist_ok=True)
 
-        prefix = manifest_file.split('/')[-1].rsplit('.', 1)[-2]
+        prefix = get_uniqname_from_filepath(manifest_file)
 
         name = os.path.join(embedding_dir, prefix)
         self._embeddings_file = name + '_embeddings.pkl'
         pkl.dump(out_embeddings, open(self._embeddings_file, 'wb'))
         logging.info("Saved embedding files to {}".format(embedding_dir))
 
-    def path2audio_files_to_manifest(self, paths2audio_files,manifest_filepath):
+    def path2audio_files_to_manifest(self, paths2audio_files, manifest_filepath):
         with open(manifest_filepath, 'w') as fp:
             for audio_file in paths2audio_files:
                 audio_file = audio_file.strip()
@@ -287,7 +294,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
     def diarize(self, paths2audio_files: List[str] = None, batch_size: int = 1):
         """
         """
-        
+
         self._out_dir = self._diarizer_params.out_dir
         if not os.path.exists(self._out_dir):
             os.mkdir(self._out_dir)
@@ -300,8 +307,8 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         if paths2audio_files:
             if type(paths2audio_files) is str:
                 paths2audio_files = [paths2audio_files]
-                self._diarizer_params.manifest_filepath = os.path.json(self._out_dir,'paths2audio_filepath.json')
-                self.path2audio_files_to_manifest(paths2audio_files,self._diarizer_params.manifest_filepath)
+                self._diarizer_params.manifest_filepath = os.path.json(self._out_dir, 'paths2audio_filepath.json')
+                self.path2audio_files_to_manifest(paths2audio_files, self._diarizer_params.manifest_filepath)
             else:
                 raise ValueError("paths2audio_files must be of type list or path to file containing audio files")
 
@@ -309,7 +316,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         if self.has_vad_model:
             logging.info("Performing VAD")
-            
+
             self._dont_auto_split = False
             self._split_duration = 50
             manifest_vad_input = self._diarizer_params.manifest_filepath
@@ -335,24 +342,19 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         elif self._diarizer_params.vad.external_vad_manifest is not None:
             self._speaker_manifest_path = self._diarizer_params.vad.external_vad_manifest
         elif self._diarizer_params.oracle_vad is not None:
-            self._speaker_manifest_path = os.path.json(self._speaker_dir,'oracle_vad_manifest.json')
+            self._speaker_manifest_path = os.path.json(self._speaker_dir, 'oracle_vad_manifest.json')
             self._speaker_manifest_path = write_rttm2manifest(self.AUDIO_RTTM_MAP, self._speaker_manifest_path)
         else:
-            raise ValueError("Only one of diarizer.oracle_vad, vad.model_path, vad.external_vad_manifest must be passed")
+            raise ValueError(
+                "Only one of diarizer.oracle_vad, vad.model_path, vad.external_vad_manifest must be passed"
+            )
 
-        self.subsegments_manifest_path = os.path.join(self._speaker_dir, 'subsegments.json')
-        self.subsegments_manifest_path = segments_manifest_to_subsegments_manifest(
-            segments_manifest_file=self._speaker_manifest_path,
-            subsegments_manifest_file=self.subsegments_manifest_path,
-            window=self._cfg.diarizer.speaker_embeddings.window_length_in_sec,
-            shift=self._cfg.diarizer.speaker_embeddings.shift_length_in_sec,
-        )
+        self._run_segmentation()
+
         self._extract_embeddings(self.subsegments_manifest_path)
         out_rttm_dir = os.path.join(self._out_dir, 'pred_rttms')
         os.makedirs(out_rttm_dir, exist_ok=True)
 
-        import ipdb; ipdb.set_trace()
-        
         perform_diarization(
             embeddings_file=self._embeddings_file,
             reco2num=self._num_speakers,
