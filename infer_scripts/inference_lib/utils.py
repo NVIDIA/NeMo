@@ -34,3 +34,22 @@ def monkeypatch_submitit():
 
     submitit.Job._results_timeout_s = 2 * H2S
     submitit.SlurmJob.watcher = PyxisInfoWatcher(delay_s=5)
+
+
+def get_YN_input(prompt, default):
+    yes = {"yes", "ye", "y"}
+    no = {"no", "n"}
+    return get_choice_string_input(prompt, default, yes, no)
+
+
+def get_choice_string_input(prompt, default, first_choice, second_choice):
+    choice = input(prompt).lower()
+    if choice in first_choice:
+        return True
+    elif choice in second_choice:
+        return False
+    elif choice is "":  # Just enter pressed
+        return default
+    else:
+        print("input not recognized, please try again: ")
+        return get_choice_string_input(prompt, default, first_choice, second_choice)

@@ -22,7 +22,6 @@ import site
 import subprocess
 import time
 import typing
-import uuid
 
 import submitit
 
@@ -391,6 +390,8 @@ def convert_model_ft2ft(
     parameters_to_override: typing.Optional[typing.Dict[str, typing.Any]] = None,
     verbose: bool = False,
 ):
+    from model_navigator.utils.config import YamlConfigFile
+
     init_job_env(verbose)
 
     parameters_to_override = parameters_to_override or {}
@@ -403,14 +404,21 @@ def convert_model_ft2ft(
 
     converted_model_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(model_path, converted_model_path)
-    if "ft_gpu_counts" in parameters_to_override:
+    ft_gpu_count = parameters_to_override.get("ft_gpu_counts", None)
+    if ft_gpu_count is not None:
         import yaml
 
         with (converted_model_path / "meta.yaml").open("r") as meta_file:
             meta_info = yaml.load(meta_file, Loader=yaml.SafeLoader)
-        meta_info["tensor_para_size"] = int(parameters_to_override["ft_gpu_counts"])
+        meta_info["tensor_para_size"] = int(ft_gpu_count)
         with (converted_model_path / "meta.yaml").open("w") as meta_file:
             yaml.dump(meta_info, meta_file)
+
+    config_path = converted_model_path.with_suffix(".nav.yaml")
+    with YamlConfigFile(config_path) as config_file:
+        config_file.save_key("launch_mode", "local")
+        if ft_gpu_count is not None:
+            config_file.save_key("ft_gpu_counts", [ft_gpu_count])
 
     return converted_model_path
 
@@ -494,6 +502,8 @@ def run_perf_test(
     workspace_path: pathlib.Path,
     bignlp_scripts_path: pathlib.Path,
     triton_endpoint_url: str,
+    accuracy_tests: bool,
+    performance_tests: bool,
     dataset_dir: pathlib.Path,
     variant: Variant,
     verbose: bool = False,
@@ -563,18 +573,23 @@ def run_perf_test(
     log_path = workspace_path / "logs" / f"{cluster_suffix}_benchmarking.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     try:
+        reports_paths = []
         with log_path.open("w") as log_file:
-            LOGGER.debug(f"Running {triton_offline_eval_model_cmd}")
-            execute_sh_command(triton_offline_eval_model_cmd, log_file=log_file, verbose=verbose)
-            execute_sh_command(triton_online_eval_model_cmd, log_file=log_file, verbose=verbose)
-            execute_sh_command(accuracy_eval_cmd, log_file=log_file, verbose=verbose)
+            if performance_tests:
+                LOGGER.debug(f"Running {triton_offline_eval_model_cmd}")
+                execute_sh_command(triton_offline_eval_model_cmd, log_file=log_file, verbose=verbose)
+                reports_paths.append(offline_latency_report_path)
+                LOGGER.debug(f"Running {triton_online_eval_model_cmd}")
+                execute_sh_command(triton_online_eval_model_cmd, log_file=log_file, verbose=verbose)
+                reports_paths.append(online_latency_report_path)
+            if accuracy_tests:
+                LOGGER.debug(f"Running {accuracy_eval_cmd}")
+                execute_sh_command(accuracy_eval_cmd, log_file=log_file, verbose=verbose)
+                reports_paths.append(accuracy_report_path)
     except sh.ErrorReturnCode as e:
         msg = f"{e.stdout.decode('utf-8')}; more info in {log_path}"
         raise RuntimeError(msg)
-    return "\n".join(
-        f"\n{report_path}\n{report_path.read_text()}\n"
-        for report_path in [offline_latency_report_path, online_latency_report_path, accuracy_report_path]
-    )
+    return "\n".join(f"\n{report_path}\n{report_path.read_text()}\n" for report_path in reports_paths)
 
 
 def _patch_model_analyzer(paths):
@@ -715,6 +730,8 @@ def run_analyze(
         "dynamic_batch_sizes",
         "satisfies_constraints",
         "perf_throughput",
+        "perf_latency_p50",
+        "perf_latency_p95",
         "perf_latency_p99",
     ]
 

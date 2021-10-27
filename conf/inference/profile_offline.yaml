@@ -4,8 +4,8 @@ engine_count_per_device:
 launch_mode: local
 # perf_analyzer related
 triton_launch_mode: remote
-perf_measurement_mode: time_windows
-perf_measurement_request_count: 500  # 500 req when used 'count_windows' mode
+perf_measurement_mode: count_windows
+perf_measurement_request_count: 50  # 50 req when used 'count_windows' mode
 perf_measurement_interval: 10000  # 10s when used 'time_windows' mode
 perf_analyzer_timeout: 1200  # 20min
 config_search_concurrency: [1]

@@ -17,9 +17,11 @@ import dataclasses
 import datetime
 import logging
 import pathlib
+import shutil
 import sys
 import typing
 
+import submitit
 import yaml
 
 from inference_lib.inference import (
@@ -41,9 +43,9 @@ from inference_lib.slurm import (
     get_common_slurm_parameters,
     setup_job,
 )
-from inference_lib.utils import config_logger, monkeypatch_submitit
+from inference_lib.utils import config_logger, get_YN_input, monkeypatch_submitit
 
-LOGGER = logging.getLogger("test_model")
+LOGGER = logging.getLogger("prepare_model_repo")
 
 
 def _convert_model(
@@ -172,6 +174,8 @@ def _load_triton_model_and_run_benchmark(
     paths: Paths,
     config: typing.Dict,
     dataset_dir: pathlib.Path,
+    accuracy_tests: bool = False,
+    performance_tests: bool = False,
     verbose: bool = False,
 ):
     triton_server_set = None
@@ -255,6 +259,8 @@ def _load_triton_model_and_run_benchmark(
                 workspace_path=paths.workspace_path,
                 bignlp_scripts_path=paths.host_cwd,
                 triton_endpoint_url=triton_server_set.grpc_endpoints[0],
+                accuracy_tests=accuracy_tests,
+                performance_tests=performance_tests,
                 dataset_dir=dataset_dir.resolve().absolute(),
                 variant=variant,
                 verbose=verbose,
@@ -284,6 +290,18 @@ def main():
 
     config_logger(args.verbose)
     monkeypatch_submitit()
+
+    output_model_repository_path = pathlib.Path(args.model_repository_path).resolve().absolute()
+    if output_model_repository_path.exists():
+        delete_output_model_repository = get_YN_input(
+            f"{output_model_repository_path} exists. Do you want to remove it? [y/N] ", False
+        )
+        if delete_output_model_repository:
+            LOGGER.info(f"Removing {output_model_repository_path}")
+            shutil.rmtree(output_model_repository_path)
+        else:
+            LOGGER.warning(f"{output_model_repository_path} exists.")
+            return -1
 
     cluster_config_path = pathlib.Path(args.cluster_config_path).resolve().absolute()
     with cluster_config_path.open("r") as config_file:
@@ -322,12 +340,20 @@ def main():
         converted_paths, host_triton_model_repository_path=triton_model_repository_path
     )
 
-    _load_triton_model_and_run_benchmark(
-        paths=deployed_paths,
-        config=cluster_config,
-        dataset_dir=pathlib.Path(args.dataset_dir).resolve().absolute(),
-        verbose=args.verbose,
+    if any([args.accuracy_tests, args.performance_tests]):
+        _load_triton_model_and_run_benchmark(
+            paths=deployed_paths,
+            config=cluster_config,
+            accuracy_tests=args.accuracy_tests,
+            performance_tests=args.performance_tests,
+            dataset_dir=pathlib.Path(args.dataset_dir).resolve().absolute(),
+            verbose=args.verbose,
+        )
+
+    LOGGER.info(
+        f"Copying result Triton Model Repository to {output_model_repository_path} (model inside repository is symlink)"
     )
+    shutil.copytree(triton_model_repository_path, output_model_repository_path, symlinks=True)
 
 
 def _prepare_args_parser():
@@ -346,11 +372,14 @@ def _prepare_args_parser():
         "--model-path", help="Path to model checkpoint which will be converted and profiled", required=True
     )
     parser.add_argument("--model-name", help="Name of the model visible in Triton Inference Server", required=True)
+    parser.add_argument("--model-repository-path", help="Path to result Triton Model Repository", required=True)
     parser.add_argument(
         "--dataset-dir",
         help="Path to directory containing LAMBADA dataset and vocabulary files used for accuracy verification",
         required=True,
     )
+    parser.add_argument("--accuracy-tests", help="Run accuracy tests", action="store_true", default=False)
+    parser.add_argument("--performance-tests", help="Run performance tests", action="store_true", default=False)
     parser.add_argument("--verbose", "-v", help="Provides verbose output", action="store_true", default=False)
     return parser
 
