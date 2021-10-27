@@ -93,7 +93,7 @@ Here, we list a collection of research articles that utilize the NeMo Toolkit. I
 
 --------
 
-## Dialog State Tracking
+## Dialogue State Tracking
 
 <details>
   <summary>2021</summary>
