@@ -89,9 +89,10 @@ class DecimalFst(GraphFst):
 
         graph_decimal = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
         graph_decimal |= pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
-        self.graph = pynini.invert(graph_decimal).optimize()
+        inverted = pynini.invert(graph_decimal)
+        self.graph = inverted + pynini.closure(insert_space + inverted).optimize()
 
-        point = pynutil.delete(".")
+        point = pynutil.delete(",")
         optional_graph_negative = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
 
         self.graph_fractional = pynutil.insert("fractional_part: \"") + self.graph + pynutil.insert("\"")
