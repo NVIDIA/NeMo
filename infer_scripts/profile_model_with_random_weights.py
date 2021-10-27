@@ -165,7 +165,10 @@ def _prepare_triton_model_repositories(
         LOGGER.info(f"[{preparation_job.job_id}/{job_name}] logs: {preparation_job.paths.stdout}")
 
         model_repository_paths = preparation_job.result()
-        LOGGER.info(f"[{preparation_job.job_id}/{job_name}] Triton Model Repositories:")
+        LOGGER.info(
+            f"[{preparation_job.job_id}/{job_name}] Submitted task for preparation set of Triton Model Repositories "
+            f"for model {paths.converted_model_path}"
+        )
         for model_repository_path in model_repository_paths:
             LOGGER.info(f"[{preparation_job.job_id}/{job_name}]     - {model_repository_path}")
 
