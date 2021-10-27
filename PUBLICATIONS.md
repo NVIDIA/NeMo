@@ -87,7 +87,7 @@ Here, we list a collection of research articles that utilize the NeMo Toolkit. I
 <details>
   <summary>2021</summary>
   
-  * [BioMegatron: Larger Biomedical Domain Language Model  ](https://arxiv.org/abs/2105.08049)
+  * [BioMegatron: Larger Biomedical Domain Language Model  ](https://aclanthology.org/2020.emnlp-main.379/)
   
 </details>
 
@@ -98,7 +98,7 @@ Here, we list a collection of research articles that utilize the NeMo Toolkit. I
 <details>
   <summary>2021</summary>
   
-  * [SGD-QA: Fast Schema-Guided Dialogue State Tracking for Unseen Services](https://aclanthology.org/2020.emnlp-main.379/)
+  * [SGD-QA: Fast Schema-Guided Dialogue State Tracking for Unseen Services](https://arxiv.org/abs/2105.08049)
   
 </details>
 
