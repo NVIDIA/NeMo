@@ -11,7 +11,7 @@ ${PIP} uninstall -y nemo_toolkit
 ${PIP} uninstall -y sacrebleu
 
 # TODO: revert when 1.5.0 is out
-${PIP} uninstall -y pytorch-lightning==1.5.0rc0
+${PIP} uninstall -y pytorch-lightning
 
 # Kept for legacy purposes
 ${PIP} uninstall -y nemo_asr
