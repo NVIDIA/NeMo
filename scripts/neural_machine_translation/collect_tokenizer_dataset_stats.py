@@ -16,7 +16,6 @@ import argparse
 import json
 import multiprocessing as mp
 import os
-from functools import partial
 
 import numpy as np
 from matplotlib import pyplot as plt
