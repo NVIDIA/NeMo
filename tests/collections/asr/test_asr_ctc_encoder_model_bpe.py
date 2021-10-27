@@ -236,7 +236,7 @@ class TestEncDecCTCModel:
                 os.rename(old_tokenizer_dir + '.bkp', old_tokenizer_dir)
 
     @pytest.mark.unit
-    def test_EncDecCTCDatasetConfig_for_AudioToBPEDataset(self):
+    def test_ASRDatasetConfig_for_AudioToBPEDataset(self):
         # ignore some additional arguments as dataclass is generic
         IGNORE_ARGS = [
             'is_tarred',
@@ -261,7 +261,7 @@ class TestEncDecCTCModel:
 
         result = assert_dataclass_signature_match(
             audio_to_text.AudioToBPEDataset,
-            configs.EncDecCTCDatasetConfig,
+            configs.ASRDatasetConfig,
             ignore_args=IGNORE_ARGS,
             remap_args=REMAP_ARGS,
         )
@@ -272,7 +272,7 @@ class TestEncDecCTCModel:
         assert dataclass_subset is None
 
     @pytest.mark.unit
-    def test_EncDecCTCDatasetConfig_for_TarredAudioToBPEDataset(self):
+    def test_ASRDatasetConfig_for_TarredAudioToBPEDataset(self):
         # ignore some additional arguments as dataclass is generic
         IGNORE_ARGS = [
             'is_tarred',
@@ -302,7 +302,7 @@ class TestEncDecCTCModel:
 
         result = assert_dataclass_signature_match(
             audio_to_text.TarredAudioToBPEDataset,
-            configs.EncDecCTCDatasetConfig,
+            configs.ASRDatasetConfig,
             ignore_args=IGNORE_ARGS,
             remap_args=REMAP_ARGS,
         )

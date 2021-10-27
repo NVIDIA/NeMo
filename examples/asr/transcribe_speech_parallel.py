@@ -68,7 +68,8 @@ from typing import Optional
 import pytorch_lightning as ptl
 import torch
 
-from nemo.collections.asr.data.audio_to_text_dataset import ASRDatasetConfig, ASRPredictionWriter
+from nemo.collections.asr.data.audio_to_text_dataset import ASRPredictionWriter
+from nemo.collections.asr.models.configs.asr_models_config import ASRDatasetConfig
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.collections.asr.models import ASRModel
 from nemo.core.config import TrainerConfig, hydra_runner

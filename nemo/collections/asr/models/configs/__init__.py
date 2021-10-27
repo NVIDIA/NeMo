@@ -17,9 +17,9 @@ from nemo.collections.asr.models.configs.classification_models_config import (
     EncDecClassificationDatasetConfig,
     EncDecClassificationModelConfig,
 )
-from nemo.collections.asr.models.configs.ctc_models_config import (
+from nemo.collections.asr.models.configs.asr_models_config import (
     EncDecCTCConfig,
-    EncDecCTCDatasetConfig,
+    ASRDatasetConfig,
     EncDecCTCModelConfig,
 )
 from nemo.collections.asr.models.configs.matchboxnet_config import (
