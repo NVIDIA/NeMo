@@ -18,6 +18,7 @@ import tempfile
 from typing import Any, Dict, List, Optional, Union
 
 import pytorch_lightning as pl
+from pytorch_lightning.utilities.types import _PATH
 import torch
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
@@ -35,7 +36,7 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.optim.optimizer import Optimizer
 
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
-from nemo.utils import AppState, logging
+from nemo.utils import AppState, app_state, logging
 
 try:
     from apex.transformer import parallel_state
@@ -127,26 +128,38 @@ class NLPDDPPlugin(DDPPlugin):
                 logging.info(f'mp_rank: {app_state.model_parallel_rank}')
                 logging.info(f'dp_rank: {app_state.data_parallel_rank}')
 
-    def save_checkpoint(self, checkpoint: Dict[str, Any], filepath: str) -> None:
-        """Save model/training states as a checkpoint file through state-dump and file-write.
+    def save_checkpoint(self, checkpoint: Dict[str, Any], filepath: _PATH) -> None:
+        # PTL override to accomodate model parallel checkpoints
+        filepath = self._inject_model_parallel_rank(filepath)
+        return super().save_checkpoint(checkpoint, filepath)
 
-        Args:
-            checkpoint: dict containing model and trainer state
-            filepath: write-target file's path
-        """
+    def remove_checkpoint(self, filepath: _PATH) -> None:
+        # PTL override to accomodate model parallel checkpoints
+        filepath = self._inject_model_parallel_rank(filepath)
+        logging.info(f'Removing checkpoint: {filepath}')
+        return super().remove_checkpoint(filepath)
+
+    def _inject_model_parallel_rank(self, filepath):
         app_state = AppState()
-        # dump states as a checkpoint dictionary object
-        # TrainingTypePlugin.on_save() just seems to return the same thing.
-        # checkpoint = self.on_save(checkpoint)
-        if self.is_global_zero or app_state.data_parallel_rank == 0:
-            try:
-                # write the checkpoint dictionary on the file
-                atomic_save(checkpoint, filepath)
-            except AttributeError as err:
-                key = pl.LightningModule.CHECKPOINT_HYPER_PARAMS_KEY
-                checkpoint.pop(key, None)
-                rank_zero_warn(f"Warning, `{key}` dropped from checkpoint. An attribute is not picklable: {err}")
-                atomic_save(checkpoint, filepath)
+        # inserts mp_rank_XX for model parallel checkpoints
+        if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+            # filepath needs to be updated to include mp_rank
+            dirname = os.path.dirname(filepath)
+            basename = os.path.basename(filepath)
+            filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
+            return filepath
+        else:
+            return filepath
+
+    @property
+    def should_rank_save_checkpoint(self) -> bool:
+        # PTL override that determines if checkpoints should be saved based on rank
+        # for model parallel we need data_parallel_rank==0
+        app_state = AppState()
+        if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+            return app_state.data_parallel_rank == 0
+        else:
+            return super().should_rank_save_checkpoint
 
     @property
     def distributed_sampler_kwargs(self):
@@ -162,38 +175,6 @@ class NLPDDPPlugin(DDPPlugin):
 
         else:
             return super(NLPDDPPlugin, self).distributed_sampler_kwargs
-
-
-class NLPCheckpointConnector(CheckpointConnector):
-    """ Override PTL CheckpointConnector to support model parallel checkpoints from Megatron-LM.
-    """
-
-    def __init__(self, trainer, resume_from_checkpoint):
-        super().__init__(trainer, resume_from_checkpoint)
-        if not HAVE_APEX:
-            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
-
-    def save_checkpoint(self, filepath, weights_only: bool = False) -> None:
-        """Slightly modified version of PyTorch Lightning's save_checkpoint.
-           Accounts for model parallel training.
-           Save model/training states as a checkpoint file through state-dump and file-write.
-
-        Args:
-            filepath: write-target file's path
-            weights_only: saving model weights only
-        """
-        app_state = AppState()
-        if app_state.model_parallel_size is not None:
-            # filepath needs to be updated to include mp_rank
-            dirname = os.path.dirname(filepath)
-            basename = os.path.basename(filepath)
-            filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
-            _checkpoint = self.dump_checkpoint(weights_only)
-            # each model parallel rank needs to save a copy of its model
-            if app_state.data_parallel_rank == 0:
-                self.trainer.accelerator.save_checkpoint(_checkpoint, filepath)
-        else:
-            super().save_checkpoint(filepath, weights_only)
 
 
 class NLPSaveRestoreConnector(SaveRestoreConnector):
