@@ -23,7 +23,7 @@ ${PIP} uninstall -y nemo_cv
 ${PIP} install -U setuptools
 
 # TODO: revert when 1.5.0 is out
-${PIP} install pytorch-lightning==1.5.0rc0
+${PIP} install pytorch-lightning==1.5.0rc1
 
 echo 'Installing nemo and nemo_text_processing'
 if [[ "$INSTALL_OPTION" == "dev" ]]; then
