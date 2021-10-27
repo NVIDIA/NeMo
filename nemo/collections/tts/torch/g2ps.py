@@ -82,6 +82,13 @@ class EnglishG2p(BaseG2p):
             else phoneme_dict
         )
 
+        if apply_to_oov_word is None:
+            logging.warning(
+                "apply_to_oov_word=None, it means that some of words will remain unchanged "
+                "if they are not handled by one of rule in self.parse_one_word(). "
+                "It is useful when you use tokenizer with set of phonemes and chars together, otherwise it can be not."
+            )
+
         super().__init__(
             phoneme_dict=phoneme_dict,
             text_preprocessing_func=text_preprocessing_func,

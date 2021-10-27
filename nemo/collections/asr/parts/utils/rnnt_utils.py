@@ -67,6 +67,8 @@ class Hypothesis:
     lm_scores: (Unused) Score of the external Language Model.
 
     tokens: (Optional) A list of decoded tokens (can be characters or word-pieces.
+
+    last_token (Optional): A token or batch of tokens which was predicted in the last step.
     """
 
     score: float
@@ -81,6 +83,7 @@ class Hypothesis:
     lm_state: Optional[Union[Dict[str, Any], List[Any]]] = None
     lm_scores: Optional[torch.Tensor] = None
     tokens: Optional[Union[List[int], torch.Tensor]] = None
+    last_token: Optional[torch.Tensor] = None
 
 
 @dataclass
