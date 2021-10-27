@@ -301,8 +301,15 @@ def main():
 
     measure_keys = list(MEASURE_PATTERNS.keys())
     for k in measure_keys:
-        if re.search("\s?st$", k) is not None:
+        if re.search("\s?st$", k) is not None or re.search("\s?Da$", k) is not None:
             MEASURE_PATTERNS.pop(k)
+    
+    
+    money_keys = list(MONEY_PATTERNS.keys())
+    for k in money_keys:
+        if re.search("\s?DM$", k) is not None:
+            MONEY_PATTERNS.pop(k)
+
     classes_to_upsample["FRACTION"] = sum(np.asarray(list(FRACTION_PATTERNS.values())) < args.thresh)
     classes_to_upsample["MEASURE"] = sum(np.asarray(list(MEASURE_PATTERNS.values())) < args.thresh)
     classes_to_upsample["TIME"] = sum(np.asarray(list(TIME_PATTERNS.values())) < args.thresh)
