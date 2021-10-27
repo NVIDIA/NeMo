@@ -149,9 +149,9 @@ def get_nmt_tokenizer(
         special_tokens: dict of special tokens
         vocab_file: path to vocab file
         use_fast: (only for HuggingFace AutoTokenizer) set to True to use fast HuggingFace tokenizer
-        bpe_dropout: (only supported by YTTM tokenizer) BPE dropout tries to corrupt the standard segmentation procedure of BPE to help
-            model better learn word compositionality and become robust to segmentation errors. 
-            It has emperically been shown to improve inference time BLEU scores.
+        bpe_dropout: (only supported by YTTM tokenizer) BPE dropout tries to corrupt the standard segmentation procedure
+            of BPE to help model better learn word compositionality and become robust to segmentation errors.
+            It has empirically been shown to improve inference time BLEU scores.
         r2l: Whether to return subword IDs from right to left
     """
     if special_tokens is None:
@@ -188,5 +188,6 @@ def get_nmt_tokenizer(
         return get_tokenizer(tokenizer_name=model_name, vocab_file=vocab_file, merges_file=merges_file)
     else:
         raise NotImplementedError(
-            'Currently we only support "yttm", "huggingface", "sentencepiece", "megatron", and "byte-level" tokenizer libraries.'
+            'Currently we only support "yttm", "huggingface", "sentencepiece", "megatron", and "byte-level" tokenizer'
+            'libraries.'
         )

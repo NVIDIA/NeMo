@@ -545,12 +545,74 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             (tuple): decoder states for given id
                 ([L x (1, H)], [L x (1, H)])
         """
+        if batch_states is not None:
+            state_list = []
+            for state_id in range(len(batch_states)):
+                states = [batch_states[state_id][layer][idx] for layer in range(self.pred_rnn_layers)]
+                state_list.append(states)
+
+            return state_list
+        else:
+            return None
+
+    def batch_concat_states(self, batch_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
+        """Concatenate a batch of decoder state to a packed state.
+
+        Args:
+            batch_states (list): batch of decoder states
+                B x ([L x (H)], [L x (H)])
+
+        Returns:
+            (tuple): decoder states
+                (L x B x H, L x B x H)
+        """
         state_list = []
-        for state_id in range(len(batch_states)):
-            states = [batch_states[state_id][layer][idx] for layer in range(self.pred_rnn_layers)]
-            state_list.append(states)
+
+        for state_id in range(len(batch_states[0])):
+            batch_list = []
+            for sample_id in range(len(batch_states)):
+                tensor = torch.stack(batch_states[sample_id][state_id])  # [L, H]
+                tensor = tensor.unsqueeze(0)  # [1, L, H]
+                batch_list.append(tensor)
+
+            state_tensor = torch.cat(batch_list, 0)  # [B, L, H]
+            state_tensor = state_tensor.transpose(1, 0)  # [L, B, H]
+            state_list.append(state_tensor)
 
         return state_list
+
+    def batch_copy_states(
+        self,
+        old_states: List[torch.Tensor],
+        new_states: List[torch.Tensor],
+        ids: List[int],
+        value: Optional[float] = None,
+    ) -> List[torch.Tensor]:
+        """Copy states from new state to old state at certain indices.
+
+        Args:
+            old_states(list): packed decoder states
+                (L x B x H, L x B x H)
+
+            new_states: packed decoder states
+                (L x B x H, L x B x H)
+
+            ids (list): List of indices to copy states at.
+
+            value (optional float): If a value should be copied instead of a state slice, a float should be provided
+
+        Returns:
+            batch of decoder states with partial copy at ids (or a specific value).
+                (L x B x H, L x B x H)
+        """
+        for state_id in range(len(old_states)):
+            if value is None:
+                old_states[state_id][:, ids, :] = new_states[state_id][:, ids, :]
+            else:
+                old_states[state_id][:, ids, :] *= 0.0
+                old_states[state_id][:, ids, :] += value
+
+        return old_states
 
 
 class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
