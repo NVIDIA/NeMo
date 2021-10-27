@@ -241,13 +241,13 @@ class FastPitchModule(NeuralModule):
             attn_hard_dur = attn_hard.sum(2)[:, 0, :]
 
         # Predict pitch
-        pitch_predicted = self.pitch_predictor(enc_out, enc_mask)
-        if pitch is not None:
-            if self.learn_alignment:
-                pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
-            pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
-        else:
-            pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
+        pitch_predicted = self.pitch_predictor(enc_out, enc_mask) + pitch
+        # if pitch is not None:
+        #     if self.learn_alignment:
+        #         pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
+        #     pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
+        # else:
+        pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
 
         enc_out = enc_out + pitch_emb.transpose(1, 2)
 
@@ -283,5 +283,8 @@ class FastPitchModule(NeuralModule):
         """
         par = next(self.parameters())
         inp = torch.randint(0, self.encoder.word_emb.num_embeddings, (1, 44), device=par.device, dtype=torch.int64)
+        pitch = torch.randn((1, 44), device=par.device, dtype=torch.float32) * 0.5
+        pace = torch.clamp((torch.randn((1, 44), device=par.device, dtype=torch.float32) + 1) * 0.1, min=0.01)
 
-        return ({'text': inp},)
+        return ({'text': inp, 'pitch': pitch, 'pace': pace},)
+

@@ -137,8 +137,8 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             return self._parser
 
         if self.learn_alignment:
-            vocab = AudioToCharWithDursF0Dataset.make_vocab(**self._cfg.train_ds.dataset.vocab)
-            self._parser = vocab.encode
+            self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**self._cfg.train_ds.dataset.vocab)
+            self._parser = self.vocab.encode
         else:
             self._parser = parsers.make_parser(
                 labels=self._cfg.labels,
@@ -394,7 +394,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def output_module(self):
         return self.fastpitch
 
-    def forward_for_export(self, text):
+    def forward_for_export(self, text, pitch, pace):
         (
             spect,
             num_frames,
@@ -406,13 +406,13 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             attn_hard,
             attn_hard_dur,
             pitch,
-        ) = self.fastpitch(text=text)
+        ) = self.fastpitch(text=text, pitch=pitch, pace=pace)
         return spect.to(torch.float), num_frames, durs_predicted, log_durs_predicted, pitch_predicted
 
     @property
     def disabled_deployment_input_names(self):
         """Implement this method to return a set of input names disabled for export"""
-        return set(["durs", "pitch", "speaker", "pace", "spec", "attn_prior", "mel_lens", "input_lens"])
+        return set(["durs", "speaker", "spec", "attn_prior", "mel_lens", "input_lens"])
 
     @property
     def disabled_deployment_output_names(self):
