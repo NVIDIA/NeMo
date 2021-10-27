@@ -524,7 +524,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         input_signal_length=None,
         processed_signal=None,
         processed_signal_length=None,
-        sample_id=None,
     ):
         """
         Forward pass of the model.
@@ -570,7 +569,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
-        signal, signal_len, transcript, transcript_len, sample_id = batch
+        signal, signal_len, transcript, transcript_len = batch
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             log_probs, encoded_len, predictions = self.forward(
                 processed_signal=signal, processed_signal_length=signal_len
@@ -619,7 +618,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         return list(zip(sample_id, transcribed_texts))
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        signal, signal_len, transcript, transcript_len, sample_id = batch
+        signal, signal_len, transcript, transcript_len = batch
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             log_probs, encoded_len, predictions = self.forward(
                 processed_signal=signal, processed_signal_length=signal_len
