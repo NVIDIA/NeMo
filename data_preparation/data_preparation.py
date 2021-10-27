@@ -21,6 +21,7 @@ def create_slurm_file(
     file_numbers="0",
     nodes=1,
     partition="batch",
+    account=None,
 ):
     task = code_path.split("/")[-1].split(".")[0]
     with open(new_script_path, "w") as f:
@@ -29,7 +30,9 @@ def create_slurm_file(
         if dependency is not None:
             f.writelines(f"#SBATCH --dependency=aftercorr:{dependency}\n")
         f.writelines(f"#SBATCH -p {partition}\n")
-        f.writelines(f"#SBATCH --job-name=bignlp:{task}_all_pile_files\n")
+        f.writelines(f"#SBATCH --job-name=bignlp:{task}\n")
+        if account is not None:
+            f.writelines(f"#SBATCH -A {account}\n")
         if requeue:
             f.writelines("#SBATCH --requeue\n")
         if exclusive:
@@ -63,6 +66,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
     partition = slurm_cfg["partition"]
     time_limit = slurm_cfg["time_limit"]
     nodes = slurm_cfg["nodes"]
+    account = slurm_cfg["account"]
 
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
@@ -114,6 +118,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             file_numbers=file_numbers,
             nodes=nodes,
             partition=partition,
+            account=account,
         )
         job_id_1 = subprocess.check_output(
             [f"sbatch --parsable {download_script_path}"], shell=True
@@ -141,6 +146,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             file_numbers=file_numbers,
             nodes=nodes,
             partition=partition,
+            account=account,
         )
         job_id_2 = subprocess.check_output(
             [f"sbatch --parsable {extract_script_path}"], shell=True
@@ -172,6 +178,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             file_numbers=file_numbers,
             nodes=nodes,
             partition=partition,
+            account=account,
         )
         job_id_3 = subprocess.check_output(
             [f"sbatch --parsable {preprocess_script_path}"], shell=True

@@ -20,6 +20,7 @@ def create_slurm_file(
     ntasks_per_node=8,
     gpus_per_task=1,
     partition="batch",
+    account=None,
 ):
     with open(new_script_path, "w") as f:
         f.writelines("#!/bin/bash\n")
@@ -32,6 +33,8 @@ def create_slurm_file(
                 dependency = f"afterany:{dependency}"
             f.writelines(f"#SBATCH --dependency={dependency}\n")
         f.writelines(f"#SBATCH -p {partition}\n")
+        if account is not None:
+            f.writelines(f"#SBATCH -A {account}\n")
         f.writelines(f"#SBATCH --job-name={job_name}\n")
         f.writelines(f"#SBATCH --mem={mem}\n")
         if exclusive:
@@ -118,6 +121,7 @@ def run_evaluation(cfg, dependency=None):
         ntasks_per_node=ntasks_per_node,
         gpus_per_task=gpus_per_task,
         partition=partition,
+        account=account,
     )
     job_id = subprocess.check_output(
         [f"sbatch --parsable {new_script_path}"], shell=True

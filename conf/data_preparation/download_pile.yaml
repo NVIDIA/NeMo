@@ -3,11 +3,12 @@ file_numbers: "0-29"  # The pile dataset consists of 30 files (0-29), choose whi
 preprocess_data: True  # True to proprocess the data using the megatron code, False otherwise.
 download_vocab_url: "https://huggingface.co/gpt2/resolve/main/vocab.json"  # URL to download the vocab from.
 download_merges_url: "https://huggingface.co/gpt2/resolve/main/merges.txt"  # URL to download the merges from.
-vocab_save_dir: "data_preparation/bpe"
-merges_save_dir: "data_preparation/bpe"
-log_dir: "data_preparation/logs"  # Where to save the logs
+vocab_save_dir: data_preparation/bpe
+merges_save_dir: data_preparation/bpe
+log_dir: data_preparation/logs  # Where to save the logs
 
 slurm:
-  partition: "batch"  # Partition in which the jobs will run inside the SLURM cluster.
+  partition: batch  # Partition in which the jobs will run inside the SLURM cluster.
   time_limit: "2:00:00"  # Time limit per job for the SLURM cluster.
   nodes: 30  # Nodes per job for the SLURM cluster.
+  account: null
