@@ -669,6 +669,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         super().__init__(**kwargs)
 
         if self.save_top_k != -1 and n_resume:
+            logging.debug("Checking previous runs")
             self.nemo_topk_check_previous_run()
 
     def nemo_topk_check_previous_run(self):
@@ -760,8 +761,13 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         # Load the best model and then re-save it
         if self.save_best_model:
-            trainer.checkpoint_connector.restore(self.best_model_path)
-
+            if self.best_model_path is "":
+                logging.warning(
+                    f"{self} was told to save the best checkpoint at the end of training, but no saved checkpoints "
+                    "were found. Saving latest model instead."
+                )
+            else:
+                trainer.checkpoint_connector.restore(self.best_model_path)
         pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
 
     def _del_model(self, trainer: "pl.Trainer", filepath: str) -> None:
