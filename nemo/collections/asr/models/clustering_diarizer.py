@@ -88,6 +88,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         # init speaker model
         self._init_speaker_model()
+        self._speaker_params = self._cfg.diarizer.speaker_embeddings.parameters
 
         self._device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -200,18 +201,17 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             if status[i] == 'end' or status[i] == 'single':
                 all_len = 0
 
-        if not self._cfg.diarizer.vad.vad_decision_smoothing:
+        if not self._vad_params.smoothing:
             # Shift the window by 10ms to generate the frame and use the prediction of the window to represent the label for the frame;
             self.vad_pred_dir = self._vad_dir
-
         else:
             # Generate predictions with overlapping input segments. Then a smoothing filter is applied to decide the label for a frame spanned by multiple segments.
             # smoothing_method would be either in majority vote (median) or average (mean)
             logging.info("Generating predictions with overlapping input segments")
             smoothing_pred_dir = generate_overlap_vad_seq(
                 frame_pred_dir=self._vad_dir,
-                smoothing_method=self._cfg.diarizer.vad.smoothing_params.method,
-                overlap=self._cfg.diarizer.vad.smoothing_params.overlap,
+                smoothing_method=self._vad_params.smoothing,
+                overlap=self._vad_params.overlap,
                 seg_len=self._vad_window_length_in_sec,
                 shift_len=self._vad_shift_length_in_sec,
                 num_workers=self._cfg.num_workers,
@@ -232,9 +232,13 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             shift_len=self._vad_shift_length_in_sec,
             num_workers=self._cfg.num_workers,
         )
-
-        vad_table_list = [os.path.join(table_out_dir, key + ".txt") for key in self.AUDIO_RTTM_MAP]
-        write_rttm2manifest(self._cfg.diarizer.paths2audio_files, vad_table_list, self._vad_out_file)
+        import ipdb; ipdb.set_trace()
+        # vad_table_list = [os.path.join(table_out_dir, key + ".txt") for key in self.AUDIO_RTTM_MAP]
+        AUDIO_VAD_RTTM_MAP = self.AUDIO_RTTM_MAP.copy()
+        for key in AUDIO_VAD_RTTM_MAP:
+            AUDIO_VAD_RTTM_MAP[key]['rttm_filepath'] = os.path.join(table_out_dir, key + ".txt") 
+        
+        write_rttm2manifest(AUDIO_VAD_RTTM_MAP, self._vad_out_file)
         self._speaker_manifest_path = self._vad_out_file
 
     def _extract_embeddings(self, manifest_file):
@@ -305,16 +309,16 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         if self.has_vad_model:
             logging.info("Performing VAD")
-            mfst_file = self.path2audio_files_to_manifest(paths2audio_files)
+            
             self._dont_auto_split = False
             self._split_duration = 50
-            manifest_vad_input = mfst_file
+            manifest_vad_input = self._diarizer_params.manifest_filepath
 
             if not self._dont_auto_split:
                 logging.info("Split long audio file to avoid CUDA memory issue")
                 logging.debug("Try smaller split_duration if you still have CUDA memory issue")
                 config = {
-                    'manifest_filepath': mfst_file,
+                    'manifest_filepath': manifest_vad_input,
                     'time_length': self._vad_window_length_in_sec,
                     'split_duration': self._split_duration,
                     'num_workers': self._cfg.num_workers,
@@ -327,6 +331,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
             self._setup_vad_test_data(manifest_vad_input)
             self._run_vad(manifest_vad_input)
+
         elif self._diarizer_params.vad.external_vad_manifest is not None:
             self._speaker_manifest_path = self._diarizer_params.vad.external_vad_manifest
         elif self._diarizer_params.oracle_vad is not None:

@@ -48,15 +48,14 @@ def audio_rttm_map(manifest):
     """
     
     AUDIO_RTTM_MAP = {}
-    import ipdb;ipdb.set_trace()
     with open(manifest,'r') as inp_file:
         lines = inp_file.readlines()
         for line in lines:
             line = line.strip()
             dic = json.loads(line)
 
-            meta = {'audiofile_path':dic['audio_filepath'],
-            'rttmfile_path':dic.get('rttm_filepath',None),
+            meta = {'audio_filepath':dic['audio_filepath'],
+            'rttm_filepath':dic.get('rttm_filepath',None),
             'text': dic.get('text','-'),
             'num_speakers': dic.get('num_speakers',None),
             'uem_filepath': dic.get('uem_filepath')
