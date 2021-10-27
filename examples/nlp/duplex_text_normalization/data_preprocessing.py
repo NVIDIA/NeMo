@@ -185,7 +185,7 @@ def int2digits(digits: str):
         elif x in [" ", ","]:
             continue
         else:
-            logging.warning(f"remove {digits[:i]} from {digits[i:]}")
+            # logging.warning(f"remove {digits[:i]} from {digits[i:]}")
             break
     res = " ".join(res)
     return res
@@ -293,6 +293,18 @@ def convert(example):
         spoken = re.sub(" sil ", " ", spoken)
         spoken = re.sub(" sil ", " ", spoken)
         spoken = re.sub(" sil$", "", spoken)
+
+
+    example[1] = written
+    if cls != "ELECTRONIC":
+        written = re.sub(r"([^\s0-9])-([0-9])", r"\1 - \2", written)
+        written = re.sub(r"([0-9])-([^\s0-9])", r"\1 - \2", written)
+        written = re.sub(r"([^\s0-9])-([0-9])", r"\1 - \2", written)
+        written = re.sub(r"([0-9])-([^\s0-9])", r"\1 - \2", written)
+        if written != example[1]:
+            print()
+            print("BEFOIRE", example[1])
+            print("AFTER", written)
 
     example[1] = written
     example[2] = spoken
@@ -417,8 +429,7 @@ def ignore(example):
     cls, _, _ = example
     if cls in ["PLAIN", "LETTERS", "ELECTRONIC", "VERBATIM", "PUNCT"]:
         example[2] = "<self>"
-    if example[1] == 'I' and re.search("first", example[2]):
-        print("example[1]")
+    if example[1] == 'I' and re.search("(first|one)", example[2]):
         example[2] = "<self>"
 
 

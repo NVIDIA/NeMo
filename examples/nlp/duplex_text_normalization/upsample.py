@@ -307,7 +307,7 @@ def main():
     
     money_keys = list(MONEY_PATTERNS.keys())
     for k in money_keys:
-        if re.search("\s?DM$", k) is not None:
+        if re.search("(DM|SHP|BMD|SCR|SHP|ARS|BWP|SBD)", k) is not None:
             MONEY_PATTERNS.pop(k)
 
     classes_to_upsample["FRACTION"] = sum(np.asarray(list(FRACTION_PATTERNS.values())) < args.thresh)
