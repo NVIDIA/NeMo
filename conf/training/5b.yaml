@@ -18,8 +18,8 @@ run:
 
 
 trainer:
-  gpus: 8
-  num_nodes: 20
+  gpus: ${training.slurm.ntasks_per_node}
+  num_nodes: ${training.slurm.nodes}
   accelerator: ddp
   precision: 16
   amp_backend: native
@@ -27,11 +27,12 @@ trainer:
   checkpoint_callback: False
   replace_sampler_ddp: False
   max_epochs: null
-  max_steps: 750000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  max_steps: 120000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  max_time: 07:00:00:00
   log_every_n_steps: 100
-  val_check_interval: 2000
-  limit_val_batches: 50
-  limit_test_batches: 50
+  val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
+  limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
+  limit_test_batches: ${multiply:50, ${.accumulate_grad_batches}}
   accumulate_grad_batches: 8
   gradient_clip_val: 1.0
 
@@ -65,7 +66,7 @@ model:
   max_position_embeddings: 2048
   num_layers: 24
   hidden_size: 4096
-  ffn_hidden_size: 16384  # Transformer FFN hidden size. Usually 4 * hidden_size.
+  ffn_hidden_size: ${multiply:4, ${.hidden_size}}  # Transformer FFN hidden size. 4 * hidden_size.
   num_attention_heads: 32
   init_method_std: 0.01  # Standard deviation of the zero mean normal distribution used for weight initialization.')
   hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
@@ -113,7 +114,7 @@ model:
 
   data:
     data_impl: mmap
-    splits_string: "99990,9,1"
+    splits_string: "99990,8,2"
     seq_length: 2048
     skip_warmup: True
     num_workers: 2

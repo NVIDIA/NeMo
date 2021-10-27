@@ -66,9 +66,15 @@ def convert_to_cli(cfg):
     return result
 
 
+omegaconf.OmegaConf.register_new_resolver("multiply", lambda x, y: x*y)
+
+
 
 @hydra.main(config_path="conf", config_name="config")
 def main(cfg):
+    print(cfg)
+    print(cfg.training.trainer.val_check_interval)
+    quit()
     hydra_args = " ".join(sys.argv[1:])
     cfg = convert_to_absolute_path(cfg)
     hydra_args = convert_to_cli(cfg)
