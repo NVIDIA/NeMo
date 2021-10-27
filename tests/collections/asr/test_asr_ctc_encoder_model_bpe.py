@@ -260,10 +260,7 @@ class TestEncDecCTCModel:
         REMAP_ARGS = {'trim_silence': 'trim', 'labels': 'tokenizer'}
 
         result = assert_dataclass_signature_match(
-            audio_to_text.AudioToBPEDataset,
-            configs.ASRDatasetConfig,
-            ignore_args=IGNORE_ARGS,
-            remap_args=REMAP_ARGS,
+            audio_to_text.AudioToBPEDataset, configs.ASRDatasetConfig, ignore_args=IGNORE_ARGS, remap_args=REMAP_ARGS,
         )
         signatures_match, cls_subset, dataclass_subset = result
 

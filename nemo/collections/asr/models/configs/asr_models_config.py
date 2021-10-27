@@ -56,6 +56,7 @@ class ASRDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
     use_start_end_token: bool = False
     return_sample_id: Optional[bool] = False
 
+
 @dataclass
 class EncDecCTCConfig(model_cfg.ModelConfig):
     # Model global arguments

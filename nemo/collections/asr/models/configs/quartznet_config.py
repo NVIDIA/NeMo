@@ -177,9 +177,7 @@ class JasperModelConfig(ctc_cfg.EncDecCTCConfig):
     train_ds: ctc_cfg.ASRDatasetConfig = ctc_cfg.ASRDatasetConfig(
         manifest_filepath=None, shuffle=True, trim_silence=True
     )
-    validation_ds: ctc_cfg.ASRDatasetConfig = ctc_cfg.ASRDatasetConfig(
-        manifest_filepath=None, shuffle=False
-    )
+    validation_ds: ctc_cfg.ASRDatasetConfig = ctc_cfg.ASRDatasetConfig(manifest_filepath=None, shuffle=False)
     test_ds: ctc_cfg.ASRDatasetConfig = ctc_cfg.ASRDatasetConfig(manifest_filepath=None, shuffle=False)
 
     # Optimizer / Scheduler config
