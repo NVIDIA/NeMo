@@ -22,13 +22,13 @@ from collections import defaultdict
 from typing import List, Optional
 
 import torch
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, OmegaConf
 from omegaconf.listconfig import ListConfig
 from pytorch_lightning.utilities import rank_zero_only
 from tqdm import tqdm
 
 from nemo.collections.asr.models.classification_models import EncDecClassificationModel
-from nemo.collections.asr.models.label_models import ExtractSpeakerEmbeddingsModel
+from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.mixins.mixins import DiarizationMixin
 from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
@@ -74,64 +74,26 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         # Convert config to support Hydra 1.0+ instantiation
         cfg = model_utils.maybe_update_config_version(cfg)
         self._cfg = cfg
-        self._out_dir = self._cfg.diarizer.out_dir
-        if not os.path.exists(self._out_dir):
-            os.mkdir(self._out_dir)
+
+        # Diarizer set up
+        self._diarizer_params = self._cfg.diarizer
 
         # init vad model
         self.has_vad_model = False
-        self.has_vad_model_to_save = False
-
-        self._speaker_manifest_path = self._cfg.diarizer.speaker_embeddings.oracle_vad_manifest
-        self.AUDIO_RTTM_MAP = None
-        self.paths2audio_files = self._cfg.diarizer.paths2audio_files
-
-        if self._cfg.diarizer.vad.model_path is not None:
-            self._init_vad_model()
-            self._vad_dir = os.path.join(self._out_dir, 'vad_outputs')
-            self._vad_out_file = os.path.join(self._vad_dir, "vad_out.json")
-            shutil.rmtree(self._vad_dir, ignore_errors=True)
-            os.makedirs(self._vad_dir)
+        if not self._diarizer_params.oracle_vad:
+            if self._cfg.diarizer.vad.model_path is not None:
+                self._vad_params = self._cfg.diarizer.vad.parameters
+                self._init_vad_model()
 
         # init speaker model
         self._init_speaker_model()
-
-        if self._cfg.diarizer.get('num_speakers', None):
-            self._num_speakers = self._cfg.diarizer.num_speakers
-            logging.warning("in next release num_speakers will be changed to oracle_num_speakers")
-        else:
-            self._num_speakers = self._cfg.diarizer.oracle_num_speakers
-
-        if self._cfg.diarizer.get('max_num_speakers', None):
-            self.max_num_speakers = self._cfg.diarizer.max_num_speakers
-        else:
-            self.max_num_speakers = 8
 
         self._device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     @classmethod
     def list_available_models(cls):
         pass
-
-    def _init_speaker_model(self):
-        model_path = self._cfg.diarizer.speaker_embeddings.model_path
-        if model_path is not None and model_path.endswith('.nemo'):
-            self._speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(model_path)
-            logging.info("Speaker Model restored locally from {}".format(model_path))
-        elif model_path.endswith('.ckpt'):
-            self._speaker_model = ExtractSpeakerEmbeddingsModel.load_from_checkpoint(model_path)
-            logging.info("Speaker Model restored locally from {}".format(model_path))
-        else:
-            if model_path not in get_available_model_names(ExtractSpeakerEmbeddingsModel):
-                logging.warning(
-                    "requested {} model name not available in pretrained models, instead".format(model_path)
-                )
-                model_path = "ecapa_tdnn"
-            logging.info("Loading pretrained {} model from NGC".format(model_path))
-            self._speaker_model = ExtractSpeakerEmbeddingsModel.from_pretrained(model_name=model_path)
-
-        self._speaker_dir = os.path.join(self._out_dir, 'speaker_outputs')
-
+    
     def _init_vad_model(self):
         model_path = self._cfg.diarizer.vad.model_path
         if model_path.endswith('.nemo'):
@@ -146,10 +108,27 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             logging.info("Loading pretrained {} model from NGC".format(model_path))
             self._vad_model = EncDecClassificationModel.from_pretrained(model_name=model_path)
 
-        self._vad_window_length_in_sec = self._cfg.diarizer.vad.window_length_in_sec
-        self._vad_shift_length_in_sec = self._cfg.diarizer.vad.shift_length_in_sec
-        self.has_vad_model_to_save = True
+        self._vad_window_length_in_sec = self._vad_params.window_length_in_sec
+        self._vad_shift_length_in_sec = self._vad_params.shift_length_in_sec
         self.has_vad_model = True
+
+    def _init_speaker_model(self):
+        model_path = self._cfg.diarizer.speaker_embeddings.model_path
+        if model_path is not None and model_path.endswith('.nemo'):
+            self._speaker_model = EncDecSpeakerLabelModel.restore_from(model_path)
+            logging.info("Speaker Model restored locally from {}".format(model_path))
+        elif model_path.endswith('.ckpt'):
+            self._speaker_model = EncDecSpeakerLabelModel.load_from_checkpoint(model_path)
+            logging.info("Speaker Model restored locally from {}".format(model_path))
+        else:
+            if model_path not in get_available_model_names(EncDecSpeakerLabelModel):
+                logging.warning(
+                    "requested {} model name not available in pretrained models, instead".format(model_path)
+                )
+                model_path = "ecapa_tdnn"
+            logging.info("Loading pretrained {} model from NGC".format(model_path))
+            self._speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name=model_path)
+
 
     def _setup_vad_test_data(self, manifest_vad_input):
         vad_dl_config = {
@@ -180,6 +159,10 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         self._speaker_model.setup_test_data(spk_dl_config)
 
     def _run_vad(self, manifest_file):
+        
+        shutil.rmtree(self._vad_dir, ignore_errors=True)
+        os.makedirs(self._vad_dir)
+
         self._vad_model = self._vad_model.to(self._device)
         self._vad_model.eval()
 
@@ -302,6 +285,15 @@ class ClusteringDiarizer(Model, DiarizationMixin):
     def diarize(self, paths2audio_files: List[str] = None, batch_size: int = 1):
         """
         """
+        
+        self._out_dir = self._diarizer_params.out_dir
+        if not os.path.exists(self._out_dir):
+            os.mkdir(self._out_dir)
+
+        self._vad_dir = os.path.join(self._out_dir, 'vad_outputs')
+        self._vad_out_file = os.path.join(self._vad_dir, "vad_out.json")
+
+        self._speaker_dir = os.path.join(self._out_dir, 'speaker_outputs')
 
         if paths2audio_files:
             self.paths2audio_files = paths2audio_files
