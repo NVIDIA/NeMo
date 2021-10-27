@@ -82,7 +82,7 @@ Here, we list a collection of research articles that utilize the NeMo Toolkit. I
 
 # Natural Language Processing (NLP)
 
-## Language Modelling
+## Language Modeling
 
 <details>
   <summary>2021</summary>
