@@ -80,6 +80,7 @@ class CallbackParams:
     postfix: str = ".nemo"
     save_best_model: bool = False
     always_save_nemo: bool = False
+    model_parallel_size: Optional[int] = None
 
 
 @dataclass
@@ -115,6 +116,7 @@ class ExpManagerConfig:
     # logs timing of train/val/test steps
     log_step_timing: Optional[bool] = True
     step_timing_kwargs: Optional[StepTimingParams] = StepTimingParams()
+    model_parallel_size: Optional[int] = None
 
 
 class TimingCallback(Callback):
@@ -714,7 +716,10 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         ### This section should be ok as rank zero will delete all excess checkpoints, since all other ranks are
         ### instantiated after rank zero. models_to_delete should be 0 for all other ranks.
-        models_to_delete = len(best_k_models) - self.save_top_k
+        if self.model_parallel_size is not None:
+            models_to_delete = len(best_k_models) - self.model_parallel_size * self.save_top_k
+        else:
+            models_to_delete = len(best_k_models) - self.save_top_k
         logging.debug(f'Number of models to delete: {models_to_delete}')
         for _ in range(models_to_delete):
             model = best_k_models.pop(-1)
