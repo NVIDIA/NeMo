@@ -100,17 +100,17 @@ def run_evaluation(cfg, dependency=None):
     new_script_path = os.path.join(bignlp_path, "eval_scripts/eval_script.sh")
     code_path = os.path.join(bignlp_path, "eval_scripts/eval_harness/evaluate.py")
     eval_cmd = f"python3 -u {code_path} " \
-               f"--name {name}" \
-               f"--model {model_type}" \
-               f"--tasks {tasks}" \
-               f"--batch_size {batch_size}" \
-               f"--output_path {log_dir}" \
-               f"--model_args nemo_model={checkpoint},tensor_model_parallel_size={tensor_model_parallel_size}"
+               f"--name {name} " \
+               f"--model {model_type} " \
+               f"--tasks {tasks} " \
+               f"--batch_size {batch_size} " \
+               f"--output_path {log_dir} " \
+               f"--model_args nemo_model={checkpoint},tensor_model_parallel_size={tensor_model_parallel_size} "
 
     create_slurm_file(
         new_script_path=new_script_path,
         eval_cmd=eval_cmd,
-        job_name=f"bignlp:{name}",
+        job_name=job_name,
         flags=flags,
         dependency=dependency,
         exclusive=exclusive,

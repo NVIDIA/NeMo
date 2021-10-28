@@ -1,5 +1,5 @@
 slurm:
-  partition: batch
+  partition: ???
   account: null
   time_limit: "1-00:00:00"
   nodes: 8
@@ -7,14 +7,14 @@ slurm:
   mem: 0
   overcommit: True
   ntasks_per_node: 8
-  gpus_per_task: 1
+  gpus_per_task: null
   dependency: "singleton"
   job_name: "bignlp-gpt3:126m"
 
 
 run:
   name: "126m"
-  log_dir: "train_scripts/logs/126m"
+  log_dir: ${bignlp_path}/train_scripts/logs/126m
 
 
 trainer:
@@ -28,7 +28,7 @@ trainer:
   replace_sampler_ddp: False
   max_epochs: null
   max_steps: 600000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  max_time: 01:12:00:00
+  max_time: 01:12:00:00 # days:hours:minutes:seconds
   log_every_n_steps: 100
   val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
   limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
@@ -38,7 +38,7 @@ trainer:
 
 
 exp_manager:
-  explicit_log_dir: train_scripts/logs/126m
+  explicit_log_dir: ${training.run.log_dir}
   exp_dir: null
   name: megatron_gpt
   create_wandb_logger: False
@@ -83,8 +83,8 @@ model:
     library: 'megatron'
     type: 'GPT2BPETokenizer'
     model: null
-    vocab_file: data_preparation/bpe/vocab.json
-    merge_file: data_preparation/bpe/merges.txt
+    vocab_file: ${bignlp_path}/data_preparation/bpe/vocab.json
+    merge_file: ${bignlp_path}/data_preparation/bpe/merges.txt
 
   # precision
   native_amp_init_scale: 4294967296 # 2 ** 32
@@ -124,62 +124,63 @@ model:
     eod_mask_loss: False # Mask loss for the end of document tokens
     data_prefix: # Should be weight path weight path... for a blended dataset
       - .0333
-      - my-gpt3_00_text_document
+      - ${data_dir}/my-gpt3_00_text_document
       - .0333
-      - my-gpt3_01_text_document
+      - ${data_dir}/my-gpt3_01_text_document
       - .0333
-      - my-gpt3_02_text_document
+      - ${data_dir}/my-gpt3_02_text_document
       - .0333
-      - my-gpt3_03_text_document
+      - ${data_dir}/my-gpt3_03_text_document
       - .0333
-      - my-gpt3_04_text_document
+      - ${data_dir}/my-gpt3_04_text_document
       - .0333
-      - my-gpt3_05_text_document
+      - ${data_dir}/my-gpt3_05_text_document
       - .0333
-      - my-gpt3_06_text_document
+      - ${data_dir}/my-gpt3_06_text_document
       - .0333
-      - my-gpt3_07_text_document
+      - ${data_dir}/my-gpt3_07_text_document
       - .0333
-      - my-gpt3_08_text_document
+      - ${data_dir}/my-gpt3_08_text_document
       - .0333
-      - my-gpt3_09_text_document
+      - ${data_dir}/my-gpt3_09_text_document
       - .0333
-      - my-gpt3_10_text_document
+      - ${data_dir}/my-gpt3_10_text_document
       - .0333
-      - my-gpt3_11_text_document
+      - ${data_dir}/my-gpt3_11_text_document
       - .0333
-      - my-gpt3_12_text_document
+      - ${data_dir}/my-gpt3_12_text_document
       - .0333
-      - my-gpt3_13_text_document
+      - ${data_dir}/my-gpt3_13_text_document
       - .0333
-      - my-gpt3_14_text_document
+      - ${data_dir}/my-gpt3_14_text_document
       - .0333
-      - my-gpt3_15_text_document
+      - ${data_dir}/my-gpt3_15_text_document
       - .0333
-      - my-gpt3_16_text_document
+      - ${data_dir}/my-gpt3_16_text_document
       - .0333
-      - my-gpt3_17_text_document
+      - ${data_dir}/my-gpt3_17_text_document
       - .0333
-      - my-gpt3_18_text_document
+      - ${data_dir}/my-gpt3_18_text_document
       - .0333
-      - my-gpt3_19_text_document
+      - ${data_dir}/my-gpt3_19_text_document
       - .0333
-      - my-gpt3_20_text_document
+      - ${data_dir}/my-gpt3_20_text_document
       - .0333
-      - my-gpt3_21_text_document
+      - ${data_dir}/my-gpt3_21_text_document
       - .0333
-      - my-gpt3_22_text_document
+      - ${data_dir}/my-gpt3_22_text_document
       - .0333
-      - my-gpt3_23_text_document
+      - ${data_dir}/my-gpt3_23_text_document
       - .0333
-      - my-gpt3_24_text_document
+      - ${data_dir}/my-gpt3_24_text_document
       - .0333
-      - my-gpt3_25_text_document
+      - ${data_dir}/my-gpt3_25_text_document
       - .0333
-      - my-gpt3_26_text_document
+      - ${data_dir}/my-gpt3_26_text_document
       - .0333
-      - my-gpt3_27_text_document
+      - ${data_dir}/my-gpt3_27_text_document
       - .0333
-      - my-gpt3_28_text_document
+      - ${data_dir}/my-gpt3_28_text_document
       - .0334
-      - my-gpt3_29_text_document
+      - ${data_dir}/my-gpt3_29_text_document
+

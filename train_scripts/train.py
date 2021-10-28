@@ -97,7 +97,7 @@ def run_training(cfg, hydra_args="", dependency=None):
     create_slurm_file(
         new_script_path=new_script_path,
         train_cmd=train_cmd,
-        job_name=f"bignlp:{name}",
+        job_name=job_name,
         flags=flags,
         dependency=dependency,
         exclusive=exclusive,

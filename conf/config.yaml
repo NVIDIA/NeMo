@@ -2,7 +2,7 @@ defaults:
   - _self_
   - data_preparation: download_pile
   - training: 126m  # Must match training_config below.
-  - evaluation: evaluate_lambada
+  - evaluation: evaluate_all
   - override hydra/job_logging: stdout
 
 hydra:
@@ -13,9 +13,10 @@ hydra:
 run_data_preparation: True
 run_training: True
 run_evaluation: True
+
 training_config: 126m  # Must match - training above.
-data_dir: "data_preparation/data"  # Location to store and read the data. Absolute or relative
 bignlp_path: ??? # Path to where the bignlp-scripts repo is. Should end with /.../bignlp-scripts
+data_dir: ${bignlp_path}/data_preparation/data  # Location to store and read the data. Absolute or relative
 container_mounts: # List of additional paths to mount to the container. They will be mounted to the same path.
   - null
 container: nvcr.io/nvidian/swdl/bignlp:21.10.06-py3-base

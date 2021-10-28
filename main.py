@@ -10,44 +10,7 @@ from train_scripts import train
 from eval_scripts import evaluate
 
 
-def convert_to_absolute_path(cfg):
-    base = cfg.bignlp_path
-    data_dir = cfg.data_dir
-    if data_dir[0] != "/":
-        cfg['data_dir'] = os.path.join(base, data_dir)
-
-    data_cfg = cfg.data_preparation
-    for k, v in data_cfg.items():
-        if "_dir" in k and v is not None and v[0] != "/":
-            data_cfg[k] = os.path.join(base, v)
-
-    train_cfg = cfg.training
-    
-    run_cfg = train_cfg.run
-    for k, v in run_cfg.items():
-        if "log_dir" in k and v is not None and v[0] != "/":
-            run_cfg[k] = os.path.join(base, v)
-    
-    exp_manager_cfg = train_cfg.exp_manager
-    for k, v in exp_manager_cfg.items():
-        if "_dir" in k and v is not None and v[0] != "/":
-            exp_manager_cfg[k] = os.path.join(base, v)
-
-    model_cfg = train_cfg.model
-    for k, v in model_cfg.items():
-        if k == "tokenizer":
-            for k2, v2 in v.items():
-                if "_file" in k2 and v2 is not None and v2[0] != "/":
-                    model_cfg[k][k2] = os.path.join(base, v2)
-        if k == "data":
-            for k2, v2 in v.items():
-                if k2 == "data_prefix" and v2 is not None:
-                    for index, elem in enumerate(v2):
-                        if isinstance(elem, str) and elem[0] != "/":
-                            v2[index] = os.path.join(cfg.data_dir, elem)
-        if "_path" in k and v is not None and v[0] != "/":
-            model_cfg[k] = os.path.join(base, v)
-    return cfg
+omegaconf.OmegaConf.register_new_resolver("multiply", lambda x, y: x*y)
 
 def convert_to_cli(cfg):
     result = ""
@@ -66,17 +29,9 @@ def convert_to_cli(cfg):
     return result
 
 
-omegaconf.OmegaConf.register_new_resolver("multiply", lambda x, y: x*y)
-
-
-
 @hydra.main(config_path="conf", config_name="config")
 def main(cfg):
-    print(cfg)
-    print(cfg.training.trainer.val_check_interval)
-    quit()
     hydra_args = " ".join(sys.argv[1:])
-    cfg = convert_to_absolute_path(cfg)
     hydra_args = convert_to_cli(cfg)
 
     # Read config
