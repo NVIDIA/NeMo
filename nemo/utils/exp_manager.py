@@ -769,7 +769,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         # Load the best model and then re-save it
         if self.save_best_model:
-            if self.best_model_path is "":
+            if self.best_model_path == "":
                 logging.warning(
                     f"{self} was told to save the best checkpoint at the end of training, but no saved checkpoints "
                     "were found. Saving latest model instead."
