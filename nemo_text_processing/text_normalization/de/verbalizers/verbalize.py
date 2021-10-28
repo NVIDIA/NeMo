@@ -53,7 +53,7 @@ class VerbalizeFst(GraphFst):
         electronic = ElectronicFst()
         electronic_graph = electronic.fst
         whitelist_graph = WhiteListFst().fst
-        money_graph = MoneyFst(decimal=decimal_graph).fst
+        money_graph = MoneyFst(decimal=decimal).fst
         telephone_graph = TelephoneFst().fst
         time_graph = TimeFst().fst
 
