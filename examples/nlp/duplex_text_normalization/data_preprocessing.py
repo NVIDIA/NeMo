@@ -295,16 +295,11 @@ def convert(example):
         spoken = re.sub(" sil$", "", spoken)
 
 
-    example[1] = written
     if cls != "ELECTRONIC":
         written = re.sub(r"([^\s0-9])-([0-9])", r"\1 - \2", written)
         written = re.sub(r"([0-9])-([^\s0-9])", r"\1 - \2", written)
         written = re.sub(r"([^\s0-9])-([0-9])", r"\1 - \2", written)
         written = re.sub(r"([0-9])-([^\s0-9])", r"\1 - \2", written)
-        if written != example[1]:
-            print()
-            print("BEFOIRE", example[1])
-            print("AFTER", written)
 
     example[1] = written
     example[2] = spoken
@@ -378,7 +373,11 @@ def convert(example):
         for i, x in enumerate(s_words):
             if x not in number_verbalizations:
                 break
-        spoken = number + " " + " ".join(s_words[i:])
+        if re.search("\sDa$", written):
+            spoken = number + " " + written[idx:].strip()
+            print("spoken", spoken)
+        else:
+            spoken = number + " " + " ".join(s_words[i:])
         if res:
             spoken = "minus " + spoken
     elif cls == "MONEY":
@@ -396,7 +395,11 @@ def convert(example):
         for i, x in enumerate(s_words):
             if x not in number_verbalizations:
                 break
-        spoken = number + " " + " ".join(s_words[i:])
+        if re.search("\sDM$", written):
+            spoken = number + " " + written[idx_end:].strip()
+            print("spoken", spoken)
+        else:
+            spoken = number + " " + " ".join(s_words[i:])
         if res:
             spoken = "minus " + spoken
     elif cls == "ORDINAL":
@@ -431,7 +434,6 @@ def ignore(example):
         example[2] = "<self>"
     if example[1] == 'I' and re.search("(first|one)", example[2]):
         example[2] = "<self>"
-
 
 
 def process_file(fp):
