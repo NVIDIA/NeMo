@@ -17,8 +17,8 @@ from nemo_text_processing.text_normalization.de.verbalizers.cardinal import Card
 from nemo_text_processing.text_normalization.de.verbalizers.date import DateFst
 from nemo_text_processing.text_normalization.de.verbalizers.decimal import DecimalFst
 from nemo_text_processing.text_normalization.de.verbalizers.electronic import ElectronicFst
-
-# from nemo_text_processing.text_normalization.de.verbalizers.measure import MeasureFst
+from nemo_text_processing.text_normalization.de.verbalizers.fraction import FractionFst
+from nemo_text_processing.text_normalization.de.verbalizers.measure import MeasureFst
 from nemo_text_processing.text_normalization.de.verbalizers.money import MoneyFst
 from nemo_text_processing.text_normalization.de.verbalizers.ordinal import OrdinalFst
 from nemo_text_processing.text_normalization.de.verbalizers.telephone import TelephoneFst
@@ -46,10 +46,12 @@ class VerbalizeFst(GraphFst):
         ordinal_graph = ordinal.fst
         decimal = DecimalFst(cardinal=cardinal, deterministic=deterministic)
         decimal_graph = decimal.fst
+        fraction = FractionFst(ordinal=ordinal)
+        fraction_graph = fraction.fst
         date = DateFst(ordinal=ordinal)
         date_graph = date.fst
-        # measure = MeasureFst()
-        # measure_graph = measure.fst
+        measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=deterministic)
+        measure_graph = measure.fst
         electronic = ElectronicFst()
         electronic_graph = electronic.fst
         whitelist_graph = WhiteListFst().fst
@@ -58,13 +60,14 @@ class VerbalizeFst(GraphFst):
         time_graph = TimeFst().fst
 
         graph = (
-            # measure_graph
-            cardinal_graph
+            measure_graph
+            | cardinal_graph
             | decimal_graph
             | ordinal_graph
             | date_graph
             | electronic_graph
             | money_graph
+            | fraction_graph
             | whitelist_graph
             | telephone_graph
             | time_graph

@@ -37,6 +37,7 @@ class CardinalFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="cardinal", kind="verbalize", deterministic=deterministic)
         optional_sign = pynini.closure(pynini.cross("negative: \"true\" ", "minus "), 0, 1)
+        self.optional_sign = optional_sign
         if deterministic:
             integer = pynini.closure(NEMO_NOT_QUOTE, 1)
         else:
