@@ -188,7 +188,7 @@ def int2digits(digits: str):
             # logging.warning(f"remove {digits[:i]} from {digits[i:]}")
             break
     res = " ".join(res)
-    return res
+    return res, i
 
 
 def convert_fraction(written: str):
@@ -318,13 +318,13 @@ def convert(example):
     # convert spoken forms for different classes
     if cls == "CARDINAL":
         if written[0] == "-":
-            digits = "minus " + int2digits(written[1:])
+            digits = "minus " + int2digits(written[1:])[0]
         else:
-            digits = int2digits(written)
+            digits = int2digits(written)[0]
         spoken = digits
     elif cls == "ADDRESS":
         idx = re.search("[0-9]", written).start()
-        number = int2digits(written[idx:].strip())
+        number = int2digits(written[idx:].strip())[0]
         s_words = spoken.split()
         for i, x in enumerate(s_words):
             if x in number_verbalizations:
@@ -352,11 +352,11 @@ def convert(example):
         numerator = written[:idx].strip()
         denominator = written[idx + 1 :].strip()
         if len(numerator) > args.max_integer_length:
-            numerator = int2digits(numerator)
+            numerator= int2digits(numerator)[0]
         else:
             numerator = engine.number_to_words(str(numerator), zero="zero").replace("-", " ").replace(",", "")
         if len(denominator) > args.max_denominator_length:
-            denominator = int2digits(denominator)
+            denominator = int2digits(denominator)[0]
         else:
             denominator = engine.number_to_words(str(denominator), zero="zero").replace("-", " ").replace(",", "")
         spoken = numerator + " slash " + denominator
@@ -368,16 +368,13 @@ def convert(example):
             res.append("minus")
             written = written[1:]
         idx = re.search("(?s:.*)([0-9]\s?[a-zA-Zµμ\/%Ω'])", written).end()
-        number = int2digits(written[:idx].strip())
+        number, unit_idx = int2digits(written[:idx].strip())
         s_words = spoken.split()
         for i, x in enumerate(s_words):
             if x not in number_verbalizations:
                 break
-        if re.search("\sDa$", written):
-            spoken = number + " " + written[idx:].strip()
-            print("spoken", spoken)
-        else:
-            spoken = number + " " + " ".join(s_words[i:])
+ 
+        spoken = number + " " + " ".join(s_words[i:])
         if res:
             spoken = "minus " + spoken
     elif cls == "MONEY":
@@ -390,16 +387,12 @@ def convert(example):
         idx_end = len(written)
         if m:
             idx_end = m.start() + idx
-        number = int2digits(written[idx:idx_end].strip())
+        number, unit_idx = int2digits(written[idx:idx_end].strip())
         s_words = spoken.split()
         for i, x in enumerate(s_words):
             if x not in number_verbalizations:
                 break
-        if re.search("\sDM$", written):
-            spoken = number + " " + written[idx_end:].strip()
-            print("spoken", spoken)
-        else:
-            spoken = number + " " + " ".join(s_words[i:])
+        spoken = number + " " + " ".join(s_words[i:])
         if res:
             spoken = "minus " + spoken
     elif cls == "ORDINAL":
@@ -416,7 +409,7 @@ def convert(example):
         elif "st" in written.lower():
             idx = written.lower().index("st")
         if re.search(r"[¿¡ºª]", written) is None:
-            spoken = int2digits(written[:idx].strip()) + " " + written[idx:].lower()
+            spoken= int2digits(written[:idx].strip())[0] + " " + written[idx:].lower()
         if res:
             spoken = "minus " + spoken
     example[2] = spoken
@@ -474,6 +467,14 @@ def process_file(fp):
                 # delete characters from chinese, japanese, korean
                 if re.search(r'[\u4e00-\u9fff]+', es[1]) is not None:
                     delete_sentence = True
+
+                
+                if es[0] == 'MONEY' and re.search("\s?DM$",  es[1]):
+                    delete_sentence = True
+                
+                if es[0] == 'MEASURE' and re.search("\s?Da$",  es[1]):
+                    delete_sentence = True
+
 
                 classes.append(es[0])
                 w_words.append(es[1])
