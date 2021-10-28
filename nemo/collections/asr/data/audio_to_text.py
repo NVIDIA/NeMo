@@ -25,7 +25,7 @@ import webdataset as wd
 from scipy.stats import betabinom
 from torch.nn import functional as F
 
-from nemo.collections.asr.data import vocabs
+from nemo.collections.common.data import vocabs
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.common.parts.preprocessing import collections, parsers
 from nemo.core.classes import Dataset, IterableDataset
