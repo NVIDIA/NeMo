@@ -2,7 +2,7 @@ pipeline {
   agent {
         docker {
       image 'gitlab-master.nvidia.com/dl/dgx/pytorch:21.10-py3-devel'
-      args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
+      args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch -v $HOME/.cache/transformers:/root/.cache/transformers --shm-size=8g'
         }
   }
   options {
