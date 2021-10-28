@@ -19,6 +19,7 @@ import sys
 import time
 from copy import deepcopy
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 from shutil import copy, move
 from typing import Any, Dict, List, Optional, Union
@@ -28,9 +29,12 @@ from hydra.core.hydra_config import HydraConfig
 from hydra.utils import get_original_cwd
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.callbacks import Callback, ModelCheckpoint
+from pytorch_lightning.callbacks.timer import Interval, Timer
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
+from pytorch_lightning.trainer.states import RunningStage
+from pytorch_lightning.utilities.distributed import rank_zero_info
 from pytorch_lightning.utilities.types import _METRIC
 
 from nemo.constants import NEMO_ENV_VARNAME_VERSION
@@ -665,6 +669,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         super().__init__(**kwargs)
 
         if self.save_top_k != -1 and n_resume:
+            logging.debug("Checking previous runs")
             self.nemo_topk_check_previous_run()
 
     def nemo_topk_check_previous_run(self):
@@ -751,10 +756,18 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         if trainer.fast_dev_run:
             return None
 
+        monitor_candidates = self._monitor_candidates(trainer, trainer.current_epoch, trainer.global_step - 1)
+        self._save_last_checkpoint(trainer, monitor_candidates=monitor_candidates)
+
         # Load the best model and then re-save it
         if self.save_best_model:
-            trainer.checkpoint_connector.restore(self.best_model_path)
-
+            if self.best_model_path is "":
+                logging.warning(
+                    f"{self} was told to save the best checkpoint at the end of training, but no saved checkpoints "
+                    "were found. Saving latest model instead."
+                )
+            else:
+                trainer.checkpoint_connector.restore(self.best_model_path)
         pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
 
     def _del_model(self, trainer: "pl.Trainer", filepath: str) -> None:
@@ -919,3 +932,32 @@ def check_slurm(trainer):
         return trainer.accelerator_connector.is_slurm_managing_tasks
     except AttributeError:
         return False
+
+
+class StatelessTimer(Timer):
+    """Extension of PTL timers to be per run."""
+
+    def __init__(self, duration: timedelta = None, interval: str = Interval.step, verbose: bool = True,) -> None:
+        super().__init__(duration, interval, verbose)
+
+    def on_save_checkpoint(self, trainer, pl_module, checkpoint) -> Dict[str, Any]:
+        return
+
+    def on_load_checkpoint(self, trainer, pl_module, callback_state) -> None:
+        return
+
+    def _check_time_remaining(self, trainer) -> None:
+        # Default timer only checks for train time exceeding max_time, this includes time for all stages.
+        train_duration = self.time_elapsed(RunningStage.TRAINING)
+        validation_duration = self.time_elapsed(RunningStage.VALIDATING)
+        test_duration = self.time_elapsed(RunningStage.TESTING)
+        total_duration = train_duration + validation_duration + test_duration
+        should_stop = total_duration >= self._duration
+        # should_stop = trainer.training_type_plugin.broadcast(should_stop)
+        should_stop = trainer.training_type_plugin.reduce_boolean_decision(should_stop)
+        trainer.should_stop = trainer.should_stop or should_stop
+        if should_stop and self._verbose:
+            rank_zero_info(f"Time limit reached. Signaling Trainer to stop.")
+            rank_zero_info(
+                f"Spent {timedelta(seconds=train_duration)} seconds on training, {timedelta(seconds=validation_duration)} seconds on validation and {timedelta(seconds=test_duration)} seconds on testing"
+            )
