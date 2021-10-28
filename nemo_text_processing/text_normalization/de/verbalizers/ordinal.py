@@ -45,9 +45,10 @@ class OrdinalFst(GraphFst):
 
         suffixes = pynini.union("ten", "tem", "ter", "tes", "te")
         convert_rest = pynutil.insert(suffixes, weight=0.01)
+        self.ordinal_stem = graph_digit | graph_ties | graph_thousands
 
         suffix = pynini.cdrewrite(
-            pynini.closure(graph_digit | graph_ties | graph_thousands, 0, 1) + convert_rest, "", "[EOS]", NEMO_SIGMA,
+            pynini.closure(self.ordinal_stem, 0, 1) + convert_rest, "", "[EOS]", NEMO_SIGMA,
         ).optimize()
         self.graph = pynini.compose(graph, suffix)
         self.suffix = suffix
