@@ -15,8 +15,8 @@
 import os
 import shutil
 import tempfile
-from typing import Any, Dict, List, Optional, Union
 from collections import defaultdict
+from typing import Any, Dict, List, Optional, Union
 
 import pytorch_lightning as pl
 import torch
@@ -250,26 +250,26 @@ class GradScaler(torch.cuda.amp.GradScaler):
     ranks in (1) executing optimizer step and (2) gradient scaler update.
 
     """
-    def __init__(self,
-                 init_scale=2.**16,
-                 growth_factor=2.0,
-                 backoff_factor=0.5,
-                 growth_interval=2000,
-                 enabled=True):
-        super().__init__(init_scale=init_scale,
-                         growth_factor=growth_factor,
-                         backoff_factor=backoff_factor,
-                         growth_interval=growth_interval,
-                         enabled=enabled)
+
+    def __init__(
+        self, init_scale=2.0 ** 16, growth_factor=2.0, backoff_factor=0.5, growth_interval=2000, enabled=True
+    ):
+        super().__init__(
+            init_scale=init_scale,
+            growth_factor=growth_factor,
+            backoff_factor=backoff_factor,
+            growth_interval=growth_interval,
+            enabled=enabled,
+        )
 
     def _maybe_opt_step(self, optimizer, optimizer_state, *args, **kwargs):
         retval = None
         found_inf = torch.cuda.FloatTensor([sum(v.item() for v in optimizer_state["found_inf_per_device"].values())])
 
         # Update across all model parallel instances.
-        torch.distributed.all_reduce(found_inf,
-                                     op=torch.distributed.ReduceOp.MAX,
-                                     group=parallel_state.get_model_parallel_group())
+        torch.distributed.all_reduce(
+            found_inf, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group()
+        )
 
         if found_inf.item() == 0:
             retval = optimizer.step(*args, **kwargs)
@@ -313,35 +313,38 @@ class GradScaler(torch.cuda.amp.GradScaler):
         else:
             # Consume shared inf/nan data collected from optimizers to update the scale.
             # If all found_inf tensors are on the same device as self._scale, this operation is asynchronous.
-            found_infs = [found_inf.to(device=_scale.device, non_blocking=True)
-                          for state in self._per_optimizer_states.values()
-                          for found_inf in state["found_inf_per_device"].values()]
+            found_infs = [
+                found_inf.to(device=_scale.device, non_blocking=True)
+                for state in self._per_optimizer_states.values()
+                for found_inf in state["found_inf_per_device"].values()
+            ]
 
             assert len(found_infs) > 0, "No inf checks were recorded prior to update."
 
             found_inf_combined = found_infs[0]
 
             # Update across all model parallel instances.
-            torch.distributed.all_reduce(found_inf_combined,
-                                         op=torch.distributed.ReduceOp.MAX,
-                                         group=parallel_state.get_model_parallel_group())
+            torch.distributed.all_reduce(
+                found_inf_combined, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group()
+            )
 
             if len(found_infs) > 1:
                 for i in range(1, len(found_infs)):
                     found_inf = found_infs[i]
                     # Update across all model parallel instances.
-                    torch.distributed.all_reduce(found_inf,
-                                                 op=torch.distributed.ReduceOp.MAX,
-                                                 group=parallel_state.get_model_parallel_group())
+                    torch.distributed.all_reduce(
+                        found_inf, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group()
+                    )
                     found_inf_combined += found_inf
 
-
-            torch._amp_update_scale_(_scale,
-                                     _growth_tracker,
-                                     found_inf_combined,
-                                     self._growth_factor,
-                                     self._backoff_factor,
-                                     self._growth_interval)
+            torch._amp_update_scale_(
+                _scale,
+                _growth_tracker,
+                found_inf_combined,
+                self._growth_factor,
+                self._backoff_factor,
+                self._growth_interval,
+            )
 
         # To prepare for next iteration, clear the data collected from optimizers this iteration.
         self._per_optimizer_states = defaultdict(torch.cuda.amp.grad_scaler._refresh_per_optimizer_state)
