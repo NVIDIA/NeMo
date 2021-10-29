@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from omegaconf import MISSING
 
@@ -35,7 +35,7 @@ class EncDecCTCDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
 
     # Tarred dataset support
     is_tarred: bool = False
-    tarred_audio_filepaths: Optional[List, str] = None
+    tarred_audio_filepaths: Optional[Union[List, str]] = None
     tarred_shard_strategy: str = "scatter"
     shuffle_n: int = 0
 
