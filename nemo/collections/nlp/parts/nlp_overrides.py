@@ -18,7 +18,6 @@ import tempfile
 from typing import Any, Dict, List, Optional, Union
 
 import pytorch_lightning as pl
-from pytorch_lightning.utilities.types import _PATH
 import torch
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
@@ -31,6 +30,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities import rank_zero_warn
 from pytorch_lightning.utilities.cloud_io import atomic_save
 from pytorch_lightning.utilities.enums import GradClipAlgorithmType
+from pytorch_lightning.utilities.types import _PATH
 from torch.nn.modules.module import Module
 from torch.nn.parallel import DistributedDataParallel
 from torch.optim.optimizer import Optimizer
