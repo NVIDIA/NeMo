@@ -36,15 +36,17 @@ except ModuleNotFoundError:
 
 
 class CustomSaveRestoreConnector(SaveRestoreConnector):
-    def __init__(self):
+    def __init__(self, merge_file=None, vocab_file=None):
         super().__init__()
+        self.merge_file = merge_file
+        self.vocab_file = vocab_file
 
     def restore_from(
             self,
             calling_cls,
             restore_path: str,
-            override_config_path = None,
-            map_location = None,
+            override_config_path=None,
+            map_location=None,
             strict: bool = True,
             return_config: bool = False,
             trainer: Trainer = None,
@@ -119,6 +121,10 @@ class CustomSaveRestoreConnector(SaveRestoreConnector):
                     conf.fused_fp16 = False
                 if 'fused_bf16' in conf:
                     conf.fused_bf16 = False
+                if self.vocab_file is not None:
+                    conf.tokenizer.vocab_file = self.vocab_file
+                if self.merge_file is not None:
+                    conf.tokenizer.merge_file = self.merge_file
                 instance = calling_cls.from_config_dict(config=conf, trainer=trainer)
                 instance = instance.to(map_location)
                 # add load_state_dict override
@@ -134,16 +140,18 @@ class CustomSaveRestoreConnector(SaveRestoreConnector):
         return instance
 
 
-
 def setup_model(args):
     """Setup model and optimizer."""
     torch.set_grad_enabled(False)
     trainer = Trainer(gpus=1)
     if args['nemo_model'] is not None:
         logging.info(f"**** Loading checkpoint from {args['nemo_model']}")
+        vocab_file = args.get('vocab_file', None)
+        merge_file = args.get('merge_file', None)
         if args['nemo_model'].rstrip().endswith(".nemo"):
             model = MegatronGPTModel.restore_from(
-                restore_path=args['nemo_model'], trainer=trainer, save_restore_connector=CustomSaveRestoreConnector())
+                restore_path=args['nemo_model'], trainer=trainer, save_restore_connector=CustomSaveRestoreConnector(
+                    vocab_file=vocab_file, merge_file=merge_file))
         elif args['nemo_model'].rstrip().endswith(".ckpt"):
             hydra.core.global_hydra.GlobalHydra.instance().clear()
             initialize(config_path="conf/nemo-nlp-conf", job_name="eval")
@@ -316,7 +324,6 @@ class NeMo_GPT3LM(LM):
                     contlens.append(cont)
                     inplens.append(inplen)
 
-
                 maybe_multi_logits = self._model_call_megatron(torch.cat(inps, dim=0))  # [batch, seq, vocab]
 
                 for (cache_key, _, _), maybe_logits, inp, inplen, cont_toks in zip(chunk, maybe_multi_logits, inps,
@@ -352,7 +359,6 @@ class NeMo_GPT3LM(LM):
                     res.append(answer)
 
         return reord.get_original(res)
-
 
     def _model_call_megatron(self, inps):
         """

@@ -118,6 +118,8 @@ def setup_trainer_and_model(args):
         args['tensor_model_parallel_size'] = int(args['tensor_model_parallel_size'])
 
     logging.info(f"**** Loading checkpoint from {args['nemo_model']}")
+    vocab_file = args.get('vocab_file', None)
+    merge_file = args.get('merge_file', None)
     # if args['nemo_model'].rstrip().endswith(".nemo"):
     trainer = Trainer(
         plugins=CustomNLPDDPPlugin(), gpus=args['tensor_model_parallel_size'], accelerator="ddp",
@@ -126,7 +128,8 @@ def setup_trainer_and_model(args):
     app_state.model_parallel_size = args['tensor_model_parallel_size']
     app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
     model = CustomModel.restore_from(
-        restore_path=args['nemo_model'], trainer=trainer, save_restore_connector=CustomSaveRestoreConnector())
+        restore_path=args['nemo_model'], trainer=trainer, save_restore_connector=CustomSaveRestoreConnector(
+            vocab_file=vocab_file, merge_file=merge_file))
 
     return trainer, model
 
