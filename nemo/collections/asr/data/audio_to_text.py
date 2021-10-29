@@ -25,7 +25,6 @@ import webdataset as wd
 from scipy.stats import betabinom
 from torch.nn import functional as F
 
-from nemo.collections.asr.data import vocabs
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.common.parts.preprocessing import collections, parsers
 from nemo.core.classes import Dataset, IterableDataset
@@ -396,6 +395,8 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
         Returns:
             (vocabs.Base) Vocabulary
         """
+        from nemo.collections.common.data import vocabs
+
         if notation == 'chars':
             vocab = vocabs.Chars(punct=punct, spaces=spaces, add_blank_at=add_blank_at)
         elif notation == 'phonemes':
