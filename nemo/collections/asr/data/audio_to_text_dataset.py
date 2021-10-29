@@ -300,6 +300,8 @@ def get_dali_bpe_dataset(
 
 
 def convert_to_config_list(initial_list):
+    if type(initial_list) is str:
+        initial_list = initial_list.split(",")
     if initial_list is None or initial_list == []:
         raise ValueError("manifest_filepaths and tarred_audio_filepaths must not be empty.")
     if not isinstance(initial_list, ListConfig):
