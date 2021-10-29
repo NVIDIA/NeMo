@@ -1,6 +1,10 @@
 import argparse
 from lm_eval import tasks
 
+try:
+    from nemo.utils.get_rank import is_global_rank_zero
+except ModuleNotFoundError:
+    print("Importing NeMo module failed, checkout the NeMo submodule")
 
 def parse_args(parser_main):
     # parser = argparse.ArgumentParser()
@@ -18,7 +22,8 @@ def main():
         task_names = tasks.ALL_TASKS
     else:
         task_names = args.tasks.split(",")
-    _ = tasks.get_task_dict(task_names)
+    if is_global_rank_zero():
+        _ = tasks.get_task_dict(task_names)
     print("***** Tasks data downloaded.")
 
 
