@@ -59,16 +59,17 @@ pipeline {
       }
     }
 
-    // Revert once import guards are added by PTL or version comparing is fixed
-    stage('Install PyTorch Lighting 1.5 RC') {
-      steps{
-        sh 'pip install pytorch-lightning==1.5.0rc0 && sed -i "s/from pytorch_lightning.callbacks.quantization import QuantizationAwareTraining/try:\\n\\tfrom pytorch_lightning.callbacks.quantization import QuantizationAwareTraining\\nexcept:\\n\\tpass/g" /opt/conda/lib/python3.8/site-packages/pytorch_lightning/callbacks/__init__.py'
-      }
-    }
 
     stage('NeMo Installation') {
       steps {
         sh './reinstall.sh release'
+      }
+    }
+
+    // Revert once import guards are added by PTL or version comparing is fixed
+    stage('PTL Import Guards') {
+      steps{
+        sh 'sed -i "s/from pytorch_lightning.callbacks.quantization import QuantizationAwareTraining/try:\\n\\tfrom pytorch_lightning.callbacks.quantization import QuantizationAwareTraining\\nexcept:\\n\\tpass/g" /opt/conda/lib/python3.8/site-packages/pytorch_lightning/callbacks/__init__.py'
       }
     }
 
