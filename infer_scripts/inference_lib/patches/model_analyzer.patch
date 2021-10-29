@@ -146,7 +146,7 @@ index e224aef..ec2804c 100644
  
 diff --git a/model_analyzer/record/types/perf_throughput_normalized.py b/model_analyzer/record/types/perf_throughput_normalized.py
 new file mode 100644
-index 0000000..44c4179
+index 0000000..25311b2
 --- /dev/null
 +++ b/model_analyzer/record/types/perf_throughput_normalized.py
 @@ -0,0 +1,92 @@
@@ -208,7 +208,7 @@ index 0000000..44c4179
 +            metric.
 +        """
 +
-+        return "Throughput Normalized (infer/gpu_sec)"
++        return "Throughput Per GPU (infer/sec)"
 +
 +    def __eq__(self, other):
 +        """
