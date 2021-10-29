@@ -18,7 +18,7 @@ from copy import deepcopy
 
 import numpy as np
 import torch
-from pyannote.core import Annotation, Segment
+from pyannote.core import Annotation, Segment, Timeline
 from pyannote.metrics.diarization import DiarizationErrorRate
 from tqdm import tqdm
 
@@ -124,6 +124,24 @@ def labels_to_pyannote_object(labels):
     return annotation
 
 
+def uem_timeline_from_file(uem_file):
+    """
+    outputs pyannote timeline segments for uem file
+     
+     <UEM> file format
+     UNIQ_SPEAKER_ID CHANNEL START_TIME END_TIME
+    """
+    timeline = Timeline()
+    with open(uem_file, 'r') as f:
+        lines = f.readlines()
+        for line in lines:
+            line = line.strip()
+            speaker_id, channel, start_time, end_time = line.split()
+            timeline.add(Segment(float(start_time), float(end_time)))
+
+    return timeline
+
+
 def labels_to_rttmfile(labels, uniq_id, out_rttm_dir):
     """
     write rttm file with uniq_id name in out_rttm_dir with time_stamps in labels
@@ -204,13 +222,13 @@ def perform_clustering(embeddings, time_stamps, AUDIO_RTTM_MAP, out_rttm_dir, cl
         if out_rttm_dir:
             labels_to_rttmfile(labels, uniq_key, out_rttm_dir)
         hypothesis = labels_to_pyannote_object(labels)
-        all_hypothesis.append(hypothesis)
+        all_hypothesis.append([uniq_key, hypothesis])
 
         rttm_file = value['rttm_filepath']
         if os.path.exists(rttm_file) and not no_references:
             ref_labels = rttm_to_labels(rttm_file)
             reference = labels_to_pyannote_object(ref_labels)
-            all_reference.append(reference)
+            all_reference.append([uniq_key, reference])
         else:
             no_references = True
             all_reference = []
@@ -218,11 +236,12 @@ def perform_clustering(embeddings, time_stamps, AUDIO_RTTM_MAP, out_rttm_dir, cl
     return all_reference, all_hypothesis
 
 
-def score_labels(all_reference, all_hypothesis, collar=0.5, ignore_overlap=True):
+def score_labels(AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ignore_overlap=True):
     """
     calculates DER, CER, FA and MISS
 
     Args:
+    AUDIO_RTTM_MAP : Dictionary containing information provided from manifestpath
     all_reference (list[Annotation]): reference annotations for score calculation
     all_hypothesis (list[Annotation]): hypothesis annotations for score calculation
 
@@ -238,12 +257,17 @@ def score_labels(all_reference, all_hypothesis, collar=0.5, ignore_overlap=True)
     collar in md-eval.pl, 0.5s should be applied for pyannote.metrics.
 
     """
-    metric = DiarizationErrorRate(collar=collar, skip_overlap=ignore_overlap, uem=None)
+    metric = DiarizationErrorRate(collar=2 * collar, skip_overlap=ignore_overlap)
 
     mapping_dict = {}
     for k, (reference, hypothesis) in enumerate(zip(all_reference, all_hypothesis)):
-        metric(reference, hypothesis, detailed=True)
-        mapping_dict[k] = metric.optimal_mapping(reference, hypothesis)
+        ref_key, ref_labels = reference
+        _, hyp_labels = hypothesis
+        uem = AUDIO_RTTM_MAP[ref_key].get('uem_filepath', None)
+        if uem is not None:
+            uem = uem_timeline_from_file(uem_file=uem)
+        metric(ref_labels, hyp_labels, uem=uem, detailed=True)
+        mapping_dict[k] = metric.optimal_mapping(ref_labels, hyp_labels)
 
     DER = abs(metric)
     CER = metric['confusion'] / metric['total']

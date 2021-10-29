@@ -372,6 +372,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         if len(all_reference) and len(all_hypothesis):
             DER, CER, FA, MISS, _ = score_labels(
+                self.AUDIO_RTTM_MAP,
                 all_reference,
                 all_hypothesis,
                 collar=self._cluster_params.collar,
