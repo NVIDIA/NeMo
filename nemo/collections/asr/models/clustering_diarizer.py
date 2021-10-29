@@ -371,7 +371,12 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         )
 
         if len(all_reference) and len(all_hypothesis):
-            DER, CER, FA, MISS, _ = score_labels(all_reference, all_hypothesis)
+            DER, CER, FA, MISS, _ = score_labels(
+                all_reference,
+                all_hypothesis,
+                collar=self._cluster_params.collar,
+                ignore_overlap=self._cluster_params.ignore_overlap,
+            )
             logging.info(
                 "Cumulative results of all the files:  \n FA: {:.4f}\t MISS {:.4f}\t \
                 Diarization ER: {:.4f}\t, Confusion ER:{:.4f}".format(
@@ -383,8 +388,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 "Please check if each ground truth RTTMs was present in provided path2groundtruth_rttm_files"
             )
             logging.warning("Skipping calculation of Diariazation Error Rate")
-
-        score_labels(all_reference, all_hypothesis, collar=0.25, ignore_overlap=True)
 
     @staticmethod
     def __make_nemo_file_from_folder(filename, source_dir):
