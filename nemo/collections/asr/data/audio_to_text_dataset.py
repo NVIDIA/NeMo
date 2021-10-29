@@ -27,23 +27,6 @@ from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.utils import logging
 
 
-@dataclass
-class ASRDatasetConfig:
-    manifest_filepath: Optional[str] = None
-    is_tarred: Optional[bool] = False
-    tarred_audio_filepaths: Optional[str] = None
-    sample_rate: Optional[int] = 16000
-    batch_size: Optional[int] = 1
-    shuffle: Optional[bool] = False
-    num_workers: Optional[int] = 4
-    pin_memory: Optional[bool] = True
-    use_start_end_token: Optional[bool] = False
-    trim_silence: Optional[bool] = False
-    max_duration: Optional[float] = None
-    min_duration: Optional[float] = None
-    return_sample_id: Optional[bool] = False
-
-
 def inject_dataloader_value_from_model_config(model_cfg: dict, dataloader_cfg: DictConfig, key: str):
     """
     Extracts the label set provided at the top level of the model, and propagates it to the dataloader
