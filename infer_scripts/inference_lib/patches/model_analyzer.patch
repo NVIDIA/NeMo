@@ -1,3 +1,46 @@
+diff --git a/model_analyzer/config/input/config_command_profile.py b/model_analyzer/config/input/config_command_profile.py
+index 8e05dad..e8dbb6f 100644
+--- a/model_analyzer/config/input/config_command_profile.py
++++ b/model_analyzer/config/input/config_command_profile.py
+@@ -38,7 +38,7 @@
+     DEFAULT_TRITON_HTTP_ENDPOINT, DEFAULT_TRITON_INSTALL_PATH, DEFAULT_TRITON_LAUNCH_MODE, DEFAULT_TRITON_METRICS_URL, \
+     DEFAULT_TRITON_SERVER_PATH, DEFAULT_PERF_ANALYZER_TIMEOUT
+ 
+-from model_analyzer.constants import LOGGER_NAME
++from model_analyzer.constants import LOGGER_NAME, PERF_ANALYZER_MEASUREMENT_RELATIVE_STEP
+ from model_analyzer.triton.server.server_config import \
+     TritonServerConfig
+ from model_analyzer.perf_analyzer.perf_config import \
+@@ -636,6 +636,14 @@ def _add_perf_analyzer_configs(self):
+                 "launched with auto adjusted parameters in an attempt to profile a model. "
+             ))
+ 
++        self._add_config(
++            ConfigField(
++                'perf_analyzer_measurement_relative_step',
++                field_type=ConfigPrimitive(float),
++                default_value=PERF_ANALYZER_MEASUREMENT_RELATIVE_STEP,
++                description="Relative step for stabilization window"
++            ))
++
+     def _preprocess_and_verify_arguments(self):
+         """
+         Enforces some rules on the config.
+diff --git a/model_analyzer/constants.py b/model_analyzer/constants.py
+index 4920b6f..dabb64c 100644
+--- a/model_analyzer/constants.py
++++ b/model_analyzer/constants.py
+@@ -32,9 +32,8 @@
+ MAX_NUMBER_OF_INTERRUPTS = 3
+ 
+ # Perf Analyzer
+-MEASUREMENT_WINDOW_STEP = 1000
+-MEASUREMENT_REQUEST_COUNT_STEP = 50
+ INTERVAL_SLEEP_TIME = 1
++PERF_ANALYZER_MEASUREMENT_RELATIVE_STEP = 0.5
+ PERF_ANALYZER_MEASUREMENT_WINDOW = 5000
+ PERF_ANALYZER_MINIMUM_REQUEST_COUNT = 50
+ 
 diff --git a/model_analyzer/model_manager.py b/model_analyzer/model_manager.py
 index a5d2044..64bf38b 100644
 --- a/model_analyzer/model_manager.py
@@ -11,6 +54,194 @@ index a5d2044..64bf38b 100644
              self._client.wait_for_server_ready(self._config.client_max_retries)
  
              if self._client.load_model(model_name=variant_name) == -1:
+diff --git a/model_analyzer/perf_analyzer/perf_analyzer.py b/model_analyzer/perf_analyzer/perf_analyzer.py
+index af9225b..064d11f 100644
+--- a/model_analyzer/perf_analyzer/perf_analyzer.py
++++ b/model_analyzer/perf_analyzer/perf_analyzer.py
+@@ -34,8 +34,9 @@
+     import PerfServerComputeOutput
+ 
+ from model_analyzer.constants import \
+-    INTERVAL_SLEEP_TIME, LOGGER_NAME, MEASUREMENT_REQUEST_COUNT_STEP, \
+-    MEASUREMENT_WINDOW_STEP, PERF_ANALYZER_MEASUREMENT_WINDOW, \
++    INTERVAL_SLEEP_TIME, LOGGER_NAME, \
++    PERF_ANALYZER_MEASUREMENT_RELATIVE_STEP, \
++    PERF_ANALYZER_MEASUREMENT_WINDOW, \
+     PERF_ANALYZER_MINIMUM_REQUEST_COUNT
+ 
+ from subprocess import Popen, STDOUT, PIPE
+@@ -97,6 +98,18 @@ def __init__(self, path, config, max_retries, timeout, max_cpu_util):
+         self._perf_records = None
+         self._max_cpu_util = max_cpu_util
+ 
++        self._initial_measurement_interval = int(
++            self._config['measurement-interval']
++            if self._config['measurement-interval'] is not None
++            else PERF_ANALYZER_MEASUREMENT_WINDOW
++        )
++
++        self._initial_measurement_request_count = int(
++            self._config['measurement-request-count']
++            if self._config['measurement-request-count'] is not None
++            else PERF_ANALYZER_MINIMUM_REQUEST_COUNT
++        )
++
+     def run(self, metrics, env=None):
+         """
+         Runs the perf analyzer with the
+@@ -229,26 +242,28 @@ def _auto_adjust_parameters(self, cmd, process):
+         if self._output.find("Failed to obtain stable measurement"
+                             ) != -1 or self._output.find(
+                                 "Please use a larger time window") != -1:
++            relative_step = float(
++                self._config['measurement-relative-step']
++                if self._config['measurement-relative-step'] is not None
++                else PERF_ANALYZER_MEASUREMENT_RELATIVE_STEP
++            )
+             if self._config['measurement-mode'] == 'time_windows':
+                 if self._config['measurement-interval'] is None:
+-                    self._config[
+-                        'measurement-interval'] = PERF_ANALYZER_MEASUREMENT_WINDOW + MEASUREMENT_WINDOW_STEP
+-                else:
+-                    self._config['measurement-interval'] = int(
+-                        self._config['measurement-interval']
+-                    ) + MEASUREMENT_WINDOW_STEP
++                    self._config['measurement-interval'] = self._initial_measurement_interval
++                self._config['measurement-interval'] += int(
++                    self._initial_measurement_interval * relative_step
++                )
++
+                 logger.info(
+                     "perf_analyzer's measurement window is too small, "
+                     f"increased to {self._config['measurement-interval']} ms.")
+             elif self._config['measurement-mode'] is None or self._config[
+                     'measurement-mode'] == 'count_windows':
+                 if self._config['measurement-request-count'] is None:
+-                    self._config[
+-                        'measurement-request-count'] = PERF_ANALYZER_MINIMUM_REQUEST_COUNT + MEASUREMENT_REQUEST_COUNT_STEP
+-                else:
+-                    self._config['measurement-request-count'] = int(
+-                        self._config['measurement-request-count']
+-                    ) + MEASUREMENT_REQUEST_COUNT_STEP
++                    self._config['measurement-request-count'] = self._initial_measurement_request_count
++                self._config['measurement-request-count'] += int(
++                    self._initial_measurement_request_count * relative_step
++                )
+                 logger.info(
+                     "perf_analyzer's request count is too small, "
+                     f"increased to {self._config['measurement-request-count']}."
+diff --git a/model_analyzer/perf_analyzer/perf_config.py b/model_analyzer/perf_analyzer/perf_config.py
+index e224aef..ec2804c 100644
+--- a/model_analyzer/perf_analyzer/perf_config.py
++++ b/model_analyzer/perf_analyzer/perf_config.py
+@@ -30,7 +30,8 @@ class PerfAnalyzerConfig:
+         'stability-percentage', 'max-trials', 'percentile', 'input-data',
+         'shared-memory', 'output-shared-memory-size', 'shape',
+         'sequence-length', 'string-length', 'string-data', 'measurement-mode',
+-        'measurement-request-count', 'streaming', 'grpc-compression-algorithm',
++        'measurement-request-count', 'measurement-request-count',
++        'streaming', 'grpc-compression-algorithm',
+         'triton-server-directory', 'model-repository'
+     ]
+ 
+diff --git a/model_analyzer/record/types/perf_throughput_normalized.py b/model_analyzer/record/types/perf_throughput_normalized.py
+new file mode 100644
+index 0000000..44c4179
+--- /dev/null
++++ b/model_analyzer/record/types/perf_throughput_normalized.py
+@@ -0,0 +1,92 @@
++# Copyright (c) 2020-2021, NVIDIA CORPORATION. All rights reserved.
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++from functools import total_ordering
++
++from model_analyzer.record.record import Record
++
++
++@total_ordering
++class PerfThroughputNormalized(Record):
++    """
++    A record for perf_analyzer
++    metric 'Throughput'
++    """
++
++    tag = "perf_throughput_normalized"
++
++    def __init__(self, value, timestamp=0):
++        """
++        Parameters
++        ----------
++        value : float
++            The throughput from the perf analyzer output
++        timestamp : float
++            Elapsed time from start of program
++        """
++
++        super().__init__(value, timestamp)
++
++    @staticmethod
++    def header(aggregation_tag=False):
++        """
++        Parameters
++        ----------
++        aggregation_tag: bool
++            An optional tag that may be displayed 
++            as part of the header indicating that 
++            this record has been aggregated using 
++            max, min or average etc. 
++             
++        Returns
++        -------
++        str
++            The full name of the
++            metric.
++        """
++
++        return "Throughput Normalized (infer/gpu_sec)"
++
++    def __eq__(self, other):
++        """
++        Allows checking for
++        equality between two records
++        """
++
++        return self.value() == other.value()
++
++    def __lt__(self, other):
++        """
++        Allows checking if 
++        this record is less than 
++        the other
++        """
++
++        return self.value() < other.value()
++
++    def __add__(self, other):
++        """
++        Allows adding two records together
++        to produce a brand new record.
++        """
++
++        return PerfThroughputNormalized(value=(self.value() + other.value()))
++
++    def __sub__(self, other):
++        """
++        Allows subtracting two records together
++        to produce a brand new record.
++        """
++
++        return PerfThroughputNormalized(value=(self.value() - other.value()))
 diff --git a/model_analyzer/result/result_manager.py b/model_analyzer/result/result_manager.py
 index 2677dee..887d008 100644
 --- a/model_analyzer/result/result_manager.py
@@ -89,6 +320,49 @@ index 2677dee..887d008 100644
          return row
  
      def _add_server_data(self):
+diff --git a/model_analyzer/state/analyzer_state.py b/model_analyzer/state/analyzer_state.py
+index 40a4cef..3127e8b 100644
+--- a/model_analyzer/state/analyzer_state.py
++++ b/model_analyzer/state/analyzer_state.py
+@@ -11,7 +11,8 @@
+ # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+-
++from model_analyzer.record.types.perf_throughput import PerfThroughput
++from model_analyzer.record.types.perf_throughput_normalized import PerfThroughputNormalized
+ from model_analyzer.triton.model.model_config import ModelConfig
+ from model_analyzer.result.measurement import Measurement
+ from model_analyzer.record.record import RecordType
+@@ -48,6 +49,7 @@ def from_dict(cls, state_dict):
+                 measurements_dict = {}
+                 for measurement_key, measurement_dict in measurements.items():
+                     measurement = Measurement.from_dict(measurement_dict)
++                    measurement = cls._add_normalize_measurement(measurement, model_config)
+                     measurements_dict[measurement_key] = measurement
+                 state._state_dict['ResultManager.results'][model_name][
+                     model_config_name] = (model_config, measurements_dict)
+@@ -78,3 +80,20 @@ def get(self, name):
+ 
+     def set(self, name, value):
+         self._state_dict[name] = value
++
++    @classmethod
++    def _add_normalize_measurement(cls, measurement, model_config):
++        throughput_metric = measurement.get_metric(PerfThroughput.tag)
++        model_config = model_config.to_dict()
++        pp = int(model_config["parameters"]["pipeline_para_size"]["stringValue"])
++        tp = int(model_config["parameters"]["tensor_para_size"]["stringValue"])
++        normalized_throughput = throughput_metric.value() / (pp * tp)
++        throughput_normalized_metric = PerfThroughputNormalized(
++            value=normalized_throughput, timestamp=throughput_metric.timestamp()
++        )
++        updated_measurement = Measurement(
++            gpu_data=measurement.gpu_data(),
++            non_gpu_data=measurement.non_gpu_data() + [throughput_normalized_metric],
++            perf_config=measurement.perf_config(),
++        )
++        return updated_measurement
 diff --git a/model_analyzer/triton/client/client.py b/model_analyzer/triton/client/client.py
 index cc410c1..5c8c12d 100755
 --- a/model_analyzer/triton/client/client.py

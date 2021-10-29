@@ -24,9 +24,11 @@ import time
 import typing
 
 import submitit
+import yaml
 
 from .slurm import (
     TRITON_MODEL_REPOSITORY,
+    ContainerImageType,
     DirToMount,
     PyxisTritonExecutor,
     get_cluster_suffix,
@@ -260,7 +262,9 @@ class TritonServerSet:
         self._job.wait()
 
 
-def get_dirs_to_mount_new(path_pairs: typing.List[typing.Tuple[pathlib.Path, pathlib.Path]]):
+def get_dirs_to_mount_new(
+    path_pairs: typing.List[typing.Tuple[pathlib.Path, pathlib.Path]], container_image_type: ContainerImageType
+):
     entries = [
         DirToMount(src.resolve().absolute(), dst.resolve().absolute(), readonly=False) for src, dst in path_pairs
     ]
@@ -271,15 +275,8 @@ def get_dirs_to_mount_new(path_pairs: typing.List[typing.Tuple[pathlib.Path, pat
             entry.src.mkdir(parents=True, exist_ok=True)
 
     entries = [entry for entry in entries if entry.src]
-
-    host_model_navigator_path = os.environ.get("MODEL_NAVIGATOR_DIR")
-    if host_model_navigator_path:
-        host_model_navigator_path = pathlib.Path(host_model_navigator_path).resolve().absolute()
-        if host_model_navigator_path.exists():
-            LOGGER.warning(f"Using Model Navigator mounted sources: {host_model_navigator_path}")
-            container_model_navigator_path = pathlib.Path("/workspace/model_navigator")
-            entries += [DirToMount(host_model_navigator_path, container_model_navigator_path, readonly=True)]
-
+    if container_image_type == ContainerImageType.TRAINING:
+        entries = _try_add_nav_as_editable(entries)
     return entries
 
 
@@ -288,6 +285,7 @@ def get_dirs_to_mount(
     paths: Paths,
     additional_path_pairs: typing.Optional[typing.List[typing.Tuple[pathlib.Path, pathlib.Path]]] = None,
     triton_model_repository_readonly: bool = True,
+    container_image_type: ContainerImageType,
 ):
     additional_path_pairs = additional_path_pairs or []
     entries = [
@@ -316,13 +314,20 @@ def get_dirs_to_mount(
             entry.src.mkdir(parents=True, exist_ok=True)
 
     entries = [entry for entry in entries if entry.src]
+    if container_image_type == ContainerImageType.TRAINING:
+        entries = _try_add_nav_as_editable(entries)
+    return entries
 
+
+def _try_add_nav_as_editable(entries):
     if os.environ.get("NAV_DIR"):
         host_nav_dir_path = pathlib.Path(os.environ.get("NAV_DIR"))
-        LOGGER.warning(f"Using Model Navigator from {host_nav_dir_path}")
-        container_nav_dir_path = pathlib.Path("/workspace/model_navigator")
+        container_nav_dir_path = pathlib.Path("/opt/bignlp/model_navigator")
         if host_nav_dir_path.exists():
+            LOGGER.warning(f"Using Model Navigator from {host_nav_dir_path} mounted into {container_nav_dir_path}")
             entries += [DirToMount(host_nav_dir_path, container_nav_dir_path, readonly=True)]
+        else:
+            LOGGER.warning(f"Missing Model Navigator dir: {host_nav_dir_path}")
     return entries
 
 
@@ -362,7 +367,6 @@ def convert_model(
         model_name,
         "--output-path",
         converted_model_path,
-        "--override-workspace",
         "--verbose",
         *parameters_flattened,
     )
@@ -637,6 +641,7 @@ def run_profile(
     seq_len = int(triton_config["parameters"]["max_seq_len"]["stringValue"])
     output_len = seq_len - input_len
     vocab_size = int(triton_config["parameters"]["end_id"]["stringValue"])
+    max_batch_size = int(triton_config["maxBatchSize"])
 
     max_shapes = [f"INPUT_ID=-1,1,{input_len}", "REQUEST_INPUT_LEN=-1,1", "REQUEST_OUTPUT_LEN=-1,1"]
     value_ranges = [
@@ -645,6 +650,13 @@ def run_profile(
         f"REQUEST_OUTPUT_LEN={output_len},{output_len}",
     ]
     dtypes = ["INPUT_ID=uint32", "REQUEST_INPUT_LEN=uint32", "REQUEST_OUTPUT_LEN=uint32"]
+
+    with config_path.open("r") as config_file:
+        nav_config = yaml.load(config_file, Loader=yaml.SafeLoader)
+        config_search_batch_sizes = [
+            bs for bs in nav_config.get("config_search_batch_sizes", []) if bs <= max_batch_size
+        ]
+
     model_navigator = sh.Command("model-navigator")
     profile_cmd = model_navigator.bake(
         "profile",
@@ -663,6 +675,8 @@ def run_profile(
         "--dtypes",
         *dtypes,
         "--verbose",
+        "--config-search-batch-sizes",
+        *config_search_batch_sizes,
     )
 
     cluster_suffix = get_cluster_suffix()
@@ -730,7 +744,9 @@ def run_analyze(
         "dynamic_batch_sizes",
         "satisfies_constraints",
         "perf_throughput",
+        "perf_throughput_normalized",
         "perf_latency_p50",
+        "perf_latency_p90",
         "perf_latency_p95",
         "perf_latency_p99",
     ]
@@ -746,6 +762,8 @@ def run_analyze(
         max_latency_ms,
         "--inference-output-fields",
         *inference_output_fields,
+        "--objectives",
+        "perf_throughput_normalized=10"
     )
 
     cluster_suffix = get_cluster_suffix()

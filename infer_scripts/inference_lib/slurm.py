@@ -81,7 +81,7 @@ def get_common_slurm_parameters_new(
         ContainerImageType.INFERENCE: _rewrite_docker_image(env_config["pyxis_inference_container_image"]),
     }[container_image_type]
 
-    dirs_to_mount = get_dirs_to_mount_new(dirs_to_mount or [])
+    dirs_to_mount = get_dirs_to_mount_new(dirs_to_mount or [], container_image_type=container_image_type)
     container_mounts = ",".join(
         f"{d.src.absolute()}:{d.dst.absolute()}{':ro' if d.readonly else ''}" for d in (dirs_to_mount or [])
     )

@@ -58,7 +58,9 @@ def _convert_model(
     conversion_job = None
 
     def _init_executor():
-        dirs_to_mount = get_dirs_to_mount(paths=paths, triton_model_repository_readonly=False)
+        dirs_to_mount = get_dirs_to_mount(
+            paths=paths, triton_model_repository_readonly=False, container_image_type=ContainerImageType.TRAINING
+        )
         slurm_common_parameters = get_common_slurm_parameters(
             cluster_config=config,
             dirs_to_mount=dirs_to_mount,
@@ -117,7 +119,9 @@ def _prepare_triton_model_repository(
     preparation_job = None
 
     def _init_executor():
-        dirs_to_mount = get_dirs_to_mount(paths=paths, triton_model_repository_readonly=False)
+        dirs_to_mount = get_dirs_to_mount(
+            paths=paths, triton_model_repository_readonly=False, container_image_type=ContainerImageType.TRAINING
+        )
         slurm_common_parameters = get_common_slurm_parameters(
             cluster_config=config,
             dirs_to_mount=dirs_to_mount,
@@ -186,8 +190,7 @@ def _load_triton_model_and_run_benchmark(
 
     def _init_triton_set():
         dirs_to_mount = get_dirs_to_mount(
-            paths=paths,
-            triton_model_repository_readonly=True,
+            paths=paths, triton_model_repository_readonly=True, container_image_type=ContainerImageType.INFERENCE
         )
         slurm_common_parameters = get_common_slurm_parameters(
             cluster_config=config,
@@ -215,7 +218,10 @@ def _load_triton_model_and_run_benchmark(
 
     def _init_perf_jobs_executor():
         dirs_to_mount = get_dirs_to_mount(
-            paths=paths, additional_path_pairs=[(dataset_dir, dataset_dir)], triton_model_repository_readonly=False
+            paths=paths,
+            additional_path_pairs=[(dataset_dir, dataset_dir)],
+            triton_model_repository_readonly=False,
+            container_image_type=ContainerImageType.TRAINING,
         )
         slurm_common_parameters = get_common_slurm_parameters(
             cluster_config=config,
