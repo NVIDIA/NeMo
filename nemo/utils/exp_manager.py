@@ -781,8 +781,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         if trainer.fast_dev_run:
             return None
 
-        monitor_candidates = self._monitor_candidates(trainer, trainer.current_epoch, trainer.global_step - 1)
-        self._save_last_checkpoint(trainer, monitor_candidates=monitor_candidates)
+        # Call parent on_train_end() to save the -last checkpoint
+        super().on_train_end(trainer, pl_module)
 
         # Load the best model and then re-save it
         if self.save_best_model:
@@ -793,6 +793,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 )
             else:
                 trainer.checkpoint_connector.restore(self.best_model_path)
+
         pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
 
     def _del_model_without_trainer(self, filepath: str) -> None:
