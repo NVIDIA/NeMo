@@ -72,7 +72,9 @@ def _convert_model(
     conversion_job = None
 
     def _init_executor():
-        dirs_to_mount = get_dirs_to_mount(paths=paths, triton_model_repository_readonly=False)
+        dirs_to_mount = get_dirs_to_mount(
+            paths=paths, triton_model_repository_readonly=False, container_image_type=ContainerImageType.TRAINING
+        )
         slurm_common_parameters = get_common_slurm_parameters(
             cluster_config=config,
             dirs_to_mount=dirs_to_mount,
@@ -85,7 +87,7 @@ def _convert_model(
             time=DEFAULT_MAX_CONFIG_TIME_MIN,
             job_name=f"joc-bermuda:convert_model-tp_{tensor_parallel_size}",
             comment="Task for converting Megatron/NeMo model to Fastertransformer format",
-            setup=["export NO_COLOR=1", f"export PYTHONPATH={sys.path[0]}"],
+            setup=["export NO_COLOR=1", f"export PYTHONPATH={sys.path[0]}", "export MODEL_NAVIGATOR_RUN_BY=1"],
         )
         return executor_
 
@@ -128,7 +130,9 @@ def _prepare_triton_model_repositories(
     preparation_job = None
 
     def _init_executor():
-        dirs_to_mount = get_dirs_to_mount(paths=paths, triton_model_repository_readonly=False)
+        dirs_to_mount = get_dirs_to_mount(
+            paths=paths, triton_model_repository_readonly=False, container_image_type=ContainerImageType.TRAINING
+        )
         slurm_common_parameters = get_common_slurm_parameters(
             cluster_config=config,
             dirs_to_mount=dirs_to_mount,
@@ -166,8 +170,8 @@ def _prepare_triton_model_repositories(
 
         model_repository_paths = preparation_job.result()
         LOGGER.info(
-            f"[{preparation_job.job_id}/{job_name}] Submitted task for preparation set of Triton Model Repositories "
-            f"for model {paths.converted_model_path}"
+            f"[{preparation_job.job_id}/{job_name}] "
+            f"Created {len(model_repository_paths)} Triton Model Repositories:"
         )
         for model_repository_path in model_repository_paths:
             LOGGER.info(f"[{preparation_job.job_id}/{job_name}]     - {model_repository_path}")
@@ -190,7 +194,9 @@ def _load_triton_model_and_profile(
     perf_job = None
 
     def _init_triton_set():
-        dirs_to_mount = get_dirs_to_mount(paths=paths, triton_model_repository_readonly=True)
+        dirs_to_mount = get_dirs_to_mount(
+            paths=paths, triton_model_repository_readonly=True, container_image_type=ContainerImageType.INFERENCE
+        )
         slurm_common_parameters = get_common_slurm_parameters(
             cluster_config=config,
             dirs_to_mount=dirs_to_mount,
@@ -216,7 +222,9 @@ def _load_triton_model_and_profile(
         )
 
     def _init_profile_jobs_executor():
-        dirs_to_mount = get_dirs_to_mount(paths=paths, triton_model_repository_readonly=False)
+        dirs_to_mount = get_dirs_to_mount(
+            paths=paths, triton_model_repository_readonly=False, container_image_type=ContainerImageType.TRAINING
+        )
         slurm_common_parameters = get_common_slurm_parameters(
             cluster_config=config,
             dirs_to_mount=dirs_to_mount,
@@ -272,8 +280,7 @@ def _load_triton_model_and_profile(
             LOGGER.info(f"[{perf_job.job_id}/{job_name}] logs: {perf_job.paths.stdout}")
 
             perf_job.cancel_at_deletion()
-            perf_job_results = perf_job.result()
-            LOGGER.info(f"[{perf_job.job_id}/{job_name}] Profiling results: {perf_job_results}")
+            perf_job.result()
     except submitit.core.utils.UncompletedJobError as e:
         LOGGER.warning(str(e))
     finally:
@@ -294,7 +301,9 @@ def _analyze_results(
     analyze_job = None
 
     def _init_analyze_jobs_executor():
-        dirs_to_mount = get_dirs_to_mount(paths=paths, triton_model_repository_readonly=False)
+        dirs_to_mount = get_dirs_to_mount(
+            paths=paths, triton_model_repository_readonly=False, container_image_type=ContainerImageType.TRAINING
+        )
         slurm_common_parameters = get_common_slurm_parameters(
             cluster_config=config,
             dirs_to_mount=dirs_to_mount,

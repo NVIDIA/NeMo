@@ -138,7 +138,7 @@ class CustomSaveRestoreConnector(SaveRestoreConnector):
 def setup_model(args):
     """Setup model and optimizer."""
     torch.set_grad_enabled(False)
-    trainer = Trainer()
+    trainer = Trainer(gpus=1)
     if args['nemo_model'] is not None:
         logging.info(f"**** Loading checkpoint from {args['nemo_model']}")
         if args['nemo_model'].rstrip().endswith(".nemo"):
