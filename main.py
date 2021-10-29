@@ -19,6 +19,8 @@ def convert_to_cli(cfg):
             output = convert_to_cli(v).split(" ")
             result += " ".join([f"{k}.{x}" for x in output if x != ""]) + " "
         elif isinstance(v, omegaconf.listconfig.ListConfig):
+            if k == "data_prefix":
+                v = [x for x in v] # Needed because of lazy omegaconf interpolation.
             result += f"{k}={str(v).replace(' ', '')} "
         elif isinstance(v, str) and "{" in v:
             continue
