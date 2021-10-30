@@ -111,11 +111,11 @@ def merge_stamps(lines):
     return overlap_stamps
 
 
-def labels_to_pyannote_object(labels):
+def labels_to_pyannote_object(labels, uniq_name=''):
     """
     converts labels to pyannote object to calculate DER and for visualization
     """
-    annotation = Annotation()
+    annotation = Annotation(uri=uniq_name)
     for label in labels:
         start, end, speaker = label.strip().split()
         start, end = float(start), float(end)
@@ -124,14 +124,14 @@ def labels_to_pyannote_object(labels):
     return annotation
 
 
-def uem_timeline_from_file(uem_file):
+def uem_timeline_from_file(uem_file, uniq_name=''):
     """
     outputs pyannote timeline segments for uem file
      
      <UEM> file format
      UNIQ_SPEAKER_ID CHANNEL START_TIME END_TIME
     """
-    timeline = Timeline()
+    timeline = Timeline(uri=uniq_name)
     with open(uem_file, 'r') as f:
         lines = f.readlines()
         for line in lines:
@@ -208,7 +208,14 @@ def perform_clustering(embeddings, time_stamps, AUDIO_RTTM_MAP, out_rttm_dir, cl
         emb = np.asarray(emb)
 
         cluster_labels = COSclustering(
-            uniq_key, emb, oracle_num_speakers=num_speakers, max_num_speaker=max_num_speakers, cuda=cuda,
+            uniq_key,
+            emb,
+            oracle_num_speakers=num_speakers,
+            max_num_speaker=max_num_speakers,
+            enhanced_count_thres=clustering_params.enhanced_count_thres,
+            max_rp_threshold=clustering_params.max_rp_threshold,
+            sparse_search_volume=clustering_params.sparse_search_volume,
+            cuda=cuda,
         )
 
         lines = time_stamps[uniq_key]
@@ -221,13 +228,13 @@ def perform_clustering(embeddings, time_stamps, AUDIO_RTTM_MAP, out_rttm_dir, cl
         labels = merge_stamps(a)
         if out_rttm_dir:
             labels_to_rttmfile(labels, uniq_key, out_rttm_dir)
-        hypothesis = labels_to_pyannote_object(labels)
+        hypothesis = labels_to_pyannote_object(labels, uniq_name=uniq_key)
         all_hypothesis.append([uniq_key, hypothesis])
 
         rttm_file = value['rttm_filepath']
         if os.path.exists(rttm_file) and not no_references:
             ref_labels = rttm_to_labels(rttm_file)
-            reference = labels_to_pyannote_object(ref_labels)
+            reference = labels_to_pyannote_object(ref_labels, uniq_name=uniq_key)
             all_reference.append([uniq_key, reference])
         else:
             no_references = True
@@ -265,7 +272,7 @@ def score_labels(AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ign
         _, hyp_labels = hypothesis
         uem = AUDIO_RTTM_MAP[ref_key].get('uem_filepath', None)
         if uem is not None:
-            uem = uem_timeline_from_file(uem_file=uem)
+            uem = uem_timeline_from_file(uem_file=uem, uniq_name=ref_key)
         metric(ref_labels, hyp_labels, uem=uem, detailed=True)
         mapping_dict[k] = metric.optimal_mapping(ref_labels, hyp_labels)
 

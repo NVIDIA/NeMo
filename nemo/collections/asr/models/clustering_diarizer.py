@@ -375,8 +375,8 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 self.AUDIO_RTTM_MAP,
                 all_reference,
                 all_hypothesis,
-                collar=self._cluster_params.collar,
-                ignore_overlap=self._cluster_params.ignore_overlap,
+                collar=self._diarizer_params.collar,
+                ignore_overlap=self._diarizer_params.ignore_overlap,
             )
             logging.info(
                 "Cumulative results of all the files:  \n FA: {:.4f}\t MISS {:.4f}\t \
