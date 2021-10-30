@@ -86,11 +86,7 @@ class TestWordErrorRate:
         if batch_dim_index > 0:
             targets_tensor.transpose_(0, 1)
             predictions_tensor.transpose_(0, 1)
-        wer(
-            predictions=predictions_tensor,
-            targets=targets_tensor,
-            target_lengths=torch.tensor([len(reference)]),
-        )
+        wer(predictions=predictions_tensor, targets=targets_tensor, target_lengths=torch.tensor([len(reference)]))
         res, _, _ = wer.compute()
         res = res.detach().cpu()
         # return res[0] / res[1]

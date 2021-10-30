@@ -199,7 +199,7 @@ class WER(Metric):
     @staticmethod
     def move_dimension_to_the_front(tensor, dim_index):
         all_dims = list(range(tensor.ndim))
-        return tensor.permute(*([dim_index] + all_dims[:dim_index] + all_dims[dim_index + 1:]))
+        return tensor.permute(*([dim_index] + all_dims[:dim_index] + all_dims[dim_index + 1 :]))
 
     def update(
         self,
