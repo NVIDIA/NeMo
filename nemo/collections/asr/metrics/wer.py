@@ -85,7 +85,8 @@ class WER(Metric):
 
     Args:
         vocabulary: List of strings that describes the vocabulary of the dataset.
-        batch_dim_index: Index of the batch dimension.
+        batch_dim_index: Index of the batch dimension of ``targets`` and ``predictions`` parameters of ``__call__``,
+            ``forward``, ``update`` method.
         use_cer: Whether to use Character Error Rate instead of Word Error Rate.
         ctc_decode: Whether to use CTC decoding or not. Currently, must be set.
         log_prediction: Whether to log a single decoded sample per call.
@@ -195,6 +196,11 @@ class WER(Metric):
         token_list = [self.labels_map[c] for c in tokens if c != self.blank_id]
         return token_list
 
+    @staticmethod
+    def move_dimension_to_the_front(tensor, dim_index):
+        all_dims = list(range(tensor.ndim))
+        return tensor.permute(*([dim_index] + all_dims[:dim_index] + all_dims[dim_index + 1:]))
+
     def update(
         self,
         predictions: torch.Tensor,
@@ -202,16 +208,24 @@ class WER(Metric):
         target_lengths: torch.Tensor,
         predictions_lengths: torch.Tensor = None,
     ) -> torch.Tensor:
+        if self.batch_dim_index >= targets.ndim or self.batch_dim_index >= predictions.ndim:
+            raise ValueError(
+                f"Attribute `self.batch_dim_index` has to be less than number of dimensions in parameters "
+                f"`targets` and `predictions`. self.batch_dim_index={self.batch_dim_index}, "
+                f"targets.ndim={targets.ndim}, predictions.dim={predictions.dim}"
+            )
         words = 0.0
         scores = 0.0
         references = []
         with torch.no_grad():
             # prediction_cpu_tensor = tensors[0].long().cpu()
             targets_cpu_tensor = targets.long().cpu()
+            targets_cpu_tensor = self.move_dimension_to_the_front(targets_cpu_tensor, self.batch_dim_index)
+            predictions = self.move_dimension_to_the_front(predictions, self.batch_dim_index)
             tgt_lenths_cpu_tensor = target_lengths.long().cpu()
 
             # iterate over batch
-            for ind in range(targets_cpu_tensor.shape[self.batch_dim_index]):
+            for ind in range(targets_cpu_tensor.shape[0]):
                 tgt_len = tgt_lenths_cpu_tensor[ind].item()
                 target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
                 reference = self.decode_tokens_to_str(target)
