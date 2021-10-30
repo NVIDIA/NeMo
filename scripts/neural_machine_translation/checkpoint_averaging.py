@@ -17,10 +17,7 @@ Updates a .nemo file with average weights.
 
 import os
 import sys
-
-import pytorch_lightning as pl
 import torch
-from omegaconf import OmegaConf, open_dict
 
 from nemo.utils import logging
 
