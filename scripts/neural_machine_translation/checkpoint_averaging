@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+SCRIPT_DIR="$( cd -- "$( dirname -- "$0" )" &> /dev/null && pwd )"
+
+# results dir defaults to .
+RESULTS_DIR=`realpath ${1:-.}`
+
+WORK_DIR=`mktemp -d`
+
+# check if tmp dir was created
+if [[ ! "${WORK_DIR}" || ! -d "${WORK_DIR}" ]]; then
+  echo "Could not create temp dir"
+  exit 1
+fi
+echo "temp dir = ${WORK_DIR}"
+
+# deletes the temp directory
+function cleanup {
+  rm -rf "${WORK_DIR}"
+  echo "Deleted temp working directory ${WORK_DIR}"
+}
+
+# register the cleanup function to be called on the EXIT signal
+trap cleanup EXIT
+
+
+# locate .nemo file
+NEMO_FNAME=$(find ${RESULTS_DIR} -name '*.nemo')
+
+if [[ ! "${NEMO_FNAME}" || ! -e "${NEMO_FNAME}" ]]; then
+  echo "Could not find a single .nemo file in path ${RESULTS_DIR}"
+  exit 1
+fi
+
+NEMO_DIR="$( cd -- "$( dirname -- "${NEMO_FNAME}" )" &> /dev/null && pwd )"
+NEMO_BASE_NAME=$( basename -- "${NEMO_FNAME}" )
+
+
+# extract .nemo file to WORK_DIR
+tar -xvf ${NEMO_FNAME} -C ${WORK_DIR}
+pushd ${WORK_DIR}
+
+# delete existing weights
+rm model_weights.ckpt
+
+# build average of checkpoints
+python3 ${SCRIPT_DIR}/checkpoint_averaging.py ${NEMO_DIR}
+mv ${NEMO_DIR}/model_weights.ckpt ./
+
+# create a new .nemo file
+AVG_NEMO_FNAME=${NEMO_DIR}/averaged-${NEMO_BASE_NAME}
+echo "Building new .nemo file = ${AVG_NEMO_FNAME}"
+tar -czvf ${AVG_NEMO_FNAME} *
+
+popd
