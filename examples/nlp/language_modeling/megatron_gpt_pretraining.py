@@ -48,7 +48,7 @@ def main(cfg) -> None:
     else:
         plugins.append(NLPPrecisionPlugin())
 
-    if cfg.get(cluster_type, None) == 'BCP':
+    if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
     trainer = Trainer(plugins=plugins, **cfg.trainer)
