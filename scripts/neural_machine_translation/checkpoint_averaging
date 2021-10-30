@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Usage: checkpoint_averaging [RESULTS_DIR (defaults to .)]
+
 SCRIPT_DIR="$( cd -- "$( dirname -- "$0" )" &> /dev/null && pwd )"
 
 # results dir defaults to .
