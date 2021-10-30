@@ -154,10 +154,11 @@ class TestWordErrorRate:
         wer = WER(vocabulary=self.vocabulary, batch_dim_index=batch_dim_index, use_cer=False, ctc_decode=True)
 
         tensor = self.__string_to_ctc_tensor('cat').int()
+        if batch_dim_index > 0:
+            tensor.transpose_(0, 1)
 
         # pass batchsize 1 tensor, get back list of length 1 Hypothesis
         hyp = wer.ctc_decoder_predictions_tensor(tensor, return_hypotheses=True)
-        print("hyp:", hyp)
         hyp = hyp[0]
         assert isinstance(hyp, Hypothesis)
 
