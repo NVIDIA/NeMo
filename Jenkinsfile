@@ -316,12 +316,10 @@ pipeline {
         stage('Speaker Diarization Inference') {
           steps {
             sh 'python examples/speaker_tasks/diarization/speaker_diarize.py \
-            diarizer.oracle_num_speakers=2 \
-            diarizer.paths2audio_files=/home/TestData/an4_diarizer/audio_files.scp \
-            diarizer.path2groundtruth_rttm_files=/home/TestData/an4_diarizer/rttm_files.scp \
+	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
+            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
             diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
             diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
-            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
             sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
           }
         }

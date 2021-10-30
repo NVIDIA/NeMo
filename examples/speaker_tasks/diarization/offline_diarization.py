@@ -28,16 +28,14 @@ Usage:
     diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
     diarizer.vad.model_path='vad_marblenet'
 
-See conf/offline_speaker_diarization.yaml for more options
-
-Check out whole parameters in ./conf/speaker_diarization.yaml and their meanings.
+Check out whole parameters in ./conf/offline_diarization.yaml and their meanings.
 For details, have a look at <NeMo_git_root>/tutorials/speaker_tasks/Speaker_Diarization_Inference.ipynb
 """
 
 seed_everything(42)
 
 
-@hydra_runner(config_path="conf", config_name="offline_speaker_diarization.yaml")
+@hydra_runner(config_path="conf", config_name="offline_diarization.yaml")
 def main(cfg):
 
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
