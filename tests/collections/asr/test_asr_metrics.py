@@ -184,3 +184,28 @@ class TestWordErrorRate:
         hyp = hyp[0]
         assert isinstance(hyp, Hypothesis)
         assert hyp.length == 3
+
+    @pytest.mark.unit
+    def test_wer_metric_return_hypothesis_batch_dim_index_1(self):
+        wer = WER(vocabulary=self.vocabulary, batch_dim_index=1, use_cer=False, ctc_decode=True)
+
+        tensor = self.__string_to_ctc_tensor('cat').int().transpose(0, 1)
+
+        # pass batchsize 1 tensor, get back list of length 1 Hypothesis
+        hyp = wer.ctc_decoder_predictions_tensor(tensor, return_hypotheses=True)
+        hyp = hyp[0]
+        assert isinstance(hyp, Hypothesis)
+
+        assert hyp.y_sequence is None
+        assert hyp.score == -1.0
+        assert hyp.text == 'cat'
+        assert hyp.alignments == [3, 1, 20]
+        assert hyp.length == 0
+
+        length = torch.tensor([tensor.shape[0]], dtype=torch.long)
+
+        # pass batchsize 1 tensor, get back list of length 1 Hypothesis [add length info]
+        hyp = wer.ctc_decoder_predictions_tensor(tensor, predictions_len=length, return_hypotheses=True)
+        hyp = hyp[0]
+        assert isinstance(hyp, Hypothesis)
+        assert hyp.length == 3
