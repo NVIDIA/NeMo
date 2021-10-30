@@ -319,7 +319,7 @@ pipeline {
 	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
             diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
             diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
-            diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
+            diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo
             sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
           }
         }
