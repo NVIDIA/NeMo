@@ -78,12 +78,10 @@ class TestWordErrorRate:
         string_in_id_form = [char_to_ind[c] for c in txt]
         return torch.Tensor(string_in_id_form).unsqueeze(0)
 
-    def get_wer(self, wer, prediction: str, reference: str, batch_dim_index: int = 0):
-        if batch_dim_index > 1:
-            raise ValueError(f"Parameter `batch_dim_index` has to equal either 0 or 1.")
+    def get_wer(self, wer, prediction: str, reference: str):
         predictions_tensor = self.__string_to_ctc_tensor(prediction)
         targets_tensor = self.__reference_string_to_tensor(reference)
-        if batch_dim_index > 0:
+        if wer.batch_dim_index > 0:
             targets_tensor.transpose_(0, 1)
             predictions_tensor.transpose_(0, 1)
         wer(predictions=predictions_tensor, targets=targets_tensor, target_lengths=torch.tensor([len(reference)]))
@@ -102,8 +100,9 @@ class TestWordErrorRate:
         assert word_error_rate(hypotheses=['a B c'], references=['a b c']) == 1.0 / 3.0
 
     @pytest.mark.unit
-    def test_wer_metric_simple(self):
-        wer = WER(vocabulary=self.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
+    @pytest.mark.parametrize("batch_dim_index", [0, 1])
+    def test_wer_metric_simple(self, batch_dim_index):
+        wer = WER(vocabulary=self.vocabulary, batch_dim_index=batch_dim_index, use_cer=False, ctc_decode=True)
 
         assert self.get_wer(wer, 'cat', 'cot') == 1.0
         assert self.get_wer(wer, 'gpu', 'g p u') == 1.0
@@ -111,17 +110,6 @@ class TestWordErrorRate:
         assert self.get_wer(wer, 'ducati motorcycle', 'motorcycle') == 1.0
         assert self.get_wer(wer, 'ducati motorcycle', 'ducuti motorcycle') == 0.5
         assert abs(self.get_wer(wer, 'a f c', 'a b c') - 1.0 / 3.0) < 1e-6
-
-    @pytest.mark.unit
-    def test_wer_metric_simple_batch_dim_1(self):
-        wer = WER(vocabulary=self.vocabulary, batch_dim_index=1, use_cer=False, ctc_decode=True)
-
-        assert self.get_wer(wer, 'cat', 'cot', batch_dim_index=1) == 1.0
-        assert self.get_wer(wer, 'gpu', 'g p u', batch_dim_index=1) == 1.0
-        assert self.get_wer(wer, 'g p u', 'gpu', batch_dim_index=1) == 3.0
-        assert self.get_wer(wer, 'ducati motorcycle', 'motorcycle', batch_dim_index=1) == 1.0
-        assert self.get_wer(wer, 'ducati motorcycle', 'ducuti motorcycle', batch_dim_index=1) == 0.5
-        assert abs(self.get_wer(wer, 'a f c', 'a b c', batch_dim_index=1) - 1.0 / 3.0) < 1e-6
 
     @pytest.mark.unit
     def test_wer_metric_randomized(self):
