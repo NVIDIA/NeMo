@@ -315,7 +315,7 @@ pipeline {
 
         stage('Speaker Diarization Inference') {
           steps {
-            sh 'python examples/speaker_tasks/diarization/speaker_diarize.py \
+            sh 'python examples/speaker_tasks/diarization/offline_diarization.py \
 	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
             diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
             diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
