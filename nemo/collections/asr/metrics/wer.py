@@ -222,6 +222,7 @@ class WER(Metric):
             targets_cpu_tensor = targets.long().cpu()
             targets_cpu_tensor = self.move_dimension_to_the_front(targets_cpu_tensor, self.batch_dim_index)
             predictions = self.move_dimension_to_the_front(predictions, self.batch_dim_index)
+            print("predictions.shape:", predictions.shape)
             tgt_lenths_cpu_tensor = target_lengths.long().cpu()
 
             # iterate over batch
