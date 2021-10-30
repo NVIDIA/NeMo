@@ -24,9 +24,8 @@ This script demonstrates how to use run speaker diarization.
 Usage:
   python speaker_diarize.py \
     diarizer.manifest_filepath=<path to manifest file> \
-    diarizer.out_dir='test_refactor' \
+    diarizer.out_dir='demo_output' \
     diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
-    diarizer.oracle_vad=False \
     diarizer.vad.model_path='vad_marblenet'
 
 See conf/offline_speaker_diarization.yaml for more options
