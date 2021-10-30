@@ -32,6 +32,7 @@ This file contains all the utility functions required for speaker embeddings par
 
 
 def get_uniqname_from_filepath(filepath):
+    "return base name from provided filepath"
     if type(filepath) is str:
         basename = os.path.basename(filepath).rsplit('.', 1)[0]
         return basename
@@ -177,14 +178,14 @@ def perform_clustering(embeddings, time_stamps, AUDIO_RTTM_MAP, out_rttm_dir, cl
 
     embeddings (dict): Embeddings with key as unique_id
     time_stamps (dict): time stamps list for each audio recording
-    speakers (dict): number of speaker for each audio recording 
-    audio_rttm_map (dict): AUDIO_RTTM_MAP for mapping unique id with audio file path and rttm path
+    AUDIO_RTTM_MAP (dict): AUDIO_RTTM_MAP for mapping unique id with audio file path and rttm path
     out_rttm_dir (str): Path to write predicted rttms
-    max_num_speakers (int): maximum number of speakers to consider for spectral clustering. Will be ignored if speakers['key'] is not None
+    clustering_params (dict): clustering parameters provided through config that contains max_num_speakers (int),
+    oracle_num_speakers (bool), max_rp_threshold(float), sparse_search_volume(int) and enhance_count_threshold (int)
 
     Returns:
-    all_reference (list[Annotation]): reference annotations for score calculation
-    all_hypothesis (list[Annotation]): hypothesis annotations for score calculation
+    all_reference (list[uniq_name,Annotation]): reference annotations for score calculation
+    all_hypothesis (list[uniq_name,Annotation]): hypothesis annotations for score calculation
 
     """
     all_hypothesis = []
@@ -249,8 +250,8 @@ def score_labels(AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ign
 
     Args:
     AUDIO_RTTM_MAP : Dictionary containing information provided from manifestpath
-    all_reference (list[Annotation]): reference annotations for score calculation
-    all_hypothesis (list[Annotation]): hypothesis annotations for score calculation
+    all_reference (list[uniq_name,Annotation]): reference annotations for score calculation
+    all_hypothesis (list[uniq_name,Annotation]): hypothesis annotations for score calculation
 
     Returns:
     DER (float): Diarization Error Rate
@@ -264,26 +265,40 @@ def score_labels(AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ign
     collar in md-eval.pl, 0.5s should be applied for pyannote.metrics.
 
     """
-    metric = DiarizationErrorRate(collar=2 * collar, skip_overlap=ignore_overlap)
+    if len(all_reference) == len(all_hypothesis):
+        metric = DiarizationErrorRate(collar=2 * collar, skip_overlap=ignore_overlap)
 
-    mapping_dict = {}
-    for k, (reference, hypothesis) in enumerate(zip(all_reference, all_hypothesis)):
-        ref_key, ref_labels = reference
-        _, hyp_labels = hypothesis
-        uem = AUDIO_RTTM_MAP[ref_key].get('uem_filepath', None)
-        if uem is not None:
-            uem = uem_timeline_from_file(uem_file=uem, uniq_name=ref_key)
-        metric(ref_labels, hyp_labels, uem=uem, detailed=True)
-        mapping_dict[k] = metric.optimal_mapping(ref_labels, hyp_labels)
+        mapping_dict = {}
+        for k, (reference, hypothesis) in enumerate(zip(all_reference, all_hypothesis)):
+            ref_key, ref_labels = reference
+            _, hyp_labels = hypothesis
+            uem = AUDIO_RTTM_MAP[ref_key].get('uem_filepath', None)
+            if uem is not None:
+                uem = uem_timeline_from_file(uem_file=uem, uniq_name=ref_key)
+            metric(ref_labels, hyp_labels, uem=uem, detailed=True)
+            mapping_dict[k] = metric.optimal_mapping(ref_labels, hyp_labels)
 
-    DER = abs(metric)
-    CER = metric['confusion'] / metric['total']
-    FA = metric['false alarm'] / metric['total']
-    MISS = metric['missed detection'] / metric['total']
+        DER = abs(metric)
+        CER = metric['confusion'] / metric['total']
+        FA = metric['false alarm'] / metric['total']
+        MISS = metric['missed detection'] / metric['total']
 
-    metric.reset()
+        metric.reset()
 
-    return DER, CER, FA, MISS, mapping_dict
+        logging.info(
+            "Cumulative results for collar {} sec and ignore_overlap {}: \n FA: {:.4f}\t MISS {:.4f}\t \
+                Diarization ER: {:.4f}\t, Confusion ER:{:.4f}".format(
+                collar, ignore_overlap, FA, MISS, DER, CER
+            )
+        )
+
+        return DER, CER, FA, MISS, mapping_dict
+    else:
+        logging.warning(
+            "check if each ground truth RTTMs were present in provided manifest file. Skipping calculation of Diariazation Error Rate"
+        )
+
+        return None
 
 
 def write_rttm2manifest(AUDIO_RTTM_MAP, manifest_file):

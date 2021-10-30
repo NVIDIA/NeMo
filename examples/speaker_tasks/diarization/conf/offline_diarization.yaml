@@ -1,0 +1,51 @@
+name: &name "ClusterDiarizer"
+
+num_workers: 4
+sample_rate: 16000
+batch_size: 64
+
+diarizer:
+  manifest_filepath: ???
+  out_dir: ???
+  oracle_vad: False # if True, uses RTTM files provided in manifest file to get speech activity (VAD) timestamps
+  include_word_stamps: False # if True, uses asr model to get word stamps and writes output along with speaker labels
+  collar: 0.25 # collar value for scoring
+  ignore_overlap: True # consider or ignore overlap segments while scoring
+
+  vad:
+    model_path: null #.nemo local model path or pretrained model name or none
+    external_vad_manifest: null # This option is provided to use external vad and provide its speech activity labels for speaker embeddings extraction. Only one of model_path or external_vad_manifest should be set
+
+    parameters: # Tuned parameter for CH109! (with 11 moved multi-speech sessions as dev set) 
+      window_length_in_sec: 0.15
+      shift_length_in_sec: 0.01
+      smoothing: "median" # False or type of smoothing method (eg: median)
+      overlap: 0.875
+      onset: 0.4
+      offset: 0.7
+      pad_onset: 0.05
+      pad_offset: -0.1
+      min_duration_on: 0.2 
+      min_duration_off: 0.2 
+      filter_speech_first: True 
+
+  speaker_embeddings:
+    model_path: ??? #.nemo local model path or pretrained model name (ecapa_tdnn or speakerverification_speakernet)
+    parameters:
+      window_length_in_sec: 3.0 # window length in sec for speaker embedding extraction
+      shift_length_in_sec: 1.5 # shift length in sec for speaker embedding extraction
+      save_embeddings: False # save embeddings as pickle file for each audio input
+  
+  clustering:
+    parameters:
+      oracle_num_speakers: False # if True, uses num of speakers value provided in manifest file
+      max_num_speakers: 20 # max number of speakers for each recording. If oracle num speakers is passed this value is ignored.
+      enhanced_count_thres: 80
+      max_rp_threshold: 0.25
+      sparse_search_volume: 30
+
+  asr_parameters:
+    model_path: null
+
+# json manifest line example
+# {'audio_filepath': /path/to/audio_file, 'offset': 0, 'duration':None, label: 'infer', 'text': '-', 'num_speakers': None, 'rttm_filepath': /path/to/rttm/file, 'uem_filepath'='/path/to/uem/filepath'}
