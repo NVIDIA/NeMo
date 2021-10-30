@@ -157,6 +157,7 @@ class TestWordErrorRate:
 
         # pass batchsize 1 tensor, get back list of length 1 Hypothesis
         hyp = wer.ctc_decoder_predictions_tensor(tensor, return_hypotheses=True)
+        print("hyp:", hyp)
         hyp = hyp[0]
         assert isinstance(hyp, Hypothesis)
 
