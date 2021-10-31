@@ -189,7 +189,7 @@ class TestWordErrorRate:
             decoding = Mock(
                 blank_id=len(self.vocabulary),
                 labels_map=self.vocabulary.copy(),
-                rnnt_decoder_predictions_tensor=Mock(return_value=[prediction]),
+                rnnt_decoder_predictions_tensor=Mock(return_value=([prediction], None)),
             )
             wer = RNNTBPEWER(decoding, batch_dim_index=batch_dim_index, use_cer=False)
         else:
