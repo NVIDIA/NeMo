@@ -18,6 +18,7 @@ import editdistance
 import torch
 from torchmetrics import Metric
 
+from nemo.collections.asr.metrics.wer import move_dimension_to_the_front
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
@@ -104,7 +105,7 @@ class WERBPE(Metric):
         """
         hypotheses = []
         # Drop predictions to CPU
-        predictions = self.move_dimension_to_the_front(predictions, self.batch_dim_index)
+        predictions = move_dimension_to_the_front(predictions, self.batch_dim_index)
         prediction_cpu_tensor = predictions.long().cpu()
         # iterate over batch
         for ind in range(prediction_cpu_tensor.shape[0]):
@@ -161,11 +162,6 @@ class WERBPE(Metric):
         token_list = self.tokenizer.ids_to_tokens(tokens)
         return token_list
 
-    @staticmethod
-    def move_dimension_to_the_front(tensor, dim_index):
-        all_dims = list(range(tensor.ndim))
-        return tensor.permute(*([dim_index] + all_dims[:dim_index] + all_dims[dim_index + 1 :]))
-
     def update(
         self,
         predictions: torch.Tensor,
@@ -189,7 +185,7 @@ class WERBPE(Metric):
         with torch.no_grad():
             # prediction_cpu_tensor = tensors[0].long().cpu()
             targets_cpu_tensor = targets.long().cpu()
-            targets_cpu_tensor = self.move_dimension_to_the_front(targets_cpu_tensor, self.batch_dim_index)
+            targets_cpu_tensor = move_dimension_to_the_front(targets_cpu_tensor, self.batch_dim_index)
             tgt_lenths_cpu_tensor = target_lengths.long().cpu()
 
             # iterate over batch

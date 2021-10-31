@@ -21,7 +21,7 @@ from torchmetrics import Metric
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.utils import logging
 
-__all__ = ['word_error_rate', 'WER']
+__all__ = ['word_error_rate', 'WER', 'move_dimension_to_the_front']
 
 
 def word_error_rate(hypotheses: List[str], references: List[str], use_cer=False) -> float:
@@ -58,6 +58,11 @@ def word_error_rate(hypotheses: List[str], references: List[str], use_cer=False)
     else:
         wer = float('inf')
     return wer
+
+
+def move_dimension_to_the_front(tensor, dim_index):
+    all_dims = list(range(tensor.ndim))
+    return tensor.permute(*([dim_index] + all_dims[:dim_index] + all_dims[dim_index + 1 :]))
 
 
 class WER(Metric):
@@ -140,7 +145,7 @@ class WER(Metric):
         """
         hypotheses = []
         # Drop predictions to CPU
-        predictions = self.move_dimension_to_the_front(predictions, self.batch_dim_index)
+        predictions = move_dimension_to_the_front(predictions, self.batch_dim_index)
         prediction_cpu_tensor = predictions.long().cpu()
         # iterate over batch
         for ind in range(prediction_cpu_tensor.shape[0]):
@@ -198,11 +203,6 @@ class WER(Metric):
         token_list = [self.labels_map[c] for c in tokens if c != self.blank_id]
         return token_list
 
-    @staticmethod
-    def move_dimension_to_the_front(tensor, dim_index):
-        all_dims = list(range(tensor.ndim))
-        return tensor.permute(*([dim_index] + all_dims[:dim_index] + all_dims[dim_index + 1 :]))
-
     def update(
         self,
         predictions: torch.Tensor,
@@ -226,7 +226,7 @@ class WER(Metric):
         with torch.no_grad():
             # prediction_cpu_tensor = tensors[0].long().cpu()
             targets_cpu_tensor = targets.long().cpu()
-            targets_cpu_tensor = self.move_dimension_to_the_front(targets_cpu_tensor, self.batch_dim_index)
+            targets_cpu_tensor = move_dimension_to_the_front(targets_cpu_tensor, self.batch_dim_index)
             tgt_lenths_cpu_tensor = target_lengths.long().cpu()
 
             # iterate over batch

@@ -15,12 +15,15 @@
 import io
 import random
 import string
+from copy import deepcopy
 from typing import List
 from unittest.mock import Mock, patch
 
 import pytest
 import torch
 
+from nemo.collections.asr.metrics.rnnt_wer import RNNTWER
+from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
 from nemo.collections.asr.metrics.wer_bpe import WERBPE
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
@@ -118,7 +121,7 @@ class TestWordErrorRate:
             return ''.join(random.choice(''.join(self.vocabulary)) for _ in range(length))
 
         if test_wer_bpe:
-            wer = WERBPE(self.char_tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True)
+            wer = WERBPE(deepcopy(self.char_tokenizer), batch_dim_index=0, use_cer=False, ctc_decode=True)
         else:
             wer = WER(vocabulary=self.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
@@ -143,7 +146,7 @@ class TestWordErrorRate:
         if test_wer_bpe:
             wer = WERBPE(self.char_tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True)
         else:
-            wer = WER(vocabulary=self.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
+            wer = WER(vocabulary=self.vocabulary.copy(), batch_dim_index=0, use_cer=False, ctc_decode=True)
 
         tokens = self.__string_to_ctc_tensor('cat', use_tokenizer=test_wer_bpe)[0].int().numpy().tolist()
         assert tokens == [3, 1, 20]
@@ -158,7 +161,7 @@ class TestWordErrorRate:
     @pytest.mark.parametrize("batch_dim_index", [0, 1])
     @pytest.mark.parametrize("test_wer_bpe", [False, True])
     def test_wer_metric_return_hypothesis(self, batch_dim_index, test_wer_bpe):
-        wer = WER(vocabulary=self.vocabulary, batch_dim_index=batch_dim_index, use_cer=False, ctc_decode=True)
+        wer = WER(vocabulary=self.vocabulary.copy(), batch_dim_index=batch_dim_index, use_cer=False, ctc_decode=True)
 
         tensor = self.__string_to_ctc_tensor('cat', test_wer_bpe).int()
         if batch_dim_index > 0:
@@ -182,3 +185,61 @@ class TestWordErrorRate:
         hyp = hyp[0]
         assert isinstance(hyp, Hypothesis)
         assert hyp.length == 3
+
+    def get_wer_rnnt(self, prediction: str, reference: str, batch_dim_index: int, test_wer_bpe: bool):
+        if test_wer_bpe:
+            decoding = Mock(
+                blank_id=len(self.vocabulary),
+                labels_map=self.vocabulary.copy(),
+                rnnt_decoder_predictions_tensor=Mock(return_value=[prediction]),
+            )
+            wer = RNNTBPEWER(decoding, batch_dim_index=batch_dim_index, use_cer=False)
+        else:
+            decoding = Mock(
+                blank_id=self.char_tokenizer.tokenizer.vocab_size,
+                tokenizer=deepcopy(self.char_tokenizer),
+                rnnt_decoder_predictions_tensor=Mock(return_value=[prediction]),
+            )
+            wer = RNNTWER(decoding, batch_dim_index=batch_dim_index, use_cer=False)
+        targets_tensor = self.__reference_string_to_tensor(reference, test_wer_bpe)
+        if wer.batch_dim_index > 0:
+            targets_tensor.transpose_(0, 1)
+        wer(encoder_output=None, targets=targets_tensor, target_lengths=torch.tensor([len(reference)]))
+        res, _, _ = wer.compute()
+        res = res.detach().cpu()
+        # return res[0] / res[1]
+        return res.item()
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("batch_dim_index", [0, 1])
+    @pytest.mark.parametrize("test_wer_bpe", [False, True])
+    def test_rnnt_wer_metric_simple(self, batch_dim_index, test_wer_bpe):
+        assert self.get_wer_rnnt('cat', 'cot', batch_dim_index, test_wer_bpe) == 1.0
+        assert self.get_wer_rnnt('gpu', 'g p u', batch_dim_index, test_wer_bpe) == 1.0
+        assert self.get_wer_rnnt('g p u', 'gpu', batch_dim_index, test_wer_bpe) == 3.0
+        assert self.get_wer_rnnt('ducati motorcycle', 'motorcycle', batch_dim_index, test_wer_bpe) == 1.0
+        assert self.get_wer_rnnt('ducati motorcycle', 'ducuti motorcycle', batch_dim_index, test_wer_bpe) == 0.5
+        assert abs(self.get_wer_rnnt('a f c', 'a b c', batch_dim_index, test_wer_bpe) - 1.0 / 3.0) < 1e-6
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("test_wer_bpe", [False, True])
+    def test_rnnt_wer_metric_randomized(self, test_wer_bpe):
+        """This test relies on correctness of word_error_rate function."""
+
+        def __random_string(length):
+            return ''.join(random.choice(''.join(self.vocabulary)) for _ in range(length))
+
+        for test_id in range(256):
+            n1 = random.randint(1, 512)
+            n2 = random.randint(1, 512)
+            s1 = __random_string(n1)
+            s2 = __random_string(n2)
+            # skip empty strings as reference
+            if s2.strip():
+                assert (
+                    abs(
+                        self.get_wer_rnnt(prediction=s1, reference=s2, batch_dim_index=0, test_wer_bpe=test_wer_bpe)
+                        - word_error_rate(hypotheses=[s1], references=[s2])
+                    )
+                    < 1e-6
+                )
