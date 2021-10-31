@@ -16,6 +16,7 @@ import argparse
 import json
 import multiprocessing as mp
 import os
+from functools import partial
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -26,15 +27,6 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 # Auxiliary methods
 # =============================================================================#
 
-worker_data = {
-    "tokenizer": None,
-}
-
-
-def init_tokenizer(library, tokenizer_model):
-    tokenizer = get_nmt_tokenizer(library=library, tokenizer_model=tokenizer_model)
-    worker_data["tokenizer"] = tokenizer
-
 
 def read_batch(fh, batch_size):
     """
@@ -43,7 +35,7 @@ def read_batch(fh, batch_size):
     lines = []
     for i in range(batch_size):
         l = fh.readline()
-        if not l:
+        if l is None:
             break
         else:
             lines.append(l.strip())
@@ -60,13 +52,10 @@ def tokenize_line(line, tokenizer):
     return tokens
 
 
-def line_len(line, tokenizer=None):
+def line_len(line, tokenizer):
     """
     Returns a tokenized length of a text line
     """
-    if tokenizer is None:
-        tokenizer = worker_data["tokenizer"]
-
     tokens = tokenize_line(line, tokenizer)
 
     return len(tokens)
@@ -111,10 +100,8 @@ if __name__ == '__main__':
                 break
 
             # tokenize lines
-            with mp.Pool(
-                args.num_workers, initializer=init_tokenizer, initargs=(args.tokenizer_library, args.tokenizer_model)
-            ) as p:
-                all_len.extend(p.map(line_len, lines))
+            with mp.Pool(args.num_workers) as p:
+                all_len.extend(p.map(partial(line_len, tokenizer=tokenizer), lines))
 
             print(f"{fn}: Parsed {len(all_len)} lines")
 
@@ -132,7 +119,8 @@ if __name__ == '__main__':
 
     # save all results
     if args.out_dir:
-        os.makedirs(args.out_dir, exist_ok=True)
+        if not os.path.exists(args.out_dir):
+            os.mkdir(args.out_dir)
 
     stats = {
         "samples": int(len(all_len)),
