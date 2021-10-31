@@ -16,7 +16,7 @@ import io
 import random
 import string
 from typing import List
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 import torch
@@ -32,6 +32,8 @@ def build_char_tokenizer_with_vocabulary(vocabulary: List[str]) -> CharTokenizer
         return io.StringIO('\n'.join([repr(char) for char in vocabulary]))
     with patch('pathlib.Path.open', mock_path_open):
         char_tokenizer = CharTokenizer('a_path_which_will_not_be_used')
+    # For some reason `WERBPE` takes vocabulary size of inner tokenizer. Mock inner tokenizer.
+    setattr(char_tokenizer, "tokenizer", Mock(vocab_size=char_tokenizer.vocab_size))
     return char_tokenizer
 
 
