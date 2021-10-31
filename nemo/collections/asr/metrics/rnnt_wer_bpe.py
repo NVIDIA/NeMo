@@ -226,8 +226,6 @@ class RNNTBPEWER(Metric):
                 references.append(reference)
 
             hypotheses, _ = self.decoding.rnnt_decoder_predictions_tensor(encoder_output, encoded_lengths)
-            print("hypotheses:", hypotheses)
-            print("references:", references)
 
         if self.log_prediction:
             logging.info(f"\n")
@@ -235,7 +233,6 @@ class RNNTBPEWER(Metric):
             logging.info(f"predicted :{hypotheses[0]}")
 
         for h, r in zip(hypotheses, references):
-            print("h, r:", h, r)
             if self.use_cer:
                 h_list = list(h)
                 r_list = list(r)
