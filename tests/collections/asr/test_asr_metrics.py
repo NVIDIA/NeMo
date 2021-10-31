@@ -14,10 +14,12 @@
 
 
 import random
+from dataclasses import dataclass
 
 import pytest
 import torch
 
+from ..common.torchmetrics_utils import MetricTester
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
@@ -170,3 +172,35 @@ class TestWordErrorRate:
         hyp = hyp[0]
         assert isinstance(hyp, Hypothesis)
         assert hyp.length == 3
+
+
+@dataclass(frozen=True)
+class WERInput:
+    """
+    Prediction - target pairs for testing ``nemo.collections.asr.metrics.wer.WER`` and ``nemo.collections.asr.
+
+    Args:
+        loss_sum_or_avg: a one dimensional float tensor which contains losses for averaging. Each element is either a
+            sum or mean of several losses depending on the parameter ``take_avg_loss`` of the
+            ``nemo.collections.common.metrics.GlobalAverageLossMetric`` class.
+        num_measurements: a one dimensional integer tensor which contains number of measurements which sums or average
+            values are in ``loss_sum_or_avg``.
+    """
+
+    predictions: List[str]
+    targets: List[str]
+
+
+class TestWERs(MetricTester):
+    @pytest.mark.parametrize("ddp", [False, True])
+    @pytest.mark.parametrize("dist_sync_on_step", [False, True])
+    def test_wer_class(self, ddp, dist_sync_on_step, preds, target):
+        self.run_class_metric_test(
+            ddp=ddp,
+            preds=preds,
+            target=target,
+            metric_class=WER,
+            sk_metric=partial(_sk_accuracy, subset_accuracy=subset_accuracy),
+            dist_sync_on_step=dist_sync_on_step,
+            metric_args={"threshold": THRESHOLD, "subset_accuracy": subset_accuracy},
+        )

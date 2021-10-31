@@ -17,7 +17,7 @@ import torch
 
 from .loss_inputs import ALL_NUM_MEASUREMENTS_ARE_ZERO, NO_ZERO_NUM_MEASUREMENTS, SOME_NUM_MEASUREMENTS_ARE_ZERO
 from .perplexity_inputs import NO_PROBS_NO_LOGITS, ONLY_LOGITS1, ONLY_LOGITS100, ONLY_PROBS, PROBS_AND_LOGITS
-from .pl_utils import LossTester, PerplexityTester
+from .torchmetrics_utils import LossTester, PerplexityTester
 from nemo.collections.common.metrics.classification_accuracy import TopKClassificationAccuracy
 
 
