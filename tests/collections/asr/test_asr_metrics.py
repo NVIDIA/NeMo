@@ -31,9 +31,7 @@ from nemo.collections.common.tokenizers import CharTokenizer
 
 
 def build_char_tokenizer_with_vocabulary(vocabulary: List[str]) -> CharTokenizer:
-    def mock_path_open(*args, **kwargs):
-        return io.StringIO('\n'.join([repr(char) for char in vocabulary]))
-    with patch('pathlib.Path.open', mock_path_open):
+    with patch('pathlib.Path.open', Mock(return_value=io.StringIO('\n'.join([repr(char) for char in vocabulary])))):
         char_tokenizer = CharTokenizer('a_path_which_will_not_be_used')
     # For some reason `WERBPE` takes vocabulary size of inner tokenizer. Mock inner tokenizer.
     setattr(char_tokenizer, "tokenizer", Mock(vocab_size=char_tokenizer.vocab_size))
@@ -204,7 +202,12 @@ class TestWordErrorRate:
         targets_tensor = self.__reference_string_to_tensor(reference, test_wer_bpe)
         if wer.batch_dim_index > 0:
             targets_tensor.transpose_(0, 1)
-        wer(encoder_output=None, targets=targets_tensor, target_lengths=torch.tensor([len(reference)]))
+        wer(
+            encoder_output=None,
+            encoded_lengths=None,
+            targets=targets_tensor,
+            target_lengths=torch.tensor([len(reference)]),
+        )
         res, _, _ = wer.compute()
         res = res.detach().cpu()
         # return res[0] / res[1]
