@@ -48,7 +48,8 @@ class WERBPE(Metric):
 
     Args:
         vocabulary: NeMo tokenizer object, which inherits from TokenizerSpec.
-        batch_dim_index: Index of the batch dimension.
+        batch_dim_index: Index of the batch dimension of ``targets`` and ``predictions`` parameters of ``__call__``,
+            ``forward``, ``update``, ``ctc_decoder_predictions_tensor`` methods. Can be either 0 or 1.
         use_cer: Whether to compute word-error-rate or character-error-rate.
         ctc_decode: Whether to perform CTC decode.
         log_prediction: Whether to log a single decoded sample per call.
@@ -98,8 +99,8 @@ class WERBPE(Metric):
                 `alignments`.
 
         Returns:
-            res: a tuple of 3 zero dimensional float32 ``torch.Tensor` objects: a WER score, a sum of Levenstein's
-                distances for all prediction - reference pairs, total number of words in all references.
+            Either a list of str which represent the CTC decoded strings per sample,
+            or a list of Hypothesis objects containing additional information.
         """
         hypotheses = []
         # Drop predictions to CPU
