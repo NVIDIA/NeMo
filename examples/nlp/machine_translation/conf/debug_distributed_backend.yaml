@@ -1,0 +1,156 @@
+name: AttentionIsAllYouNeed
+do_training: True # set to False if only preprocessing data
+do_testing: True # set to True to run evaluation on test data after training
+
+model:
+  beam_size: 4
+  len_pen: 0.6
+  multilingual: False
+  max_generation_delta: 100
+  label_smoothing: 0.0
+  shared_tokenizer: False # train tokenizer model across src and tgt train data
+  preproc_out_dir: /home/apeganov/NeMo/examples/speech_translation/punct_prepared_datasets/prepared_punctuation_data_all_punctuation/preprocessed_test_data/ # path to store data preprocessing outputs
+  src_language: 'en'
+  tgt_language: 'en'
+
+  train_ds:
+    src_file_name: /home/apeganov/NeMo/examples/speech_translation/punct_prepared_datasets/prepared_punctuation_data_all_punctuation/dev/input.txt
+    tgt_file_name: /home/apeganov/NeMo/examples/speech_translation/punct_prepared_datasets/prepared_punctuation_data_all_punctuation/dev/autoregressive_labels.txt
+    use_tarred_dataset: False # if true tar_file_name and meta_file_name will be used (or created automatically) 
+    # config for preprocessing training data and creating a tarred datset automatically
+    lines_per_dataset_fragment: 1000000 # Number of lines to consider for bucketing and padding
+    num_batches_per_tarfile: 100 # Number of batches (pickle files) within each tarfile
+    tar_shuffle_n: 100 # How many samples to look ahead and load to be shuffled
+    shard_strategy: scatter # tarred dataset shard distribution strategy
+    n_preproc_jobs: -2 # number of processes to use for data preprocessing (-2 means all but 2)
+    tokens_in_batch: 32768
+    clean: true
+    max_seq_length: 512
+    shuffle: true
+    num_samples: -1
+    drop_last: false
+    pin_memory: true
+    num_workers: 8
+    concat_sampling_technique: temperature # only used with ConcatTranslationDataset 
+    concat_sampling_temperature: 5 # only used with ConcatTranslationDataset 
+    concat_sampling_probabilities: null # only used with ConcatTranslationDataset
+
+  validation_ds:
+    src_file_name: /home/apeganov/NeMo/examples/speech_translation/punct_prepared_datasets/prepared_punctuation_data_all_punctuation/dev/input.txt
+    tgt_file_name: /home/apeganov/NeMo/examples/speech_translation/punct_prepared_datasets/prepared_punctuation_data_all_punctuation/dev/autoregressive_labels.txt
+    tokens_in_batch: 32768
+    clean: false
+    max_seq_length: 512
+    shuffle: false
+    num_samples: -1
+    drop_last: false
+    pin_memory: true
+    num_workers: 8
+
+  test_ds:
+    src_file_name: /home/apeganov/NeMo/examples/speech_translation/punct_prepared_datasets/prepared_punctuation_data_all_punctuation/dev/input.txt
+    tgt_file_name: /home/apeganov/NeMo/examples/speech_translation/punct_prepared_datasets/prepared_punctuation_data_all_punctuation/dev/autoregressive_labels.txt
+    tokens_in_batch: 32768
+    clean: false
+    max_seq_length: 512
+    shuffle: false
+    num_samples: -1
+    drop_last: false
+    pin_memory: true
+    num_workers: 8
+
+  optim:
+    name: adam
+    lr: 0.0003
+    betas:
+      - 0.9
+      - 0.98
+    weight_decay: 0.0
+    sched:
+      name: InverseSquareRootAnnealing
+      min_lr: 0.0
+      last_epoch: -1
+      warmup_ratio: 0.1
+
+  encoder_tokenizer:
+    library: yttm
+    tokenizer_model: /home/apeganov/NeMo/examples/speech_translation/punct_prepared_datasets/prepared_punctuation_data_all_punctuation/input.BPE.8192.model
+    bpe_dropout: 0.0
+    r2l: false
+
+  decoder_tokenizer:
+    library: yttm
+    tokenizer_model: /home/apeganov/NeMo/examples/speech_translation/punct_prepared_datasets/prepared_punctuation_data_all_punctuation/autoregressive_labels.BPE.18.model
+    bpe_dropout: 0.0
+    r2l: false
+
+  encoder:
+    library: nemo
+    model_name: null
+    pretrained: false
+    max_sequence_length: 512
+    num_token_types: 0
+    embedding_dropout: 0.1
+    learn_positional_encodings: false
+    hidden_size: 512
+    num_layers: 6
+    inner_size: 2048
+    num_attention_heads: 8
+    ffn_dropout: 0.1
+    attn_score_dropout: 0.1
+    attn_layer_dropout: 0.1
+    hidden_act: relu
+    mask_future: false
+    pre_ln: false
+    pre_ln_final_layer_norm: true
+
+  decoder:
+    library: nemo
+    model_name: null
+    pretrained: false
+    max_sequence_length: 512
+    num_token_types: 0
+    embedding_dropout: 0.1
+    learn_positional_encodings: false
+    hidden_size: 512
+    inner_size: 2048
+    num_layers: 6
+    num_attention_heads: 8
+    ffn_dropout: 0.1
+    attn_score_dropout: 0.1
+    attn_layer_dropout: 0.1
+    hidden_act: relu
+    pre_ln: false
+    pre_ln_final_layer_norm: true
+
+  head:
+    num_layers: 1
+    activation: relu
+    log_softmax: true
+    dropout: 0.0
+    use_transformer_init: true
+
+trainer:
+  gpus: 1
+  num_nodes: 1
+  max_epochs: 2000
+  amp_backend: apex
+  amp_level: O2 # O1/O2 for mixed precision
+  precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
+  accelerator: ddp
+  checkpoint_callback: False
+  logger: False
+  log_every_n_steps: 50  # Interval of logging.
+  check_val_every_n_epoch: 1
+
+exp_manager:
+  name: AAYNBase
+  create_checkpoint_callback: true  # Whether you want exp_manager to create a model checkpoint callback
+  checkpoint_callback_params:
+    save_best_model: true
+  files_to_copy: []
+  create_wandb_logger: true
+  wandb_logger_kwargs:
+    name: debug_CER
+    project: autoregressive_punctuation_capitalization
+    entity: anton_peganov
