@@ -196,7 +196,7 @@ class TestWordErrorRate:
             decoding = Mock(
                 blank_id=self.char_tokenizer.tokenizer.vocab_size,
                 tokenizer=deepcopy(self.char_tokenizer),
-                rnnt_decoder_predictions_tensor=Mock(return_value=[prediction]),
+                rnnt_decoder_predictions_tensor=Mock(return_value=([prediction], None)),
             )
             wer = RNNTWER(decoding, batch_dim_index=batch_dim_index, use_cer=False)
         targets_tensor = self.__reference_string_to_tensor(reference, test_wer_bpe)
