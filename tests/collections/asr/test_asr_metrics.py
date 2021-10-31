@@ -184,19 +184,25 @@ class TestWordErrorRate:
         assert isinstance(hyp, Hypothesis)
         assert hyp.length == 3
 
+    def decode_token_to_str_with_vocabulary_mock(self, ids):
+        return ''.join([self.vocabulary[id_] for id_ in ids])
+
     def get_wer_rnnt(self, prediction: str, reference: str, batch_dim_index: int, test_wer_bpe: bool):
+        rnnt_decoder_predictions_tensor_mock = Mock(return_value=([prediction], None))
         if test_wer_bpe:
             decoding = Mock(
-                blank_id=len(self.vocabulary),
-                labels_map=self.vocabulary.copy(),
-                rnnt_decoder_predictions_tensor=Mock(return_value=([prediction], None)),
+                blank_id=self.char_tokenizer.tokenizer.vocab_size,
+                tokenizer=deepcopy(self.char_tokenizer),
+                rnnt_decoder_predictions_tensor=rnnt_decoder_predictions_tensor_mock,
+                decode_tokens_to_str=self.char_tokenizer.ids_to_text,
             )
             wer = RNNTBPEWER(decoding, batch_dim_index=batch_dim_index, use_cer=False)
         else:
             decoding = Mock(
-                blank_id=self.char_tokenizer.tokenizer.vocab_size,
-                tokenizer=deepcopy(self.char_tokenizer),
-                rnnt_decoder_predictions_tensor=Mock(return_value=([prediction], None)),
+                blank_id=len(self.vocabulary),
+                labels_map=self.vocabulary.copy(),
+                rnnt_decoder_predictions_tensor=rnnt_decoder_predictions_tensor_mock,
+                decode_tokens_to_str=self.decode_token_to_str_with_vocabulary_mock,
             )
             wer = RNNTWER(decoding, batch_dim_index=batch_dim_index, use_cer=False)
         targets_tensor = self.__reference_string_to_tensor(reference, test_wer_bpe)
