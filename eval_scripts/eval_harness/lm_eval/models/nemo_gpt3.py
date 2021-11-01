@@ -144,6 +144,7 @@ def setup_model(args):
     """Setup model and optimizer."""
     torch.set_grad_enabled(False)
     trainer = Trainer(gpus=1)
+    assert 'nemo_model' in args, "Path to model's .nemo file is required."
     if args['nemo_model'] is not None:
         logging.info(f"**** Loading checkpoint from {args['nemo_model']}")
         vocab_file = args.get('vocab_file', None)

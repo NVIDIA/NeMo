@@ -44,11 +44,22 @@ def wikitext_detokenizer(string):
 class WikiText(PerplexityTask):
     VERSION = 0
 
+    def __init__(self, cache_dir=""):
+        self.cache_dir = cache_dir
+        super().__init__()
+
     def download(self):
-        if not os.path.exists('data/wikitext/wikitext-2-raw/wiki.valid.raw'):
-            os.makedirs("data/wikitext/", exist_ok=True)
-            download_file("https://s3.amazonaws.com/research.metamind.io/wikitext/wikitext-2-raw-v1.zip", "data/wikitext/wikitext-2-raw-v1.zip", "ef7edb566e3e2b2d31b29c1fdb0c89a4cc683597484c3dc2517919c615435a11")
-            sh("cd data/wikitext/ && unzip wikitext-2-raw-v1.zip")
+        cache_dir = self.cache_dir if self.cache_dir \
+            else os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir, "data")
+        if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+            if not os.path.exists(cache_dir + '/wikitext/wikitext-2-raw/wiki.valid.raw'):
+                os.makedirs(cache_dir + '/wikitext', exist_ok=True)
+                download_file("https://s3.amazonaws.com/research.metamind.io/wikitext/wikitext-2-raw-v1.zip", cache_dir + "/wikitext/wikitext-2-raw-v1.zip", "ef7edb566e3e2b2d31b29c1fdb0c89a4cc683597484c3dc2517919c615435a11")
+                sh(f"cd {cache_dir}/wikitext && unzip wikitext-2-raw-v1.zip")
+
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+        self.cache_dir = cache_dir
 
     def fewshot_description(self):
         # TODO: figure out fewshot description
@@ -65,7 +76,7 @@ class WikiText(PerplexityTask):
     
     def docs_for_split(self, split):
         ret = []
-        for line in open(f"data/wikitext/wikitext-2-raw/wiki.{split}.raw").read().split('\n'):
+        for line in open(self.cache_dir + f"/wikitext/wikitext-2-raw/wiki.{split}.raw").read().split('\n'):
             rline = line.replace("= = =", "===").replace("= =", "==").strip()
             if rline.startswith('= ') and rline.strip().endswith(' ='):
                 s = '\n'.join(ret)
@@ -92,19 +103,25 @@ class WikiText(PerplexityTask):
 
 
 class WikiText103(WikiText):
+
     def download(self):
+        cache_dir = self.cache_dir if self.cache_dir \
+            else os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir, "data")
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-            if not os.path.exists('data/wikitext/wikitext-103-raw/wiki.valid.raw'):
-                os.makedirs("data/wikitext/", exist_ok=True)
-                download_file("https://s3.amazonaws.com/research.metamind.io/wikitext/wikitext-103-raw-v1.zip", "data/wikitext/wikitext-103-raw-v1.zip")
-                sh("cd data/wikitext/ && unzip wikitext-103-raw-v1.zip")
+            if not os.path.exists(cache_dir + '/wikitext/wikitext-103-raw/wiki.valid.raw'):
+                os.makedirs(cache_dir + '/wikitext', exist_ok=True)
+                download_file("https://s3.amazonaws.com/research.metamind.io/wikitext/wikitext-103-raw-v1.zip",
+                              cache_dir + "/wikitext//wikitext-103-raw-v1.zip")
+                sh(f"cd {cache_dir}/wikitext && unzip wikitext-103-raw-v1.zip")
 
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
-    
+        self.cache_dir = cache_dir
+
+
     def docs_for_split(self, split):
         ret = []
-        for line in open(f"data/wikitext/wikitext-103-raw/wiki.{split}.raw").read().split('\n'):
+        for line in open(self.cache_dir + f"/wikitext/wikitext-103-raw/wiki.{split}.raw").read().split('\n'):
             rline = line.replace("= = =", "===").replace("= =", "==").strip()
             if rline.startswith('= ') and rline.strip().endswith(' ='):
                 s = '\n'.join(ret)

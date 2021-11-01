@@ -37,6 +37,7 @@ def parse_args(parser_main):
     parser.add_argument('--no_timestamp', action='store_true',
                         help='If set, a timestamp and random suffix will NOT be appended to the output directory name (unless no `name` is specified)')
     parser.add_argument('--tasks', default="all_tasks")
+    parser.add_argument('--cache_dir', default="")
     parser.add_argument('--eval_seed', type=int, default=1234,
                         help='Random seed used for python, numpy, [pytorch, and cuda.]')
     parser.add_argument('--limit', type=int, default=None,
@@ -202,10 +203,7 @@ def main():
 
     # Determine whether process is allowed to write to disk
     # can_write_output() limits the processes allowed to enter clause
-    if can_write_output(lm, args):
-        write_permission = True
-    else:
-        write_permission = False
+    write_permission = can_write_output(lm, args)
 
     if write_permission:
         args = setup_output_dir(args, eval_args, unknown_args)
@@ -223,7 +221,7 @@ def main():
         task_names = tasks.ALL_TASKS
     else:
         task_names = args.tasks.split(",")
-    task_dict = tasks.get_task_dict(task_names)
+    task_dict = tasks.get_task_dict(task_names, args.cache_dir)
 
     if args.serialize_predictions:
         no_serialization = [name for name, task in task_dict.items() if not hasattr(task, "serialize_results")]

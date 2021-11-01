@@ -1,6 +1,6 @@
 download_the_pile: True  # Whether to download the pile dataset from the internet.
 file_numbers: "0-29"  # The pile dataset consists of 30 files (0-29), choose which ones to download.
-preprocess_data: True  # True to proprocess the data using the megatron code, False otherwise.
+preprocess_data: True  # True to preprocess the data from a jsonl file, False otherwise.
 download_vocab_url: "https://huggingface.co/gpt2/resolve/main/vocab.json"  # URL to download the vocab from.
 download_merges_url: "https://huggingface.co/gpt2/resolve/main/merges.txt"  # URL to download the merges from.
 vocab_save_dir: ${bignlp_path}/data_preparation/bpe

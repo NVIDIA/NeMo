@@ -8,3 +8,5 @@
 *checkpoints*
 *logs*
 *__pycache__*
+*data_cache*
+*eval_scripts/eval_harness/data*

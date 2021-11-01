@@ -9,15 +9,17 @@ slurm:
   ntasks_per_node: ${evaluation.model.tensor_model_parallel_size}
   gpus_per_task: null
   dependency: "singleton"
-  job_name: "bignlp-gpt3:evaluation"
+  job_name: "bignlp-gpt3:evaluate_lambada"
 
 run:
     name: eval_lambada
     tasks: lambada  # supported: lambada, boolq, race, piqa, hellaswag, winogrande, wikitext2, wikitext103 OR all_tasks
-    output_path: ${bignlp_path}/eval_scripts/results
+    output_path: ${bignlp_path}/eval_scripts/logs
 
 model:
     type: nemo-gpt3
     checkpoint_path: ${bignlp_path}/train_scripts/logs/126m/checkpoints/megatron_gpt.nemo # path of checkpoint; must be .nemo file
     tensor_model_parallel_size: 1
     eval_batch_size: 1
+    vocab_file: ${bignlp_path}/data_preparation/bpe/vocab.json
+    merge_file: ${bignlp_path}/data_preparation/bpe/merges.txt
