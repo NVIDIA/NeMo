@@ -28,6 +28,7 @@ try:
     from nemo.collections.asr.modules.conv_asr import (
         ConvASRDecoder,
         ConvASRDecoderClassification,
+        ConvASRDecoderRecon,
         ConvASREncoder,
         ECAPAEncoder,
         ParallelConvASREncoder,
@@ -43,4 +44,5 @@ except ModuleNotFoundError:
     class ECAPAEncoder(CheckInstall): pass
     class ParallelConvASREncoder(CheckInstall): pass
     class SpeakerDecoder(CheckInstall): pass
+    class ConvASRDecoderRecon(CheckInstall): pass
     # fmt: on
