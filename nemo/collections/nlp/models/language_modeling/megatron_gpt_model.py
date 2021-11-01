@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import torch
 from apex.transformer import parallel_state, tensor_parallel
@@ -29,6 +29,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import bui
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
+from nemo.collections.nlp.modules.common.megatron.language_model import TransformerLanguageModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import (
     initialize_model_parallel_for_nemo,
     set_jit_fusion_options,
@@ -173,32 +174,46 @@ class MegatronGPTModel(NLPModel):
         loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
         return loss
 
-    def _get_params_for_weight_decay_optimization(self, modules):
-        """Divide params into with-weight-decay and without-weight-decay groups.
+    def _unwrap_model(self):
+        """
+        Returns a unique list of all modules
+        """
+        unwrapped_model = []
+        for module in set(self.modules()):
+            if isinstance(module, List):
+                for module_ in module:
+                    unwrapped_model.append(module_)
+            else:
+                unwrapped_model.append(module)
+        return unwrapped_model
+
+    def _get_params_for_weight_decay_optimization(self):
+        """
+        Divide params into with-weight-decay and without-weight-decay groups.
         Layernorms and baises will have no weight decay but the rest will.
-        Taken from megatron-lm.
+        Adapted from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/v2.6/megatron/optimizer/__init__.py 
         """
 
+        unwrapped_model = self._unwrap_model()
         weight_decay_params = {'params': []}
         no_weight_decay_params = {'params': [], 'weight_decay': 0.0}
-        for module in modules:
-            for module_ in module.modules():
-                if isinstance(module_, LayerNorm):
-                    no_weight_decay_params['params'].extend(
-                        [p for p in list(module_._parameters.values()) if p is not None]
-                    )
-                else:
-                    weight_decay_params['params'].extend(
-                        [p for n, p in list(module_._parameters.items()) if p is not None and n != 'bias']
-                    )
-                    no_weight_decay_params['params'].extend(
-                        [p for n, p in list(module_._parameters.items()) if p is not None and n == 'bias']
-                    )
+        for module in unwrapped_model:
+            if isinstance(module, LayerNorm):
+                no_weight_decay_params['params'].extend(
+                    [p for p in list(module._parameters.values()) if p is not None]
+                )
+            else:
+                weight_decay_params['params'].extend(
+                    [p for n, p in list(module._parameters.items()) if p is not None and n != 'bias']
+                )
+                no_weight_decay_params['params'].extend(
+                    [p for n, p in list(module._parameters.items()) if p is not None and n == 'bias']
+                )
 
         return weight_decay_params, no_weight_decay_params
 
     def setup_optimizer_param_groups(self):
-        self._optimizer_param_groups = self._get_params_for_weight_decay_optimization(self.model)
+        self._optimizer_param_groups = self._get_params_for_weight_decay_optimization()
 
     def process_batch(self, batch):
 
