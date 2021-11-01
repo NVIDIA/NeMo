@@ -626,6 +626,7 @@ def _wer_class_test(
                     )
                     # assert for dist_sync_on_step
                     if check_dist_sync_on_step:
+                        log.write(f"batch_result, ref_batch_result: {batch_result.numpy()}, {ref_batch_result}\n")
                         assert np.allclose(
                             batch_result.numpy(), ref_batch_result, atol=atol
                         ), f"batch_result = {batch_result.numpy()}, ref_batch_result = {ref_batch_result}, i = {i}"
@@ -637,6 +638,7 @@ def _wer_class_test(
                 ref_batch_result = reference_wer_func(pr, tg, tgl, prl, wer_decoder)
                 # assert for batch
                 if check_batch:
+                    log.write(f"batch_result, ref_batch_result: {batch_result.numpy()}, {ref_batch_result}\n")
                     assert np.allclose(
                         batch_result.numpy(), ref_batch_result, atol=atol
                     ), f"batch_result = {batch_result.numpy()}, ref_batch_result = {ref_batch_result}, i = {i}"
@@ -649,7 +651,7 @@ def _wer_class_test(
         target_lengths = target_lengths.reshape([-1])
         predictions_lengths = predictions_lengths.reshape([-1])
         ref_result = reference_wer_func(predictions, targets, target_lengths, predictions_lengths, wer_decoder)
-
+        log.write(f"result, ref_result: {result.numpy()}, {ref_result}\n")
         # assert after aggregation
         assert np.allclose(result.numpy(), ref_result, atol=atol), f"result = {result.numpy()}, ref_result = {ref_result}"
     except Exception as e:
