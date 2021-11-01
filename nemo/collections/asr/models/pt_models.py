@@ -11,22 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import copy
-import json
-import os
-import tempfile
 from math import ceil
-from typing import Dict, List, Optional, Union
+from typing import Dict, Optional, Union
 
 import torch
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
-from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
-from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
-from nemo.collections.asr.losses.ctc import CTCLoss
-from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
