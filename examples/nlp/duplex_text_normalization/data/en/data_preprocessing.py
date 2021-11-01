@@ -52,6 +52,12 @@ import regex as re
 import wordninja
 from tqdm import tqdm
 
+from nemo.collections.nlp.data.text_normalization.constants import EN_GREEK_TO_SPOKEN
+from nemo.collections.nlp.data.text_normalization.utils import (
+    add_space_around_dash,
+    convert_fraction,
+    convert_superscript,
+)
 from nemo.utils import logging
 
 parser = ArgumentParser(description="Text Normalization Data Preprocessing for English")
@@ -81,46 +87,6 @@ number_verbalizations = (
     + ["point"]
 )
 digit = "0123456789"
-
-EN_GREEK_TO_SPOKEN = {
-    'Τ': 'tau',
-    'Ο': 'omicron',
-    'Δ': 'delta',
-    'Η': 'eta',
-    'Κ': 'kappa',
-    'Ι': 'iota',
-    'Θ': 'theta',
-    'Α': 'alpha',
-    'Σ': 'sigma',
-    'Υ': 'upsilon',
-    'Μ': 'mu',
-    'Χ': 'chi',
-    'Π': 'pi',
-    'Ν': 'nu',
-    'Λ': 'lambda',
-    'Γ': 'gamma',
-    'Β': 'beta',
-    'Ρ': 'rho',
-    'τ': 'tau',
-    'υ': 'upsilon',
-    'φ': 'phi',
-    'α': 'alpha',
-    'λ': 'lambda',
-    'ι': 'iota',
-    'ς': 'sigma',
-    'ο': 'omicron',
-    'σ': 'sigma',
-    'η': 'eta',
-    'π': 'pi',
-    'ν': 'nu',
-    'γ': 'gamma',
-    'κ': 'kappa',
-    'ε': 'epsilon',
-    'β': 'beta',
-    'ρ': 'rho',
-    'ω': 'omega',
-    'χ': 'chi',
-}
 
 
 def process_url(o):
@@ -194,85 +160,12 @@ def convert2digits(digits: str):
     return res, i
 
 
-def convert_fraction(written: str):
-    """
-    converts fraction to standard form, e.g "½" -> "1/2", "1 ½" -> "1 1/2"
-    
-    Args:
-        written: written form
-    Returns:
-        written: modified form
-    """
-    written = re.sub(" ½", " 1/2", written)
-    written = re.sub(" ⅓", " 1/3", written)
-    written = re.sub(" ⅔", " 2/3", written)
-    written = re.sub(" ¼", " 1/4", written)
-    written = re.sub(" ¾", " 3/4", written)
-    written = re.sub(" ⅕", " 1/5", written)
-    written = re.sub(" ⅖", " 2/5", written)
-    written = re.sub(" ⅗", " 3/5", written)
-    written = re.sub(" ⅘", " 4/5", written)
-    written = re.sub(" ⅙", " 1/6", written)
-    written = re.sub(" ⅚", " 5/6", written)
-    written = re.sub(" ⅛", " 1/8", written)
-    written = re.sub(" ⅜", " 3/8", written)
-    written = re.sub(" ⅝", " 5/8", written)
-    written = re.sub(" ⅞", " 7/8", written)
-    written = re.sub("^½", "1/2", written)
-    written = re.sub("^⅓", "1/3", written)
-    written = re.sub("^⅔", "2/3", written)
-    written = re.sub("^¼", "1/4", written)
-    written = re.sub("^¾", "3/4", written)
-    written = re.sub("^⅕", "1/5", written)
-    written = re.sub("^⅖", "2/5", written)
-    written = re.sub("^⅗", "3/5", written)
-    written = re.sub("^⅘", "4/5", written)
-    written = re.sub("^⅙", "1/6", written)
-    written = re.sub("^⅚", "5/6", written)
-    written = re.sub("^⅛", "1/8", written)
-    written = re.sub("^⅜", "3/8", written)
-    written = re.sub("^⅝", "5/8", written)
-    written = re.sub("^⅞", "7/8", written)
-    written = re.sub("-½", "-1/2", written)
-    written = re.sub("-⅓", "-1/3", written)
-    written = re.sub("-⅔", "-2/3", written)
-    written = re.sub("-¼", "-1/4", written)
-    written = re.sub("-¾", "-3/4", written)
-    written = re.sub("-⅕", "-1/5", written)
-    written = re.sub("-⅖", "-2/5", written)
-    written = re.sub("-⅗", "-3/5", written)
-    written = re.sub("-⅘", "-4/5", written)
-    written = re.sub("-⅙", "-1/6", written)
-    written = re.sub("-⅚", "-5/6", written)
-    written = re.sub("-⅛", "-1/8", written)
-    written = re.sub("-⅜", "-3/8", written)
-    written = re.sub("-⅝", "-5/8", written)
-    written = re.sub("-⅞", "-7/8", written)
-    written = re.sub("([0-9])\s?½", "\\1 1/2", written)
-    written = re.sub("([0-9])\s?⅓", "\\1 1/3", written)
-    written = re.sub("([0-9])\s?⅔", "\\1 2/3", written)
-    written = re.sub("([0-9])\s?¼", "\\1 1/4", written)
-    written = re.sub("([0-9])\s?¾", "\\1 3/4", written)
-    written = re.sub("([0-9])\s?⅕", "\\1 1/5", written)
-    written = re.sub("([0-9])\s?⅖", "\\1 2/5", written)
-    written = re.sub("([0-9])\s?⅗", "\\1 3/5", written)
-    written = re.sub("([0-9])\s?⅘", "\\1 4/5", written)
-    written = re.sub("([0-9])\s?⅙", "\\1 1/6", written)
-    written = re.sub("([0-9])\s?⅚", "\\1 5/6", written)
-    written = re.sub("([0-9])\s?⅛", "\\1 1/8", written)
-    written = re.sub("([0-9])\s?⅜", "\\1 3/8", written)
-    written = re.sub("([0-9])\s?⅝", "\\1 5/8", written)
-    written = re.sub("([0-9])\s?⅞", "\\1 7/8", written)
-    return written
-
-
 def convert(example):
     cls, written, spoken = example
 
     written = convert_fraction(written)
     written = re.sub("é", "e", written)
-    written = re.sub("²", "2", written)
-    written = re.sub("³", "3", written)
+    written = convert_superscript(written)
 
     if cls == "TIME":
         written = re.sub("([0-9]): ([0-9])", "\\1:\\2", written)
@@ -292,10 +185,7 @@ def convert(example):
         spoken = re.sub(" sil$", "", spoken)
 
     if cls != "ELECTRONIC":
-        written = re.sub(r"([^\s0-9])-([0-9])", r"\1 - \2", written)
-        written = re.sub(r"([0-9])-([^\s0-9])", r"\1 - \2", written)
-        written = re.sub(r"([^\s0-9])-([0-9])", r"\1 - \2", written)
-        written = re.sub(r"([0-9])-([^\s0-9])", r"\1 - \2", written)
+        written = add_space_around_dash(written)
 
     example[1] = written
     example[2] = spoken

@@ -30,7 +30,7 @@ from nemo.collections.nlp.data.text_normalization.decoder_dataset import (
     TarredTextNormalizationDecoderDataset,
     TextNormalizationDecoderDataset,
 )
-from nemo.collections.nlp.models.duplex_text_normalization.utils import get_formatted_string, is_url
+from nemo.collections.nlp.models.duplex_text_normalization.utils import get_formatted_string
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
@@ -154,8 +154,6 @@ class DuplexDecoderModel(NLPModel):
 
         direction = [x[0].item() for x in batch['direction']]
         direction_str = [constants.DIRECTIONS_ID_TO_NAME[x] for x in direction]
-        # apply post_processing
-        generated_texts = self.postprocess_output_spans(input_centers, generated_texts, direction_str)
         results = defaultdict(int)
         for idx, class_id in enumerate(batch['semiotic_class_id']):
             direction = constants.TASK_ID_TO_MODE[batch['direction'][idx][0].item()]
@@ -330,8 +328,6 @@ class DuplexDecoderModel(NLPModel):
                 ctx_right = sent[cur_end + 1 : cur_end + 1 + ctx_size]
                 span_words = sent[cur_start : cur_end + 1]
                 span_words_str = ' '.join(span_words)
-                if is_url(span_words_str):
-                    span_words_str = span_words_str.lower()
                 input_centers.append(span_words_str)
                 input_dirs.append(inst_directions[ix])
                 # Build cur_inputs
@@ -374,16 +370,11 @@ class DuplexDecoderModel(NLPModel):
             neural_confidence_threshold = self.neural_confidence_threshold
             for ix, (_dir, _input, _prob) in enumerate(zip(input_dirs, input_centers, sequence_probs)):
                 if _dir == constants.INST_FORWARD and _prob < neural_confidence_threshold:
-                    if is_url(_input):
-                        _input = _input.replace(' ', '')  # Remove spaces in URLs
                     try:
                         cg_outputs = self.cg_normalizer.normalize(text=_input, verbose=False, n_tagged=self.n_tagged)
                         generated_texts[ix] = list(cg_outputs)[0]
                     except:  # if there is any exception, fall back to the input
                         generated_texts[ix] = _input
-
-        # Post processing
-        generated_texts = self.postprocess_output_spans(input_centers, generated_texts, input_dirs)
 
         # Prepare final_texts
         final_texts, span_ctx = [], 0
@@ -395,46 +386,6 @@ class DuplexDecoderModel(NLPModel):
             final_texts.append(cur_texts)
 
         return final_texts
-
-    def postprocess_output_spans(self, input_centers: List[str], generated_spans: List[str], input_dirs: List[str]):
-        """
-        Post processing of the generated texts
-
-        Args:
-            input_centers: Input str (no special tokens or context)
-            generated_spans: Generated spans
-            input_dirs: task direction: constants.INST_BACKWARD or constants.INST_FORWARD
-
-        Returns:
-            Processing texts
-        """
-        en_greek_writtens = list(constants.EN_GREEK_TO_SPOKEN.keys())
-        en_greek_spokens = list(constants.EN_GREEK_TO_SPOKEN.values())
-        for ix, (_input, _output) in enumerate(zip(input_centers, generated_spans)):
-            if self.lang == constants.ENGLISH:
-                # Handle URL
-                if is_url(_input):
-                    _output = _output.replace('http', ' h t t p ')
-                    _output = _output.replace('/', ' slash ')
-                    _output = _output.replace('.', ' dot ')
-                    _output = _output.replace(':', ' colon ')
-                    _output = _output.replace('-', ' dash ')
-                    _output = _output.replace('_', ' underscore ')
-                    _output = _output.replace('%', ' percent ')
-                    _output = _output.replace('www', ' w w w ')
-                    _output = _output.replace('ftp', ' f t p ')
-                    generated_spans[ix] = ' '.join(wordninja.split(_output))
-                    continue
-                # Greek letters
-                if _input in en_greek_writtens:
-                    if input_dirs[ix] == constants.INST_FORWARD:
-                        generated_spans[ix] = constants.EN_GREEK_TO_SPOKEN[_input]
-                if _input in en_greek_spokens:
-                    if input_dirs[ix] == constants.INST_FORWARD:
-                        generated_spans[ix] = _input
-                    if input_dirs[ix] == constants.INST_BACKWARD:
-                        generated_spans[ix] = constants.EN_SPOKEN_TO_GREEK[_input]
-        return generated_spans
 
     # Functions for processing data
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
