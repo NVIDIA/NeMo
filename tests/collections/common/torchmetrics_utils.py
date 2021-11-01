@@ -626,12 +626,9 @@ def _wer_class_test(
                     )
                     # assert for dist_sync_on_step
                     if check_dist_sync_on_step:
-                        if ref_batch_result.isnan():
-                            assert batch_result.isnan()
-                        else:
-                            assert np.allclose(
-                                batch_result.numpy(), ref_batch_result, atol=atol
-                            ), f"batch_result = {batch_result.numpy()}, ref_batch_result = {ref_batch_result}, i = {i}"
+                        assert np.allclose(
+                            batch_result.numpy(), ref_batch_result, atol=atol
+                        ), f"batch_result = {batch_result.numpy()}, ref_batch_result = {ref_batch_result}, i = {i}"
             else:
                 pr = predictions[i]
                 tg = targets[i]
@@ -640,12 +637,9 @@ def _wer_class_test(
                 ref_batch_result = reference_wer_func(pr, tg, tgl, prl, wer_decoder)
                 # assert for batch
                 if check_batch:
-                    if ref_batch_result.isnan():
-                        assert batch_result.isnan()
-                    else:
-                        assert np.allclose(
-                            batch_result.numpy(), ref_batch_result, atol=atol
-                        ), f"batch_result = {batch_result.numpy()}, ref_batch_result = {ref_batch_result}, i = {i}"
+                    assert np.allclose(
+                        batch_result.numpy(), ref_batch_result, atol=atol
+                    ), f"batch_result = {batch_result.numpy()}, ref_batch_result = {ref_batch_result}, i = {i}"
         # check on all batches on all ranks
         result = wer_metric.compute()
         assert isinstance(result, torch.Tensor)
