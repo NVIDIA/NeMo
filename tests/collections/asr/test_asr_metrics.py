@@ -237,6 +237,20 @@ VOCABULARY_WITHOUT_SPACE = VOCABULARY[1:]
 SMALL_VOCAB_SIZE = 2
 MEDIUM_VOCAB_SIZE = 10
 NUM_SECTIONS = 4
+INPUT_WITH_GOOD_LAST_BATCH = WERInput(
+    predictions=[
+        ["cat dog", "c a t d o g"],
+        ["fox bird", "f o x b i r d"],
+        ["sky sea", "s k y s e a"],
+        ["blue green", "b l u e g r e e n"],
+    ],
+    targets=[
+        ["dog cat", "g o d t a c"],
+        ["bird fox", "x o f d r i b"],
+        ["sky sea", "s k y s e a"],
+        ["blue green", "b l u e g r e e n"],
+    ]
+)
 SMALL_VOCAB_WER_INPUT = WERInput(
     predictions=generate_random_wer_input(
         VOCABULARY_WITHOUT_SPACE[:SMALL_VOCAB_SIZE], NUM_BATCHES, BATCH_SIZE, min_length=3, max_length=10
@@ -270,6 +284,7 @@ EMPTY_PREDICTIONS_WER_INPUT = WERInput(
 @pytest.mark.parametrize(
     "predictions, targets",
     [
+        (INPUT_WITH_GOOD_LAST_BATCH.predictions, INPUT_WITH_GOOD_LAST_BATCH.targets),
         (SMALL_VOCAB_WER_INPUT.predictions, SMALL_VOCAB_WER_INPUT.targets),
         (MEDIUM_VOCAB_WER_INPUT.predictions, MEDIUM_VOCAB_WER_INPUT.targets),
         (LARGE_VOCAB_WER_INPUT.predictions, LARGE_VOCAB_WER_INPUT.targets),
