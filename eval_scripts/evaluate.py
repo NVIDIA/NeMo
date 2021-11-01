@@ -8,7 +8,8 @@ import omegaconf
 
 def create_slurm_file(
     new_script_path,
-    eval_cmd,
+    eval_cmd1,
+    eval_cmd2,
     job_name,
     flags="",
     dependency=None,
@@ -42,7 +43,8 @@ def create_slurm_file(
         if overcommit:
             f.writelines("#SBATCH --overcommit\n")
         f.writelines(f"#SBATCH --time={time}\n\n")
-        f.writelines(f'srun {flags} sh -c "{eval_cmd}"\n\n')
+        f.writelines(f'srun {flags} --ntasks=1 sh -c "{eval_cmd1}"\n\n')
+        f.writelines(f'srun {flags} --ntasks={ntasks_per_node} sh -c "{eval_cmd2}"\n\n')
         f.writelines("set +x\n")
 
 
@@ -70,11 +72,13 @@ def run_evaluation(cfg, dependency=None):
         dependency = slurm_cfg.get("dependency")
     job_name = slurm_cfg.get("job_name")
 
+    # Model parameters
     model_type = model_cfg.get("type")
     checkpoint = model_cfg.get("checkpoint_path")
-
     tensor_model_parallel_size = model_cfg.get("tensor_model_parallel_size")
     batch_size = model_cfg.get("eval_batch_size")
+    vocab_file = model_cfg.get("vocab_file")
+    merge_file = model_cfg.get("merge_file")
 
     # Run parameters
     name = run_cfg.get("name")
@@ -92,24 +96,31 @@ def run_evaluation(cfg, dependency=None):
                 mounts_str += f",{mount}:{mount}"
 
     flags = (
+        f"--no-container-mount-home "
         f"--container-image {container} "
         f"--container-mounts {mounts_str} "
         f"-o {log_dir}/{name}-%j.log "
         f"-e {log_dir}/{name}-%j.error "
     )
+    cache_dir = os.path.join(bignlp_path, "eval_scripts/data_cache")
+    code_path1 = os.path.join(bignlp_path, "eval_scripts/eval_harness/download.py")
+    eval_cmd1 = f"python {code_path1} --tasks {tasks} --cache-dir {cache_dir} " \
+
     new_script_path = os.path.join(bignlp_path, "eval_scripts/eval_script.sh")
-    code_path = os.path.join(bignlp_path, "eval_scripts/eval_harness/evaluate.py")
-    eval_cmd = f"python3 -u {code_path} " \
-               f"--name {name} " \
-               f"--model {model_type} " \
-               f"--tasks {tasks} " \
-               f"--batch_size {batch_size} " \
-               f"--output_path {log_dir} " \
-               f"--model_args nemo_model={checkpoint},tensor_model_parallel_size={tensor_model_parallel_size} "
+    code_path2 = os.path.join(bignlp_path, "eval_scripts/eval_harness/evaluate.py")
+    eval_cmd2 = f"python -u {code_path2} " \
+                f"--name {name} " \
+                f"--model {model_type} " \
+                f"--tasks {tasks} " \
+                f"--cache-dir {cache_dir} " \
+                f"--batch_size {batch_size} " \
+                f"--output_path {log_dir} " \
+                f"--model_args nemo_model={checkpoint},tensor_model_parallel_size={tensor_model_parallel_size},vocab_file={vocab_file},merges_file={merge_file} "
 
     create_slurm_file(
         new_script_path=new_script_path,
-        eval_cmd=eval_cmd,
+        eval_cmd1=eval_cmd1,
+        eval_cmd2=eval_cmd2,
         job_name=job_name,
         flags=flags,
         dependency=dependency,

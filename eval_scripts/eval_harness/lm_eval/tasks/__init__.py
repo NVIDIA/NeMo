@@ -8,6 +8,7 @@ from . import race
 from . import piqa
 from . import wikitext
 
+from . common import HFTask
 
 ########################################
 # Translation tasks
@@ -47,8 +48,8 @@ def get_task(task_name):
         raise KeyError(f"Missing task {task_name}")
 
 
-def get_task_dict(task_name_list):
+def get_task_dict(task_name_list, cache_dir):
     return {
-        task_name: get_task(task_name)()
+        task_name: get_task(task_name)(cache_dir)
         for task_name in task_name_list
     }

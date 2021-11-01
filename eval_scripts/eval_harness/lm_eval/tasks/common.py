@@ -6,12 +6,13 @@ class HFTask(Task):
     DATASET_PATH = None
     DATASET_NAME = None
 
-    def __init__(self):
+    def __init__(self, cache_dir=""):
         self.data = None
+        self.cache_dir = cache_dir
         super().__init__()
 
     def download(self):
-        self.data = datasets.load_dataset(path=self.DATASET_PATH, name=self.DATASET_NAME)
+        self.data = datasets.load_dataset(path=self.DATASET_PATH, name=self.DATASET_NAME, cache_dir=self.cache_dir)
 
     def has_training_docs(self):
         """Whether the task has a training set"""
