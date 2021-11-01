@@ -618,58 +618,49 @@ def _wer_class_test(
     """
     # Instantiate lightning metric
     num_batches = predictions.shape[0]
-    import traceback
-    log = open(f"rank{rank}.log", 'a')
-    try:
-        wer_metric = wer_class(compute_on_step=True, dist_sync_on_step=dist_sync_on_step, **wer_args)
+    wer_metric = wer_class(compute_on_step=True, dist_sync_on_step=dist_sync_on_step, **wer_args)
 
-        # verify loss works after being loaded from pickled state
-        pickled_metric = pickle.dumps(wer_metric)
-        wer_metric = pickle.loads(pickled_metric)
-        for i in range(rank, num_batches, worldsize):
-            batch_result = wer_metric(predictions[i], targets[i], target_lengths[i], predictions_lengths[i])[0]
-            if wer_metric.dist_sync_on_step:
-                if rank == 0:
-                    ddp_predictions = torch.cat([predictions[i + r] for r in range(worldsize)])
-                    ddp_targets = torch.cat([targets[i + r] for r in range(worldsize)])
-                    ddp_target_lengths = torch.cat([target_lengths[i + r] for r in range(worldsize)])
-                    ddp_predictions_lengths = torch.cat([predictions_lengths[i + r] for r in range(worldsize)])
-                    ref_batch_result = reference_wer_func(
-                        ddp_predictions, ddp_targets, ddp_target_lengths, ddp_predictions_lengths, wer_decoder
-                    )
-                    # assert for dist_sync_on_step
-                    if check_dist_sync_on_step:
-                        log.write(f"batch_result, ref_batch_result: {batch_result.numpy()}, {ref_batch_result}\n")
-                        assert np.allclose(
-                            batch_result.numpy(), ref_batch_result, atol=atol
-                        ), f"batch_result = {batch_result.numpy()}, ref_batch_result = {ref_batch_result}, i = {i}"
-            else:
-                pr = predictions[i]
-                tg = targets[i]
-                tgl = target_lengths[i]
-                prl = predictions_lengths[i]
-                ref_batch_result = reference_wer_func(pr, tg, tgl, prl, wer_decoder)
-                # assert for batch
-                if check_batch:
-                    log.write(f"batch_result, ref_batch_result: {batch_result.numpy()}, {ref_batch_result}\n")
+    # verify loss works after being loaded from pickled state
+    pickled_metric = pickle.dumps(wer_metric)
+    wer_metric = pickle.loads(pickled_metric)
+    for i in range(rank, num_batches, worldsize):
+        batch_result = wer_metric(predictions[i], targets[i], target_lengths[i], predictions_lengths[i])[0]
+        if wer_metric.dist_sync_on_step:
+            if rank == 0:
+                ddp_predictions = torch.cat([predictions[i + r] for r in range(worldsize)])
+                ddp_targets = torch.cat([targets[i + r] for r in range(worldsize)])
+                ddp_target_lengths = torch.cat([target_lengths[i + r] for r in range(worldsize)])
+                ddp_predictions_lengths = torch.cat([predictions_lengths[i + r] for r in range(worldsize)])
+                ref_batch_result = reference_wer_func(
+                    ddp_predictions, ddp_targets, ddp_target_lengths, ddp_predictions_lengths, wer_decoder
+                )
+                # assert for dist_sync_on_step
+                if check_dist_sync_on_step:
                     assert np.allclose(
                         batch_result.numpy(), ref_batch_result, atol=atol
                     ), f"batch_result = {batch_result.numpy()}, ref_batch_result = {ref_batch_result}, i = {i}"
-        # check on all batches on all ranks
-        result = wer_metric.compute()[0]
-        assert isinstance(result, torch.Tensor)
-        pr_sh = predictions.shape
-        predictions = predictions.reshape([pr_sh[0] * pr_sh[1], predictions.shape[2]])
-        targets = targets.reshape([-1, targets.shape[-1]])
-        target_lengths = target_lengths.reshape([-1])
-        predictions_lengths = predictions_lengths.reshape([-1])
-        ref_result = reference_wer_func(predictions, targets, target_lengths, predictions_lengths, wer_decoder)
-        log.write(f"result, ref_result: {result.numpy()}, {ref_result}\n")
-        # assert after aggregation
-        assert np.allclose(result.numpy(), ref_result, atol=atol), f"result = {result.numpy()}, ref_result = {ref_result}"
-    except Exception as e:
-        log.write(traceback.format_exc() + '\n' + str(e) + '\n')
-        raise
+        else:
+            pr = predictions[i]
+            tg = targets[i]
+            tgl = target_lengths[i]
+            prl = predictions_lengths[i]
+            ref_batch_result = reference_wer_func(pr, tg, tgl, prl, wer_decoder)
+            # assert for batch
+            if check_batch:
+                assert np.allclose(
+                    batch_result.numpy(), ref_batch_result, atol=atol
+                ), f"batch_result = {batch_result.numpy()}, ref_batch_result = {ref_batch_result}, i = {i}"
+    # check on all batches on all ranks
+    result = wer_metric.compute()[0]
+    assert isinstance(result, torch.Tensor)
+    pr_sh = predictions.shape
+    predictions = predictions.reshape([pr_sh[0] * pr_sh[1], predictions.shape[2]])
+    targets = targets.reshape([-1, targets.shape[-1]])
+    target_lengths = target_lengths.reshape([-1])
+    predictions_lengths = predictions_lengths.reshape([-1])
+    ref_result = reference_wer_func(predictions, targets, target_lengths, predictions_lengths, wer_decoder)
+    # assert after aggregation
+    assert np.allclose(result.numpy(), ref_result, atol=atol), f"result = {result.numpy()}, ref_result = {ref_result}"
 
 
 class WERTester(MetricTester):
