@@ -266,7 +266,7 @@ EMPTY_PREDICTIONS_WER_INPUT = WERInput(
     "wer_class, wer_decoder_class, wer_args",
     [
         (WER, WEREncoderDecoderVocabulary, {"vocabulary": VOCABULARY}),
-        (WERBPE, WEREncoderDecoderBPE, {"tokenizer", CHAR_TOKENIZER}),
+        (WERBPE, WEREncoderDecoderBPE, {"tokenizer": CHAR_TOKENIZER}),
     ],
 )
 class TestWERs(WERTester):
