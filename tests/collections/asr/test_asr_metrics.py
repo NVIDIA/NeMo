@@ -87,6 +87,7 @@ class TestWordErrorRate:
         return torch.Tensor(string_in_id_form).unsqueeze(0)
 
     def get_wer(self, wer, prediction: str, reference: str):
+        wer.reset()
         wer(
             predictions=self.__string_to_ctc_tensor(prediction),
             targets=self.__reference_string_to_tensor(reference),
