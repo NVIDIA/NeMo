@@ -43,7 +43,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from enum import Enum
-from typing import Dict, Sequence
+from typing import Dict, Optional, Sequence
 
 import librosa
 import matplotlib.pylab as plt
@@ -112,9 +112,9 @@ def binarize_attention_parallel(attn, in_lens, out_lens):
     return torch.from_numpy(attn_out).to(attn.get_device())
 
 
-def get_mask_from_lengths(lengths, max_len=None):
-    if not max_len:
-        max_len = torch.max(lengths).item()
+def get_mask_from_lengths(lengths, max_len: Optional[int] = None):
+    if max_len is None:
+        max_len = lengths.max()
     ids = torch.arange(0, max_len, device=lengths.device, dtype=torch.long)
     mask = (ids < lengths.unsqueeze(1)).bool()
     return mask
