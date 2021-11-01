@@ -181,11 +181,16 @@ class TestWordErrorRate:
         assert hyp.length == 3
 
 
+class TestInnerTokenizer:
+    def __init__(self, vocab_size):
+        self.vocab_size = vocab_size
+
+
 class TestCharTokenizer:
     def __init__(self, vocabulary: List[str]):
         self.vocabulary = vocabulary
         self.inv_vocabulary = {c: i for i, c in enumerate(self.vocabulary)}
-        self.tokenizer = Mock(vocab_size=len(vocabulary))
+        self.tokenizer = TestInnerTokenizer(len(self.vocabulary))
 
     def text_to_ids(self, text: str):
         return [self.inv_vocabulary[c] for c in text]

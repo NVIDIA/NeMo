@@ -695,4 +695,4 @@ class WERTester(MetricTester):
                 [(rank, self.poolSize) for rank in range(self.poolSize)],
             )
         else:
-            _loss_class_test(0, 1, **class_test_kwargs)
+            _wer_class_test(0, 1, **class_test_kwargs)
