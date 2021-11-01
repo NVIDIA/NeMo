@@ -16,8 +16,6 @@ from copy import deepcopy
 from typing import List
 
 import regex as re
-import wordninja
-from nltk import word_tokenize
 from tqdm import tqdm
 
 from nemo.collections.nlp.data.text_normalization import constants

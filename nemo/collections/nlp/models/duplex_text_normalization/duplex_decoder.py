@@ -18,7 +18,6 @@ from collections import defaultdict
 from typing import Dict, List, Optional, Union
 
 import torch
-import wordninja
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
@@ -150,10 +149,7 @@ class DuplexDecoderModel(NLPModel):
             input_ids=batch['input_ids'], model_max_len=self.max_sequence_len
         )
 
-        input_centers = self._tokenizer.batch_decode(batch['input_center'], skip_special_tokens=True)
-
         direction = [x[0].item() for x in batch['direction']]
-        direction_str = [constants.DIRECTIONS_ID_TO_NAME[x] for x in direction]
         results = defaultdict(int)
         for idx, class_id in enumerate(batch['semiotic_class_id']):
             direction = constants.TASK_ID_TO_MODE[batch['direction'][idx][0].item()]
