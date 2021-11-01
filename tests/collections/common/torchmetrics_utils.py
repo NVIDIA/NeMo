@@ -30,7 +30,7 @@ import os
 import pickle
 import sys
 from functools import partial
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, Optional, Type, Union
 
 import numpy as np
 import pytest
@@ -580,7 +580,7 @@ def _wer_class_test(
     targets: torch.Tensor,
     target_lengths: torch.Tensor,
     predictions_lengths: torch.Tensor,
-    wer_class: Union[WER, WERBPE],
+    wer_class: Union[Type[WER], Type[WERBPE]],
     wer_decoder: AbstractWEREncoderDecoder,
     dist_sync_on_step: bool,
     wer_args: Dict[str, Any],
@@ -588,21 +588,33 @@ def _wer_class_test(
     check_batch: bool = True,
     atol: float = 1e-8,
 ):
-    """ Utility function doing the actual comparison between lightning class metric
-        and reference metric.
-        Args:
-            rank: rank of current process
-            worldsize: number of processes
-            loss_sum_or_avg: a one dimensional float torch tensor with loss sums or means.
-            num_measurements: a one dimensional integer torch tensor with number of values on which sums or means from
-                ``loss_sum_or_avg`` were computed.
-            dist_sync_on_step: bool, if true will synchronize metric state across processes at each call of the
-                method :meth:`forward()`
-            take_avg_loss: dict with additional arguments used for class initialization
-            check_dist_sync_on_step: bool, if true will check if the metric is also correctly
-                calculated per batch per device (and not just at the end)
-            check_batch: bool, if true will check if the metric is also correctly
-                calculated across devices for each batch (and not just at the end)
+    """
+    Utility function doing the actual comparison between lightning class metric and reference metric.
+    Args:
+        rank: rank of current process
+        worldsize: number of processes
+        predictions: a ``torch.Tensor`` of shape ``[number_of_batches, batch_size, time]``. CTC encoding of hypotheses.
+        targets: a ``torch.Tensor`` of shape ``[number_of_batches, batch_size, time]``. CTC encoding of references.
+        target_lengths: a ``torch.Tensor`` of shape ``[number_of_batches, batch_size]``. Number of not padding ids in
+            hypotheses.
+        predictions_lengths: a ``torch.Tensor`` of shape ``[number_of_batches, batch_size]``. Number of not padding ids
+            in references.
+        wer_class: a class which is going to be tested. Supported classes are ``nemo.collections.asr.metrics.wer.WER``,
+            ``nemo.collections.asr.metrics.wer_bpe.WERBPE``.
+        wer_decoder: an instance of a class derived from ``tests.collections.asr.wer_utils.AbstractWEREncoderDecoder``.
+            If ``nemo.collections.asr.metrics.wer.WER`` is tested it should be an instance of
+            ``tests.collections.asr.wer_utils.WEREncoderDecoderVocabulary`` and if
+            ``nemo.collections.asr.metrics.wer_bpe.WERBPE`` is tested it should an instance of
+            ``tests.collections.asr.wer_utils.WEREncoderDecoderBPE``.
+        dist_sync_on_step: bool, if true will synchronize metric state across processes at each call of the
+            method :meth:`forward()`
+        wer_args: dict with additional arguments used for ``wer_class`` initialization. ``wer_args`` for
+            ``nemo.collections.asr.metrics.wer.WER`` must include a key ``'vocabulary'`` and ``wer_args`` for
+            ``nemo.collections.asr.metrics.wer_bpe.WERBPE`` must include ``'tokenizer'``.
+        check_dist_sync_on_step: bool, if true will check if the metric is also correctly
+            calculated per batch per device (and not just at the end)
+        check_batch: bool, if true will check if the metric is also correctly
+            calculated across devices for each batch (and not just at the end)
     """
     # Instantiate lightning metric
     num_batches = predictions.shape[0]

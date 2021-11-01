@@ -29,10 +29,8 @@ class AbstractWEREncoderDecoder(ABC):
             sequence_lengths: Optional tensor of length `Batch` which contains the integer lengths
                 of the sequence in the padded `predictions` tensor.
 
-
         Returns:
-            Either a list of str which represent the CTC decoded strings per sample,
-            or a list of Hypothesis objects containing additional information.
+            A list of str which represent the CTC decoded strings per sample
         """
         hypotheses = []
         # Drop predictions to CPU
@@ -142,29 +140,10 @@ class WEREncoderDecoderBPE(AbstractWEREncoderDecoder):
         return self._blank_id
 
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
-        """
-        Implemented in order to decoder a token list into a string.
-
-        Args:
-            tokens: List of int representing the token ids.
-
-        Returns:
-            A decoded string.
-        """
         hypothesis = self.tokenizer.ids_to_text(tokens)
         return hypothesis
 
     def decode_ids_to_tokens(self, tokens: List[int]) -> List[str]:
-        """
-        Implemented in order to decode a token id list into a token list.
-        A token list is the string representation of each token id.
-
-        Args:
-            tokens: List of int representing the token ids.
-
-        Returns:
-            A list of decoded tokens.
-        """
         token_list = self.tokenizer.ids_to_tokens(tokens)
         return token_list
 
