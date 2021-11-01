@@ -614,7 +614,7 @@ def _wer_class_test(
         pickled_metric = pickle.dumps(wer_metric)
         wer_metric = pickle.loads(pickled_metric)
         for i in range(rank, NUM_BATCHES, worldsize):
-            batch_result = wer_metric(predictions[i], targets[i], target_lengths[i], predictions_lengths[i])
+            batch_result = wer_metric(predictions[i], targets[i], target_lengths[i], predictions_lengths[i])[0]
             if wer_metric.dist_sync_on_step:
                 if rank == 0:
                     ddp_predictions = torch.cat([predictions[i + r] for r in range(worldsize)])
@@ -641,7 +641,7 @@ def _wer_class_test(
                         batch_result.numpy(), ref_batch_result, atol=atol
                     ), f"batch_result = {batch_result.numpy()}, ref_batch_result = {ref_batch_result}, i = {i}"
         # check on all batches on all ranks
-        result = wer_metric.compute()
+        result = wer_metric.compute()[0]
         assert isinstance(result, torch.Tensor)
         predictions = predictions.reshape([-1, predictions.shape[-1]])
         targets = targets.reshape([-1, targets.shape[-1]])
