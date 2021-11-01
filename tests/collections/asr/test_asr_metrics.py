@@ -12,12 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import io
 import random
 import string
 from dataclasses import dataclass
 from typing import List
-from unittest.mock import Mock, patch
 
 import pytest
 import torch
@@ -27,7 +25,6 @@ from .wer_utils import WEREncoderDecoderBPE, WEREncoderDecoderVocabulary
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
 from nemo.collections.asr.metrics.wer_bpe import WERBPE
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
-from nemo.collections.common.tokenizers import CharTokenizer
 
 
 class TestWordErrorRate:
@@ -196,7 +193,7 @@ class TestCharTokenizer:
         return [self.inv_vocabulary[c] for c in text]
 
     def ids_to_text(self, ids: List[int]):
-        return [self.vocabulary[id_] for id_ in ids]
+        return ''.join([self.vocabulary[id_] for id_ in ids])
 
 
 @dataclass(frozen=True)
