@@ -691,7 +691,7 @@ class WERTester(MetricTester):
             if sys.platform == "win32":
                 pytest.skip("DDP not supported on windows")
             self.pool.starmap(
-                partial(_loss_class_test, **class_test_kwargs),
+                partial(_wer_class_test, **class_test_kwargs),
                 [(rank, self.poolSize) for rank in range(self.poolSize)],
             )
         else:

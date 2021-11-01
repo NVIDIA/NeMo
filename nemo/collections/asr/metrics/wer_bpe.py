@@ -66,8 +66,9 @@ class WERBPE(Metric):
         ctc_decode=True,
         log_prediction=True,
         dist_sync_on_step=False,
+        compute_on_step=False,
     ):
-        super().__init__(dist_sync_on_step=dist_sync_on_step, compute_on_step=False)
+        super().__init__(dist_sync_on_step=dist_sync_on_step, compute_on_step=compute_on_step)
         self.tokenizer = tokenizer
         self.batch_dim_index = batch_dim_index
         self.blank_id = tokenizer.tokenizer.vocab_size
