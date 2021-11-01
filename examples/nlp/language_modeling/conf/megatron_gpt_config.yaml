@@ -35,6 +35,7 @@ exp_manager:
     mode: min
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
     filename: 'megatron_gpt--{val_loss:.2f}-{step}-{consumed_samples}'
+    model_parallel_size: ${model.tensor_model_parallel_size}
 
 
 model:
