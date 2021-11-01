@@ -36,9 +36,10 @@ model:
 
   spec_augment:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
-    rect_freq: 50
-    rect_masks: 5
-    rect_time: 120
+    freq_masks: 2
+    time_masks: 5
+    freq_width: 27
+    time_width: 0.05
 
   encoder:
     _target_: nemo.collections.asr.modules.ConvASREncoder
