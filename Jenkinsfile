@@ -349,6 +349,19 @@ pipeline {
           }
         }
 
+        stage('L2: Speech Pre-training - CitriNet') {
+          steps {
+            sh 'python examples/asr/speech_pre_training.py \
+            --config-path="conf/citrinet/" --config-name="config_pt" \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_pre_training_results'
+            sh 'rm -rf examples/asr/speech_pre_training_results'
+          }
+        }
+
         stage('L2: Speech to Text WPE - Conformer') {
           steps {
             sh 'python examples/asr/speech_to_text_bpe.py \
