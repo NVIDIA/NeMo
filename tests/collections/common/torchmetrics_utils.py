@@ -605,6 +605,7 @@ def _wer_class_test(
                 calculated across devices for each batch (and not just at the end)
     """
     # Instantiate lightning metric
+    num_batches = predictions.shape[0]
     import traceback
     log = open(f"rank{rank}.log", 'a')
     try:
@@ -613,7 +614,7 @@ def _wer_class_test(
         # verify loss works after being loaded from pickled state
         pickled_metric = pickle.dumps(wer_metric)
         wer_metric = pickle.loads(pickled_metric)
-        for i in range(rank, NUM_BATCHES, worldsize):
+        for i in range(rank, num_batches, worldsize):
             batch_result = wer_metric(predictions[i], targets[i], target_lengths[i], predictions_lengths[i])[0]
             if wer_metric.dist_sync_on_step:
                 if rank == 0:
