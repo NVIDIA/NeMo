@@ -257,8 +257,7 @@ class EncDecPTModel(ModelPT, ExportableEncDecModel, ASRModuleMixin):
 
         spectrograms = processed_signal.detach().clone()
 
-        if self.spec_augmentation is not None and (self.training or self.masked_evaluation):
-            processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
+        processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
 
         masked_spectrograms = processed_signal.detach()
         spec_masks = torch.logical_and(masked_spectrograms < 1e-5, masked_spectrograms > -1e-5).float()
