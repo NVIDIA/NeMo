@@ -31,9 +31,7 @@ class AbstractWEREncoderDecoder(ABC):
     def blank_id(self):
         return self._blank_id
 
-    def ctc_tensor_to_text(
-        self, tensor: torch.Tensor, sequence_lengths: torch.Tensor = None
-    ) -> List[str]:
+    def ctc_tensor_to_text(self, tensor: torch.Tensor, sequence_lengths: torch.Tensor = None) -> List[str]:
         """
         Decodes a sequence of labels to words
 
@@ -89,9 +87,7 @@ class AbstractWEREncoderDecoder(ABC):
         return pad_sequence(batch, batch_first=True, padding_value=0), lengths
 
     def batch_of_text_batches_to_tensor(
-        self,
-        batch_of_text_batches: List[List[str]],
-        ctc: bool,
+        self, batch_of_text_batches: List[List[str]], ctc: bool,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         is_batch_size_equal_to_size_of_first_batch = [
             len(batch) == len(batch_of_text_batches[0]) for batch in batch_of_text_batches
@@ -176,5 +172,5 @@ def reference_wer_func(
     targets_cpu = targets.long().cpu()
     references = []
     for tgt_len, target in zip(target_lengths, targets_cpu):
-        references.append(decoder.decode_tokens_to_str(target[:tgt_len.item()].numpy().tolist()))
+        references.append(decoder.decode_tokens_to_str(target[: tgt_len.item()].numpy().tolist()))
     return word_error_rate(predictions, references)

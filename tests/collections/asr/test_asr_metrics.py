@@ -249,7 +249,7 @@ INPUT_WITH_GOOD_LAST_BATCH = WERInput(
         ["bird fox", "x o f d r i b"],
         ["sky sea", "s k y s e a"],
         ["blue green", "b l u e g r e e n"],
-    ]
+    ],
 )
 SMALL_VOCAB_WER_INPUT = WERInput(
     predictions=generate_random_wer_input(
