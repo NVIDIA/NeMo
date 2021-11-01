@@ -215,7 +215,7 @@ CHAR_TOKENIZER = TestCharTokenizer(VOCABULARY)
 
 
 def __random_string(length, vocabulary):
-    return ''.join(random.choice(''.join(vocabulary)) for i in range(length))
+    return ''.join(random.choice(''.join(vocabulary)) for _ in range(length))
 
 
 def generate_random_wer_input(vocabulary, num_batches, batch_size, min_length, max_length):
@@ -259,8 +259,8 @@ EMPTY_PREDICTIONS_WER_INPUT = WERInput(
 @pytest.mark.parametrize(
     "predictions, targets",
     [
-        (MEDIUM_VOCAB_WER_INPUT.predictions, MEDIUM_VOCAB_WER_INPUT.targets),
         (SMALL_VOCAB_WER_INPUT.predictions, SMALL_VOCAB_WER_INPUT.targets),
+        (MEDIUM_VOCAB_WER_INPUT.predictions, MEDIUM_VOCAB_WER_INPUT.targets),
         (LARGE_VOCAB_WER_INPUT.predictions, LARGE_VOCAB_WER_INPUT.targets),
         (EMPTY_PREDICTIONS_WER_INPUT.predictions, EMPTY_PREDICTIONS_WER_INPUT.targets),
     ],
