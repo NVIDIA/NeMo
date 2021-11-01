@@ -73,8 +73,27 @@
 #   --spe_max_sentencepiece_length: Limits the maximum length that any any SentencePiece subword can be.
 #       Using this will change the subword tokens generated.
 #
+#   --spe_pad: Adds <pad> as special token.
+#
+#   --spe_bos: Adds <s> as Begining-of-Sentence special token.
+#
+#   --spe_eos: Adds </s> as End-of-Sentence special token.
+#
 #   --log: Whether the script should display log messages
 
+"""
+
+python process_asr_text_tokenizer.py \
+    --manifest=/media/smajumdar/data/Datasets/ASR_SET_LM/ASR_SET_2.0/tarred_audio_manifest.json \
+    --data_root="/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/asrset/manifests/nemo/asrset_2.0/tokenizers/temp/" \
+    --tokenizer=spe \
+    --no_lower_case \
+    --spe_eos \
+    --spe_bos \
+    --log \
+    --spe_type=bpe \
+    --vocab_size=1024
+"""
 
 import argparse
 import json
@@ -205,14 +224,23 @@ def __process_data(
     Returns:
     """
     if tokenizer_type == 'spe':
+
+        # Prepare directory of tokenizer
         if spe_max_sentencepiece_length > 0:
-            tokenizer_dir = os.path.join(dst_folder, 'tokenizer_{}_{}_v{}_max{}').format(
+            tokenizer_dir = os.path.join(dst_folder, 'tokenizer_{}_{}_v{}_max_{}').format(
                 tokenizer_type, spe_type, vocab_size, spe_max_sentencepiece_length
             )
         else:
             tokenizer_dir = os.path.join(dst_folder, 'tokenizer_{}_{}_v{}').format(
                 tokenizer_type, spe_type, vocab_size
             )
+
+        if spe_pad:
+            tokenizer_dir = f'{tokenizer_dir}_pad'
+        if spe_bos:
+            tokenizer_dir = f'{tokenizer_dir}_bos'
+        if spe_eos:
+            tokenizer_dir = f'{tokenizer_dir}_eos'
 
         if not os.path.exists(tokenizer_dir):
             os.makedirs(tokenizer_dir)
@@ -221,6 +249,7 @@ def __process_data(
             logging.warning("Model file already exists, overriding old model file !")
             os.remove(os.path.join(tokenizer_dir, 'tokenizer.model'))
 
+        # Build tokenizer
         tokenizer_path, vocab_path = create_spt_model(
             data_file=text_path,
             vocab_size=vocab_size,
