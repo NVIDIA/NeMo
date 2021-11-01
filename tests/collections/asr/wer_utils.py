@@ -80,7 +80,7 @@ class AbstractWEREncoderDecoder(ABC):
         ctc: bool,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         is_batch_size_equal_to_size_of_first_batch = [
-            len(batch) != len(batch_of_text_batches[0]) for batch in batch_of_text_batches
+            len(batch) == len(batch_of_text_batches[0]) for batch in batch_of_text_batches
         ]
         if not all(is_batch_size_equal_to_size_of_first_batch):
             raise ValueError(
