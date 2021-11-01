@@ -16,8 +16,8 @@ import re
 from typing import Any, Dict, List, Optional
 
 import torch
-from apex.transformer import parallel_state, tensor_parallel
 from apex.normalization.fused_layer_norm import MixedFusedLayerNorm as LayerNorm
+from apex.transformer import parallel_state, tensor_parallel
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
