@@ -621,31 +621,31 @@ def _wer_class_test(
                     ddp_targets = torch.cat([targets[i + r] for r in range(worldsize)])
                     ddp_target_lengths = torch.cat([target_lengths[i + r] for r in range(worldsize)])
                     ddp_predictions_lengths = torch.cat([predictions_lengths[i + r] for r in range(worldsize)])
-                    sk_batch_result = reference_wer_func(
+                    ref_batch_result = reference_wer_func(
                         ddp_predictions, ddp_targets, ddp_target_lengths, ddp_predictions_lengths, wer_decoder
                     )
                     # assert for dist_sync_on_step
                     if check_dist_sync_on_step:
-                        if sk_batch_result.isnan():
+                        if ref_batch_result.isnan():
                             assert batch_result.isnan()
                         else:
                             assert np.allclose(
-                                batch_result.numpy(), sk_batch_result, atol=atol
-                            ), f"batch_result = {batch_result.numpy()}, sk_batch_result = {sk_batch_result}, i = {i}"
+                                batch_result.numpy(), ref_batch_result, atol=atol
+                            ), f"batch_result = {batch_result.numpy()}, ref_batch_result = {ref_batch_result}, i = {i}"
             else:
                 pr = predictions[i]
                 tg = targets[i]
                 tgl = target_lengths[i]
                 prl = predictions_lengths[i]
-                sk_batch_result = reference_wer_func(pr, tg, tgl, prl, wer_decoder)
+                ref_batch_result = reference_wer_func(pr, tg, tgl, prl, wer_decoder)
                 # assert for batch
                 if check_batch:
-                    if sk_batch_result.isnan():
+                    if ref_batch_result.isnan():
                         assert batch_result.isnan()
                     else:
                         assert np.allclose(
-                            batch_result.numpy(), sk_batch_result, atol=atol
-                        ), f"batch_result = {batch_result.numpy()}, sk_batch_result = {sk_batch_result}, i = {i}"
+                            batch_result.numpy(), ref_batch_result, atol=atol
+                        ), f"batch_result = {batch_result.numpy()}, ref_batch_result = {ref_batch_result}, i = {i}"
         # check on all batches on all ranks
         result = wer_metric.compute()
         assert isinstance(result, torch.Tensor)
@@ -653,13 +653,10 @@ def _wer_class_test(
         targets = targets.reshape([-1, targets.shape[-1]])
         target_lengths = target_lengths.reshape([-1])
         predictions_lengths = predictions_lengths.reshape([-1])
-        sk_result = reference_wer_func(predictions, targets, target_lengths, predictions_lengths)
+        ref_result = reference_wer_func(predictions, targets, target_lengths, predictions_lengths, wer_decoder)
 
         # assert after aggregation
-        if sk_result.isnan():
-            assert result.isnan()
-        else:
-            assert np.allclose(result.numpy(), sk_result, atol=atol), f"result = {result.numpy()}, sk_result = {sk_result}"
+        assert np.allclose(result.numpy(), ref_result, atol=atol), f"result = {result.numpy()}, ref_result = {ref_result}"
     except Exception as e:
         log.write(traceback.format_exc() + '\n' + str(e) + '\n')
         raise
