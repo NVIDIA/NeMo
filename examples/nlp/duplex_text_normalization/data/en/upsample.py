@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 This script can be used to create a more class balanced file from a set of the data files of the English Google Text Normalization dataset
 for better training performance. Currently this script upsamples the class types "MONEY", "MEASURE", "TIME", "FRACTION" since these are underrepresented in the Google Text Normalization dataset, but still diverse in its representations.
 Of all the input files in `input_dir` this script takes the first file and computes the class patterns that occurs in it.
-For those that are underrepresented, quantitatively defined as lower than `thresh`, the other files are scanned for sentences that have the missing patterns. 
+For those that are underrepresented, quantitatively defined as lower than `min_number`, the other files are scanned for sentences that have the missing patterns. 
 Those sentences are appended to the first file and outputted. 
 
 USAGE Example:
@@ -27,7 +27,7 @@ USAGE Example:
 # python upsample.py       \
         --input_dir=train_processed/           \
         --output_file=train_upsampled.tsv/  \
-        --thresh=2000 
+        --min_number=2000 
 
 In this example, the final file will be train_upsampled.tsv.
 """
@@ -44,7 +44,7 @@ import regex as re
 parser = ArgumentParser(description="English Text Normalization upsampling")
 parser.add_argument("--input_dir", required=True, type=str, help='Path to input directory with preprocessed data')
 parser.add_argument("--output_file", required=True, type=str, help='Path to output file')
-parser.add_argument("--thresh", default=2000, type=int, help='minimum number per pattern')
+parser.add_argument("--min_number", default=2000, type=int, help='minimum number per pattern')
 parser.add_argument("--pretty", action="store_true", help='Pretty print')
 args = parser.parse_args()
 
@@ -98,44 +98,44 @@ def include_sentence(sentence_patterns) -> bool:
     """
     include = False
     for k, v in sentence_patterns["MONEY"].items():
-        if v > 0 and k in MONEY_PATTERNS and MONEY_PATTERNS[k] < args.thresh:
+        if v > 0 and k in MONEY_PATTERNS and MONEY_PATTERNS[k] < args.min_number:
             include = True
     for k, v in sentence_patterns["MEASURE"].items():
-        if v > 0 and k in MEASURE_PATTERNS and MEASURE_PATTERNS[k] < args.thresh:
+        if v > 0 and k in MEASURE_PATTERNS and MEASURE_PATTERNS[k] < args.min_number:
             include = True
     for k, v in sentence_patterns["TIME"].items():
-        if v > 0 and k in TIME_PATTERNS and TIME_PATTERNS[k] < args.thresh:
+        if v > 0 and k in TIME_PATTERNS and TIME_PATTERNS[k] < args.min_number:
             include = True
     for k, v in sentence_patterns["FRACTION"].items():
-        if v > 0 and k in FRACTION_PATTERNS and FRACTION_PATTERNS[k] < args.thresh:
+        if v > 0 and k in FRACTION_PATTERNS and FRACTION_PATTERNS[k] < args.min_number:
             include = True
 
     if include:
         for k, v in sentence_patterns["MONEY"].items():
             if v > 0 and k in MONEY_PATTERNS:
                 MONEY_PATTERNS[k] += v
-                if MONEY_PATTERNS[k] - v < args.thresh and MONEY_PATTERNS[k] >= args.thresh:
+                if MONEY_PATTERNS[k] - v < args.min_number and MONEY_PATTERNS[k] >= args.min_number:
                     classes_to_upsample["MONEY"] -= 1
                     if classes_to_upsample["MONEY"] <= 0:
                         classes_to_upsample.pop("MONEY")
         for k, v in sentence_patterns["MEASURE"].items():
             if v > 0 and k in MEASURE_PATTERNS:
                 MEASURE_PATTERNS[k] += v
-                if MEASURE_PATTERNS[k] - v < args.thresh and MEASURE_PATTERNS[k] >= args.thresh:
+                if MEASURE_PATTERNS[k] - v < args.min_number and MEASURE_PATTERNS[k] >= args.min_number:
                     classes_to_upsample["MEASURE"] -= 1
                     if classes_to_upsample["MEASURE"] <= 0:
                         classes_to_upsample.pop("MEASURE")
         for k, v in sentence_patterns["TIME"].items():
             if v > 0 and k in TIME_PATTERNS:
                 TIME_PATTERNS[k] += v
-                if TIME_PATTERNS[k] - v < args.thresh and TIME_PATTERNS[k] >= args.thresh:
+                if TIME_PATTERNS[k] - v < args.min_number and TIME_PATTERNS[k] >= args.min_number:
                     classes_to_upsample["TIME"] -= 1
                     if classes_to_upsample["TIME"] <= 0:
                         classes_to_upsample.pop("TIME")
         for k, v in sentence_patterns["FRACTION"].items():
             if v > 0 and k in FRACTION_PATTERNS:
                 FRACTION_PATTERNS[k] += v
-                if FRACTION_PATTERNS[k] - v < args.thresh and FRACTION_PATTERNS[k] >= args.thresh:
+                if FRACTION_PATTERNS[k] - v < args.min_number and FRACTION_PATTERNS[k] >= args.min_number:
                     classes_to_upsample["FRACTION"] -= 1
                     if classes_to_upsample["FRACTION"] <= 0:
                         classes_to_upsample.pop("FRACTION")
@@ -303,17 +303,16 @@ def main():
     for k in measure_keys:
         if re.search("\s?st$", k) is not None or re.search("\s?Da$", k) is not None:
             MEASURE_PATTERNS.pop(k)
-    
-    
+
     money_keys = list(MONEY_PATTERNS.keys())
     for k in money_keys:
         if re.search("(DM|SHP|BMD|SCR|SHP|ARS|BWP|SBD)$", k) is not None:
             MONEY_PATTERNS.pop(k)
 
-    classes_to_upsample["FRACTION"] = sum(np.asarray(list(FRACTION_PATTERNS.values())) < args.thresh)
-    classes_to_upsample["MEASURE"] = sum(np.asarray(list(MEASURE_PATTERNS.values())) < args.thresh)
-    classes_to_upsample["TIME"] = sum(np.asarray(list(TIME_PATTERNS.values())) < args.thresh)
-    classes_to_upsample["MONEY"] = sum(np.asarray(list(MONEY_PATTERNS.values())) < args.thresh)
+    classes_to_upsample["FRACTION"] = sum(np.asarray(list(FRACTION_PATTERNS.values())) < args.min_number)
+    classes_to_upsample["MEASURE"] = sum(np.asarray(list(MEASURE_PATTERNS.values())) < args.min_number)
+    classes_to_upsample["TIME"] = sum(np.asarray(list(TIME_PATTERNS.values())) < args.min_number)
+    classes_to_upsample["MONEY"] = sum(np.asarray(list(MONEY_PATTERNS.values())) < args.min_number)
 
     print_stats()
     for fp in input_files[1:]:

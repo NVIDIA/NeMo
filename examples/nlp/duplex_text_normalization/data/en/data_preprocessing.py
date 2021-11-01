@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,9 @@
 
 """
 This script can be used to clean the splits of English Google Text Normalization dataset
-for better training performance. 
+for better training performance. Without these processing steps we noticed that the model would have a hard time to learn certain input cases, and instead starts to either make unrecoverable errors
+or hallucinate. For example, the model struggles to learn numbers with five or more digits due to limited examples in the training data, so we simplified the task for the model by letting it verbalize those cases
+digit by digit. This makes the model more rebust to errors.
 The operations include:
     - numbers that are longer than `max_integer_length` will be verbalized digit by digit, e.g. the mapping "10001" -> "ten thousand and one" in the data
 will be changed to "10001" -> "one zero zero zero one"
@@ -36,7 +38,7 @@ USAGE Example:
         --max_integer_length=4  \
         --max_denominator_length=3 
 
-In this example, the cleaned files will be in train_processed/.
+In this example, the cleaned files will be saved in train_processed/.
 
 After this script, you can use upsample.py to create a more class balanced training dataset for better performance.
 """
@@ -71,6 +73,7 @@ args = parser.parse_args()
 
 engine = inflect.engine()
 
+# these are all words that can appear in a verbalized number, this list will be used later as a filter to detect numbers in verbalizations
 number_verbalizations = list(range(0, 20)) + list(range(20, 100, 10))
 number_verbalizations = (
     [engine.number_to_words(x, zero="zero").replace("-", " ").replace(",", "") for x in number_verbalizations]
@@ -165,7 +168,7 @@ def process_url(o):
     return o
 
 
-def int2digits(digits: str):
+def convert2digits(digits: str):
     """
     Verbalizes integer digit by digit, e.g. "12,000.12" -> "one two zero zero zero point one two"
     It can also take in a string that has an integer as prefix and outputs only the verbalized part of that, e.g. "12 kg" -> "one two"
@@ -281,19 +284,12 @@ def convert(example):
     if cls in ["TELEPHONE", "DIGIT", "MEASURE", "DECIMAL", "MONEY", "ADDRESS"]:
         spoken = re.sub(" o ", " zero ", spoken)
         spoken = re.sub(" o ", " zero ", spoken)
-        spoken = re.sub(" o ", " zero ", spoken)
-        spoken = re.sub(" o ", " zero ", spoken)
-        spoken = re.sub(" o ", " zero ", spoken)
         spoken = re.sub("^o ", "zero ", spoken)
         spoken = re.sub(" o$", " zero", spoken)
         spoken = re.sub("^sil ", "", spoken)
         spoken = re.sub(" sil ", " ", spoken)
         spoken = re.sub(" sil ", " ", spoken)
-        spoken = re.sub(" sil ", " ", spoken)
-        spoken = re.sub(" sil ", " ", spoken)
-        spoken = re.sub(" sil ", " ", spoken)
         spoken = re.sub(" sil$", "", spoken)
-
 
     if cls != "ELECTRONIC":
         written = re.sub(r"([^\s0-9])-([0-9])", r"\1 - \2", written)
@@ -318,13 +314,13 @@ def convert(example):
     # convert spoken forms for different classes
     if cls == "CARDINAL":
         if written[0] == "-":
-            digits = "minus " + int2digits(written[1:])[0]
+            digits = "minus " + convert2digits(written[1:])[0]
         else:
-            digits = int2digits(written)[0]
+            digits = convert2digits(written)[0]
         spoken = digits
     elif cls == "ADDRESS":
         idx = re.search("[0-9]", written).start()
-        number = int2digits(written[idx:].strip())[0]
+        number = convert2digits(written[idx:].strip())[0]
         s_words = spoken.split()
         for i, x in enumerate(s_words):
             if x in number_verbalizations:
@@ -352,11 +348,11 @@ def convert(example):
         numerator = written[:idx].strip()
         denominator = written[idx + 1 :].strip()
         if len(numerator) > args.max_integer_length:
-            numerator= int2digits(numerator)[0]
+            numerator = convert2digits(numerator)[0]
         else:
             numerator = engine.number_to_words(str(numerator), zero="zero").replace("-", " ").replace(",", "")
         if len(denominator) > args.max_denominator_length:
-            denominator = int2digits(denominator)[0]
+            denominator = convert2digits(denominator)[0]
         else:
             denominator = engine.number_to_words(str(denominator), zero="zero").replace("-", " ").replace(",", "")
         spoken = numerator + " slash " + denominator
@@ -368,12 +364,12 @@ def convert(example):
             res.append("minus")
             written = written[1:]
         idx = re.search("(?s:.*)([0-9]\s?[a-zA-Zµμ\/%Ω'])", written).end()
-        number, unit_idx = int2digits(written[:idx].strip())
+        number, unit_idx = convert2digits(written[:idx].strip())
         s_words = spoken.split()
         for i, x in enumerate(s_words):
             if x not in number_verbalizations:
                 break
- 
+
         spoken = number + " " + " ".join(s_words[i:])
         if res:
             spoken = "minus " + spoken
@@ -387,7 +383,7 @@ def convert(example):
         idx_end = len(written)
         if m:
             idx_end = m.start() + idx
-        number, unit_idx = int2digits(written[idx:idx_end].strip())
+        number, unit_idx = convert2digits(written[idx:idx_end].strip())
         s_words = spoken.split()
         for i, x in enumerate(s_words):
             if x not in number_verbalizations:
@@ -409,7 +405,7 @@ def convert(example):
         elif "st" in written.lower():
             idx = written.lower().index("st")
         if re.search(r"[¿¡ºª]", written) is None:
-            spoken= int2digits(written[:idx].strip())[0] + " " + written[idx:].lower()
+            spoken = convert2digits(written[:idx].strip())[0] + " " + written[idx:].lower()
         if res:
             spoken = "minus " + spoken
     example[2] = spoken
@@ -468,13 +464,11 @@ def process_file(fp):
                 if re.search(r'[\u4e00-\u9fff]+', es[1]) is not None:
                     delete_sentence = True
 
-                
-                if es[0] == 'MONEY' and re.search("\s?DM$",  es[1]):
-                    delete_sentence = True
-                
-                if es[0] == 'MEASURE' and re.search("\s?Da$",  es[1]):
+                if es[0] == 'MONEY' and re.search("\s?DM$", es[1]):
                     delete_sentence = True
 
+                if es[0] == 'MEASURE' and re.search("\s?Da$", es[1]):
+                    delete_sentence = True
 
                 classes.append(es[0])
                 w_words.append(es[1])
