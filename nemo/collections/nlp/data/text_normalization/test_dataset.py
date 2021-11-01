@@ -219,7 +219,7 @@ class TextNormalizationTestDataset:
             span_ends: A list of lists where inner list contains the end word index of the current token
         Return: the class accuracy scores as dict
         """
-        
+
         if len(targets) == 0:
             return 'NA'
         class2stats, class2correct = defaultdict(int), defaultdict(int)

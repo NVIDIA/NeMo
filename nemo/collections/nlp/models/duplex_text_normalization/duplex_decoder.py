@@ -148,8 +148,6 @@ class DuplexDecoderModel(NLPModel):
         generated_texts, _, _ = self._generate_predictions(
             input_ids=batch['input_ids'], model_max_len=self.max_sequence_len
         )
-
-        direction = [x[0].item() for x in batch['direction']]
         results = defaultdict(int)
         for idx, class_id in enumerate(batch['semiotic_class_id']):
             direction = constants.TASK_ID_TO_MODE[batch['direction'][idx][0].item()]
