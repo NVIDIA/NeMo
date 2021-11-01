@@ -16,7 +16,6 @@ import io
 import random
 import string
 from dataclasses import dataclass
-from functools import partial
 from typing import List
 from unittest.mock import Mock, patch
 
@@ -29,15 +28,6 @@ from nemo.collections.asr.metrics.wer import WER, word_error_rate
 from nemo.collections.asr.metrics.wer_bpe import WERBPE
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.tokenizers import CharTokenizer
-
-
-def build_char_tokenizer_with_vocabulary(vocabulary: List[str]) -> CharTokenizer:
-    with patch('pathlib.Path.open', Mock(return_value=io.StringIO('\n'.join([repr(char) for char in vocabulary])))):
-        char_tokenizer = CharTokenizer('a_path_which_will_not_be_used')
-    # For some reason `WERBPE` takes vocabulary size of inner tokenizer. Mock inner tokenizer.
-    setattr(char_tokenizer, "tokenizer", Mock(vocab_size=char_tokenizer.vocab_size))
-    return char_tokenizer
-
 
 
 class TestWordErrorRate:
@@ -190,6 +180,18 @@ class TestWordErrorRate:
         assert hyp.length == 3
 
 
+class TestCharTokenizer:
+    def __init__(self, vocabulary: List[str]):
+        self.vocabulary = vocabulary
+        self.inv_vocabulary = {c: i for i, c in enumerate(self.vocabulary)}
+
+    def text_to_ids(self, text: str):
+        return [self.inv_vocabulary[c] for c in text]
+
+    def ids_to_text(self, ids: List[int]):
+        return [self.vocabulary[id_] for id_ in ids]
+
+
 @dataclass(frozen=True)
 class WERInput:
     """
@@ -205,7 +207,7 @@ class WERInput:
 
 
 VOCABULARY = [' '] + list(string.ascii_lowercase) + ["'"]
-CHAR_TOKENIZER = build_char_tokenizer_with_vocabulary(VOCABULARY)
+CHAR_TOKENIZER = TestCharTokenizer(VOCABULARY)
 
 
 def __random_string(length, vocabulary):
