@@ -662,6 +662,7 @@ def _wer_class_test(
             assert np.allclose(result.numpy(), sk_result, atol=atol), f"result = {result.numpy()}, sk_result = {sk_result}"
     except Exception as e:
         log.write(traceback.format_exc() + '\n' + str(e) + '\n')
+        raise
 
 
 class WERTester(MetricTester):

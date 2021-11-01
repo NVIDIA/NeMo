@@ -181,5 +181,5 @@ def reference_wer_func(
     targets_cpu = targets.long().cpu()
     references = []
     for tgt_len, target in zip(target_lengths, targets_cpu):
-        references.append(decoder.decode_tokens_to_str(target[:tgt_len.item()].numpy().to_list()))
+        references.append(decoder.decode_tokens_to_str(target[:tgt_len.item()].numpy().tolist()))
     return word_error_rate(predictions, references)
