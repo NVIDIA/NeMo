@@ -606,7 +606,7 @@ def _wer_class_test(
     """
     # Instantiate lightning metric
     import traceback
-    log = open(f"rank{rank}.log", 'w')
+    log = open(f"rank{rank}.log", 'a')
     try:
         wer_metric = wer_class(compute_on_step=True, dist_sync_on_step=dist_sync_on_step, **wer_args)
 
