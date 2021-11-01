@@ -433,7 +433,7 @@ class SqueezeExcite(nn.Module):
 
         if self.context_window < 0:
             if PYTORCH_QUANTIZATION_AVAILABLE and self._quantize:
-                if not isinstance(self.pool, quant_nn.QuantAdaptiveAvgPool1d(1)):
+                if not isinstance(self.pool, quant_nn.QuantAdaptiveAvgPool1d):
                     self.pool = quant_nn.QuantAdaptiveAvgPool1d(1)  # context window = T
 
             elif not PYTORCH_QUANTIZATION_AVAILABLE and self._quantize:
