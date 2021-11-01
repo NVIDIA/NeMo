@@ -259,8 +259,8 @@ EMPTY_PREDICTIONS_WER_INPUT = WERInput(
 @pytest.mark.parametrize(
     "predictions, targets",
     [
-        (SMALL_VOCAB_WER_INPUT.predictions, SMALL_VOCAB_WER_INPUT.targets),
         (MEDIUM_VOCAB_WER_INPUT.predictions, MEDIUM_VOCAB_WER_INPUT.targets),
+        (SMALL_VOCAB_WER_INPUT.predictions, SMALL_VOCAB_WER_INPUT.targets),
         (LARGE_VOCAB_WER_INPUT.predictions, LARGE_VOCAB_WER_INPUT.targets),
         (EMPTY_PREDICTIONS_WER_INPUT.predictions, EMPTY_PREDICTIONS_WER_INPUT.targets),
     ],
