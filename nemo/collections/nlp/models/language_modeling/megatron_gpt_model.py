@@ -215,6 +215,14 @@ class MegatronGPTModel(NLPModel):
     def setup_optimizer_param_groups(self):
         self._optimizer_param_groups = self._get_params_for_weight_decay_optimization()
 
+        assert len(list(self.parameters())) == len(self._optimizer_param_groups[0]['params']) + len(
+            self._optimizer_param_groups[1]['params']
+        )
+
+        assert sum([p.sum() for p in self.parameters()]) == sum(
+            [p.sum() for p in self._optimizer_param_groups[0]['params']]
+        ) + sum([p.sum() for p in self._optimizer_param_groups[1]['params']])
+
     def process_batch(self, batch):
 
         # Items and their type.
