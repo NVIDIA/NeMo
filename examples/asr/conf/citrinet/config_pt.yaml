@@ -59,6 +59,19 @@ model:
         se: true
         se_context_size: -1
 
+      - filters: 128
+        repeat: 1
+        kernel: [13]
+        stride: [2]  # *stride
+        dilation: [1]
+        dropout: *dropout
+        residual: true
+        separable: *separable
+        se: true
+        se_context_size: -1
+        stride_last: true
+        residual_mode: "stride_add"
+
       - filters: 256
         repeat: *repeat
         kernel: [13]
@@ -82,6 +95,19 @@ model:
         se_context_size: -1
 
       - filters: 256
+        repeat: 1
+        kernel: [ 17 ]
+        stride: [ 2 ]  # *stride
+        dilation: [ 1 ]
+        dropout: *dropout
+        residual: true
+        separable: *separable
+        se: true
+        se_context_size: -1
+        stride_last: true
+        residual_mode: "stride_add"
+
+      - filters: 256
         repeat: *repeat
         kernel: [17]
         stride: [1]
@@ -102,6 +128,19 @@ model:
         separable: *separable
         se: true
         se_context_size: -1
+
+      - filters: 256
+        repeat: 1
+        kernel: [ 21 ]
+        stride: [ 2 ]  # *stride
+        dilation: [ 1 ]
+        dropout: *dropout
+        residual: true
+        separable: *separable
+        se: true
+        se_context_size: -1
+        stride_last: true
+        residual_mode: "stride_add"
 
       - filters: 256
         repeat: 1

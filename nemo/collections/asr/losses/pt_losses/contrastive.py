@@ -67,6 +67,7 @@ class ContrastiveLoss(Loss):
         group_loss=False,
         num_groups=2,
         temp=(2, 0.5, 0.999995),
+        mask_threshold=0.8,
     ):
 
         super().__init__()
@@ -92,6 +93,7 @@ class ContrastiveLoss(Loss):
         self.sample_from_non_masked = sample_from_non_masked
         self.sample_from_codebook = sample_from_codebook
         self.group_loss = group_loss
+        self.mask_threshold = mask_threshold
 
         if not self.quantized_targets:
             self.target_proj = nn.Linear(in_dim * combine_time_steps, proj_dim)
@@ -127,7 +129,7 @@ class ContrastiveLoss(Loss):
         else:
             targets = self.target_proj(targets)
 
-        masks = masks.mean(-1) > 0.8
+        masks = masks.mean(-1) > self.mask_threshold
         out_masked_only = decoder_outputs[masks]
         targets_masked_only = targets[masks]
         # T'xC
