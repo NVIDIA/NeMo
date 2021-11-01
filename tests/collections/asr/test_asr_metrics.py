@@ -12,16 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import io
 import random
+import string
 from dataclasses import dataclass
+from functools import partial
+from typing import List
+from unittest.mock import Mock, patch
 
 import pytest
 import torch
 
-from ..common.torchmetrics_utils import MetricTester
+from ..common.torchmetrics_utils import BATCH_SIZE, NUM_BATCHES, WERTester
+from .wer_utils import WEREncoderDecoderBPE, WEREncoderDecoderVocabulary
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
+from nemo.collections.asr.metrics.wer_bpe import WERBPE
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
+from nemo.collections.common.tokenizers import CharTokenizer
+
+
+def build_char_tokenizer_with_vocabulary(vocabulary: List[str]) -> CharTokenizer:
+    with patch('pathlib.Path.open', Mock(return_value=io.StringIO('\n'.join([repr(char) for char in vocabulary])))):
+        char_tokenizer = CharTokenizer('a_path_which_will_not_be_used')
+    # For some reason `WERBPE` takes vocabulary size of inner tokenizer. Mock inner tokenizer.
+    setattr(char_tokenizer, "tokenizer", Mock(vocab_size=char_tokenizer.vocab_size))
+    return char_tokenizer
+
 
 
 class TestWordErrorRate:
@@ -180,27 +196,89 @@ class WERInput:
     Prediction - target pairs for testing ``nemo.collections.asr.metrics.wer.WER`` and ``nemo.collections.asr.
 
     Args:
-        loss_sum_or_avg: a one dimensional float tensor which contains losses for averaging. Each element is either a
-            sum or mean of several losses depending on the parameter ``take_avg_loss`` of the
-            ``nemo.collections.common.metrics.GlobalAverageLossMetric`` class.
-        num_measurements: a one dimensional integer tensor which contains number of measurements which sums or average
-            values are in ``loss_sum_or_avg``.
+        predictions: a ``list`` of ``str``.
+        targets: a ``list`` of ``str``.
     """
 
-    predictions: List[str]
-    targets: List[str]
+    predictions: List[List[str]]
+    targets: List[List[str]]
 
 
-class TestWERs(MetricTester):
-    @pytest.mark.parametrize("ddp", [False, True])
-    @pytest.mark.parametrize("dist_sync_on_step", [False, True])
-    def test_wer_class(self, ddp, dist_sync_on_step, preds, target):
-        self.run_class_metric_test(
+VOCABULARY = [' '] + list(string.ascii_lowercase) + ["'"]
+CHAR_TOKENIZER = build_char_tokenizer_with_vocabulary(VOCABULARY)
+
+
+def __random_string(length, vocabulary):
+    return ''.join(random.choice(''.join(vocabulary)) for i in range(length))
+
+
+def generate_random_wer_input(vocabulary, num_batches, batch_size, min_length, max_length):
+    return [
+        [__random_string(random.randrange(min_length, max_length), vocabulary) for _ in range(batch_size)]
+        for _ in range(num_batches)
+    ]
+
+
+SMALL_VOCAB_SIZE = 2
+MEDIUM_VOCAB_SIZE = 10
+NUM_SECTIONS = 4
+SMALL_VOCAB_WER_INPUT = WERInput(
+    predictions=generate_random_wer_input(
+        VOCABULARY[:SMALL_VOCAB_SIZE], NUM_BATCHES, BATCH_SIZE, min_length=3, max_length=10
+    ),
+    targets=generate_random_wer_input(
+        VOCABULARY[:SMALL_VOCAB_SIZE], NUM_BATCHES, BATCH_SIZE, min_length=3, max_length=10
+    ),
+)
+MEDIUM_VOCAB_WER_INPUT = WERInput(
+    predictions=generate_random_wer_input(
+        VOCABULARY[:MEDIUM_VOCAB_SIZE], NUM_BATCHES, BATCH_SIZE, min_length=3, max_length=10
+    ),
+    targets=generate_random_wer_input(
+        VOCABULARY[:MEDIUM_VOCAB_SIZE], NUM_BATCHES, BATCH_SIZE, min_length=1, max_length=128
+    ),
+)
+LARGE_VOCAB_WER_INPUT = WERInput(
+    predictions=generate_random_wer_input(VOCABULARY, NUM_BATCHES, BATCH_SIZE, min_length=1, max_length=128),
+    targets=generate_random_wer_input(VOCABULARY, NUM_BATCHES, BATCH_SIZE, min_length=3, max_length=10),
+)
+EMPTY_PREDICTIONS_WER_INPUT = WERInput(
+    predictions=[[""] * BATCH_SIZE] * NUM_BATCHES,
+    targets=generate_random_wer_input(VOCABULARY, NUM_BATCHES, BATCH_SIZE, min_length=3, max_length=10),
+)
+
+
+@pytest.mark.parametrize("ddp", [False, True])
+@pytest.mark.parametrize("dist_sync_on_step", [False, True])
+@pytest.mark.parametrize(
+    "predictions, targets",
+    [
+        (SMALL_VOCAB_WER_INPUT.predictions, SMALL_VOCAB_WER_INPUT.targets),
+        (MEDIUM_VOCAB_WER_INPUT.predictions, MEDIUM_VOCAB_WER_INPUT.targets),
+        (LARGE_VOCAB_WER_INPUT.predictions, LARGE_VOCAB_WER_INPUT.targets),
+        (EMPTY_PREDICTIONS_WER_INPUT.predictions, EMPTY_PREDICTIONS_WER_INPUT.targets),
+    ],
+)
+@pytest.mark.parametrize(
+    "wer_class, wer_decoder_class, wer_args",
+    [
+        (WER, WEREncoderDecoderVocabulary, {"vocabulary": VOCABULARY}),
+        (WERBPE, WEREncoderDecoderBPE, {"tokenizer", CHAR_TOKENIZER}),
+    ],
+)
+class TestWERs(WERTester):
+    def test_wer_class(self, ddp, dist_sync_on_step, predictions, targets, wer_class, wer_decoder_class, wer_args):
+        encoder_decoder = wer_decoder_class(**wer_args)
+        predictions, predictions_lengths = encoder_decoder.batch_of_text_batches_to_tensor(predictions, ctc=True)
+        targets, target_lengths = encoder_decoder.batch_of_text_batches_to_tensor(targets, ctc=False)
+        self.run_class_wer_test(
             ddp=ddp,
-            preds=preds,
-            target=target,
-            metric_class=WER,
-            sk_metric=partial(_sk_accuracy, subset_accuracy=subset_accuracy),
+            predictions=predictions,
+            targets=targets,
+            target_lengths=target_lengths,
+            predictions_lengths=predictions_lengths,
+            wer_class=wer_class,
+            wer_decoder=encoder_decoder,
+            wer_args=wer_args,
             dist_sync_on_step=dist_sync_on_step,
-            metric_args={"threshold": THRESHOLD, "subset_accuracy": subset_accuracy},
         )

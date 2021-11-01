@@ -30,7 +30,7 @@ import os
 import pickle
 import sys
 from functools import partial
-from typing import Callable, Optional
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import numpy as np
 import pytest
@@ -40,6 +40,9 @@ from torch.distributions.utils import logits_to_probs
 from torch.multiprocessing import Pool, set_start_method
 from torchmetrics import Metric
 
+from ..asr.wer_utils import AbstractWEREncoderDecoder, reference_wer_func
+from nemo.collections.asr.metrics.wer import WER
+from nemo.collections.asr.metrics.wer_bpe import WERBPE
 from nemo.collections.common.metrics import GlobalAverageLossMetric, Perplexity
 
 NUM_PROCESSES = 2
@@ -67,10 +70,11 @@ def _class_test(
     metric_class: Metric,
     sk_metric: Callable,
     dist_sync_on_step: bool,
-    metric_args: dict = {},
+    metric_args: dict = None,
     check_dist_sync_on_step: bool = True,
     check_batch: bool = True,
     atol: float = 1e-8,
+    reshape_into_2d_tensor_before_passing_to_metric: bool = False,
 ):
     """ Utility function doing the actual comparison between lightning class metric
         and reference metric.
@@ -88,8 +92,13 @@ def _class_test(
                 calculated per batch per device (and not just at the end)
             check_batch: bool, if true will check if the metric is also correctly
                 calculated across devices for each batch (and not just at the end)
+            atol: float, the absolute tolerance parameter. See more
+                https://numpy.org/doc/stable/reference/generated/numpy.isclose.html
+            reshape_into_2d_tensor_before_passing_to_metric: bool, if true stacked metric inputs are reshaped into
+                2D. Used if metrics takes only 2D targets and predictions.
     """
-    # Instanciate lightning metric
+    if metric_args is None:
+        metric_args = {}
     metric = metric_class(compute_on_step=True, dist_sync_on_step=dist_sync_on_step, **metric_args)
 
     # verify metrics work after being loaded from pickled state
@@ -103,6 +112,9 @@ def _class_test(
             if rank == 0:
                 ddp_preds = torch.stack([preds[i + r] for r in range(worldsize)])
                 ddp_target = torch.stack([target[i + r] for r in range(worldsize)])
+                if reshape_into_2d_tensor_before_passing_to_metric:
+                    ddp_preds = ddp_preds.reshape([-1, ddp_preds.shape[-1]])
+                    ddp_target = ddp_target.reshape([-1, ddp_target.shape[-1]])
                 sk_batch_result = sk_metric(ddp_preds, ddp_target)
                 # assert for dist_sync_on_step
                 if check_dist_sync_on_step:
@@ -119,6 +131,9 @@ def _class_test(
 
     total_preds = torch.stack([preds[i] for i in range(NUM_BATCHES)])
     total_target = torch.stack([target[i] for i in range(NUM_BATCHES)])
+    if reshape_into_2d_tensor_before_passing_to_metric:
+        total_preds = total_preds.reshape([-1, total_preds.shape[-1]])
+        total_target = total_target.reshape([-1, total_target.shape[-1]])
     sk_result = sk_metric(total_preds, total_target)
 
     # assert after aggregation
@@ -153,7 +168,7 @@ def _functional_test(
 
 
 class MetricTester:
-    """ Class used for efficiently run alot of parametrized tests in ddp mode.
+    """ Class used for efficiently run a lot of parametrized tests in ddp mode.
         Makes sure that ddp is only setup once and that pool of processes are
         used for all tests.
         All tests should subclass from this and implement a new method called
@@ -188,14 +203,15 @@ class MetricTester:
         sk_metric: Callable,
         metric_args: dict = {},
     ):
-        """ Main method that should be used for testing functions. Call this inside
-            testing method
-            Args:
-                preds: torch tensor with predictions
-                target: torch tensor with targets
-                metric_functional: lightning metric class that should be tested
-                sk_metric: callable function that is used for comparison
-                metric_args: dict with additional arguments used for class initialization
+        """
+        Main method that should be used for testing functions. Call this inside testing method
+
+        Args:
+            preds: torch tensor with predictions
+            target: torch tensor with targets
+            metric_functional: lightning metric class that should be tested
+            sk_metric: callable function that is used for comparison
+            metric_args: dict with additional arguments used for class initialization
         """
         _functional_test(
             preds=preds,
@@ -217,22 +233,26 @@ class MetricTester:
         metric_args: dict = {},
         check_dist_sync_on_step: bool = True,
         check_batch: bool = True,
+        reshape_into_2d_tensor_before_passing_to_metric: bool = False,
     ):
-        """ Main method that should be used for testing class. Call this inside testing
-            methods.
-            Args:
-                ddp: bool, if running in ddp mode or not
-                preds: torch tensor with predictions
-                target: torch tensor with targets
-                metric_class: lightning metric class that should be tested
-                sk_metric: callable function that is used for comparison
-                dist_sync_on_step: bool, if true will synchronize metric state across
-                    processes at each ``forward()``
-                metric_args: dict with additional arguments used for class initialization
-                check_dist_sync_on_step: bool, if true will check if the metric is also correctly
-                    calculated per batch per device (and not just at the end)
-                check_batch: bool, if true will check if the metric is also correctly
-                    calculated across devices for each batch (and not just at the end)
+        """
+        Main method that should be used for testing class. Call this inside testing methods.
+
+        Args:
+            ddp: bool, if running in ddp mode or not
+            preds: torch tensor with predictions
+            target: torch tensor with targets
+            metric_class: lightning metric class that should be tested
+            sk_metric: callable function that is used for comparison
+            dist_sync_on_step: bool, if true will synchronize metric state across
+                processes at each ``forward()``
+            metric_args: dict with additional arguments used for class initialization
+            check_dist_sync_on_step: bool, if true will check if the metric is also correctly
+                calculated per batch per device (and not just at the end)
+            check_batch: bool, if true will check if the metric is also correctly
+                calculated across devices for each batch (and not just at the end)
+            reshape_into_2d_tensor_before_passing_to_metric: bool, if true stacked metric inputs are reshaped into
+                2D. Used if metrics takes only 2D targets and predictions.
         """
         if ddp:
             if sys.platform == "win32":
@@ -250,6 +270,7 @@ class MetricTester:
                     check_dist_sync_on_step=check_dist_sync_on_step,
                     check_batch=check_batch,
                     atol=self.atol,
+                    reshape_into_2d_tensor_before_passing_to_metric=reshape_into_2d_tensor_before_passing_to_metric,
                 ),
                 [(rank, self.poolSize) for rank in range(self.poolSize)],
             )
@@ -266,6 +287,7 @@ class MetricTester:
                 check_dist_sync_on_step=check_dist_sync_on_step,
                 check_batch=check_batch,
                 atol=self.atol,
+                reshape_into_2d_tensor_before_passing_to_metric=reshape_into_2d_tensor_before_passing_to_metric,
             )
 
 
@@ -549,3 +571,128 @@ class LossTester(MetricTester):
                 check_batch=check_batch,
                 atol=self.atol,
             )
+
+
+def _wer_class_test(
+    rank: int,
+    worldsize: int,
+    predictions: torch.Tensor,
+    targets: torch.Tensor,
+    target_lengths: torch.Tensor,
+    predictions_lengths: torch.Tensor,
+    wer_class: Union[WER, WERBPE],
+    wer_decoder: AbstractWEREncoderDecoder,
+    dist_sync_on_step: bool,
+    wer_args: Dict[str, Any],
+    check_dist_sync_on_step: bool = True,
+    check_batch: bool = True,
+    atol: float = 1e-8,
+):
+    """ Utility function doing the actual comparison between lightning class metric
+        and reference metric.
+        Args:
+            rank: rank of current process
+            worldsize: number of processes
+            loss_sum_or_avg: a one dimensional float torch tensor with loss sums or means.
+            num_measurements: a one dimensional integer torch tensor with number of values on which sums or means from
+                ``loss_sum_or_avg`` were computed.
+            dist_sync_on_step: bool, if true will synchronize metric state across processes at each call of the
+                method :meth:`forward()`
+            take_avg_loss: dict with additional arguments used for class initialization
+            check_dist_sync_on_step: bool, if true will check if the metric is also correctly
+                calculated per batch per device (and not just at the end)
+            check_batch: bool, if true will check if the metric is also correctly
+                calculated across devices for each batch (and not just at the end)
+    """
+    # Instantiate lightning metric
+    wer_metric = wer_class(compute_on_step=True, dist_sync_on_step=dist_sync_on_step, **wer_args)
+
+    # verify loss works after being loaded from pickled state
+    pickled_metric = pickle.dumps(wer_metric)
+    wer_metric = pickle.loads(pickled_metric)
+    for i in range(rank, NUM_BATCHES, worldsize):
+        batch_result = wer_metric(predictions[i], targets[i], target_lengths[i], predictions_lengths[i])
+        if wer_metric.dist_sync_on_step:
+            if rank == 0:
+                ddp_predictions = torch.cat([predictions[i + r] for r in range(worldsize)])
+                ddp_targets = torch.cat([targets[i + r] for r in range(worldsize)])
+                ddp_target_lengths = torch.cat([target_lengths[i + r] for r in range(worldsize)])
+                ddp_predictions_lengths = torch.cat([predictions_lengths[i + r] for r in range(worldsize)])
+                sk_batch_result = reference_wer_func(
+                    ddp_predictions, ddp_targets, ddp_target_lengths, ddp_predictions_lengths, wer_decoder
+                )
+                # assert for dist_sync_on_step
+                if check_dist_sync_on_step:
+                    if sk_batch_result.isnan():
+                        assert batch_result.isnan()
+                    else:
+                        assert np.allclose(
+                            batch_result.numpy(), sk_batch_result, atol=atol
+                        ), f"batch_result = {batch_result.numpy()}, sk_batch_result = {sk_batch_result}, i = {i}"
+        else:
+            pr = predictions[i]
+            tg = targets[i]
+            tgl = target_lengths[i]
+            prl = predictions_lengths[i]
+            sk_batch_result = reference_wer_func(pr, tg, tgl, prl, wer_decoder)
+            # assert for batch
+            if check_batch:
+                if sk_batch_result.isnan():
+                    assert batch_result.isnan()
+                else:
+                    assert np.allclose(
+                        batch_result.numpy(), sk_batch_result, atol=atol
+                    ), f"batch_result = {batch_result.numpy()}, sk_batch_result = {sk_batch_result}, i = {i}"
+    # check on all batches on all ranks
+    result = wer_metric.compute()
+    assert isinstance(result, torch.Tensor)
+    predictions = predictions.reshape([-1, predictions.shape[-1]])
+    targets = targets.reshape([-1, targets.shape[-1]])
+    target_lengths = target_lengths.reshape([-1])
+    predictions_lengths = predictions_lengths.reshape([-1])
+    sk_result = reference_wer_func(predictions, targets, target_lengths, predictions_lengths)
+
+    # assert after aggregation
+    if sk_result.isnan():
+        assert result.isnan()
+    else:
+        assert np.allclose(result.numpy(), sk_result, atol=atol), f"result = {result.numpy()}, sk_result = {sk_result}"
+
+
+class WERTester(MetricTester):
+    def run_class_wer_test(
+        self,
+        ddp: bool,
+        predictions: torch.Tensor,
+        targets: torch.Tensor,
+        target_lengths: torch.Tensor,
+        predictions_lengths: torch.Tensor,
+        wer_class: Union[WER, WERBPE],
+        wer_decoder: AbstractWEREncoderDecoder,
+        dist_sync_on_step: bool,
+        wer_args: Dict[str, Any],
+        check_dist_sync_on_step: bool = True,
+        check_batch: bool = True,
+    ):
+        class_test_kwargs = dict(
+            predictions=predictions,
+            targets=targets,
+            target_lengths=target_lengths,
+            predictions_lengths=predictions_lengths,
+            wer_class=wer_class,
+            wer_decoder=wer_decoder,
+            dist_sync_on_step=dist_sync_on_step,
+            wer_args=wer_args,
+            check_dist_sync_on_step=check_dist_sync_on_step,
+            check_batch=check_batch,
+            atol=self.atol,
+        )
+        if ddp:
+            if sys.platform == "win32":
+                pytest.skip("DDP not supported on windows")
+            self.pool.starmap(
+                partial(_loss_class_test, **class_test_kwargs),
+                [(rank, self.poolSize) for rank in range(self.poolSize)],
+            )
+        else:
+            _loss_class_test(0, 1, **class_test_kwargs)
