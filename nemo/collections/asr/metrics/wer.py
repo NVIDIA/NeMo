@@ -238,8 +238,8 @@ class WER(Metric):
             # Compute Levenstein's distance
             scores += editdistance.eval(h_list, r_list)
 
-        self.scores = torch.tensor(scores, device=self.scores.device, dtype=self.scores.dtype)
-        self.words = torch.tensor(words, device=self.words.device, dtype=self.words.dtype)
+        self.scores += torch.tensor(scores, device=self.scores.device, dtype=self.scores.dtype)
+        self.words += torch.tensor(words, device=self.words.device, dtype=self.words.dtype)
         # return torch.tensor([scores, words]).to(predictions.device)
 
     def compute(self):
