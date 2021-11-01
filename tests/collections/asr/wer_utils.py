@@ -37,15 +37,17 @@ class AbstractWEREncoderDecoder(ABC):
         hypotheses = []
         # Drop predictions to CPU
         cpu_tensor = tensor.long().cpu()
+        if tensor.ndim > 2:
+            raise ValueError(f"Input tensor has {tensor.ndim} dimensions.")
         # iterate over batch
         for ind in range(cpu_tensor.shape[0]):
-            sequence_tensor = cpu_tensor[ind].detach().numpy().tolist()
+            ids = cpu_tensor[ind].detach().numpy().tolist()
             if sequence_lengths is not None:
-                sequence_tensor = sequence_tensor[: sequence_lengths[ind]]
+                ids = ids[: sequence_lengths[ind]]
             # CTC decoding procedure
             decoded_prediction = []
             previous = self.blank_id
-            for p in sequence_tensor:
+            for p in ids:
                 if (p != previous or previous == self.blank_id) and p != self.blank_id:
                     decoded_prediction.append(p)
                 previous = p

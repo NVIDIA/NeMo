@@ -643,7 +643,8 @@ def _wer_class_test(
         # check on all batches on all ranks
         result = wer_metric.compute()[0]
         assert isinstance(result, torch.Tensor)
-        predictions = predictions.reshape([-1, predictions.shape[-1]])
+        pr_sh = predictions.shape
+        predictions = predictions.reshape([pr_sh[0] * pr_sh[1], predictions.shape[2]])
         targets = targets.reshape([-1, targets.shape[-1]])
         target_lengths = target_lengths.reshape([-1])
         predictions_lengths = predictions_lengths.reshape([-1])
