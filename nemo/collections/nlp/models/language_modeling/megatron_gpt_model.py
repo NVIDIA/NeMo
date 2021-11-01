@@ -357,6 +357,8 @@ class MegatronGPTModel(NLPModel):
         """
         response = {}
         self.freeze()
+        is_completion_begin = True
+        offsets = [0]
         logsoftmaxlayer = torch.nn.LogSoftmax(dim=-1)
         response['tokenized_prompt'] = request['tokenized_prompt']
         tokens = request['tokens']
@@ -379,8 +381,15 @@ class MegatronGPTModel(NLPModel):
             log_probs, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
             reached_eos = token_ids[0, -1].item() == self.tokenizer.eos_id
             tokens = torch.cat([torch.squeeze(tokens), token_ids[:, -1]])
+            # offsets calculation
+            if is_completion_begin:
+                for index, token in enumerate(self.tokenizer.ids_to_tokens(tokens), start=1):
+                    offsets.append(len(token) + offsets[-1])
+                is_completion_begin = False
+            else:
+                offsets.append(len(self.tokenizer.ids_to_tokens(tokens)[-1]) + offsets[-1])
             response['completion']["tokens"] = list(
-                zip(self.tokenizer.ids_to_tokens(tokens), tokens.tolist(), log_probs.tolist()[0])
+                zip(self.tokenizer.ids_to_tokens(tokens), tokens.tolist(), log_probs.tolist()[0], offsets)
             )
             completion_text = self.tokenizer.ids_to_text(x[1] for x in response['completion']["tokens"])
             if reached_eos:  # Will it actually ever reach that?
