@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import hydra
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -85,7 +84,7 @@ class ContrastiveLoss(Loss):
                 "combine_groups": True,
                 "time_first": True,
             }
-            self.quantizer = hydra.utils.instantiate(config=quantizer_cfg)
+            self.quantizer = ContrastiveLoss.from_config_dict(quantizer_cfg)
         self.prob_ppl_weight = prob_ppl_weight
         self.logit_temp = logit_temp
         self.reduce = reduce
