@@ -214,8 +214,14 @@ VOCABULARY = [' '] + list(string.ascii_lowercase) + ["'"]
 CHAR_TOKENIZER = TestCharTokenizer(VOCABULARY)
 
 
+MIN_WORD_LEN = 1
+MAX_WORD_LEN = 2
+
+
 def __random_string(length, vocabulary):
-    return ''.join(random.choice(''.join(vocabulary)) for _ in range(length))
+    return ' '.join(
+        random.choice(''.join(vocabulary)) * random.randint(MIN_WORD_LEN, MAX_WORD_LEN) for _ in range(length)
+    )
 
 
 def generate_random_wer_input(vocabulary, num_batches, batch_size, min_length, max_length):
@@ -225,32 +231,37 @@ def generate_random_wer_input(vocabulary, num_batches, batch_size, min_length, m
     ]
 
 
+VOCABULARY_WITHOUT_SPACE = VOCABULARY[1:]
+
+
 SMALL_VOCAB_SIZE = 2
 MEDIUM_VOCAB_SIZE = 10
 NUM_SECTIONS = 4
 SMALL_VOCAB_WER_INPUT = WERInput(
     predictions=generate_random_wer_input(
-        VOCABULARY[:SMALL_VOCAB_SIZE], NUM_BATCHES, BATCH_SIZE, min_length=3, max_length=10
+        VOCABULARY_WITHOUT_SPACE[:SMALL_VOCAB_SIZE], NUM_BATCHES, BATCH_SIZE, min_length=3, max_length=10
     ),
     targets=generate_random_wer_input(
-        VOCABULARY[:SMALL_VOCAB_SIZE], NUM_BATCHES, BATCH_SIZE, min_length=3, max_length=10
+        VOCABULARY_WITHOUT_SPACE[:SMALL_VOCAB_SIZE], NUM_BATCHES, BATCH_SIZE, min_length=3, max_length=10
     ),
 )
 MEDIUM_VOCAB_WER_INPUT = WERInput(
     predictions=generate_random_wer_input(
-        VOCABULARY[:MEDIUM_VOCAB_SIZE], NUM_BATCHES, BATCH_SIZE, min_length=3, max_length=10
+        VOCABULARY_WITHOUT_SPACE[:MEDIUM_VOCAB_SIZE], NUM_BATCHES, BATCH_SIZE, min_length=3, max_length=10
     ),
     targets=generate_random_wer_input(
-        VOCABULARY[:MEDIUM_VOCAB_SIZE], NUM_BATCHES, BATCH_SIZE, min_length=1, max_length=128
+        VOCABULARY_WITHOUT_SPACE[:MEDIUM_VOCAB_SIZE], NUM_BATCHES, BATCH_SIZE, min_length=1, max_length=128
     ),
 )
 LARGE_VOCAB_WER_INPUT = WERInput(
-    predictions=generate_random_wer_input(VOCABULARY, NUM_BATCHES, BATCH_SIZE, min_length=1, max_length=128),
-    targets=generate_random_wer_input(VOCABULARY, NUM_BATCHES, BATCH_SIZE, min_length=3, max_length=10),
+    predictions=generate_random_wer_input(
+        VOCABULARY_WITHOUT_SPACE, NUM_BATCHES, BATCH_SIZE, min_length=1, max_length=128
+    ),
+    targets=generate_random_wer_input(VOCABULARY_WITHOUT_SPACE, NUM_BATCHES, BATCH_SIZE, min_length=3, max_length=10),
 )
 EMPTY_PREDICTIONS_WER_INPUT = WERInput(
     predictions=[[""] * BATCH_SIZE] * NUM_BATCHES,
-    targets=generate_random_wer_input(VOCABULARY, NUM_BATCHES, BATCH_SIZE, min_length=3, max_length=10),
+    targets=generate_random_wer_input(VOCABULARY_WITHOUT_SPACE, NUM_BATCHES, BATCH_SIZE, min_length=3, max_length=10),
 )
 
 
