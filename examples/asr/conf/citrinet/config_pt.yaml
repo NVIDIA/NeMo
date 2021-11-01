@@ -22,10 +22,6 @@ model:
     batch_size: 32
     shuffle: False
 
-  tokenizer:
-    dir: ???  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (for wpe)
-    type: ???  # Can be either bpe or wpe
-
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
     normalize: "per_feature"
