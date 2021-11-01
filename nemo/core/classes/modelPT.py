@@ -580,7 +580,7 @@ class ModelPT(LightningModule, Model):
         # This return allows multiple optimizers or schedulers to be created
         return self._optimizer, self._scheduler
 
-    def setup_optimization_param_groups(self):
+    def setup_optimizer_param_groups(self):
         """
             Used to create param groups for the optimizer.
             As an example, this can be used to specify per-layer learning rates:
@@ -599,7 +599,7 @@ class ModelPT(LightningModule, Model):
         self._optimizer_param_groups = param_groups
 
     def configure_optimizers(self):
-        self.setup_optimization_param_groups()
+        self.setup_optimizer_param_groups()
         self.setup_optimization()
 
         if self._scheduler is None:

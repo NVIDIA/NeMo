@@ -17,6 +17,7 @@ from typing import Any, Dict, Optional
 
 import torch
 from apex.transformer import parallel_state, tensor_parallel
+from apex.normalization.fused_layer_norm import MixedFusedLayerNorm as LayerNorm
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -172,6 +173,33 @@ class MegatronGPTModel(NLPModel):
         loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
         return loss
 
+    def _get_params_for_weight_decay_optimization(self, modules):
+        """Divide params into with-weight-decay and without-weight-decay groups.
+        Layernorms and baises will have no weight decay but the rest will.
+        Taken from megatron-lm.
+        """
+
+        weight_decay_params = {'params': []}
+        no_weight_decay_params = {'params': [], 'weight_decay': 0.0}
+        for module in modules:
+            for module_ in module.modules():
+                if isinstance(module_, LayerNorm):
+                    no_weight_decay_params['params'].extend(
+                        [p for p in list(module_._parameters.values()) if p is not None]
+                    )
+                else:
+                    weight_decay_params['params'].extend(
+                        [p for n, p in list(module_._parameters.items()) if p is not None and n != 'bias']
+                    )
+                    no_weight_decay_params['params'].extend(
+                        [p for n, p in list(module_._parameters.items()) if p is not None and n == 'bias']
+                    )
+
+        return weight_decay_params, no_weight_decay_params
+
+    def setup_optimizer_param_groups(self):
+        self._optimizer_param_groups = self._get_params_for_weight_decay_optimization(self.model)
+
     def process_batch(self, batch):
 
         # Items and their type.
@@ -265,6 +293,13 @@ class MegatronGPTModel(NLPModel):
         )
 
     def setup(self, stage=None):
+        """ PTL hook that is executed after DDP spawns.
+            We setup datasets here as megatron datasets require DDP to instantiate.
+            See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+
+        Args:
+            stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
+        """
         if stage == 'predict':
             return
         # TODO: consider adding a ModelPT guard to check if model is being restored.
