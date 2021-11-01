@@ -81,7 +81,7 @@ class EncDecPTModel(ModelPT, ExportableEncDecModel, ASRModuleMixin):
         # Instantiate tarred dataset loader or normal dataset loader
         if config.get('is_tarred', False):
             if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
-                'manifest_filepath' in config and config['manifest_filepath'] is None
+                    'manifest_filepath' in config and config['manifest_filepath'] is None
             ):
                 logging.warning(
                     "Could not load dataset as `manifest_filepath` was None or "
@@ -90,7 +90,7 @@ class EncDecPTModel(ModelPT, ExportableEncDecModel, ASRModuleMixin):
                 return None
 
             shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
-            dataset = audio_to_text_dataset.get_tarred_char_dataset(
+            dataset = audio_to_text_dataset.get_tarred_dataset(
                 config=config,
                 shuffle_n=shuffle_n,
                 global_rank=self.global_rank,

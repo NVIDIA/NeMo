@@ -79,7 +79,7 @@ def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None)
     """
     dataset = audio_to_text.AudioToCharDataset(
         manifest_filepath=config['manifest_filepath'],
-        labels=config['labels'],
+        labels=config.get('labels', None),
         sample_rate=config['sample_rate'],
         int_values=config.get('int_values', False),
         augmentor=augmentor,
@@ -166,7 +166,7 @@ def get_tarred_dataset(
             dataset = audio_to_text.TarredAudioToCharDataset(
                 audio_tar_filepaths=tarred_audio_filepath,
                 manifest_filepath=manifest_filepath,
-                labels=config['labels'],
+                labels=config.get('labels', None),
                 sample_rate=config['sample_rate'],
                 int_values=config.get('int_values', False),
                 augmentor=augmentor,
