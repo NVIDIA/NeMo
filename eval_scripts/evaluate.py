@@ -104,7 +104,7 @@ def run_evaluation(cfg, dependency=None):
     )
     cache_dir = os.path.join(bignlp_path, "eval_scripts/data_cache")
     code_path1 = os.path.join(bignlp_path, "eval_scripts/eval_harness/download.py")
-    eval_cmd1 = f"python {code_path1} --tasks {tasks} --cache-dir {cache_dir} " \
+    eval_cmd1 = f"python {code_path1} --tasks {tasks} --cache_dir {cache_dir} " \
 
     new_script_path = os.path.join(bignlp_path, "eval_scripts/eval_script.sh")
     code_path2 = os.path.join(bignlp_path, "eval_scripts/eval_harness/evaluate.py")
@@ -112,7 +112,7 @@ def run_evaluation(cfg, dependency=None):
                 f"--name {name} " \
                 f"--model {model_type} " \
                 f"--tasks {tasks} " \
-                f"--cache-dir {cache_dir} " \
+                f"--cache_dir {cache_dir} " \
                 f"--batch_size {batch_size} " \
                 f"--output_path {log_dir} " \
                 f"--model_args nemo_model={checkpoint},tensor_model_parallel_size={tensor_model_parallel_size},vocab_file={vocab_file},merges_file={merge_file} "
