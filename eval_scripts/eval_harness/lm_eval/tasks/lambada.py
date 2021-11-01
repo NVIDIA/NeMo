@@ -9,10 +9,15 @@ import os
 
 class LAMBADA(Task):
     VERSION = 0
+
+    def __init__(self, cache_dir=""):
+        self.cache_dir = cache_dir
+        super().__init__()
+
     def download(self):
-        path = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir, "data", "lambada")
-        )
+        path = self.cache_dir if self.cache_dir \
+            else os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir, "data")
+        path = os.path.join(path, "lambada")
         sh("mkdir -p " + path)
 
         try:
@@ -27,6 +32,8 @@ class LAMBADA(Task):
             sh("wget http://eaidata.bmk.sh/data/lambada_test.jsonl -O data/lambada/lambada_test.jsonl")
             sh('echo "4aa8d02cd17c719165fc8a7887fddd641f43fcafa4b1c806ca8abc31fabdb226  data/lambada/lambada_test.jsonl" | sha256sum --check')
 
+        self.cache_dir = path
+
     def has_training_docs(self):
         return False
 
@@ -39,13 +46,10 @@ class LAMBADA(Task):
     def training_docs(self):
         pass
 
-
     def validation_docs(self):
-        path = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir, "data", "lambada")
-        )
+        path = self.cache_dir
 
-        #with open("data/lambada/lambada_test.jsonl") as fh:
+        # with open("data/lambada/lambada_test.jsonl") as fh:
         with open(path + "/lambada_test.jsonl") as fh:
             for line in fh:
                 yield json.loads(line)
@@ -74,7 +78,7 @@ class LAMBADA(Task):
         ll, is_greedy, greedy_toks, cont_toks = rf.loglikelihood(ctx, self.doc_to_target(doc))
 
         return ll, is_greedy, greedy_toks, cont_toks
-    
+
     def process_results(self, doc, results):
         ll, is_greedy, *_ = results
 
@@ -89,8 +93,8 @@ class LAMBADA(Task):
             "prompt": self.doc_to_text(doc),
             "gold_answer": [x.replace('Ġ', ' ') for x in cont_toks],
             "model_answer": [x.replace('Ġ', ' ') for x in greedy_toks],
-            }
-        
+        }
+
     def aggregation(self):
         return {
             'ppl': perplexity,
