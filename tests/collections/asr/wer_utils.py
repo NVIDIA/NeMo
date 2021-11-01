@@ -84,9 +84,9 @@ class AbstractWEREncoderDecoder(ABC):
         ]
         if not all(is_batch_size_equal_to_size_of_first_batch):
             raise ValueError(
-                f"All batches have to have equal sizes. For example theses batches with indices "
-                f"{np.nonzero(is_batch_size_equal_to_size_of_first_batch)[:3]} have sizes which are not equal to the "
-                f"size of the first batch."
+                f"All batches have to have equal sizes. Batches with indices "
+                f"{np.nonzero(np.array(is_batch_size_equal_to_size_of_first_batch).eq(False))[:3]} have sizes which "
+                f"are not equal to the size of the first batch."
             )
         huge_batch, lengths = self.text_batch_to_tensor(list(chain(*batch_of_text_batches)), ctc)
         first_dims = [len(batch_of_text_batches), len(batch_of_text_batches[0])]
