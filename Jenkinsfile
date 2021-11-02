@@ -59,7 +59,6 @@ pipeline {
       }
     }
 
-
     stage('NeMo Installation') {
       steps {
         sh './reinstall.sh release'
@@ -81,7 +80,7 @@ pipeline {
 
     stage('PyTorch Lightning DDP Checks') {
       steps {
-        sh 'python "tests/core_ptl/check_for_ranks.py"'
+        sh 'CUDA_VISIBLE_DEVICES="0,1" python "tests/core_ptl/check_for_ranks.py"'
       }
     }
 
