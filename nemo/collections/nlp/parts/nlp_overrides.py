@@ -196,7 +196,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                     dir_name, f'mp_rank_{app_state.model_parallel_rank:02d}_' + self.model_weights_ckpt
                 )
                 self._save_state_dict_to_disk(model.state_dict(), mp_model_weights)
-            
+
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
 
