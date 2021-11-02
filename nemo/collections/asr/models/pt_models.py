@@ -31,7 +31,7 @@ __all__ = ['EncDecPTModel']
 
 
 class EncDecPTModel(ModelPT, ExportableEncDecModel, ASRModuleMixin):
-    """Base class for encoder-decoder models used for encoder pre-training"""
+    """Base class for encoder-decoder models used for self-supervised encoder pre-training"""
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
@@ -173,6 +173,19 @@ class EncDecPTModel(ModelPT, ExportableEncDecModel, ASRModuleMixin):
         self._update_dataset_config(dataset_name='validation', config=val_data_config)
 
         self._validation_dl = self._setup_dataloader_from_config(config=val_data_config)
+
+        # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
+        # of samples rather than the number of batches, and this messes up the tqdm progress bar.
+        # So we set the number of steps manually (to the correct number) to fix this.
+        if 'is_tarred' in val_data_config and val_data_config['is_tarred']:
+            # We also need to check if limit_train_batches is already set.
+            # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
+            # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
+            if isinstance(self._trainer.limit_val_batches, float):
+                self._trainer.limit_val_batches = int(
+                    self._trainer.limit_val_batches
+                    * ceil((len(self._validation_dl.dataset) / self.world_size) / val_data_config['batch_size'])
+                )
 
     def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
         """
