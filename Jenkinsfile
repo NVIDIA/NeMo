@@ -111,7 +111,6 @@ pipeline {
         model.num_layers=8 \
         model.hidden_size=256 \
         model.num_attention_heads=8 \
-        model.data.splits_string='\'90,5,5\'' \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document]"
