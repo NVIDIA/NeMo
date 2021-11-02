@@ -37,6 +37,7 @@ def flatten(l):
 
 
 def add_space_around_dash(input: str):
+    """ adds space around dash between numbers and non-numbers"""
     input = re.sub(r"([^\s0-9])-([0-9])", r"\1 - \2", input)
     input = re.sub(r"([0-9])-([^\s0-9])", r"\1 - \2", input)
     input = re.sub(r"([^\s0-9])-([0-9])", r"\1 - \2", input)
@@ -45,7 +46,7 @@ def add_space_around_dash(input: str):
 
 
 def convert_superscript(written: str):
-
+    """convert superscript to regular character"""
     written = re.sub("²", "2", written)
     written = re.sub("³", "3", written)
     return written
