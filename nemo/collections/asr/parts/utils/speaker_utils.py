@@ -17,6 +17,7 @@ import os
 from copy import deepcopy
 
 import numpy as np
+import soundfile as sf
 import torch
 from pyannote.core import Annotation, Segment, Timeline
 from pyannote.metrics.diarization import DiarizationErrorRate
@@ -67,7 +68,9 @@ def audio_rttm_map(manifest):
             if uniqname not in AUDIO_RTTM_MAP:
                 AUDIO_RTTM_MAP[uniqname] = meta
             else:
-                raise KeyError("file {} is already part AUDIO_RTTM_Map, it might be duplicated".format(audio_filepath))
+                raise KeyError(
+                    "file {} is already part AUDIO_RTTM_Map, it might be duplicated".format(meta['audio_filepath'])
+                )
 
     return AUDIO_RTTM_MAP
 
@@ -320,31 +323,51 @@ def write_rttm2manifest(AUDIO_RTTM_MAP, manifest_file):
         for key in AUDIO_RTTM_MAP:
             f = open(AUDIO_RTTM_MAP[key]['rttm_filepath'], 'r')
             audio_path = AUDIO_RTTM_MAP[key]['audio_filepath']
+            if AUDIO_RTTM_MAP[key].get('duration', None):
+                max_duration = AUDIO_RTTM_MAP[key]['duration']
+            else:
+                sound = sf.SoundFile(audio_path)
+                max_duration = sound.frames / sound.samplerate
+
             lines = f.readlines()
             time_tup = (-1, -1)
             for line in lines:
                 vad_out = line.strip().split()
                 if len(vad_out) > 3:
-                    start, dur, activity = float(vad_out[3]), float(vad_out[4]), vad_out[7]
+                    start, dur, _ = float(vad_out[3]), float(vad_out[4]), vad_out[7]
                 else:
-                    start, dur, activity = float(vad_out[0]), float(vad_out[1]), vad_out[2]
+                    start, dur, _ = float(vad_out[0]), float(vad_out[1]), vad_out[2]
                 start, dur = float("{:.3f}".format(start)), float("{:.3f}".format(dur))
 
                 if time_tup[0] >= 0 and start > time_tup[1]:
                     dur2 = float("{:.3f}".format(time_tup[1] - time_tup[0]))
-                    meta = {"audio_filepath": audio_path, "offset": time_tup[0], "duration": dur2, "label": 'UNK'}
-                    json.dump(meta, outfile)
-                    outfile.write("\n")
+                    if time_tup[0] < max_duration and dur2 > 0:
+                        meta = {"audio_filepath": audio_path, "offset": time_tup[0], "duration": dur2, "label": 'UNK'}
+                        json.dump(meta, outfile)
+                        outfile.write("\n")
+                    else:
+                        logging.warning(
+                            "RTTM label has been truncated since start is greater than duration of audio file"
+                        )
                     time_tup = (start, start + dur)
                 else:
                     if time_tup[0] == -1:
-                        time_tup = (start, start + dur)
+                        end_time = start + dur
+                        if end_time > max_duration:
+                            end_time = max_duration
+                        time_tup = (start, end_time)
                     else:
-                        time_tup = (min(time_tup[0], start), max(time_tup[1], start + dur))
+                        end_time = max(time_tup[1], start + dur)
+                        if end_time > max_duration:
+                            end_time = max_duration
+                        time_tup = (min(time_tup[0], start), end_time)
             dur2 = float("{:.3f}".format(time_tup[1] - time_tup[0]))
-            meta = {"audio_filepath": audio_path, "offset": time_tup[0], "duration": dur2, "label": 'UNK'}
-            json.dump(meta, outfile)
-            outfile.write("\n")
+            if time_tup[0] < max_duration and dur2 > 0:
+                meta = {"audio_filepath": audio_path, "offset": time_tup[0], "duration": dur2, "label": 'UNK'}
+                json.dump(meta, outfile)
+                outfile.write("\n")
+            else:
+                logging.warning("RTTM label has been truncated since start is greater than duration of audio file")
             f.close()
     return manifest_file
 

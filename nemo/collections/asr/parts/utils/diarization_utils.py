@@ -25,9 +25,6 @@ import librosa
 import numpy as np
 import soundfile as sf
 import torch
-import wget
-from omegaconf import OmegaConf
-from pyannote.core.segment import AUTO_ROUND_TIME
 
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.metrics.wer_bpe import WERBPE
@@ -602,7 +599,7 @@ class ASR_DIAR_OFFLINE(object):
             frame_vad_float_list = []
             with open(frame_vad, 'r') as fp:
                 for line in fp.readlines():
-                    line = frame_vad_float_list.append(float(line.strip()))
+                    frame_vad_float_list.append(float(line.strip()))
             self.frame_VAD[uniq_id] = frame_vad_float_list
 
     def gather_eval_results(self, metric, mapping_dict):
