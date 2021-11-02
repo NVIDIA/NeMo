@@ -45,6 +45,10 @@ def audio_rttm_map(manifest):
     """
     This function creates AUDIO_RTTM_MAP which is used by all diarization components to extract embeddings,
     cluster and unify time stamps 
+    input: manifest file that contains keys audio_filepath, rttm_filepath if exists, text, num_speakers if known and uem_filepath if exists
+
+    returns:
+    AUDIO_RTTM_MAP (dict) : Dictionary with keys of uniq id, which is being used to map audio files and corresponding rttm files
     """
 
     AUDIO_RTTM_MAP = {}
@@ -205,7 +209,7 @@ def perform_clustering(embeddings, time_stamps, AUDIO_RTTM_MAP, out_rttm_dir, cl
 
     for uniq_key, value in tqdm(AUDIO_RTTM_MAP.items()):
         if clustering_params.oracle_num_speakers:
-            num_speakers = value['num_speakers']
+            num_speakers = value.get('num_speakers', None)
             if num_speakers is None:
                 raise ValueError("Provided option as oracle num of speakers but num_speakers in manifest is null")
         else:
@@ -237,8 +241,8 @@ def perform_clustering(embeddings, time_stamps, AUDIO_RTTM_MAP, out_rttm_dir, cl
         hypothesis = labels_to_pyannote_object(labels, uniq_name=uniq_key)
         all_hypothesis.append([uniq_key, hypothesis])
 
-        rttm_file = value['rttm_filepath']
-        if os.path.exists(rttm_file) and not no_references:
+        rttm_file = value.get('rttm_filepath', None)
+        if rttm_file is not None and os.path.exists(rttm_file) and not no_references:
             ref_labels = rttm_to_labels(rttm_file)
             reference = labels_to_pyannote_object(ref_labels, uniq_name=uniq_key)
             all_reference.append([uniq_key, reference])
@@ -259,10 +263,8 @@ def score_labels(AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ign
     all_hypothesis (list[uniq_name,Annotation]): hypothesis annotations for score calculation
 
     Returns:
-    DER (float): Diarization Error Rate
-    CER (float): Confusion Error Rate
-    FA (float): False Alarm
-    Miss (float): Miss Detection 
+    metric (pyannote.DiarizationErrorRate): Pyannote Diarization Error Rate metric object. This object contains detailed scores of each audiofile.
+    mapping (dict): Mapping dict containing the mapping speaker label for each audio input
 
     < Caveat >
     Unlike md-eval.pl, "no score" collar in pyannote.metrics is the maximum length of

@@ -31,10 +31,8 @@ from nemo.collections.asr.metrics.wer_bpe import WERBPE
 from nemo.collections.asr.models import ClusteringDiarizer, EncDecCTCModel, EncDecCTCModelBPE, EncDecRNNTBPEModel
 from nemo.collections.asr.parts.utils.speaker_utils import (
     get_uniqname_from_filepath,
-    labels_to_pyannote_object,
     labels_to_rttmfile,
     rttm_to_labels,
-    score_labels,
     write_rttm2manifest,
 )
 from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR
