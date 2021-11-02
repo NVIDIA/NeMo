@@ -196,7 +196,9 @@ class ContrastiveLoss(Loss):
         # 1xT'xC
         targets = torch.cat([targets, negatives], dim=0)
         # (1+N)xT'XC
-        logits = torch.cosine_similarity(logits.float().unsqueeze(0), targets.float(), dim=-1).type_as(logits)
+        logits = torch.cosine_similarity(
+            logits.float().unsqueeze(0).expand(targets.shape[0], -1, 1), targets.float(), dim=-1
+        ).type_as(logits)
         # (1+N)xT'
         logits /= self.logit_temp
         if neg_is_pos.any():
