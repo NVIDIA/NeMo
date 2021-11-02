@@ -286,10 +286,9 @@ def _build_index_mappings(name, data_prefix, documents, sizes, num_samples, seq_
             assert doc_idx.dtype == np.int32
             assert sizes.dtype == np.int32
             try:
-                if is_global_rank_zero():
-                    from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import compile_helper
+                from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import compile_helper
 
-                    compile_helper()
+                compile_helper()
                 from nemo.collections.nlp.data.language_modeling.megatron import helpers
             except:
                 raise Exception(f'Could not compile helpers.')
