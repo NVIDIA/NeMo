@@ -1,0 +1,54 @@
+launch_mode: local
+ft_gpu_counts:
+- 8
+engine_count_per_device:
+  cpu: 1
+triton_backend_parameters:
+  is_half: '1'
+  max_input_len: '60'
+  max_seq_len: '80'
+  pipeline_para_size: '1'
+max_batch_size: 256
+preferred_batch_sizes:
+- 256
+perf_measurement_mode: count_windows
+perf_measurement_interval: 5000
+perf_measurement_relative_step: 0.5
+perf_measurement_request_count: 50
+perf_analyzer_timeout: 14400
+triton_launch_mode: remote
+batch_sizes:
+- 1
+- 2
+- 4
+- 8
+- 16
+- 32
+- 64
+- 128
+- 256
+max_shapes:
+  INPUT_ID:
+  - -1
+  - 1
+  - 60
+  REQUEST_INPUT_LEN:
+  - -1
+  - 1
+  REQUEST_OUTPUT_LEN:
+  - -1
+  - 1
+value_ranges:
+  INPUT_ID:
+  - 1
+  - 50256
+  REQUEST_INPUT_LEN:
+  - 60
+  - 60
+  REQUEST_OUTPUT_LEN:
+  - 20
+  - 20
+dtypes:
+  INPUT_ID: uint32
+  REQUEST_INPUT_LEN: uint32
+  REQUEST_OUTPUT_LEN: uint32
