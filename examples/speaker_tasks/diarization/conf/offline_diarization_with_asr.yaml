@@ -5,14 +5,14 @@ sample_rate: 16000
 batch_size: 64
 
 diarizer:
-  manifest_filepath: ???
-  out_dir: ???
+  manifest_filepath: /data/samsungSSD/NVIDIA/repos/NeMo/examples/speaker_tasks/diarization/temp.json
+  out_dir: /data/samsungSSD/NVIDIA/repos/NeMo/examples/speaker_tasks/diarization/test_asr_refactor
   oracle_vad: False # if True, uses RTTM files provided in manifest file to get speech activity (VAD) timestamps
   collar: 0.25 # collar value for scoring
   ignore_overlap: True # consider or ignore overlap segments while scoring
 
   vad:
-    model_path: null #.nemo local model path or pretrained model name or none
+    model_path: vad_marblenet #.nemo local model path or pretrained model name or none
     external_vad_manifest: null # This option is provided to use external vad and provide its speech activity labels for speaker embeddings extraction. Only one of model_path or external_vad_manifest should be set
 
     parameters: # Tuned parameter for CH109! (with 11 moved multi-speech sessions as dev set) 
@@ -29,10 +29,10 @@ diarizer:
       filter_speech_first: True 
 
   speaker_embeddings:
-    model_path: ??? #.nemo local model path or pretrained model name (ecapa_tdnn or speakerverification_speakernet)
+    model_path: /disk2/ejrvs/model_comparision/titanet-l.nemo  #.nemo local model path or pretrained model name (ecapa_tdnn or speakerverification_speakernet)
     parameters:
-      window_length_in_sec: 3.0 # window length in sec for speaker embedding extraction
-      shift_length_in_sec: 1.5 # shift length in sec for speaker embedding extraction
+      window_length_in_sec: 1.5 # window length in sec for speaker embedding extraction
+      shift_length_in_sec: 0.75 # shift length in sec for speaker embedding extraction
       save_embeddings: False # save embeddings as pickle file for each audio input
   
   clustering:
@@ -42,6 +42,17 @@ diarizer:
       enhanced_count_thres: 80
       max_rp_threshold: 0.25
       sparse_search_volume: 30
+  
+  asr:
+    parameters:
+      model_path: stt_en_conformer_ctc_large
+      asr_based_vad: False
+      print_transcript: False
+      lenient_overlap_WDER: True
+      VAD_threshold_for_word_ts: 0.7
+      max_word_ts_length_in_sec: 0.6
+      word_gap_in_sec: 0.01
+      threshold: 10
 
 # json manifest line example
 # {'audio_filepath': /path/to/audio_file, 'offset': 0, 'duration':None, label: 'infer', 'text': '-', 'num_speakers': None, 'rttm_filepath': /path/to/rttm/file, 'uem_filepath'='/path/to/uem/filepath'}

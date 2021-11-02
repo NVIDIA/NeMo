@@ -157,6 +157,8 @@ def labels_to_rttmfile(labels, uniq_id, out_rttm_dir):
             log = 'SPEAKER {} 1   {:.3f}   {:.3f} <NA> <NA> {} <NA> <NA>\n'.format(uniq_id, start, duration, speaker)
             f.write(log)
 
+    return filename
+
 
 def rttm_to_labels(rttm_filename):
     """
