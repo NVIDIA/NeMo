@@ -1,0 +1,119 @@
+nemo_file_path: /results/gpt_125m_bf16.nemo
+micro_batch_size: 6
+tensor_model_parallel_size: 1
+encoder_seq_length: 2048
+max_position_embeddings: 2048
+num_layers: 12
+hidden_size: 768
+ffn_hidden_size: 3072
+num_attention_heads: 12
+init_method_std: 0.015
+hidden_dropout: 0.1
+kv_channels: null
+apply_query_key_layer_scaling: true
+layernorm_epsilon: 1.0e-05
+make_vocab_size_divisible_by: 128
+pre_process: true
+post_process: true
+tokenizer:
+  library: megatron
+  type: GPT2BPETokenizer
+  model: null
+  vocab_file: /artifacts/vocab.json
+  merge_file: /artifacts/merges.txt
+native_amp_init_scale: 4294967296
+native_amp_growth_interval: 1000
+fused_fp16: false
+fused_bf16: true
+fp32_residual_connection: false
+fp16_lm_cross_entropy: false
+seed: 1234
+use_cpu_initialization: false
+onnx_safe: false
+activations_checkpoint_method: null
+activations_checkpoint_num_layers: 1
+data:
+  data_prefix:
+  - 0.0333
+  - /preproc_data/my-gpt3_00_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_01_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_02_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_03_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_04_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_05_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_06_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_07_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_08_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_09_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_10_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_11_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_12_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_13_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_14_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_15_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_16_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_17_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_18_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_19_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_20_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_21_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_22_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_23_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_24_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_25_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_26_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_27_text_document
+  - 0.0333
+  - /preproc_data/my-gpt3_28_text_document
+  - 0.0334
+  - /preproc_data/my-gpt3_29_text_document
+  data_impl: mmap
+  splits_string: 9998,1,1
+  seq_length: 2048
+  skip_warmup: true
+  num_workers: 0
+  dataloader_type: single
+  reset_position_ids: false
+  reset_attention_mask: false
+  eod_mask_loss: false
+optim:
+  name: fused_adam
+  lr: 0.0006
+  weight_decay: 0.1
+  betas:
+  - 0.9
+  - 0.95
+  sched:
+    name: CosineAnnealing
+    warmup_steps: 400
+    constant_steps: 30000
+    min_lr: 6.0e-05
+vocab_file: nemo:735f31e768dc44acab0c3492f4f2c944_vocab.json
+merges_file: nemo:71cc2339c20e46aa8ea582fe60054373_merges.txt

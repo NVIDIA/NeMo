@@ -334,8 +334,11 @@ class MegatronGPTModel(NLPModel):
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         request = batch
-        response = self.complete(request)
-        return response
+        responses = []
+        for req in request:
+            response = self.complete(req)
+            responses.append(response)
+        return responses
 
     def complete(self, request: Dict):
         """

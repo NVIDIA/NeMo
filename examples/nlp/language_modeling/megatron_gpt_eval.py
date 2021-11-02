@@ -33,7 +33,7 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("--model_file", type=str, default="", required=True, help="Pass path to model's .nemo file")
     parser.add_argument(
-        "--prompt", type=str, default="", required=True, help="Prompt for the model (a text to complete)"
+        "--path_to_file", type=str, default="", required=True, help="Path to file with prompts (a text to complete)"
     )
     parser.add_argument(
         "--tokens_to_generate", type=int, default="64", required=False, help="How many tokens to add to prompt"
@@ -46,7 +46,7 @@ def main():
         help="True/False: whether to stop after full sentence has been generated.",
     )
     parser.add_argument(
-        "--tensor_model_parallel_size", type=int, default=1, required=True,
+        "--tensor_model_parallel_size", type=int, default=1, required=False,
     )
     parser.add_argument("--precision", default=32, help="PyTorch Lightning Trainer precision flag")
 
@@ -68,22 +68,26 @@ def main():
 
     model.freeze()
 
-    request = {
-        "prompt": args.prompt,
-        "tokens_to_generate": args.tokens_to_generate,
-        "stop_after_sentence": args.stop_after_sentence,
-    }
+    data = []
+    prompts = open(args.path_to_file, 'r')
 
-    dataset = GPTRequestDataset(request, model.tokenizer)
+    for prompt in prompts.readlines():
+        request = {
+            "prompt": prompt.split('\n')[0],
+            "tokens_to_generate": args.tokens_to_generate,
+            "stop_after_sentence": args.stop_after_sentence,
+        }
+        data.append(request)
+
+    dataset = GPTRequestDataset(data, model.tokenizer)
 
     request_dl = DataLoader(dataset)
 
     response = trainer.predict(model, request_dl)
 
     print("***************************")
-    print(response[0]['completion']['text'])
+    print(response)
     print("***************************")
-    logging.info(f"Generation stopped because: {response[0]['completion']['stop reason']}")
 
 
 if __name__ == '__main__':
