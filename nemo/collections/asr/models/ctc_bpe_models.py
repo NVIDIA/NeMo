@@ -270,12 +270,13 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         Returns:
             A pytorch DataLoader for the given audio file(s).
         """
+        batch_size = min(config['batch_size'], len(config['paths2audio_files']))
         dl_config = {
             'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
             'sample_rate': self.preprocessor._sample_rate,
-            'batch_size': min(config['batch_size'], len(config['paths2audio_files'])),
+            'batch_size': batch_size,
             'shuffle': False,
-            'num_workers': os.cpu_count() - 1,
+            'num_workers': min(batch_size, os.cpu_count() - 1),
             'pin_memory': True,
             'use_start_end_token': self.cfg.validation_ds.get('use_start_end_token', False),
         }
