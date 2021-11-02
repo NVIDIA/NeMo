@@ -111,7 +111,7 @@ class Normalizer:
         return res
 
     def normalize(
-        self, text: str, verbose: bool, punct_pre_process: bool = False, punct_post_process: bool = False
+        self, text: str, verbose: bool = False, punct_pre_process: bool = False, punct_post_process: bool = False
     ) -> str:
         """
         Main function. Normalizes tokens from written to spoken form
