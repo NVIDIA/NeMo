@@ -21,6 +21,7 @@ from collections import OrderedDict as od
 from datetime import datetime
 from typing import List
 
+import librosa
 import numpy as np
 import soundfile as sf
 import torch
@@ -30,13 +31,7 @@ from omegaconf import OmegaConf
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.metrics.wer_bpe import WERBPE
 from nemo.collections.asr.models import ClusteringDiarizer, EncDecCTCModel, EncDecCTCModelBPE, EncDecRNNTBPEModel
-from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map as get_audio_rttm_map
-from nemo.collections.asr.parts.utils.speaker_utils import (
-    get_DER,
-    labels_to_pyannote_object,
-    rttm_to_labels,
-    write_rttm2manifest,
-)
+from nemo.collections.asr.parts.utils.speaker_utils import labels_to_pyannote_object, rttm_to_labels, score_labels
 from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
@@ -65,20 +60,6 @@ def get_uniq_id_from_audio_path(audio_file_path):
     """Get the unique ID from the audio file path
     """
     return '.'.join(os.path.basename(audio_file_path).split('.')[:-1])
-
-
-def read_file_paths(file_list_path):
-    """Read file paths from the given list
-    """
-    out_path_list = []
-    if not file_list_path or (file_list_path in NONE_LIST):
-        raise ValueError("file_list_path is not provided.")
-    else:
-        with open(file_list_path, 'r') as path2file:
-            for _file in path2file.readlines():
-                out_path_list.append(_file.strip())
-
-    return out_path_list
 
 
 class WERBPE_TS(WERBPE):
@@ -605,6 +586,7 @@ class ASR_DIAR_OFFLINE(object):
 
     def run_diarization(
         self,
+        manifest_filepath,
         audio_file_list,
         words_and_timestamps,
         oracle_manifest=None,
@@ -647,6 +629,7 @@ class ASR_DIAR_OFFLINE(object):
             MODEL_CONFIG = wget.download(self.params['diar_config_url'], data_dir)
 
         config = OmegaConf.load(MODEL_CONFIG)
+
         if oracle_manifest == 'asr_based_vad':
             # Use ASR-based VAD for diarization.
             self.save_VAD_labels_list(words_and_timestamps, audio_file_list)
@@ -657,15 +640,15 @@ class ASR_DIAR_OFFLINE(object):
             logging.info(f"Using the provided system VAD model for diarization: {pretrained_vad_model}")
             config.diarizer.vad.model_path = pretrained_vad_model
         else:
-            config.diarizer.speaker_embeddings.oracle_vad_manifest = oracle_manifest
+            config.diarizer.vad.external_vad_manifest = oracle_manifest
 
         output_dir = os.path.join(self.root_path, 'oracle_vad')
-        config.diarizer.paths2audio_files = audio_file_list
+        config.diarizer.manifest_filepath = manifest_filepath
         config.diarizer.out_dir = output_dir  # Directory to store intermediate files and prediction outputs
         if pretrained_speaker_model:
             config.diarizer.speaker_embeddings.model_path = pretrained_speaker_model
         config.diarizer.speaker_embeddings.oracle_vad_manifest = oracle_manifest
-        config.diarizer.oracle_num_speakers = oracle_num_speakers
+        config.diarizer.clustering.parameters.oracle_num_speakers = True
         config.diarizer.speaker_embeddings.shift_length_in_sec = self.params['shift_length_in_sec']
         config.diarizer.speaker_embeddings.window_length_in_sec = self.params['window_length_in_sec']
 
@@ -673,9 +656,8 @@ class ASR_DIAR_OFFLINE(object):
         oracle_model.diarize()
         if oracle_manifest == 'system_vad':
             self.get_frame_level_VAD(oracle_model, audio_file_list)
-        diar_labels = self.get_diarization_labels(audio_file_list)
 
-        return diar_labels
+        return None
 
     def get_frame_level_VAD(self, oracle_model, audio_file_list):
         """
@@ -690,34 +672,13 @@ class ASR_DIAR_OFFLINE(object):
             uniq_id = get_uniq_id_from_audio_path(audio_file_path)
             vad_pred_diar = oracle_model.vad_pred_dir
             frame_vad = os.path.join(vad_pred_diar, uniq_id + '.median')
-            frame_vad_list = read_file_paths(frame_vad)
-            frame_vad_float_list = [float(x) for x in frame_vad_list]
+            frame_vad_float_list = []
+            with open(frame_vad, 'r') as fp:
+                for line in fp.readlines():
+                    line = frame_vad_float_list.append(float(line.strip()))
             self.frame_VAD[uniq_id] = frame_vad_float_list
 
-    def get_diarization_labels(self, audio_file_list):
-        """
-        Save the diarization labels into a list.
-
-        Arg:
-            audio_file_list (list):
-                List of audio file paths.
-
-        Return:
-            diar_labels (list):
-                List of the speaker labels for each speech segment.
-        """
-        diar_labels = []
-        for k, audio_file_path in enumerate(audio_file_list):
-            uniq_id = get_uniq_id_from_audio_path(audio_file_path)
-            pred_rttm = os.path.join(self.oracle_vad_dir, 'pred_rttms', uniq_id + '.rttm')
-            pred_labels = rttm_to_labels(pred_rttm)
-            diar_labels.append(pred_labels)
-            est_n_spk = self.get_num_of_spk_from_labels(pred_labels)
-            logging.info(f"Estimated n_spk [{uniq_id}]: {est_n_spk}")
-
-        return diar_labels
-
-    def eval_diarization(self, audio_file_list, diar_labels, ref_rttm_file_list):
+    def eval_diarization(self, AUDIO_RTTM_MAP):
         """
         Evaluate the predicted speaker labels (pred_rttm) using ref_rttm_file_list.
         DER and speaker counting accuracy are calculated.
@@ -739,25 +700,24 @@ class ASR_DIAR_OFFLINE(object):
         DER_result_dict = {}
         count_correct_spk_counting = 0
 
-        audio_rttm_map = get_audio_rttm_map(audio_file_list, ref_rttm_file_list)
-        for k, audio_file_path in enumerate(audio_file_list):
-            uniq_id = get_uniq_id_from_audio_path(audio_file_path)
-            rttm_file = audio_rttm_map[uniq_id]['rttm_path']
+        for uniq_id in AUDIO_RTTM_MAP.keys():
+            rttm_file = AUDIO_RTTM_MAP[uniq_id]['rttm_filepath']
             if os.path.exists(rttm_file):
                 ref_labels = rttm_to_labels(rttm_file)
                 ref_labels_list.append(ref_labels)
                 reference = labels_to_pyannote_object(ref_labels)
-                all_references.append(reference)
+                all_references.append([uniq_id, reference])
             else:
                 raise ValueError("No reference RTTM file provided.")
 
-            pred_labels = diar_labels[k]
+            pred_rttm = os.path.join(self.oracle_vad_dir, 'pred_rttms', uniq_id + '.rttm')
+            pred_labels = rttm_to_labels(pred_rttm)
 
             est_n_spk = self.get_num_of_spk_from_labels(pred_labels)
             ref_n_spk = self.get_num_of_spk_from_labels(ref_labels)
             hypothesis = labels_to_pyannote_object(pred_labels)
-            all_hypotheses.append(hypothesis)
-            DER, CER, FA, MISS, mapping = get_DER([reference], [hypothesis])
+            all_hypotheses.append([uniq_id, hypothesis])
+            DER, CER, FA, MISS, mapping = score_labels(AUDIO_RTTM_MAP, [[uniq_id, reference]], [[uniq_id, hypothesis]])
             DER_result_dict[uniq_id] = {
                 "DER": DER,
                 "CER": CER,
@@ -769,7 +729,7 @@ class ASR_DIAR_OFFLINE(object):
             }
             count_correct_spk_counting += int(est_n_spk == ref_n_spk)
 
-        DER, CER, FA, MISS, mapping = get_DER(all_references, all_hypotheses)
+        DER, CER, FA, MISS, mapping = score_labels(AUDIO_RTTM_MAP, all_references, all_hypotheses)
         logging.info(
             "Cumulative results of all the files:  \n FA: {:.4f}\t MISS {:.4f}\t\
                 Diarization ER: {:.4f}\t, Confusion ER:{:.4f}".format(
@@ -781,7 +741,7 @@ class ASR_DIAR_OFFLINE(object):
             "CER": CER,
             "FA": FA,
             "MISS": MISS,
-            "spk_counting_acc": count_correct_spk_counting / len(audio_file_list),
+            "spk_counting_acc": count_correct_spk_counting / len(list(AUDIO_RTTM_MAP.keys())),
         }
         return ref_labels_list, DER_result_dict
 
@@ -861,7 +821,7 @@ class ASR_DIAR_OFFLINE(object):
         return enhanced_word_ts_list
 
     def write_json_and_transcript(
-        self, audio_file_list, diar_labels, word_list, word_ts_list,
+        self, audio_file_list, word_list, word_ts_list,
     ):
         """
         Matches the diarization result with the ASR output.
@@ -896,7 +856,8 @@ class ASR_DIAR_OFFLINE(object):
 
         for k, audio_file_path in enumerate(audio_file_list):
             uniq_id = get_uniq_id_from_audio_path(audio_file_path)
-            labels = diar_labels[k]
+            pred_rttm = os.path.join(self.oracle_vad_dir, 'pred_rttms', uniq_id + '.rttm')
+            labels = rttm_to_labels(pred_rttm)
             audacity_label_words = []
             n_spk = self.get_num_of_spk_from_labels(labels)
             string_out = ''
@@ -1130,36 +1091,6 @@ class ASR_DIAR_OFFLINE(object):
                 start, end, speaker = spl.split()
                 start, end = float(start), float(end)
                 f.write("SPEAKER {} 1 {:.3f} {:.3f} <NA> <NA> speech <NA>\n".format(uniq_id, start, end - start))
-
-    @staticmethod
-    def write_VAD_rttm(oracle_vad_dir, audio_file_list, reference_rttmfile_list_path=None):
-        """
-        Writes VAD files to the oracle_vad_dir folder.
-
-        Args:
-            oracle_vad_dir (str):
-                The path of oracle VAD folder.
-            audio_file_list (list):
-                List of audio file paths.
-
-        Return:
-            oracle_manifest (str):
-                Returns the full path of orcale_manifest.json file.
-        """
-        if not reference_rttmfile_list_path:
-            reference_rttmfile_list_path = []
-            for path_name in audio_file_list:
-                uniq_id = get_uniq_id_from_audio_path(path_name)
-                reference_rttmfile_list_path.append(f'{oracle_vad_dir}/{uniq_id}.rttm')
-
-        oracle_manifest = os.path.join(oracle_vad_dir, 'oracle_manifest.json')
-
-        write_rttm2manifest(
-            paths2audio_files=audio_file_list,
-            paths2rttm_files=reference_rttmfile_list_path,
-            manifest_file=oracle_manifest,
-        )
-        return oracle_manifest
 
     @staticmethod
     def threshold_non_speech(source_list, params):
