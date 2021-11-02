@@ -27,6 +27,7 @@ import soundfile as sf
 import torch
 import wget
 from omegaconf import OmegaConf
+from pyannote.core.segment import AUTO_ROUND_TIME
 
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.metrics.wer_bpe import WERBPE
@@ -581,11 +582,11 @@ class ASR_DIAR_OFFLINE(object):
             diar_model_config.diarizer.vad.external_vad_manifest = oracle_manifest
 
         oracle_model = ClusteringDiarizer(cfg=diar_model_config)
-        oracle_model.diarize()
+        score = oracle_model.diarize()
         if diar_model_config.diarizer.vad.model_path is not None:
             self.get_frame_level_VAD(vad_processing_dir=oracle_model.vad_pred_dir)
 
-        return None
+        return score
 
     def get_frame_level_VAD(self, vad_processing_dir):
         """
@@ -604,72 +605,53 @@ class ASR_DIAR_OFFLINE(object):
                     line = frame_vad_float_list.append(float(line.strip()))
             self.frame_VAD[uniq_id] = frame_vad_float_list
 
-    def eval_diarization(self, AUDIO_RTTM_MAP):
-        """
-        Evaluate the predicted speaker labels (pred_rttm) using ref_rttm_file_list.
-        DER and speaker counting accuracy are calculated.
+    def gather_eval_results(self, metric, mapping_dict):
 
-        Args:
-            audio_file_list (list):
-                List of audio file paths.
-            ref_rttm_file_list (list):
-                List of reference rttm paths.
-
-        Returns:
-            ref_labels_list (list):
-                Return ref_labels_list for future use.
-            DER_result_dict (dict):
-                A dictionary that contains evaluation results.
-        """
-        ref_labels_list = []
-        all_hypotheses, all_references = [], []
+        results = metric.results_
         DER_result_dict = {}
         count_correct_spk_counting = 0
-
-        for uniq_id in AUDIO_RTTM_MAP.keys():
-            rttm_file = AUDIO_RTTM_MAP[uniq_id]['rttm_filepath']
-            if os.path.exists(rttm_file):
-                ref_labels = rttm_to_labels(rttm_file)
-                ref_labels_list.append(ref_labels)
-                reference = labels_to_pyannote_object(ref_labels)
-                all_references.append([uniq_id, reference])
-            else:
-                raise ValueError("No reference RTTM file provided.")
-
-            pred_rttm = os.path.join(self.root_path, 'pred_rttms', uniq_id + '.rttm')
+        for result in results:
+            key, score = result
+            pred_rttm = os.path.join(self.root_path, 'pred_rttms', key + '.rttm')
             pred_labels = rttm_to_labels(pred_rttm)
 
             est_n_spk = self.get_num_of_spk_from_labels(pred_labels)
+            ref_rttm = self.AUDIO_RTTM_MAP[key]['rttm_filepath']
+            ref_labels = rttm_to_labels(ref_rttm)
             ref_n_spk = self.get_num_of_spk_from_labels(ref_labels)
-            hypothesis = labels_to_pyannote_object(pred_labels)
-            all_hypotheses.append([uniq_id, hypothesis])
-            DER, CER, FA, MISS, mapping = score_labels(AUDIO_RTTM_MAP, [[uniq_id, reference]], [[uniq_id, hypothesis]])
-            DER_result_dict[uniq_id] = {
+            DER, CER, FA, MISS = (
+                score['diarization error rate'],
+                score['confusion'],
+                score['false alarm'],
+                score['missed detection'],
+            )
+            DER_result_dict[key] = {
                 "DER": DER,
                 "CER": CER,
                 "FA": FA,
                 "MISS": MISS,
                 "n_spk": est_n_spk,
-                "mapping": mapping[0],
+                "mapping": mapping_dict[key],
                 "spk_counting": (est_n_spk == ref_n_spk),
             }
+            logging.info("score for key {}: {}".format(key, DER_result_dict[key]))
             count_correct_spk_counting += int(est_n_spk == ref_n_spk)
 
-        DER, CER, FA, MISS, mapping = score_labels(AUDIO_RTTM_MAP, all_references, all_hypotheses)
-        logging.info(
-            "Cumulative results of all the files:  \n FA: {:.4f}\t MISS {:.4f}\t\
-                Diarization ER: {:.4f}\t, Confusion ER:{:.4f}".format(
-                FA, MISS, DER, CER
-            )
+        DER, CER, FA, MISS = (
+            abs(metric),
+            metric['confusion'] / metric['total'],
+            metric['false alarm'] / metric['total'],
+            metric['missed detection'] / metric['total'],
         )
-        DER_result_dict['total'] = {
+        DER_result_dict["total"] = {
             "DER": DER,
             "CER": CER,
             "FA": FA,
             "MISS": MISS,
-            "spk_counting_acc": count_correct_spk_counting / len(list(AUDIO_RTTM_MAP.keys())),
+            "spk_counting_acc": count_correct_spk_counting / len(metric.results_),
         }
-        return ref_labels_list, DER_result_dict
+
+        return DER_result_dict
 
     @staticmethod
     def closest_silence_start(vad_index_word_end, vad_frames, params, offset=10):
@@ -826,7 +808,7 @@ class ASR_DIAR_OFFLINE(object):
 
         return total_riva_dict
 
-    def get_WDER(self, total_riva_dict, DER_result_dict, ref_labels_list):
+    def get_WDER(self, total_riva_dict, DER_result_dict):
         """
         Calculate word-level diarization error rate (WDER). WDER is calculated by
         counting the the wrongly diarized words and divided by the total number of words
@@ -849,8 +831,9 @@ class ASR_DIAR_OFFLINE(object):
         grand_total_word_count, grand_correct_word_count = 0, 0
         for k, audio_file_path in enumerate(self.audio_file_list):
 
-            labels = ref_labels_list[k]
             uniq_id = get_uniqname_from_filepath(audio_file_path)
+            ref_rttm = self.AUDIO_RTTM_MAP[uniq_id]['rttm_filepath']
+            labels = rttm_to_labels(ref_rttm)
             mapping_dict = DER_result_dict[uniq_id]['mapping']
             words_list = total_riva_dict[uniq_id]['words']
 

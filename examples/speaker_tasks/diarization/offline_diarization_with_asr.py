@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import omegaconf
+import shutil
+
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.parts.utils.diarization_utils import ASR_DIAR_OFFLINE
@@ -36,6 +37,7 @@ def main(cfg):
 
     asr_diar_offline = ASR_DIAR_OFFLINE(**cfg.diarizer.asr.parameters)
     asr_diar_offline.root_path = cfg.diarizer.out_dir
+    shutil.rmtree(asr_diar_offline.root_path, ignore_errors=True)
 
     AUDIO_RTTM_MAP = audio_rttm_map(cfg.diarizer.manifest_filepath)
     asr_diar_offline.AUDIO_RTTM_MAP = AUDIO_RTTM_MAP
@@ -43,17 +45,14 @@ def main(cfg):
 
     word_list, word_ts_list = asr_diar_offline.run_ASR(asr_model)
 
-    diar_labels = asr_diar_offline.run_diarization(cfg, word_ts_list,)
+    score = asr_diar_offline.run_diarization(cfg, word_ts_list,)
+    total_riva_dict = asr_diar_offline.write_json_and_transcript(word_list, word_ts_list)
 
-    ref_rttm_file_list = [value['rttm_filepath'] for key, value in AUDIO_RTTM_MAP.items()]
+    if score is not None:
+        metric, mapping_dict = score
+        DER_result_dict = asr_diar_offline.gather_eval_results(metric, mapping_dict)
 
-    if len(ref_rttm_file_list) and ref_rttm_file_list[0] is not None:
-
-        ref_labels_list, DER_result_dict = asr_diar_offline.eval_diarization(AUDIO_RTTM_MAP=AUDIO_RTTM_MAP)
-
-        total_riva_dict = asr_diar_offline.write_json_and_transcript(word_list, word_ts_list)
-
-        WDER_dict = asr_diar_offline.get_WDER(total_riva_dict, DER_result_dict, ref_labels_list)
+        WDER_dict = asr_diar_offline.get_WDER(total_riva_dict, DER_result_dict)
         effective_wder = asr_diar_offline.get_effective_WDER(DER_result_dict, WDER_dict)
 
         logging.info(
@@ -65,9 +64,6 @@ def main(cfg):
             \neffective WDER : {effective_wder:.4f} \
             \nspk_counting_acc : {DER_result_dict['total']['spk_counting_acc']:.4f}"
         )
-
-    else:
-        total_riva_dict = asr_diar_offline.write_json_and_transcript(diar_labels, word_list, word_ts_list)
 
 
 if __name__ == '__main__':

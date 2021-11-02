@@ -267,34 +267,33 @@ def score_labels(AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ign
     collar in md-eval.pl, 0.5s should be applied for pyannote.metrics.
 
     """
+    metric = None
     if len(all_reference) == len(all_hypothesis):
         metric = DiarizationErrorRate(collar=2 * collar, skip_overlap=ignore_overlap)
 
         mapping_dict = {}
-        for k, (reference, hypothesis) in enumerate(zip(all_reference, all_hypothesis)):
+        for (reference, hypothesis) in zip(all_reference, all_hypothesis):
             ref_key, ref_labels = reference
             _, hyp_labels = hypothesis
             uem = AUDIO_RTTM_MAP[ref_key].get('uem_filepath', None)
             if uem is not None:
                 uem = uem_timeline_from_file(uem_file=uem, uniq_name=ref_key)
             metric(ref_labels, hyp_labels, uem=uem, detailed=True)
-            mapping_dict[k] = metric.optimal_mapping(ref_labels, hyp_labels)
+            mapping_dict[ref_key] = metric.optimal_mapping(ref_labels, hyp_labels)
 
         DER = abs(metric)
         CER = metric['confusion'] / metric['total']
         FA = metric['false alarm'] / metric['total']
         MISS = metric['missed detection'] / metric['total']
 
-        metric.reset()
-
         logging.info(
-            "Cumulative results for collar {} sec and ignore_overlap {}: \n FA: {:.4f}\t MISS {:.4f}\t \
+            "Cumulative Results for collar {} sec and ignore_overlap {}: \n FA: {:.4f}\t MISS {:.4f}\t \
                 Diarization ER: {:.4f}\t, Confusion ER:{:.4f}".format(
                 collar, ignore_overlap, FA, MISS, DER, CER
             )
         )
 
-        return DER, CER, FA, MISS, mapping_dict
+        return metric, mapping_dict
     else:
         logging.warning(
             "check if each ground truth RTTMs were present in provided manifest file. Skipping calculation of Diariazation Error Rate"

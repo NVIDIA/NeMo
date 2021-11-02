@@ -250,6 +250,41 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         return None
 
+    def _perform_speech_activity_detection(self):
+
+        if self.has_vad_model:
+            self._dont_auto_split = False
+            self._split_duration = 50
+            manifest_vad_input = self._diarizer_params.manifest_filepath
+
+            if not self._dont_auto_split:
+                logging.info("Split long audio file to avoid CUDA memory issue")
+                logging.debug("Try smaller split_duration if you still have CUDA memory issue")
+                config = {
+                    'manifest_filepath': manifest_vad_input,
+                    'time_length': self._vad_window_length_in_sec,
+                    'split_duration': self._split_duration,
+                    'num_workers': self._cfg.num_workers,
+                }
+                manifest_vad_input = prepare_manifest(config)
+            else:
+                logging.warning(
+                    "If you encounter CUDA memory issue, try splitting manifest entry by split_duration to avoid it."
+                )
+
+            self._setup_vad_test_data(manifest_vad_input)
+            self._run_vad(manifest_vad_input)
+
+        elif self._diarizer_params.vad.external_vad_manifest is not None:
+            self._speaker_manifest_path = self._diarizer_params.vad.external_vad_manifest
+        elif self._diarizer_params.oracle_vad is not None:
+            self._speaker_manifest_path = os.path.join(self._speaker_dir, 'oracle_vad_manifest.json')
+            self._speaker_manifest_path = write_rttm2manifest(self.AUDIO_RTTM_MAP, self._speaker_manifest_path)
+        else:
+            raise ValueError(
+                "Only one of diarizer.oracle_vad, vad.model_path or vad.external_vad_manifest must be passed"
+            )
+
     def _extract_embeddings(self, manifest_file):
         logging.info("Extracting embeddings for Diarization")
         self._setup_spkr_test_data(manifest_file)
@@ -328,47 +363,19 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         self.AUDIO_RTTM_MAP = audio_rttm_map(self._diarizer_params.manifest_filepath)
 
-        if self.has_vad_model:
-            logging.info("Performing VAD")
+        # Speech Activity Detection
+        self._perform_speech_activity_detection()
 
-            self._dont_auto_split = False
-            self._split_duration = 50
-            manifest_vad_input = self._diarizer_params.manifest_filepath
-
-            if not self._dont_auto_split:
-                logging.info("Split long audio file to avoid CUDA memory issue")
-                logging.debug("Try smaller split_duration if you still have CUDA memory issue")
-                config = {
-                    'manifest_filepath': manifest_vad_input,
-                    'time_length': self._vad_window_length_in_sec,
-                    'split_duration': self._split_duration,
-                    'num_workers': self._cfg.num_workers,
-                }
-                manifest_vad_input = prepare_manifest(config)
-            else:
-                logging.warning(
-                    "If you encounter CUDA memory issue, try splitting manifest entry by split_duration to avoid it."
-                )
-
-            self._setup_vad_test_data(manifest_vad_input)
-            self._run_vad(manifest_vad_input)
-
-        elif self._diarizer_params.vad.external_vad_manifest is not None:
-            self._speaker_manifest_path = self._diarizer_params.vad.external_vad_manifest
-        elif self._diarizer_params.oracle_vad is not None:
-            self._speaker_manifest_path = os.path.join(self._speaker_dir, 'oracle_vad_manifest.json')
-            self._speaker_manifest_path = write_rttm2manifest(self.AUDIO_RTTM_MAP, self._speaker_manifest_path)
-        else:
-            raise ValueError(
-                "Only one of diarizer.oracle_vad, vad.model_path or vad.external_vad_manifest must be passed"
-            )
-
+        # Segmentation
         self._run_segmentation()
 
+        # Embedding Extraction
         self._extract_embeddings(self.subsegments_manifest_path)
 
         out_rttm_dir = os.path.join(self._out_dir, 'pred_rttms')
         os.makedirs(out_rttm_dir, exist_ok=True)
+
+        # Clustering
         all_reference, all_hypothesis = perform_clustering(
             embeddings=self.embeddings,
             time_stamps=self.time_stamps,
@@ -377,6 +384,9 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             clustering_params=self._cluster_params,
         )
 
+        # TODO Resegmentation -> Coming Soon
+
+        # Scoring
         score = score_labels(
             self.AUDIO_RTTM_MAP,
             all_reference,
@@ -384,6 +394,8 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             collar=self._diarizer_params.collar,
             ignore_overlap=self._diarizer_params.ignore_overlap,
         )
+
+        return score
 
     @staticmethod
     def __make_nemo_file_from_folder(filename, source_dir):
