@@ -61,7 +61,9 @@ class TranscriptionConfig:
     # General configs
     output_filename: Optional[str] = None
     batch_size: int = 32
-    cuda: Optional[bool] = None  # will switch to cuda if available, defaults to CPU otherwise
+    # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
+    # device anyway, and do inference on CPU only if CUDA device is not found.
+    cuda: Optional[int] = None
     amp: bool = False
     audio_type: str = "wav"
 
