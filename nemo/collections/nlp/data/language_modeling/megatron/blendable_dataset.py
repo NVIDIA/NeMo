@@ -20,7 +20,6 @@ import numpy as np
 import torch
 
 from nemo.utils import logging
-from nemo.utils import app_state
 from nemo.utils.app_state import AppState
 
 
