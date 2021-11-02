@@ -17,8 +17,8 @@ from pathlib import Path
 from omegaconf.omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
-from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
+from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
@@ -40,9 +40,12 @@ def main(cfg) -> None:
 
     plugins = [NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes)]
     if cfg.trainer.precision == 16:
-        plugins.append(NLPNativeMixedPrecisionPlugin(
-            init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
-            growth_interval=cfg.model.get('native_amp_growth_interval', 1000)))
+        plugins.append(
+            NLPNativeMixedPrecisionPlugin(
+                init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
+                growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
+            )
+        )
     elif cfg.trainer.precision == 'bf16':
         plugins.append(NLPNativeBfloat16PrecisionPlugin())
     else:
