@@ -108,6 +108,8 @@ pipeline {
         model.max_position_embeddings=128 \
         model.encoder_seq_length=128 \
         model.data.seq_length=128 \
+        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
+	      model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
         model.num_layers=8 \
         model.hidden_size=256 \
         model.num_attention_heads=8 \
