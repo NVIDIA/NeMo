@@ -74,7 +74,11 @@ SIL_WORD = 'sil'
 SELF_WORD = '<self>'
 SPECIAL_WORDS = [SIL_WORD, SELF_WORD]
 
-# Mappings for Greek Letters (English)
+# IDs for special tokens for encoding inputs of the decoder models
+EXTRA_ID_0 = '<extra_id_0>'
+EXTRA_ID_1 = '<extra_id_1>'
+
+
 EN_GREEK_TO_SPOKEN = {
     'Τ': 'tau',
     'Ο': 'omicron',
@@ -87,7 +91,6 @@ EN_GREEK_TO_SPOKEN = {
     'Σ': 'sigma',
     'Υ': 'upsilon',
     'Μ': 'mu',
-    'Ε': 'epsilon',
     'Χ': 'chi',
     'Π': 'pi',
     'Ν': 'nu',
@@ -97,7 +100,6 @@ EN_GREEK_TO_SPOKEN = {
     'Ρ': 'rho',
     'τ': 'tau',
     'υ': 'upsilon',
-    'μ': 'mu',
     'φ': 'phi',
     'α': 'alpha',
     'λ': 'lambda',
@@ -116,8 +118,3 @@ EN_GREEK_TO_SPOKEN = {
     'ω': 'omega',
     'χ': 'chi',
 }
-EN_SPOKEN_TO_GREEK = {v: k for k, v in EN_GREEK_TO_SPOKEN.items()}
-
-# IDs for special tokens for encoding inputs of the decoder models
-EXTRA_ID_0 = '<extra_id_0>'
-EXTRA_ID_1 = '<extra_id_1>'
