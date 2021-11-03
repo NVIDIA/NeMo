@@ -28,14 +28,14 @@ from nemo.core.config import modelPT as model_cfg
 
 @dataclass
 class ASRDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
-    manifest_filepath: Optional[str] = None
+    manifest_filepath: Optional[Any] = None
     sample_rate: int = MISSING
     labels: List[str] = MISSING
     trim_silence: bool = False
 
     # Tarred dataset support
     is_tarred: bool = False
-    tarred_audio_filepaths: Optional[str] = None
+    tarred_audio_filepaths: Optional[Any] = None
     tarred_shard_strategy: str = "scatter"
     shuffle_n: int = 0
 

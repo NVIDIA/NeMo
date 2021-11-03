@@ -80,7 +80,7 @@ from nemo.utils.get_rank import is_global_rank_zero
 @dataclass
 class ParallelTranscriptionConfig:
     model: Optional[str] = None  # name
-    predict_ds: ASRDatasetConfig = ASRDatasetConfig(return_sample_id=True)
+    predict_ds: ASRDatasetConfig = ASRDatasetConfig(return_sample_id=True, num_workers=4)
     output_path: Optional[str] = None
     return_predictions: bool = False
     use_cer: bool = False
@@ -88,6 +88,29 @@ class ParallelTranscriptionConfig:
     # decoding strategy for RNNT models
     rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig()
     trainer: TrainerConfig = TrainerConfig(gpus=-1, accelerator="ddp")
+
+
+def match_train_config(predict_ds, train_ds):
+    # It copies the important configurations from the train dataset of the model
+    # into the predict_ds to be used for prediction. It is needed to match the training configurations.
+    if train_ds is None:
+        return
+
+    predict_ds.sample_rate = train_ds.get("sample_rate", 16000)
+    cfg_name_list = [
+        "int_values",
+        "use_start_end_token",
+        "blank_index",
+        "unk_index",
+        "normalize",
+        "parser",
+        "eos_id",
+        "bos_id",
+        "pad_id",
+    ]
+    for cfg_name in cfg_name_list:
+        if hasattr(train_ds, cfg_name):
+            setattr(predict_ds, cfg_name, getattr(train_ds, cfg_name))
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=ParallelTranscriptionConfig)
@@ -105,7 +128,9 @@ def main(cfg: ParallelTranscriptionConfig):
         model = ASRModel.from_pretrained(model_name=cfg.model, map_location="cpu")
 
     trainer = ptl.Trainer(**cfg.trainer)
+
     cfg.predict_ds.return_sample_id = True
+    match_train_config(predict_ds=cfg.predict_ds, train_ds=model.cfg.train_ds)
     data_loader = model._setup_dataloader_from_config(cfg.predict_ds)
 
     os.makedirs(cfg.output_path, exist_ok=True)
