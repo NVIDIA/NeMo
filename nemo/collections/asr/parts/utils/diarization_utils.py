@@ -286,14 +286,14 @@ class ASR_DIAR_OFFLINE(object):
 
     def __init__(self, **params):
         self.params = params
-        self.nonspeech_threshold = self.params['threshold']
+        self.nonspeech_threshold = self.params['asr_based_vad_threshold']
         self.root_path = None
         self.fix_word_ts_with_VAD = True
         self.run_ASR = None
         self.frame_VAD = {}
         self.AUDIO_RTTM_MAP = {}
 
-    def set_asr_model(self, model_path):
+    def set_asr_model(self, asr_model):
         """
         Setup the parameters for the given ASR model
         Currently, the following models are supported:
@@ -303,41 +303,39 @@ class ASR_DIAR_OFFLINE(object):
             QuartzNet15x5Base-En
         """
 
-        if 'QuartzNet' in model_path:
+        if 'QuartzNet' in asr_model:
             self.run_ASR = self.run_ASR_QuartzNet_CTC
-            asr_model = EncDecCTCModel.from_pretrained(model_name=model_path, strict=False)
+            asr_model = EncDecCTCModel.from_pretrained(model_name=asr_model, strict=False)
             self.params['offset'] = -0.18
             self.model_stride_in_secs = 0.02
             self.asr_delay_sec = -1 * self.params['offset']
 
-        elif 'conformer_ctc' in model_path:
+        elif 'conformer_ctc' in asr_model:
             self.run_ASR = self.run_ASR_BPE_CTC
-            asr_model = EncDecCTCModelBPE.from_pretrained(model_name=model_path, strict=False)
+            asr_model = EncDecCTCModelBPE.from_pretrained(model_name=asr_model, strict=False)
             self.model_stride_in_secs = 0.04
             self.asr_delay_sec = 0.0
             self.params['offset'] = 0
             self.chunk_len_in_sec = 1.6
             self.total_buffer_in_secs = 4
 
-        elif 'citrinet' in model_path:
+        elif 'citrinet' in asr_model:
             self.run_ASR = self.run_ASR_BPE_CTC
-            asr_model = EncDecCTCModelBPE.from_pretrained(model_name=model_path, strict=False)
+            asr_model = EncDecCTCModelBPE.from_pretrained(model_name=asr_model, strict=False)
             self.model_stride_in_secs = 0.08
             self.asr_delay_sec = 0.0
             self.params['offset'] = 0
             self.chunk_len_in_sec = 1.6
             self.total_buffer_in_secs = 4
 
-        elif 'conformer_transducer' in model_path or 'contextnet' in model_path:
+        elif 'conformer_transducer' in asr_model or 'contextnet' in asr_model:
             self.run_ASR = self.run_ASR_BPE_RNNT
-            # self.get_speech_labels_list = self.save_VAD_labels_list
-            asr_model = EncDecRNNTBPEModel.from_pretrained(model_name=model_path, strict=False)
+            asr_model = EncDecRNNTBPEModel.from_pretrained(model_name=asr_model, strict=False)
             self.model_stride_in_secs = 0.04
             self.asr_delay_sec = 0.0
             self.params['offset'] = 0
             self.chunk_len_in_sec = 1.6
             self.total_buffer_in_secs = 4
-
         else:
             raise ValueError(f"ASR model name not found: {self.params['model_path']}")
         self.params['time_stride'] = self.model_stride_in_secs
@@ -490,14 +488,16 @@ class ASR_DIAR_OFFLINE(object):
                 List that contains word timestamps.
             audio_file_list (list):
                 List of audio file paths.
-
         """
         self.VAD_RTTM_MAP = {}
         for i, word_timestamps in enumerate(word_ts_list):
             speech_labels_float = self._get_speech_labels_from_decoded_prediction(word_timestamps)
             speech_labels = self.get_str_speech_labels(speech_labels_float)
             uniq_id = get_uniqname_from_filepath(audio_file_list[i])
-            filename = labels_to_rttmfile(speech_labels, uniq_id, self.root_path)
+            output_path = os.path.join(self.root_path, 'pred_rttms')
+            if not os.path.exists(output_path):
+                os.makedirs(output_path)
+            filename = labels_to_rttmfile(speech_labels, uniq_id, output_path)
             self.VAD_RTTM_MAP[uniq_id] = {'audio_filepath': audio_file_list[i], 'rttm_filepath': filename}
 
     def _get_speech_labels_from_decoded_prediction(self, input_word_ts):
@@ -574,6 +574,7 @@ class ASR_DIAR_OFFLINE(object):
             self.save_VAD_labels_list(words_and_timestamps, self.audio_file_list)
             oracle_manifest = os.path.join(self.root_path, 'asr_vad_manifest.json')
             oracle_manifest = write_rttm2manifest(self.VAD_RTTM_MAP, oracle_manifest)
+            diar_model_config.diarizer.vad.model_path = None
             diar_model_config.diarizer.vad.external_vad_manifest = oracle_manifest
 
         oracle_model = ClusteringDiarizer(cfg=diar_model_config)
@@ -601,7 +602,6 @@ class ASR_DIAR_OFFLINE(object):
             self.frame_VAD[uniq_id] = frame_vad_float_list
 
     def gather_eval_results(self, metric, mapping_dict):
-
         results = metric.results_
         DER_result_dict = {}
         count_correct_spk_counting = 0
@@ -670,7 +670,7 @@ class ASR_DIAR_OFFLINE(object):
         c = vad_index_word_end + offset
         limit = int(100 * params['max_word_ts_length_in_sec'] + vad_index_word_end)
         while c < len(vad_frames):
-            if vad_frames[c] < params['VAD_threshold_for_word_ts']:
+            if vad_frames[c] < params['vad_threshold_for_word_ts']:
                 break
             else:
                 c += 1
@@ -720,6 +720,9 @@ class ASR_DIAR_OFFLINE(object):
                     min_candidate = min(vad_est_len, len_to_next_word)
                     fixed_word_len = max(min(params['max_word_ts_length_in_sec'], min_candidate), word_len)
                     enhanced_word_ts_buffer.append([word_ts[0], word_ts[0] + fixed_word_len])
+                else:
+                    enhanced_word_ts_buffer.append([word_ts[0], word_ts[1]])
+
             enhanced_word_ts_list.append(enhanced_word_ts_buffer)
         return enhanced_word_ts_list
 
@@ -777,7 +780,6 @@ class ASR_DIAR_OFFLINE(object):
 
             logging.info(f"Creating results for Session: {uniq_id} n_spk: {n_spk} ")
             string_out = self.print_time(string_out, speaker, start_point, end_point, self.params)
-
             word_pos, idx = 0, 0
             for j, word_ts_stt_end in enumerate(word_ts_list[k]):
 
@@ -793,7 +795,7 @@ class ASR_DIAR_OFFLINE(object):
 
                 stt_sec, end_sec = round(word_ts_stt_end[0], 2), round(word_ts_stt_end[1], 2)
                 riva_dict = self.add_json_to_dict(riva_dict, words[j], stt_sec, end_sec, speaker)
-
+        
                 total_riva_dict[uniq_id] = riva_dict
                 audacity_label_words = self.get_audacity_label(
                     words[j], stt_sec, end_sec, speaker, audacity_label_words
@@ -888,7 +890,7 @@ class ASR_DIAR_OFFLINE(object):
         Saves the diarization result into a csv file.
         """
         row = [
-            args.threshold,
+            args.asr_based_vad_threshold,
             WDER_dict['total'],
             DER_result_dict['total']['DER'],
             DER_result_dict['total']['FA'],
@@ -982,7 +984,7 @@ class ASR_DIAR_OFFLINE(object):
 
     @staticmethod
     def threshold_non_speech(source_list, params):
-        return list(filter(lambda x: x[1] - x[0] > params['threshold'], source_list))
+        return list(filter(lambda x: x[1] - x[0] > params['asr_based_vad_threshold'], source_list))
 
     @staticmethod
     def get_effective_WDER(DER_result_dict, WDER_dict):

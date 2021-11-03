@@ -45,14 +45,14 @@ diarizer:
   
   asr:
     parameters:
-      model_path: stt_en_conformer_ctc_large
-      asr_based_vad: False
-      print_transcript: False
-      lenient_overlap_WDER: True
-      VAD_threshold_for_word_ts: 0.7
-      max_word_ts_length_in_sec: 0.6
-      word_gap_in_sec: 0.01
-      threshold: 10
+      model_path: QuartzNet15x5Base-En # Provie NGC cloud ASR model name
+      asr_based_vad: False # if true, speech segmentation for diarization is based on word-timestamps from ASR inference.
+      asr_based_vad_threshold: 50 # threshold (multiple of 10ms) for ignoring the gap between two words when generating VAD timestamps using ASR based VAD.
+      print_transcript: False # if true, the output transcript is displayed after the transcript is generated.
+      lenient_overlap_WDER: True # if true, when a word falls into speaker-ovelapped regions, consider the word as a correctly diarized word.
+      vad_threshold_for_word_ts: 0.7 # threshold for getting VAD stamps that compensate the word timestamps generated from ASR decoder.
+      max_word_ts_length_in_sec: 0.6 # Maximum length of each word timestamps 
+      word_gap_in_sec: 0.01 # The gap between the end of a word and the start of the following word.
 
 # json manifest line example
-# {'audio_filepath': /path/to/audio_file, 'offset': 0, 'duration':None, label: 'infer', 'text': '-', 'num_speakers': None, 'rttm_filepath': /path/to/rttm/file, 'uem_filepath'='/path/to/uem/filepath'}
+# {"audio_filepath": "/path/to/audio_file", "offset": 0, "duration": null, label: "infer", "text": "-", "num_speakers": null, "rttm_filepath": "/path/to/rttm/file", "uem_filepath"="/path/to/uem/filepath"}
