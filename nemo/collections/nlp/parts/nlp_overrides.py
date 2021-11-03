@@ -333,7 +333,7 @@ class GradScaler(torch.cuda.amp.GradScaler):
 
 class NLPNativeMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
     def __init__(self, init_scale: float = 2 ** 32, growth_interval: int = 1000) -> None:
-        super().__init__(precision=16)
+        super().__init__(precision=16, device='cuda')
 
         self.scaler = GradScaler(init_scale=init_scale, growth_interval=growth_interval)
 
@@ -352,7 +352,7 @@ class NLPNativeMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
 
 class NLPNativeBfloat16PrecisionPlugin(NativeMixedPrecisionPlugin):
     def __init__(self) -> None:
-        super().__init__(precision='bf16')
+        super().__init__(precision='bf16', device='cuda')
         if not HAVE_APEX:
             logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
 
