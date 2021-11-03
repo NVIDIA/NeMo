@@ -90,7 +90,7 @@ def main(cfg: TranscriptionConfig):
     else:
         device_id = cfg.cuda
 
-    device = torch.device(f'cuda:{device_id}' if cfg.cuda > 0 else 'cpu')
+    device = torch.device(f'cuda:{device_id}' if cfg.cuda >= 0 else 'cpu')
     print(device)
 
     # setup model
@@ -107,7 +107,7 @@ def main(cfg: TranscriptionConfig):
         asr_model = ASRModel.from_pretrained(model_name=cfg.pretrained_name, map_location=device)  # type: ASRModel
         model_name = cfg.pretrained_name
 
-    trainer = pl.Trainer(gpus=int(cfg.cuda))
+    trainer = pl.Trainer(gpus=1 if cfg.cuda > 0 else 0)
     asr_model.set_trainer(trainer)
     asr_model = asr_model.eval()
 
