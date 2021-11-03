@@ -65,11 +65,19 @@ _SPEAKER_MODEL = "speaker_model.nemo"
 
 
 def get_available_model_names(class_name):
+    "lists available pretrained model names from NGC"
     available_models = class_name.list_available_models()
     return list(map(lambda x: x.pretrained_model_name, available_models))
 
 
 class ClusteringDiarizer(Model, DiarizationMixin):
+    """
+    Inference model Class for offline speaker diarization. 
+    This class handles required functionality for diarization : Speech Activity Detection, Segmentation, 
+    Extract Embeddings, Clustering, Resegmentation and Scoring. 
+    All the parameters are passed through config file 
+    """
+
     def __init__(self, cfg: DictConfig):
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         # Convert config to support Hydra 1.0+ instantiation
@@ -103,6 +111,9 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         pass
 
     def _init_vad_model(self):
+        """
+        Initialize vad model with model name or path passed through config
+        """
         model_path = self._cfg.diarizer.vad.model_path
         if model_path.endswith('.nemo'):
             self._vad_model = EncDecClassificationModel.restore_from(model_path)
@@ -121,6 +132,9 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         self.has_vad_model = True
 
     def _init_speaker_model(self):
+        """
+        Initialize speaker embedding model with model name or path passed through config
+        """
         model_path = self._cfg.diarizer.speaker_embeddings.model_path
         if model_path is not None and model_path.endswith('.nemo'):
             self._speaker_model = EncDecSpeakerLabelModel.restore_from(model_path)
@@ -166,6 +180,14 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         self._speaker_model.setup_test_data(spk_dl_config)
 
     def _run_vad(self, manifest_file):
+        """
+        Run voice activity detection. 
+        Get log probability of voice activity detection and smoothes using the post processing parameters. 
+        Using generated frame level predictions generated manifest file for later speaker embedding extraction.
+        input:
+        manifest_file (str) : Manifest file containing path to audio file and label as infer
+
+        """
 
         shutil.rmtree(self._vad_dir, ignore_errors=True)
         os.makedirs(self._vad_dir)
@@ -251,7 +273,10 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         return None
 
     def _perform_speech_activity_detection(self):
-
+        """
+        Checks for type of speech activity detection from config. Choices are NeMo VAD,
+        external vad manifest and oracle VAD (generates speech activity labels from provided RTTM files)
+        """
         if self.has_vad_model:
             self._dont_auto_split = False
             self._split_duration = 50
@@ -277,7 +302,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         elif self._diarizer_params.vad.external_vad_manifest is not None:
             self._speaker_manifest_path = self._diarizer_params.vad.external_vad_manifest
-        elif self._diarizer_params.oracle_vad is not None:
+        elif self._diarizer_params.oracle_vad:
             self._speaker_manifest_path = os.path.join(self._speaker_dir, 'oracle_vad_manifest.json')
             self._speaker_manifest_path = write_rttm2manifest(self.AUDIO_RTTM_MAP, self._speaker_manifest_path)
         else:
@@ -286,6 +311,10 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             )
 
     def _extract_embeddings(self, manifest_file):
+        """
+        This method extracts speaker embeddings from segments passed through manifest_file
+        Optionally you may save the intermediate speaker embeddings for debugging or any use. 
+        """
         logging.info("Extracting embeddings for Diarization")
         self._setup_spkr_test_data(manifest_file)
         self.embeddings = defaultdict(list)
@@ -395,6 +424,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             ignore_overlap=self._diarizer_params.ignore_overlap,
         )
 
+        logging.info("Outputs are saved in {} directory".format(os.path.abspath(self._diarizer_params.out_dir)))
         return score
 
     @staticmethod

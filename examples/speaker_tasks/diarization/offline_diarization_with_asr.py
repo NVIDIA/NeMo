@@ -41,7 +41,7 @@ def main(cfg):
 
     AUDIO_RTTM_MAP = audio_rttm_map(cfg.diarizer.manifest_filepath)
     asr_diar_offline.AUDIO_RTTM_MAP = AUDIO_RTTM_MAP
-    asr_model = asr_diar_offline.set_asr_model(cfg.diarizer.asr.parameters['model_path'])
+    asr_model = asr_diar_offline.set_asr_model(cfg.diarizer.asr.model_path)
 
     word_list, word_ts_list = asr_diar_offline.run_ASR(asr_model)
 

@@ -323,7 +323,16 @@ def write_rttm2manifest(AUDIO_RTTM_MAP, manifest_file):
 
     with open(manifest_file, 'w') as outfile:
         for key in AUDIO_RTTM_MAP:
-            f = open(AUDIO_RTTM_MAP[key]['rttm_filepath'], 'r')
+            rttm_filename = AUDIO_RTTM_MAP[key]['rttm_filepath']
+            if rttm_filename and os.path.exists(rttm_filename):
+                f = open(rttm_filename, 'r')
+            else:
+                raise FileNotFoundError(
+                    "Requested to construct manifest from rttm with oracle VAD option or from NeMo VAD but received filename as {}".format(
+                        rttm_filename
+                    )
+                )
+
             audio_path = AUDIO_RTTM_MAP[key]['audio_filepath']
             if AUDIO_RTTM_MAP[key].get('duration', None):
                 max_duration = AUDIO_RTTM_MAP[key]['duration']

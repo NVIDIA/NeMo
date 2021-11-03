@@ -337,7 +337,7 @@ class ASR_DIAR_OFFLINE(object):
             self.chunk_len_in_sec = 1.6
             self.total_buffer_in_secs = 4
         else:
-            raise ValueError(f"ASR model name not found: {self.params['model_path']}")
+            raise ValueError(f"ASR model name not found: {asr_model}")
         self.params['time_stride'] = self.model_stride_in_secs
         self.asr_batch_size = 16
 
@@ -437,7 +437,6 @@ class ASR_DIAR_OFFLINE(object):
         )
 
         with torch.cuda.amp.autocast():
-            logging.info(f"Running ASR model {self.params['model_path']}")
             hyps, tokens_list, sample_list = get_wer_feat_logit(
                 self.audio_file_list,
                 frame_asr,
@@ -602,6 +601,14 @@ class ASR_DIAR_OFFLINE(object):
             self.frame_VAD[uniq_id] = frame_vad_float_list
 
     def gather_eval_results(self, metric, mapping_dict):
+        """
+        Gathers diarization evaluation results from pyannote DiarizationErrorRate metric object.
+        Inputs
+        metric (DiarizationErrorRate metric): DiarizationErrorRate metric pyannote object 
+        mapping_dict (dict): Dictionary containing speaker mapping labels for each audio file with key as uniq name
+        Returns
+        DER_result_dict (dict): Dictionary containing scores for each audio file along with aggreated results
+        """
         results = metric.results_
         DER_result_dict = {}
         count_correct_spk_counting = 0
@@ -795,7 +802,7 @@ class ASR_DIAR_OFFLINE(object):
 
                 stt_sec, end_sec = round(word_ts_stt_end[0], 2), round(word_ts_stt_end[1], 2)
                 riva_dict = self.add_json_to_dict(riva_dict, words[j], stt_sec, end_sec, speaker)
-        
+
                 total_riva_dict[uniq_id] = riva_dict
                 audacity_label_words = self.get_audacity_label(
                     words[j], stt_sec, end_sec, speaker, audacity_label_words
