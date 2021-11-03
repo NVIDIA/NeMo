@@ -1418,6 +1418,7 @@ class BucketingDataset(IterableDataset):
 
     def __len__(self):
         #print(math.ceil(len(self.wrapped_dataset.collection)/float(self.bucketing_batchsize)))
+        print(f"dataset size={int(math.ceil(len(self.wrapped_dataset.collection)/float(self.bucketing_batchsize)))}, bucketing_batchsize={self.bucketing_batchsize}")
         return int(math.ceil(len(self.wrapped_dataset.collection)/float(self.bucketing_batchsize)))
         #print(math.ceil(self.wrapped_dataset.length/float(self.bucketing_batchsize)))
         #return math.ceil(self.wrapped_dataset.length/float(self.bucketing_batchsize))
@@ -1433,7 +1434,17 @@ class BucketingIterator:
 
     def __next__(self):
         batches = []
+        print("hiii")
         for idx in range(self.bucketing_batchsize):
-            batches.append(next(self.wrapped_iter))
+            try:
+                sample = next(self.wrapped_iter)
+            except StopIteration:
+                break
+            except Exception as e:
+                logging.error(e)
+            batches.append(sample)
+        print(f"idx={idx}, batch_len={len(batches)}, b_size={self.bucketing_batchsize}")
+        if len(batches) == 0:
+            raise StopIteration
         #print(batches)
         return batches
