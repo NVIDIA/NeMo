@@ -65,13 +65,6 @@ pipeline {
       }
     }
 
-    // Revert once import guards are added by PTL or version comparing is fixed
-    // stage('PTL Import Guards') {
-    //   steps{
-    //     sh 'sed -i "s/from pytorch_lightning.callbacks.quantization import QuantizationAwareTraining/try:\\n\\tfrom pytorch_lightning.callbacks.quantization import QuantizationAwareTraining\\nexcept:\\n\\tpass/g" /opt/conda/lib/python3.8/site-packages/pytorch_lightning/callbacks/__init__.py'
-    //   }
-    // }
-
     stage('PyTorch Lightning version') {
       steps {
         sh 'python -c "import pytorch_lightning; print(pytorch_lightning.__version__)"'
