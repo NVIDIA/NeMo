@@ -391,6 +391,7 @@ class MegatronT5Model(NLPModel):
             enc_hidden_states=None,
             output_enc_hidden=True,
         )
+        predicted_tokens_dec = torch.LongTensor([self.tokenizer.cls_id]).unsqueeze(0).to(tokens_enc.device)
 
         for _ in range(num_tokens_to_generate):
             # Overwrite the decoder token since we want to predict
@@ -445,7 +446,6 @@ class MegatronT5Model(NLPModel):
 
         response['prompt'] = request['prompt'][0]
         tokens_enc = request['masked_sample']
-        predicted_tokens_dec = torch.LongTensor([self.tokenizer.cls_id]).unsqueeze(0).to(tokens_enc.device)
 
         response['masked_input'] = ' '.join(self.tokenizer.ids_to_tokens(tokens_enc[0]))
         enc_mask = self.make_inference_attention_mask_3d(tokens_enc, tokens_enc, self.tokenizer.pad_id)
@@ -455,11 +455,12 @@ class MegatronT5Model(NLPModel):
             tokens_enc,
             enc_mask,
             request['tokens_to_generate'],
-        ).cpu().numpy()
+        ).cpu().numpy()[0]
         if self.tokenizer.eos_id in predicted_tokens_dec:
             idx = predicted_tokens_dec.index(self.tokenizer.eos_id)
             predicted_tokens_dec = predicted_tokens_dec[:idx]
-
+        else:
+            predicted_tokens_dec = [id for id in predicted_tokens_dec if id != self.tokenizer.pad_id]
         predicted_tokens_dec = self.tokenizer.ids_to_tokens(predicted_tokens_dec[0])
         response['completion'] = self.tokenizer.tokens_to_text(predicted_tokens_dec)
         return response
