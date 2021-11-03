@@ -731,7 +731,7 @@ class TestOptimizersSchedulers:
         def train(
             max_epochs, accumulate_grad_batches, limit_train_batches, num_processes, batch_size, dataset_len, drop_last
         ):
-            dataset_len = dataset_len * 100
+            dataset_len *= 10
             trainer = pl.Trainer(
                 max_epochs=max_epochs,
                 accelerator="ddp_cpu",
