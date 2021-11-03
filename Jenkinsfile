@@ -2,7 +2,7 @@ pipeline {
   agent {
         docker {
       image 'gitlab-master.nvidia.com/dl/dgx/pytorch:21.10-py3-devel'
-      args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
+      args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch -v $HOME/.cache/huggingface/transformers:/root/.cache/huggingface/transformers --shm-size=8g'
         }
   }
   options {
@@ -53,16 +53,17 @@ pipeline {
       }
     }
 
-    // Revert once import guards are added by PTL or version comparing is fixed
-    stage('Install PyTorch Lighting 1.5 RC') {
-      steps{
-        sh 'pip install pytorch-lightning==1.5.0rc0 && sed -i "s/from pytorch_lightning.callbacks.quantization import QuantizationAwareTraining/try:\\n\\tfrom pytorch_lightning.callbacks.quantization import QuantizationAwareTraining\\nexcept:\\n\\tpass/g" /opt/conda/lib/python3.8/site-packages/pytorch_lightning/callbacks/__init__.py'
-      }
-    }
 
     stage('NeMo Installation') {
       steps {
         sh './reinstall.sh release'
+      }
+    }
+
+    // Revert once import guards are added by PTL or version comparing is fixed
+    stage('PTL Import Guards') {
+      steps{
+        sh 'sed -i "s/from pytorch_lightning.callbacks.quantization import QuantizationAwareTraining/try:\\n\\tfrom pytorch_lightning.callbacks.quantization import QuantizationAwareTraining\\nexcept:\\n\\tpass/g" /opt/conda/lib/python3.8/site-packages/pytorch_lightning/callbacks/__init__.py'
       }
     }
 
