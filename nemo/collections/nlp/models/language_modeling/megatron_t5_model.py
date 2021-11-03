@@ -16,6 +16,7 @@ import re
 from typing import Any, Dict, Optional
 
 import torch
+import torch.nn as nn
 from apex.transformer import parallel_state, tensor_parallel
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
@@ -56,6 +57,9 @@ class MegatronT5Model(NLPModel):
 
         if self.cfg.get('use_cpu_initialization', False) is False:
             torch.cuda.set_device(trainer.local_rank)
+
+        # buffer used during train_step for logging average loss over gradient accumulation steps
+        self._reduced_loss_buffer = []
 
         initialize_model_parallel_for_nemo(
             world_size=trainer.world_size,
@@ -150,12 +154,20 @@ class MegatronT5Model(NLPModel):
         loss = self.loss_func(loss_mask, output_tensor)
         self.log('train_loss', loss)
         # Reduced loss for logging.
-        averaged_loss = average_losses_across_data_parallel_group([loss])
-        self.log('reduced_train_loss', averaged_loss[0], prog_bar=True)
-        lr = self._optimizer.param_groups[0]['lr']
-        self.log('lr', lr)
-        self.log('global_step', self.trainer.global_step, prog_bar=True)
-        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step), prog_bar=True)
+        reduced_loss = average_losses_across_data_parallel_group([loss])
+        # cache reduced loss while accumulating gradients
+        self._reduced_loss_buffer.append(reduced_loss[0])
+
+        if (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
+            # Reduced loss for logging.
+            average_reduced_loss = sum(self._reduced_loss_buffer) / len(self._reduced_loss_buffer)
+            self.log('reduced_train_loss', average_reduced_loss, prog_bar=True)
+            lr = self._optimizer.param_groups[0]['lr']
+            self.log('lr', lr)
+            self.log('global_step', self.trainer.global_step, prog_bar=True)
+            self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step), prog_bar=True)
+            self._reduced_loss_buffer = []
+
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -165,11 +177,20 @@ class MegatronT5Model(NLPModel):
             tokens_enc, tokens_dec, enc_mask, dec_mask, enc_dec_mask, tokentype_ids=None, lm_labels=labels
         )
         loss = self.loss_func(loss_mask, output_tensor)
-        return loss
+        reduced_loss = average_losses_across_data_parallel_group([loss])
+        return reduced_loss
 
     def validation_epoch_end(self, outputs):
         averaged_loss = average_losses_across_data_parallel_group(outputs)
         self.log('val_loss', averaged_loss[0], prog_bar=True)
+        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step))
+
+    def test_step(self, batch, batch_idx):
+        return self.validation_step(batch, batch_idx)
+
+    def test_epoch_end(self, outputs):
+        averaged_loss = average_losses_across_data_parallel_group(outputs)
+        logging.info(f'test_loss: {averaged_loss[0]}')
 
     def loss_func(self, loss_mask, output_tensor):
         losses = output_tensor.float()
@@ -357,37 +378,8 @@ class MegatronT5Model(NLPModel):
         ]
         history_mask = history_mask.expand(batch, length, length)
         return history_mask
-
-    def complete(self, request: Dict):
-        """
-            Autoregressively invokes language model in the inference mode
-        Args:	
-            request: Dictionary with the following fields
-                * prompt: a string which text the model should complete.
-                * tokens_to_generate: how many tokens to generate while doing prompt completion.
-        Returns:	
-            response: A python dictionary with the following fields
-                * prompt: original text of the prompt
-                * tokenized_prompt: list of (str) tokens from prompt
-                * completion: a python dictionary with the following subfields:
-                    * tokens: a list of triples (token, token_id, log_prob) comprising completion
-                    * text: completion text (as a single string)
-                
-        """
-        response = {}
-        self.eval()
-        logsoftmaxlayer = torch.nn.LogSoftmax(dim=-1)
-        # naive greedy slow loop
-        # TODO: add option for BeamSearchDecoder
-
-        response['prompt'] = request['prompt'][0]
-        tokens_enc = request['masked_sample']
-        predicted_tokens_dec = torch.LongTensor([self.tokenizer.cls_id]).unsqueeze(0).to(tokens_enc.device)
-
-        response['masked_input'] = ' '.join(self.tokenizer.ids_to_tokens(tokens_enc[0]))
-        enc_mask = self.make_inference_attention_mask_3d(tokens_enc, tokens_enc, self.tokenizer.pad_id)
-        enc_mask = enc_mask < 0.5
-
+    
+    def decode(self, tokens_enc, enc_mask, num_tokens_to_generate):
         encoder_hidden_states = self(
             encoder_input_ids=tokens_enc,
             decoder_input_ids=None,
@@ -400,7 +392,7 @@ class MegatronT5Model(NLPModel):
             output_enc_hidden=True,
         )
 
-        for i in range(request.get("tokens_to_generate", 16)):
+        for _ in range(num_tokens_to_generate):
             # Overwrite the decoder token since we want to predict
             enc_dec_mask = self.make_inference_attention_mask_3d(
                 predicted_tokens_dec, tokens_enc, self.tokenizer.pad_id
@@ -425,13 +417,50 @@ class MegatronT5Model(NLPModel):
                 output_enc_hidden=False,
             )
             output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
-            log_probs, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
+            log_probs, token_ids = torch.max(nn.functional.log_softmax(output_tensor), dim=-1)
             predicted_tokens_dec = torch.cat([predicted_tokens_dec, token_ids[:, -1].unsqueeze(1)], 1)
 
-        predicted_tokens_dec = self.tokenizer.ids_to_tokens(predicted_tokens_dec[0])
-        if '[SEP]' in predicted_tokens_dec:
-            idx = predicted_tokens_dec.index('[SEP]')
+        return predicted_tokens_dec
+
+    def complete(self, request: Dict):
+        """
+            Autoregressively invokes language model in the inference mode
+        Args:	
+            request: Dictionary with the following fields
+                * prompt: a string which text the model should complete.
+                * tokens_to_generate: how many tokens to generate while doing prompt completion.
+        Returns:	
+            response: A python dictionary with the following fields
+                * prompt: original text of the prompt
+                * tokenized_prompt: list of (str) tokens from prompt
+                * completion: a python dictionary with the following subfields:
+                    * tokens: a list of triples (token, token_id, log_prob) comprising completion
+                    * text: completion text (as a single string)
+                
+        """
+        response = {}
+        self.eval()
+        # naive greedy slow loop
+        # TODO: add option for BeamSearchDecoder
+
+        response['prompt'] = request['prompt'][0]
+        tokens_enc = request['masked_sample']
+        predicted_tokens_dec = torch.LongTensor([self.tokenizer.cls_id]).unsqueeze(0).to(tokens_enc.device)
+
+        response['masked_input'] = ' '.join(self.tokenizer.ids_to_tokens(tokens_enc[0]))
+        enc_mask = self.make_inference_attention_mask_3d(tokens_enc, tokens_enc, self.tokenizer.pad_id)
+        enc_mask = enc_mask < 0.5
+
+        predicted_tokens_dec = self.decode(
+            tokens_enc,
+            enc_mask,
+            request['tokens_to_generate'],
+        ).cpu().numpy()
+        if self.tokenizer.eos_id in predicted_tokens_dec:
+            idx = predicted_tokens_dec.index(self.tokenizer.eos_id)
             predicted_tokens_dec = predicted_tokens_dec[:idx]
+
+        predicted_tokens_dec = self.tokenizer.ids_to_tokens(predicted_tokens_dec[0])
         response['completion'] = self.tokenizer.tokens_to_text(predicted_tokens_dec)
         return response
 
