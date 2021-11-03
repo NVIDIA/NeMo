@@ -37,6 +37,10 @@ from nemo.collections.nlp.data.glue_benchmark.data_processors import (
     StsbProcessor,
     WnliProcessor,
 )
+from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import (
+    make_attention_mask_3d,
+    make_history_mask_3d,
+)
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import CategoricalValuesType, ChannelType, MaskType, NeuralType, RegressionValuesType
 from nemo.utils import logging
@@ -95,7 +99,13 @@ class GLUEDataset(Dataset):
         }
 
     def __init__(
-        self, file_name: str, task_name: str, tokenizer: TokenizerSpec, max_seq_length: str, use_cache: bool = True,
+        self,
+        file_name: str,
+        task_name: str,
+        tokenizer: TokenizerSpec,
+        max_seq_length: str,
+        use_cache: bool = True,
+        compute_features: bool = True,
     ):
         """
         Processes GLUE datasets
@@ -127,34 +137,35 @@ class GLUEDataset(Dataset):
         self.examples = processor.get_dev_examples(data_dir) if evaluate else processor.get_train_examples(data_dir)
         processor_name = type(processor).__name__
         vocab_size = getattr(tokenizer, "vocab_size", 0)
-        cached_features_file = os.path.join(
-            data_dir,
-            "cached_{}_{}_{}_{}_{}".format(
-                processor_name, file_name, tokenizer.name, str(max_seq_length), str(vocab_size)
-            ),
-        )
-
-        if use_cache and os.path.exists(cached_features_file):
-            logging.info(f"loading from {cached_features_file}")
-            with open(cached_features_file, "rb") as reader:
-                self.features = pickle.load(reader)
-        else:
-            token_params = {
-                'bos_token': None,
-                'eos_token': tokenizer.eos_token,
-                'pad_token': tokenizer.pad_token,
-                'cls_token': tokenizer.cls_token,
-                'sep_token_extra': tokenizer.eos_token if 'roberta' in tokenizer.name.lower() else None,
-            }
-
-            self.features = self.convert_examples_to_features(
-                self.examples, self.label_list, max_seq_length, tokenizer, output_mode, **token_params
+        if compute_features:
+            cached_features_file = os.path.join(
+                data_dir,
+                "cached_{}_{}_{}_{}_{}".format(
+                    processor_name, file_name, tokenizer.name, str(max_seq_length), str(vocab_size)
+                ),
             )
-            master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
-            if master_device:
-                logging.info(f'Saving train features into {cached_features_file}')
-                with open(cached_features_file, "wb") as writer:
-                    pickle.dump(self.features, writer)
+
+            if use_cache and os.path.exists(cached_features_file):
+                logging.info(f"loading from {cached_features_file}")
+                with open(cached_features_file, "rb") as reader:
+                    self.features = pickle.load(reader)
+            else:
+                token_params = {
+                    'bos_token': None,
+                    'eos_token': tokenizer.eos_token,
+                    'pad_token': tokenizer.pad_token,
+                    'cls_token': tokenizer.cls_token,
+                    'sep_token_extra': tokenizer.eos_token if 'roberta' in tokenizer.name.lower() else None,
+                }
+
+                self.features = self.convert_examples_to_features(
+                    self.examples, self.label_list, max_seq_length, tokenizer, output_mode, **token_params
+                )
+                master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+                if master_device:
+                    logging.info(f'Saving train features into {cached_features_file}')
+                    with open(cached_features_file, "wb") as writer:
+                        pickle.dump(self.features, writer)
 
     def __len__(self):
         return len(self.features)
@@ -345,6 +356,136 @@ class GLUEDataset(Dataset):
                 tokens_a.pop()
             else:
                 tokens_b.pop()
+
+
+class TextToTextGLUEDataset(GLUEDataset):
+    """GLUE Dataset in a text-to-text format."""
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return
+
+    def __init__(
+        self,
+        file_name: str,
+        task_name: str,
+        tokenizer: TokenizerSpec,
+        max_seq_length: int,
+        max_seq_length_decoder: int = 128,
+        use_cache: bool = True,
+        prefix_override: str = None,
+    ):
+        """
+        Processes GLUE datasets
+        Args:
+            file_name: path to file
+            task_name: GLUE task name
+            tokenizer: such as AutoTokenizer
+            max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
+            use_cache: whether to use data cache
+            prefix_override: if you want to override default prompt for this task specify this via a string.
+        """
+        super().__init__(file_name, task_name, tokenizer, max_seq_length, use_cache, compute_features=False)
+        self.max_seq_length = max_seq_length
+        self.max_seq_length_decoder = max_seq_length_decoder
+        self.processor = processors[self.task_name]()
+        self.prefix_override = prefix_override
+        self.features = self.convert_examples_to_features()
+
+    def __len__(self):
+        return len(self.examples)
+
+    def __getitem__(self, idx):
+        enc_query, dec_input, labels = self.features[idx]
+        return {'text_enc': enc_query, 'text_dec': dec_input, 'labels': labels}
+
+    def collate_fn(self, batch):
+        enc_query = [item['text_enc'] for item in batch]
+        dec_input = [item['text_dec'] for item in batch]
+        labels = [item['labels'] for item in batch]
+
+        max_dec_input_length = max([len(item) for item in dec_input])
+        max_enc_query_length = max([len(item) for item in enc_query])
+        max_label_length = max([len(item) for item in labels])
+
+        loss_mask = [([1] * (len(item))) + ([0] * (max_label_length - len(item))) for item in labels]
+        enc_query = [item + [self.tokenizer.pad_id] * (max_enc_query_length - len(item)) for item in enc_query]
+        dec_input = [item + [self.tokenizer.pad_id] * (max_dec_input_length - len(item)) for item in dec_input]
+        labels = [item + [self.tokenizer.pad_id] * (max_label_length - len(item)) for item in labels]
+
+        enc_query = torch.LongTensor(enc_query)
+        dec_input = torch.LongTensor(dec_input)
+        labels = torch.LongTensor(labels)
+        loss_mask = torch.LongTensor(loss_mask)
+
+        enc_mask = make_attention_mask_3d(enc_query, enc_query, self.tokenizer.pad_id).long()
+        dec_mask = make_attention_mask_3d(dec_input, dec_input, self.tokenizer.pad_id)
+        dec_mask = (dec_mask * make_history_mask_3d(dec_input)).long()
+        enc_dec_mask = make_attention_mask_3d(dec_input, enc_query, self.tokenizer.pad_id).long()
+
+        return {
+            'text_enc': enc_query,
+            'text_dec': dec_input,
+            'labels': labels,
+            'loss_mask': loss_mask,
+            'enc_mask': enc_mask,
+            'dec_mask': dec_mask,
+            'enc_dec_mask': enc_dec_mask,
+        }
+
+    def make_history_mask_3d(self, block):
+        batch, length = block.shape
+        arange = np.arange(length)
+        history_mask = (arange[None,] <= arange[:, None])[
+            None,
+        ]
+        history_mask = np.repeat(history_mask, batch, 0)
+        return history_mask
+
+    def convert_examples_to_features(self):
+        """
+        Converts examples into Text-to-Text batches to be used with a model like T5.
+        Inputs are prefixed with a text prompt that indicates the task to perform.
+        """
+        features = []
+        for ex_index, example in enumerate(self.examples):
+            if ex_index % 10000 == 0:
+                logging.info(f"Writing example {ex_index} of {len(self.examples)}")
+
+            text_to_text_query = self.processor.get_t5_prompted_query(example.text_a, example.text_b)
+            enc_query = self.tokenizer.text_to_ids(text_to_text_query)
+            if len(enc_query) > self.max_seq_length:
+                enc_query = enc_query[: self.max_seq_length]
+            dec_query = (
+                [self.tokenizer.cls_id]
+                + self.tokenizer.text_to_ids(self.processor.label2string(example.label))
+                + [self.tokenizer.eos_id]
+            )
+
+            # dec_query_length = len(dec_query)
+            # enc_padding_length = self.max_seq_length - len(enc_query)
+            # enc_query = enc_query + ([self.tokenizer.pad_id] * enc_padding_length)
+
+            # dec_padding_length = self.max_seq_length_decoder - len(dec_query)
+            # dec_query = dec_query + ([self.tokenizer.pad_id] * dec_padding_length)
+
+            dec_input = dec_query[:-1]
+            labels = dec_query[1:]
+
+            # enc_query = np.array(enc_query, dtype=np.int64)
+            # dec_input = np.array(dec_input, dtype=np.int64)
+            # labels = np.array(labels, dtype=np.int64)
+
+            # enc_mask = make_attention_mask(enc_query, enc_query, self.tokenizer.pad_id)
+            # dec_mask = make_attention_mask(dec_input, dec_input, self.tokenizer.pad_id) * make_history_mask(dec_input)
+            # enc_dec_mask = make_attention_mask(dec_input, enc_query, self.tokenizer.pad_id)
+
+            # loss_mask = ([1] * (dec_query_length - 1)) + ([0] * (dec_padding_length))
+            # loss_mask = np.array(loss_mask, dtype=np.int64)
+
+            features.append([enc_query, dec_input, labels])
+
+        return features
 
 
 class InputFeatures(object):

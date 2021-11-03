@@ -62,6 +62,12 @@ class MrpcProcessor(DataProcessor):
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
+    def get_t5_prompted_query(self, text_a, text_b):
+        return f"mrpc sentence1: {text_a} sentence2: {text_b}"
+
+    def label2string(self, label):
+        return "equivalent" if label == "1" else "not equivalent"
+
 
 class MnliProcessor(DataProcessor):
     """Processor for the MultiNLI data set (GLUE version)."""
@@ -90,6 +96,12 @@ class MnliProcessor(DataProcessor):
             label = line[-1]
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
+
+    def get_t5_prompted_query(self, text_a, text_b):
+        return f"mrpc premise: {text_a} hypothesis: {text_b}"
+
+    def label2string(self, label):
+        return label
 
 
 class MnliMismatchedProcessor(MnliProcessor):
@@ -125,6 +137,13 @@ class ColaProcessor(DataProcessor):
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
         return examples
 
+    def get_t5_prompted_query(self, text_a, text_b):
+        assert text_b is None
+        return f"cola sentence: {text_a}"
+
+    def label2string(self, label):
+        return "acceptable" if label == "1" else "not acceptable"
+
 
 class Sst2Processor(DataProcessor):
     """Processor for the SST-2 data set (GLUE version)."""
@@ -152,6 +171,9 @@ class Sst2Processor(DataProcessor):
             label = line[1]
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
         return examples
+
+    def get_t5_prompted_query(self, text_a, text_b):
+        return f"mrpc premise: {text_a} hypothesis: {text_b}"
 
 
 class StsbProcessor(DataProcessor):
