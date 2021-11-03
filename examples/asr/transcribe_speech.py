@@ -63,7 +63,7 @@ class TranscriptionConfig:
     batch_size: int = 32
     # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
     # device anyway, and do inference on CPU only if CUDA device is not found.
-    # If `cuda` is -1, inference will be on CPU only.
+    # If `cuda` is a negative number, inference will be on CPU only.
     cuda: Optional[int] = None
     amp: bool = False
     audio_type: str = "wav"
@@ -90,7 +90,7 @@ def main(cfg: TranscriptionConfig):
     else:
         device_id = cfg.cuda
 
-    device = torch.device(f'cuda:{device_id}' if cfg.cuda != -1 else 'cpu')
+    device = torch.device(f'cuda:{device_id}' if cfg.cuda > 0 else 'cpu')
     print(device)
 
     # setup model
