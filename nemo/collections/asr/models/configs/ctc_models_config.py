@@ -35,7 +35,7 @@ class EncDecCTCDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
 
     # Tarred dataset support
     is_tarred: bool = False
-    tarred_audio_filepaths: Optional[Union[List, str]] = None
+    tarred_audio_filepaths: Optional[Any] = None
     tarred_shard_strategy: str = "scatter"
     shuffle_n: int = 0
 
