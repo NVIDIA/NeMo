@@ -1434,7 +1434,7 @@ class BucketingIterator:
 
     def __next__(self):
         batches = []
-        print("hiii")
+        #print("hiii")
         for idx in range(self.bucketing_batchsize):
             try:
                 sample = next(self.wrapped_iter)
@@ -1443,7 +1443,7 @@ class BucketingIterator:
             except Exception as e:
                 logging.error(e)
             batches.append(sample)
-        print(f"idx={idx}, batch_len={len(batches)}, b_size={self.bucketing_batchsize}")
+        #print(f"idx={idx}, batch_len={len(batches)}, b_size={self.bucketing_batchsize}")
         if len(batches) == 0:
             raise StopIteration
         #print(batches)
