@@ -84,9 +84,9 @@ def main(cfg: TranscriptionConfig):
     # setup GPU
     if cfg.cuda is None:
         if torch.cuda.is_available():
-            cfg.cuda = 0 # use 0th CUDA device
+            cfg.cuda = 0  # use 0th CUDA device
         else:
-            cfg.cuda = -1 # use CPU
+            cfg.cuda = -1  # use CPU
     else:
         device_id = cfg.cuda
 
