@@ -139,18 +139,6 @@ class MegatronGPTModel(NLPModel):
         loss = self.loss_func(loss_mask, output_tensor)
         reduced_loss = average_losses_across_data_parallel_group([loss])
 
-        # TODO: add text generation
-        # take the first k tokens and then generate text - compare with ground truth (won't look similar in general)
-        """
-        k = num_context
-        n = max_generate_length
-        context_tokens = tokens[0:k]
-        while k < n:
-            output_tensor = self(context_tokens)
-            next_token = sample(output_tensor)
-            context_tokens.append(next_token)
-            k += 1
-        """
         return reduced_loss
 
     def validation_epoch_end(self, outputs):
