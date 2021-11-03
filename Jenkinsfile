@@ -329,7 +329,7 @@ pipeline {
             sh 'python examples/speaker_tasks/diarization/offline_diarization_with_asr.py \
 	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
             diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
-            diarizer.asr.model_path='QuartzNet15x5Base-En' \
+            diarizer.asr.model_path=QuartzNet15x5Base-En \
             diarizer.asr.parameters.asr_based_vad=True \
             diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
             sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
