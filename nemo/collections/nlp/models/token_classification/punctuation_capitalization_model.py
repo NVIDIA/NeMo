@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import os
 from math import ceil
 from pathlib import Path
@@ -66,18 +67,14 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         self.world_size = 1
         if trainer is not None:
             self.world_size = trainer.num_nodes * trainer.num_gpus
-        self.metrics = {
-            "val": {
-                "loss": [],
-                "punct_class_report": [],
-                "capit_class_report": [],
-            },
-            "test": {
-                "loss": [],
-                "punct_class_report": [],
-                "capit_class_report": []
+        eval_metrics = torch.nn.ModuleDict(
+            {
+                "loss": torch.nn.ModuleList([]),
+                "punct_class_report": torch.nn.ModuleList([]),
+                "capit_class_report": torch.nn.ModuleList([]),
             }
-        }
+        )
+        self.metrics = torch.nn.ModuleDict({"val": eval_metrics, "test": copy.deepcopy(eval_metrics)})
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.bert_model = get_lm_model(
