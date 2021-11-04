@@ -38,7 +38,7 @@ exp_manager:
   create_checkpoint_callback: true  # Whether you want exp_manager to create a model checkpoint callback
   checkpoint_callback_params:
     save_best_model: true
-  create_wandb_logger: false
+  create_wandb_logger: true
   wandb_logger_kwargs:
     name: evelina_punc_cap_train_on_small_wiki_gpu1_lr1e-4_steps300000
     project: autoregressive_punctuation_capitalization
