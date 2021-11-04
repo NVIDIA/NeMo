@@ -45,12 +45,13 @@ exp_manager:
     entity: anton_peganov
 
 model:
-  pad_label: O
   punct_label_ids: null # will be filled during training
   capit_label_ids: null # will be filled during training
   class_labels:
     punct_labels_file: /media/apeganov/DATA/wiki_unsplit_48_65_filtered_characters/train_tarred/punct_label_ids.csv
     capit_labels_file: /media/apeganov/DATA/wiki_unsplit_48_65_filtered_characters/train_tarred/capit_label_ids.csv
+  dataset:
+    pad_label: O
 
   train_ds:
     use_tarred_dataset: true
