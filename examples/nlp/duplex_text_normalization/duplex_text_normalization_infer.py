@@ -51,6 +51,7 @@ from typing import List
 
 from helpers import DECODER_MODEL, TAGGER_MODEL, instantiate_model_and_trainer
 from nn_wfst.en.electronic.normalize import ElectronicNormalizer
+from nn_wfst.en.whitelist.normalize import WhitelistNormalizer
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.data.text_normalization import constants
@@ -73,7 +74,8 @@ def main(cfg: DictConfig) -> None:
     tn_model = DuplexTextNormalizationModel(tagger_model, decoder_model, lang)
 
     if lang == constants.ENGLISH:
-        normalizer = ElectronicNormalizer(input_case="cased", lang=lang, deterministic=True)
+        normalizer_electronic = ElectronicNormalizer(input_case="cased", lang=lang, deterministic=True)
+        normalizer_whitelist = WhitelistNormalizer(input_case="cased", lang=lang, deterministic=True)
 
     if cfg.inference.get("from_file", False):
         text_file = cfg.inference.from_file
@@ -85,7 +87,8 @@ def main(cfg: DictConfig) -> None:
             lines = f.readlines()
 
         if lang == constants.ENGLISH:
-            lines = normalizer.normalize_list(lines)
+            lines = normalizer_electronic.normalize_list(lines)
+            lines = normalizer_whitelist.normalize_list(lines)
 
         def _get_predictions(lines: List[str], mode: str, batch_size: int, text_file: str):
             """ Runs inference on a batch data without labels and saved predictions to a file. """
@@ -122,7 +125,8 @@ def main(cfg: DictConfig) -> None:
                 done = True
             if not done:
                 if lang == constants.ENGLISH:
-                    test_input = normalizer.normalize(test_input, verbose=False)
+                    test_input = normalizer_electronic.normalize(test_input, verbose=False)
+                    test_input = normalizer_whitelist.normalize(test_input, verbose=False)
                 directions = []
                 inputs = []
                 if cfg.mode in ['itn', 'joint']:
