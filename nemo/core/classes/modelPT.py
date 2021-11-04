@@ -616,10 +616,12 @@ class ModelPT(LightningModule, Model):
         """
         # Case where we dont provide data loaders
         if outputs is not None and len(outputs) == 0:
+            print("exit")
             return {}
 
         # Case where we provide exactly 1 data loader
         if type(outputs[0]) == dict:
+            print("bad")
             output_dict = self.multi_validation_epoch_end(outputs, dataloader_idx=0)
 
             if output_dict is not None and 'log' in output_dict:
@@ -628,6 +630,7 @@ class ModelPT(LightningModule, Model):
             return output_dict
 
         else:  # Case where we provide more than 1 data loader
+            print("good")
             output_dict = {'log': {}}
 
             # The output is a list of list of dicts, outer list corresponds to dataloader idx
