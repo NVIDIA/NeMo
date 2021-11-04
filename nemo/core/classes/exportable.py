@@ -139,7 +139,8 @@ class Exportable(ABC):
         del my_args['self']
 
         qual_name = self.__module__ + '.' + self.__class__.__qualname__
-        output_descr = qual_name + ' exported to ONNX'
+        format = self.get_format(output)
+        output_descr = f"{qual_name} exported to {format}"
 
         try:
             # Disable typechecks
@@ -150,8 +151,6 @@ class Exportable(ABC):
 
             # Set module to eval mode
             self._set_eval(set_eval)
-
-            format = self.get_format(output)
 
             if input_example is None:
                 input_example = self._get_input_example()
