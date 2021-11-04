@@ -69,95 +69,157 @@ bignlp-scripts/config/evaluation/evaluate_lambada.yaml. The parameters can be
 modified to adapt different evaluation tasks and checkpoints in evaluation runs.
 
 
-## Deploying the BigNLP model on Triton Inference Server with FasterTransformer Backend on a Single Node
+## Deploying the BigNLP model
 
-[Triton Model Navigator](https://github.com/triton-inference-server/model_navigator)
-helps with conversion and setting up a deployment
-environment to do inference for models from BigNLP training scripts in a
-multi-GPU environment. All you need is to use our scripts to convert models to
-a new format, then use Triton Model Navigator to process inference requests. In
-the context of BigNLP models, this can be important if you are trying to build
-a multi-GPU and multi-node NLP task to generate responses to users' requests on
-a live system.
 
-The inference scripts execute at a slurm cluster several steps:
- * Execution of inference container using pyxis slurm plugin.
- * Checkpoint conversion.
- * Configuration of model repository for Triton Inference Server.
- * Optimization of model configuration for inference..
- * Accuracy verification.
- * Profiling of deployed models.
+This section describes the deployment of the BigNLP model on the NVIDIA Triton
+Inference Server with FasterTransformer Backend on both single and multiple
+node environments.  NVIDIA Triton Inference Server supports many inference
+scenarios, of which two most important are:
+* Offline inference  scenario - with a goal to maximize throughput regardless
+  of the latency, usually achieved with increasing batch size and using server
+  static batching feature.
+* Online inference scenario - with a goal to maximize throughput within a given
+  latency budget, usually achieved with small batch sizes and increasing
+  concurrency requests to the server, using dynamic batching feature.
+
+[NVIDIA Triton Model Navigator](https://github.com/triton-inference-server/model_navigator)
+helps with conversion and setting up a deployment environment to do inference
+for models from BigNLP training scripts. Use scripts to convert models to a new
+format, then use NVIDIA Triton Inference Server to process inference requests.
+
+The inference scripts execute at a Slurm cluster in several steps:
+* Megatron/NeMo checkpoint conversion to FasterTransformer format.
+* Preparation of model repository for NVIDIA Triton Inference Server.
+* Profiling and selecting the best inference model and NVIDIA
+  Triton Inference Server configuration.
+* Accuracy verification.
+* Profiling of deployed models.
 
 The inference container is pulled from a Docker registry. You must ensure that
-your slurm configuration allows access to your Docker store. NVIDIA provides
-the container with all components necessary for inference at the NGC registry.
-Inference scripts use pyxis slurm plugin to pull and run the container in a
-node.
+your Slurm configuration allows access to your registry. NVIDIA provides the
+container with all components necessary for inference at the
+[NGC Docker registry](https://ngc.nvidia.com/catalog/containers).
+Inference scripts use the [pyxis slurm plug-in](https://github.com/NVIDIA/pyxis)
+to pull and run the container in a node.
 
-The navigator script converts a checkpoint from a training format to
+
+The navigator script converts a checkpoint from a training format to the
 [FasterTransformer](https://github.com/triton-inference-server/fastertransformer_backend)
-format.  The navigator script looks for a trained checkpoint
-in the workspace passed as an argument and creates navigator workspace with all
-output files, which can be used for production inference deployment.
+format. The NVIDIA Triton Model Navigator looks for a trained
+checkpoint in the workspace passed as an argument and creates a navigator
+workspace with all output files, which can be used for production inference
+deployment.
 
-The navigator script generates many Triton model stores and manages them to
-conduct optimization of configuration parameters. This optimizes  GPU memory
-and makes inference a lot faster. Triton Inference Server’s optimization tool
-Model Analyzer helps  to find the best configuration, taking into account
-constraints defined in the navigator’s configuration. It is possible to set
-constraints for latency, throughput and GPU memory.  All generated models are
-profiled to report latency and throughput. Once the model is optimized, you can
-deploy it to your inference infrastructure and use it at production.
+The NVIDIA Triton Model Navigator script generates many NVIDIA Triton model
+repositories and manages them to conduct optimization of configuration
+parameters. This optimizes GPU memory and makes inference a lot faster. NVIDIA
+Triton Inference Server’s optimization tool Model Analyzer helps to find the
+best configuration, taking into account constraints defined in the navigator’s
+configuration. It is possible to set constraints for latency, number of GPUs
+and [NVIDIA DGX A100](https://www.nvidia.com/en-us/data-center/dgx-a100/)
+machines. All generated models are profiled to report latency and throughput.
+Once the model is optimized, you can deploy it to your inference infrastructure
+and use it in production.
 
-### Prepare configuration
+
+### Model inference deployment process
+
+![Model inference deployment process diagram](img/inference_deployment_flow.png)
+
+
+### 1. Prepare environment
+
+The whole solution uses a set of Docker containers executed at Slurm cluster
+using the pyxis plug-in. The training container also includes conversion
+scripts and NVIDIA Triton Model Navigator. The inference container is just the
+NVIDIA Triton Inference Server with the FasterTransformer backend installed.
+Install the BigNLP scripts dependencies on the head node of your cluster:
+
+```
+pip install -r requirements.txt
+```
+
+You can use `virtualenv` to prevent polluting your
+head node environment for other Python projects. If your Slurm configuration
+lacks pip, then you can use [get\_pip.py](https://github.com/pypa/get-pip)
+with just `python3`.
 
 You must set your configuration for a slurm cluster in YAML file:
 
 ```yaml
-slurm:
+slurm:                  # example config for enterprise cluster
   sbatch_parameters:    # this overwrites sbatch parameters generated by submitit
     account: null       # slurm account
     partition: "batch"  # slurm partition
     exclude: null       # slurm nodes, which should be excluded from jobs
-  srun_args: ["--mpi", "pmix"] # additional slurm arguments liu
+  srun_args: ["--mpi", "pmix"] # additional slurm arguments list
   enable_gpus_allocation: true
 env:
   pyxis_container_workdir: /bignlp_workdir
-  pyxis_training_container_image: nvcr.io/nvidian/swdl/pziecina_fastertransformer_backend:21.08-20211024_1221
-  pyxis_inference_container_image: nvcr.io/nvidian/swdl/pziecina_fastertransformer_backend:21.08-20211024_1221
+  pyxis_training_container_image: nvcr.io/nvidian/swdl/bignlp:21.10.04-py3-base
+  pyxis_inference_container_image: nvcr.io/nvidian/swdl/bignlp:infer-main-py3-base
 ```
 
-The `sbatch_parameters` section configures slurm job parameters. The `srun_args`
+The `sbatch_parameters` section configures Slurm job parameters. The `srun_args`
 should contain [MPI](https://slurm.schedmd.com/mpi_guide.html) configuration
 valid for your cluster.
 
 The `env` section sets pyxis development environment:
- * `pyxis_container_workdir`: work directory used in Docker container
- * `pyxis_training_container_image`: NGC training container for BigNLOP
- * `pyxis_inference_container_image`: NGC inference container for BigNLP
+ * `pyxis_container_workdir`: Work directory used in Docker container.
+ * `pyxis_training_container_image`: NGC training container for BigNLP.
+ * `pyxis_inference_container_image`: NGC inference container for BigNLP.
 
-The training container includes also conversion scripts and Triton Model Navigator.
-The inference container is just Triton Inference Server with FasterTransformer
-backend. It doesn't support Python scripts but is optimized for inference.
+### 2. Provide model and inference configuration
 
+#### 2.1 Predefined configuration for selected models
 
-
-### Predefined configuration for selected models
-
-TODO: Update 
-
-The repository contains the `conf/inference` folder with predefined Triton
+The repository contains the conf/inference folder with predefined NVIDIA Triton
 Model Navigator configurations saved in YAML files. Those configurations are
-prepared for 5B and 20B GPT3 models. The configurations cover inference with
-8 GPUs at one node.
+prepared for 5B, 20B, 175B and 530B GPT3 models for two input/output
+configurations 200/200 and 60/20. The configurations cover inference with
+several GPUs at one node.  The files are present in the 
+`conf/inference/optimal_configurations` folder.
 
-The files:
- * `5B GPT3`:
-  * `5b_1node.yaml` - ready configuration for Triton Inference Server
-  * `5b_1node_profile.yaml` - configuration for Navigator model optimizer.
- * `20B GPT3`:
-  * `20b_1node.yaml` - ready configuration for Triton Inference Server
-  * `20b_1node_profile.yaml` - configuration for Navigator model optimizer.
+The configuration changes for different input sequence lengths and output
+sequence lengths used in inference tasks. An application like chatbot can work
+with an input of 60 tokens and an output of 20 tokens. Scenarios like text
+translation require much longer lengths closer to 200 for input tokens and 200
+for output tokens. The RAM usage for a bigger batch size with longer sequence
+lengths increases significantly, so optimal configurations set different
+maximum batch size values for different sequence lengths. The predefined
+configuration files can be used with the `prepare_model_repository.py` script
+described later. The files are marked with a number of parameters in model
+architecture like 5B, which means 5 billion parameters.
+
+Input sequence lengths 60 and output 20:
+* **5B GPT3**: `5b_io_60_20.yaml`
+* **20B GPT3**: `20b_io_60_20.yaml`
+* **175B GPT3**: `175b_io_60_20.yaml`
+* **530B GPT3**: `530b_io_60_20.yaml`
+
+Input sequence lengths 200 and output 200:
+* **5B GPT3**: `5b_io_200_200.yaml`
+* **20B GPT3**: `20b_io_200_200.yaml`
+* **175B GPT3**: `175b_io_200_200.yaml`
+* **530B GPT3**: `530b_io_200_200.yaml`
+
+The configuration folder also contains configuration for random
+FasterTransformer checkpoints. It is possible to start FasterTransformer
+inference without weight files because the engine just initializes them to
+random values. This model can’t deliver any valid accuracy, but it is possible
+to benchmark inference constraints like latency before the expensive training
+of a large model is finished. The folder `conf/inference/model_specs` contains a
+folder with predefined random model configuration, which cover range of example
+GPT3 configurations, where each folder is marked with a number of model
+parameters:
+* **5B**: `5b.ft`
+* **20B**: `20b.ft`
+* **89B**: `89b.ft`
+* **175B**: `175b.ft`
+* **310B**: `310b.ft`
+* **530B**: `530b.ft`
+
 
 ### Convert and optimize model for inference
 
