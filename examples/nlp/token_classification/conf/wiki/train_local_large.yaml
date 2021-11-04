@@ -40,7 +40,7 @@ exp_manager:
     save_best_model: true
   create_wandb_logger: true
   wandb_logger_kwargs:
-    name: evelina_punc_cap_train_on_small_wiki_gpu1_lr1e-4_steps300000
+    name: debug_punctuation_capitalization
     project: autoregressive_punctuation_capitalization
     entity: anton_peganov
 
