@@ -43,7 +43,7 @@ class ConvSubsampling(torch.nn.Module):
         in_channels = 1
         layers = []
         self._ceil_mode = False
-        
+
         if subsampling == 'vggnet':
             self._padding = 0
             self._stride = 2
@@ -99,7 +99,7 @@ class ConvSubsampling(torch.nn.Module):
         out_length = self.calc_length(in_length)
         self.out = torch.nn.Linear(conv_channels * int(out_length), feat_out)
         self.conv = torch.nn.Sequential(*layers)
-        
+
     def forward(self, x, lengths):
         # TODO: improve the performance of length calculation
         lengths = self.calc_length(lengths)
@@ -108,7 +108,6 @@ class ConvSubsampling(torch.nn.Module):
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).contiguous().view(b, t, -1))
         return x, lengths
-
 
     def calc_length(self, lengths):
         """ Calculates the output length of a Tensor passed through a convolution or max pooling layer"""
