@@ -19,7 +19,7 @@ is provided: `duplex_text_normalization_train.py <https://github.com/NVIDIA/NeMo
 After that, the two trained models can be used to initialize a `DuplexTextNormalizationModel <https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/duplex_text_normalization/duplex_tn.py/>`__ that can be used for end-to-end inference.
 An example script for evaluation is provided here: `duplex_text_normalization_test.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/duplex_text_normalization/duplex_text_normalization_test.py>`__. 
 The script for inference of the full pipeline is provided here: `duplex_text_normalization_infer.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/duplex_text_normalization/duplex_text_normalization_infer.py>`__. 
-This script also allows you to interactively run inference in the terminal. 
+This script runs inference from a raw text file or an interactive terminal. 
 The term *duplex* refers to the fact that our system can be trained to do both TN and ITN. However, you can also specifically train the system for only one of the tasks.
 
 
@@ -76,9 +76,10 @@ Data preprocessing
 Processing scripts can be found in the same folder. Right now we only provide scripts for English text normalization, see `data/en/data_preprocessing.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/duplex_text_normalization/data/en/data_preprocessing.py>`__.
 The details can be found at the top of the scripts.
 The purpose of the preprocessing scripts is to standardize the format in order to help with model training.
+We also changed punctuation class `PUNCT` to be treated like a plain token ( label changed from `<sil> to ``<self>`), since we want to maintain the punctuation even after normalization. 
 For text normalization it is crucial to avoid unrecoverable errors, which are linguistically coherent and not semantic preserving. 
 We noticed that due to data scarcity the model struggles verbalizing long numbers correctly, so we changed the ground truth for long numbers to digit by digit verbalization.
-We also ignore certain semiotic classes from neural verbalization, e.g. `ELECTRONIC` or `WHITELIST`. Instead we label urls/email addresses and abbreviations as plain tokens, and handle it separately with WFST-based grammars, see :ref:`inference_text_normalization`.
+We also ignore certain semiotic classes from neural verbalization, e.g. `ELECTRONIC` or `WHITELIST` -- `VERBATIM` and `LETTER` in the original dataset. Instead we label urls/email addresses and abbreviations as plain tokens, and handle it separately with WFST-based grammars, see :ref:`inference_text_normalization`.
 This simplifies the task for the model and significantly reduces unrecoverable errors.
 
 
