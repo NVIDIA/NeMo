@@ -158,6 +158,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         punct_labels = batch['punct_labels'][subtokens_mask]
         capit_preds = torch.argmax(capit_logits, axis=-1)[subtokens_mask]
         capit_labels = batch['capit_labels'][subtokens_mask]
+        print("metric.device, loss.device, num_measurements.device:", self.metrics[mode]['loss'][dataloader_idx].device, loss.device, batch['loss_mask'].device)
         self.metrics[mode]['loss'][dataloader_idx](loss=loss, num_measurements=batch['loss_mask'].sum().to(loss.device))
         self.metrics[mode]['punct_class_report'][dataloader_idx](punct_preds, punct_labels)
         self.metrics[mode]['capit_class_report'][dataloader_idx](capit_preds, capit_labels)
