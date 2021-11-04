@@ -23,6 +23,18 @@ from nemo.utils import logging
 
 
 """
+This script demonstrates how to use run speaker diarization.
+Usage:
+python offline_diarization_with_asr.py \
+    diarizer.manifest_filepath=<path to manifest file> \
+    diarizer.out_dir='demo_asr_output' \
+    diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
+    diarizer.asr.model_path=<pretrained modelname or path to .nemo> \
+    diarizer.asr.parameters.asr_based_vad=True
+
+Check out whole parameters in ./conf/offline_diarization_with_asr.yaml and their meanings.
+For details, have a look at <NeMo_git_root>/tutorials/speaker_tasks/Speaker_Diarization_Inference.ipynb
+
 Currently Supported ASR models:
 
 QuartzNet15x5Base-En
