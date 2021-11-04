@@ -301,7 +301,7 @@ class MegatronGPTModel(NLPModel):
         )
         return int(consumed_samples)
 
-    def configure_gradient_clipping(self):
+    def configure_gradient_clipping(self, *args, **kwargs):
         """PTL hook to configure gradients.
            We use gradient clipping implementation from megatron-lm.
         """
