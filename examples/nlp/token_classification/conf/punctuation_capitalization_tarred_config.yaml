@@ -57,6 +57,7 @@ model:
     use_tarred_dataset: true
     text_file: null
     labels_file: null
+    ds_item: ???
     metadata_file: ???
     persistent_workers: true
     pin_memory: true
@@ -65,6 +66,7 @@ model:
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
     # evaluation is needed, specify ds_item, otherwise by default data_dir is used
     use_tarred_dataset: false
+    ds_item: ???
     text_file: ???
     labels_file: ???
     metadata_file: null
@@ -78,6 +80,7 @@ model:
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
     # evaluation is needed, specify ds_item, otherwise by default data_dir is used
     use_tarred_dataset: false
+    ds_item: ???
     text_file: ???
     labels_file: ???
     metadata_file: null

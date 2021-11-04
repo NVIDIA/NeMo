@@ -48,8 +48,8 @@ model:
   punct_label_ids: null # will be filled during training
   capit_label_ids: null # will be filled during training
   class_labels:
-    punct_labels_file: /media/apeganov/DATA/wiki_unsplit_48_65_filtered_characters/train_tarred/punct_label_ids.csv
-    capit_labels_file: /media/apeganov/DATA/wiki_unsplit_48_65_filtered_characters/train_tarred/capit_label_ids.csv
+    punct_labels_file: punct_label_ids.csv
+    capit_labels_file: capit_label_ids.csv
   dataset:
     pad_label: O
 
@@ -57,7 +57,8 @@ model:
     use_tarred_dataset: true
     text_file: null
     labels_file: null
-    metadata_file: /media/apeganov/DATA/wiki_unsplit_48_65_filtered_characters/train_tarred/metadata.punctuation_capitalization.tokens15000.max_seq_length512.bert-base-uncased.json
+    ds_item: /media/apeganov/DATA/wiki_unsplit_48_65_filtered_characters/train_tarred
+    metadata_file: metadata.punctuation_capitalization.tokens15000.max_seq_length512.bert-base-uncased.json
     persistent_workers: true
     pin_memory: true
 
@@ -65,8 +66,9 @@ model:
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
     # evaluation is needed, specify ds_item, otherwise by default data_dir is used
     use_tarred_dataset: false
-    text_file: /media/apeganov/DATA/wiki_unsplit_48_65_filtered_characters/dev/input.txt
-    labels_file: /media/apeganov/DATA/wiki_unsplit_48_65_filtered_characters/dev/bert_labels.txt
+    ds_item: /media/apeganov/DATA/wiki_unsplit_48_65_filtered_characters/dev
+    text_file: input.txt
+    labels_file: bert_labels.txt
     metadata_file: null
     shuffle: false
     num_samples: -1
@@ -78,8 +80,9 @@ model:
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
     # evaluation is needed, specify ds_item, otherwise by default data_dir is used
     use_tarred_dataset: false
-    text_file: /media/apeganov/DATA/wiki_unsplit_48_65_filtered_characters/test/input.txt
-    labels_file: /media/apeganov/DATA/wiki_unsplit_48_65_filtered_characters/test/bert_labels.txt
+    ds_item: /media/apeganov/DATA/wiki_unsplit_48_65_filtered_characters/test
+    text_file: input.txt
+    labels_file: bert_labels.txt
     metadata_file: null
     shuffle: false
     num_samples: -1

@@ -329,7 +329,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             raise ValueError(
                 f"At least one of parameters `model.dataset.data_dir` and `model.<dataset_config>.ds_item` should be "
                 f"present in model config. Parameters `data_dir` or `ds_item` are paths to directory where "
-                f"`metadata_file`, `text_file`, `labels_file` are stored."
+                f"`metadata_file`, `text_file`, `labels_file` files are stored."
             )
         # use data_dir specified in the ds_item to run evaluation on multiple datasets
         if cfg.use_tarred_dataset:
