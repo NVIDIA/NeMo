@@ -148,7 +148,6 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         punct_labels = batch['punct_labels'][subtokens_mask]
         capit_preds = torch.argmax(capit_logits, axis=-1)[subtokens_mask]
         capit_labels = batch['capit_labels'][subtokens_mask]
-        print("metric.device, loss.device, num_measurements.device:", self.metrics[mode]['loss'][dataloader_idx].device, loss.device, batch['loss_mask'].device)
         self.metrics[mode]['loss'][dataloader_idx](loss=loss, num_measurements=batch['loss_mask'].sum().to(loss.device))
         self.metrics[mode]['punct_class_report'][dataloader_idx](punct_preds, punct_labels)
         self.metrics[mode]['capit_class_report'][dataloader_idx](capit_preds, capit_labels)
@@ -195,13 +194,13 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         self.metrics[mode]['capit_class_report'][dataloader_idx].reset()
         log_dict = {
             'log': {
-                'loss': loss,
-                'punct_precision': punct_precision,
-                'punct_f1': punct_f1,
-                'punct_recall': punct_recall,
-                'capit_precision': capit_precision,
-                'capit_f1': capit_f1,
-                'capit_recall': capit_recall,
+                f'{mode}_loss': loss,
+                f'{mode}_punct_precision': punct_precision,
+                f'{mode}_punct_f1': punct_f1,
+                f'{mode}_punct_recall': punct_recall,
+                f'{mode}_capit_precision': capit_precision,
+                f'{mode}_capit_f1': capit_f1,
+                f'{mode}_capit_recall': capit_recall,
             }
         }
         logging.info(f'Punctuation report: {punct_report}')
