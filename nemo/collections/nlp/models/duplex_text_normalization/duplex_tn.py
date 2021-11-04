@@ -26,7 +26,7 @@ from nemo.collections.nlp.models.duplex_text_normalization.utils import get_form
 from nemo.utils import logging
 from nemo.utils.decorators.experimental import experimental
 
-__all__ = ['DuplexTextNormalizationModel']
+__all__ = ['DuplexTextNormalizationModel', 'post_process_punct']
 
 
 class DuplexTextNormalizationModel(nn.Module):
