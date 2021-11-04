@@ -99,13 +99,13 @@ model:
     config: null
 
   punct_head:
-    num_fc_layers: 1
+    punct_num_fc_layers: 1
     fc_dropout: 0.1
     activation: 'relu'
     use_transformer_init: True
 
   capit_head:
-    num_fc_layers: 1
+    capit_num_fc_layers: 1
     fc_dropout: 0.1
     activation: 'relu'
     use_transformer_init: true
