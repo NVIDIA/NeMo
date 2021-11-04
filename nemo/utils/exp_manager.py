@@ -732,10 +732,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.best_model_path = best_k_models[0]
         self.best_model_score = self.best_k_models[self.best_model_path]
 
-        # # uninject mp_rank from paths
-        # self.kth_best_model_path = self._uninject_mp_rank(self.kth_best_model_path)
-        # self.best_model_path = self._uninject_mp_rank(self.best_model_path)
-
     @staticmethod
     def _uninject_mp_rank(filepath):
         dirname = os.path.dirname(os.path.dirname(filepath))

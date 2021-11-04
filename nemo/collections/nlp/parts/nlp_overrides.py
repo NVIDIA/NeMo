@@ -54,7 +54,7 @@ class NLPDDPPlugin(DDPPlugin):
     """ DDP plugin for Pytorch Lightning. Needed to customize DDP for model parallel models.
     """
 
-    distributed_backend = "ddp"
+    accelerator = "ddp"
 
     def __init__(
         self,
