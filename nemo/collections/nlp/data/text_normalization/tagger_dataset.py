@@ -171,7 +171,10 @@ class TextNormalizationTaggerDataset(Dataset):
                     label_ids.append(label_id)
                 # We set the label for the other tokens in a word
                 else:
-                    label_id = self.tag2id[constants.I_PREFIX + label[word_idx]]
+                    if 'SAME' in label[word_idx]:
+                        label_id = self.tag2id[constants.B_PREFIX + label[word_idx]]
+                    else:
+                        label_id = self.tag2id[constants.I_PREFIX + label[word_idx]]
                     label_ids.append(label_id)
                 previous_word_idx = word_idx
 
