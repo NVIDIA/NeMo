@@ -22,7 +22,7 @@ exp_manager:
   explicit_log_dir: null
   exp_dir: null
   name: megatron_gpt
-  create_wandb_logger: True
+  create_wandb_logger: False
   wandb_logger_kwargs:
     project: null
     name: null
