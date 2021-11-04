@@ -302,7 +302,7 @@ class RelPositionalEncoding(PositionalEncoding):
         # for input of length L, 2*L-1 positions are needed, positions from (L-1) to -(L-1)
         start_pos = self.center_pos - x.size(1)
         end_pos = self.center_pos + x.size(1)
-        pos_emb = self.pe[:, int(start_pos):int(end_pos)]
+        pos_emb = self.pe[:, start_pos:end_pos]
         if self.dropout_emb:
             pos_emb = self.dropout_emb(pos_emb)
         return self.dropout(x), pos_emb
