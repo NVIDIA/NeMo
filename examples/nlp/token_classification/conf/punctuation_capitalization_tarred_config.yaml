@@ -1,0 +1,129 @@
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Punctuation and capitalization model with pretrained BERT-like models
+
+pretrained_model: null # pretrained Punctuation and Capitalization model from list_available_models(), for example:
+# punctuation_en_bert or punctuation_en_distilbert
+# or your_model.nemo
+trainer:
+  gpus: 1 # the number of gpus, 0 for CPU
+  max_steps: 300000 # precedence over max_epochs
+  accumulate_grad_batches: 1 # accumulates grads every k batches
+  gradient_clip_val: 0.0
+  amp_level: O2 # O1/O2 for mixed precision
+  amp_backend: apex
+  precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
+  accelerator: ddp
+  checkpoint_callback: false  # Provided by exp_manager
+  logger: false  # Provided by exp_manager
+  log_every_n_steps: 50  # Interval of logging.
+  check_val_every_n_epoch: 1
+  progress_bar_refresh_rate: 0
+
+exp_manager:
+  exp_dir: nemo_experiments  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
+  name: Punctuation_and_Capitalization  # The name of your model
+  create_checkpoint_callback: true  # Whether you want exp_manager to create a model checkpoint callback
+  checkpoint_callback_params:
+    save_best_model: true
+  create_wandb_logger: false
+  wandb_logger_kwargs:
+    name: evelina_punc_cap_train_on_small_wiki_gpu1_lr1e-4_steps300000
+    project: autoregressive_punctuation_capitalization
+    entity: anton_peganov
+
+model:
+  punct_label_ids: null # will be filled during training
+  capit_label_ids: null # will be filled during training
+  class_labels:
+    punct_labels_file: /media/apeganov/DATA/wiki_unsplit_48_65_filtered_characters/train_tarred/punct_label_ids.csv
+    capit_labels_file: /media/apeganov/DATA/wiki_unsplit_48_65_filtered_characters/train_tarred/capit_label_ids.csv
+  dataset:
+    pad_label: O
+
+  train_ds:
+    use_tarred_dataset: true
+    text_file: null
+    labels_file: null
+    metadata_file: ???
+    persistent_workers: true
+    pin_memory: true
+
+  validation_ds:
+    # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
+    # evaluation is needed, specify ds_item, otherwise by default data_dir is used
+    use_tarred_dataset: false
+    text_file: ???
+    labels_file: ???
+    metadata_file: null
+    shuffle: false
+    num_samples: -1
+    tokens_in_batch: 15000
+    persistent_workers: true
+    pin_memory: true
+
+  test_ds:
+    # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
+    # evaluation is needed, specify ds_item, otherwise by default data_dir is used
+    use_tarred_dataset: false
+    text_file: ???
+    labels_file: ???
+    metadata_file: null
+    shuffle: false
+    num_samples: -1
+    tokens_in_batch: 15000
+
+  tokenizer:
+    tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece
+    vocab_file: null # path to vocab file
+    tokenizer_model: null # only used if tokenizer is sentencepiece
+    special_tokens: null
+    use_fast: true
+
+  language_model:
+    pretrained_model_name: bert-base-uncased
+    lm_checkpoint: null
+    config_file: null # json file, precedence over config
+    config: null
+
+  punct_head:
+    num_fc_layers: 1
+    fc_dropout: 0.1
+    activation: 'relu'
+    use_transformer_init: True
+
+  capit_head:
+    num_fc_layers: 1
+    fc_dropout: 0.1
+    activation: 'relu'
+    use_transformer_init: true
+
+  optim:
+    name: adam
+    lr: 5e-5
+    weight_decay: 0.00
+
+    sched:
+      name: InverseSquareRootAnnealing
+      min_lr: 0.0
+      last_epoch: -1
+      warmup_ratio: 0.1
+
+hydra:
+  run:
+    dir: .
+  job_logging:
+    root:
+      handlers: null
