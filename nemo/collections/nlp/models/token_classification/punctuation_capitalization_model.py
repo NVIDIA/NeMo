@@ -66,6 +66,18 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         self.world_size = 1
         if trainer is not None:
             self.world_size = trainer.num_nodes * trainer.num_gpus
+        self.metrics = {
+            "val": {
+                "loss": [],
+                "punct_class_report": [],
+                "capit_class_report": [],
+            },
+            "test": {
+                "loss": [],
+                "punct_class_report": [],
+                "capit_class_report": []
+            }
+        }
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.bert_model = get_lm_model(
@@ -146,14 +158,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         punct_labels = batch['punct_labels'][subtokens_mask]
         capit_preds = torch.argmax(capit_logits, axis=-1)[subtokens_mask]
         capit_labels = batch['capit_labels'][subtokens_mask]
-        if dataloader_idx == 0:
-            getattr(self, f'{mode}_loss')(loss=loss, num_measurements=batch['loss_mask'].sum())
-            getattr(self, f'{mode}_punct_class_report')(punct_preds, punct_labels)
-            getattr(self, f'{mode}_capit_class_report')(capit_preds, capit_labels)
-        else:
-            getattr(self, f'{mode}_loss_{dataloader_idx}')(loss=loss, num_measurements=batch['loss_mask'].sum())
-            getattr(self, f'{mode}_punct_class_report_{dataloader_idx}')(punct_preds, punct_labels)
-            getattr(self, f'{mode}_capit_class_report_{dataloader_idx}')(capit_preds, capit_labels)
+        self.metrics[mode]['loss'][dataloader_idx](loss=loss, num_measurements=batch['loss_mask'].sum())
+        self.metrics[mode]['punct_class_report'][dataloader_idx](punct_preds, punct_labels)
+        self.metrics[mode]['capit_class_report'][dataloader_idx](capit_preds, capit_labels)
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         """
@@ -185,28 +192,16 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         Called at the end of validation to aggregate outputs.
         outputs: list of individual outputs of each validation step.
         """
-        if dataloader_idx == 0:
-            loss = getattr(self, f'{mode}_loss').compute()
-            getattr(self, f'{mode}_loss').reset()
+        loss = self.metrics[mode]['loss'][dataloader_idx].compute()
+        self.metrics[mode]['loss'][dataloader_idx].reset()
 
-            punct_res = getattr(self, f'{mode}_punct_class_report').compute()
-            punct_precision, punct_recall, punct_f1, punct_report = punct_res
-            getattr(self, f'{mode}_punct_class_report').reset()
+        punct_res = self.metrics[mode]['punct_class_report'][dataloader_idx].compute()
+        punct_precision, punct_recall, punct_f1, punct_report = punct_res
+        self.metrics[mode]['punct_class_report'][dataloader_idx].reset()
 
-            capit_res = getattr(self, f'{mode}_capit_class_report').compute()
-            capit_precision, capit_recall, capit_f1, capit_report = capit_res
-            getattr(self, f'{mode}_capit_class_report').reset()
-        else:
-            loss = getattr(self, f'{mode}_loss_{dataloader_idx}').compute()
-            getattr(self, f'{mode}_loss_{dataloader_idx}').reset()
-
-            punct_res = getattr(self, f'{mode}_punct_class_report_{dataloader_idx}').compute()
-            punct_precision, punct_recall, punct_f1, punct_report = punct_res
-            getattr(self, f'{mode}_punct_class_report_{dataloader_idx}').reset()
-
-            capit_res = getattr(self, f'{mode}_capit_class_report_{dataloader_idx}').compute()
-            capit_precision, capit_recall, capit_f1, capit_report = capit_res
-            getattr(self, f'{mode}_capit_class_report_{dataloader_idx}').reset()
+        capit_res = self.metrics[mode]['capit_class_report'][dataloader_idx].compute()
+        capit_precision, capit_recall, capit_f1, capit_report = capit_res
+        self.metrics[mode]['capit_class_report'][dataloader_idx].reset()
         log_dict = {
             'log': {
                 'loss': loss,
@@ -298,16 +293,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
         if self._validation_dl is not None:
             loss_kw, punct_kw, capit_kw = self.get_eval_metrics_kwargs()
-            for dataloader_idx in range(len(self._validation_dl)):
-                print("dataloader_idx:", dataloader_idx)
-                if dataloader_idx == 0:
-                    setattr(self, 'val_loss', GlobalAverageLossMetric(**loss_kw))
-                    setattr(self, 'val_punct_class_report', ClassificationReport(**punct_kw))
-                    setattr(self, 'val_capit_class_report', ClassificationReport(**capit_kw))
-                else:
-                    setattr(self, f'val_loss_{dataloader_idx}', GlobalAverageLossMetric(**loss_kw))
-                    setattr(self, f'val_punct_class_report_{dataloader_idx}', ClassificationReport(**punct_kw))
-                    setattr(self, f'val_capit_class_report_{dataloader_idx}', ClassificationReport(**capit_kw))
+            self.metrics['val']['loss'].append(GlobalAverageLossMetric(**loss_kw))
+            self.metrics['val']['punct_class_report'].append(ClassificationReport(**punct_kw))
+            self.metrics['val']['capit_class_report'].append(ClassificationReport(**capit_kw))
 
     def setup_test_data(self, test_data_config: Optional[Dict] = None):
         if test_data_config is None:
@@ -315,15 +303,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
         if self._test_dl is not None:
             loss_kw, punct_kw, capit_kw = self.get_eval_metrics_kwargs()
-            for dataloader_idx in range(len(self._test_dl)):
-                if dataloader_idx == 0:
-                    setattr(self, 'test_loss', GlobalAverageLossMetric(**loss_kw))
-                    setattr(self, 'test_punct_class_report', ClassificationReport(**punct_kw))
-                    setattr(self, 'test_capit_class_report', ClassificationReport(**capit_kw))
-                else:
-                    setattr(self, f'test_loss_{dataloader_idx}', GlobalAverageLossMetric(**loss_kw))
-                    setattr(self, f'test_punct_class_report_{dataloader_idx}', ClassificationReport(**punct_kw))
-                    setattr(self, f'test_capit_class_report_{dataloader_idx}', ClassificationReport(**capit_kw))
+            self.metrics['test']['loss'].append(GlobalAverageLossMetric(**loss_kw))
+            self.metrics['test']['punct_class_report'].append(ClassificationReport(**punct_kw))
+            self.metrics['test']['capit_class_report'].append(ClassificationReport(**capit_kw))
 
     def _setup_dataloader_from_config(self, cfg: PunctuationCapitalizationDataConfig):
         if cfg.ds_item is None and self._cfg.dataset.data_dir is None:
