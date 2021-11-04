@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import json
-from dataclasses import dataclass
 from typing import Any, List, Optional, Union
 
 import torch
