@@ -67,14 +67,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         self.world_size = 1
         if trainer is not None:
             self.world_size = trainer.num_nodes * trainer.num_gpus
-        eval_metrics = torch.nn.ModuleDict(
-            {
-                "loss": torch.nn.ModuleList([]),
-                "punct_class_report": torch.nn.ModuleList([]),
-                "capit_class_report": torch.nn.ModuleList([]),
-            }
-        )
-        self.metrics = torch.nn.ModuleDict({"val": eval_metrics, "test": copy.deepcopy(eval_metrics)})
+        self.metrics = None
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.bert_model = get_lm_model(
@@ -279,12 +272,24 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         }
         return loss_kw, punct_kw, capit_kw
 
+    def setup_metrics_dictionary(self):
+        eval_metrics = torch.nn.ModuleDict(
+            {
+                "loss": torch.nn.ModuleList([]),
+                "punct_class_report": torch.nn.ModuleList([]),
+                "capit_class_report": torch.nn.ModuleList([]),
+            }
+        )
+        self.metrics = torch.nn.ModuleDict({"val": eval_metrics, "test": copy.deepcopy(eval_metrics)})
+
     def setup_validation_data(self, val_data_config: Optional[Dict] = None):
         """
         Setup validaton data
 
         val_data_config: validation data config
         """
+        if self.metrics is None:
+            self.setup_metrics_dictionary()
         if val_data_config is None:
             val_data_config = self._cfg.validation_ds
 
@@ -296,6 +301,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             self.metrics['val']['capit_class_report'].append(ClassificationReport(**capit_kw))
 
     def setup_test_data(self, test_data_config: Optional[Dict] = None):
+        if self.metrics is None:
+            self.setup_metrics_dictionary()
         if test_data_config is None:
             test_data_config = self._cfg.test_ds
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
