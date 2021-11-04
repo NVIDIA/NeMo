@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import random
+from threading import local
 
 import numpy as np
 import torch
@@ -37,6 +38,7 @@ def initialize_model_parallel_for_nemo(
     app_state = AppState()
     app_state.global_rank = global_rank
     app_state.world_size = world_size
+    app_state.local_rank = local_rank
     app_state.model_parallel_size = tensor_model_parallel_size
     app_state.model_parallel_rank = compute_model_parallel_rank(local_rank, tensor_model_parallel_size)
 
