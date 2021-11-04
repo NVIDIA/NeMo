@@ -72,7 +72,7 @@ model:
     metadata_file: null
     shuffle: false
     num_samples: -1
-    tokens_in_batch: 15000
+    tokens_in_batch: 1000
     persistent_workers: true
     pin_memory: true
 
