@@ -37,7 +37,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_ltor_masks_and_position_ids,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.collections.nlp.parts.nlp_overrides import NLPNativeMixedPrecisionPlugin
 from nemo.utils import AppState, logging
 
 
@@ -302,8 +301,8 @@ class MegatronGPTModel(NLPModel):
         )
         return int(consumed_samples)
 
-    def on_before_optimizer_step(self, optimizer, optimizer_idx):
-        """PTL hook that is called after unscaling gradients when using native amp.
+    def configure_gradient_clipping(self):
+        """PTL hook to configure gradients.
            We use gradient clipping implementation from megatron-lm.
         """
         clip_val = self.trainer.gradient_clip_val
@@ -314,11 +313,8 @@ class MegatronGPTModel(NLPModel):
         if clip_val <= 0:
             return
 
-        if isinstance(self.trainer.accelerator_connector.precision_plugin, NLPNativeMixedPrecisionPlugin):
-            parameters = self.model.parameters()
-            clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
-        else:
-            return
+        parameters = self.model.parameters()
+        clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         request = batch
