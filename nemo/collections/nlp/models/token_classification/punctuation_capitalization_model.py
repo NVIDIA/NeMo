@@ -299,6 +299,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         if self._validation_dl is not None:
             loss_kw, punct_kw, capit_kw = self.get_eval_metrics_kwargs()
             for dataloader_idx in range(len(self._validation_dl)):
+                print("dataloader_idx:", dataloader_idx)
                 if dataloader_idx == 0:
                     setattr(self, 'val_loss', GlobalAverageLossMetric(**loss_kw))
                     setattr(self, 'val_punct_class_report', ClassificationReport(**punct_kw))
