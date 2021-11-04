@@ -151,20 +151,22 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         self.metrics[mode]['loss'][dataloader_idx](loss=loss, num_measurements=batch['loss_mask'].sum().to(loss.device))
         self.metrics[mode]['punct_class_report'][dataloader_idx](punct_preds, punct_labels)
         self.metrics[mode]['capit_class_report'][dataloader_idx](capit_preds, capit_labels)
+        # torchmetrics are used for metrics computation
+        return {'loss': None, 'punct_class_report': None, 'capit_class_report': None}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        self.eval_step(batch, 'val', dataloader_idx)
+        return self.eval_step(batch, 'val', dataloader_idx)
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        self.eval_step(batch, 'test', dataloader_idx)
+        return self.eval_step(batch, 'test', dataloader_idx)
 
     def training_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
         if self._cfg.shuffle_train_dataset:
