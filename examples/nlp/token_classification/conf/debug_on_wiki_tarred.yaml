@@ -68,7 +68,7 @@ model:
     use_tarred_dataset: false
     ds_item:
      - /media/apeganov/DATA/wiki_unsplit_48_65_filtered_characters/dev
-     - /media/apeganov/NeMo/examples/speech_translation/punct_prepared_datasets/prepared_punctuation_data_min_punctuation_29.10.2021_2.43/for_ngc/IWSLT_tst2019/
+     - /home/apeganov/NeMo/examples/speech_translation/punct_prepared_datasets/prepared_punctuation_data_min_punctuation_29.10.2021_2.43/for_ngc/IWSLT_tst2019/
     text_file: input.txt
     labels_file: bert_labels.txt
     metadata_file: null
