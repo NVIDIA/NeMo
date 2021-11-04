@@ -19,12 +19,10 @@ from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 from nemo.collections.nlp.data.text_normalization import constants
 from nemo.collections.nlp.data.text_normalization.utils import normalize_str, read_data_file, remove_puncts
 from nemo.utils import logging
-from nemo.utils.decorators.experimental import experimental
 
 __all__ = ['TextNormalizationTestDataset']
 
 # Test Dataset
-@experimental
 class TextNormalizationTestDataset:
     """
     Creates dataset to use to do end-to-end inference

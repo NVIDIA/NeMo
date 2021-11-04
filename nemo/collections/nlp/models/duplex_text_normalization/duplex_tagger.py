@@ -29,7 +29,6 @@ from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import ChannelType, LogitsType, MaskType, NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators.experimental import experimental
 
 __all__ = ['DuplexTaggerModel']
 
@@ -92,7 +91,7 @@ class DuplexTaggerModel(NLPModel):
         """
         num_labels = self.num_labels
         # Apply Transformer
-        tag_logits = self.forward(input_ids=batch['input_ids'], attention_mask=batch['attention_mask']).logits
+        tag_logits = self.forward(input_ids=batch['input_ids'], attention_mask=batch['attention_mask'])
 
         # Loss
         train_loss = self.loss_fct(tag_logits.view(-1, num_labels), batch['labels'].view(-1))
@@ -109,7 +108,7 @@ class DuplexTaggerModel(NLPModel):
         passed in as `batch`.
         """
         # Apply Transformer
-        tag_logits = self.forward(input_ids=batch['input_ids'], attention_mask=batch['attention_mask']).logits
+        tag_logits = self.forward(input_ids=batch['input_ids'], attention_mask=batch['attention_mask'])
         tag_preds = torch.argmax(tag_logits, dim=2)
 
         # Update classification_report

@@ -29,7 +29,6 @@ from nemo.utils.decorators.experimental import experimental
 __all__ = ['DuplexTextNormalizationModel']
 
 
-@experimental
 class DuplexTextNormalizationModel(nn.Module):
     """
     DuplexTextNormalizationModel is a wrapper class that can be used to
