@@ -382,11 +382,16 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 njobs=cfg.get('njobs'),
                 verbose=False,
             )
+        if cfg.shuffle and cfg.use_tarred_dataset:
+            logging.warning(f"Shuffling in dataloader is not supported for tarred dataset.")
+            shuffle = False
+        else:
+            shuffle = cfg.shuffle
         return torch.utils.data.DataLoader(
             dataset=dataset,
             collate_fn=dataset.collate_fn,
             batch_size=1,
-            shuffle=cfg.shuffle,
+            shuffle=shuffle,
             num_workers=cfg.num_workers,
             pin_memory=cfg.pin_memory,
             drop_last=cfg.drop_last,
