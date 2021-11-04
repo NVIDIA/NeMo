@@ -52,7 +52,7 @@ class LanguageModelConfig:
 class PunctHeadConfig:
     punct_num_fc_layers: int = 1
     fc_dropout: float = 0.1
-activation: str = 'relu'
+    activation: str = 'relu'
     use_transformer_init: bool = True
 
 
