@@ -15,9 +15,9 @@
 from nemo_text_processing.text_normalization.normalize import Normalizer
 
 
-class ElectronicNormalizer(Normalizer):
+class WhitelistNormalizer(Normalizer):
     """
-    Normalizer for ELECTRONIC.
+    Normalizer for WHITELIST.
     
     Args:
         input_case: accepting either "lower_cased" or "cased" input.
@@ -26,15 +26,17 @@ class ElectronicNormalizer(Normalizer):
             for False multiple options (used for audio-based normalization)
         cache_dir: path to a dir with .far grammar file. Set to None to avoid using cache.
         overwrite_cache: set to True to overwrite .far files
+        whitelist: path to a file with whitelist replacements
     """
 
     def __init__(
         self,
-        input_case: str = 'cased',
+        input_case: str,
         lang: str = 'en',
         deterministic: bool = True,
         cache_dir: str = None,
         overwrite_cache: bool = False,
+        whitelist: str = None,
     ):
 
         super().__init__(
@@ -43,11 +45,16 @@ class ElectronicNormalizer(Normalizer):
             deterministic=deterministic,
             cache_dir=cache_dir,
             overwrite_cache=overwrite_cache,
+            whitelist=whitelist,
         )
-        from nn_wfst.en.electronic.tokenize_and_classify import ClassifyFst
-        from nn_wfst.en.electronic.verbalize_final import VerbalizeFinalFst
+        from nn_wfst.en.whitelist.tokenize_and_classify import ClassifyFst
+        from nn_wfst.en.whitelist.verbalize_final import VerbalizeFinalFst
 
         self.tagger = self.tagger = ClassifyFst(
-            input_case=input_case, deterministic=deterministic, cache_dir=cache_dir, overwrite_cache=overwrite_cache
+            input_case=input_case,
+            deterministic=deterministic,
+            cache_dir=cache_dir,
+            overwrite_cache=overwrite_cache,
+            whitelist=whitelist,
         )
         self.verbalizer = VerbalizeFinalFst(deterministic=deterministic)
