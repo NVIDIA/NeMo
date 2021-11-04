@@ -786,8 +786,6 @@ def compute_max_steps(
     elif steps_per_epoch != float('inf'):
         # limit_train_batches is a percentage of batches per epoch
         steps_per_epoch = int(steps_per_epoch * limit_train_batches)
-        if accumulate_grad_batches == 1:
-            steps_per_epoch = max(steps_per_epoch, 1)
 
     return math.ceil(steps_per_epoch / accumulate_grad_batches) * max_epochs
 
