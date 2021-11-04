@@ -17,6 +17,7 @@ from pathlib import Path
 from omegaconf.omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
+from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -37,24 +38,23 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
+    plugins = [NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes)]
     if cfg.trainer.precision == 16:
-        trainer = Trainer(
-            plugins=[
-                NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes),
-                NLPNativeMixedPrecisionPlugin(
-                    init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
-                    growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
-                ),
-            ],
-            **cfg.trainer,
+        plugins.append(
+            NLPNativeMixedPrecisionPlugin(
+                init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
+                growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
+            )
         )
     elif cfg.trainer.precision == 'bf16':
-        trainer = Trainer(
-            plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes), NLPNativeBfloat16PrecisionPlugin(),],
-            **cfg.trainer,
-        )
+        plugins.append(NLPNativeBfloat16PrecisionPlugin())
     else:
-        trainer = Trainer(plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes), NLPPrecisionPlugin()], **cfg.trainer)
+        plugins.append(NLPPrecisionPlugin())
+
+    if cfg.get('cluster_type', None) == 'BCP':
+        plugins.append(TorchElasticEnvironment())
+
+    trainer = Trainer(plugins=plugins, **cfg.trainer)
 
     exp_manager(trainer, cfg.exp_manager)
 
