@@ -202,7 +202,7 @@ def remove_unexpected_files(output_dir: Path, output_file_tmpl: str, metadata_fi
 
 
 def collect_unique_labels_from_fragment(
-    label_file: Path, start_pos: int, lines_per_dataset_fragment: int, progress_queue: mp.Queue, fragment_idx: 0
+    label_file: Path, start_pos: int, lines_per_dataset_fragment: int, progress_queue: mp.Queue, fragment_idx: int
 ):
     unique_punct, unique_capit = set(), set()
     with label_file.open() as f:
@@ -241,7 +241,7 @@ def create_label_dictionaries(
     with Progress(num_lines, "Creating label dictionary", "line") as progress_queues:
         result = Parallel(n_jobs=min(n_jobs, len(text_start_bytes)))(
             delayed(collect_unique_labels_from_fragment)(
-                label_file, start_pos, lines_per_dataset_fragment, *progress_queues,
+                label_file, start_pos, lines_per_dataset_fragment, *progress_queues, fragment_idx
             ) for fragment_idx, start_pos in enumerate(text_start_bytes)
         )
     unique_punct, unique_capit = zip(*result)
