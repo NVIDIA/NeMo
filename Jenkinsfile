@@ -165,11 +165,11 @@ pipeline {
       steps{
         sh "python examples/nlp/language_modeling/megatron_gpt_eval.py \
             --model_file \
-            /home/TestData/nlp/megatron_gpt/gpt_pretrain_results/megatron_gpt/checkpoints/megatron_gpt.nemo \
+            /home/TestData/nlp/megatron_gpt/125M/megatron_gpt.nemo \
             --prompt \
             'How to fix GPU memory? A:' \
             --tensor_model_parallel_size \
-            2 \
+            1 \
             --tokens_to_generate \
             32 \
             --stop_after_sentence \
@@ -178,9 +178,6 @@ pipeline {
             16"
       }
     }
-
-
-    // TODO: Megatron GPT Ckpt Conversion
 
 
 
