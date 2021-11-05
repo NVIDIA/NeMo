@@ -1,25 +1,21 @@
-slurm:
-  partition: ???
-  account: null
-  time_limit: "1-00:00:00"
-  nodes: 8
-  exclusive: True
-  mem: 0
-  overcommit: True
+bcp:
+  job_name: bignlp-${training.run.name}
+  nodes: 2
   ntasks_per_node: 8
-  gpus_per_task: null
-  dependency: "singleton"
-  job_name: "bignlp-gpt3:126m"
-
+  gpus_per_task: 1
+  time_limit: "7D"
+  instance: "dgxa100.40g.8.norm"
+  workspace_common: "bignlp_ws_common"
+  workspace_results: "bignlp_ws_results_mk"
 
 run:
-  name: "126m"
-  log_dir: ${bignlp_path}/train_scripts/logs/126m
-
+  name: "126m-2fd"
+  results_dir: /workspace-results/${.name}
+  log_dir: ${.results_dir}
 
 trainer:
-  gpus: ${training.slurm.ntasks_per_node}
-  num_nodes: ${training.slurm.nodes}
+  num_nodes: ${training.bcp.nodes}
+  gpus: ${training.bcp.ntasks_per_node}
   accelerator: ddp
   precision: 16
   amp_backend: native

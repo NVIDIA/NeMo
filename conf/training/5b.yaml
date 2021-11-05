@@ -1,25 +1,21 @@
-slurm:
-  partition: batch
-  account: null
-  time_limit: "7-00:00:00"
+bcp:
+  job_name: bignlp-${training.run.name}
   nodes: 20
-  exclusive: True
-  mem: 0
-  overcommit: True
   ntasks_per_node: 8
   gpus_per_task: 1
-  dependency: "singleton"
-  job_name: "bignlp-gpt3:5b"
-
+  time_limit: "8D"
+  instance: "dgxa100.40g.8.norm"
+  workspace_common: "bignlp_ws_common"
+  workspace_results: "bignlp_ws_results_mk"
 
 run:
-  name: 5b
-  log_dir: ${bignlp_path}/train_scripts/logs/5b
-
+  name: "5b-20f3"
+  results_dir: /workspace-results/${.name}
+  log_dir: ${.results_dir}
 
 trainer:
-  gpus: ${training.slurm.ntasks_per_node}
-  num_nodes: ${training.slurm.nodes}
+  num_nodes: ${training.bcp.nodes}
+  gpus: ${training.bcp.ntasks_per_node}
   accelerator: ddp
   precision: 16
   amp_backend: native
@@ -28,14 +24,13 @@ trainer:
   replace_sampler_ddp: False
   max_epochs: null
   max_steps: 120000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  max_time: 07:00:00:00
+  max_time: 08:00:00:00
   log_every_n_steps: 100
   val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
   limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
   limit_test_batches: ${multiply:50, ${.accumulate_grad_batches}}
-  accumulate_grad_batches: 8
+  accumulate_grad_batches: 32 # AGB=8 for 80GB, 32 for 40 GB nodes
   gradient_clip_val: 1.0
-
 
 exp_manager:
   explicit_log_dir: ${training.run.log_dir}
@@ -57,9 +52,9 @@ exp_manager:
 
 
 model:
-  # model parallelism 
-  micro_batch_size: 2
-  tensor_model_parallel_size: 2
+  # model parallelism: MBS=2 and TPS=2 for 80GB nodes. 1&4 for 40GB nodes 
+  micro_batch_size: 1
+  tensor_model_parallel_size: 4
 
   # model architecture
   encoder_seq_length: 2048
