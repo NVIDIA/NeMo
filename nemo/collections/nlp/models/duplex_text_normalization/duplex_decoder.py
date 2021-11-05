@@ -17,24 +17,23 @@ import os
 from collections import defaultdict
 from typing import Dict, List, Optional, Union
 
-import nltk
 import torch
-import wordninja
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
 
 import nemo.collections.nlp.data.text_normalization.constants as constants
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
+from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset
 from nemo.collections.nlp.data.text_normalization.decoder_dataset import (
     TarredTextNormalizationDecoderDataset,
     TextNormalizationDecoderDataset,
 )
-from nemo.collections.nlp.models.duplex_text_normalization.utils import get_formatted_string, is_url
+from nemo.collections.nlp.models.duplex_text_normalization.utils import get_formatted_string
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.core.classes.common import PretrainedModelInfo
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.neural_types import ChannelType, LabelsType, LossType, MaskType, NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators.experimental import experimental
 
 try:
     from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
@@ -43,17 +42,27 @@ try:
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
-nltk.download('punkt')
-
 
 __all__ = ['DuplexDecoderModel']
 
 
-@experimental
 class DuplexDecoderModel(NLPModel):
     """
     Transformer-based (duplex) decoder model for TN/ITN.
     """
+
+    @property
+    def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "decoder_input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "attention_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
+            "labels": NeuralType(('B', 'T'), LabelsType()),
+        }
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {"loss": NeuralType((), LossType())}
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
@@ -66,7 +75,7 @@ class DuplexDecoderModel(NLPModel):
 
         super().__init__(cfg=cfg, trainer=trainer)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(cfg.transformer)
-        self.model_max_len = cfg.get('max_seq_length', 512)
+        self.max_sequence_len = cfg.get('max_sequence_len', self._tokenizer.model_max_length)
         self.mode = cfg.get('mode', 'joint')
 
         self.transformer_name = cfg.transformer
@@ -104,6 +113,13 @@ class DuplexDecoderModel(NLPModel):
             )
         self.cg_normalizer = NormalizerWithAudio(input_case=input_case, lang=self.lang)
 
+    @typecheck()
+    def forward(self, input_ids, decoder_input_ids, attention_mask, labels):
+        outputs = self.model(
+            input_ids=input_ids, decoder_input_ids=decoder_input_ids, attention_mask=attention_mask, labels=labels
+        )
+        return outputs.loss
+
     # Training
     def training_step(self, batch, batch_idx):
         """
@@ -116,13 +132,12 @@ class DuplexDecoderModel(NLPModel):
             batch = {k: v.squeeze(dim=0) for k, v in batch.items()}
 
         # Apply Transformer
-        outputs = self.model(
+        train_loss = self.forward(
             input_ids=batch['input_ids'],
             decoder_input_ids=batch['decoder_input_ids'],
             attention_mask=batch['attention_mask'],
             labels=batch['labels'],
         )
-        train_loss = outputs.loss
 
         lr = self._optimizer.param_groups[0]['lr']
         self.log('train_loss', train_loss)
@@ -136,34 +151,30 @@ class DuplexDecoderModel(NLPModel):
         passed in as `batch`.
         """
         # Apply Transformer
-        outputs = self.model(
+        val_loss = self.forward(
             input_ids=batch['input_ids'],
             decoder_input_ids=batch['decoder_input_ids'],
             attention_mask=batch['attention_mask'],
             labels=batch['labels'],
         )
-        val_loss = outputs.loss
 
         labels_str = self._tokenizer.batch_decode(
             torch.ones_like(batch['labels']) * ((batch['labels'] == -100) * 100) + batch['labels'],
             skip_special_tokens=True,
         )
         generated_texts, _, _ = self._generate_predictions(
-            input_ids=batch['input_ids'], model_max_len=self.model_max_len
+            input_ids=batch['input_ids'], model_max_len=self.max_sequence_len
         )
-
-        input_centers = self._tokenizer.batch_decode(batch['input_center'], skip_special_tokens=True)
-        direction = [x[0].item() for x in batch['direction']]
-        direction_str = [constants.DIRECTIONS_ID_TO_NAME[x] for x in direction]
-        # apply post_processing
-        generated_texts = self.postprocess_output_spans(input_centers, generated_texts, direction_str)
         results = defaultdict(int)
         for idx, class_id in enumerate(batch['semiotic_class_id']):
             direction = constants.TASK_ID_TO_MODE[batch['direction'][idx][0].item()]
             class_name = self._val_id_to_class[dataloader_idx][class_id[0].item()]
-            results[f"correct_{class_name}_{direction}"] += torch.tensor(
-                labels_str[idx] == generated_texts[idx], dtype=torch.int
-            ).to(self.device)
+
+            pred_result = TextNormalizationTestDataset.is_same(
+                generated_texts[idx], labels_str[idx], constants.DIRECTIONS_TO_MODE[direction]
+            )
+
+            results[f"correct_{class_name}_{direction}"] += torch.tensor(pred_result, dtype=torch.int).to(self.device)
             results[f"total_{class_name}_{direction}"] += torch.tensor(1).to(self.device)
 
         results[f"{split}_loss"] = val_loss
@@ -309,10 +320,6 @@ class DuplexDecoderModel(NLPModel):
         if sum(nb_spans) == 0:
             return [[]] * len(sents)
         model, tokenizer = self.model, self._tokenizer
-        try:
-            model_max_len = model.config.n_positions
-        except AttributeError:
-            model_max_len = 512
         ctx_size = constants.DECODE_CTX_SIZE
         extra_id_0 = constants.EXTRA_ID_0
         extra_id_1 = constants.EXTRA_ID_1
@@ -320,7 +327,7 @@ class DuplexDecoderModel(NLPModel):
         """
         Build all_inputs - extracted spans to be transformed by the decoder model
         Inputs for TN direction have "0" prefix, while the backward, ITN direction, has prefix "1"
-        "input_centers" - List[str] - ground-truth labels for the span #TODO: rename
+        "input_centers" - List[str] - ground-truth labels for the span
         """
         input_centers, input_dirs, all_inputs = [], [], []
         for ix, sent in enumerate(sents):
@@ -332,8 +339,6 @@ class DuplexDecoderModel(NLPModel):
                 ctx_right = sent[cur_end + 1 : cur_end + 1 + ctx_size]
                 span_words = sent[cur_start : cur_end + 1]
                 span_words_str = ' '.join(span_words)
-                if is_url(span_words_str):
-                    span_words_str = span_words_str.lower()
                 input_centers.append(span_words_str)
                 input_dirs.append(inst_directions[ix])
                 # Build cur_inputs
@@ -351,11 +356,12 @@ class DuplexDecoderModel(NLPModel):
         input_ids = batch['input_ids'].to(self.device)
 
         generated_texts, generated_ids, sequence_toks_scores = self._generate_predictions(
-            input_ids=input_ids, model_max_len=model_max_len
+            input_ids=input_ids, model_max_len=self.max_sequence_len
         )
 
         # Use covering grammars (if enabled)
         if self.use_cg:
+
             # Compute sequence probabilities
             sequence_probs = torch.ones(len(all_inputs)).to(self.device)
             for ix, cur_toks_scores in enumerate(sequence_toks_scores):
@@ -375,16 +381,11 @@ class DuplexDecoderModel(NLPModel):
             neural_confidence_threshold = self.neural_confidence_threshold
             for ix, (_dir, _input, _prob) in enumerate(zip(input_dirs, input_centers, sequence_probs)):
                 if _dir == constants.INST_FORWARD and _prob < neural_confidence_threshold:
-                    if is_url(_input):
-                        _input = _input.replace(' ', '')  # Remove spaces in URLs
                     try:
                         cg_outputs = self.cg_normalizer.normalize(text=_input, verbose=False, n_tagged=self.n_tagged)
                         generated_texts[ix] = list(cg_outputs)[0]
                     except:  # if there is any exception, fall back to the input
                         generated_texts[ix] = _input
-
-        # Post processing
-        generated_texts = self.postprocess_output_spans(input_centers, generated_texts, input_dirs)
 
         # Prepare final_texts
         final_texts, span_ctx = [], 0
@@ -396,46 +397,6 @@ class DuplexDecoderModel(NLPModel):
             final_texts.append(cur_texts)
 
         return final_texts
-
-    def postprocess_output_spans(self, input_centers: List[str], generated_spans: List[str], input_dirs: List[str]):
-        """
-        Post processing of the generated texts
-
-        Args:
-            input_centers: Input str (no special tokens or context)
-            generated_spans: Generated spans
-            input_dirs: task direction: constants.INST_BACKWARD or constants.INST_FORWARD
-
-        Returns:
-            Processing texts
-        """
-        en_greek_writtens = list(constants.EN_GREEK_TO_SPOKEN.keys())
-        en_greek_spokens = list(constants.EN_GREEK_TO_SPOKEN.values())
-        for ix, (_input, _output) in enumerate(zip(input_centers, generated_spans)):
-            if self.lang == constants.ENGLISH:
-                # Handle URL
-                if is_url(_input):
-                    _output = _output.replace('http', ' h t t p ')
-                    _output = _output.replace('/', ' slash ')
-                    _output = _output.replace('.', ' dot ')
-                    _output = _output.replace(':', ' colon ')
-                    _output = _output.replace('-', ' dash ')
-                    _output = _output.replace('_', ' underscore ')
-                    _output = _output.replace('%', ' percent ')
-                    _output = _output.replace('www', ' w w w ')
-                    _output = _output.replace('ftp', ' f t p ')
-                    generated_spans[ix] = ' '.join(wordninja.split(_output))
-                    continue
-                # Greek letters
-                if _input in en_greek_writtens:
-                    if input_dirs[ix] == constants.INST_FORWARD:
-                        generated_spans[ix] = constants.EN_GREEK_TO_SPOKEN[_input]
-                if _input in en_greek_spokens:
-                    if input_dirs[ix] == constants.INST_FORWARD:
-                        generated_spans[ix] = _input
-                    if input_dirs[ix] == constants.INST_BACKWARD:
-                        generated_spans[ix] = constants.EN_SPOKEN_TO_GREEK[_input]
-        return generated_spans
 
     # Functions for processing data
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
@@ -523,12 +484,11 @@ class DuplexDecoderModel(NLPModel):
                 tokenizer=self._tokenizer,
                 tokenizer_name=self.transformer_name,
                 mode=self.mode,
-                max_len=self._cfg.get('max_sequence_len', self._tokenizer.model_max_length),
+                max_len=self.max_sequence_len,
                 decoder_data_augmentation=cfg.get('decoder_data_augmentation', False)
                 if data_split == "train"
                 else False,
                 lang=self.lang,
-                do_basic_tokenize=cfg.do_basic_tokenize,
                 use_cache=cfg.get('use_cache', False),
                 max_insts=cfg.get('max_insts', -1),
                 do_tokenize=True,
@@ -566,4 +526,11 @@ class DuplexDecoderModel(NLPModel):
             List of available pre-trained models.
         """
         result = []
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="neural_text_normalization_t5",
+                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/neural_text_normalization_t5/versions/1.5.0/files/neural_text_normalization_t5_decoder.nemo",
+                description="Text Normalization model's decoder model.",
+            )
+        )
         return result

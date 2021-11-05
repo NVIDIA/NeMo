@@ -45,7 +45,6 @@
 import torch
 import torch.nn.functional as F
 
-from nemo.collections.common.parts.patch_utils import stft_patch
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types.elements import AudioSignal, LengthsType, LossType, SpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
@@ -62,7 +61,7 @@ def stft(x, fft_size, hop_size, win_length, window):
     Returns:
         Tensor: Magnitude spectrogram (B, #frames, fft_size // 2 + 1).
     """
-    x_stft = stft_patch(x, fft_size, hop_size, win_length, window, return_complex=False)
+    x_stft = torch.stft(x, fft_size, hop_size, win_length, window, return_complex=False)
     real = x_stft[..., 0]
     imag = x_stft[..., 1]
 

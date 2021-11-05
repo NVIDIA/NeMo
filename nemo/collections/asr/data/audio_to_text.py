@@ -25,7 +25,6 @@ import webdataset as wd
 from scipy.stats import betabinom
 from torch.nn import functional as F
 
-from nemo.collections.asr.data import vocabs
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.common.parts.preprocessing import collections, parsers
 from nemo.core.classes import Dataset, IterableDataset
@@ -396,6 +395,8 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
         Returns:
             (vocabs.Base) Vocabulary
         """
+        from nemo.collections.common.data import vocabs
+
         if notation == 'chars':
             vocab = vocabs.Chars(punct=punct, spaces=spaces, add_blank_at=add_blank_at)
         elif notation == 'phonemes':
@@ -960,7 +961,7 @@ class _TarredAudioToTextDataset(IterableDataset):
     def __init__(
         self,
         audio_tar_filepaths: Union[str, List[str]],
-        manifest_filepath: str,
+        manifest_filepath: Union[str, List[str]],
         parser: Callable,
         sample_rate: int,
         int_values: bool = False,
@@ -978,7 +979,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         world_size: int = 0,
     ):
         self.collection = collections.ASRAudioText(
-            manifests_files=manifest_filepath.split(','),
+            manifests_files=manifest_filepath,
             parser=parser,
             min_duration=min_duration,
             max_duration=max_duration,
@@ -1336,7 +1337,7 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
     def __init__(
         self,
         audio_tar_filepaths: Union[str, List[str]],
-        manifest_filepath: str,
+        manifest_filepath: Union[str, List[str]],
         tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
         sample_rate: int,
         int_values: bool = False,

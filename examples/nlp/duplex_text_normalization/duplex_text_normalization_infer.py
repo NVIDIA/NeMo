@@ -50,24 +50,33 @@ import os
 from typing import List
 
 from helpers import DECODER_MODEL, TAGGER_MODEL, instantiate_model_and_trainer
+from nn_wfst.en.electronic.normalize import ElectronicNormalizer
+from nn_wfst.en.whitelist.normalize import WhitelistNormalizer
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.data.text_normalization import constants
 from nemo.collections.nlp.models import DuplexTextNormalizationModel
+from nemo.collections.nlp.models.duplex_text_normalization import post_process_punct
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
 
 @hydra_runner(config_path="conf", config_name="duplex_tn_config")
 def main(cfg: DictConfig) -> None:
-    logging.info(f'Config Params: {OmegaConf.to_yaml(cfg)}')
+    logging.debug(f'Config Params: {OmegaConf.to_yaml(cfg)}')
     lang = cfg.lang
-    do_basic_tokenization = True
+
     if cfg.decoder_pretrained_model is None or cfg.tagger_pretrained_model is None:
         raise ValueError("Both pre-trained models (DuplexTaggerModel and DuplexDecoderModel) should be provided.")
     tagger_trainer, tagger_model = instantiate_model_and_trainer(cfg, TAGGER_MODEL, False)
     decoder_trainer, decoder_model = instantiate_model_and_trainer(cfg, DECODER_MODEL, False)
+    decoder_model.max_sequence_len = 512
+    tagger_model.max_sequence_len = 512
     tn_model = DuplexTextNormalizationModel(tagger_model, decoder_model, lang)
+
+    if lang == constants.ENGLISH:
+        normalizer_electronic = ElectronicNormalizer(input_case="cased", lang=lang, deterministic=True)
+        normalizer_whitelist = WhitelistNormalizer(input_case="cased", lang=lang, deterministic=True)
 
     if cfg.inference.get("from_file", False):
         text_file = cfg.inference.from_file
@@ -78,6 +87,12 @@ def main(cfg: DictConfig) -> None:
         with open(text_file, 'r') as f:
             lines = f.readlines()
 
+        if lang == constants.ENGLISH:
+            new_lines = normalizer_electronic.normalize_list(lines)
+            lines = [post_process_punct(input=lines[idx], nn_output=new_lines[idx]) for idx in range(lines)]
+            new_lines = normalizer_whitelist.normalize_list(lines)
+            lines = [post_process_punct(input=lines[idx], nn_output=new_lines[idx]) for idx in range(lines)]
+
         def _get_predictions(lines: List[str], mode: str, batch_size: int, text_file: str):
             """ Runs inference on a batch data without labels and saved predictions to a file. """
             assert mode in ['tn', 'itn']
@@ -86,11 +101,7 @@ def main(cfg: DictConfig) -> None:
             for i, line in enumerate(lines):
                 batch.append(line.strip())
                 if len(batch) == batch_size or i == len(lines) - 1:
-                    outputs = tn_model._infer(
-                        batch,
-                        [constants.DIRECTIONS_TO_MODE[mode]] * len(batch),
-                        do_basic_tokenization=do_basic_tokenization,
-                    )
+                    outputs = tn_model._infer(batch, [constants.DIRECTIONS_TO_MODE[mode]] * len(batch),)
                     all_preds.extend([x for x in outputs[-1]])
                     batch = []
             assert len(all_preds) == len(lines)
@@ -116,6 +127,11 @@ def main(cfg: DictConfig) -> None:
             if test_input == "STOP":
                 done = True
             if not done:
+                if lang == constants.ENGLISH:
+                    new_input = normalizer_electronic.normalize(test_input, verbose=False)
+                    test_input = post_process_punct(input=test_input, nn_output=new_input)
+                    new_input = normalizer_whitelist.normalize(test_input, verbose=False)
+                    test_input = post_process_punct(input=test_input, nn_output=new_input)
                 directions = []
                 inputs = []
                 if cfg.mode in ['itn', 'joint']:
@@ -124,7 +140,7 @@ def main(cfg: DictConfig) -> None:
                 if cfg.mode in ['tn', 'joint']:
                     directions.append(constants.DIRECTIONS_TO_MODE[constants.TN_MODE])
                     inputs.append(test_input)
-                outputs = tn_model._infer(inputs, directions, do_basic_tokenization=do_basic_tokenization,)[-1]
+                outputs = tn_model._infer(inputs, directions)[-1]
                 if cfg.mode in ['joint', 'itn']:
                     print(f'Prediction (ITN): {outputs[0]}')
                 if cfg.mode in ['joint', 'tn']:

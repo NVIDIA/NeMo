@@ -110,7 +110,6 @@ class DALIOutputs(object):
         return len(self._outs)
 
 
-@experimental
 class _AudioTextDALIDataset(Iterator):
     """
     NVIDIA DALI pipeline that loads tensors via one or more manifest files where each line containing a sample descriptor in JSON,

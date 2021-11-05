@@ -18,7 +18,7 @@ import os
 import uuid
 from abc import abstractmethod
 from os import path
-from os.path import expanduser
+from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
 import hydra
@@ -99,7 +99,7 @@ class ModelPT(LightningModule, Model):
 
         self._cfg = cfg
 
-        self.save_hyperparameters(self._cfg)
+        self.save_hyperparameters("cfg")
         self._train_dl = None
         self._validation_dl = None
         self._test_dl = None
@@ -201,7 +201,6 @@ class ModelPT(LightningModule, Model):
 
         return self._save_restore_connector.register_artifact(self, config_path, src, verify_src_exists)
 
-    @rank_zero_only
     def save_to(self, save_path: str):
         """
         Saves model instance (weights and configuration) into .nemo file
@@ -215,12 +214,27 @@ class ModelPT(LightningModule, Model):
             save_path: Path to .nemo file where model instance should be saved
         """
 
-        # Add NeMo rank check as well
-        if not is_global_rank_zero():
-            return
-        else:
-            save_path = os.path.abspath(os.path.expanduser(save_path))
-            self._save_restore_connector.save_to(self, save_path)
+        def maybe_make_save_dir(path: 'pathlib.Path'):
+            if not path.parent.exists():
+                path.parent.mkdir(parents=True)
+
+        save_path = Path(save_path).expanduser().resolve()
+        app_state = AppState()
+        if app_state.model_parallel_size is not None:
+            if app_state.model_parallel_size > 1:
+                if type(self._save_restore_connector) == SaveRestoreConnector:
+                    raise ValueError(
+                        'Default NeMo SaveRestoreConnector will not work in model parallel mode. You should use a '
+                        'connector which supports model parallel mode, such as NLPSaveRestoreConnector in NLP. You '
+                        'can also use a custom one.'
+                    )
+            if app_state.data_parallel_rank == 0:
+                maybe_make_save_dir(save_path)
+            # connector checks for ranks properly, no need to check here
+            self._save_restore_connector.save_to(self, str(save_path))  # downstream tasks expect str, not Path
+        elif is_global_rank_zero():
+            maybe_make_save_dir(save_path)
+            self._save_restore_connector.save_to(self, str(save_path))  # downstream tasks expect str, not Path
 
     @classmethod
     def restore_from(
@@ -231,6 +245,7 @@ class ModelPT(LightningModule, Model):
         strict: bool = True,
         return_config: bool = False,
         save_restore_connector: SaveRestoreConnector = None,
+        trainer: Optional[Trainer] = None,
     ):
         """
         Restores model instance (weights and configuration) from .nemo file.
@@ -244,6 +259,8 @@ class ModelPT(LightningModule, Model):
             strict: Passed to load_state_dict. By default True.
             return_config: If set to true, will return just the underlying config of the restored
                 model as an OmegaConf DictConfig object without instantiating the model.
+            trainer: Optional, a pytorch lightning Trainer object that will be forwarded to the
+                instantiated model's constructor.
             save_restore_connector (SaveRestoreConnector): Can be overrided to add custom save and restore logic.
 
             Example:
@@ -268,7 +285,7 @@ class ModelPT(LightningModule, Model):
 
         cls.update_save_restore_connector(save_restore_connector)
         instance = cls._save_restore_connector.restore_from(
-            cls, restore_path, override_config_path, map_location, strict, return_config
+            cls, restore_path, override_config_path, map_location, strict, return_config, trainer
         )
         if isinstance(instance, ModelPT):
             instance._save_restore_connector = save_restore_connector
@@ -443,15 +460,15 @@ class ModelPT(LightningModule, Model):
                 optim_config['sched']['t_max_epochs'] = self._trainer.max_epochs
                 optim_config['sched']['t_accumulate_grad_batches'] = self._trainer.accumulate_grad_batches
                 optim_config['sched']['t_limit_train_batches'] = self._trainer.limit_train_batches
-                if self._trainer.distributed_backend is None:
+                if self._trainer.accelerator is None:
                     optim_config['sched']['t_num_workers'] = self._trainer.num_gpus or 1
-                elif self._trainer.distributed_backend == "ddp_cpu":
+                elif self._trainer.accelerator == "ddp_cpu":
                     optim_config['sched']['t_num_workers'] = self._trainer.num_processes * self._trainer.num_nodes
-                elif self._trainer.distributed_backend == "ddp":
+                elif self._trainer.accelerator == "ddp":
                     optim_config['sched']['t_num_workers'] = self._trainer.num_gpus * self._trainer.num_nodes
                 else:
                     logging.warning(
-                        f"The lightning trainer received accelerator: {self._trainer.distributed_backend}. We "
+                        f"The lightning trainer received accelerator: {self._trainer.accelerator}. We "
                         "recommend to use 'ddp' instead."
                     )
                     optim_config['sched']['t_num_workers'] = self._trainer.num_gpus * self._trainer.num_nodes

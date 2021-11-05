@@ -1,0 +1,118 @@
+name: megatron_gpt
+restore_from_path: null # used when starting from a .nemo file
+
+trainer:
+  gpus: 1
+  num_nodes: 1
+  accelerator: ddp
+  precision: 16
+  logger: False # logger provided by exp_manager
+  checkpoint_callback: False
+  replace_sampler_ddp: False
+  max_epochs: null
+  max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  log_every_n_steps: 10
+  val_check_interval: 100
+  limit_val_batches: 50
+  limit_test_batches: 500
+  accumulate_grad_batches: 1
+  gradient_clip_val: 1.0
+
+exp_manager:
+  explicit_log_dir: null
+  exp_dir: null
+  name: megatron_gpt
+  create_wandb_logger: True
+  wandb_logger_kwargs:
+    project: null
+    name: null
+  resume_if_exists: True
+  resume_ignore_no_checkpoint: True
+  create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: val_loss
+    save_top_k: 10
+    mode: min
+    always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
+    filename: 'megatron_gpt--{val_loss:.2f}-{step}-{consumed_samples}'
+    model_parallel_size: ${model.tensor_model_parallel_size}
+
+
+model:
+  # model parallelism 
+  micro_batch_size: 4
+  tensor_model_parallel_size: 1
+
+  # model architecture
+  encoder_seq_length: 512
+  max_position_embeddings: 512
+  num_layers: 12
+  hidden_size: 768
+  ffn_hidden_size: 3072 # Transformer FFN hidden size. Usually 4 * hidden_size.
+  num_attention_heads: 12
+  init_method_std: 0.02 # Standard deviation of the zero mean normal distribution used for weight initialization.')
+  hidden_dropout: 0.1 # Dropout probability for hidden state transformer.
+  kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
+  apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
+  layernorm_epsilon: 1e-5
+  make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
+  pre_process: True # add embedding
+  post_process: True # add pooler
+
+  tokenizer:
+    library: 'megatron'
+    type: 'GPT2BPETokenizer'
+    model: null
+    vocab_file: null
+    merge_file: null 
+
+  # precision
+  native_amp_init_scale: 4294967296 # 2 ** 32
+  native_amp_growth_interval: 1000
+  fused_fp16: True # False if using fp32 or bf16
+  fused_bf16: False # True if using bf16
+  fp32_residual_connection: False # Move residual connections to fp32
+  fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
+
+
+  # miscellaneous
+  seed: 1234
+  use_cpu_initialization: False # Init weights on the CPU (slow for large models)
+  onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
+
+  # not implemented in NeMo yet
+  activations_checkpoint_method: null # 'uniform', 'block'
+  activations_checkpoint_num_layers: 1 
+
+  data:
+    # Path to data must be specified by the user.
+    # can override from the CLI: "model.data.data_prefix=[.5,/raid/data/pile/my-gpt3_00_text_document,.5,/raid/data/pile/my-gpt3_01_text_document]",
+    # Or see example below: 
+    # data_prefix: 
+    #   - .5
+    #   - /raid/data/pile/my-gpt3_00_text_document
+    #   - .5
+    #   - /raid/data/pile/my-gpt3_01_text_document
+    data_prefix: ???
+    data_impl: mmap
+    splits_string: 900,50,50
+    seq_length: 1024
+    skip_warmup: True
+    num_workers: 0
+    dataloader_type: single # cyclic
+    reset_position_ids: False # Reset position ids after end-of-document token
+    reset_attention_mask: False # Reset attention mask after end-of-document token
+    eod_mask_loss: False # Mask loss for the end of document tokens
+  
+  optim:
+    name: adam
+    lr: 2e-4
+    weight_decay: 0.01 
+    betas: 
+    - 0.9
+    - 0.98
+    sched:
+      name: CosineAnnealing
+      warmup_steps: 500
+      constant_steps: 50000
+      min_lr: 2e-5

@@ -6,11 +6,10 @@ youtokentome>=1.0.5
 numpy
 rapidfuzz
 gdown
-megatron-lm==2.2.0
 inflect
 sacrebleu[ja]
 sacremoses>=0.0.43
-nltk==3.6.2
+nltk>=3.6.4
 wordninja==2.0.0
 fasttext
 opencc

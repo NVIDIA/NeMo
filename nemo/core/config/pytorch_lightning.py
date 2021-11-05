@@ -48,6 +48,7 @@ class TrainerConfig:
     tpu_cores: Optional[Any] = None
     log_gpu_memory: Optional[str] = None
     progress_bar_refresh_rate: int = 1
+    enable_progress_bar: bool = True
     overfit_batches: Any = 0.0
     track_grad_norm: Any = -1
     check_val_every_n_epoch: int = 1
@@ -65,11 +66,10 @@ class TrainerConfig:
     log_every_n_steps: int = 50
     accelerator: Optional[str] = None
     sync_batchnorm: bool = False
-    precision: int = 32
+    precision: Any = 32
     weights_summary: Optional[str] = "full"  # ModelSummary.MODE_DEFAULT
     weights_save_path: Optional[str] = None
     num_sanity_val_steps: int = 2
-    truncated_bptt_steps: Optional[int] = None
     resume_from_checkpoint: Optional[str] = None
     profiler: Optional[Any] = None
     benchmark: bool = False
@@ -77,11 +77,12 @@ class TrainerConfig:
     reload_dataloaders_every_epoch: bool = False
     auto_lr_find: Any = False
     replace_sampler_ddp: bool = True
+    detect_anomaly: bool = False
     terminate_on_nan: bool = False
     auto_scale_batch_size: Any = False
     prepare_data_per_node: bool = True
     amp_backend: str = 'native'
-    amp_level: str = 'O2'  # backward compatible, todo: remove in v1.0.0
+    amp_level: Optional[str] = None
     plugins: Optional[Any] = None  # Optional[Union[str, list]]
     move_metrics_to_cpu: bool = False
     multiple_trainloader_mode: str = 'max_size_cycle'
@@ -92,6 +93,9 @@ class TrainerConfig:
     reload_dataloaders_every_n_epochs: int = 0
     ipus: Optional[int] = None
     devices: Any = None
+    strategy: Any = None
+    enable_checkpointing: bool = True
+    enable_model_summary: bool = True
 
 
 # Register the trainer config.

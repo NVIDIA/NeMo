@@ -39,13 +39,14 @@ class WhiteListFst(GraphFst):
         input_case: accepting either "lower_cased" or "cased" input.
         deterministic: if True will provide a single transduction option,
             for False multiple options (used for audio-based normalization)
+        input_file: path to a file with whitelist replacements
     """
 
-    def __init__(self, input_case: str, deterministic: bool = True):
+    def __init__(self, input_case: str, deterministic: bool = True, input_file: str = None):
         super().__init__(name="whitelist", kind="classify", deterministic=deterministic)
 
-        def _get_whitelist_graph(input_case, file="data/whitelist.tsv"):
-            whitelist = load_labels(get_abs_path(file))
+        def _get_whitelist_graph(input_case, file):
+            whitelist = load_labels(file)
             if input_case == "lower_cased":
                 whitelist = [(x.lower(), y) for x, y in whitelist]
             else:
@@ -60,9 +61,19 @@ class WhiteListFst(GraphFst):
             graph = pynini.string_map(whitelist_lower + whitelist_cased)
             return graph
 
-        graph = _get_whitelist_graph(input_case)
+        graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist.tsv"))
         if not deterministic:
-            graph |= _get_whitelist_graph("lower_cased") | _get_whitelist_non_deterministic_graph()
+            graph |= (
+                _get_whitelist_graph("lower_cased", get_abs_path("data/whitelist.tsv"))
+                | _get_whitelist_non_deterministic_graph()
+            )
+
+        if input_file:
+            whitelist_provided = _get_whitelist_graph(input_case, input_file)
+            if not deterministic:
+                graph |= whitelist_provided
+            else:
+                graph = whitelist_provided
 
         self.graph = (convert_space(graph)).optimize()
         self.fst = (pynutil.insert("name: \"") + self.graph + pynutil.insert("\"")).optimize()
