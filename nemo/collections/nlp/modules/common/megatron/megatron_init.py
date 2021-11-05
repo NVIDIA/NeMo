@@ -71,10 +71,8 @@ def _set_random_seed(seed_):
 
 def set_jit_fusion_options():
     """Set PyTorch JIT layer fusion options."""
-    # flags required to enable jit fusion kernels
-    TORCH_MAJOR = int(torch.__version__.split('.')[0])
-    TORCH_MINOR = int(torch.__version__.split('.')[1])
-    if (TORCH_MAJOR > 1) or (TORCH_MAJOR == 1 and TORCH_MINOR >= 10):
+    # set flags if we are using the 21.10 container
+    if torch.__version__ == "1.10.0a0+0aef44c":
         # nvfuser
         torch._C._jit_set_profiling_executor(True)
         torch._C._jit_set_profiling_mode(True)
@@ -83,9 +81,3 @@ def set_jit_fusion_options():
         torch._C._jit_set_texpr_fuser_enabled(False)
         torch._C._jit_set_nvfuser_enabled(True)
         torch._C._debug_set_autodiff_subgraph_inlining(False)
-    else:
-        # legacy pytorch fuser
-        torch._C._jit_set_profiling_mode(False)
-        torch._C._jit_set_profiling_executor(False)
-        torch._C._jit_override_can_fuse_on_cpu(True)
-        torch._C._jit_override_can_fuse_on_gpu(True)
