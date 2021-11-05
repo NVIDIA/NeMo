@@ -16,6 +16,7 @@ __all__ = [
     'BertPunctuationCapitalizationDataset',
     'Progress',
     'PunctuationCapitalizationDataConfig',
+    'create_label_ids',
     'create_masks_and_segment_ids',
 ]
 

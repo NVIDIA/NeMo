@@ -17,7 +17,7 @@ import multiprocessing as mp
 from pathlib import Path
 
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset import (
-    create_tarred_dataset
+    build_label_ids_from_list_of_labels, create_tarred_dataset
 )
 
 
@@ -38,10 +38,24 @@ def get_args():
     parser.add_argument("--special_token_values", "-V", nargs="+")
     parser.add_argument("--use_fast_tokenizer", "-f", action="store_true")
     parser.add_argument("--tokenizer_bpe_dropout", "-d", type=float)
-    parser.add_argument("--tar_file_prefix", "-p", default="punctuation_capitalization")
+    parser.add_argument("--pad_label", "-P", default='O', help="Pad label both for punctuation and capitalization.")
+    parser.add_argument("--punct_labels", "-p", nargs="+", help="All punctuation labels EXCEPT PAD LABEL.")
+    parser.add_argument("--capit_labels", "-c", nargs="+", help="All capitalization labels EXCEPT PAD LABEL.")
+    parser.add_argument("--punct_label_ids_file", type=Path)
+    parser.add_argument("--capit_label_ids_file", type=Path)
+    parser.add_argument("--tar_file_prefix", "-x", default="punctuation_capitalization")
     parser.add_argument("--n_jobs", "-j", type=int, default=mp.cpu_count())
     args = parser.parse_args()
-    for name in ["text", "labels", "output_dir", "tokenizer_model", "vocab_file", "merges_file"]:
+    for name in [
+        "text",
+        "labels",
+        "output_dir",
+        "tokenizer_model",
+        "vocab_file",
+        "merges_file",
+        "punct_label_ids_file",
+        "capit_label_ids_file"
+    ]:
         if getattr(args, name) is not None:
             setattr(args, name, getattr(args, name).expanduser())
     if args.special_token_names is not None or args.special_token_values is not None:
@@ -77,6 +91,17 @@ def main():
         special_tokens = None
     else:
         special_tokens = dict(zip(args.special_token_names, args.special_token_values))
+
+    if args.punct_labels is not None:
+        punct_label_ids = build_label_ids_from_list_of_labels(args.pad_label, args.punct_labels)
+    else:
+        punct_label_ids = None
+
+    if args.capit_labels is not None:
+        capit_label_ids = build_label_ids_from_list_of_labels(args.pad_label, args.capit_labels)
+    else:
+        capit_label_ids = None
+
     create_tarred_dataset(
         args.text,
         args.labels,
@@ -92,6 +117,11 @@ def main():
         special_tokens=special_tokens,
         use_fast_tokenizer=args.use_fast_tokenizer,
         tokenizer_bpe_dropout=args.tokenizer_bpe_dropout,
+        pad_label=args.pad_label,
+        punct_label_ids=punct_label_ids,
+        capit_label_ids=capit_label_ids,
+        punct_label_ids_file=args.punct_label_ids_file,
+        capit_label_ids_file=args.capit_label_ids_file,
         tar_file_prefix=args.tar_file_prefix,
         n_jobs=args.n_jobs,
     )

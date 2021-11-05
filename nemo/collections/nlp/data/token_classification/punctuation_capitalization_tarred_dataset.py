@@ -18,7 +18,7 @@ import os
 import pickle
 import re
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import torch
 import webdataset as wds
@@ -28,7 +28,7 @@ from torch.utils.data import IterableDataset
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
-    BertPunctuationCapitalizationDataset, Progress, create_masks_and_segment_ids
+    BertPunctuationCapitalizationDataset, Progress, create_label_ids, create_masks_and_segment_ids
 )
 from nemo.utils import logging
 
@@ -43,7 +43,7 @@ EXTRACT_NUM_BATCHES_PATTERN = re.compile(r"fragment\d+.num_batches(\d+).\d+.tar"
 DATASET_PARAMETERS_TMPL = "{prefix}.tokens{tokens_in_batch}.max_seq_length{max_seq_length}.{tokenizer}"
 TAR_FINAL_TMPL = ".batches{num_batches}.{ctr}.tar"
 
-WRITING_DATASET_PROGRESS_REPORT_PERIOD = 10 ** 4
+PROGRESS_REPORT_PERIOD = 10 ** 4
 
 
 def count_lines_and_get_fragment_starting_positions(file_name: Path, lines_per_dataset_fragment: int):
@@ -57,6 +57,26 @@ def count_lines_and_get_fragment_starting_positions(file_name: Path, lines_per_d
                 pos.append(f.tell())
             line = f.readline()
     return i, pos[:-1] if i % lines_per_dataset_fragment == 0 else pos
+
+
+def get_fragment_start_bytes(text_file: Path, label_file: Path, lines_per_dataset_fragment: int):
+    logging.info(
+        f"Counting lines in files {text_file} and {label_file} and creating segment borders. This may take "
+        f"considerable time. 86GB, 1.27b lines file was processed in 7 minutes."
+    )
+    result = Parallel(n_jobs=2)(
+        delayed(count_lines_and_get_fragment_starting_positions)(file_name, lines_per_dataset_fragment)
+        for file_name in [text_file, label_file]
+    )
+    if result[0][0] != result[1][0]:
+        raise ValueError(
+            f"Text file {text_file} and label file {label_file} contain different number of lines. Number of lines "
+            f"in text file: {result[0][0]}, number of lines in label file: {result[1][0]}."
+        )
+    num_lines = result[0][0]
+    text_start_bytes, label_start_bytes = result[0][1], result[1][1]
+    assert len(text_start_bytes) == len(label_start_bytes)
+    return num_lines, text_start_bytes, label_start_bytes
 
 
 def process_fragment(
@@ -76,6 +96,9 @@ def process_fragment(
     special_tokens: Dict[str, str],
     use_fast_tokenizer: Optional[bool],
     tokenizer_bpe_dropout: Optional[bool],
+    pad_label: str,
+    punct_label_ids: Dict[str, int],
+    capit_label_ids: Dict[str, int],
     fragment_idx: int,
     tokenization_progress_queue: mp.Queue,
     batch_mark_up_progress_queue: mp.Queue,
@@ -108,6 +131,9 @@ def process_fragment(
         max_seq_length,
         tokenizer,
         tokens_in_batch=tokens_in_batch,
+        pad_label=pad_label,
+        punct_label_ids=punct_label_ids,
+        capit_label_ids=capit_label_ids,
         njobs=0,
         use_cache=False,
         add_masks_and_segment_ids_to_batch=False,
@@ -175,6 +201,129 @@ def remove_unexpected_files(output_dir: Path, output_file_tmpl: str, metadata_fi
         metadata_file_name.unlink()
 
 
+def collect_unique_labels_from_fragment(
+    label_file: Path, start_pos: int, lines_per_dataset_fragment: int, progress_queue: mp.Queue, fragment_idx: 0
+):
+    unique_punct, unique_capit = set(), set()
+    with label_file.open() as f:
+        f.seek(start_pos)
+        progress_report = 0
+        for i in range(lines_per_dataset_fragment):
+            line = f.readline()
+            if not line:
+                break
+            pairs = line.split()
+            if not all([len(p) == 2 for p in pairs]):
+                broken_pairs = [i for i, p in enumerate(pairs) if len(p) != 2]
+                raise ValueError(
+                    f"Found broken labels line in number {fragment_idx * lines_per_dataset_fragment + i} in file "
+                    f"{label_file}. Indices of broken pairs of labels: {broken_pairs}"
+                )
+            punct, capit = zip(*pairs)
+            unique_punct.update(punct)
+            unique_capit.update(capit)
+            progress_report += 1
+            if progress_report >= PROGRESS_REPORT_PERIOD:
+                progress_queue.put(progress_report)
+                progress_report = 0
+        progress_queue.put(progress_report)
+    return unique_punct, unique_capit
+
+
+def create_label_dictionaries(
+    label_file: Path,
+    text_start_bytes: List[int],
+    num_lines: int,
+    lines_per_dataset_fragment: int,
+    pad_label: str,
+    n_jobs: int,
+):
+    with Progress(num_lines, "Creating label dictionary", "line") as progress_queues:
+        result = Parallel(n_jobs=min(n_jobs, len(text_start_bytes)))(
+            delayed(collect_unique_labels_from_fragment)(
+                label_file, start_pos, lines_per_dataset_fragment, *progress_queues,
+            ) for fragment_idx, start_pos in enumerate(text_start_bytes)
+        )
+    unique_punct, unique_capit = zip(*result)
+    unique_punct = set().union(*unique_punct)
+    unique_capit = set().union(*unique_capit)
+    return create_label_ids(unique_punct, pad_label), create_label_ids(unique_capit, pad_label)
+
+
+def check_label_ids(pad_label, punct_label_ids, capit_label_ids):
+    msg = (
+        f"Parameter `pad_label` has to have id 0 in dictionary `{{param_name}}` whereas it has id "
+        f"{{id_}}." + ('' if len(pad_label) > 10 else f" pad_label='{pad_label}'")
+    )
+    if punct_label_ids is not None:
+        if punct_label_ids[pad_label] != 0:
+            raise ValueError(msg.format(param_name='punct_label_ids', id_=punct_label_ids[pad_label]))
+    if capit_label_ids is not None:
+        if capit_label_ids[pad_label] != 0:
+            raise ValueError(msg.format(param_name='capit_label_ids', id_=capit_label_ids[pad_label]))
+
+
+def build_label_ids_from_list_of_labels(pad_label, other_labels):
+    for i, lbl in enumerate(other_labels):
+        if lbl == pad_label:
+            raise ValueError(f"Label number {i} in parameter `other_labels` is equal to `pad_label`.")
+    for i in range(len(other_labels) - 1):
+        for lbl in other_labels[i + 1 :]:
+            if lbl == other_labels[i]:
+                raise ValueError(f"Label number {i} occurs at least 2 times in parameter `other_labels`.")
+    ids = {pad_label: 0}
+    for lbl in other_labels:
+        ids[lbl] = len(ids)
+
+
+def load_label_ids(ids_file: Path):
+    ids = {}
+    with ids_file.open() as f:
+        for i, line in enumerate(f):
+            ids[line.strip()] = i
+    return ids
+
+
+def get_label_dictionaries(
+    label_file: Path,
+    start_bytes: List[int],
+    num_lines: int,
+    lines_per_dataset_fragment: int,
+    pad_label: str,
+    punct_label_ids: Optional[Dict[str, int]],
+    capit_label_ids: Optional[Dict[str, int]],
+    punct_label_ids_file: Optional[Path],
+    capit_label_ids_file: Optional[Path],
+    n_jobs: int,
+):
+    if punct_label_ids is None and punct_label_ids_file is not None:
+        punct_label_ids = load_label_ids(punct_label_ids_file)
+    if capit_label_ids is None and capit_label_ids_file is not None:
+        capit_label_ids = load_label_ids(capit_label_ids_file)
+    check_label_ids(pad_label, punct_label_ids, capit_label_ids)
+    if punct_label_ids is None or capit_label_ids is None:
+        _punct_label_ids, _capit_label_ids = create_label_dictionaries(
+            label_file, start_bytes, num_lines, lines_per_dataset_fragment, pad_label, n_jobs
+        )
+        if punct_label_ids is None:
+            punct_label_ids = _punct_label_ids
+        if capit_label_ids is None:
+            capit_label_ids = _capit_label_ids
+    return punct_label_ids, capit_label_ids
+
+
+def create_metadata_file(output_dir, output_file_tmpl, metadata_file_name):
+    metadata = {"num_batches": 0, "tar_files": []}
+    for i, fn in enumerate([fn for fn in output_dir.iterdir() if TAR_FRAGMENT_PATTERN_2.match(fn.name)]):
+        nb = int(EXTRACT_NUM_BATCHES_PATTERN.match(fn.name).group(1))
+        new_name = output_dir / output_file_tmpl.format(ctr=i, num_batches=nb)
+        fn.rename(new_name)
+        metadata['tar_files'].append(new_name.name)
+        metadata["num_batches"] += nb
+    with metadata_file_name.open('w') as f:
+        json.dump(metadata, f, indent=2)
+
+
 def create_tarred_dataset(
     text_file: Union[os.PathLike, str],
     label_file: Union[os.PathLike, str],
@@ -190,6 +339,11 @@ def create_tarred_dataset(
     special_tokens: Optional[Dict[str, str]] = None,
     use_fast_tokenizer: Optional[bool] = False,
     tokenizer_bpe_dropout: Optional[float] = 0.0,
+    pad_label: str = 'O',
+    punct_label_ids: Optional[Dict[str, int]] = None,
+    capit_label_ids: Optional[Dict[str, int]] = None,
+    punct_label_ids_file: Optional[Union[os.PathLike, str]] = None,
+    capit_label_ids_file: Optional[Union[os.PathLike, str]] = None,
     tar_file_prefix: Optional[str] = 'punctuation_capitalization',
     n_jobs: Optional[int] = mp.cpu_count(),
 ):
@@ -204,27 +358,27 @@ def create_tarred_dataset(
     output_file_tmpl = ds_params_str + TAR_FINAL_TMPL
     metadata_file_name = output_dir / ('metadata.' + ds_params_str + '.json')
     remove_unexpected_files(output_dir, output_file_tmpl, metadata_file_name)
-    logging.info(
-        f"Counting lines in files {text_file} and {label_file} and creating segment borders. This may take "
-        f"considerable time. 86GB, 1.27b lines file was processed in 7 minutes."
+    num_lines, text_start_bytes, label_start_bytes = get_fragment_start_bytes(
+        text_file, label_file, lines_per_dataset_fragment
     )
-    result = Parallel(n_jobs=2)(
-        delayed(count_lines_and_get_fragment_starting_positions)(file_name, lines_per_dataset_fragment)
-        for file_name in [text_file, label_file]
-    )
-    if result[0][0] != result[1][0]:
-        raise ValueError(
-            f"Text file {text_file} and label file {label_file} contain different number of lines. Number of lines "
-            f"in text file: {result[0][0]}, number of lines in label file: {result[1][0]}."
-        )
-    num_lines = result[0][0]
-    text_start_bytes, label_start_bytes = result[0][1], result[1][1]
-    assert len(text_start_bytes) == len(label_start_bytes)
     if text_start_bytes:
         output_dir.mkdir(parents=True, exist_ok=True)
     else:
         logging.warning(f"Both {label_file} and {text_file} are empty. Tarred dataset cannot be created.")
         return
+    punct_label_ids, capit_label_ids = get_label_dictionaries(
+        label_file,
+        label_start_bytes,
+        num_lines,
+        lines_per_dataset_fragment,
+        pad_label,
+        punct_label_ids,
+        capit_label_ids,
+        punct_label_ids_file,
+        capit_label_ids_file,
+        n_jobs,
+    )
+
     with Progress(
         num_lines,
         ["Tokenization", "Batch mark up", "Batch building", "Writing tarred dataset"],
@@ -248,19 +402,14 @@ def create_tarred_dataset(
                 special_tokens,
                 use_fast_tokenizer,
                 tokenizer_bpe_dropout,
+                pad_label,
+                punct_label_ids,
+                capit_label_ids,
                 fragment_idx,
                 *progress_queues,
             ) for fragment_idx, (text_start_pos, label_start_pos) in enumerate(zip(text_start_bytes, label_start_bytes))
         )
-    metadata = {"num_batches": 0, "tar_files": []}
-    for i, fn in enumerate([fn for fn in output_dir.iterdir() if TAR_FRAGMENT_PATTERN_2.match(fn.name)]):
-        nb = int(EXTRACT_NUM_BATCHES_PATTERN.match(fn.name).group(1))
-        new_name = output_dir / output_file_tmpl.format(ctr=i, num_batches=nb)
-        fn.rename(new_name)
-        metadata['tar_files'].append(new_name.name)
-        metadata["num_batches"] += nb
-    with metadata_file_name.open('w') as f:
-        json.dump(metadata, f, indent=2)
+    create_metadata_file(output_dir, output_file_tmpl, metadata_file_name)
 
 
 class BertPunctuationCapitalizationTarredDataset(IterableDataset):
