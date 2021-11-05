@@ -31,9 +31,9 @@ from nemo.collections.nlp.data.text_normalization.decoder_dataset import (
 )
 from nemo.collections.nlp.models.duplex_text_normalization.utils import get_formatted_string
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.core.classes.common import PretrainedModelInfo
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.neural_types import ChannelType, LabelsType, LossType, MaskType, NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators.experimental import experimental
 
 try:
     from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
@@ -46,11 +46,23 @@ except (ModuleNotFoundError, ImportError):
 __all__ = ['DuplexDecoderModel']
 
 
-@experimental
 class DuplexDecoderModel(NLPModel):
     """
     Transformer-based (duplex) decoder model for TN/ITN.
     """
+
+    @property
+    def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "decoder_input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "attention_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
+            "labels": NeuralType(('B', 'T'), LabelsType()),
+        }
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {"loss": NeuralType((), LossType())}
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
@@ -101,6 +113,13 @@ class DuplexDecoderModel(NLPModel):
             )
         self.cg_normalizer = NormalizerWithAudio(input_case=input_case, lang=self.lang)
 
+    @typecheck()
+    def forward(self, input_ids, decoder_input_ids, attention_mask, labels):
+        outputs = self.model(
+            input_ids=input_ids, decoder_input_ids=decoder_input_ids, attention_mask=attention_mask, labels=labels
+        )
+        return outputs.loss
+
     # Training
     def training_step(self, batch, batch_idx):
         """
@@ -113,13 +132,12 @@ class DuplexDecoderModel(NLPModel):
             batch = {k: v.squeeze(dim=0) for k, v in batch.items()}
 
         # Apply Transformer
-        outputs = self.model(
+        train_loss = self.forward(
             input_ids=batch['input_ids'],
             decoder_input_ids=batch['decoder_input_ids'],
             attention_mask=batch['attention_mask'],
             labels=batch['labels'],
         )
-        train_loss = outputs.loss
 
         lr = self._optimizer.param_groups[0]['lr']
         self.log('train_loss', train_loss)
@@ -133,13 +151,12 @@ class DuplexDecoderModel(NLPModel):
         passed in as `batch`.
         """
         # Apply Transformer
-        outputs = self.model(
+        val_loss = self.forward(
             input_ids=batch['input_ids'],
             decoder_input_ids=batch['decoder_input_ids'],
             attention_mask=batch['attention_mask'],
             labels=batch['labels'],
         )
-        val_loss = outputs.loss
 
         labels_str = self._tokenizer.batch_decode(
             torch.ones_like(batch['labels']) * ((batch['labels'] == -100) * 100) + batch['labels'],
@@ -509,4 +526,11 @@ class DuplexDecoderModel(NLPModel):
             List of available pre-trained models.
         """
         result = []
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="neural_text_normalization_t5",
+                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/neural_text_normalization_t5/versions/1.5.0/files/neural_text_normalization_t5_decoder.nemo",
+                description="Text Normalization model's decoder model.",
+            )
+        )
         return result

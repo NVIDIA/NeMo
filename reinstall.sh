@@ -10,9 +10,6 @@ echo 'Uninstalling stuff'
 ${PIP} uninstall -y nemo_toolkit
 ${PIP} uninstall -y sacrebleu
 
-# TODO: revert when 1.5.0 is out
-${PIP} uninstall -y pytorch-lightning
-
 # Kept for legacy purposes
 ${PIP} uninstall -y nemo_asr
 ${PIP} uninstall -y nemo_nlp
@@ -21,9 +18,6 @@ ${PIP} uninstall -y nemo_simple_gan
 ${PIP} uninstall -y nemo_cv
 
 ${PIP} install -U setuptools
-
-# TODO: revert when 1.5.0 is out
-${PIP} install pytorch-lightning==1.5.0rc0
 
 echo 'Installing nemo and nemo_text_processing'
 if [[ "$INSTALL_OPTION" == "dev" ]]; then
