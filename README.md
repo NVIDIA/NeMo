@@ -9,12 +9,16 @@ To be able to call the necessary scripts from the login node on a cluster, some
 packages must be installed using the requirements.txt file:
         cd bignlp-scripts
         pip3 install --user -r requirements.txt
-
+        
+BCP does not have a login node. We're currently running these scripts on a DGX 
+node in the cluster. Product team to confirm the right place to do so.
 
 ## General Configuration
 The first parameter that must be set is the bignlp_path parameter inside the
-conf/config.yaml file, which must point to the absolute path where the
-bignlp-scripts repository is stored in the file system.
+conf/config.yaml file, which must point to the absolute path where this
+bignlp-scripts repository is stored in the file system. For BCP, this hydra
+scripts repository can be stored in a workspace mounted to /workspace-common in 
+the container and bignlp_path can be set to "/workspace-common/bignlp-scripts".
 
 Every other path or directory in all the config files can either be an absolute
 or a relative path. Every path starting with the “/” symbol will be considered
@@ -25,12 +29,11 @@ will be appended to the beginning of each relative path.
 The end to end pipeline can be executed running: python3 main.py
 This will read the entire configuration and execute the desired pipelines.
 
-
 ## Data Preparation
 We provide utilities to download and prepare the publicly available The Pile
 dataset, which is formed by 22 smaller datasets.The dataset is already blended
 by using the mix described in their paper. It is recommended to store this
-repository and the datasets in a file system shared by all the nodes (gpfs).
+repository and the datasets in a BCP workspace mounted on all the nodes.
 
 The configuration used for data preparation must be specified in the 
 bignlp-scripts/conf/config.yaml file, and run_data_preparation must be set to
@@ -41,6 +44,13 @@ bignlp-scripts/config/data_preparation/download_pile.yaml. The parameters can
 be modified to perform the different tasks and to decide where to store the
 datasets, vocab and merges files.
 
+For BCP, the downloaded and preprocessed pile dataset is in the workspace 
+"bignlp_ws_common" at bignlp-scripts/data_preparation/data directory. If this 
+workspace is available in your ACE, it is recommended to mount this to 
+/workspace/common. If not available, it is recommended to either copy this 
+workspace to your ACE or prepare the dataset afresh using the configuration 
+and pipeline mentioned above. (NOTE: the data preparation scripts are yet 
+to be ported to BCP.)
 
 ## GPT-3 Training
 We provide an easy-to-use yet powerful pipeline to perform distributed training
@@ -51,8 +61,17 @@ been tested and confirmed.
 
 The configuration used for the training pipeline must be specified in the
 bignlp-scripts/conf/config.yaml file, specifying the training parameter, which
-specifies which file to use for training purposes. The run_training parameter must be set to True to run the training pipeline. The default value is set to 5b, which can be found in bignlp-scripts/config/training/5b.yaml. The parameters can be modified to adjust the hyperparameters of the training runs.
+specifies which file to use for training purposes. The run_training parameter 
+must be set to True to run the training pipeline. The default value is set to 
+126m, which can be found in bignlp-scripts/config/training/126m.yaml. The 
+parameters can be modified to adjust the hyperparameters of the training runs. 
 
+For BCP, running "python3 main.py" after setting the necessary config values 
+in bignlp-scripts/config/training/{126m, 5b}.yaml, produces a bcp script file 
+and a ngc batch submit command. Here's a sample job command produced by 
+running "python3 main.py" with run_training set to True and others set to False. 
+
+Sample command: ngc batch run --name "bignlp-126m-8f1" --image "nvcr.io/nvidian/swdl/bignlp:21.10.08-py3-base"     --commandline "cd /workspace-common/bignlp-scripts; NGC_NTASKS_PER_NODE=8 /workspace-common/bignlp-scripts/train_scripts/126m-8f1.sh" --workspace bignlp_ws_common:/workspace-common     --workspace bignlp_ws_results_mk:/workspace-results --result /result     --preempt RUNONCE --instance dgxa100.40g.8.norm --replicas 8     --array-type PYTORCH --total-runtime 2D
 
 ## Model Evaluation
 We also provide a simple tool to help evaluate the trained checkpoints. You can
@@ -67,7 +86,7 @@ parameter must be set to True to run the evaluation pipeline. The default value
 is set to evaluate_lambada, which can be found in
 bignlp-scripts/config/evaluation/evaluate_lambada.yaml. The parameters can be
 modified to adapt different evaluation tasks and checkpoints in evaluation runs.
-
+(The eval scripts are yet to ported to BCP.)
 
 ## Deploying the BigNLP model on Triton Inference Server with FasterTransformer Backend on a Single Node
 
