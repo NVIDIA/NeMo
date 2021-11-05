@@ -1,8 +1,8 @@
 pipeline {
   agent {
         docker {
-      image 'gitlab-master.nvidia.com/dl/dgx/pytorch:21.10-py3-devel'
-      args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch -v $HOME/.cache/huggingface/transformers:/root/.cache/huggingface/transformers --shm-size=8g'
+      image 'nvcr.io/nvidia/pytorch:21.10-py3'
+      args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
   }
   options {
@@ -53,17 +53,9 @@ pipeline {
       }
     }
 
-
     stage('NeMo Installation') {
       steps {
         sh './reinstall.sh release'
-      }
-    }
-
-    // Revert once import guards are added by PTL or version comparing is fixed
-    stage('PTL Import Guards') {
-      steps{
-        sh 'sed -i "s/from pytorch_lightning.callbacks.quantization import QuantizationAwareTraining/try:\\n\\tfrom pytorch_lightning.callbacks.quantization import QuantizationAwareTraining\\nexcept:\\n\\tpass/g" /opt/conda/lib/python3.8/site-packages/pytorch_lightning/callbacks/__init__.py'
       }
     }
 
@@ -75,7 +67,7 @@ pipeline {
 
     stage('PyTorch Lightning DDP Checks') {
       steps {
-        sh 'python "tests/core_ptl/check_for_ranks.py"'
+        sh 'CUDA_VISIBLE_DEVICES="0,1" python "tests/core_ptl/check_for_ranks.py"'
       }
     }
 
@@ -773,7 +765,10 @@ pipeline {
             data.train_ds.use_tarred_dataset=true \
             +decoder_trainer.fast_dev_run=true \
             decoder_exp_manager.create_checkpoint_callback=false \
-            data.train_ds.tar_metadata_file=/home/TestData/nlp/duplex_text_norm/tarred_small/metadata.json'
+            data.train_ds.tar_metadata_file=/home/TestData/nlp/duplex_text_norm/tarred_small/metadata.json \
+            data.test_ds.use_cache=false \
+            data.test_ds.data_path=/home/TestData/nlp/duplex_text_norm/small_test.tsv'
+
           }
         }
       }

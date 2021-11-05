@@ -529,11 +529,18 @@ def get_features_infer(
         st.append(subtokens)
         stm.append(subtokens_mask)
     _check_max_seq_length_and_margin_and_step(max_seq_length, margin, step)
-    max_seq_length = min(max_seq_length, max(sent_lengths) + 2)
+    if max_seq_length > max(sent_lengths) + 2:
+        max_seq_length = max(sent_lengths) + 2
+        # If `max_seq_length` is greater than maximum length of input query, parameters ``margin`` and ``step`` are
+        # not used will not be used.
+        step = 1
+        # Maximum number of word subtokens in segment. The first and the last tokens in segment are CLS and EOS
+        length = max_seq_length - 2
+    else:
+        # Maximum number of word subtokens in segment. The first and the last tokens in segment are CLS and EOS
+        length = max_seq_length - 2
+        step = min(length - margin * 2, step)
     logging.info(f'Max length: {max_seq_length}')
-    # Maximum number of word subtokens in segment. The first and the last tokens in segment are CLS and EOS
-    length = max_seq_length - 2
-    step = min(length - margin * 2, step)
     get_stats(sent_lengths)
     all_input_ids, all_segment_ids, all_subtokens_mask, all_input_mask, all_input_mask = [], [], [], [], []
     all_quantities_of_preceding_words, all_query_ids, all_is_first, all_is_last = [], [], [], []
