@@ -117,4 +117,5 @@ class ConvSubsampling(torch.nn.Module):
                 lengths = torch.ceil(lengths)
             else:
                 lengths = torch.floor(lengths)
-        return lengths
+        return lengths.to(dtype=torch.int)
+
