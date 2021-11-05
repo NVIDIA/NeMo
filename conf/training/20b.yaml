@@ -2,38 +2,38 @@ slurm:
   partition: ???
   account: null
   time_limit: "7-00:00:00"
-  nodes: 20
+  nodes: 80
   exclusive: True
   mem: 0
   overcommit: True
   ntasks_per_node: 8
   gpus_per_task: 1
   dependency: "singleton"
-  job_name: "bignlp-gpt3:5b"
+  job_name: "bignlp-gpt3:20b"
 
 
 run:
-  name: 5b
-  log_dir: ${bignlp_path}/train_scripts/logs/5b
+  name: 20b
+  log_dir: ${bignlp_path}/train_scripts/logs/20b
 
 
 trainer:
   gpus: ${training.slurm.ntasks_per_node}
   num_nodes: ${training.slurm.nodes}
   accelerator: ddp
-  precision: 16
+  precision: bf16
   amp_backend: native
   logger: False # logger provided by exp_manager
   checkpoint_callback: False
   replace_sampler_ddp: False
   max_epochs: null
-  max_steps: 120000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  max_time: 07:00:00:00
+  max_steps: 105000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  max_time: 06:23:30:00
   log_every_n_steps: 100
   val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
   limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
   limit_test_batches: ${multiply:50, ${.accumulate_grad_batches}}
-  accumulate_grad_batches: 8
+  accumulate_grad_batches: 9
   gradient_clip_val: 1.0
 
 
@@ -59,16 +59,16 @@ exp_manager:
 model:
   # model parallelism 
   micro_batch_size: 2
-  tensor_model_parallel_size: 2
+  tensor_model_parallel_size: 8
 
   # model architecture
   encoder_seq_length: 2048
   max_position_embeddings: 2048
-  num_layers: 24
-  hidden_size: 4096
+  num_layers: 44
+  hidden_size: 6144
   ffn_hidden_size: ${multiply:4, ${.hidden_size}}  # Transformer FFN hidden size. 4 * hidden_size.
-  num_attention_heads: 32
-  init_method_std: 0.01  # Standard deviation of the zero mean normal distribution used for weight initialization.')
+  num_attention_heads: 48
+  init_method_std: 0.008165  # Standard deviation of the zero mean normal distribution used for weight initialization.')
   hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
   kv_channels: null  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
@@ -77,7 +77,7 @@ model:
   pre_process: True # add embedding
   post_process: True # add pooler
   activations_checkpoint_method: block
-  activations_checkpoint_num_layers: 4
+  activations_checkpoint_num_layers: 11
 
   tokenizer:
     library: 'megatron'
@@ -89,8 +89,8 @@ model:
   # precision
   native_amp_init_scale: 4294967296 # 2 ** 32
   native_amp_growth_interval: 1000
-  fused_fp16: True # False if using fp32 or bf16
-  fused_bf16: False # True if using bf16
+  fused_fp16: False # False if using fp32 or bf16
+  fused_bf16: True # True if using bf16
   fp32_residual_connection: False # Move residual connections to fp32
   fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
 
@@ -101,7 +101,7 @@ model:
 
   optim:
     name: fused_adam
-    lr: 1.2e-4
+    lr: 1e-4
     weight_decay: 0.1 
     betas: 
     - 0.9
@@ -109,8 +109,8 @@ model:
     sched:
       name: CosineAnnealing
       warmup_steps: 190
-      constant_steps: 20000
-      min_lr: 1.2e-5
+      constant_steps: 10000
+      min_lr: 1e-5
 
   data:
     data_impl: mmap
