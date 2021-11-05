@@ -36,6 +36,7 @@ from inference_lib.inference import (
     triton_config_model,
 )
 from inference_lib.slurm import (
+    DEFAULT_JOB_NAME_PREFIX,
     TRITON_MODEL_REPOSITORY,
     ContainerImageType,
     PyxisExecutor,
@@ -58,6 +59,7 @@ def _convert_model(
     conversion_job = None
 
     def _init_executor():
+        job_name_prefix = config["slurm"].get("job_name_prefix", DEFAULT_JOB_NAME_PREFIX)
         dirs_to_mount = get_dirs_to_mount(
             paths=paths, triton_model_repository_readonly=False, container_image_type=ContainerImageType.TRAINING
         )
@@ -71,7 +73,7 @@ def _convert_model(
             **slurm_common_parameters,
             nodes=1,
             time=DEFAULT_MAX_CONFIG_TIME_MIN,
-            job_name=f"joc-bermuda:convert_model",
+            job_name=f"{job_name_prefix}convert_model",
             comment="Task for converting Megatron/NeMo model to Fastertransformer format",
             setup=["export NO_COLOR=1", f"export PYTHONPATH={sys.path[0]}"],
         )
@@ -119,6 +121,7 @@ def _prepare_triton_model_repository(
     preparation_job = None
 
     def _init_executor():
+        job_name_prefix = config["slurm"].get("job_name_prefix", DEFAULT_JOB_NAME_PREFIX)
         dirs_to_mount = get_dirs_to_mount(
             paths=paths, triton_model_repository_readonly=False, container_image_type=ContainerImageType.TRAINING
         )
@@ -132,7 +135,7 @@ def _prepare_triton_model_repository(
             **slurm_common_parameters,
             nodes=1,
             time=DEFAULT_MAX_CONFIG_TIME_MIN,
-            job_name="joc-bermuda:config_model",
+            job_name=f"{job_name_prefix}config_model",
             comment="Task for preparing Triton Inference Server Model Repository "
             "with model in FasterTransformer format",
             setup=["export NO_COLOR=1", f"export PYTHONPATH={sys.path[0]}"],
@@ -187,6 +190,7 @@ def _load_triton_model_and_run_benchmark(
 
     triton_config_path = list(paths.host_triton_model_repository_path.rglob("config.pbtxt"))[0]
     variant = Variant.from_triton_config(triton_config_path)
+    job_name_prefix = config["slurm"].get("job_name_prefix", DEFAULT_JOB_NAME_PREFIX)
 
     def _init_triton_set():
         dirs_to_mount = get_dirs_to_mount(
@@ -214,6 +218,7 @@ def _load_triton_model_and_run_benchmark(
             enable_gpus_allocation=config["slurm"].get("enable_gpus_allocation", True),
             verbose=verbose,
             config_name=variant.extended_name,
+            job_name_prefix=job_name_prefix,
         )
 
     def _init_perf_jobs_executor():
@@ -232,7 +237,7 @@ def _load_triton_model_and_run_benchmark(
         executor_.update_parameters(
             **slurm_common_parameters,
             time=DEFAULT_BENCHMARK_TIME_MIN,
-            job_name=f"joc-bermuda:eval_{variant.extended_name}",
+            job_name=f"{job_name_prefix}eval_{variant.extended_name}",
             comment="Task for profiling of models",
             setup=["export NO_COLOR=1", f"export PYTHONPATH={sys.path[0]}"],
         )
