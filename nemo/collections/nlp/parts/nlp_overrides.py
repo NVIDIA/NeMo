@@ -18,30 +18,19 @@ import tempfile
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Union
 
-import pytorch_lightning as pl
 import torch
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
-from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
-from pytorch_lightning.plugins.precision.precision_plugin import PrecisionPlugin
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
-from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
-from pytorch_lightning.trainer.trainer import Trainer
-from pytorch_lightning.utilities import rank_zero_warn
-from pytorch_lightning.utilities.cloud_io import atomic_save
-from pytorch_lightning.utilities.enums import GradClipAlgorithmType
 from pytorch_lightning.utilities.types import _PATH
-from torch.nn.modules.module import Module
 from torch.nn.parallel import DistributedDataParallel
-from torch.optim.optimizer import Optimizer
 
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
-from nemo.utils import AppState, app_state, logging
+from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state
-    from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
 
     HAVE_APEX = True
 
