@@ -46,7 +46,7 @@ TAR_FINAL_TMPL = ".batches{num_batches}.{ctr}.tar"
 WRITING_DATASET_PROGRESS_REPORT_PERIOD = 10 ** 4
 
 
-def count_lines_and_get_fragment_starting_positions(file_name: os.PathLike, lines_per_dataset_fragment: int):
+def count_lines_and_get_fragment_starting_positions(file_name: Path, lines_per_dataset_fragment: int):
     pos = [0]
     with file_name.open() as f:
         i = 0
@@ -60,22 +60,37 @@ def count_lines_and_get_fragment_starting_positions(file_name: os.PathLike, line
 
 
 def process_fragment(
-    text_file: os.PathLike,
-    labels_file: os.PathLike,
-    output_dir: os.PathLike,
+    text_file: Path,
+    labels_file: Path,
+    output_dir: Path,
     text_start_pos: int,
     label_start_pos: int,
     lines_per_dataset_fragment: int,
     max_seq_length: int,
     tokens_in_batch: int,
     num_batches_per_tarfile: int,
-    tokenizer: TokenizerSpec,
+    tokenizer_name: str,
+    tokenizer_model: Optional[Path],
+    vocab_file: Optional[Path],
+    merges_file: Optional[Path],
+    special_tokens: Dict[str, str],
+    use_fast_tokenizer: Optional[bool],
+    tokenizer_bpe_dropout: Optional[bool],
     fragment_idx: int,
     tokenization_progress_queue: mp.Queue,
     batch_mark_up_progress_queue: mp.Queue,
     batch_building_progress_queue: mp.Queue,
     writing_to_tar_progress_queue: mp.Queue,
 ):
+    tokenizer = get_tokenizer(
+        tokenizer_name,
+        tokenizer_model=str(tokenizer_model),
+        vocab_file=str(vocab_file),
+        merges_file=str(merges_file),
+        special_tokens=special_tokens,
+        use_fast=use_fast_tokenizer,
+        bpe_dropout=tokenizer_bpe_dropout,
+    )
     tmp_text = output_dir / f'tmp_text_{fragment_idx}.txt'
     tmp_labels = output_dir / f'tmp_labels_{fragment_idx}.txt'
     with text_file.open() as tf, labels_file.open() as lf, tmp_text.open('w') as otf, tmp_labels.open('w') as olf:
@@ -133,7 +148,7 @@ def process_fragment(
         new_file_name.unlink()
 
 
-def remove_unexpected_files(output_dir: os.PathLike, output_file_tmpl: str, metadata_file_name: os.PathLike):
+def remove_unexpected_files(output_dir: Path, output_file_tmpl: str, metadata_file_name: Path):
     if not output_dir.is_dir():
         return
     tar_final_pattern = re.compile(output_file_tmpl.format(ctr=NUMBER_RE, num_batches=NUMBER_RE))
@@ -210,15 +225,6 @@ def create_tarred_dataset(
     else:
         logging.warning(f"Both {label_file} and {text_file} are empty. Tarred dataset cannot be created.")
         return
-    tokenizer_name = get_tokenizer(
-        tokenizer_name,
-        tokenizer_model=None if tokenizer_model is None else str(Path(tokenizer_model).expanduser()),
-        vocab_file=None if vocab_file is None else str(Path(vocab_file).expanduser()),
-        merges_file=None if merges_file is None else str(Path(merges_file).expanduser()),
-        special_tokens=special_tokens,
-        use_fast=use_fast_tokenizer,
-        bpe_dropout=tokenizer_bpe_dropout,
-    )
     with Progress(
         num_lines,
         ["Tokenization", "Batch mark up", "Batch building", "Writing tarred dataset"],
@@ -236,6 +242,12 @@ def create_tarred_dataset(
                 tokens_in_batch,
                 num_batches_per_tarfile,
                 tokenizer_name,
+                None if tokenizer_model is None else Path(tokenizer_model).expanduser(),
+                None if vocab_file is None else Path(vocab_file).expanduser(),
+                None if merges_file is None else Path(merges_file).expanduser(),
+                special_tokens,
+                use_fast_tokenizer,
+                tokenizer_bpe_dropout,
                 fragment_idx,
                 *progress_queues,
             ) for fragment_idx, (text_start_pos, label_start_pos) in enumerate(zip(text_start_bytes, label_start_bytes))
@@ -313,14 +325,15 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
                 )
 
     @staticmethod
-    def load_label_ids(file_path: os.PathLike):
+    def load_label_ids(file_path: Path):
         ids = {}
         with file_path.open() as f:
             for i, line in enumerate(f):
                 ids[line.strip()] = i
         return ids
 
-    def decode_pyd(self, key, value):
+    @staticmethod
+    def decode_pyd(key, value):
         return pickle.loads(value)
 
     def _build_sample(self, batch):
@@ -345,7 +358,8 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
     def __len__(self):
         return self.length
 
-    def collate_fn(self, batch):
+    @staticmethod
+    def collate_fn(batch):
         batch = {k: torch.as_tensor(v) for k, v in batch[0].items()}
         batch['segment_ids'] = batch['segment_ids'].int()
         batch['punct_labels'] = batch['punct_labels'].long()
