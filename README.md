@@ -3,6 +3,42 @@
 Scripts and code to provide end-to-end data preparation and training for
 Megatron-LM.
 
+## Table of contents
+
+  - [Installation](#installation)
+  - [General Configuration](#general-configuration)
+  - [Data Preparation](#data-preparation)
+  - [GPT-3 Training](#gpt-3-training)
+  - [Model Evaluation](#model-evaluation)
+  - [Deploying the BigNLP model](#deploying-the-bignlp-model)
+    - [Model inference deployment process](#model-inference-deployment-process)
+    - [1. Prepare environment](#1-prepare-environment)
+    - [2. Provide model and inference configuration](#2-provide-model-and-inference-configuration)
+      - [2.1 Predefined configuration for selected models](#21-predefined-configuration-for-selected-models)
+      - [2.2. Optimal configuration search](#22-optimal-configuration-search)
+        - [2.2.1 Random weights checkpoint benchmark](#221-random-weights-checkpoint-benchmark)
+        - [2.2.2. Trained checkpoint benchmark](#222-trained-checkpoint-benchmark)
+      - [2.3. Review deployment search results](#23-review-deployment-search-results)
+    - [3. Prepare NVIDIA Triton Model Repository and run accuracy / performance tests](#3-prepare-nvidia-triton-model-repository-and-run-accuracy-performance-tests)
+  - [Performance](#performance)
+    - [Benchmarking](#benchmarking)
+    - [Results](#results)
+      - [Training Accuracy Results](#training-accuracy-results)
+      - [Training Performance Results](#training-performance-results)
+      - [Inference performance](#inference-performance)
+        - [5B model](#5b-model)
+          - [5B: Chatbot question for answering](#5b-chatbot-for-question-answering)
+          - [5B: Translation and style transfer](#5b-translation-and-style-transfer)
+          - [Summary for 5B results](#summary-for-5b-results)
+        - [20B model](#20b-model)
+          - [20B: Chatbot question for answering](#20b-chatbot-for-question-answering)
+          - [20B: Translation and style transfer](#20b-translation-and-style-transfer)
+          - [Summary for 20B results](#summary-for-20b-results)
+        - [Model size and performance](#model-size-and-performance)
+          - [Online scenario](#online-scenario)
+          - [Offline scenario](#offline-scenario)
+
+
 
 ## Installation:
 To be able to call the necessary scripts from the login node on a cluster, some
@@ -221,47 +257,129 @@ parameters:
 * **530B**: `530b.ft`
 
 
-### Convert and optimize model for inference
+#### 2.2. Optimal configuration search
 
-Triton Inference Server loads the model from the model repository. It contains
-a configuration and binary files with model weights. You must convert training
-checkpoint into inference Triton model repository for FasterTransformer.
+##### 2.2.1 Random weights checkpoint benchmark
 
-The `profile_model.py` script can generate Triton model repositories and
-find the most optimal. You can configure script to look for online configuration
-with latency constrain.
+NVIDIA Triton Model Navigator can benchmark inference before training is
+finished and verify inference constraints ahead of time; for example maximum
+latency budget or number of GPUs, thus cost of inference. For performance
+reasons, if you already know model size and parameters, you can use the
+FasterTransformer NVIDIA Triton backend to generate a checkpoint with random
+weights inside the NVIDIA Triton Inference Server.
 
-The python script uses _submitit_ Python library to schedule and control slurm jobs.
-It can setup one job for conversion using training Docker container and another
-jobs for inference verification using inference Docker container.
-The FasterTransformer backend can run model and multiple GPUs and multiple nodes.
-A format of files changes for each configuration so the converted files can
-work only with predefined set of GPUs and machines setup with MPI communication.
-The `profile_model.py` can convert the same training checkpoint to many hardware
-configurations and setup slurm cluster to run a job matching necessary configuration.
-
-The number of GPUs used for model instance determines vale for tensor parallel
-(TP) model processing. The FasterTransformer uses tensor parallel processing
-in one node between GPUs here and pipeline parallel (PP) processing across the nodes.
-
-The same checkpoint can be used for many input sequence lengths and
-many input lengths. The chatbot requires much shorter sentences than translation
-so you must decide what sequences match your scenario. The model is the same for all sequence lengths
-but performance requirements for different lengths are not similar.
-The longer sequences increase RAM consumption and computing very much so you must profile
-model for your sequence lengths.
+The first step in the benchmark script generates a random checkpoint based on
+your configuration. The second step configures model repositories. The third
+step starts a set of NVIDIA Triton Inference Servers and executes the
+performance measurements for each.
 
 The inputs:
- * PyTorch trained checkpoint.
- * Docker images with Triton and FasterTransformer backend.
- * Model configuration for Navigator
+* Random model configuration - For example, `conf/inference/model_specs/5b.ft`
+* Docker image with training and profiling scripts.
+* Docker image with NVIDIA Triton and FasterTransformer backend.
+* Performance profile configuration YAML file.
 
 The outputs:
- * The collection of Triton model repositories with FasterTransformer checkpoint ready for inference at production.
- * The optimization results with list of performance metrics.
+* Performance report.
+* Performance results.
+* Optimal configurations.
+* NVIDIA Triton model stores with a placeholder for the trained model checkpoint.
+
+You can benchmark a model using
+`infer_scripts/profile_model_with_random_weights.py` script:
+
+```
+python3 ./infer_scripts/profile_model_with_random_weights.py \
+    --cluster-config-path ./conf/inference/<Your cluster config>.yaml \
+    --navigator-config-path ./conf/inference/profile_offline.yaml \
+    --model-path conf/inference/model_specs/5b.ft \
+    --model-name ft_5B \
+    --tensor-parallel-sizes 1 \
+    --pipeline-parallel-sizes 1 \
+    --input-output-lengths 60,20 \
+    --max-batch-sizes 1 \
+    --max-latency-ms 100000 \
+    -v
+```
+
+The parameters:
+* `cluster-config-path`: Cluster configuration YAML file.
+* `navigator-config-path`: Navigator configuration YAML;
+   for example,`./conf/inference/profile_offline.yaml`
+* `model-path`: This model path contains a YAML file with
+   random checkpoint configuration.
+* `model-name`: Your model name for NVIDIA Triton repository.
+* `tensor-parallel-sizes`: Tensor parallel factor; for example, `1 2 4 8`
+* `pipeline-parallel-sizes`: Pipeline parallel factor; for example, `1 2 3 4`
+* `input-output-lengths`: Analyzed input and output lengths in format of 
+   `<input_len>,<output_len>[ <input_len>,<output_len> …]`;
+   for example, `60,20 200,200`
+* `max-batch-sizes`: Maximum batch sizes used for optimization;
+   for example, `1 2 4 8 16 256`
+* `max-latency-ms`: Maximum p99 latency valid for your scenario.
+* `top-n-configs`: Number of optimal configurations to save.
+
+The parameters `tensor-parallel-sizes`, `pipeline-parallel-sizes`,
+`input-output-lengths`, and `max-batch-sizes` are used to generate combinations of
+possible configurations for FasterTransformer and performance measurement
+scripts. The profile script compares throughput normalized to 1 GPU of all
+generated configurations and prints N-best configurations taking into account a
+maximum latency constraint. If you request very small maximum latency, then the
+script won’t be able to find any valid configurations.
+
+The repository contains two profile configurations for Model Navigator:
+* `conf/inference/profile_offline.yaml` - Configuration for offline scenario
+   focusing on changing batch sizes but not user request concurrency.
+* `conf/inference/profile_online.yaml` - Configuration for online scenario
+   focusing on changing user request concurrency.
 
 
-Model repository preparation for Triton Inference Server:
+The random model configuration for the model-path parameter is in YAML file:
+```yaml
+decoder_layers: 105  # Number of decoder layers
+head_num: 128        # Number of heads in layer
+size_per_head: 160   # Size per head
+inter_size: 81920    # It can be: inter_size = size_per_head * head_num * 4
+tensor_para_size: 8  # Default tensor parallel configuration (ignored)
+vocab_size: 51200    # Vocabulary size based on vocabulary file
+start_id: 50256      # id of start token in vocabulary
+end_id: 50256        # id of end token in vocabulary
+```
+
+The output files are saved in the `current_folder/infer_workspace_<YYYYmmdd_HHMMSS>`.
+The N best configurations are printed to the terminal.
+The `infer_workspace_<YYYYmmdd_HHMMSS>` folder contains CSV file with all
+measurements combined:
+
+```
+navigator_workspace/analyzer/results/metrics-model-inference.csv
+```
+
+The best configuration is selected based on the throughput normalized for one
+GPU. It is possible to deploy the same model at a number of GPUs, so the cost
+of model deployment is not constant for all configurations. The script
+normalizes this cost by dividing throughput of a model instance by the number
+of GPUs used for computation.
+
+##### 2.2.2. Trained checkpoint benchmark
+
+Alternatively, to generate checkpoints randomly, you can use a trained
+checkpoint to look for optimal configuration; however, for larger models that
+might take a significant amount of time and might not be feasible.
+
+The inputs:
+* Megatron/NeMo trained checkpoint.
+* Docker image with training and profiling scripts.
+* Docker image with NVIDIA Triton and FasterTransformer backend.
+* Performance profile configuration YAML file.
+
+The outputs:
+* Performance report.
+* Performance results.
+* Optimal configurations.
+* NVIDIA Triton model stores with trained FasterTransformer model checkpoint.
+
+Model repository preparation for the NVIDIA Triton Inference Server:
 
 ```
 python3 ./infer_scripts/profile_model.py \
@@ -269,212 +387,391 @@ python3 ./infer_scripts/profile_model.py \
     --navigator-config-path ./conf/inference/profile_offline.yaml \
     --model-path /your/path/to/training/checkpoint/ \
     --model-name model_name -v \
-    --tensor-parallel-sizes 8 \
-    --pipeline-parallel-sizes 1 2 \
+    --tensor-parallel-sizes 1 \
+    --pipeline-parallel-sizes 1 \
     --input-output-lengths 60,20 \
-    --max-batch-sizes 256 \
-```
-
-The parameters:
- * `cluster-config-path`: cluster configuration YAML file
- * `navigator-config-path`: Navigator configuration YAML e.g. `./conf/inference/profile_offline.yaml`
- * `model-path`: Your path to training checkpoint
- * `model-name`: Your model name for Triton repository
- * `tensor-parallel-sizes`: Tensor parallel factor e.g.: `1 2 4 8` 
- * `pipeline-parallel-sizes`: Pipeline parallel factor e.g.: `1 8`
- * `input-output-lengths`: Analyzed input and output lengths e.g. `20,8 60,20`
- * `max-batch-sizes`: Maximum batch sizes used for optimization e.g. `1 2 4 8 16 256`
-
-The parameters for optimization (like `max-batch_sizes`) are used to 
-generate many configuration using Cartesian product. You can set many values
-and get from `profile_model.py` script the most optimal configuration.
-
-
-The `profile_model.py` script creates a folder `infer_workspace_xxx` with
-time stamp at the end. It contains certain folders:
- * `model_name-ft_gpu_counts_8-converted.ft`: folders with converted FasterTransformer checkpoints
- * `logs`: logs
- * `model_repo_model_name-mbs_256-pp_1-tp_8-half_1-io_60_20`: Triton model repository for pipeline parallel 1 and tensor parallel 8 for input sequence length 60 and output length 20
- * `model_repo_model_name-mbs_256-pp_2-tp_8-half_1-io_60_20`: Triton model repository for pipeline parallel 2 and tensor parallel 8 for input sequence length 60 and output length 20
- * `navigator_workspace`: Folder to Triton Model Navigator configurations
- * `slurm_workspace`: Folder with slurm logs and sbatch scripts
-
-The `profile_model.py` script prints list of the best models with the name of
-Triton model repository with the best results and performance metrics.
-
-
-### Start server and load model with Triton
-
-
-The inputs:
- * Triton model repository with FasterTransformer checkpoint ready for inference at production.
- * Docker image with Triton and FasterTransformer backend.
-
-The outputs:
- * Running Triton model instance serving model in slurm cluster.
-
-To run the Triton Model Navigator, do the following:
-
-
-```
-python3 ./infer_scripts/run_tritonserver.py \
-    --cluster-config-path ./conf/inference/your_cluster_config.yaml \
-    --model-repository-path infer_workspace-xxx/model_repo_model_name-mbs_256-pp_1-tp_8-half_1-io_60_20 \
+    --max-batch-sizes 1 \
+    --max-latency-ms 100000 \
     -v
 ```
 
 The parameters:
- * `cluster-config-path`: cluster configuration YAML file
- * `model-repository-path`: Triton model repository path from folder generated by `profile_model.py`
+* `cluster-config-path`: Cluster configuration YAML file.
+* `navigator-config-path`: Navigator configuration YAML;
+   for example,`./conf/inference/profile_offline.yaml`
+* `model-path`: This model path contains a YAML file with
+   random checkpoint configuration.
+* `model-name`: Your model name for NVIDIA Triton repository.
+* `tensor-parallel-sizes`: Tensor parallel factor; for example, `1 2 4 8`
+* `pipeline-parallel-sizes`: Pipeline parallel factor; for example, `1 2 3 4`
+* `input-output-lengths`: Analyzed input and output lengths in format of 
+   `<input_len>,<output_len>[ <input_len>,<output_len> …]`;
+   for example, `60,20 200,200`
+* `max-batch-sizes`: Maximum batch sizes used for optimization;
+   for example, `1 2 4 8 16 256`
+* `max-latency-ms`: Maximum p99 latency valid for your scenario.
+* `top-n-configs`: Number of optimal configurations to save.
+
+The parameters `tensor-parallel-sizes`, `pipeline-parallel-sizes`,
+`input-output-lengths`, and `max-batch-sizes` are used to generate combinations of
+possible configurations for FasterTransformer and performance measurement
+scripts. The profile script compares throughput normalized to 1 GPU of all
+generated configurations and prints N-best configurations taking into account a
+maximum latency constraint. If you request very small maximum latency, then the
+script won’t be able to find any valid configurations.
+
+#### 2.3. Review deployment search results
+
+The `profile_model_with_random_weights.py` and
+`profile_model.py` scripts create a folder
+`infer_workspace_<YYYYmmdd_HHMMSS>` with a timestamp at the end.
+
+It contains the following folders:
+* `model_name-ft_gpu_counts_8-converted.ft`: Folders with converted
+   FasterTransformer checkpoints.
+* `logs`: Logs.
+* `model_repo_model_name-io_60_20-half_1-pp_1-tp_8-mbs_256`:
+   NVIDIA Triton model repository for input sequence length 60
+   and output length 20 for pipeline parallel 2 and tensor parallel 8
+   and maximum batch size 256.
+*  `model_repo_model_name-io_60_20-half_1-pp_1-tp_8-mbs_256`:
+   NVIDIA Triton model repository for input sequence length 60
+   and output length 20 for pipeline parallel 1 and tensor parallel 8 and
+   maximum batch size 256.
+* `navigator_workspace`: Folder to NVIDIA Triton Model Navigator configurations.
+* `slurm_workspace`: Folder with Slurm logs and sbatch scripts.
+
+Both profile scripts print a list of the best models with the name
+of the NVIDIA Triton model repository with the best results and performance metrics.
+
+Results from `profile_model.py` and `profile_model_with_random_weights.py`
+scripts are saved for review under:
+`./infer_workspace-<YYYYmmdd_HHMMSS>/navigator_workspace/analyzer/results/metrics-model-inference.csv`
+
+The CSV file contains several columns:
+* `Model` - NVIDIA Triton model name.
+* `Batch` - Batch size.
+* `Concurrency` - User request concurrency.
+* `Model Config Path` - Path to model configuration.
+* `Backend Parameters` - Measurement and backend parameters (PP - pipeline
+  parallel, TP - tensor parallel, and half - FP16 used for some computations),
+  `max_input` - maximum sequence input length, `max_sec` - maximum sequence input
+  length plus maximum sequence output length.
+* `Preferred Batch Sizes` - List of preferred batch sizes used in NVIDIA Triton configuration.
+* `Satisfies Constraints` - “Yes” if a model satisfies the p99 latency constraint, set as the max-latency-ms parameter.
+* `Throughput (inder/sec)` - Throughput not normalized for number of GPUs but just measured for one model instance.
+* `p95 Latency(ms)`.
+* `p99 Latency(ms)`.
+
+Best configurations are mentioned from the top,
+To review configurations, check the directory with all generated configs:
+`infer_workspace-<YYYYmmdd_HHMMSS>/navigator_workspace/top_configs`
 
 
-The script saves Triton logs so you can see what happens,
-when FasterTransformer loads a checkpoint.
-
-
-### Verify model accuracy
+### 3. Prepare NVIDIA Triton Model Repository and run accuracy / performance tests
+Having the best config and trained checkpoint. A trained model checkpoint is
+required as this is final model deployment and verification. For large models,
+loading a checkpoint from storage can take a significant amount of time.  
 
 The inputs:
- * Triton model repository with FasterTransformer checkpoint ready for inference at production.
- * Docker image with Triton and FasterTransformer backend.
- * Lambada dataset.
- * Model vocabulary.
- * Model merges file.
-
-The Triton model repository is generated by the `prepare_model_repository.sh` script.
+* Trained model checkpoint.
+* Docker image with NVIDIA Triton and FasterTransformer backend.
+* Lambada dataset.
+* Model vocabulary.
+* Model merges file.
 
 The English data for accuracy experiments can be downloaded from open resources.
 
-The Lambada dataset you can download from GITHUB:
+The Lambada dataset can be downloaded from GITHUB:
 
 ```
 wget https://raw.githubusercontent.com/cybertronai/bflm/master/lambada_test.jsonl
 ```
 
-The vocabulary and merge files can be downloaded from the Huggingface GPT2 project:
+The vocabulary and merge files can be downloaded from the Huggingface project:
 
 ```
 wget https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-vocab.json
 wget https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-merges.txt
 ```
 
-You should put all those files in one folder used for accuracy verification
-of your model.
-
+It’s recommended that you put all files in one folder used for accuracy
+verification of your model.
 
 The outputs:
- * Accuracy measurement report.
+* NVIDIA Triton Model Repository with a converted model in FasterTransformer format.
+* Accuracy measurement report.
+* Performance measurement report.
 
-The accuracy report is stored in the current directory in the file lambada_metrics.csv.
-
-You can verify your model running in Triton by using the Lambada dataset:
+The accuracy report is stored in the current directory in the file `lambada_metrics.csv`.
+You can verify your model running in NVIDIA Triton by using the Lambada dataset:
 
 ```
-python3 ./infer_scripts/test_model.py \
+python3 ./infer_scripts/prepare_model_repository.py \
     --cluster-config-path ./conf/inference/cluster_bcm.yaml \
     --navigator-config-path ./conf/inference/small_mbs_256-pp_1-tp_1-io_60_20.yaml \
     --model-path /your/path/to/training/checkpoint/ \
-    --model-name megatron_345m -v
-    --dataset-dir /your/lambada/folder/ 
+    --model-name model_name -v \
+    --dataset-dir /your/lambada/folder \
+    --model-repository-path /path/to/result/triton_model_repository \
+    --accuracy-tests \
+    --performance-tests
 ```
 
-
 Parameters:
- * `cluster-config-path`: cluster configuration YAML file
- * `navigator-config-path` Navigator configuration to setup Triton. 
- * `model-path`: Your path to training checkpoint
- * `model-name`: model name
- * `dataset-dir`: Folder with downloaded lambada dataset, merges and vocabulary files.
+* `cluster-config-path`: Cluster configuration YAML file.
+* `navigator-config-path`: Navigator configuration to set up NVIDIA Triton.
+* `model-path`: Path to training checkpoint.
+* `model-name`: Model name.
+* `dataset-dir`: Folder with downloaded lambada dataset, merges and vocabulary files.
+* `model-repository-path`: Path to result NVIDIA Triton Model Repository.
+* `accuracy-tests`: Run accuracy tests.
+* `performance-tests`: Run performance offline and online tests.
 
+The parameter `navigator-config-path` contains the Navigator configuration to
+convert a model, set up a NVIDIA Triton, and parameters to perform performance
+tests. You must set some basic parameters to have a working model to verify
+accuracy. You can use a predefined configuration for this task, which sets
+basic values for a tiny model:
 
-The parameter `navigator-config-path` contains Navigator configuration to setup Triton.
-You must set some basic parameters to have working model to verify accuracy.
-You can used predefined configuration for this task, which sets basic values
-for tiny model:
 ```
 ./conf/inference/small_mbs_256-pp_1-tp_1-io_60_20.yaml
 ```
-You must check your model size and look for optimal configuration to run 
+
+You must check your model size and look for optimal configuration to run
 accuracy for your model. The larger models must be run with many GPUs and nodes
-to work.
+to work. The predefined configurations for some GPT3 architectures and
+inference tasks are described in the _Predefined configurations_ section above.
 
-
-### Benchmark inference with random weights
-
-Triton Model Navigator can benchmark inference before training is finished.
-If you already know how large model you need to get good accuracy, then you
-can use this configuration to create random weights inside Triton Inference 
-Server. This random model can be benchmarked to see what is, the best inference
-configuration and verify constrains like maximum latency.
-
-The first step in benchmark script generates random checkpoint based
-on your configuration. The second configures model repositories and 
-starts the Triton Inference Server. The third step executes the performance
-measurements inside several cluster nodes.
-
-The FasterTransformer can be just configured with Triton model repository,
-but with missing weight files. It will just print warnings during start
-and initialize weights to random values. It starts much faster,
-when there is no need to load weights, so many configurations can be quite fast
-verified with little effort. 
+### 4. Run NVIDIA Triton Server with selected Model Repository
 
 The inputs:
- * Random model configuration 
- * Docker image with training scripts.
- * Docker image with Triton and FasterTransformer backend.
- * Performance profile configuration YAML file.
+* NVIDIA Triton model repository with FasterTransformer checkpoint
+   ready for inference at production.
+* Docker image with NVIDIA Triton and FasterTransformer backend.
 
 The outputs:
- * Performance report
- * Triton model stores with random weights.
+* Running NVIDIA Triton model instance serving model in Slurm cluster.
 
-
-You can benchmark model using `infer_scripts/run_benchmark_test.sh` script:
-
+To run the NVIDIA Triton Model Navigator, do the following:
 ```
-python3 ./infer_scripts/profile_model_with_random_weights.py \
+python3 ./infer_scripts/run_tritonserver.py \
     --cluster-config-path ./conf/inference/your_cluster_config.yaml \
-    --navigator-config-path ./conf/inference/profile_offline.yaml \
-    --model-path conf/inference/model_specs/89b.ft \
-    --model-name ft_89B \
-    --tensor-parallel-sizes 4 8 \
-    --pipeline-parallel-sizes 1 2 \
-    --input-output-lengths 200,200 \
-    --max-batch-sizes 1 2 8 16 32 64 256 \
-    --max-latency-ms 1000 \
+    --model-repository-path /path/to/result/triton_model_repository \
     -v
 ```
 
 The parameters:
- * `cluster-config-path`: cluster configuration YAML file
- * `navigator-config-path`: Navigator configuration YAML e.g. `./conf/inference/profile_offline.yaml`
- * `model-path`: This model path contains just YAML file with random checkpoint configuration.
- * `model-name`: Your model name for Triton repository
- * `tensor-parallel-sizes`: Tensor parallel factor e.g.: `1 2 4 8` 
- * `pipeline-parallel-sizes`: Pipeline parallel factor e.g.: `1 8`
- * `input-output-lengths`: Analyzed input and output lengths e.g. `20,8 60,20`
- * `max-batch-sizes`: Maximum batch sizes used for optimization e.g. `1 2 4 8 16 256`
- * `max-latency-ms`: Maximum latency valid for your scenario.
+* `cluster-config-path`: Cluster configuration YAML file.
+* `model-repository-path`: NVIDIA Triton model repository path from folder
+   generated by prepare_model_repository.py script.
 
-The random model configuration for `model-path` parameter is in YAML file:
+The script saves NVIDIA Triton logs so you can verify what happens when
+FasterTransformer loads a checkpoint.
 
-```yaml
-decoder_layers: 105  # Number of decoder layers
-head_num: 128        # Number of heads in layer
-size_per_head: 160   # Size per head
-inter_size: 81920    # inter_size = size_per_head * head_num * 4
-tensor_para_size: 8  # Default tensor parallel configuration (ignored)
-vocab_size: 51200    # Vocabulary size based on vocabulary file
-start_id: 50256      # ????
-end_id: 50256        # ????
+## Performance
+### Benchmarking
 
-```
+### Results
+#### Training Accuracy Results
+Training accuracy: NVIDIA SuperPOD (20 x 8 x A100 80GB)
+Try to mimic results reporting style from Deep Learning Examples
 
-The output files are saved in the current folder `infer_workspace_xxx` with
-time stamp at the end. The all configurations with report about ten best
-configurations is printed to terminal.
+Evaluation of the different models on all the available tasks:
 
 
+#### Training Performance Results
+Training performance: NVIDIA SuperPOD (20 x 8 x A100 80GB)
+Try to mimic results reporting style from Deep Learning Examples
+
+#### Inference performance
+
+The most important factor for NLP model performance is the size of a model. You
+can use a smaller model to get faster inference but it will likely degrade your
+accuracy. 
+
+If you know your model size, then there are two parameters you can vary to find
+the best throughput and keep inside a latency budget:
+* Number of GPUs used for one instance of your model.
+* Batch size used during processing requests.
+
+The same model can be executed with different amounts of GPUs and nodes so the
+basic throughput values don't reflect cost of inference like for one GPU model.
+A throughput normalized to one GPU is used as a proxy for cost of inference in
+graphs and tables below.
+
+##### 5B model
+
+The 5B model can fit into a single A100 80GB GPU. Still FasterTranformer can
+run 5B model using tensor parallel splitting of model between multiple GPUs and
+pipeline parallel, when different transformer layers are distributed across
+many nodes it gives the possibility to utilize different tradeoffs (e.g.
+latency vs throughput). You can also consider using several DGX nodes in
+SuperPOD as one instance of the FasterTransformer model. You should also
+consider an inference task for your application. Some inference tasks require
+longer token sequence lengths  for input and for output.
+
+##### 5B Chatbot for question answering
+
+Let’s consider a scenario with a chatbot for question answering. It can be
+implemented with FasterTransformer, when sequence length for input tokens is 60
+and output length is 20. Two graphs below show how latency and throughput vary,
+when a certain number of GPUs is used for inference for batch size=1 and for
+batch size=256.
 
 
+![5B GPT-3 | batch\_size: 1 | input\_len:60 | output\_len:20](img/5B_GPT_3_batch_size_1_input_len_60_output_len_20.svg)
+
+![5B GPT-3 | batch\_size: 256 | input\_len:60 | output\_len:20](img/5B_GPT_3_batch_size_256_input_len_60_output_len_20.svg)
+
+
+If latency achievable at 1-GPU configuration fits within latency budget, then
+the best performance can be derived from the graph below, which shows how
+latency and throughput change for different batch sizes used for computations.
+
+
+![5B GPT-3 | # of GPU: 1 | input\_len:60 | output\_len:20](img/5B_GPT_3_of_GPU_1_input_len_60_output_len_20.svg)
+
+A chatbot with a latency budget within 380 ms can work for batch size=64 and 1
+GPU used for computation.
+
+
+##### 5B: Translation and style transfer
+
+A translation or style transfer inference task requires input length 200 and
+output length 200.
+
+![5B GPT-3 | batch\_size: 1 | input\_len:200 | output\_len:200](img/5B_GPT_3_batch_size_1_input_len_200_output_len_200.svg)
+
+![5B GPT-3 | batch\_size: 256 | input\_len:200 | output\_len:200](img/5B_GPT_3_batch_size_256_input_len_200_output_len_200.svg)
+
+The graph for 1 GPU with many batch sizes shows what batch size can fit into a
+certain latency budget.
+
+
+![5B GPT-3 | # of GPU: 1 | input\_len:200 | output\_len:200](img/5B_GPT_3_of_GPU_1_input_len_200_output_len_200.svg)
+
+The graph clearly shows that the translation or style transfer inference task
+with latency budget 2000 milliseconds can be deployed using 1 GPU and batch
+size = 16.
+
+##### Summary for 5B results
+
+The table below contains performance measurements from all graphs for the 5B
+model running in FasterTransformer at NVIDIA DGX A100 80GB.
+
+5B model: Latency and throughput for different number of GPUs and batch sizes.
+
+| GPUs | Latency p99                | Normalized throughput to 1 GPU | Latency p99 | Normalized throughput to 1 GPU | Latency p99                  | Normalized throughput to 1 GPU | Latency p99 | Normalized throughput to 1 GPU |
+| ---- | -------------------------- | ------------------------------ | ----------- | ------------------------------ | ---------------------------- | ------------------------------ | ----------- | ------------------------------ |
+|      | Input len 60 output len 60 |                                |             |                                | Input len 200 output len 200 |                                |             |                                |
+|      | BS=256                     |                                | BS=1        |                                | BS=256                       |                                | BS=1        |                                |
+| 1    | 1143                       | 224                            | 172         | 5.81                           | 9048                         | 28.3                           | 1623        | 0.616                          |
+| 2    | 799                        | 160                            | 126         | 3.95                           | 6018                         | 21.3                           | 1219        | 0.410                          |
+| 4    | 529                        | 121                            | 94          | 2.66                           | 3939                         | 16.2                           | 923         | 0.271                          |
+| 8    | 436                        | 73                             | 115         | 1.08                           | 3154                         | 10.1                           | 998         | 0.125                          |
+| 16   | 327                        | 49                             | 101         | 0.62                           | 2776                         | 5.8                            | 977         | 0.064                          |
+| 24   | 273                        | 39                             | 100         | 0.42                           | 2484                         | 4.3                            | 950         | 0.044                          |
+| 32   | 284                        | 28                             | 95          | 0.33                           | 2517                         | 3.2                            | 897         | 0.035                          |
+
+
+##### 20B model
+
+To improve accuracy a larger model can be used.
+
+##### 20B: Chatbot for question answering
+
+![20B GPT-3 | batch\_size: 1 | input\_len:60 | output\_len:20](img/20B_GPT_3_batch_size_1_input_len_60_output_len_20.svg)
+
+![20B GPT-3 | batch\_size: 256 | input\_len:60 | output\_len:20](img/20B_GPT_3_batch_size_256_input_len_60_output_len_20.svg)
+
+![20B GPT-3 | # of GPU: 1 | input\_len:60 | output\_len:20](img/20B_GPT_3_of_GPU_1_input_len_60_output_len_20.svg)
+
+
+
+##### 20B: Translation and style transfer
+
+
+![20B GPT-3 | batch\_size: 1 | input\_len:200 | output\_len:200](img/20B_GPT_3_batch_size_1_input_len_200_output_len_200.svg)
+
+![20B GPT-3 | batch\_size: 256 | input\_len:200 | output\_len:200](img/20B_GPT_3_batch_size_256_input_len_200_output_len_200.svg)
+
+![20B GPT-3 | # of GPU: 1 | input\_len:200 | output\_len:200](img/20B_GPT_3_of_GPU_4_input_len_200_output_len_200.svg)
+
+
+##### Summary for 20B results
+
+The table below contains performance measurements from all graphs for the 20B
+model running in FasterTransformer at NVIDIA DGX A100 80GB.
+
+20B model: Latency and throughput for different number of GPUs and batch sizes.
+
+
+| GPUs | Latency p99                | Normalized throughput to 1 GPU | Latency p99 | Normalized throughput to 1 GPU | Latency p99                  | Normalized throughput to 1 GPU | Latency p99 | Normalized throughput to 1 GPU |
+| ---- | -------------------------- | ------------------------------ | ----------- | ------------------------------ | ---------------------------- | ------------------------------ | ----------- | ------------------------------ |
+|      | Input len 60 output len 60 |                                |             |                                | Input len 200 output len 200 |                                |             |                                |
+|      | BS=256                     |                                | BS=1        |                                | BS=64,128,256                |                                | BS=1        |                                |
+| 1    | 4146                       | 62                             | 560         | 1.78                           | 10772                        | 5.9                            | 5650        | 0.177                          |
+| 2    | 2429                       | 53                             | 359         | 1.39                           | 10544                        | 6.1                            | 3548        | 0.141                          |
+| 4    | 1592                       | 40                             | 251         | 1.00                           | 10453                        | 6.1                            | 2486        | 0.101                          |
+| 8    | 1169                       | 27                             | 230         | 0.54                           | 7909                         | 4.0                            | 2147        | 0.058                          |
+| 16   | 923                        | 17                             | 218         | 0.29                           | 7380                         | 2.2                            | 2131        | 0.029                          |
+| 24   | 758                        | 14                             | 218         | 0.19                           | 6511                         | 1.6                            | 2123        | 0.020                          |
+| 32   | 742                        | 11                             | 224         | 0.14                           | 6200                         | 1.3                            | 2124        | 0.015                          |
+
+##### Model size and performance
+###### Online scenario
+
+An online scenario focuses on the minimization of latency. Large checkpoints
+were generated with randomly initialized weights.
+
+
+![Chatbot Q&A | batch\_size: 1 | input\_len:60 | output\_len:20](img/Chatbot_Q_A_batch_size_1_input_len_60_output_len_20.svg)
+
+
+![Translation or style transfer | batch\_size: 1 | input\_len:200 | output\_len:200](img/Translation_or_style_transfer_batch_size_1_input_len_200_output_len_200.svg)
+
+The performance measurements were obtained at NVIDIA DGX A100 80GB nodes.
+
+Performance for different model sizes in online scenario
+
+|                         | Len input 60 output 20 |                   |            |                             |                                |                | Len input 200 output 200 |                   |            |                             |                                |                |
+| ----------------------- | ---------------------- | ----------------- | ---------- | --------------------------- | ------------------------------ | -------------- | ------------------------ | ----------------- | ---------- | --------------------------- | ------------------------------ | -------------- |
+| Parameters number \[B\] | Latency\[ms\]          | Infer/sec per GPU | Batch size | Tensor parallel (GPUs used) | Pipeline parallel (nodes used) | Number of GPUs | Latency\[ms\]            | Infer/sec per GPU | Batch size | Tensor parallel (GPUs used) | Pipeline parallel (nodes used) | Number of GPUs |
+| 5B                      | 93                     | 2.68              | 1          | 4                           | 1                              | 4              | 923                      | 0.271             | 1          | 4                           | 1                              | 4              |
+| 13B                     | 189                    | 1.32              | 1          | 4                           | 1                              | 4              | 1893                     | 0.132             | 1          | 4                           | 1                              | 4              |
+| 20B                     | 251                    | 0.50              | 1          | 8                           | 1                              | 8              | 2230                     | 0.056             | 1          | 8                           | 1                              | 8              |
+| 89B                     | 464                    | 0.27              | 1          | 8                           | 1                              | 8              | 4585                     | 0.027             | 1          | 8                           | 1                              | 8              |
+| 175B                    | 923                    | 0.14              | 1          | 8                           | 1                              | 8              | 8873                     | 0.014             | 1          | 8                           | 1                              | 8              |
+| 310B                    | 1354                   | 0.09              | 1          | 8                           | 1                              | 8              | 13391                    | 0.005             | 1          | 8                           | 2                              | 16             |
+| 530B                    | 2118                   | 0.03              | 1          | 8                           | 2                              | 16             | 20936                    | 0.003             | 1          | 8                           | 2                              | 16             |
+
+
+###### Offline scenario
+
+The offline scenario focuses on maximum throughput. The two graphs below show
+latency and throughput for two tasks. The first one is chatbot questions
+answering and a second one is translation or style transfer.
+
+
+![Chatbot Q&A | batch\_size: 256 | input\_len:60 | output\_len:20](img/Chatbot_Q_A_batch_size_256_input_len_60_output_len_20.svg)
+
+
+![Translation or style transfer | batch\_size: max | input\_len:200 | output\_len:200](img/Translation_or_Style_Transfer_batch_size_max_input_len_200_output_len_200.svg)
+
+The chatbot scenario can be executed with batch size equal to 256 for all model
+sizes so it is possible to utilize computing resources in GPUs.
+
+Performance for different model sizes in offline scenario
+
+|                         | Len input 60 output 20 |                   |            |                 |                                |                | Len input 200 output 200 |                   |            |                             |                                |                |
+| ----------------------- | ---------------------- | ----------------- | ---------- | --------------- | ------------------------------ | -------------- | ------------------------ | ----------------- | ---------- | --------------------------- | ------------------------------ | -------------- |
+| Parameters number \[B\] | Latency\[ms\]          | Infer/sec per GPU | Batch size | Tensor parallel | Pipeline parallel (nodes used) | Number of GPUs | Latency\[ms\]            | Infer/sec per GPU | Batch size | Tensor parallel (GPUs used) | Pipeline parallel (nodes used) | Number of GPUs |
+| 5B                      | 1143                   | 224.0             | 256        | 1               | 1                              | 1              | 9047                     | 28.297            | 256        | 1                           | 1                              | 1              |
+| 13B                     | 2756                   | 92.9              | 256        | 1               | 1                              | 1              | 13390                    | 9.559             | 256        | 2                           | 1                              | 2              |
+| 20B                     | 4145                   | 61.8              | 256        | 1               | 1                              | 1              | 10453                    | 6.123             | 256        | 4                           | 1                              | 4              |
+| 89B                     | 2889                   | 22.2              | 256        | 4               | 1                              | 4              | 17815                    | 1.796             | 256        | 8                           | 1                              | 8              |
+| 175B                    | 2033                   | 15.7              | 256        | 8               | 1                              | 8              | 16181                    | 0.494             | 64         | 8                           | 1                              | 8              |
+| 310B                    | 6768                   | 2.4               | 256        | 8               | 2                              | 16             | 13686                    | 0.018             | 2          | 8                           | 1                              | 8              |
+| 530B                    | 8660                   | 1.8               | 256        | 8               | 2                              | 16             | 20936                    | 0.003             | 1          | 8                           | 2                              | 16             |
 
