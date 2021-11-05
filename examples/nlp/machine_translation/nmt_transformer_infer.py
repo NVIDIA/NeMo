@@ -227,7 +227,7 @@ def main():
             src_text.append(line.strip())
             if len(src_text) == args.batch_size:
                 # warmup when measuring timing
-                if not all_timing:
+                if args.write_timing and (not all_timing):
                     print("running a warmup batch")
                     translate_text(
                         models=models,
