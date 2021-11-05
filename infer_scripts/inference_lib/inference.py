@@ -154,6 +154,7 @@ class TritonServerSet:
         enable_gpus_allocation: bool = True,
         max_time_min: int,
         verbose: bool = False,
+        job_name_prefix: str,
     ):
         self._job = self._submit(
             executor=executor,
@@ -165,6 +166,7 @@ class TritonServerSet:
             max_time_min=max_time_min,
             verbose=verbose,
             config_name=config_name,
+            job_name_prefix=job_name_prefix,
         )
         self._run_since_s = math.inf
 
@@ -180,13 +182,15 @@ class TritonServerSet:
         max_time_min,
         verbose,
         config_name,
+        job_name_prefix,
     ) -> submitit.Job:
+
         executor.update_parameters(
             nodes=num_nodes,
             ntasks_per_node=servers_per_node,
             exclusive=True,
             time=max_time_min,
-            job_name=f"joc-bermuda:tritonserver_set_{config_name}",
+            job_name=f"{job_name_prefix}tritonserver_set_{config_name}",
             comment=f"Triton Server serving {repository_path}",
             setup=[
                 f"export CUDA_VISIBLE_DEVICES={','.join(map(str, range(0, gpus_per_server)))}",

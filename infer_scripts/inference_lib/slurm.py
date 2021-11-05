@@ -31,6 +31,10 @@ from .utils import config_logger
 
 LOGGER = logging.getLogger(__name__)
 
+DEFAULT_JOB_NAME_PREFIX = "bignlp-"
+WCKEY = "BigNLP"
+TRITON_MODEL_REPOSITORY = "/triton-model-repository"
+
 
 class ContainerImageType(enum.Enum):
     TRAINING = "training"
@@ -55,8 +59,6 @@ Possible submitit slurm executor parameters
 'srun_args', 'additional_parameters', 'setup'
 'signal_delay_s', 'qos'
 """
-WCKEY = "BigNLP"
-TRITON_MODEL_REPOSITORY = "/triton-model-repository"
 
 
 def get_common_slurm_parameters_new(

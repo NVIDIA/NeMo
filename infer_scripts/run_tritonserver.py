@@ -16,12 +16,12 @@ import argparse
 import datetime
 import logging
 import pathlib
-import time
 
 import yaml
 
 from inference_lib.inference import DEFAULT_BENCHMARK_TIME_MIN, TritonServerSet, Variant
 from inference_lib.slurm import (
+    DEFAULT_JOB_NAME_PREFIX,
     TRITON_MODEL_REPOSITORY,
     ContainerImageType,
     PyxisTritonExecutor,
@@ -75,8 +75,9 @@ def main():
 
     variant = _get_variant(host_triton_model_repository_path)
 
+    job_name_prefix = cluster_config["slurm"].get("job_name_prefix", DEFAULT_JOB_NAME_PREFIX)
     enable_gpus_allocation = cluster_config["slurm"].get("enable_gpus_allocation", True)
-    job_name = f"joc-bermuda:tritonservers_{variant.extended_name}"
+    job_name = f"{job_name_prefix}tritonservers_{variant.extended_name}"
 
     slurm_common_parameters = get_common_slurm_parameters_new(
         cluster_config=cluster_config,
@@ -102,6 +103,8 @@ def main():
         enable_gpus_allocation=enable_gpus_allocation,
         max_time_min=DEFAULT_BENCHMARK_TIME_MIN,
         verbose=args.verbose,
+        config_name=variant.extended_name,
+        job_name_prefix=job_name_prefix,
     )
 
     triton_server_set.wait_job_is_running_or_failed()

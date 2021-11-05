@@ -5,7 +5,8 @@ slurm:
     exclude: null
   srun_args: ["--mpi", "pmix"]
   enable_gpus_allocation: true
+  job_name_prefix: "bignlp-"
 env:
   pyxis_container_workdir: /bignlp_workdir
-  pyxis_training_container_image: nvcr.io/nvidian/swdl/bignlp:21.10.04-py3-base
-  pyxis_inference_container_image: nvcr.io/nvidian/swdl/bignlp:infer-main-py3-base
+  pyxis_training_container_image:  nvcr.io/ea-bignlp/bignlp-training:21.10-py3-base
+  pyxis_inference_container_image:  nvcr.io/ea-bignlp/bignlp-inference:21.10-py3-base
