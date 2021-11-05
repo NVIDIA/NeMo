@@ -17,7 +17,7 @@ import multiprocessing as mp
 from pathlib import Path
 
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset import (
-    build_label_ids_from_list_of_labels, create_tarred_dataset
+    build_label_ids_from_list_of_labels, check_before_building_label_ids, create_tarred_dataset
 )
 
 
@@ -82,6 +82,13 @@ def get_args():
                         f"Values of parameter `--special_token_names` has to be unique. Found duplicate value "
                         f"'{args.special_token_names[i]}'."
                     )
+    if args.punct_labels is not None:
+        check_before_building_label_ids(
+            args.pad_label, args.punct_labels, '--pad_label', '--punct_labels', parser.error
+        )
+        check_before_building_label_ids(
+            args.pad_label, args.capit_labels, '--pad_label', '--capit_labels', parser.error
+        )
     return args
 
 

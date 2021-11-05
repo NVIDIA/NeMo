@@ -263,14 +263,18 @@ def check_label_ids(pad_label, punct_label_ids, capit_label_ids):
             raise ValueError(msg.format(param_name='capit_label_ids', id_=capit_label_ids[pad_label]))
 
 
-def build_label_ids_from_list_of_labels(pad_label, other_labels):
+def check_before_building_label_ids(pad_label, other_labels, pad_label_name, other_labels_name, error_class):
     for i, lbl in enumerate(other_labels):
         if lbl == pad_label:
-            raise ValueError(f"Label number {i} in parameter `other_labels` is equal to `pad_label`.")
+            raise error_class(f"Label number {i} in parameter `{other_labels_name}` is equal to `{pad_label_name}`.")
     for i in range(len(other_labels) - 1):
         for lbl in other_labels[i + 1 :]:
             if lbl == other_labels[i]:
-                raise ValueError(f"Label number {i} occurs at least 2 times in parameter `other_labels`.")
+                raise error_class(f"Label number {i} occurs at least 2 times in parameter `{other_labels_name}`.")
+
+
+def build_label_ids_from_list_of_labels(pad_label, other_labels):
+    check_before_building_label_ids(pad_label, other_labels, 'pad_label', 'other_labels', ValueError)
     ids = {pad_label: 0}
     for lbl in other_labels:
         ids[lbl] = len(ids)
