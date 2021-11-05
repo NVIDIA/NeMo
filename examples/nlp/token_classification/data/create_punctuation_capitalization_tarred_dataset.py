@@ -73,7 +73,10 @@ def get_args():
 
 def main():
     args = get_args()
-    special_tokens = dict(zip(args.special_token_names, args.special_token_values))
+    if args.special_token_names is None:
+        special_tokens = None
+    else:
+        special_tokens = dict(zip(args.special_token_names, args.special_token_values))
     create_tarred_dataset(
         args.text,
         args.labels,
