@@ -30,18 +30,50 @@ def get_args():
     parser.add_argument("--tokens_in_batch", "-b", type=int, default=15000)
     parser.add_argument("--lines_per_dataset_fragment", type=int, default=10 ** 6)
     parser.add_argument("--num_batches_per_tarfile", type=int, default=1000)
-    parser.add_argument("--tokenizer", "-T", default="bert-base-uncased")
+    parser.add_argument("--tokenizer_name", "-T", default="bert-base-uncased")
+    parser.add_argument("--tokenizer_model", "-m", type=Path)
+    parser.add_argument("--vocab_file", "-v", type=Path)
+    parser.add_argument("--merges_file", "-M", type=Path)
+    parser.add_argument("--special_token_names", "-n", nargs="+")
+    parser.add_argument("--special_token_values", "-V", nargs="+")
+    parser.add_argument("--use_fast_tokenizer", "-f", action="store_true")
+    parser.add_argument("--tokenizer_bpe_dropout", "-d", type=float)
     parser.add_argument("--tar_file_prefix", "-p", default="punctuation_capitalization")
     parser.add_argument("--n_jobs", "-j", type=int, default=mp.cpu_count())
     args = parser.parse_args()
-    args.text = args.text.expanduser()
-    args.labels = args.labels.expanduser()
-    args.output_dir = args.output_dir.expanduser()
+    for name in ["text", "labels", "output_dir", "tokenizer_model", "vocab_file", "merges_file"]:
+        if getattr(args, name) is not None:
+            setattr(args, name, getattr(args, name).expanduser())
+    if args.special_token_names is not None or args.special_token_values is not None:
+        if args.special_token_names is None:
+            raise parser.error(
+                "If you provide parameter `--special_token_values` you have to provide parameter "
+                "`--special_token_names`."
+            )
+        if args.special_token_values is None:
+            raise parser.error(
+                "If you provide parameter `--special_token_names` you have to provide parameter "
+                "`--special_token_values`."
+            )
+        if len(args.special_tokens_names) != len(args.special_tokens_values):
+            raise parser.error(
+                f"Parameters `--special_token_names` and `--special_token_values` have to have equal number of values "
+                f"whereas parameter `--special_token_names` has {len(args.special_token_names)} values and "
+                f"`--special_token_values` has {len(args.special_token_values)} values."
+            )
+        if len(set(args.special_token_names)) != len(args.special_token_names):
+            for i in range(len(args.special_token_names) - 1):
+                if args.special_token_names[i] in args.special_token_names[i + 1 :]:
+                    raise parser.error(
+                        f"Values of parameter `--special_token_names` has to be unique. Found duplicate value "
+                        f"'{args.special_token_names[i]}'."
+                    )
     return args
 
 
 def main():
     args = get_args()
+    special_tokens = dict(zip(args.special_token_names, args.special_token_values))
     create_tarred_dataset(
         args.text,
         args.labels,
@@ -50,9 +82,15 @@ def main():
         args.tokens_in_batch,
         args.lines_per_dataset_fragment,
         args.num_batches_per_tarfile,
-        args.tokenizer,
-        args.tar_file_prefix,
-        args.n_jobs,
+        args.tokenizer_name,
+        tokenizer_model=args.tokenizer_model,
+        vocab_file=args.vocab_file,
+        merges_file=args.merges_file,
+        special_tokens=special_tokens,
+        use_fast_tokenizer=args.use_fast_tokenizer,
+        tokenizer_bpe_dropout=args.tokenizer_bpe_dropout,
+        tar_file_prefix=args.tar_file_prefix,
+        n_jobs=args.n_jobs,
     )
 
 
