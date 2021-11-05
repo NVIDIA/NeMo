@@ -24,7 +24,6 @@ from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDa
 from nemo.collections.nlp.data.text_normalization.utils import input_preprocessing, post_process_punct
 from nemo.collections.nlp.models.duplex_text_normalization.utils import get_formatted_string
 from nemo.utils import logging
-from nemo.utils.decorators.experimental import experimental
 
 __all__ = ['DuplexTextNormalizationModel', 'post_process_punct']
 
