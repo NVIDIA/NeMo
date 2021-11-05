@@ -193,7 +193,7 @@ class TokenizeCreateMasksClipWorker:
         punct_all_labels, capit_all_labels = [], []
         progress_made = 0
         for i, query in enumerate(queries):
-            words = query.strip().split()
+            words = query.split()
             input_ids, subtokens_mask = [self.tokenizer.cls_id], [0]
             if self.with_label:
                 check_number_of_labels(words, query, i, split_i, punct_labels_lines[i], capit_labels_lines[i])
@@ -204,6 +204,8 @@ class TokenizeCreateMasksClipWorker:
                 capit_query_labels = [self.capit_label_ids[lab] for lab in capit_labels_lines[i]]
             for j, word in enumerate(words):
                 word_ids = self.tokenizer.text_to_ids(word)
+                if not word_ids and len(word):
+                    word_ids = [self.tokenizer.unk_id]
                 input_ids.extend(word_ids)
 
                 subtokens_mask.append(1)
