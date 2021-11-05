@@ -29,7 +29,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_dataset import MegatronDataset
 from nemo.utils import logging
-from nemo.utils.get_rank import is_global_rank_zero
 
 
 def build_train_valid_test_datasets(
