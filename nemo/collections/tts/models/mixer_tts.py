@@ -37,6 +37,7 @@ from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import average_pitch, regulate_len
 from nemo.collections.tts.torch.tts_tokenizers import EnglishCharsTokenizer, EnglishPhonemesTokenizer
+from nemo.core import Exportable
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types.elements import (
     LengthsType,
@@ -49,7 +50,7 @@ from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 
 
-class MixerTTSModel(SpectrogramGenerator):
+class MixerTTSModel(SpectrogramGenerator, Exportable):
     """MixerTTS pipeline."""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -58,6 +59,7 @@ class MixerTTSModel(SpectrogramGenerator):
 
         self.tokenizer = instantiate(cfg.train_ds.dataset.text_tokenizer)
         num_tokens = len(self.tokenizer.tokens)
+        self.tokenizer_pad = self.tokenizer.pad
         self.tokenizer_unk = self.tokenizer.oov
 
         self.pitch_loss_scale = cfg.pitch_loss_scale
@@ -87,7 +89,7 @@ class MixerTTSModel(SpectrogramGenerator):
                 cfg.self_attention_module, n_lm_tokens_channels=self.lm_embeddings.weight.shape[1]
             )
 
-        self.encoder = instantiate(cfg.encoder, num_tokens=num_tokens, padding_idx=self.tokenizer.pad)
+        self.encoder = instantiate(cfg.encoder, num_tokens=num_tokens, padding_idx=self.tokenizer_pad)
         self.symbol_emb = self.encoder.to_embed
 
         self.duration_predictor = instantiate(cfg.duration_predictor)
@@ -191,6 +193,17 @@ class MixerTTSModel(SpectrogramGenerator):
 
         return loss, durs_loss, acc, acc_dist_1, acc_dist_3, pitch_loss, mel_loss, ctc_loss, bin_loss
 
+    @torch.jit.unused
+    def run_aligner(self, text, text_len, text_mask, spect, spect_len, attn_prior):
+        text_emb = self.symbol_emb(text)
+        attn_soft, attn_logprob = self.aligner(
+            spect, text_emb.permute(0, 2, 1), mask=text_mask == 0, attn_prior=attn_prior,
+        )
+        attn_hard = binarize_attention_parallel(attn_soft, text_len, spect_len)
+        attn_hard_dur = attn_hard.sum(2)[:, 0, :]
+        assert torch.all(torch.eq(attn_hard_dur.sum(dim=1), spect_len))
+        return attn_soft, attn_logprob, attn_hard, attn_hard_dur
+
     @typecheck(
         input_types={
             "text": NeuralType(('B', 'T'), TokenIndex()),
@@ -211,14 +224,11 @@ class MixerTTSModel(SpectrogramGenerator):
         enc_out, enc_mask = self.encoder(text, text_mask)
 
         # aligner
-        text_emb = self.symbol_emb(text)
-        attn_soft, attn_logprob = self.aligner(
-            spect, text_emb.permute(0, 2, 1), mask=text_mask == 0, attn_prior=attn_prior,
-        )
-        attn_hard = binarize_attention_parallel(attn_soft, text_len, spect_len)
-
-        attn_hard_dur = attn_hard.sum(2)[:, 0, :]
-        assert torch.all(torch.eq(attn_hard_dur.sum(dim=1), spect_len))
+        attn_soft, attn_logprob, attn_hard, attn_hard_dur = None, None, None, None
+        if spect is not None:
+            attn_soft, attn_logprob, attn_hard, attn_hard_dur = self.run_aligner(
+                text, text_len, text_mask, spect, spect_len, attn_prior
+            )
 
         if self.cond_on_lm_embeddings:
             lm_emb = self.lm_embeddings(lm_tokens)
@@ -269,7 +279,8 @@ class MixerTTSModel(SpectrogramGenerator):
     def infer(
         self,
         text,
-        text_len,
+        text_len=None,
+        text_mask=None,
         spect=None,
         spect_len=None,
         attn_prior=None,
@@ -277,18 +288,17 @@ class MixerTTSModel(SpectrogramGenerator):
         lm_tokens=None,
         pitch=None,
     ):
-        text_mask = get_mask_from_lengths(text_len).unsqueeze(2)
+        if text_mask is None:
+            text_mask = get_mask_from_lengths(text_len).unsqueeze(2)
 
         enc_out, enc_mask = self.encoder(text, text_mask)
 
         # aligner
         attn_hard_dur = None
-        if use_gt_durs and spect is not None and spect_len is not None and attn_prior is not None:
-            text_emb = self.symbol_emb(text)
-            attn_soft, _ = self.aligner(spect, text_emb.permute(0, 2, 1), mask=text_mask == 0, attn_prior=attn_prior,)
-            attn_hard = binarize_attention_parallel(attn_soft, text_len, spect_len)
-            attn_hard_dur = attn_hard.sum(2)[:, 0, :]
-            assert torch.all(torch.eq(attn_hard_dur.sum(dim=1), spect_len))
+        if use_gt_durs:
+            attn_soft, attn_logprob, attn_hard, attn_hard_dur = self.run_aligner(
+                text, text_len, text_mask, spect, spect_len, attn_prior
+            )
 
         if self.cond_on_lm_embeddings:
             lm_emb = self.lm_embeddings(lm_tokens)
@@ -604,3 +614,21 @@ class MixerTTSModel(SpectrogramGenerator):
     def list_available_models(cls):
         """Empty."""
         pass
+
+    @property
+    def input_types(self):
+        return {
+            "text": NeuralType(('B', 'T'), TokenIndex()),
+            "lm_tokens": NeuralType(('B', 'T'), TokenIndex(), optional=True),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+        }
+
+    def forward_for_export(self, text, lm_tokens=None):
+        text_mask = (text != self.tokenizer_pad).unsqueeze(2)
+        spect = self.infer(text=text, text_mask=text_mask, lm_tokens=lm_tokens)
+        return spect.to(torch.float)

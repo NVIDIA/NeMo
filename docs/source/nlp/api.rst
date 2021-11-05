@@ -24,6 +24,14 @@ Model Classes
     :show-inheritance:
     :members: setup_training_data, setup_optimization, setup_validation_data, setup_test_data, inference, validation_epoch_end, test_epoch_end
 
+.. autoclass:: nemo.collections.nlp.models.DuplexTaggerModel
+    :show-inheritance:
+    :members: setup_training_data, setup_optimization, setup_validation_data, setup_test_data, inference, validation_epoch_end, test_epoch_end
+
+.. autoclass:: nemo.collections.nlp.models.DuplexDecoderModel
+    :show-inheritance:
+    :members: setup_training_data, setup_optimization, setup_validation_data, setup_test_data, inference, validation_epoch_end, test_epoch_end
+
 .. autoclass:: nemo.collections.nlp.models.BERTLMModel
     :show-inheritance:
     :members: setup_training_data, setup_optimization
