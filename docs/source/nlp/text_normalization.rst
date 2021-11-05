@@ -204,9 +204,9 @@ Run the full inference pipeline:
     cd NeMo/examples/nlp/duplex_text_normalization;
 
     # run inference in interactive mode using pretrained tagger and decoder models
-    python duplex_text_normalization duplex_text_normalization_infer.py \
-        tagger_pretrained_model=text_normalization_tagger_en \
-        decoder_pretrained_model=text_normalization_decoder_en \
+    python duplex_text_normalization_infer.py \
+        tagger_pretrained_model=neural_text_normalization_t5 \
+        decoder_pretrained_model=neural_text_normalization_t5 \
         inference.from_file=False \
         lang=en \
         mode=tn
