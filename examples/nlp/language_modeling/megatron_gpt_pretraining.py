@@ -16,11 +16,13 @@ from pathlib import Path
 
 from omegaconf.omegaconf import OmegaConf
 from pytorch_lightning import Trainer
+from pytorch_lightning.callbacks.timer import Timer
+from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
+from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.parts.nlp_overrides import (
-    NLPCheckpointConnector,
     NLPDDPPlugin,
     NLPNativeBfloat16PrecisionPlugin,
     NLPNativeMixedPrecisionPlugin,
@@ -28,7 +30,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from nemo.utils.exp_manager import exp_manager
+from nemo.utils.exp_manager import StatelessTimer, exp_manager
 
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_config")
@@ -36,24 +38,23 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
+    plugins = [NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes)]
     if cfg.trainer.precision == 16:
-        trainer = Trainer(
-            plugins=[
-                NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes),
-                NLPNativeMixedPrecisionPlugin(
-                    init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
-                    growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
-                ),
-            ],
-            **cfg.trainer,
+        plugins.append(
+            NLPNativeMixedPrecisionPlugin(
+                init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
+                growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
+            )
         )
     elif cfg.trainer.precision == 'bf16':
-        trainer = Trainer(
-            plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes), NLPNativeBfloat16PrecisionPlugin(),],
-            **cfg.trainer,
-        )
+        plugins.append(NLPNativeBfloat16PrecisionPlugin())
     else:
-        trainer = Trainer(plugins=[NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes), NLPPrecisionPlugin()], **cfg.trainer)
+        plugins.append(NLPPrecisionPlugin())
+
+    if cfg.get('cluster_type', None) == 'BCP':
+        plugins.append(TorchElasticEnvironment())
+
+    trainer = Trainer(plugins=plugins, **cfg.trainer)
 
     exp_manager(trainer, cfg.exp_manager)
 
@@ -68,7 +69,11 @@ def main(cfg) -> None:
         resume_from_checkpoint = str(resume_from_checkpoint)
         logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
 
-    trainer.checkpoint_connector = NLPCheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
+    trainer.checkpoint_connector = CheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
+    # Override timer callback to a stateless one
+    for idx, callback in enumerate(trainer.callbacks):
+        if isinstance(callback, Timer):
+            trainer.callbacks[idx] = StatelessTimer(cfg.trainer.max_time,)
 
     model = MegatronGPTModel(cfg.model, trainer)
 

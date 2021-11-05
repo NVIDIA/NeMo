@@ -15,11 +15,11 @@
 import os
 import shutil
 import tempfile
+from collections import defaultdict
 from typing import Any, Dict, List, Optional, Union
 
 import pytorch_lightning as pl
 import torch
-from apex.transformer import parallel_state
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
@@ -31,24 +31,30 @@ from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities import rank_zero_warn
 from pytorch_lightning.utilities.cloud_io import atomic_save
 from pytorch_lightning.utilities.enums import GradClipAlgorithmType
+from pytorch_lightning.utilities.types import _PATH
 from torch.nn.modules.module import Module
 from torch.nn.parallel import DistributedDataParallel
 from torch.optim.optimizer import Optimizer
 
-from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
-from nemo.collections.nlp.modules.common.megatron.megatron_bert import (
-    get_megatron_checkpoint_version,
-    set_megatron_checkpoint_version,
-)
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
-from nemo.utils import AppState, logging
+from nemo.utils import AppState, app_state, logging
+
+try:
+    from apex.transformer import parallel_state
+    from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_APEX = False
 
 
 class NLPDDPPlugin(DDPPlugin):
     """ DDP plugin for Pytorch Lightning. Needed to customize DDP for model parallel models.
     """
 
-    distributed_backend = "ddp"
+    accelerator = "ddp"
 
     def __init__(
         self,
@@ -61,6 +67,9 @@ class NLPDDPPlugin(DDPPlugin):
     ) -> None:
         super().__init__(parallel_devices, num_nodes, cluster_environment, checkpoint_io, sync_batchnorm, **kwargs)
 
+        if not HAVE_APEX:
+            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
+
     def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
         # call PTL init ddp
         super().setup_distributed()
@@ -70,70 +79,6 @@ class NLPDDPPlugin(DDPPlugin):
 
         if app_state.model_parallel_size is not None:
             self.init_model_parallel(app_state.global_rank, app_state.world_size)
-            # if self.lightning_module.has_megatron_encoder and not self.lightning_module.is_model_parallel_initialized:
-            #     self.init_model_parallel(app_state.global_rank, app_state.world_size)
-
-    def start_training(self, trainer: 'Trainer') -> None:
-        """ PTL Hook that is called after DPP is initialized. """
-
-        if self.lightning_module.has_megatron_encoder:
-            app_state = AppState()
-            if app_state.model_parallel_size is not None:
-                # mpu grad clipping needs parameters to have the attribute model_parallel
-                parameters = self.lightning_module.parameters()
-                for p in parameters:
-                    if not hasattr(p, 'model_parallel'):
-                        p.model_parallel = False
-
-                if get_megatron_checkpoint_version() is not None:
-                    # megatron checkpoint already restored
-                    pass
-                elif trainer.checkpoint_connector.resume_checkpoint_path is not None:
-                    # PTL auto-resuming, need to update checkpoint name
-                    # update path based on model parallel rank
-                    filepath = trainer.checkpoint_connector.resume_checkpoint_path
-                    dirname = os.path.dirname(os.path.dirname(filepath))
-                    basename = os.path.basename(filepath)
-                    filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
-                    trainer.checkpoint_connector.resume_checkpoint_path = filepath
-                    logging.info(
-                        f'Resuming training from checkpoint {trainer.checkpoint_connector.resume_checkpoint_path}'
-                    )
-                    # need to set checkpoint version for megatron-lm
-                    checkpoint_version = torch.load(trainer.checkpoint_connector.resume_checkpoint_path).get(
-                        'checkpoint_version', None
-                    )
-                    if checkpoint_version is not None:
-                        set_megatron_checkpoint_version(checkpoint_version)
-                    else:
-                        logging.warning('Megatron-lm checkpoint version not found. Setting checkpoint_version to 0.')
-                        set_megatron_checkpoint_version(0)
-                else:
-                    self.lightning_module.restore_megatron_encoder_weights()
-            else:
-                if get_megatron_checkpoint_version() is not None:
-                    # megatron checkpoint already restored
-                    pass
-                else:
-                    self.lightning_module.restore_megatron_encoder_weights()
-
-            self.lightning_module.register_megatron_checkpoint_version()
-
-        return super().start_training(trainer)
-
-    def start_testing(self, trainer: 'Trainer') -> None:
-        """ PTL Hook that is called after DPP is initialized. """
-        app_state = AppState()
-
-        if app_state.model_parallel_size is not None:
-
-            if self.has_megatron_encoder:
-                # check megatron checkpoint version
-                checkpoint_version = get_megatron_checkpoint_version()
-                if checkpoint_version is None:
-                    raise ValueError("Unable to find megatron checkpoint version.")
-
-        return super().start_testing(trainer)
 
     def configure_ddp(self):
         """ Override LightningModule ddp if using model parallel.
@@ -184,26 +129,38 @@ class NLPDDPPlugin(DDPPlugin):
                 logging.info(f'mp_rank: {app_state.model_parallel_rank}')
                 logging.info(f'dp_rank: {app_state.data_parallel_rank}')
 
-    def save_checkpoint(self, checkpoint: Dict[str, Any], filepath: str) -> None:
-        """Save model/training states as a checkpoint file through state-dump and file-write.
+    def save_checkpoint(self, checkpoint: Dict[str, Any], filepath: _PATH) -> None:
+        # PTL override to accomodate model parallel checkpoints
+        filepath = self._inject_model_parallel_rank(filepath)
+        return super().save_checkpoint(checkpoint, filepath)
 
-        Args:
-            checkpoint: dict containing model and trainer state
-            filepath: write-target file's path
-        """
+    def remove_checkpoint(self, filepath: _PATH) -> None:
+        # PTL override to accomodate model parallel checkpoints
+        filepath = self._inject_model_parallel_rank(filepath)
+        logging.info(f'Removing checkpoint: {filepath}')
+        return super().remove_checkpoint(filepath)
+
+    def _inject_model_parallel_rank(self, filepath):
         app_state = AppState()
-        # dump states as a checkpoint dictionary object
-        # TrainingTypePlugin.on_save() just seems to return the same thing.
-        # checkpoint = self.on_save(checkpoint)
-        if self.is_global_zero or app_state.data_parallel_rank == 0:
-            try:
-                # write the checkpoint dictionary on the file
-                atomic_save(checkpoint, filepath)
-            except AttributeError as err:
-                key = pl.LightningModule.CHECKPOINT_HYPER_PARAMS_KEY
-                checkpoint.pop(key, None)
-                rank_zero_warn(f"Warning, `{key}` dropped from checkpoint. An attribute is not picklable: {err}")
-                atomic_save(checkpoint, filepath)
+        # inserts mp_rank_XX for model parallel checkpoints
+        if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+            # filepath needs to be updated to include mp_rank
+            dirname = os.path.dirname(filepath)
+            basename = os.path.basename(filepath)
+            filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
+            return filepath
+        else:
+            return filepath
+
+    @property
+    def should_rank_save_checkpoint(self) -> bool:
+        # PTL override that determines if checkpoints should be saved based on rank
+        # for model parallel we need data_parallel_rank==0
+        app_state = AppState()
+        if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+            return app_state.data_parallel_rank == 0
+        else:
+            return super().should_rank_save_checkpoint
 
     @property
     def distributed_sampler_kwargs(self):
@@ -221,39 +178,11 @@ class NLPDDPPlugin(DDPPlugin):
             return super(NLPDDPPlugin, self).distributed_sampler_kwargs
 
 
-class NLPCheckpointConnector(CheckpointConnector):
-    """ Override PTL CheckpointConnector to support model parallel checkpoints from Megatron-LM.
-    """
-
-    def __init__(self, trainer, resume_from_checkpoint):
-        super().__init__(trainer, resume_from_checkpoint)
-
-    def save_checkpoint(self, filepath, weights_only: bool = False) -> None:
-        """Slightly modified version of PyTorch Lightning's save_checkpoint.
-           Accounts for model parallel training.
-           Save model/training states as a checkpoint file through state-dump and file-write.
-
-        Args:
-            filepath: write-target file's path
-            weights_only: saving model weights only
-        """
-        app_state = AppState()
-        if app_state.model_parallel_size is not None:
-            # filepath needs to be updated to include mp_rank
-            dirname = os.path.dirname(filepath)
-            basename = os.path.basename(filepath)
-            filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
-            _checkpoint = self.dump_checkpoint(weights_only)
-            # each model parallel rank needs to save a copy of its model
-            if app_state.data_parallel_rank == 0:
-                self.trainer.accelerator.save_checkpoint(_checkpoint, filepath)
-        else:
-            super().save_checkpoint(filepath, weights_only)
-
-
 class NLPSaveRestoreConnector(SaveRestoreConnector):
     def __init__(self) -> None:
         super().__init__()
+        if not HAVE_APEX:
+            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
 
     def save_to(self, model, save_path: str):
         app_state = AppState()
@@ -296,11 +225,117 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             return super().save_to(model, save_path)
 
 
+class GradScaler(torch.cuda.amp.GradScaler):
+    """
+    Gradient sclaer for model-parallel inf check. The inf in gradients are checked across tensor-parallel
+    ranks in (1) executing optimizer step and (2) gradient scaler update.
+
+    """
+
+    def __init__(
+        self, init_scale=2.0 ** 16, growth_factor=2.0, backoff_factor=0.5, growth_interval=2000, enabled=True
+    ):
+        super().__init__(
+            init_scale=init_scale,
+            growth_factor=growth_factor,
+            backoff_factor=backoff_factor,
+            growth_interval=growth_interval,
+            enabled=enabled,
+        )
+
+    def _maybe_opt_step(self, optimizer, optimizer_state, *args, **kwargs):
+        retval = None
+        found_inf = torch.cuda.FloatTensor([sum(v.item() for v in optimizer_state["found_inf_per_device"].values())])
+
+        # Update across all model parallel instances.
+        torch.distributed.all_reduce(
+            found_inf, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group()
+        )
+
+        if found_inf.item() == 0:
+            retval = optimizer.step(*args, **kwargs)
+        return retval
+
+    def update(self, new_scale=None):
+        """
+        Updates the scale factor.
+
+        If any optimizer steps were skipped the scale is multiplied by ``backoff_factor``
+        to reduce it. If ``growth_interval`` unskipped iterations occurred consecutively,
+        the scale is multiplied by ``growth_factor`` to increase it.
+
+        Passing ``new_scale`` sets the new scale value manually. (``new_scale`` is not
+        used directly, it's used to fill GradScaler's internal scale tensor. So if
+        ``new_scale`` was a tensor, later in-place changes to that tensor will not further
+        affect the scale GradScaler uses internally.)
+
+        Args:
+            new_scale (float or :class:`torch.cuda.FloatTensor`, optional, default=None):  New scale factor.
+
+        .. warning::
+            :meth:`update` should only be called at the end of the iteration, after ``scaler.step(optimizer)`` has
+            been invoked for all optimizers used this iteration.
+        """
+        if not self._enabled:
+            return
+
+        _scale, _growth_tracker = self._check_scale_growth_tracker("update")
+
+        if new_scale is not None:
+            # Accept a new user-defined scale.
+            if isinstance(new_scale, float):
+                self._scale.fill_(new_scale)  # type: ignore[union-attr]
+            else:
+                reason = "new_scale should be a float or a 1-element torch.cuda.FloatTensor with requires_grad=False."
+                assert isinstance(new_scale, torch.cuda.FloatTensor), reason  # type: ignore[attr-defined]
+                assert new_scale.numel() == 1, reason
+                assert new_scale.requires_grad is False, reason
+                self._scale.copy_(new_scale)  # type: ignore[union-attr]
+        else:
+            # Consume shared inf/nan data collected from optimizers to update the scale.
+            # If all found_inf tensors are on the same device as self._scale, this operation is asynchronous.
+            found_infs = [
+                found_inf.to(device=_scale.device, non_blocking=True)
+                for state in self._per_optimizer_states.values()
+                for found_inf in state["found_inf_per_device"].values()
+            ]
+
+            assert len(found_infs) > 0, "No inf checks were recorded prior to update."
+
+            found_inf_combined = found_infs[0]
+
+            # Update across all model parallel instances.
+            torch.distributed.all_reduce(
+                found_inf_combined, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group()
+            )
+
+            if len(found_infs) > 1:
+                for i in range(1, len(found_infs)):
+                    found_inf = found_infs[i]
+                    # Update across all model parallel instances.
+                    torch.distributed.all_reduce(
+                        found_inf, op=torch.distributed.ReduceOp.MAX, group=parallel_state.get_model_parallel_group()
+                    )
+                    found_inf_combined += found_inf
+
+            torch._amp_update_scale_(
+                _scale,
+                _growth_tracker,
+                found_inf_combined,
+                self._growth_factor,
+                self._backoff_factor,
+                self._growth_interval,
+            )
+
+        # To prepare for next iteration, clear the data collected from optimizers this iteration.
+        self._per_optimizer_states = defaultdict(torch.cuda.amp.grad_scaler._refresh_per_optimizer_state)
+
+
 class NLPNativeMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
     def __init__(self, init_scale: float = 2 ** 32, growth_interval: int = 1000) -> None:
         super().__init__(precision=16)
 
-        self.scaler = torch.cuda.amp.GradScaler(init_scale=init_scale, growth_interval=growth_interval)
+        self.scaler = GradScaler(init_scale=init_scale, growth_interval=growth_interval)
 
     def clip_gradients(
         self,
@@ -318,6 +353,8 @@ class NLPNativeMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
 class NLPNativeBfloat16PrecisionPlugin(NativeMixedPrecisionPlugin):
     def __init__(self) -> None:
         super().__init__(precision='bf16')
+        if not HAVE_APEX:
+            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
 
     def clip_gradients(
         self,

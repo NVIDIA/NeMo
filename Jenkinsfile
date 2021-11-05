@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-      image 'gitlab-master.nvidia.com/dl/dgx/pytorch:21.10-py3-devel'
+      image 'nvcr.io/nvidia/pytorch:21.10-py3'
       args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
   }
@@ -59,13 +59,6 @@ pipeline {
       }
     }
 
-    // Revert once import guards are added by PTL or version comparing is fixed
-    stage('Install PyTorch Lighting 1.5 RC') {
-      steps{
-        sh 'pip install pytorch-lightning==1.5.0rc0 && sed -i "s/from pytorch_lightning.callbacks.quantization import QuantizationAwareTraining/try:\\n\\tfrom pytorch_lightning.callbacks.quantization import QuantizationAwareTraining\\nexcept:\\n\\tpass/g" /opt/conda/lib/python3.8/site-packages/pytorch_lightning/callbacks/__init__.py'
-      }
-    }
-
     stage('NeMo Installation') {
       steps {
         sh './reinstall.sh release'
@@ -80,7 +73,7 @@ pipeline {
 
     stage('PyTorch Lightning DDP Checks') {
       steps {
-        sh 'python "tests/core_ptl/check_for_ranks.py"'
+        sh 'CUDA_VISIBLE_DEVICES="0,1" python "tests/core_ptl/check_for_ranks.py"'
       }
     }
 
