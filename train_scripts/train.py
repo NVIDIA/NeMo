@@ -25,7 +25,7 @@ def create_bcp_submit_cmd(
     --preempt RUNONCE --instance {instance} --replicas {num_nodes} \
     --array-type {array_type} --total-runtime {total_runtime}"
     
-    print(f"\n Submit command: {ngcb_cmd}")
+    print(f"\n Submit command: {submit_cmd}")
     print(f"\n Script file: {bcp_script}")
 
 def create_bcp_file(
