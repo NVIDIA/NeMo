@@ -55,7 +55,7 @@ def get_args():
                 "If you provide parameter `--special_token_names` you have to provide parameter "
                 "`--special_token_values`."
             )
-        if len(args.special_tokens_names) != len(args.special_tokens_values):
+        if len(args.special_token_names) != len(args.special_token_values):
             raise parser.error(
                 f"Parameters `--special_token_names` and `--special_token_values` have to have equal number of values "
                 f"whereas parameter `--special_token_names` has {len(args.special_token_names)} values and "
