@@ -65,8 +65,7 @@ def get_language_model(
     init_method_std=0.02,
     use_cpu_initialization=False,
     hidden_dropout=0.1,
-    fused_fp16=False,
-    fused_bf16=False,
+    precision=16,
     fp32_residual_connection=False,
     activations_checkpoint_method=None,
     activations_checkpoint_num_layers=1,
@@ -76,8 +75,6 @@ def get_language_model(
     onnx_safe=False,
 ):
     """Build language model and return along with the key to save."""
-
-    assert not (fused_fp16 and fused_bf16), "both fused_fp16 and fused_bf16 flags cannot be True at the same time."
 
     if kv_channels is None:
         assert (
@@ -112,8 +109,7 @@ def get_language_model(
         post_process=post_process,
         use_cpu_initialization=use_cpu_initialization,
         hidden_dropout=hidden_dropout,
-        fused_fp16=fused_fp16,
-        fused_bf16=fused_bf16,
+        precision=precision,
         fp32_residual_connection=fp32_residual_connection,
         activations_checkpoint_method=activations_checkpoint_method,
         activations_checkpoint_num_layers=activations_checkpoint_num_layers,
@@ -333,8 +329,7 @@ class TransformerLanguageModel(MegatronModule):
         post_process=True,
         use_cpu_initialization=False,
         hidden_dropout=0.1,
-        fused_fp16=False,
-        fused_bf16=False,
+        precision=16,
         fp32_residual_connection=False,
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=1,
@@ -393,8 +388,7 @@ class TransformerLanguageModel(MegatronModule):
             self_attn_mask_type=self.encoder_attn_mask_type,
             pre_process=self.pre_process,
             post_process=self.post_process,
-            fused_fp16=fused_fp16,
-            fused_bf16=fused_bf16,
+            precision=precision,
             fp32_residual_connection=fp32_residual_connection,
             activations_checkpoint_method=activations_checkpoint_method,
             activations_checkpoint_num_layers=activations_checkpoint_num_layers,
@@ -425,8 +419,7 @@ class TransformerLanguageModel(MegatronModule):
                 ffn_hidden_size=ffn_hidden_size,
                 pre_process=self.pre_process,
                 post_process=self.post_process,
-                fused_fp16=fused_fp16,
-                fused_bf16=fused_bf16,
+                precision=precision,
                 fp32_residual_connection=fp32_residual_connection,
                 activations_checkpoint_method=activations_checkpoint_method,
                 activations_checkpoint_num_layers=activations_checkpoint_num_layers,

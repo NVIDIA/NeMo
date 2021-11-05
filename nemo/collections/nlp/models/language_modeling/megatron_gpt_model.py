@@ -63,7 +63,7 @@ class MegatronGPTModel(NLPModel):
             seed=self.cfg.get('seed', 1234),
         )
 
-        if not self.cfg.get('fused_bf16'):
+        if self.cfg.get('precision') != 'bf16':
             set_jit_fusion_options()
 
         self.tokenizer = get_nmt_tokenizer(
@@ -99,8 +99,7 @@ class MegatronGPTModel(NLPModel):
             fp16_lm_cross_entropy=cfg.get('fp16_lm_cross_entropy', False),
             use_cpu_initialization=cfg.get('use_cpu_initialization', False),
             hidden_dropout=cfg.get('hidden_dropout', 0.1),
-            fused_fp16=cfg.get('fused_fp16', False),
-            fused_bf16=cfg.get('fused_bf16', False),
+            precision=cfg.get('precision', 16),
             fp32_residual_connection=cfg.get('fp32_residual_connection', False),
             activations_checkpoint_method=cfg.get('activations_checkpoint_method', None),
             activations_checkpoint_num_layers=cfg.get('activations_checkpoint_num_layers', 1),

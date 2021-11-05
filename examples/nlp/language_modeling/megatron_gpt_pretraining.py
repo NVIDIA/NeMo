@@ -14,7 +14,7 @@
 
 from pathlib import Path
 
-from omegaconf.omegaconf import OmegaConf
+from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
 from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
@@ -66,6 +66,8 @@ def main(cfg) -> None:
         if isinstance(callback, Timer):
             trainer.callbacks[idx] = StatelessTimer(cfg.trainer.max_time,)
 
+    with open_dict(cfg):
+        cfg.model.precision = cfg.trainer.precision
     model = MegatronGPTModel(cfg.model, trainer)
 
     trainer.fit(model)
