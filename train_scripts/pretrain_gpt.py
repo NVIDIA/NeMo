@@ -33,10 +33,9 @@ def main(cfg):
     core_mapping = f"exec numactl --physcpubind={dgxa100_gpu2core[rank2gpu[int(os.environ.get('LOCAL_RANK'))]]} --membind={dgxa100_gpu2mem[rank2gpu[int(os.environ.get('LOCAL_RANK'))]]} -- "
     flags = f"--config-path={training_config_path} --config-name={training_config} "
     # cmd = f'cd /opt/bignlp/NeMo; git rev-parse HEAD; cd /opt/bignlp/NeMo/nemo/collections/nlp/data/language_modeling/megatron; make; export PYTHONPATH="/opt/bignlp/NeMo/.:$PYTHONPATH"; export TRANSFORMERS_CACHE="/temp_root/.cache/"; {gpu_mapping} {core_mapping} python3 {code_path} {hydra_train_args} {flags}'
-    cmd = f'cd {code_dir}; git rev-parse HEAD; cd {code_dir}/nemo/collections/nlp/data/language_modeling/megatron; make; export PYTHONPATH="{code_dir}/.:$PYTHONPATH"; export TRANSFORMERS_CACHE="/temp_root/.cache/"; cp /workspace-common/megatron_gpt_pretraining.py {code_path}; python3 {code_path} +cluster_type=BCP {hydra_train_args} {flags}'
+    cmd = f'cd {code_dir}; git rev-parse HEAD; cd {code_dir}/nemo/collections/nlp/data/language_modeling/megatron; make; export PYTHONPATH="{code_dir}/.:$PYTHONPATH"; export TRANSFORMERS_CACHE="/temp_root/.cache/"; cp {bignlp_path}/megatron_gpt_pretraining.py {code_path}; python3 {code_path} +cluster_type=BCP {hydra_train_args} {flags}'
     print(f" Command is: {cmd}")
     os.system(f"{cmd}")
-
 
 if __name__ == "__main__":
     main()

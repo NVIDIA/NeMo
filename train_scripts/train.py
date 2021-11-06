@@ -29,13 +29,14 @@ def create_bcp_submit_cmd(
     print(f"\n Script file: {bcp_script}")
 
 def create_bcp_file(
+    bignlp_path,
     train_cmd,
     log_file,
     err_file,
     new_script_path="train_scripts/bcp_5b_script.sh"
 ):
-    with open(new_script_path, "w") as f:
-        f.writelines(f'/workspace-common/bcprun2 -c "{train_cmd}" >> {log_file} 2>>{err_file} \n\n')
+    with open(new_script_path, "w+") as f:
+        f.writelines(f'{bignlp_path}/bcprun2 -c "{train_cmd}" >> {log_file} 2>>{err_file} \n\n')
         f.writelines("set +x\n") 
     os.chmod(new_script_path, 0o755)
 
@@ -61,7 +62,8 @@ def run_training(cfg, hydra_args="", dependency=None):
     code_path = os.path.join(bignlp_path, "train_scripts/pretrain_gpt.py")
     train_cmd = f"python3 -u {code_path} {hydra_args}"
 
-    create_bcp_file(    
+    create_bcp_file(
+        bignlp_path=bignlp_path,
         new_script_path=new_script_path,
         train_cmd=train_cmd,
         log_file=f"{log_dir}/log.txt",

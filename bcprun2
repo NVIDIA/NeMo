@@ -1,0 +1,342 @@
+#!/bin/bash
+# Required file paths in image
+execpath=/etc/mpi
+pytorchlauncher=/etc/mpi/bcplaunch.py
+
+kubexec=$execpath/kubexec.sh
+hostfile=$execpath/hostfile
+
+scriptname=$(basename $0)
+version="1.0.0"
+
+print_help () {
+echo "(See usage information with: $scriptname -h)"
+}
+
+print_version () {
+cat << EOF
+$scriptname (NGC multi-node run utility) version $version
+EOF
+}
+
+print_usage () {
+cat << EOF
+usage: $scriptname [--nnodes <n>] [--npernode <p>] [--env <e>] [--workdir <w>] [--cmd <command-line>]
+             [--async] [--debug] [--version] [--help]
+
+required arguments:
+  -c <c>, --cmd <c>
+                    Provide a command to run. (type: string)
+                    Default value: (none)
+                    Example: --cmd 'python train.py'
+
+optional arguments:
+  -n <n>, --nnodes <n>
+                    Number of nodes to run on. (type: integer)
+                    Range: min value: 1, max value: R,
+                    where R is max number of replicas requested by the NGC job.
+                    Default value: R
+                    Example: --nnodes 2
+  -p <p>, --npernode <p>
+                    Number of tasks per node to run. (type: integer)
+                    Range: min value: 1, max value: (none)
+                    Default value: environment variable NGC_NTASKS_PER_NODE, if
+                    set, otherwise 1.
+                    Example: --npernode 8
+  -e <e>, --env <e>
+                    Environment variables to set with format 'key=value'. (type: string)
+                    Each variable assignment requires a separate -e/--env flag.
+                    Default value: (none)
+                    Example: --env 'var1=value1' --env 'var2=value2'
+  -w <w>, --workdir <w>
+                    Base directory from which to run <cmd>. (type: string)
+                    May include environment variables defined with --env.
+                    Default value: environment variable PWD (current working directory)
+                    Example: --workdir '\$WORK_HOME/scripts' --env 'WORK_HOME=/mnt/workspace'
+  -l <l>, --launcher <l>
+                    Run <cmd> using an external launcher program. (type: string)
+                    Supported launchers: mpirun, horovodrun
+                    - mpirun: maps to OpenMPI options (https://www.open-mpi.org/)
+                    - horovodrun: maps to Horovod options (https://horovod.ai/)
+                    Note: This option assumes the launcher exists and is in PATH.
+                    Launcher specific arguments (not part of $scriptname options)
+                    can be provided as a suffix. E.g. --launcher 'mpirun --allow-run-as-root'
+                    Default value: (none)
+  -a, --async
+                    Run with asynchronous failure support enabled, i.e. a child
+                    process of $scriptname can exit on failure without halting the program.
+                    The program will continue while at least one child is running.
+                    The default semantics of $scriptname is to halt the program when
+                    any child process launched by $scriptname exits with error.
+  -d, --debug
+                    Print debug info and enable verbose mode.
+  -v, --version
+                    Print version info.
+  -h, --help
+                    Print this help message.
+
+EOF
+}
+
+exit_with_error () {
+cat << EOF
+*** $scriptname error: $1
+EOF
+print_help
+[[ ! -z "$2" ]] && exit $2 || exit 1
+}
+
+# Check for script recursion
+[[ ! -z "$NGC_MNRUN_ENV" ]] && exit_with_error "$scriptname recursive call detected!"
+export NGC_MNRUN_ENV=1
+
+if [[ -f "$kubexec" && -f "$hostfile" ]]; then
+  pods=$(awk '{ print $1 }' $hostfile)
+elif [[ -f "$kubexec" && ! -z "$NGC_JOB_ID" && ! -z "$NGC_ARRAY_SIZE" ]]; then
+  pods=""
+  for (( i = 0; i < $NGC_ARRAY_SIZE; i++ )); do
+    pods="$pods $NGC_JOB_ID-worker-$i"
+  done
+else
+  exit_with_error "missing launch parameters: (file: $kubexec) and/or (file: $hostfile)"
+fi
+podlist=($pods)
+maxnodes=${#podlist[@]}
+
+# Process flags and arguments
+process_flag_with_value () {
+  case $flagstr in
+    c | cmd)
+      [[ ! -z "$cmdstr" ]] && exit_with_error "repeated option: $flag"
+      [[ -z "${var// }" ]] && exit_with_error "missing value for $flag"
+      cmdstr="$var"
+      ;;
+    n | nnodes)
+      [[ ! -z "$nodestr" ]] && exit_with_error "repeated option: $flag"
+      [[ ! $var =~ ^[0-9]+$ ]] && exit_with_error "invalid argument $var : $flag accepts only integer values"
+      [[ $var -lt 1 || $var -gt $maxnodes ]] && exit_with_error "invalid argument $var : $flag value out-of-range"
+      nodestr="$var"
+      ;;
+    p | npernode)
+      [[ ! -z "$npernodestr" ]] && exit_with_error "repeated option: $flag"
+      [[ ! $var =~ ^[0-9]+$ ]] && exit_with_error "invalid argument $var : $flag accepts only integer values"
+      [[ $var -lt 1 ]] && exit_with_error "invalid argument $var : $flag value out-of-range"
+      npernodestr="$var"
+      ;;
+    w | workdir)
+      [[ ! -z "$dirstr" ]] && exit_with_error "repeated option: $flag"
+      [[ -z "${var// }" ]] && exit_with_error "missing value for $flag"
+      dirstr="$var"
+      ;;
+    e | env)
+      [[ -z "${var// }" ]] && exit_with_error "missing value for $flag"
+      envstr="$envstr""export $var; "
+      ;;
+    l | launcher)
+      [[ -z "${var// }" ]] && exit_with_error "missing value for $flag"
+      launcherstr="$var"
+      ;;
+    *)
+      exit_with_error "unsupported option: $flag"
+      ;;
+  esac
+  flagstr=""
+}
+
+process_flag_without_value () {
+  case $flagstr in
+    h | help)
+      print_version
+      print_usage
+      exit 0
+      ;;
+    v | version)
+      print_version
+      print_help
+      exit 0
+      ;;
+    d | debug)
+      use_debug=1
+      flagstr=""
+      ;;
+    a | async)
+      use_async=1
+      flagstr=""
+      ;;
+    *)
+      ;;
+  esac
+}
+
+for var in "$@"; do
+  if [[ -z "$flagstr" ]]; then
+    if [[ "$var" == -* ]]; then
+      flag=${var%%=*}
+      flagstr=${flag//-}
+      if [[ "$var" == *"="* ]]; then
+        var=${var#*=}
+        process_flag_with_value
+      else
+        process_flag_without_value
+      fi
+    else
+        exit_with_error "unsupported option: $var"
+    fi
+  else
+    process_flag_with_value
+  fi
+done
+
+# Check if command string is provided
+[[ -z "${cmdstr// }" ]] && exit_with_error "too few arguments"
+
+# Check for dangling flags
+[[ ! -z "$flagstr" ]] && var="" && process_flag_with_value
+
+# Set default values if not provided
+[[ -z "$nodestr" ]] && nodestr="$maxnodes"
+[[ -z "$NGC_NTASKS_PER_NODE" ]] && default_npernode_val=1 || default_npernode_val=$NGC_NTASKS_PER_NODE
+[[ -z "$npernodestr" ]] && npernodestr="$default_npernode_val"
+[[ -z "$dirstr" ]] && dirstr="$PWD"
+
+#echo -e " maxnodes: $maxnodes \n nnodes: $nodestr \n npernode: $npernodestr \n env: $envstr \n workdir: $dirstr \n cmd: $cmdstr"
+#exit 0
+
+[[ "$use_debug" == 1 ]] && print_version && set -x
+
+# Process command-line for distributed PyTorch launch
+if [[ "$NGC_ARRAY_TYPE" == "PyTorchJob" && "$cmdstr" == *"python"* ]]; then
+  IFS=';' && stmts=($cmdstr) && unset IFS
+  for i in "${stmts[@]}"; do
+    [[ -z "${i// }" ]] && continue
+    IFS='&&' && cmds=($i) && unset IFS
+    for j in "${cmds[@]}"; do
+      [[ -z "${j// }" ]] && continue
+      cmdarr=($j)
+      pyexe=${cmdarr[0]}
+      if [[ "$pyexe" == *"python"* && "$j" != *" torch.distributed.launch "* && "$j" != *" torch.distributed.run "* ]]; then
+        eval "$pyexe <<< 'import torch; import torch.distributed'" &> /dev/null
+        if [[ $? == 0 ]]; then
+          pyopts="-u"
+          pat="$pyexe"
+          nargs=${#cmdarr[@]}
+          idxs=$(seq $((nargs-1)))
+          for k in $idxs; do
+            opt="${cmdarr[$k]}"
+            if [[ "$opt" == "-"* ]]; then
+              pat="$opt"
+              [[ "$opt" == "-c" ]] && break
+              [[ "$opt" == "-m" ]] && break
+              [[ "$opt" == "-" ]] && break
+              [[ "$opt" == "-u" ]] && continue
+              pyopts="$pyopts"" $opt"
+            else
+              break
+            fi
+          done
+          suf="${j#*$pat}"
+          if [[ ! -z "${suf// }" ]]; then
+            str="${cmdarr[$((k-1))]}"
+            pycmd=${j#*$str}
+            j="$pyexe"" $pyopts"" $pytorchlauncher --use_env --nnodes=$nodestr --nproc_per_node=$npernodestr --node_rank=\${NGC_ARRAY_INDEX} --master_addr=\${NGC_MASTER_ADDR}"" $pycmd"
+            launchtype="kube+torch"
+          fi
+        else
+          echo "*** $scriptname warning: $pyexe does not support torch.distributed.launch"
+        fi
+      fi
+      [[ -z "$processed_stmt" ]] && processed_stmt="$j" || processed_stmt="$processed_stmt && $j"
+    done
+    [[ -z "$processed_cmd" ]] && processed_cmd="$processed_stmt" || processed_cmd="$processed_cmd ; $processed_stmt"
+  done
+  cmdstr="$processed_cmd"
+fi
+
+# Create final command string
+[[ ! -z "$envstr" ]] && args="$envstr"
+[[ ! -z "$dirstr" ]] && args="$args""cd $dirstr; "
+args="$args""$cmdstr"
+
+num_nodes=$nodestr
+num_procs=$npernodestr
+[[ "$launchtype" == "kube+torch" ]] && num_procs=1
+
+# Handle external launchers
+if [[ ! -z "$launcherstr" ]]; then
+  if [[ "$launcherstr" == "mpirun"* ]]; then
+    num_ranks=$(( $num_nodes * $num_procs ))
+    exec $launcherstr --allow-run-as-root -np $num_ranks -npernode $num_procs /bin/sh -c "$args"
+  elif [[ "$launcherstr" == "horovodrun"* ]]; then
+    num_ranks=$(( $num_nodes * $num_procs ))
+    for (( i = 0; i < $num_nodes; i++ )); do
+      [[ ! -z "$spreadstr" ]] && spreadstr="${spreadstr},"
+      spreadstr="$spreadstr""${podlist[$i]}:$num_procs"
+    done
+    exec $launcherstr -np $num_ranks -H $spreadstr /bin/sh -c "$args"
+  else
+    exit_with_error "unsupported launcher: $launcherstr"
+  fi
+fi
+
+# Trap signals to propagate to all children
+signal_handler_func() {
+if [[ "$NGC_MNRUN_TRAP" != "1" ]]; then
+  export NGC_MNRUN_TRAP=1
+  kill -$signum 0 &>/dev/null
+fi
+}
+
+for sig in HUP INT USR1 USR2 TERM
+do
+  trap "signum=${sig};signal_handler_func" "$sig"
+done
+
+# Launch program using kubexec
+for (( i = 1; i < $num_nodes; i++ )); do
+  for (( j = 0; j < $num_procs; j++ )); do
+    $kubexec ${podlist[$i]} "$args" &
+    pids="$pids $!"
+  done
+done
+for (( j = 0; j < $num_procs; j++ )); do
+  /bin/sh -c "$args" &
+  pids="$pids $!"
+done
+
+# Terminate all processes on error
+handle_error () {
+exitcode=$1
+if [[ -z "$use_async" ]]; then
+  export NGC_MNRUN_TRAP=1
+  kill 0
+  wait $pids
+  echo "*** $scriptname error: program terminated due to unexpected exit status ($exitcode) of child process"
+  exit $exitcode
+fi
+}
+
+# Wait for launched processes
+exitcode=0
+count=0
+numpids=$(echo $pids | wc -w)
+while [ $count -lt $numpids ]; do
+  export NGC_MNRUN_TRAP=0
+  wait -n
+  retcode=$?
+  if [[ "$retcode" != "0" ]]; then
+    echo "*** $scriptname warning: $scriptname detected non-zero exit status ($retcode)..."
+    handle_error $retcode
+  fi
+  count=0
+  for p in $pids; do
+    if [ ! -d /proc/$p ]; then
+      let count=$count+1;
+      wait $p
+      retcode=$?
+      if [ "$retcode" != "0" ]; then
+        handle_error $retcode
+      fi
+    fi
+  done
+done
+exit $exitcode
