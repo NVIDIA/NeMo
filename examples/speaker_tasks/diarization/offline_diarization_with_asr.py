@@ -23,7 +23,7 @@ from nemo.utils import logging
 
 
 """
-This script demonstrates how to use run speaker diarization.
+This script demonstrates how to run offline speaker diarization with asr.
 Usage:
 python offline_diarization_with_asr.py \
     diarizer.manifest_filepath=<path to manifest file> \

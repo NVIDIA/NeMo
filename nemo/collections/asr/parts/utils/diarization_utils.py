@@ -636,7 +636,7 @@ class ASR_DIAR_OFFLINE(object):
                 "mapping": mapping_dict[key],
                 "spk_counting": (est_n_spk == ref_n_spk),
             }
-            logging.info("score for key {}: {}".format(key, DER_result_dict[key]))
+            logging.info("score for session {}: {}".format(key, DER_result_dict[key]))
             count_correct_spk_counting += int(est_n_spk == ref_n_spk)
 
         DER, CER, FA, MISS = (
