@@ -331,8 +331,8 @@ pipeline {
             diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
             diarizer.asr.model_path=QuartzNet15x5Base-En \
             diarizer.asr.parameters.asr_based_vad=True \
-            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
-            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
+            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_asr_results'
+            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_asr_results'
           }
         }
 
