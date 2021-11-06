@@ -222,7 +222,7 @@ def _vad_frame_seq_collate_fn(self, batch):
         sig_len += slice_length
 
         if has_audio:
-            slices = (sig_len - slice_length) // shift
+            slices = torch.div(sig_len - slice_length, shift, rounding_mode='trunc')
             for slice_id in range(slices):
                 start_idx = slice_id * shift
                 end_idx = start_idx + slice_length
