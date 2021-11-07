@@ -174,6 +174,7 @@ def process_fragment(
     if progress_made > 0:
         new_file_name = output_dir / TAR_FRAGMENT_TMPL_TO_REPACK.format(fragment_idx, current_num_batches, tar_ctr)
         current_file_name.rename(new_file_name)
+        new_file_name.unlink()
     else:
         current_file_name.unlink()
 
