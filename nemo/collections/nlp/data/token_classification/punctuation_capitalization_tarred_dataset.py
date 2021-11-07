@@ -349,7 +349,7 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
             append_file = files_to_repack.popleft()
             new_file = append_file.parent / append_file.stem
             logging.info(f"Opening new file sink {new_file}")
-            new_file_sink = wds.TarWriter(new_file)
+            new_file_sink = wds.TarWriter(str(new_file))
             append_ds_to_rewrite = wds.WebDataset(urls=[str(append_file)], nodesplitter=None).decode(
                 wds.handle_extension('.pyd', decode_pyd)
             ).to_tuple('__key__', 'batch.pyd')
