@@ -24,9 +24,9 @@ from apex.transformer.enums import AttnMaskType, AttnType, LayerType
 from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import (
+    bias_dropout_add,
     bias_dropout_add_fused_inference,
     bias_dropout_add_fused_train,
-    bias_dropout_add,
 )
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
@@ -183,8 +183,8 @@ class ParallelAttention(MegatronModule):
             coeff = self.layer_number
             self.norm_factor *= coeff
 
-        fused_fp16 = (precision == 16)
-        fused_bf16 = (precision == 'bf16')
+        fused_fp16 = precision == 16
+        fused_bf16 = precision == 'bf16'
         self.scale_mask_softmax = FusedScaleMaskSoftmax(
             fused_fp16,
             fused_bf16,

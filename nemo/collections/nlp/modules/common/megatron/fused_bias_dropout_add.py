@@ -15,7 +15,6 @@
 
 
 import torch
-
 from apex._autocast_utils import _cast_if_autocast_enabled
 
 
