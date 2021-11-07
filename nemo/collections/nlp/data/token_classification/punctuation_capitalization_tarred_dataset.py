@@ -335,11 +335,11 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
         if TAR_FRAGMENT_PATTERN_TO_REPACK.match(path.name) is not None
     ]
     files_to_repack_with_matches = sorted(files_to_repack_with_matches, key=lambda x: int(x[1].group(3)))
-    files_to_repack = []
-    for f, m in files_to_repack_with_matches:
-        files_to_repack.append(f)
+    files_to_repack = [f for f, m in files_to_repack_with_matches]
     logging.info(f"Found files for repacking: {files_to_repack}")
     files_to_repack = deque(files_to_repack)
+    emergency_number_of_write_ops = 0
+    initial_number_of_files_to_repack = len(files_to_repack)
     pop_file_ds = None
     new_file_sink = None
     new_file_num_batches = 0
@@ -350,12 +350,14 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
             new_file = append_file.parent / append_file.stem
             logging.info(f"Opening new file sink {new_file}")
             new_file_sink = wds.TarWriter(new_file)
-            append_ds_to_rewrite = wds.WebDataset(urls=[files_to_repack.pop()], nodesplitter=None).decode(
+            append_ds_to_rewrite = wds.WebDataset(urls=[append_file], nodesplitter=None).decode(
                 wds.handle_extension('.pyd', decode_pyd)
             ).to_tuple('__key__', 'batch.pyd')
             for key, batch in append_ds_to_rewrite:
                 new_file_sink.write({"__key__": key, "batch.pyd": batch})
                 new_file_num_batches += 1
+                emergency_number_of_write_ops += 1
+                assert emergency_number_of_write_ops < initial_number_of_files_to_repack * num_batches_per_tarfile
             logging.info(f"{new_file_num_batches} were rewritten to new file {new_file}")
         if files_to_repack and pop_file_ds is None:
             pop_file = files_to_repack.pop()
@@ -372,12 +374,15 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
                     pop_file_ds = None
                     break
                 new_file_sink.write({"__key__": key, "batch.pyd": batch})
+                emergency_number_of_write_ops += 1
+                assert emergency_number_of_write_ops < initial_number_of_files_to_repack * num_batches_per_tarfile
                 new_file_num_batches += 1
             if new_file_num_batches >= num_batches_per_tarfile:
                 logging.info(f"Finished filling file {new_file}")
                 assert new_file_num_batches == num_batches_per_tarfile
                 new_file_sink.close()
                 new_file_sink = None
+                new_file_num_batches = 0
     if new_file_sink is not None:
         new_file_sink.close()
         logging.info(f"Removing file {new_file}")
