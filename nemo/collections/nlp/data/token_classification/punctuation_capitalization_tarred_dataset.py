@@ -338,7 +338,7 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
     files_to_repack = [f for f, m in files_to_repack_with_matches]
     logging.info(f"Found files for repacking: {files_to_repack}")
     files_to_repack = deque(files_to_repack)
-    emergency_number_of_write_ops = 0
+    number_of_write_ops = 0
     initial_number_of_files_to_repack = len(files_to_repack)
     pop_file_ds = None
     new_file_sink = None
@@ -356,9 +356,9 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
             for key, batch in iter(append_ds_to_rewrite):
                 new_file_sink.write({"__key__": key, "batch.pyd": batch})
                 new_file_num_batches += 1
-                emergency_number_of_write_ops += 1
-                assert emergency_number_of_write_ops < initial_number_of_files_to_repack * num_batches_per_tarfile
-            logging.info(f"{new_file_num_batches} were rewritten to new file {new_file}")
+                number_of_write_ops += 1
+                assert number_of_write_ops < initial_number_of_files_to_repack * num_batches_per_tarfile
+            logging.info(f"{new_file_num_batches} batches were rewritten to new file {new_file}")
         if files_to_repack and pop_file_ds is None:
             pop_file = files_to_repack.pop()
             logging.info(f"Popped file {pop_file}")
@@ -375,8 +375,8 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
                     pop_file_ds = None
                     break
                 new_file_sink.write({"__key__": key, "batch.pyd": batch})
-                emergency_number_of_write_ops += 1
-                assert emergency_number_of_write_ops < initial_number_of_files_to_repack * num_batches_per_tarfile
+                number_of_write_ops += 1
+                assert number_of_write_ops < initial_number_of_files_to_repack * num_batches_per_tarfile
                 new_file_num_batches += 1
             if new_file_num_batches >= num_batches_per_tarfile:
                 logging.info(f"Finished filling file {new_file}")
@@ -390,6 +390,7 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
         new_file.unlink()
     if pop_file_ds is not None:
         pop_file.unlink()
+    logging.info(f"Wrote totally {number_of_write_ops} batches")
 
 
 def create_metadata_file(output_dir, output_file_tmpl, metadata_file_name):
