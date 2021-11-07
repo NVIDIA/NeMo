@@ -17,6 +17,7 @@ import multiprocessing as mp
 import os
 import pickle
 import re
+from collections import deque
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -34,10 +35,12 @@ from nemo.utils import logging
 
 
 NUMBER_RE = "(0|[1-9][0-9]*)"
-TAR_FRAGMENT_TMPL_1 = "fragment{}.{}.tar"
-TAR_FRAGMENT_TMPL_2 = "fragment{}.num_batches{}.{}.tar"
-TAR_FRAGMENT_PATTERN_1 = re.compile(f"fragment{NUMBER_RE}.{NUMBER_RE}.tar$")
-TAR_FRAGMENT_PATTERN_2 = re.compile(f"fragment{NUMBER_RE}.num_batches{NUMBER_RE}.{NUMBER_RE}.tar$")
+TAR_FRAGMENT_TMPL_IN_PROGRESS = "fragment{}.{}.tar"
+TAR_FRAGMENT_TMPL_FINISHED = "fragment{}.num_batches{}.{}.tar"
+TAR_FRAGMENT_TMPL_TO_REPACK = "fragment{}.num_batches.{}.{}.tar.to_repack"
+TAR_FRAGMENT_PATTERN_IN_PROGRESS = re.compile(f"fragment{NUMBER_RE}.{NUMBER_RE}.tar$")
+TAR_FRAGMENT_PATTERN_FINISHED = re.compile(f"fragment{NUMBER_RE}.num_batches{NUMBER_RE}.{NUMBER_RE}.tar$")
+TAR_FRAGMENT_PATTERN_TO_REPACK = re.compile(f"fragment{NUMBER_RE}.num_batches.{NUMBER_RE}.{NUMBER_RE}.tar.to_repack$")
 EXTRACT_NUM_BATCHES_PATTERN = re.compile(r"fragment\d+.num_batches(\d+).\d+.tar")
 
 DATASET_PARAMETERS_TMPL = "{prefix}.tokens{tokens_in_batch}.max_seq_length{max_seq_length}.{tokenizer}"
@@ -147,31 +150,32 @@ def process_fragment(
     tmp_text.unlink()
     tmp_labels.unlink()
     tar_ctr = 0
-    current_file_name = output_dir / TAR_FRAGMENT_TMPL_1.format(fragment_idx, tar_ctr)
+    current_file_name = output_dir / TAR_FRAGMENT_TMPL_IN_PROGRESS.format(fragment_idx, tar_ctr)
     current_num_batches = 0
     sink = wds.TarWriter(str(current_file_name))
     progress_made = 0
     for batch_i, batch in enumerate(dataset):
-        if batch_i % num_batches_per_tarfile == 0 and batch_i > 0:
+        sink.write({"__key__": f"fragment-{fragment_idx}-batch-{batch_i}", "batch.pyd": batch})
+        current_num_batches += 1
+        progress_made += len(batch['input_ids'])
+        if current_num_batches % num_batches_per_tarfile == 0:
             sink.close()
             current_file_name.rename(
-                output_dir / TAR_FRAGMENT_TMPL_2.format(fragment_idx, current_num_batches, tar_ctr)
+                output_dir / TAR_FRAGMENT_TMPL_FINISHED.format(fragment_idx, current_num_batches, tar_ctr)
             )
             writing_to_tar_progress_queue.put(progress_made)
             progress_made = 0
             tar_ctr += 1
-            current_file_name = output_dir / TAR_FRAGMENT_TMPL_1.format(fragment_idx, tar_ctr)
+            current_file_name = output_dir / TAR_FRAGMENT_TMPL_IN_PROGRESS.format(fragment_idx, tar_ctr)
             current_num_batches = 0
             sink = wds.TarWriter(str(current_file_name))
-        sink.write({"__key__": f"fragment-{fragment_idx}-batch-{batch_i}", "batch.pyd": batch})
-        current_num_batches += 1
-        progress_made += len(batch['input_ids'])
     sink.close()
     writing_to_tar_progress_queue.put(progress_made)
-    new_file_name = output_dir / TAR_FRAGMENT_TMPL_2.format(fragment_idx, current_num_batches, tar_ctr)
-    current_file_name.rename(new_file_name)
     if progress_made > 0:
-        new_file_name.unlink()
+        new_file_name = output_dir / TAR_FRAGMENT_TMPL_TO_REPACK.format(fragment_idx, current_num_batches, tar_ctr)
+        current_file_name.rename(new_file_name)
+    else:
+        current_file_name.unlink()
 
 
 def remove_unexpected_files(output_dir: Path, output_file_tmpl: str, metadata_file_name: Path):
@@ -183,7 +187,12 @@ def remove_unexpected_files(output_dir: Path, output_file_tmpl: str, metadata_fi
         if any(
             [
                 p.match(path.name) is not None
-                for p in [TAR_FRAGMENT_PATTERN_1, TAR_FRAGMENT_PATTERN_2, tar_final_pattern]
+                for p in [
+                    TAR_FRAGMENT_PATTERN_IN_PROGRESS,
+                    TAR_FRAGMENT_PATTERN_FINISHED,
+                    TAR_FRAGMENT_PATTERN_TO_REPACK,
+                    tar_final_pattern,
+                ]
             ]
         )
     ]
@@ -191,7 +200,7 @@ def remove_unexpected_files(output_dir: Path, output_file_tmpl: str, metadata_fi
         logging.warning(
             f"Found {len(unexpected_tar_files)} unexpected tar files in the output directory {output_dir}. "
             f"All of them are going to be removed. The files match one of 3 patterns: "
-            f"'{TAR_FRAGMENT_PATTERN_1.pattern}', '{TAR_FRAGMENT_PATTERN_2.pattern}', "
+            f"'{TAR_FRAGMENT_PATTERN_IN_PROGRESS.pattern}', '{TAR_FRAGMENT_PATTERN_FINISHED.pattern}', "
             f"'{tar_final_pattern.pattern}'. The first 3 unexpected files: {unexpected_tar_files[:3]}"
         )
         for fn in unexpected_tar_files:
@@ -316,9 +325,70 @@ def get_label_dictionaries(
     return punct_label_ids, capit_label_ids
 
 
+def decode_pyd(key, value):
+    return pickle.loads(value)
+
+
+def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_tarfile: int):
+    files_to_repack_with_matches = [
+        (path, TAR_FRAGMENT_PATTERN_TO_REPACK.match(path.name)) for path in output_dir.iterdir()
+        if TAR_FRAGMENT_PATTERN_TO_REPACK.match(path.name) is not None
+    ]
+    files_to_repack_with_matches = sorted(files_to_repack_with_matches, key=lambda x: int(x[1].group(3)))
+    files_to_repack = []
+    for f, m in files_to_repack_with_matches:
+        files_to_repack.append(f)
+    logging.info(f"Found files for repacking: {files_to_repack}")
+    files_to_repack = deque(files_to_repack)
+    pop_file_ds = None
+    new_file_sink = None
+    new_file_num_batches = 0
+    while files_to_repack:
+        assert pop_file_ds is None or new_file_sink is None
+        if new_file_sink is None:
+            append_file = files_to_repack.popleft()
+            new_file = append_file.parent / append_file.stem
+            logging.info(f"Opening new file sink {new_file}")
+            new_file_sink = wds.TarWriter(new_file)
+            append_ds_to_rewrite = wds.WebDataset(urls=[files_to_repack.pop()], nodesplitter=None).decode(
+                wds.handle_extension('.pyd', decode_pyd)
+            ).to_tuple('__key__', 'batch.pyd')
+            for key, batch in append_ds_to_rewrite:
+                new_file_sink.write({"__key__": key, "batch.pyd": batch})
+                new_file_num_batches += 1
+            logging.info(f"{new_file_num_batches} were rewritten to new file {new_file}")
+        if files_to_repack and pop_file_ds is None:
+            pop_file = files_to_repack.pop()
+            logging.info(f"Popped file {pop_file}")
+            pop_file_ds = wds.WebDataset(urls=[pop_file], nodesplitter=None).decode(
+                wds.handle_extension('.pyd', decode_pyd)
+            ).to_tuple('__key__', 'batch.pyd')
+        if pop_file_ds is not None and new_file_sink is not None:
+            while new_file_num_batches < num_batches_per_tarfile:
+                try:
+                    key, batch = next(pop_file_ds)
+                except StopIteration:
+                    logging.info(f"Finished extracting from {pop_file}")
+                    pop_file_ds = None
+                    break
+                new_file_sink.write({"__key__": key, "batch.pyd": batch})
+                new_file_num_batches += 1
+            if new_file_num_batches >= num_batches_per_tarfile:
+                logging.info(f"Finished filling file {new_file}")
+                assert new_file_num_batches == num_batches_per_tarfile
+                new_file_sink.close()
+                new_file_sink = None
+    if new_file_sink is not None:
+        new_file_sink.close()
+        logging.info(f"Removing file {new_file}")
+        new_file.unlink()
+    if pop_file_ds is not None:
+        pop_file.unlink()
+
+
 def create_metadata_file(output_dir, output_file_tmpl, metadata_file_name):
     metadata = {"num_batches": 0, "tar_files": []}
-    for i, fn in enumerate([fn for fn in output_dir.iterdir() if TAR_FRAGMENT_PATTERN_2.match(fn.name)]):
+    for i, fn in enumerate([fn for fn in output_dir.iterdir() if TAR_FRAGMENT_PATTERN_FINISHED.match(fn.name)]):
         nb = int(EXTRACT_NUM_BATCHES_PATTERN.match(fn.name).group(1))
         new_name = output_dir / output_file_tmpl.format(ctr=i, num_batches=nb)
         fn.rename(new_name)
@@ -413,6 +483,7 @@ def create_tarred_dataset(
                 *progress_queues,
             ) for fragment_idx, (text_start_pos, label_start_pos) in enumerate(zip(text_start_bytes, label_start_bytes))
         )
+    repack_tar_files_with_not_enough_batches(output_dir, num_batches_per_tarfile)
     create_metadata_file(output_dir, output_file_tmpl, metadata_file_name)
 
 
@@ -458,7 +529,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         self.tar_files = self.tar_files[begin_idx: end_idx]
         self.length = self.metadata['num_batches'] // world_size
         self._dataset = wds.WebDataset(urls=self.tar_files, nodesplitter=None).decode(
-            wds.handle_extension('.pyd', self.decode_pyd)
+            wds.handle_extension('.pyd', decode_pyd)
         )
         if shuffle_n > 0:
             self._dataset.shuffle(shuffle_n)
@@ -484,10 +555,6 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
             for i, line in enumerate(f):
                 ids[line.strip()] = i
         return ids
-
-    @staticmethod
-    def decode_pyd(key, value):
-        return pickle.loads(value)
 
     def _build_sample(self, batch):
         _, batch = batch
