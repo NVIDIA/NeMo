@@ -353,7 +353,7 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
             append_ds_to_rewrite = wds.WebDataset(urls=[str(append_file)], nodesplitter=None).decode(
                 wds.handle_extension('.pyd', decode_pyd)
             ).to_tuple('__key__', 'batch.pyd')
-            for key, batch in append_ds_to_rewrite:
+            for key, batch in iter(append_ds_to_rewrite):
                 new_file_sink.write({"__key__": key, "batch.pyd": batch})
                 new_file_num_batches += 1
                 emergency_number_of_write_ops += 1
@@ -365,6 +365,7 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
             pop_file_ds = wds.WebDataset(urls=[str(pop_file)], nodesplitter=None).decode(
                 wds.handle_extension('.pyd', decode_pyd)
             ).to_tuple('__key__', 'batch.pyd')
+            pop_file_ds = iter(pop_file_ds)
         if pop_file_ds is not None and new_file_sink is not None:
             while new_file_num_batches < num_batches_per_tarfile:
                 try:
