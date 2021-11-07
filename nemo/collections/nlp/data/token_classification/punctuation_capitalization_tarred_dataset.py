@@ -174,7 +174,6 @@ def process_fragment(
     if progress_made > 0:
         new_file_name = output_dir / TAR_FRAGMENT_TMPL_TO_REPACK.format(fragment_idx, current_num_batches, tar_ctr)
         current_file_name.rename(new_file_name)
-        new_file_name.unlink()
     else:
         current_file_name.unlink()
 
@@ -491,7 +490,7 @@ def create_tarred_dataset(
                 *progress_queues,
             ) for fragment_idx, (text_start_pos, label_start_pos) in enumerate(zip(text_start_bytes, label_start_bytes))
         )
-    # repack_tar_files_with_not_enough_batches(output_dir, num_batches_per_tarfile)
+    repack_tar_files_with_not_enough_batches(output_dir, num_batches_per_tarfile)
     create_metadata_file(output_dir, output_file_tmpl, metadata_file_name)
 
 
