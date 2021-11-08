@@ -32,6 +32,7 @@ exp_manager:
     mode: min
     always_save_nemo: False # TODO: add support
     filename: 'megatron_t5--{val_loss:.2f}-{step}-{consumed_samples}'
+    model_parallel_size: ${model.tensor_model_parallel_size}
 
 model:
   nemo_file_path: null # after each training run save .nemo file to this location
