@@ -365,7 +365,7 @@ of GPUs used for computation.
 
 ##### 2.2.2. Trained checkpoint benchmark
 
-Alternatively, to generate checkpoints randomly, you can use a trained
+As an alternative to generating checkpoints randomly, you can use a trained
 checkpoint to look for optimal configuration; however, for larger models that
 might take a significant amount of time and might not be feasible.
 
@@ -462,7 +462,7 @@ The CSV file contains several columns:
   length plus maximum sequence output length.
 * `Preferred Batch Sizes` - List of preferred batch sizes used in NVIDIA Triton configuration.
 * `Satisfies Constraints` - “Yes” if a model satisfies the p99 latency constraint, set as the max-latency-ms parameter.
-* `Throughput (inder/sec)` - Throughput not normalized for number of GPUs but just measured for one model instance.
+* `Throughput (inder/sec)` - Throughput not normalized for the number of GPUs but just measured for one model instance.
 * `p95 Latency(ms)`.
 * `p99 Latency(ms)`.
 
@@ -676,7 +676,12 @@ size = 16.
 The table below contains performance measurements from all graphs for the 5B
 model running in FasterTransformer at NVIDIA DGX A100 80GB.
 
+
+<details>
+
+<summary>
 5B model: Latency and throughput for different number of GPUs and batch sizes.
+</summary>
 
 | GPUs | Latency p99                | Normalized throughput to 1 GPU | Latency p99 | Normalized throughput to 1 GPU | Latency p99                  | Normalized throughput to 1 GPU | Latency p99 | Normalized throughput to 1 GPU |
 | ---- | -------------------------- | ------------------------------ | ----------- | ------------------------------ | ---------------------------- | ------------------------------ | ----------- | ------------------------------ |
@@ -690,6 +695,7 @@ model running in FasterTransformer at NVIDIA DGX A100 80GB.
 | 24   | 273                        | 39                             | 100         | 0.42                           | 2484                         | 4.3                            | 950         | 0.044                          |
 | 32   | 284                        | 28                             | 95          | 0.33                           | 2517                         | 3.2                            | 897         | 0.035                          |
 
+</details>
 
 ##### 20B model
 
@@ -720,8 +726,11 @@ To improve accuracy a larger model can be used.
 The table below contains performance measurements from all graphs for the 20B
 model running in FasterTransformer at NVIDIA DGX A100 80GB.
 
-20B model: Latency and throughput for different number of GPUs and batch sizes.
+<details>
 
+<summary>
+20B model: Latency and throughput for different number of GPUs and batch sizes.
+</summary>
 
 | GPUs | Latency p99                | Normalized throughput to 1 GPU | Latency p99 | Normalized throughput to 1 GPU | Latency p99                  | Normalized throughput to 1 GPU | Latency p99 | Normalized throughput to 1 GPU |
 | ---- | -------------------------- | ------------------------------ | ----------- | ------------------------------ | ---------------------------- | ------------------------------ | ----------- | ------------------------------ |
@@ -734,6 +743,8 @@ model running in FasterTransformer at NVIDIA DGX A100 80GB.
 | 16   | 923                        | 17                             | 218         | 0.29                           | 7380                         | 2.2                            | 2131        | 0.029                          |
 | 24   | 758                        | 14                             | 218         | 0.19                           | 6511                         | 1.6                            | 2123        | 0.020                          |
 | 32   | 742                        | 11                             | 224         | 0.14                           | 6200                         | 1.3                            | 2124        | 0.015                          |
+
+</details>
 
 ##### Model size and performance
 ###### Online scenario
@@ -749,7 +760,13 @@ were generated with randomly initialized weights.
 
 The performance measurements were obtained at NVIDIA DGX A100 80GB nodes.
 
+
+
+<details>
+
+<summary>
 Performance for different model sizes in online scenario
+</summary>
 
 |                         | Len input 60 output 20 |                   |            |                             |                                |                | Len input 200 output 200 |                   |            |                             |                                |                |
 | ----------------------- | ---------------------- | ----------------- | ---------- | --------------------------- | ------------------------------ | -------------- | ------------------------ | ----------------- | ---------- | --------------------------- | ------------------------------ | -------------- |
@@ -762,6 +779,7 @@ Performance for different model sizes in online scenario
 | 310B                    | 1354                   | 0.09              | 1          | 8                           | 1                              | 8              | 13391                    | 0.005             | 1          | 8                           | 2                              | 16             |
 | 530B                    | 2118                   | 0.03              | 1          | 8                           | 2                              | 16             | 20936                    | 0.003             | 1          | 8                           | 2                              | 16             |
 
+</details>
 
 ###### Offline scenario
 
@@ -778,7 +796,12 @@ answering and a second one is translation or style transfer.
 The chatbot scenario can be executed with batch size equal to 256 for all model
 sizes so it is possible to utilize computing resources in GPUs.
 
+
+<details>
+
+<summary>
 Performance for different model sizes in offline scenario
+</summary>
 
 |                         | Len input 60 output 20 |                   |            |                 |                                |                | Len input 200 output 200 |                   |            |                             |                                |                |
 | ----------------------- | ---------------------- | ----------------- | ---------- | --------------- | ------------------------------ | -------------- | ------------------------ | ----------------- | ---------- | --------------------------- | ------------------------------ | -------------- |
@@ -790,4 +813,6 @@ Performance for different model sizes in offline scenario
 | 175B                    | 2033                   | 15.7              | 256        | 8               | 1                              | 8              | 16181                    | 0.494             | 64         | 8                           | 1                              | 8              |
 | 310B                    | 6768                   | 2.4               | 256        | 8               | 2                              | 16             | 13686                    | 0.018             | 2          | 8                           | 1                              | 8              |
 | 530B                    | 8660                   | 1.8               | 256        | 8               | 2                              | 16             | 20936                    | 0.003             | 1          | 8                           | 2                              | 16             |
+
+</details>
 
