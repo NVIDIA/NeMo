@@ -18,8 +18,12 @@ import pytorch_lightning as pl
 from omegaconf import DictConfig
 
 from nemo.collections.nlp.models import PunctuationCapitalizationModel
+from nemo.collections.nlp.models.token_classification.punctuation_capitalization_config import (
+    PunctuationCapitalizationConfig
+)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.utils.config_utils import update_model_config
 from nemo.utils.exp_manager import exp_manager
 
 
@@ -56,7 +60,8 @@ def main(cfg: DictConfig) -> None:
         'During evaluation/testing, it is currently advisable to construct a new Trainer with single GPU and \
             no DDP to obtain accurate results'
     )
-
+    default_cfg = PunctuationCapitalizationConfig()
+    cfg = update_model_config(default_cfg, cfg)
     if not hasattr(cfg.model, 'test_ds'):
         raise ValueError(f'model.test_ds was not found in the config, skipping evaluation')
     else:
