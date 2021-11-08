@@ -23,21 +23,19 @@ from nemo.utils import logging
 This script demonstrates how to use run speaker diarization.
 Usage:
   python speaker_diarize.py \
-  diarizer.paths2audio_files=<either list of audio file paths or file containing paths to audio files> \
-  diarizer.path2groundtruth_rttm_files=<(Optional) either list of rttm file paths or file containing paths to rttm files> \
-  diarizer.vad.model_path="vad_telephony_marblenet" \
-  diarizer.vad.threshold=0.7 \
-  diarizer.speaker_embeddings.model_path="speakerverification_speakernet" \
-  diarizer.out_dir="demo"
+    diarizer.manifest_filepath=<path to manifest file> \
+    diarizer.out_dir='demo_output' \
+    diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
+    diarizer.vad.model_path='vad_marblenet'
 
-Check out whole parameters in ./conf/speaker_diarization.yaml and their meanings.
+Check out whole parameters in ./conf/offline_diarization.yaml and their meanings.
 For details, have a look at <NeMo_git_root>/tutorials/speaker_tasks/Speaker_Diarization_Inference.ipynb
 """
 
 seed_everything(42)
 
 
-@hydra_runner(config_path="conf", config_name="speaker_diarization.yaml")
+@hydra_runner(config_path="conf", config_name="offline_diarization.yaml")
 def main(cfg):
 
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
