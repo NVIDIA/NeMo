@@ -118,10 +118,24 @@ def main():
         help="Stop generating if target sequence length exceeds source length by this number.",
     )
     parser.add_argument(
-        "--target_lang", type=str, default=None, help="Target language identifier ex: en,de,fr,es etc."
+        "--target_lang",
+        type=str,
+        default=None,
+        help="Target language identifier ex: en,de,fr,es etc. If both `--target_lang` and `--source_lang` are "
+        "not set, then target language processing will be done the same way as during model training. If "
+        "`--target_lang` parameter is not set but `--source_lang` parameter is set, then target language "
+        "processing will not be performed. If `--target_lang` equals 'ignore', then target language processing "
+        "will not be performed regardless of value of `--source_lang` parameter.",
     )
     parser.add_argument(
-        "--source_lang", type=str, default=None, help="Source language identifier ex: en,de,fr,es etc."
+        "--source_lang",
+        type=str,
+        default=None,
+        help="Source language identifier ex: en,de,fr,es etc. If both `--target_lang` and `--source_lang` are "
+        "not set, then source language processing will be done the same way as during model training. If "
+        "`--source_lang` parameter is not set but `--target_lang` parameter is set, then source language "
+        "processing will not be performed. If `--source_lang` equals 'ignore', then source language processing "
+        "will not be performed regardless of value of `--target_lang` parameter.",
     )
     parser.add_argument(
         "--write_scores",
@@ -227,7 +241,7 @@ def main():
             src_text.append(line.strip())
             if len(src_text) == args.batch_size:
                 # warmup when measuring timing
-                if not all_timing:
+                if args.write_timing and (not all_timing):
                     print("running a warmup batch")
                     translate_text(
                         models=models,

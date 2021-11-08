@@ -107,6 +107,13 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         )
         results.append(model)
 
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_de_contextnet_1024",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_de_contextnet_1024",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_de_contextnet_1024/versions/1.4.0/files/stt_de_contextnet_1024.nemo",
+        )
+        results.append(model)
+
         return results
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
