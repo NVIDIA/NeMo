@@ -385,6 +385,7 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
                 except StopIteration:
                     logging.info(f"Finished extracting from {pop_file}")
                     pop_file_ds = None
+                    pop_file.unlink()
                     break
                 new_file_sink.write({"__key__": key, "batch.pyd": batch})
                 number_of_write_ops += 1
