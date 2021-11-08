@@ -45,7 +45,7 @@ model:
 
   # model architecture
   encoder_seq_length: 512
-  max_position_embeddings: 512
+  max_position_embeddings: ${.encoder_seq_length}
   num_layers: 12
   hidden_size: 768
   ffn_hidden_size: 3072 # Transformer FFN hidden size. Usually 4 * hidden_size.
@@ -67,6 +67,7 @@ model:
     merge_file: null 
 
   # precision
+  precision: ${trainer.precision}
   native_amp_init_scale: 4294967296 # 2 ** 32
   native_amp_growth_interval: 1000
   fp32_residual_connection: False # Move residual connections to fp32
@@ -94,7 +95,7 @@ model:
     data_prefix: ???
     data_impl: mmap
     splits_string: 900,50,50
-    seq_length: 1024
+    seq_length: ${model.encoder_seq_length}
     skip_warmup: True
     num_workers: 0
     dataloader_type: single # cyclic
@@ -103,7 +104,7 @@ model:
     eod_mask_loss: False # Mask loss for the end of document tokens
   
   optim:
-    name: adam
+    name: fused_adam
     lr: 2e-4
     weight_decay: 0.01 
     betas: 

@@ -66,8 +66,6 @@ def main(cfg) -> None:
         if isinstance(callback, Timer):
             trainer.callbacks[idx] = StatelessTimer(cfg.trainer.max_time,)
 
-    with open_dict(cfg):
-        cfg.model.precision = cfg.trainer.precision
     model = MegatronGPTModel(cfg.model, trainer)
 
     trainer.fit(model)
