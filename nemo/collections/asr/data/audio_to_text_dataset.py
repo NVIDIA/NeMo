@@ -77,7 +77,7 @@ def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None)
     Returns:
         An instance of AudioToCharDataset.
     """
-    if labels not in config:
+    if 'labels' not in config:
         logging.warning(f"dataset does not have explicitly defined labels")
 
     dataset = audio_to_text.AudioToCharDataset(
@@ -160,7 +160,7 @@ def get_tarred_dataset(
     if len(manifest_filepaths) != len(tarred_audio_filepaths):
         raise ValueError(f"manifest_filepaths and tarred_audio_filepaths need to have the same number of buckets.")
 
-    if labels not in config:
+    if 'labels' not in config:
         logging.warning(f"dataset does not have explicitly defined labels")
 
     for dataset_idx, (tarred_audio_filepath, manifest_filepath) in enumerate(
