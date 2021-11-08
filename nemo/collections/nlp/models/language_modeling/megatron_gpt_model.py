@@ -335,8 +335,8 @@ class MegatronGPTModel(NLPModel):
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         request = batch
         responses = []
-        for req in request:
-            response = self.complete(req)
+        for prompt in request:
+            response = self.complete(prompt)
             responses.append(response)
         return responses
 
@@ -392,8 +392,7 @@ class MegatronGPTModel(NLPModel):
             else:
                 offsets.append(len(self.tokenizer.ids_to_tokens(tokens)[-1]) + offsets[-1])
             response['completion']["tokens"] = list(
-                zip(self.tokenizer.ids_to_tokens(tokens), tokens.tolist(), log_probs.tolist()[0], offsets)
-            )
+                zip(self.tokenizer.ids_to_tokens(tokens), tokens.tolist(), log_probs.tolist()[0], offsets))
             completion_text = self.tokenizer.ids_to_text(x[1] for x in response['completion']["tokens"])
             if reached_eos:  # Will it actually ever reach that?
                 response['completion']['stop reason'] = 'eos'
