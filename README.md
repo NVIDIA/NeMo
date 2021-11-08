@@ -20,6 +20,7 @@ Megatron-LM.
         - [2.2.2. Trained checkpoint benchmark](#222-trained-checkpoint-benchmark)
       - [2.3. Review deployment search results](#23-review-deployment-search-results)
     - [3. Prepare NVIDIA Triton Model Repository and run accuracy / performance tests](#3-prepare-nvidia-triton-model-repository-and-run-accuracy-performance-tests)
+    - [4. Run NVIDIA Triton Server with selected Model Repository](#4-run-nvidia-triton-server-with-selected-model-repository)
   - [Performance](#performance)
     - [Benchmarking](#benchmarking)
     - [Results](#results)
@@ -191,10 +192,11 @@ slurm:                  # example config for enterprise cluster
     exclude: null       # slurm nodes, which should be excluded from jobs
   srun_args: ["--mpi", "pmix"] # additional slurm arguments list
   enable_gpus_allocation: true
+  job_name_prefix: "bignlp-"
 env:
   pyxis_container_workdir: /bignlp_workdir
-  pyxis_training_container_image: nvcr.io/nvidian/swdl/bignlp:21.10.04-py3-base
-  pyxis_inference_container_image: nvcr.io/nvidian/swdl/bignlp:infer-main-py3-base
+  pyxis_training_container_image: nvcr.io/ea-bignlp/bignlp-training:21.10-py3-base
+  pyxis_inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:21.10-py3-base
 ```
 
 The `sbatch_parameters` section configures Slurm job parameters. The `srun_args`
@@ -290,7 +292,7 @@ You can benchmark a model using
 
 ```
 python3 ./infer_scripts/profile_model_with_random_weights.py \
-    --cluster-config-path ./conf/inference/<Your cluster config>.yaml \
+    --cluster-config-path <Your cluster config>.yaml \
     --navigator-config-path ./conf/inference/profile_offline.yaml \
     --model-path conf/inference/model_specs/5b.ft \
     --model-name ft_5B \
@@ -383,9 +385,9 @@ Model repository preparation for the NVIDIA Triton Inference Server:
 
 ```
 python3 ./infer_scripts/profile_model.py \
-    --cluster-config-path ./conf/inference/your_cluster_config.yaml \
+    --cluster-config-path <Your cluster config>.yaml \
     --navigator-config-path ./conf/inference/profile_offline.yaml \
-    --model-path /your/path/to/training/checkpoint/ \
+    --model-path <Your path to training checkpoint> \
     --model-name model_name -v \
     --tensor-parallel-sizes 1 \
     --pipeline-parallel-sizes 1 \
@@ -399,8 +401,9 @@ The parameters:
 * `cluster-config-path`: Cluster configuration YAML file.
 * `navigator-config-path`: Navigator configuration YAML;
    for example,`./conf/inference/profile_offline.yaml`
-* `model-path`: This model path contains a YAML file with
-   random checkpoint configuration.
+* `model-path`: This model path contains a trained Megatron/NeMo checkpoint.
+   A NeMo checkpoint must be passed as a file with .nemo extension,
+   but a Megatron checkpoint must be passed as a folder.
 * `model-name`: Your model name for NVIDIA Triton repository.
 * `tensor-parallel-sizes`: Tensor parallel factor; for example, `1 2 4 8`
 * `pipeline-parallel-sizes`: Pipeline parallel factor; for example, `1 2 3 4`
@@ -467,6 +470,13 @@ Best configurations are mentioned from the top,
 To review configurations, check the directory with all generated configs:
 `infer_workspace-<YYYYmmdd_HHMMSS>/navigator_workspace/top_configs`
 
+NVIDIA Triton model repositories contain symbolic links to folders with weights.
+You should copy final folder with model to expand links into files.
+
+```
+  cp -rL <NVIDIA Triton store from script> <destination>
+```
+
 
 ### 3. Prepare NVIDIA Triton Model Repository and run accuracy / performance tests
 Having the best config and trained checkpoint. A trained model checkpoint is
@@ -508,12 +518,12 @@ You can verify your model running in NVIDIA Triton by using the Lambada dataset:
 
 ```
 python3 ./infer_scripts/prepare_model_repository.py \
-    --cluster-config-path ./conf/inference/cluster_bcm.yaml \
+    --cluster-config-path <Your cluster config>.yaml \
     --navigator-config-path ./conf/inference/small_mbs_256-pp_1-tp_1-io_60_20.yaml \
-    --model-path /your/path/to/training/checkpoint/ \
+    --model-path <Your path to training checkpoint> \
     --model-name model_name -v \
-    --dataset-dir /your/lambada/folder \
-    --model-repository-path /path/to/result/triton_model_repository \
+    --dataset-dir <Your lambada folder> \
+    --model-repository-path <Your output path for NVIDIA Triton model repository> \
     --accuracy-tests \
     --performance-tests
 ```
@@ -521,7 +531,9 @@ python3 ./infer_scripts/prepare_model_repository.py \
 Parameters:
 * `cluster-config-path`: Cluster configuration YAML file.
 * `navigator-config-path`: Navigator configuration to set up NVIDIA Triton.
-* `model-path`: Path to training checkpoint.
+* `model-path`: This model path contains a trained Megatron/NeMo checkpoint.
+   A NeMo checkpoint must be passed as a file with .nemo extension,
+   but a Megatron checkpoint must be passed as a folder.
 * `model-name`: Model name.
 * `dataset-dir`: Folder with downloaded lambada dataset, merges and vocabulary files.
 * `model-repository-path`: Path to result NVIDIA Triton Model Repository.
@@ -556,15 +568,19 @@ The outputs:
 To run the NVIDIA Triton Model Navigator, do the following:
 ```
 python3 ./infer_scripts/run_tritonserver.py \
-    --cluster-config-path ./conf/inference/your_cluster_config.yaml \
-    --model-repository-path /path/to/result/triton_model_repository \
+    --cluster-config-path <Your cluster config>.yaml \
+    --model-repository-path <Your output path for NVIDIA Triton model repository> \
     -v
 ```
 
 The parameters:
 * `cluster-config-path`: Cluster configuration YAML file.
 * `model-repository-path`: NVIDIA Triton model repository path from folder
-   generated by prepare_model_repository.py script.
+   generated by `prepare_model_repository.py` script.
+
+The NVIDIA Triton model repository created in scripts above contains symbolic
+links. You need to expand links for `run_tritonserver.py` to
+be able to access files, when they are mounted in slurm containers.
 
 The script saves NVIDIA Triton logs so you can verify what happens when
 FasterTransformer loads a checkpoint.
