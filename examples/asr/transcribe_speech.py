@@ -61,10 +61,10 @@ class TranscriptionConfig:
     # General configs
     output_filename: Optional[str] = None
     batch_size: int = 32
-    # Set `cuda_device` to int to define CUDA device. If 'None', will look for CUDA
+    # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
     # device anyway, and do inference on CPU only if CUDA device is not found.
-    # If `cuda_device` is a negative number, inference will be on CPU only.
-    cuda_device: Optional[int] = None
+    # If `cuda` is a negative number, inference will be on CPU only.
+    cuda: Optional[int] = None
     amp: bool = False
     audio_type: str = "wav"
 
@@ -82,13 +82,13 @@ def main(cfg: TranscriptionConfig):
         raise ValueError("Both cfg.audio_dir and cfg.dataset_manifest cannot be None!")
 
     # setup GPU
-    if cfg.cuda_device is None:
+    if cfg.cuda is None:
         if torch.cuda.is_available():
-            cfg.cuda_device = 0  # use 0th CUDA device
+            cfg.cuda = 0  # use 0th CUDA device
         else:
-            cfg.cuda_device = -1  # use CPU
+            cfg.cuda = -1  # use CPU
 
-    device = torch.device(f'cuda:{cfg.cuda_device}' if cfg.cuda_device >= 0 else 'cpu')
+    device = torch.device(f'cuda:{cfg.cuda}' if cfg.cuda >= 0 else 'cpu')
 
     # setup model
     if cfg.model_path is not None:
@@ -104,7 +104,7 @@ def main(cfg: TranscriptionConfig):
         asr_model = ASRModel.from_pretrained(model_name=cfg.pretrained_name, map_location=device)  # type: ASRModel
         model_name = cfg.pretrained_name
 
-    trainer = pl.Trainer(gpus=[cfg.cuda_device] if cfg.cuda_device >= 0 else 0)
+    trainer = pl.Trainer(gpus=[cfg.cuda] if cfg.cuda >= 0 else 0)
     asr_model.set_trainer(trainer)
     asr_model = asr_model.eval()
 

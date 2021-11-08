@@ -535,7 +535,7 @@ pipeline {
             pretrained_name="QuartzNet15x5Base-En" \
             audio_dir="/home/TestData/an4_transcribe/test_subset/" \
             output_filename="stt_test_res.json" \
-            cuda_device=0 \
+            cuda=0 \
             amp=true'
             sh 'rm -rf stt_test_res.json'
           }
