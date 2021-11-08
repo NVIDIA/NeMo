@@ -468,16 +468,9 @@ class ConvASRDecoder(NeuralModule, Exportable):
         return self._num_classes
 
 
-class ConvASRDecoderRecon(NeuralModule, Exportable):
+class ConvASRDecoderReconstruction(NeuralModule, Exportable):
     """ASR Decoder for reconstructing masked regions of spectrogram
     """
-
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
 
     @property
     def input_types(self):
@@ -487,8 +480,24 @@ class ConvASRDecoderRecon(NeuralModule, Exportable):
     def output_types(self):
         return OrderedDict({"spec_recon": NeuralType(('B', 'T', 'D'), SpectrogramType())})
 
-    def __init__(self, feat_in, feat_out, feat_hidden, stride_layers, kernel_size=11, init_mode="xavier_uniform"):
+    def __init__(
+        self,
+        feat_in,
+        feat_out,
+        feat_hidden,
+        stride_layers,
+        kernel_size=11,
+        init_mode="xavier_uniform",
+        activation="relu",
+    ):
         super().__init__()
+
+        if stride_layers > 0 and (kernel_size < 3 or kernel_size % 2 == 0):
+            raise ValueError(
+                "Kernel size in this decoder needs to be >= 3 and odd when using at least 1 stride layer."
+            )
+
+        activation = jasper_activations[activation]()
 
         self.feat_in = feat_in
         self.feat_out = feat_out
@@ -496,7 +505,7 @@ class ConvASRDecoderRecon(NeuralModule, Exportable):
 
         self.decoder_layers = [nn.Conv1d(self.feat_in, self.feat_hidden, kernel_size=1, bias=True)]
         for i in range(stride_layers):
-            self.decoder_layers.append(nn.ReLU())
+            self.decoder_layers.append(activation)
             self.decoder_layers.append(
                 nn.ConvTranspose1d(
                     self.feat_hidden,
@@ -511,7 +520,7 @@ class ConvASRDecoderRecon(NeuralModule, Exportable):
             self.decoder_layers.append(nn.Conv1d(self.feat_hidden, self.feat_hidden, kernel_size=1, bias=True))
             self.decoder_layers.append(nn.BatchNorm1d(self.feat_hidden, eps=1e-3, momentum=0.1))
 
-        self.decoder_layers.append(nn.ReLU())
+        self.decoder_layers.append(activation)
         self.decoder_layers.append(nn.Conv1d(self.feat_hidden, self.feat_out, kernel_size=1, bias=True))
 
         self.decoder_layers = nn.Sequential(*self.decoder_layers)

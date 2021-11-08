@@ -16,10 +16,36 @@
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.models.pt_models import EncDecPTModel
+from nemo.collections.asr.models.pt_models import ASREncDecPTModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
+
+"""
+# Example of unsupervised pre-training of a model
+```sh
+python speech_pre_training.py \
+    # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
+    model.train_ds.manifest_filepath=<path to train manifest> \
+    model.validation_ds.manifest_filepath=<path to val/test manifest> \
+    trainer.gpus=-1 \
+    trainer.accelerator="ddp" \
+    trainer.max_epochs=100 \
+    model.optim.name="adamw" \
+    model.optim.lr=0.001 \
+    model.optim.betas=[0.9,0.999] \
+    model.optim.weight_decay=0.0001 \
+    model.optim.sched.warmup_steps=2000
+    exp_manager.create_wandb_logger=True \
+    exp_manager.wandb_logger_kwargs.name="<Name of experiment>" \
+    exp_manager.wandb_logger_kwargs.project="<Name of project>"
+```
+
+For documentation on fine-tuning, please visit -
+https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.html#fine-tuning-configurations
+When doing supervised fine-tuning from unsupervised pre-trained encoder, set flag init_strict to False
+
+"""
 
 
 @hydra_runner(config_path="conf/citrinet/", config_name="config_bpe")
@@ -28,23 +54,12 @@ def main(cfg):
 
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-    asr_model = EncDecPTModel(cfg=cfg.model, trainer=trainer)
+    asr_model = ASREncDecPTModel(cfg=cfg.model, trainer=trainer)
 
     # Initialize the weights of the model from another model, if provided via config
     asr_model.maybe_init_from_pretrained_checkpoint(cfg)
 
     trainer.fit(asr_model)
-
-    if hasattr(cfg.model, "test_ds") and cfg.model.test_ds.manifest_filepath is not None:
-        gpu = 1 if cfg.trainer.gpus != 0 else 0
-        test_trainer = pl.Trainer(
-            gpus=gpu,
-            precision=trainer.precision,
-            amp_level=trainer.accelerator_connector.amp_level,
-            amp_backend=cfg.trainer.get("amp_backend", "native"),
-        )
-        if asr_model.prepare_test(test_trainer):
-            test_trainer.test(asr_model)
 
 
 if __name__ == "__main__":

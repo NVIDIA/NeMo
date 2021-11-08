@@ -23,15 +23,6 @@ from nemo.core.neural_types import LossType, NeuralType, SpectrogramType, VoidTy
 __all__ = ["ContrastiveLoss"]
 
 
-def buffered_arange(max):
-    if not hasattr(buffered_arange, "buf"):
-        buffered_arange.buf = torch.LongTensor()
-    if max > buffered_arange.buf.numel():
-        buffered_arange.buf.resize_(max)
-        torch.arange(max, out=buffered_arange.buf)
-    return buffered_arange.buf[:max]
-
-
 class ContrastiveLoss(Loss):
     @property
     def input_types(self):
@@ -61,16 +52,39 @@ class ContrastiveLoss(Loss):
         codebook_size=320,
         prob_ppl_weight=0.1,
         logit_temp=0.1,
-        reduce=True,
+        reduce="sum",
         sample_from_non_masked=True,
         sample_from_codebook=False,
         group_loss=False,
         num_groups=2,
-        temp=(2, 0.5, 0.999995),
+        quantizer_temp=None,
         mask_threshold=0.8,
     ):
+        """
+        Loss function representing the contrastive task of identifying the true latent speech representation of
+        the masked spectrogram steps from a set of sampled distractors.
+
+        Args:
+            in_dim: Number of spectrogram channels.
+            proj_dim: Number of channels in the model outputs.
+            combine_time_steps: How many time steps should be combined into a single representation.
+            n_negatives: Number of sampled negatives for each target.
+            quantized_targets: Bool that determines if the targets should be quantized.
+            codebook_size: Number of vectors in the codebook per group.
+            prob_ppl_weight: Float multiplier on the perplexity loss for target quantization.
+            logit_temp: Float temperature for normalizing logits.
+            reduce: String representing the type of reduction used for cross entropy.
+            sample_from_non_masked: Bool that determines if negatives should be sampled from non-masked steps of the spectrogram.
+            sample_from_codebook: Bool that determines if negatives should be sampled from entire codebook.
+            group_loss: Bool that determines if loss should be computed separately for each group in the quantizer codebook.
+            num_groups: Number of groups in the quantizer codebook.
+            quantizer_temp: Tuple of 3 floats (start, stop, decay factor), representing the temperature in the quantizer.
+            mask_threshold: Float threshold for determining if a time step of the spectrogram is masked based on number of masked channels.
+        """
 
         super().__init__()
+        if quantizer_temp is None:
+            quantizer_temp = (2, 0.5, 0.999995)
         self.quantized_targets = quantized_targets
         self.n_negatives = n_negatives
         self.prob_ppl_weight = prob_ppl_weight
@@ -81,7 +95,7 @@ class ContrastiveLoss(Loss):
                 "vq_dim": proj_dim,
                 "num_vars": codebook_size,
                 "groups": num_groups,
-                "temp": temp,
+                "temp": quantizer_temp,
                 "combine_groups": True,
                 "time_first": True,
             }
@@ -99,12 +113,6 @@ class ContrastiveLoss(Loss):
             self.target_proj = nn.Linear(in_dim * combine_time_steps, proj_dim)
 
     def sample_negatives(self, y, num):
-
-        if self.n_negatives == 0:
-            return y.new(0)
-
-        # bsz, tsz, fsz = y.shape
-        # y = y.view(-1, fsz)  # BTC => (BxT)C
 
         high = y.shape[0]
         with torch.no_grad():
@@ -176,7 +184,7 @@ class ContrastiveLoss(Loss):
         similarity_scores = similarity_scores.transpose(0, 1)
         # T'x(1+N)
 
-        loss = F.cross_entropy(similarity_scores, similarity_targets, reduction="sum" if self.reduce else "none",)
+        loss = F.cross_entropy(similarity_scores, similarity_targets, reduction=self.reduce)
 
         sample_size = similarity_targets.numel()
 
@@ -204,3 +212,6 @@ class ContrastiveLoss(Loss):
         if neg_is_pos.any():
             logits[1:][neg_is_pos] = float("-inf")
         return logits
+
+    def set_num_updates(self, num_updates):
+        self.quantizer.set_num_updates(num_updates)

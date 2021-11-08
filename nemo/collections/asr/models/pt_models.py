@@ -27,10 +27,10 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType, SpectrogramType, VoidType
 from nemo.utils import logging
 
-__all__ = ['EncDecPTModel']
+__all__ = ['ASREncDecPTModel']
 
 
-class EncDecPTModel(ModelPT, ExportableEncDecModel, ASRModuleMixin):
+class ASREncDecPTModel(ModelPT, ExportableEncDecModel, ASRModuleMixin):
     """Base class for encoder-decoder models used for self-supervised encoder pre-training"""
 
     @classmethod
@@ -51,8 +51,8 @@ class EncDecPTModel(ModelPT, ExportableEncDecModel, ASRModuleMixin):
             self.world_size = trainer.num_nodes * trainer.num_gpus
 
         super().__init__(cfg=cfg, trainer=trainer)
-        self.preprocessor = EncDecPTModel.from_config_dict(self._cfg.preprocessor)
-        self.encoder = EncDecPTModel.from_config_dict(self._cfg.encoder)
+        self.preprocessor = ASREncDecPTModel.from_config_dict(self._cfg.preprocessor)
+        self.encoder = ASREncDecPTModel.from_config_dict(self._cfg.encoder)
 
         with open_dict(self._cfg):
             if "feat_in" not in self._cfg.decoder or (
@@ -62,10 +62,10 @@ class EncDecPTModel(ModelPT, ExportableEncDecModel, ASRModuleMixin):
             if "feat_in" not in self._cfg.decoder or not self._cfg.decoder.feat_in:
                 raise ValueError("param feat_in of the decoder's config is not set!")
 
-        self.decoder = EncDecPTModel.from_config_dict(self._cfg.decoder)
-        self.loss = EncDecPTModel.from_config_dict(self._cfg.loss)
+        self.decoder = ASREncDecPTModel.from_config_dict(self._cfg.decoder)
+        self.loss = ASREncDecPTModel.from_config_dict(self._cfg.loss)
 
-        self.spec_augmentation = EncDecPTModel.from_config_dict(self._cfg.spec_augment)
+        self.spec_augmentation = ASREncDecPTModel.from_config_dict(self._cfg.spec_augment)
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:
@@ -187,29 +187,6 @@ class EncDecPTModel(ModelPT, ExportableEncDecModel, ASRModuleMixin):
                     * ceil((len(self._validation_dl.dataset) / self.world_size) / val_data_config['batch_size'])
                 )
 
-    def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
-        """
-        Sets up the test data loader via a Dict-like object.
-
-        Args:
-            test_data_config: A config that contains the information regarding construction
-                of an ASR Training dataset.
-
-        Supported Datasets:
-            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToCharDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToBPEDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToCharDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
-            -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
-        """
-        if 'shuffle' not in test_data_config:
-            test_data_config['shuffle'] = False
-
-        # preserve config
-        self._update_dataset_config(dataset_name='test', config=test_data_config)
-
-        self._test_dl = self._setup_dataloader_from_config(config=test_data_config)
-
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         if hasattr(self.preprocessor, '_sample_rate'):
@@ -288,6 +265,7 @@ class EncDecPTModel(ModelPT, ExportableEncDecModel, ASRModuleMixin):
         signal, signal_len, transcript, transcript_len = batch
         spectrograms, spec_masks, outputs = self.forward(input_signal=signal, input_signal_length=signal_len)
 
+        self.loss.set_num_updates(self.trainer.global_step)
         loss_value = self.loss(spectrograms=spectrograms, spec_masks=spec_masks, decoder_outputs=outputs)
 
         tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
@@ -304,16 +282,7 @@ class EncDecPTModel(ModelPT, ExportableEncDecModel, ASRModuleMixin):
             'val_loss': loss_value,
         }
 
-    def test_step(self, batch, batch_idx, dataloader_idx=0):
-        signal, signal_len, transcript, transcript_len = batch
-        spectrograms, spec_masks, outputs = self.forward(input_signal=signal, input_signal_length=signal_len)
-
-        loss_value = self.loss(spectrograms=spectrograms, spec_masks=spec_masks, decoder_outputs=outputs)
-
-        return {
-            'test_loss': loss_value,
-        }
-
-    def test_dataloader(self):
-        if self._test_dl is not None:
-            return self._test_dl
+    def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
+        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
+        tensorboard_logs = {'val_loss': val_loss_mean}
+        return {'val_loss': val_loss_mean, 'log': tensorboard_logs}

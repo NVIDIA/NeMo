@@ -28,7 +28,7 @@ try:
     from nemo.collections.asr.modules.conv_asr import (
         ConvASRDecoder,
         ConvASRDecoderClassification,
-        ConvASRDecoderRecon,
+        ConvASRDecoderReconstruction,
         ConvASREncoder,
         ECAPAEncoder,
         ParallelConvASREncoder,

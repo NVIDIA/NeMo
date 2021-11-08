@@ -15,10 +15,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import glob
 import os
 import re
 import sys
-import glob
 
 import sphinx_rtd_theme
 
@@ -31,7 +31,6 @@ sys.path.insert(0, os.path.abspath("../../nemo"))
 sys.path.insert(0, os.path.abspath("../../nemo_text_processing"))
 
 from package_info import __version__
-
 
 autodoc_mock_imports = [
     'torch',
