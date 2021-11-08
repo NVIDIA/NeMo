@@ -29,7 +29,12 @@ from torch.utils.data import IterableDataset
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
-    BertPunctuationCapitalizationDataset, Progress, create_label_ids, create_masks_and_segment_ids
+    BertPunctuationCapitalizationDataset,
+    DEFAULT_CAPIT_LABEL_IDS_NAME,
+    DEFAULT_PUNCT_LABEL_IDS_NAME,
+    Progress,
+    create_label_ids,
+    create_masks_and_segment_ids,
 )
 from nemo.utils import logging
 
@@ -37,11 +42,10 @@ from nemo.utils import logging
 NUMBER_RE = "(0|[1-9][0-9]*)"
 TAR_FRAGMENT_TMPL_IN_PROGRESS = "fragment{}.{}.tar"
 TAR_FRAGMENT_TMPL_FINISHED = "fragment{}.num_batches{}.{}.tar"
-TAR_FRAGMENT_TMPL_TO_REPACK = "fragment{}.num_batches.{}.{}.tar.to_repack"
+TAR_FRAGMENT_TMPL_TO_REPACK = "fragment{}.num_batches{}.{}.tar.to_repack"
 TAR_FRAGMENT_PATTERN_IN_PROGRESS = re.compile(f"fragment{NUMBER_RE}.{NUMBER_RE}.tar$")
-TAR_FRAGMENT_PATTERN_FINISHED = re.compile(f"fragment{NUMBER_RE}.num_batches{NUMBER_RE}.{NUMBER_RE}.tar$")
-TAR_FRAGMENT_PATTERN_TO_REPACK = re.compile(f"fragment{NUMBER_RE}.num_batches.{NUMBER_RE}.{NUMBER_RE}.tar.to_repack$")
-EXTRACT_NUM_BATCHES_PATTERN = re.compile(r"fragment\d+.num_batches(\d+).\d+.tar")
+TAR_FRAGMENT_PATTERN_FINISHED = re.compile(f"fragment{NUMBER_RE}.num_batches({NUMBER_RE}).{NUMBER_RE}.tar$")
+TAR_FRAGMENT_PATTERN_TO_REPACK = re.compile(f"fragment{NUMBER_RE}.num_batches{NUMBER_RE}.{NUMBER_RE}.tar.to_repack$")
 
 DATASET_PARAMETERS_TMPL = "{prefix}.tokens{tokens_in_batch}.max_seq_length{max_seq_length}.{tokenizer}"
 TAR_FINAL_TMPL = ".batches{num_batches}.{ctr}.tar"
@@ -178,7 +182,7 @@ def process_fragment(
         current_file_name.unlink()
 
 
-def remove_unexpected_files(output_dir: Path, output_file_tmpl: str, metadata_file_name: Path):
+def remove_unexpected_files_and_dirs(output_dir: Path, output_file_tmpl: str, metadata_file_name: Path):
     if not output_dir.is_dir():
         return
     tar_final_pattern = re.compile(output_file_tmpl.format(ctr=NUMBER_RE, num_batches=NUMBER_RE))
@@ -205,9 +209,17 @@ def remove_unexpected_files(output_dir: Path, output_file_tmpl: str, metadata_fi
         )
         for fn in unexpected_tar_files:
             fn.unlink()
-    if metadata_file_name.is_file():
+    if metadata_file_name.exists():
         logging.warning(f"Found metadata file {metadata_file_name}. It is going to be removed.")
         metadata_file_name.unlink()
+    punct_label_ids = output_dir / DEFAULT_PUNCT_LABEL_IDS_NAME
+    capit_label_ids = output_dir / DEFAULT_CAPIT_LABEL_IDS_NAME
+    if punct_label_ids.exists():
+        logging.warning(f"Found unexpected punctuation label file {punct_label_ids}. It is going to be removed.")
+        punct_label_ids.unlink()
+    if capit_label_ids.exists():
+        logging.warning(f"Found unexpected capitalization label file {capit_label_ids}. It is going to be removed.")
+        capit_label_ids.exists()
 
 
 def collect_unique_labels_from_fragment(
@@ -396,7 +408,7 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
 def create_metadata_file(output_dir, output_file_tmpl, metadata_file_name):
     metadata = {"num_batches": 0, "tar_files": []}
     for i, fn in enumerate([fn for fn in output_dir.iterdir() if TAR_FRAGMENT_PATTERN_FINISHED.match(fn.name)]):
-        nb = int(EXTRACT_NUM_BATCHES_PATTERN.match(fn.name).group(1))
+        nb = int(TAR_FRAGMENT_PATTERN_FINISHED.match(fn.name).group(1))
         new_name = output_dir / output_file_tmpl.format(ctr=i, num_batches=nb)
         fn.rename(new_name)
         metadata['tar_files'].append(new_name.name)
@@ -438,7 +450,7 @@ def create_tarred_dataset(
     )
     output_file_tmpl = ds_params_str + TAR_FINAL_TMPL
     metadata_file_name = output_dir / ('metadata.' + ds_params_str + '.json')
-    remove_unexpected_files(output_dir, output_file_tmpl, metadata_file_name)
+    remove_unexpected_files_and_dirs(output_dir, output_file_tmpl, metadata_file_name)
     print("Files after removal of unexpected: ", os.listdir(output_dir))
     num_lines, text_start_bytes, label_start_bytes = get_fragment_start_bytes(
         text_file, label_file, lines_per_dataset_fragment

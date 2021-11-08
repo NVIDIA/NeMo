@@ -48,6 +48,9 @@ TOKENIZATION_PROGRESS_REPORT_PERIOD = 10 ** 3
 BATCH_MARK_UP_PROGRESS_REPORT_PERIOD = 10 ** 4
 BATCH_BUILDING_PROGRESS_REPORT_PERIOD = 10 ** 4
 
+DEFAULT_PUNCT_LABEL_IDS_NAME = 'punct_label_ids.csv'
+DEFAULT_CAPIT_LABEL_IDS_NAME = 'capit_label_ids.csv'
+
 
 @dataclass
 class PunctuationCapitalizationDataConfig:
@@ -464,8 +467,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
         ignore_start_end: bool = False,
         use_cache: bool = True,
         get_label_frequencies: bool = False,
-        punct_label_ids_file: str = 'punct_label_ids.csv',
-        capit_label_ids_file: str = 'capit_label_ids.csv',
+        punct_label_ids_file: str = DEFAULT_PUNCT_LABEL_IDS_NAME,
+        capit_label_ids_file: str = DEFAULT_CAPIT_LABEL_IDS_NAME,
         add_masks_and_segment_ids_to_batch: bool = True,
         verbose: bool = True,
         pickle_features: bool = True,
