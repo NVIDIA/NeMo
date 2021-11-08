@@ -87,14 +87,15 @@ def main():
     model = MegatronGPTModel.restore_from(restore_path=args.model_file, trainer=trainer)
 
     model.freeze()
-    
+
     # defining type of request
     if args.path_to_file != "":
         data = []
-        prompts = open(args.path_to_file,'r')
+        prompts = open(args.path_to_file, 'r')
 
         for prompt in prompts.readlines():
-            request = {"prompt": prompt.split('\n')[0],
+            request = {
+                "prompt": prompt.split('\n')[0],
                 "tokens_to_generate": args.tokens_to_generate,
                 "stop_after_sentence": args.stop_after_sentence,
             }
@@ -104,10 +105,13 @@ def main():
         request_dl = DataLoader(dataset)
         response = trainer.predict(model, request_dl)
     else:
-        request = [{"prompt": args.prompt,
+        request = [
+            {
+                "prompt": args.prompt,
                 "tokens_to_generate": args.tokens_to_generate,
                 "stop_after_sentence": args.stop_after_sentence,
-        }]
+            }
+        ]
         dataset = GPTRequestDataset(request, model.tokenizer)
         request_dl = DataLoader(dataset)
         response = trainer.predict(model, request_dl)
