@@ -67,7 +67,6 @@ model:
     merge_file: null 
 
   # precision
-  precision: ${trainer.precision}
   native_amp_init_scale: 4294967296 # 2 ** 32
   native_amp_growth_interval: 1000
   fp32_residual_connection: False # Move residual connections to fp32
