@@ -70,7 +70,6 @@ model:
     merge_file: null 
 
   # precision
-  precision: ${trainer.precision}
   native_amp_init_scale: 4294967296 # 2 ** 32
   native_amp_growth_interval: 1000
   hysteresis: 2 # Gradient scale hysteresis
