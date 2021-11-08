@@ -73,7 +73,8 @@ def main(cfg: DictConfig) -> None:
     if not cfg.pretrained_model:
         raise ValueError(
             'To run evaluation and inference script a pre-trained model or .nemo file must be provided.'
-            f'Choose from {PunctuationCapitalizationModel.list_available_models()} or "pretrained_model"="your_model.nemo"'
+            f'Choose from {PunctuationCapitalizationModel.list_available_models()} or '
+            f'"pretrained_model"="your_model.nemo"'
         )
 
     if os.path.exists(cfg.pretrained_model):
@@ -82,7 +83,8 @@ def main(cfg: DictConfig) -> None:
         model = PunctuationCapitalizationModel.from_pretrained(cfg.pretrained_model)
     else:
         raise ValueError(
-            f'Provide path to the pre-trained .nemo file or choose from {PunctuationCapitalizationModel.list_available_models()}'
+            f'Provide path to the pre-trained .nemo file or choose from '
+            f'{PunctuationCapitalizationModel.list_available_models()}'
         )
 
     data_dir = cfg.model.dataset.get('data_dir', None)
@@ -90,7 +92,8 @@ def main(cfg: DictConfig) -> None:
     if data_dir is None:
         logging.error(
             'No dataset directory provided. Skipping evaluation. '
-            'To run evaluation on a file, specify path to the directory that contains test_ds.text_file and test_ds.labels_file with "model.dataset.data_dir" argument.'
+            'To run evaluation on a file, specify path to the directory that contains test_ds.text_file and '
+            'test_ds.labels_file with "model.dataset.data_dir" argument.'
         )
     elif not os.path.exists(data_dir):
         logging.error(f'{data_dir} is not found, skipping evaluation on the test set.')
