@@ -23,13 +23,7 @@ from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionP
 
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
-from nemo.collections.nlp.parts.nlp_overrides import (
-    NLPDDPPlugin,
-    NLPNativeBfloat16PrecisionPlugin,
-    NLPNativeMixedPrecisionPlugin,
-    NLPPrecisionPlugin,
-    GradScaler
-)
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin, GradScaler
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
