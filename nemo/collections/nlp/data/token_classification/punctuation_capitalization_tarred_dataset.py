@@ -219,7 +219,7 @@ def remove_unexpected_files_and_dirs(output_dir: Path, output_file_tmpl: str, me
         punct_label_ids.unlink()
     if capit_label_ids.exists():
         logging.warning(f"Found unexpected capitalization label file {capit_label_ids}. It is going to be removed.")
-        capit_label_ids.exists()
+        capit_label_ids.unlink()
 
 
 def collect_unique_labels_from_fragment(
@@ -451,7 +451,6 @@ def create_tarred_dataset(
     output_file_tmpl = ds_params_str + TAR_FINAL_TMPL
     metadata_file_name = output_dir / ('metadata.' + ds_params_str + '.json')
     remove_unexpected_files_and_dirs(output_dir, output_file_tmpl, metadata_file_name)
-    print("Files after removal of unexpected: ", os.listdir(output_dir))
     num_lines, text_start_bytes, label_start_bytes = get_fragment_start_bytes(
         text_file, label_file, lines_per_dataset_fragment
     )
@@ -503,7 +502,7 @@ def create_tarred_dataset(
                 *progress_queues,
             ) for fragment_idx, (text_start_pos, label_start_pos) in enumerate(zip(text_start_bytes, label_start_bytes))
         )
-    # repack_tar_files_with_not_enough_batches(output_dir, num_batches_per_tarfile)
+    repack_tar_files_with_not_enough_batches(output_dir, num_batches_per_tarfile)
     create_metadata_file(output_dir, output_file_tmpl, metadata_file_name)
 
 
