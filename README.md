@@ -365,7 +365,7 @@ of GPUs used for computation.
 
 ##### 2.2.2. Trained checkpoint benchmark
 
-Alternatively, to generate checkpoints randomly, you can use a trained
+As an alternative to generating checkpoints randomly, you can use a trained
 checkpoint to look for optimal configuration; however, for larger models that
 might take a significant amount of time and might not be feasible.
 
@@ -462,7 +462,7 @@ The CSV file contains several columns:
   length plus maximum sequence output length.
 * `Preferred Batch Sizes` - List of preferred batch sizes used in NVIDIA Triton configuration.
 * `Satisfies Constraints` - “Yes” if a model satisfies the p99 latency constraint, set as the max-latency-ms parameter.
-* `Throughput (inder/sec)` - Throughput not normalized for number of GPUs but just measured for one model instance.
+* `Throughput (inder/sec)` - Throughput not normalized for the number of GPUs but just measured for one model instance.
 * `p95 Latency(ms)`.
 * `p99 Latency(ms)`.
 
