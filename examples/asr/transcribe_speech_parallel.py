@@ -67,6 +67,7 @@ from typing import Optional
 
 import pytorch_lightning as ptl
 import torch
+from omegaconf import OmegaConf
 
 from nemo.collections.asr.data.audio_to_text_dataset import ASRPredictionWriter
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
@@ -109,6 +110,8 @@ def match_train_config(predict_ds, train_ds):
         "bos_id",
         "pad_id",
     ]
+    predict_ds = OmegaConf.structured(predict_ds)
+
     for cfg_name in cfg_name_list:
         if hasattr(train_ds, cfg_name):
             setattr(predict_ds, cfg_name, getattr(train_ds, cfg_name))
