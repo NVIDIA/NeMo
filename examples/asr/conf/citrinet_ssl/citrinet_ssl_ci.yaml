@@ -1,43 +1,60 @@
-name: &name "Citrinet_SSL_CI"
-sample_rate: &sample_rate 16000
-repeat: &repeat 1
-dropout: &dropout 0.0
-separable: &separable true
+# This config is used for the CI test of self-supervised learning for CitriNet
+
+name: &name "Citrinet-SSL-CI"
 
 model:
+  sample_rate: &sample_rate 16000
+
   train_ds:
     manifest_filepath: ???
     sample_rate: 16000
     batch_size: 32
-    trim_silence: True
-    max_duration: 16.7
-    shuffle: True
-    is_tarred: False
+    trim_silence: false
+    max_duration: 35.0
+    min_duration: 3.0
+    shuffle: true
+    is_tarred: false
     tarred_audio_filepaths: null
-    shard_strategy: "scatter"
+    use_start_end_token: false
 
   validation_ds:
     manifest_filepath: ???
     sample_rate: 16000
     batch_size: 32
-    shuffle: False
+    shuffle: false
+    use_start_end_token: false
+    max_duration: 35.0
+    min_duration: 3.0
+
+  model_defaults:
+    repeat: 1
+    dropout: 0.1
+    separable: true
+    se: true
+    se_context_size: -1
+    kernel_size_factor: 0.25
+    filters: 128
+    decoder_out_channels: 128
+
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
-    normalize: "per_feature"
-    window_size: 0.02
     sample_rate: *sample_rate
+    normalize: "per_feature"
+    window_size: 0.025
     window_stride: 0.01
     window: "hann"
-    features: &n_mels 64
+    features: &n_mels 80
     n_fft: 512
     frame_splicing: 1
     dither: 0.00001
+    pad_to: 16
+    stft_conv: false
 
   spec_augment:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
-    freq_masks: 2
-    time_masks: 5
+    freq_masks: 4
+    time_masks: 10
     freq_width: 27
     time_width: 0.05
 
@@ -48,179 +65,394 @@ model:
     conv_mask: true
 
     jasper:
-      - filters: 128
+      - filters: ${model.model_defaults.filters}
         repeat: 1
-        kernel: [11]
+        kernel: [5]
         stride: [1]
         dilation: [1]
-        dropout: *dropout
-        residual: true
-        separable: *separable
-        se: true
-        se_context_size: -1
+        dropout: 0.0
+        residual: false
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 128
-        repeat: 1
-        kernel: [13]
-        stride: [2]  # *stride
+
+
+      - filters: ${model.model_defaults.filters}
+        repeat: ${model.model_defaults.repeat}
+        kernel: [11]
+        stride: [2]
         dilation: [1]
-        dropout: *dropout
+        dropout: ${model.model_defaults.dropout}
         residual: true
-        separable: *separable
-        se: true
-        se_context_size: -1
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
         stride_last: true
         residual_mode: "stride_add"
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
-        repeat: *repeat
+
+
+      - filters: ${model.model_defaults.filters}
+        repeat: ${model.model_defaults.repeat}
         kernel: [13]
         stride: [1]
         dilation: [1]
-        dropout: *dropout
+        dropout: ${model.model_defaults.dropout}
         residual: true
-        separable: *separable
-        se: true
-        se_context_size: -1
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
-        repeat: *repeat
+
+
+      - filters: ${model.model_defaults.filters}
+        repeat: ${model.model_defaults.repeat}
         kernel: [15]
         stride: [1]
         dilation: [1]
-        dropout: *dropout
+        dropout: ${model.model_defaults.dropout}
         residual: true
-        separable: *separable
-        se: true
-        se_context_size: -1
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
-        repeat: 1
-        kernel: [ 17 ]
-        stride: [ 2 ]  # *stride
-        dilation: [ 1 ]
-        dropout: *dropout
-        residual: true
-        separable: *separable
-        se: true
-        se_context_size: -1
-        stride_last: true
-        residual_mode: "stride_add"
 
-      - filters: 256
-        repeat: *repeat
+
+      - filters: ${model.model_defaults.filters}
+        repeat: ${model.model_defaults.repeat}
         kernel: [17]
         stride: [1]
         dilation: [1]
-        dropout: *dropout
+        dropout: ${model.model_defaults.dropout}
         residual: true
-        separable: *separable
-        se: true
-        se_context_size: -1
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
-        repeat: *repeat
+
+
+      - filters: ${model.model_defaults.filters}
+        repeat: ${model.model_defaults.repeat}
         kernel: [19]
         stride: [1]
         dilation: [1]
-        dropout: *dropout
+        dropout: ${model.model_defaults.dropout}
         residual: true
-        separable: *separable
-        se: true
-        se_context_size: -1
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
-        repeat: 1
-        kernel: [ 21 ]
-        stride: [ 2 ]  # *stride
-        dilation: [ 1 ]
-        dropout: *dropout
-        residual: true
-        separable: *separable
-        se: true
-        se_context_size: -1
-        stride_last: true
-        residual_mode: "stride_add"
 
-      - filters: 256
-        repeat: 1
+
+      - filters: ${model.model_defaults.filters}
+        repeat: ${model.model_defaults.repeat}
         kernel: [21]
         stride: [1]
         dilation: [1]
-        dropout: 0.0
-        residual: false
-        separable: *separable
-        se: true
-        se_context_size: -1
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: &enc_feat_out 1024
+
+
+      - filters: ${model.model_defaults.filters}
+        repeat: ${model.model_defaults.repeat}
+        kernel: [13]
+        stride: [2]  # *stride
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        stride_last: true
+        residual_mode: "stride_add"
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
+
+
+
+      - filters: ${model.model_defaults.filters}
+        repeat: ${model.model_defaults.repeat}
+        kernel: [15]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
+
+
+
+      - filters: ${model.model_defaults.filters}
+        repeat: ${model.model_defaults.repeat}
+        kernel: [17]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
+
+
+      - filters: ${model.model_defaults.filters}
+        repeat: ${model.model_defaults.repeat}
+        kernel: [19]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
+
+
+      - filters: ${model.model_defaults.filters}
+        repeat: ${model.model_defaults.repeat}
+        kernel: [21]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
+
+
+      - filters: ${model.model_defaults.filters}
+        repeat: ${model.model_defaults.repeat}
+        kernel: [23]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
+
+
+
+      - filters: ${model.model_defaults.filters}
+        repeat: ${model.model_defaults.repeat}
+        kernel: [25]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
+
+
+
+      - filters: ${model.model_defaults.filters}
+        repeat: ${model.model_defaults.repeat}
+        kernel: [25]
+        stride: [2]  # stride
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        stride_last: true
+        residual_mode: "stride_add"
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
+
+
+
+      - filters: ${model.model_defaults.filters}
+        repeat: ${model.model_defaults.repeat}
+        kernel: [27]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
+
+
+      - filters: ${model.model_defaults.filters}
+        repeat: ${model.model_defaults.repeat}
+        kernel: [29]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
+
+
+
+      - filters: ${model.model_defaults.filters}
+        repeat: ${model.model_defaults.repeat}
+        kernel: [31]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
+
+
+
+      - filters: ${model.model_defaults.filters}
+        repeat: ${model.model_defaults.repeat}
+        kernel: [33]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
+
+
+
+      - filters: ${model.model_defaults.filters}
+        repeat: ${model.model_defaults.repeat}
+        kernel: [35]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
+
+
+
+      - filters: ${model.model_defaults.filters}
+        repeat: ${model.model_defaults.repeat}
+        kernel: [37]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
+
+
+
+      - filters: ${model.model_defaults.filters}
+        repeat: ${model.model_defaults.repeat}
+        kernel: [39]
+        stride: [1]
+        dilation: [1]
+        dropout: ${model.model_defaults.dropout}
+        residual: true
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
+
+
+
+      - filters: &enc_final 256
         repeat: 1
-        kernel: [1]
+        kernel: [41]
         stride: [1]
         dilation: [1]
         dropout: 0.0
         residual: false
-        separable: *separable
-        se: true
-        se_context_size: -1
+        separable: ${model.model_defaults.separable}
+        se: ${model.model_defaults.se}
+        se_context_size: ${model.model_defaults.se_context_size}
+        kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-  dec_out: &dec_out 128
 
   decoder:
     _target_: nemo.collections.asr.modules.ConvASRDecoderReconstruction
-    feat_in: *enc_feat_out
+    feat_in: *enc_final
     feat_hidden: 128
-    feat_out: *dec_out
+    feat_out: ${model.model_defaults.decoder_out_channels}
     stride_layers: 1
 
 
   loss:
     _target_: nemo.collections.asr.losses.ContrastiveLoss
     in_dim: *n_mels
-    proj_dim: *dec_out
+    proj_dim: ${model.model_defaults.decoder_out_channels}
     combine_time_steps: 4
-    codebook_size: 320
+    codebook_size: 300
+
 
   optim:
-    name: adam
-    # _target_: nemo.core.optim.optimizers.Adam
-    lr: .1
+    name: novograd
+    lr: 0.05
 
     # optimizer arguments
-    betas: [0.9, 0.999]
-    weight_decay: 0.0001
+    betas: [0.8, 0.25]
+    weight_decay: 0.001
 
     # scheduler setup
     sched:
       name: CosineAnnealing
 
       # scheduler config override
-      warmup_steps: null
-      warmup_ratio: 0.05
-      min_lr: 1e-6
+      warmup_steps: 5000
+      warmup_ratio: null
+      min_lr: 1e-5
       last_epoch: -1
 
 trainer:
   gpus: 0 # number of gpus
-  max_epochs: 5
+  max_epochs: 100
   max_steps: null # computed at runtime if not set
   num_nodes: 1
   accelerator: ddp
   accumulate_grad_batches: 1
-  checkpoint_callback: False  # Provided by exp_manager
-  logger: False  # Provided by exp_manager
-  log_every_n_steps: 1  # Interval of logging.
+  checkpoint_callback: false  # Provided by exp_manager
+  logger: false  # Provided by exp_manager
+  log_every_n_steps: 100  # Interval of logging.
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+  check_val_every_n_epoch: 1
+  precision: 32
+  sync_batchnorm: false
+  benchmark: false
 
 exp_manager:
   exp_dir: null
   name: *name
-  create_tensorboard_logger: True
-  create_checkpoint_callback: True
-  create_wandb_logger: False
+  create_tensorboard_logger: true
+  create_checkpoint_callback: true
+  checkpoint_callback_params:
+    monitor: "val_loss"
+    mode: "min"
+    save_top_k: 1
+  create_wandb_logger: false
   wandb_logger_kwargs:
     name: null
     project: null
+    entity: null
+  resume_if_exists: false
+  resume_ignore_no_checkpoint: false
 
 hydra:
   run:
