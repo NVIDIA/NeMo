@@ -798,6 +798,10 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         # we provide a script instead
         #pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
 
+        # make sure all processes reach here before ending training
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            torch.distributed.barrier()
+
     def _del_model_without_trainer(self, filepath: str) -> None:
         app_state = AppState()
         if app_state.model_parallel_size is not None:
