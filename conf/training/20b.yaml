@@ -77,7 +77,7 @@ model:
   pre_process: True # add embedding
   post_process: True # add pooler
   activations_checkpoint_method: block
-  activations_checkpoint_num_layers: 11
+  activations_checkpoint_num_layers: 12
 
   tokenizer:
     library: 'megatron'
