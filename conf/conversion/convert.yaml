@@ -1,0 +1,22 @@
+slurm:
+  partition: ???
+  account: null
+  time_limit: "4:00:00"
+  nodes: 1
+  exclusive: True
+  mem: 0
+  overcommit: True
+  ntasks_per_node: ${conversion.model.tensor_model_parallel_size}
+  gpus_per_task: null
+  dependency: "singleton"
+  job_name: "bignlp-gpt3:conversion"
+
+run:
+    name: 126m-conversion
+    output_path: ${bignlp_path}/conversion_scripts/checkpoints
+    nemo_file_name: megatron_gpt.nemo # name of nemo checkpoint; must be .nemo file
+
+model:
+    checkpoint_folder: ${bignlp_path}/train_scripts/logs/126m/checkpoints # path of checkpoint folder
+    checkpoint_name: "megatron_gpt-*last.ckpt" # name pattern of ONE specific checkpoint
+    tensor_model_parallel_size: 1

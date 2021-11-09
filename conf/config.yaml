@@ -2,6 +2,7 @@ defaults:
   - _self_
   - data_preparation: download_pile
   - training: 126m  # Must match training_config below.
+  - conversion: convert
   - evaluation: evaluate_all
   - override hydra/job_logging: stdout
 

@@ -18,7 +18,7 @@ run:
 
 model:
     type: nemo-gpt3
-    checkpoint_path: ${bignlp_path}/train_scripts/logs/126m/checkpoints/megatron_gpt.nemo # path of checkpoint; must be .nemo file
+    checkpoint_path: ${bignlp_path}/conversion_scripts/checkpoints/126m-conversion/megatron_gpt.nemo # path of checkpoint; must be .nemo file
     tensor_model_parallel_size: 1
     eval_batch_size: 1
     vocab_file: ${bignlp_path}/data_preparation/bpe/vocab.json
