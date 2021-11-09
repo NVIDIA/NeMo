@@ -110,11 +110,13 @@ def match_train_config(predict_ds, train_ds):
         "bos_id",
         "pad_id",
     ]
-    predict_ds = OmegaConf.structured(predict_ds)
 
+    predict_ds = OmegaConf.structured(predict_ds)
     for cfg_name in cfg_name_list:
         if hasattr(train_ds, cfg_name):
             setattr(predict_ds, cfg_name, getattr(train_ds, cfg_name))
+
+    return predict_ds
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=ParallelTranscriptionConfig)
@@ -134,7 +136,7 @@ def main(cfg: ParallelTranscriptionConfig):
     trainer = ptl.Trainer(**cfg.trainer)
 
     cfg.predict_ds.return_sample_id = True
-    match_train_config(predict_ds=cfg.predict_ds, train_ds=model.cfg.train_ds)
+    predict_ds = match_train_config(predict_ds=cfg.predict_ds, train_ds=model.cfg.train_ds)
     data_loader = model._setup_dataloader_from_config(cfg.predict_ds)
 
     os.makedirs(cfg.output_path, exist_ok=True)
