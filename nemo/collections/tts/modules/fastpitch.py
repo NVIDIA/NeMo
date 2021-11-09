@@ -180,7 +180,7 @@ class FastPitchModule(NeuralModule):
             "durs": NeuralType(('B', 'T'), TokenDurationType()),
             "pitch": NeuralType(('B', 'T'), RegressionValuesType()),
             "speaker": NeuralType(('B'), Index()),
-            "pace": NeuralType(optional=True),
+            "pace": NeuralType(('B', 'T'), optional=True),
             "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType(), optional=True),
             "attn_prior": NeuralType(('B', 'T', 'T'), ProbsType(), optional=True),
             "mel_lens": NeuralType(('B'), LengthsType(), optional=True),

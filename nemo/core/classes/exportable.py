@@ -272,6 +272,7 @@ class Exportable(ABC):
             jitted_model = self
 
         dynamic_axes = self._get_dynamic_axes(dynamic_axes, input_names, output_names, use_dynamic_axes)
+        print(dynamic_axes)
 
         torch.onnx.export(
             jitted_model,
