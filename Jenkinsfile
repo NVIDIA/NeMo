@@ -1043,16 +1043,14 @@ pipeline {
           steps {
             sh 'python examples/nlp/token_classification/token_classification_evaluate.py \
             model.dataset.data_dir=/home/TestData/nlp/ner/ \
-            pretrained_model=/home/TestData/nlp/pretrained_models/NER_Model_with_BERT_base_uncased.nemo && \
-            rm -rf nemo_experiments'
+            pretrained_model=/home/TestData/nlp/pretrained_models/NER_Model_with_BERT_base_uncased.nemo'
           }
         }
         stage('Evaluation script for Punctuation') {
           steps {
             sh 'python examples/nlp/token_classification/punctuation_capitalization_evaluate.py \
             model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-            pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_Capitalization_with_DistilBERT_base_uncased.nemo && \
-            rm -rf nemo_experiments'
+            pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_Capitalization_with_DistilBERT_base_uncased.nemo'
           }
         }
         stage('L2: Punctuation & Capitalization, 2GPUs with DistilBERT') {
