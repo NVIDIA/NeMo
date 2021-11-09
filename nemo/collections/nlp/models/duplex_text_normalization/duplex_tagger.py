@@ -382,4 +382,11 @@ class DuplexTaggerModel(NLPModel):
             List of available pre-trained models.
         """
         result = []
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="neural_text_normalization_t5",
+                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/neural_text_normalization_t5/versions/1.5.0/files/neural_text_normalization_t5_tagger.nemo",
+                description="Text Normalization model's tagger model.",
+            )
+        )
         return result
