@@ -7,6 +7,7 @@ import omegaconf
 
 from data_preparation import data_preparation
 from train_scripts import train
+from conversion_scripts import convert
 from eval_scripts import evaluate
 
 
@@ -39,6 +40,7 @@ def main(cfg):
     # Read config
     run_data_preparation = cfg.get("run_data_preparation")
     run_training = cfg.get("run_training")
+    run_conversion = cfg.get("run_conversion")
     run_evaluation = cfg.get("run_evaluation")
 
 
@@ -48,6 +50,9 @@ def main(cfg):
 
     if run_training:
         dependency = train.run_training(cfg, hydra_args=hydra_args, dependency=dependency)
+
+    if run_conversion:
+        dependency = convert.convert_ckpt(cfg, hydra_args=hydra_args, dependency=dependency)
 
     if run_evaluation:
         dependency = evaluate.run_evaluation(cfg, dependency=dependency)
