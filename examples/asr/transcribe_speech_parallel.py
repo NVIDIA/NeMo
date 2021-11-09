@@ -62,7 +62,7 @@ python transcribe_speech_parallel.py \
 
 import itertools
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, is_dataclass
 from typing import Optional
 
 import pytorch_lightning as ptl
@@ -111,7 +111,8 @@ def match_train_config(predict_ds, train_ds):
         "pad_id",
     ]
 
-    predict_ds = OmegaConf.structured(predict_ds)
+    if is_dataclass(predict_ds):
+        predict_ds = OmegaConf.structured(predict_ds)
     for cfg_name in cfg_name_list:
         if hasattr(train_ds, cfg_name):
             setattr(predict_ds, cfg_name, getattr(train_ds, cfg_name))
