@@ -38,7 +38,7 @@ python speech_pre_training.py \
     model.optim.sched.warmup_steps=2000
     exp_manager.create_wandb_logger=True \
     exp_manager.wandb_logger_kwargs.name="<Name of experiment>" \
-    exp_manager.wandb_logger_kwargs.project="<Name of project>"
+    exp_manager.wandb_logger_kwargs.project="<Namex of project>"
 ```
 
 For documentation on fine-tuning, please visit -
@@ -48,7 +48,7 @@ When doing supervised fine-tuning from unsupervised pre-trained encoder, set fla
 """
 
 
-@hydra_runner(config_path="conf/citrinet/", config_name="config_bpe")
+@hydra_runner(config_path="conf/citrinet/", config_name="citrinet_ssl_ci")
 def main(cfg):
     logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
 

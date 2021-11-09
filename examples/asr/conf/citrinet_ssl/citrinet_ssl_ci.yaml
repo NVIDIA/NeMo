@@ -1,4 +1,4 @@
-name: &name "ContextNet5x1"
+name: &name "Citrinet_SSL_CI"
 sample_rate: &sample_rate 16000
 repeat: &repeat 1
 dropout: &dropout 0.0
@@ -167,7 +167,7 @@ model:
   dec_out: &dec_out 128
 
   decoder:
-    _target_: nemo.collections.asr.modules.ConvASRDecoderRecon
+    _target_: nemo.collections.asr.modules.ConvASRDecoderReconstruction
     feat_in: *enc_feat_out
     feat_hidden: 128
     feat_out: *dec_out
