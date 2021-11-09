@@ -167,7 +167,9 @@ class _AudioTextDALIDataset(Iterator):
     ):
         self.drop_last = drop_last  # used by lr_scheduler
         if return_sample_id:
-            raise ValueError("Currently DALI data layers don't support returning the sample_id and return_sample_id can not be enabled.")
+            raise ValueError(
+                "Currently DALI data layers don't support returning the sample_id and return_sample_id can not be enabled."
+            )
         self.return_sample_id = return_sample_id
 
         if not HAVE_DALI:
@@ -579,7 +581,7 @@ class AudioToCharDALIDataset(_AudioTextDALIDataset):
             global_rank=global_rank,
             world_size=world_size,
             preprocessor_cfg=preprocessor_cfg,
-            return_sample_id=return_sample_id
+            return_sample_id=return_sample_id,
         )
 
 
@@ -682,5 +684,5 @@ class AudioToBPEDALIDataset(_AudioTextDALIDataset):
             global_rank=global_rank,
             world_size=world_size,
             preprocessor_cfg=preprocessor_cfg,
-            return_sample_id=return_sample_id
+            return_sample_id=return_sample_id,
         )
