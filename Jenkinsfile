@@ -1136,9 +1136,6 @@ pipeline {
           }
         }
       }
-      stage('L2: Clean up evaluation output'){
-        sh 'rm -rf nemo_experiments'
-      }
     }
     stage('L2: Parallel Pretraining BERT pretraining from Text/Preprocessed') {
       when {
