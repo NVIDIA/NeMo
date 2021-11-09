@@ -171,7 +171,7 @@ def main(cfg: ParallelTranscriptionConfig):
                 with open(input_file, 'r') as inpf:
                     lines = inpf.readlines()
                     for line in lines:
-                        item = json.load(line)
+                        item = json.loads(line)
                         wer_cer = word_error_rate(
                             hypotheses=[item["pred_text"]], references=[item["text"]], use_cer=cfg.use_cer
                         )
