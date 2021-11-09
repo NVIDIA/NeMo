@@ -197,8 +197,8 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 )
                 self._save_state_dict_to_disk(model.state_dict(), mp_model_weights)
 
-            torch.distributed.barrier()
-
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
             # create nemo file from folder with all mp_ranks checkpoints
             if app_state.model_parallel_rank == 0 and app_state.data_parallel_rank == 0:
                 with tempfile.TemporaryDirectory() as tmpdir:

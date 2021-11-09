@@ -796,7 +796,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         # removed for BigNLP as .nemo file takes too long to create
         # we provide a script instead
-        #pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
+        # pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
 
         # make sure all processes reach here before ending training
         if torch.distributed.is_available() and torch.distributed.is_initialized():
