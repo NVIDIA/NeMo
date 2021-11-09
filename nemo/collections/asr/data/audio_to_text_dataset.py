@@ -327,7 +327,7 @@ class ASRPredictionWriter(BasePredictionWriter):
     ):
         for sample_id, transcribed_text in prediction:
             item = {}
-            sample = self.dataset.get_sample(sample_id)
+            sample = self.dataset.get_manifest_sample(sample_id)
             item["audio_filepath"] = sample.audio_file
             item["duration"] = sample.duration
             item["text"] = sample.text_raw
