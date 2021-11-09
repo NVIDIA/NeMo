@@ -92,7 +92,7 @@ def _speech_collate_fn(batch, pad_id):
     if sample_ids is None:
         return audio_signal, audio_lengths, tokens, tokens_lengths
     else:
-        sample_ids = torch.IntTensor(sample_ids)
+        sample_ids = torch.tensor(sample_ids, dtype=torch.int32)
         return audio_signal, audio_lengths, tokens, tokens_lengths, sample_ids
 
 
@@ -223,7 +223,7 @@ class _AudioTextDataset(Dataset):
         self.trim = trim
         self.return_sample_id = return_sample_id
 
-    def get_sample(self, sample_id):
+    def get_manifest_sample(self, sample_id):
         return self.manifest_processor.collection[sample_id]
 
     def __getitem__(self, index):
@@ -1158,7 +1158,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         else:
             return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
 
-    def get_sample(self, sample_id):
+    def get_manifest_sample(self, sample_id):
         return self.collection[sample_id]
 
     def __iter__(self):

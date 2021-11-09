@@ -82,6 +82,7 @@ class ParallelTranscriptionConfig:
     model: Optional[str] = None  # name
     predict_ds: ASRDatasetConfig = ASRDatasetConfig(return_sample_id=True, num_workers=4)
     output_path: Optional[str] = None
+    # when return_predictions is enabled, the prediction call would keep all the predictions in memory and return them when prediction is done
     return_predictions: bool = False
     use_cer: bool = False
 
