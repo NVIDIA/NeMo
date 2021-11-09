@@ -455,7 +455,7 @@ class ModelPT(LightningModule, Model):
         if 'sched' in optim_config and self._trainer is not None:
             if not isinstance(self._trainer.accumulate_grad_batches, int):
                 raise ValueError("We do not currently support gradient acculumation that is not an integer.")
-            if self._trainer.max_steps is None:
+            if self._trainer.max_steps is None or self.trainer.max_steps <= 0:
                 # Store information needed to calculate max_steps
                 optim_config['sched']['t_max_epochs'] = self._trainer.max_epochs
                 optim_config['sched']['t_accumulate_grad_batches'] = self._trainer.accumulate_grad_batches
