@@ -139,7 +139,7 @@ def main(cfg: ParallelTranscriptionConfig):
     trainer = ptl.Trainer(**cfg.trainer)
 
     cfg.predict_ds.return_sample_id = True
-    predict_ds = match_train_config(predict_ds=cfg.predict_ds, train_ds=model.cfg.train_ds)
+    cfg.predict_ds = match_train_config(predict_ds=cfg.predict_ds, train_ds=model.cfg.train_ds)
     data_loader = model._setup_dataloader_from_config(cfg.predict_ds)
 
     os.makedirs(cfg.output_path, exist_ok=True)
