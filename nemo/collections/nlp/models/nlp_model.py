@@ -250,12 +250,9 @@ class NLPModel(ModelPT, Exportable):
                 config_kwargs.pop('trainer')
             checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].update(config_kwargs)
 
-            if 'cfg' in kwargs:
-                model = cls._load_model_state(checkpoint, strict=strict, **kwargs)
-            else:
-                model = cls._load_model_state(
-                    checkpoint, strict=strict, cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs
-                )
+            model = cls._load_model_state(
+                checkpoint, strict=strict, cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs
+            )
             checkpoint = model
 
         finally:
