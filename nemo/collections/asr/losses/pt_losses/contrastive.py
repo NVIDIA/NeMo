@@ -79,7 +79,7 @@ class ContrastiveLoss(Loss):
             group_loss: Bool that determines if loss should be computed separately for each group in the quantizer codebook.
             num_groups: Number of groups in the quantizer codebook.
             quantizer_temp: Tuple of 3 floats (start, stop, decay factor), representing the temperature in the quantizer.
-            mask_threshold: Float threshold for determining if a time step of the spectrogram is masked based on number of masked channels.
+            mask_threshold: Float threshold for determining if a time step of the spectrogram is masked based on percent of masked channels.
         """
 
         super().__init__()
