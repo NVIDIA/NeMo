@@ -47,7 +47,7 @@ class ContrastiveLoss(Loss):
         in_dim,
         proj_dim=128,
         combine_time_steps=1,
-        n_negatives=100,
+        num_negatives=100,
         quantized_targets=True,
         codebook_size=320,
         prob_ppl_weight=0.1,
@@ -68,7 +68,7 @@ class ContrastiveLoss(Loss):
             in_dim: Number of spectrogram channels.
             proj_dim: Number of channels in the model outputs.
             combine_time_steps: How many time steps should be combined into a single representation.
-            n_negatives: Number of sampled negatives for each target.
+            num_negatives: Number of sampled negatives for each target.
             quantized_targets: Bool that determines if the targets should be quantized.
             codebook_size: Number of vectors in the codebook per group.
             prob_ppl_weight: Float multiplier on the perplexity loss for target quantization.
@@ -86,7 +86,7 @@ class ContrastiveLoss(Loss):
         if quantizer_temp is None:
             quantizer_temp = (2, 0.5, 0.999995)
         self.quantized_targets = quantized_targets
-        self.n_negatives = n_negatives
+        self.num_negatives = num_negatives
         self.prob_ppl_weight = prob_ppl_weight
         if self.quantized_targets:
             quantizer_cfg = {
@@ -116,10 +116,10 @@ class ContrastiveLoss(Loss):
 
         high = y.shape[0]
         with torch.no_grad():
-            neg_idxs = torch.randint(low=0, high=high - 1, size=(self.n_negatives * num,))
+            neg_idxs = torch.randint(low=0, high=high - 1, size=(self.num_negatives * num,))
 
         negs = y[neg_idxs.view(-1)]
-        negs = negs.view(num, self.n_negatives, y.shape[-1]).permute(1, 0, 2)  # to NxTxC
+        negs = negs.view(num, self.num_negatives, y.shape[-1]).permute(1, 0, 2)  # to NxTxC
         return negs, neg_idxs
 
     @typecheck()
@@ -159,7 +159,7 @@ class ContrastiveLoss(Loss):
             # T'Gx(C//G)
         elif self.sample_from_codebook:
             # sample from the full codebook
-            negatives = self.quantizer.sample_from_codebook(self.n_negatives, targets_masked_only.size(0))
+            negatives = self.quantizer.sample_from_codebook(self.num_negatives, targets_masked_only.size(0))
         elif self.sample_from_non_masked:
             # sample from all steps in batch
             negatives, _ = self.sample_negatives(
