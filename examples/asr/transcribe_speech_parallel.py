@@ -61,6 +61,7 @@ python transcribe_speech_parallel.py \
 
 
 import itertools
+import json
 import os
 from dataclasses import dataclass, is_dataclass
 from typing import Optional
@@ -71,6 +72,7 @@ from omegaconf import OmegaConf
 
 from nemo.collections.asr.data.audio_to_text_dataset import ASRPredictionWriter
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
+from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.models.configs.asr_models_config import ASRDatasetConfig
 from nemo.core.config import TrainerConfig, hydra_runner
@@ -144,7 +146,7 @@ def main(cfg: ParallelTranscriptionConfig):
     # trainer.global_rank is not valid before predict() is called. Need this hack to find the correct global_rank.
     global_rank = trainer.node_rank * trainer.num_gpus + int(os.environ.get("LOCAL_RANK", 0))
     output_file = os.path.join(cfg.output_path, f"predictions_{global_rank}.json")
-    predictor_writer = ASRPredictionWriter(dataset=data_loader.dataset, output_file=output_file, use_cer=cfg.use_cer,)
+    predictor_writer = ASRPredictionWriter(dataset=data_loader.dataset, output_file=output_file)
     trainer.callbacks.extend([predictor_writer])
 
     predictions = trainer.predict(model=model, dataloaders=data_loader, return_predictions=cfg.return_predictions)
@@ -169,7 +171,15 @@ def main(cfg: ParallelTranscriptionConfig):
                 with open(input_file, 'r') as inpf:
                     lines = inpf.readlines()
                     for line in lines:
-                        outf.write(line)
+                        item = json.load(line)
+                        wer_cer = word_error_rate(
+                            hypotheses=[item["pred_text"]], references=[item["text"]], use_cer=cfg.use_cer
+                        )
+                        if cfg.use_cer:
+                            item["cer"] = wer_cer
+                        else:
+                            item["wer"] = wer_cer
+                        outf.write(json.dumps(item) + "\n")
                         samples_num += 1
 
         logging.info(

@@ -309,11 +309,10 @@ def get_dali_bpe_dataset(
 
 
 class ASRPredictionWriter(BasePredictionWriter):
-    def __init__(self, dataset, output_file: str, use_cer=False):
+    def __init__(self, dataset, output_file: str):
         super().__init__(write_interval="batch")
         self.outf = open(output_file, 'w')
         self.dataset = dataset
-        self.use_cer = use_cer
         self.samples_num = 0
 
     def write_on_batch_end(
@@ -333,13 +332,6 @@ class ASRPredictionWriter(BasePredictionWriter):
             item["duration"] = sample.duration
             item["text"] = sample.text_raw
             item["pred_text"] = transcribed_text
-            wer_cer = word_error_rate(
-                hypotheses=[transcribed_text], references=[sample.text_raw], use_cer=self.use_cer
-            )
-            if self.use_cer:
-                item["cer"] = wer_cer
-            else:
-                item["wer"] = wer_cer
             self.outf.write(json.dumps(item) + "\n")
             self.samples_num += 1
         return
