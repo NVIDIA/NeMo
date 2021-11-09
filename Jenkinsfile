@@ -1046,7 +1046,7 @@ pipeline {
           steps {
             sh 'python examples/nlp/token_classification/token_classification_evaluate.py \
             model.dataset.data_dir=/home/TestData/nlp/ner/ \
-            pretrained_model=/home/TestData/nlp/pretrained_models/NER_Model_with_BERT_base_uncased.nemo' 
+            pretrained_model=/home/TestData/nlp/pretrained_models/NER_Model_with_BERT_base_uncased.nemo'
           }
         }
         stage('Evaluation script for Punctuation') {
@@ -1072,9 +1072,6 @@ pipeline {
             rm -rf /home/TestData/nlp/token_classification_punctuation/output/*'
           }
         }
-      }
-      stage('L2: Clean up evaluation output'){
-        sh 'rm -rf nemo_experiments'
       }
     }
 
