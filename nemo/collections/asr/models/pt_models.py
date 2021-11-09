@@ -62,7 +62,7 @@ class ASREncDecPTModel(ModelPT, ExportableEncDecModel, ASRModuleMixin):
             if "feat_in" not in self._cfg.decoder or not self._cfg.decoder.feat_in:
                 raise ValueError("param feat_in of the decoder's config is not set!")
 
-        self.decoder = ASREncDecPTModel.from_config_dict(self._cfg.decoder)
+        self.decoder_ssl = ASREncDecPTModel.from_config_dict(self._cfg.decoder)
         self.loss = ASREncDecPTModel.from_config_dict(self._cfg.loss)
 
         self.spec_augmentation = ASREncDecPTModel.from_config_dict(self._cfg.spec_augment)
@@ -256,7 +256,7 @@ class ASREncDecPTModel(ModelPT, ExportableEncDecModel, ASRModuleMixin):
 
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
 
-        outputs = self.decoder(encoder_output=encoded)
+        outputs = self.decoder_ssl(encoder_output=encoded)
 
         return spectrograms, spec_masks, outputs
 
