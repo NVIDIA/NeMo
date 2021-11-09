@@ -175,6 +175,7 @@ def main(cfg: ParallelTranscriptionConfig):
                         wer_cer = word_error_rate(
                             hypotheses=[item["pred_text"]], references=[item["text"]], use_cer=cfg.use_cer
                         )
+                        wer_cer = "{:.4f}".format(wer_cer)
                         if cfg.use_cer:
                             item["cer"] = wer_cer
                         else:
