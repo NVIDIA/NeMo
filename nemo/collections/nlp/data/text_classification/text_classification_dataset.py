@@ -221,7 +221,7 @@ class TextClassificationDataset(Dataset):
                 sent_subtokens.extend(word_tokens)
 
             if max_seq_length > 0 and len(sent_subtokens) + 1 > max_seq_length:
-                sent_subtokens = sent_subtokens[:max_seq_length]
+                sent_subtokens = sent_subtokens[: max_seq_length - 1]
                 too_long_count += 1
 
             sent_subtokens.append(tokenizer.sep_token)
