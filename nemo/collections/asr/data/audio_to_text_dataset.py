@@ -258,6 +258,7 @@ def get_dali_char_dataset(
         global_rank=global_rank,
         world_size=world_size,
         preprocessor_cfg=preprocessor_cfg,
+        return_sample_id=config.get('return_sample_id', False),
     )
     return dataset
 
@@ -302,6 +303,7 @@ def get_dali_bpe_dataset(
         global_rank=global_rank,
         world_size=world_size,
         preprocessor_cfg=preprocessor_cfg,
+        return_sample_id=config.get('return_sample_id', False),
     )
     return dataset
 
