@@ -210,17 +210,17 @@ def get_args():
             setattr(args, name, getattr(args, name).expanduser())
     if args.special_token_names is not None or args.special_token_values is not None:
         if args.special_token_names is None:
-            raise parser.error(
+            parser.error(
                 "If you provide parameter `--special_token_values` you have to provide parameter "
                 "`--special_token_names`."
             )
         if args.special_token_values is None:
-            raise parser.error(
+            parser.error(
                 "If you provide parameter `--special_token_names` you have to provide parameter "
                 "`--special_token_values`."
             )
         if len(args.special_token_names) != len(args.special_token_values):
-            raise parser.error(
+            parser.error(
                 f"Parameters `--special_token_names` and `--special_token_values` have to have equal number of values "
                 f"whereas parameter `--special_token_names` has {len(args.special_token_names)} values and parameter "
                 f"`--special_token_values` has {len(args.special_token_values)} values."
@@ -228,7 +228,7 @@ def get_args():
         if len(set(args.special_token_names)) != len(args.special_token_names):
             for i in range(len(args.special_token_names) - 1):
                 if args.special_token_names[i] in args.special_token_names[i + 1 :]:
-                    raise parser.error(
+                    parser.error(
                         f"Values of parameter `--special_token_names` has to be unique. Found duplicate value "
                         f"'{args.special_token_names[i]}'."
                     )

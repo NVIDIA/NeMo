@@ -360,12 +360,23 @@ def check_label_ids(pad_label: str, punct_label_ids: Dict[str, int], capit_label
             raise ValueError(msg.format(param_name='capit_label_ids', id_=capit_label_ids[pad_label]))
 
 
+def process_error(msg: str, error_class_or_function: Union[Type[Exception], Callable[[str], Any]]):
+    if issubclass(error_class_or_function, Exception):
+        raise error_class_or_function(msg)
+    if callable(error_class_or_function):
+        error_class_or_function(msg)
+    raise ValueError(
+        f"Parameter `error_class_or_function` has to be a subclass of `Exception` or a function."
+        f"Given {type(error_class_or_function)}"
+    )
+
+
 def check_before_building_label_ids(
     pad_label: str,
     other_labels: List[str],
     pad_label_name: str,
     other_labels_name: str,
-    error_class: Union[Type[Exception], Callable[[str], Any]],
+    error_class_or_function: Union[Type[Exception], Callable[[str], Any]],
 ):
     """
     A function for checking that that all labels are unique.
@@ -374,17 +385,19 @@ def check_before_building_label_ids(
         other_labels: a list of labels except for the pad label
         pad_label_name: a name of the pad label used in error message
         other_labels_name: a name of other labels used in error message
-        error_class: a class of an exception which is raised if there is a problem with labels. Alternatively it can
-            be a function for handling exceptions, for example ``argparse.ArgumentParser.error``. Such a function has
-            to take one argument -- error message.
+        error_class_or_function: a class of an exception which is raised if there is a problem with labels.
+            Alternatively it can be a function for handling exceptions, for example ``argparse.ArgumentParser.error``.
+            Such a function has to take one argument -- error message.
     """
     for i, lbl in enumerate(other_labels):
         if lbl == pad_label:
-            raise error_class(f"Label number {i} in parameter `{other_labels_name}` is equal to `{pad_label_name}`.")
+            msg = f"Label number {i} in parameter `{other_labels_name}` is equal to `{pad_label_name}`."
+            process_error(msg, error_class_or_function)
     for i in range(len(other_labels) - 1):
         for lbl in other_labels[i + 1 :]:
             if lbl == other_labels[i]:
-                raise error_class(f"Label number {i} occurs at least 2 times in parameter `{other_labels_name}`.")
+                msg = f"Label number {i} occurs at least 2 times in parameter `{other_labels_name}`."
+                process_error(msg, error_class_or_function)
 
 
 def build_label_ids_from_list_of_labels(pad_label: str, other_labels: List[str]) -> Dict[str, int]:
