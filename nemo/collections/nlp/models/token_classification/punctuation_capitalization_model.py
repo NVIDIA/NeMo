@@ -323,6 +323,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         ds_item = cfg.get('ds_item')
         data_dir = self._cfg.dataset.get('data_dir')
+        use_tarred_dataset = cfg.get('use_tarred_dataset', False)
         if ds_item is None and data_dir is None:
             raise ValueError(
                 f"At least one of parameters `model.dataset.data_dir` and `model.<dataset_config>.ds_item` should be "
@@ -330,7 +331,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 f"`metadata_file`, `text_file`, `labels_file` files are stored."
             )
         # use data_dir specified in the ds_item to run evaluation on multiple datasets
-        if cfg.use_tarred_dataset:
+        if use_tarred_dataset:
             if cfg.metadata_file is None:
                 raise ValueError(
                     f"If parameter `use_tarred_dataset` is `True`, then a field `metadata_file` has to be a path "
@@ -393,6 +394,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             num_workers=self._cfg.dataset.num_workers if cfg.num_workers is None else cfg.num_workers,
             pin_memory=self._cfg.dataset.pin_memory if cfg.pin_memory is None else cfg.pin_memory,
             drop_last=self._cfg.dataset.drop_last if cfg.drop_last is None else cfg.drop_last,
+            persistent_workers=cfg.get('persistent_workers', False),
         )
 
     def _setup_infer_dataloader(
