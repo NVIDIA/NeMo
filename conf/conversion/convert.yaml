@@ -6,7 +6,7 @@ slurm:
   exclusive: True
   mem: 0
   overcommit: True
-  ntasks_per_node: ${conversion.model.tensor_model_parallel_size}
+  ntasks_per_node: 1
   gpus_per_task: null
   dependency: "singleton"
   job_name: "bignlp-gpt3:conversion"

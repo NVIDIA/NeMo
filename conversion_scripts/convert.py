@@ -18,7 +18,7 @@ def create_slurm_file(
         mem=0,
         overcommit=True,
         nodes=1,
-        ntasks_per_node=8,
+        ntasks_per_node=1,
         gpus_per_task=1,
         partition="batch",
         account=None,
