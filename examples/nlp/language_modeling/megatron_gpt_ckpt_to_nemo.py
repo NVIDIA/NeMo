@@ -63,7 +63,13 @@ def convert(rank, world_size, args):
     trainer = Trainer(gpus=args.tensor_model_parallel_size)
     # TODO: reach out to PTL For an API-safe local rank override
     trainer.accelerator.training_type_plugin._local_rank = rank
-    checkpoint_path = os.path.join(args.checkpoint_folder, f'mp_rank_{rank:02d}', args.checkpoint_name)
+
+    if args.tensor_model_parallel_size is not None and args.tensor_model_parallel_size > 1:
+        # inject model parallel rank
+        checkpoint_path = os.path.join(args.checkpoint_folder, f'mp_rank_{rank:02d}', args.checkpoint_name)
+    else:
+        checkpoint_path = os.path.join(args.checkpoint_folder, args.checkpoint_name)
+
     model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
     model._save_restore_connector = NLPSaveRestoreConnector()
     model.save_to(args.nemo_file_path)
