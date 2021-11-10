@@ -29,7 +29,6 @@ from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
     BertPunctuationCapitalizationDataset,
-    PunctuationCapitalizationDataConfig,
 )
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_infer_dataset import (
     BertPunctuationCapitalizationInferDataset,
@@ -39,17 +38,17 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_t
 )
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.models.token_classification.punctuation_capitalization_config import (
-    PunctuationCapitalizationModelConfig,
-)
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import LogitsType, NeuralType
-from nemo.utils import logging, model_utils
+from nemo.utils import logging
 
 __all__ = ['PunctuationCapitalizationModel']
+
+
+DEFAULT_NUM_TOKENS_IN_BATCH = 5000
 
 
 class PunctuationCapitalizationModel(NLPModel, Exportable):
@@ -325,8 +324,6 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         data_dir = self._cfg.dataset.get('data_dir')
         # Following parameters can be missing in config if the model is restored from old checkpoint
         use_tarred_dataset = cfg.get('use_tarred_dataset', False)
-        max_seq_length = cfg.get('max_seq_length')
-        use_cache = cfg.get('use_cache')
         num_workers = cfg.get('num_workers')
         pin_memory = cfg.get('pin_memory')
         drop_last = cfg.get('drop_last')
@@ -336,7 +333,6 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 f"present in model config. Parameters `data_dir` or `ds_item` are paths to directory where "
                 f"`metadata_file`, `text_file`, `labels_file` files are stored."
             )
-        # use data_dir specified in the ds_item to run evaluation on multiple datasets
         if use_tarred_dataset:
             if cfg.metadata_file is None:
                 raise ValueError(
@@ -364,6 +360,16 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     f"dataset config have to not `None`. Whereas `text_file={cfg.text_file}` and "
                     f"`label_file={cfg.labels_file}`."
                 )
+            # Following parameters can be missing in config if the model is restored from old checkpoint
+            tokens_in_batch = cfg.get('tokens_in_batch')
+            if tokens_in_batch is None:
+                logging.warning(
+                    f"`tokens_in_batch` parameter is missing in dataset config. The default value "
+                    f"{DEFAULT_NUM_TOKENS_IN_BATCH} is used."
+                )
+                tokens_in_batch = DEFAULT_NUM_TOKENS_IN_BATCH
+            max_seq_length = cfg.get('max_seq_length')
+            use_cache = cfg.get('use_cache')
             ds_data_dir = data_dir if ds_item is None else ds_item
             if ds_data_dir is None:
                 text_file, labels_file = cfg.text_file, cfg.labels_file
@@ -381,7 +387,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 ignore_start_end=self._cfg.dataset.ignore_start_end,
                 use_cache=self._cfg.dataset.use_cache if use_cache is None else use_cache,
                 num_samples=cfg.num_samples,
-                tokens_in_batch=cfg.tokens_in_batch,
+                tokens_in_batch=tokens_in_batch,
                 punct_label_ids_file=self._cfg.class_labels.punct_labels_file,
                 capit_label_ids_file=self._cfg.class_labels.capit_labels_file,
                 njobs=cfg.get('njobs'),
