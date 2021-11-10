@@ -52,6 +52,7 @@ def get_ties_digit(digit_path: str, tie_path: str):
     ties = defaultdict(list)
     for k, v in load_labels(digit_path):
         digits[v].append(k)
+    digits["1"] = ["ein"]
 
     for k, v in load_labels(tie_path):
         ties[v].append(k)
@@ -91,13 +92,14 @@ class CardinalFst(GraphFst):
         super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
 
         graph_zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv")).invert()
-        graph_digit = (
-            pynini.string_file(get_abs_path("data/numbers/digit.tsv")).invert()
-            | pynini.string_file(get_abs_path("data/numbers/ones.tsv")).invert()
-        )
+        graph_digit_no_one = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).invert()
+        graph_one = pynini.string_file(get_abs_path("data/numbers/ones.tsv")).invert()
+        graph_digit = graph_digit_no_one | graph_one
         graph_teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv")).invert()
 
         separator = "."
+
+        ein = pynini.cross("1", "ein")
 
         def tens_no_zero():
             return (
@@ -110,7 +112,8 @@ class CardinalFst(GraphFst):
 
         def hundred_non_zero():
             return (
-                graph_digit
+                graph_digit_no_one
+                | ein
                 + insert_space
                 + pynutil.insert("hundert")
                 + (

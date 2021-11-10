@@ -42,8 +42,8 @@ class VerbalizeFst(GraphFst):
         super().__init__(name="verbalize", kind="verbalize", deterministic=deterministic)
         cardinal = CardinalFst()
         cardinal_graph = cardinal.fst
-        # ordinal = OrdinalFst()
-        # ordinal_graph = ordinal.fst
+        ordinal = OrdinalFst()
+        ordinal_graph = ordinal.fst
         decimal = DecimalFst(cardinal=cardinal, deterministic=deterministic)
         decimal_graph = decimal.fst
         # fraction = FractionFst(ordinal=ordinal)
@@ -63,7 +63,7 @@ class VerbalizeFst(GraphFst):
             # measure_graph
             cardinal_graph
             | decimal_graph
-            # | ordinal_graph
+            | ordinal_graph
             # | date_graph
             # | electronic_graph
             # | money_graph
