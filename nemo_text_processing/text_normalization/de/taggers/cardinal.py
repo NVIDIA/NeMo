@@ -99,8 +99,6 @@ class CardinalFst(GraphFst):
 
         separator = "."
 
-        ein = pynini.cross("1", "ein")
-
         def tens_no_zero():
             return (
                 pynutil.delete("0") + graph_digit
@@ -112,9 +110,7 @@ class CardinalFst(GraphFst):
 
         def hundred_non_zero():
             return (
-                graph_digit_no_one
-                | ein
-                + insert_space
+                (graph_digit_no_one + insert_space | pynini.cross("1", pynini.closure("ein ", 0, 1)))
                 + pynutil.insert("hundert")
                 + (
                     pynini.closure(insert_space + pynutil.insert(AND), 0, 1) + insert_space + tens_no_zero()
@@ -191,6 +187,7 @@ class CardinalFst(GraphFst):
             @ NEMO_DIGIT ** 24
             @ graph
             @ pynini.cdrewrite(delete_space, "[BOS]", "", NEMO_SIGMA)
+            @ pynini.cdrewrite(delete_space, "", "[EOS]", NEMO_SIGMA)
         )
         self.graph |= graph_zero | pynini.cross("1", "eins")
 
