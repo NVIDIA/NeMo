@@ -14,20 +14,16 @@
 
 from pathlib import Path
 
-from omegaconf.omegaconf import OmegaConf
+from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
 from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
+from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
-from nemo.collections.nlp.parts.nlp_overrides import (
-    NLPDDPPlugin,
-    NLPNativeBfloat16PrecisionPlugin,
-    NLPNativeMixedPrecisionPlugin,
-    NLPPrecisionPlugin,
-)
+from nemo.collections.nlp.parts.nlp_overrides import GradScaler, NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
@@ -40,16 +36,11 @@ def main(cfg) -> None:
 
     plugins = [NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes)]
     if cfg.trainer.precision == 16:
-        plugins.append(
-            NLPNativeMixedPrecisionPlugin(
-                init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
-                growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
-            )
+        scaler = GradScaler(
+            init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
+            growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
         )
-    elif cfg.trainer.precision == 'bf16':
-        plugins.append(NLPNativeBfloat16PrecisionPlugin())
-    else:
-        plugins.append(NLPPrecisionPlugin())
+        plugins.append(NativeMixedPrecisionPlugin(precision=16, device='cuda', scaler=scaler))
 
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
@@ -75,6 +66,9 @@ def main(cfg) -> None:
         if isinstance(callback, Timer):
             trainer.callbacks[idx] = StatelessTimer(cfg.trainer.max_time,)
 
+    # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
+    with open_dict(cfg):
+        cfg.model.precision = cfg.trainer.precision
     model = MegatronGPTModel(cfg.model, trainer)
 
     trainer.fit(model)
