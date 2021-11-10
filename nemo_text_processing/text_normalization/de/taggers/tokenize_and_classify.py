@@ -106,8 +106,8 @@ class ClassifyFst(GraphFst):
             word_graph = WordFst(deterministic=deterministic).fst
             # self.time = TimeFst(cardinal=self.cardinal, deterministic=deterministic)
             # time_graph = self.time.fst
-            # self.telephone = TelephoneFst(cardinal=self.cardinal, deterministic=deterministic)
-            # telephone_graph = self.telephone.fst
+            self.telephone = TelephoneFst(cardinal=self.cardinal, deterministic=deterministic)
+            telephone_graph = self.telephone.fst
             self.electronic = ElectronicFst(deterministic=deterministic)
             electronic_graph = self.electronic.fst
             # self.money = MoneyFst(cardinal=self.cardinal, decimal=self.decimal, deterministic=deterministic)
@@ -126,7 +126,7 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(ordinal_graph, 1.1)
                 | pynutil.add_weight(decimal_graph, 1.1)
                 # | pynutil.add_weight(money_graph, 1.1)
-                # | pynutil.add_weight(telephone_graph, 1.1)
+                | pynutil.add_weight(telephone_graph, 1.1)
                 | pynutil.add_weight(electronic_graph, 1.1)
                 | pynutil.add_weight(word_graph, 100)
             )

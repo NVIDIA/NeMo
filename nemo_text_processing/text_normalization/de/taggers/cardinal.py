@@ -182,7 +182,7 @@ class CardinalFst(GraphFst):
         )
 
         self.graph = (
-            (pynini.closure(NEMO_DIGIT, 1) - "0" - "1")
+            ((NEMO_DIGIT - "0" + pynini.closure(NEMO_DIGIT, 0)) - "0" - "1")
             @ pynini.cdrewrite(pynini.closure(pynutil.insert("0")), "[BOS]", "", NEMO_SIGMA)
             @ NEMO_DIGIT ** 24
             @ graph
@@ -195,12 +195,18 @@ class CardinalFst(GraphFst):
         self.graph = self.graph.optimize()
 
         self.graph_hundred_component_at_least_one_none_zero_digit = (
-            pynini.cdrewrite(pynini.closure(pynutil.insert("0")), "[BOS]", "", NEMO_SIGMA)
+            ((NEMO_DIGIT - "0" + pynini.closure(NEMO_DIGIT, 0)) - "0" - "1")
+            @ pynini.cdrewrite(pynini.closure(pynutil.insert("0")), "[BOS]", "", NEMO_SIGMA)
             @ NEMO_DIGIT ** 3
             @ hundred_non_zero()
-        )
+        ) | pynini.cross("1", "eins")
+
         self.graph_hundred_component_at_least_one_none_zero_digit = (
             self.graph_hundred_component_at_least_one_none_zero_digit.optimize()
+        )
+
+        self.two_digit_non_zero = (
+            pynini.closure(NEMO_DIGIT, 1, 2) @ self.graph_hundred_component_at_least_one_none_zero_digit
         )
 
         optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
