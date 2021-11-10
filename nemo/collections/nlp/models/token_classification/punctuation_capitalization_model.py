@@ -39,12 +39,15 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_t
 )
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.collections.nlp.models.token_classification.punctuation_capitalization_config import (
+    PunctuationCapitalizationModelConfig,
+)
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import LogitsType, NeuralType
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 __all__ = ['PunctuationCapitalizationModel']
 
@@ -61,10 +64,11 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             "capit_logits": NeuralType(('B', 'T', 'C'), LogitsType()),
         }
 
-    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+    def __init__(self, cfg: PunctuationCapitalizationModelConfig, trainer: Trainer = None):
         """
         Initializes BERT Punctuation and Capitalization model.
         """
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
         self.setup_tokenizer(cfg.tokenizer)
         self.world_size = 1
         if trainer is not None:
@@ -317,8 +321,10 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             self.metrics['test']['punct_class_report'].append(ClassificationReport(**punct_kw))
             self.metrics['test']['capit_class_report'].append(ClassificationReport(**capit_kw))
 
-    def _setup_dataloader_from_config(self, cfg: PunctuationCapitalizationDataConfig):
-        if cfg.ds_item is None and self._cfg.dataset.data_dir is None:
+    def _setup_dataloader_from_config(self, cfg: DictConfig):
+        ds_item = cfg.get('ds_item')
+        data_dir = self._cfg.dataset.get('data_dir')
+        if ds_item is None and data_dir is None:
             raise ValueError(
                 f"At least one of parameters `model.dataset.data_dir` and `model.<dataset_config>.ds_item` should be "
                 f"present in model config. Parameters `data_dir` or `ds_item` are paths to directory where "
@@ -331,8 +337,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     f"If parameter `use_tarred_dataset` is `True`, then a field `metadata_file` has to be a path "
                     f"to tarred dataset metadata file, whereas `None` is given."
                 )
-            ds_item = self._cfg.dataset.data_dir if cfg.ds_item is None else cfg.ds_item
-            metadata_file = Path(cfg.ds_item) / cfg.metadata_file if ds_item is not None else cfg.metadata_file
+            ds_data_dir = data_dir if ds_item is None else ds_item
+            metadata_file = Path(ds_data_dir) / cfg.metadata_file if ds_data_dir is not None else cfg.metadata_file
             dataset = BertPunctuationCapitalizationTarredDataset(
                 metadata_file=metadata_file,
                 tokenizer=self.tokenizer,
@@ -352,11 +358,11 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     f"dataset config have to not `None`. Whereas `text_file={cfg.text_file}` and "
                     f"`label_file={cfg.labels_file}`."
                 )
-            ds_item = self._cfg.dataset.data_dir if cfg.ds_item is None else cfg.ds_item
-            if ds_item is None:
+            ds_data_dir = data_dir if ds_item is None else ds_item
+            if ds_data_dir is None:
                 text_file, labels_file = cfg.text_file, cfg.labels_file
             else:
-                text_file, labels_file = Path(cfg.ds_item) / cfg.text_file, Path(cfg.ds_item) / cfg.labels_file
+                text_file, labels_file = Path(ds_data_dir) / cfg.text_file, Path(ds_data_dir) / cfg.labels_file
             dataset = BertPunctuationCapitalizationDataset(
                 tokenizer=self.tokenizer,
                 text_file=text_file,
