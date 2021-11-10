@@ -64,12 +64,12 @@ class TestPretrainedModelPerformance:
         model = models.PunctuationCapitalizationModel.from_pretrained("punctuation_en_bert")
         metrics = get_metrics(data_dir, model)
 
-        assert abs(metrics['punct_precision'] - 52.3024) < 0.001
-        assert abs(metrics['punct_recall'] - 58.9220) < 0.001
-        assert abs(metrics['punct_f1'] - 53.2976) < 0.001
-        assert abs(metrics['capit_precision'] - 87.0707) < 0.001
-        assert abs(metrics['capit_recall'] - 87.0707) < 0.001
-        assert abs(metrics['capit_f1'] - 87.0707) < 0.001
+        assert abs(metrics['test_punct_precision'] - 52.3024) < 0.001
+        assert abs(metrics['test_punct_recall'] - 58.9220) < 0.001
+        assert abs(metrics['test_punct_f1'] - 53.2976) < 0.001
+        assert abs(metrics['test_capit_precision'] - 87.0707) < 0.001
+        assert abs(metrics['test_capit_recall'] - 87.0707) < 0.001
+        assert abs(metrics['test_capit_f1'] - 87.0707) < 0.001
         assert int(model.punct_class_report.total_examples) == 128
 
         preds_512 = model.add_punctuation_capitalization(['what can i do for you today'], max_seq_length=512)[0]
@@ -96,9 +96,9 @@ class TestPretrainedModelPerformance:
         model = models.PunctuationCapitalizationModel.from_pretrained("punctuation_en_distilbert")
         metrics = get_metrics(data_dir, model)
 
-        assert abs(metrics['punct_precision'] - 53.0826) < 0.001
-        assert abs(metrics['punct_recall'] - 56.2905) < 0.001
-        assert abs(metrics['punct_f1'] - 52.4225) < 0.001
+        assert abs(metrics['test_punct_precision'] - 53.0826) < 0.001
+        assert abs(metrics['test_punct_recall'] - 56.2905) < 0.001
+        assert abs(metrics['test_punct_f1'] - 52.4225) < 0.001
         assert int(model.punct_class_report.total_examples) == 128
 
     @pytest.mark.with_downloads()
