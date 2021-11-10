@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.asr.models.configs.asr_models_config import (
+    ASRDatasetConfig,
+    EncDecCTCConfig,
+    EncDecCTCModelConfig,
+)
 from nemo.collections.asr.models.configs.classification_models_config import (
     EncDecClassificationConfig,
     EncDecClassificationDatasetConfig,
     EncDecClassificationModelConfig,
-)
-from nemo.collections.asr.models.configs.ctc_models_config import (
-    EncDecCTCConfig,
-    EncDecCTCDatasetConfig,
-    EncDecCTCModelConfig,
 )
 from nemo.collections.asr.models.configs.matchboxnet_config import (
     EncDecClassificationModelConfigBuilder,
