@@ -37,7 +37,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_ltor_masks_and_position_ids,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.collections.nlp.parts.nlp_overrides import NLPNativeMixedPrecisionPlugin
 from nemo.utils import AppState, logging
 
 
@@ -64,7 +63,7 @@ class MegatronGPTModel(NLPModel):
             seed=self.cfg.get('seed', 1234),
         )
 
-        if not self.cfg.get('fused_bf16'):
+        if self.cfg.get('precision') != 'bf16':
             set_jit_fusion_options()
 
         self.tokenizer = get_nmt_tokenizer(
@@ -100,8 +99,7 @@ class MegatronGPTModel(NLPModel):
             fp16_lm_cross_entropy=cfg.get('fp16_lm_cross_entropy', False),
             use_cpu_initialization=cfg.get('use_cpu_initialization', False),
             hidden_dropout=cfg.get('hidden_dropout', 0.1),
-            fused_fp16=cfg.get('fused_fp16', False),
-            fused_bf16=cfg.get('fused_bf16', False),
+            precision=cfg.get('precision', 16),
             fp32_residual_connection=cfg.get('fp32_residual_connection', False),
             activations_checkpoint_method=cfg.get('activations_checkpoint_method', None),
             activations_checkpoint_num_layers=cfg.get('activations_checkpoint_num_layers', 1),
@@ -137,23 +135,13 @@ class MegatronGPTModel(NLPModel):
         tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
         output_tensor = self(tokens, position_ids, attention_mask, labels)
         loss = self.loss_func(loss_mask, output_tensor)
-        # TODO: add text generation
-        # take the first k tokens and then generate text - compare with ground truth (won't look similar in general)
-        """
-        k = num_context
-        n = max_generate_length
-        context_tokens = tokens[0:k]
-        while k < n:
-            output_tensor = self(context_tokens)
-            next_token = sample(output_tensor)
-            context_tokens.append(next_token)
-            k += 1
-        """
-        return loss
+        reduced_loss = average_losses_across_data_parallel_group([loss])
+
+        return reduced_loss
 
     def validation_epoch_end(self, outputs):
-        averaged_loss = average_losses_across_data_parallel_group(outputs)
-        self.log('val_loss', averaged_loss[0], prog_bar=True)
+        averaged_loss = torch.stack(outputs).mean()
+        self.log('val_loss', averaged_loss, prog_bar=True)
         self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step))
 
     def test_step(self, batch, batch_idx):
@@ -198,10 +186,13 @@ class MegatronGPTModel(NLPModel):
     def build_train_valid_test_datasets(self):
         logging.info('Building GPT datasets.')
         global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size / self.cfg.tensor_model_parallel_size
-        eval_iters = (self.trainer.max_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
+        # Compute trianing micro-batch steps: total_global_batch_steps x grad_acumms_per_global_batch
+        max_train_steps = self.trainer.max_steps * self.trainer.accumulate_grad_batches
+        eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
         test_iters = self.trainer.limit_test_batches
+
         train_valid_test_num_samples = [
-            self.trainer.max_steps * global_batch_size,
+            max_train_steps * global_batch_size,
             eval_iters * global_batch_size,
             test_iters * global_batch_size,
         ]
@@ -309,8 +300,8 @@ class MegatronGPTModel(NLPModel):
         )
         return int(consumed_samples)
 
-    def on_before_optimizer_step(self, optimizer, optimizer_idx):
-        """PTL hook that is called after unscaling gradients when using native amp.
+    def configure_gradient_clipping(self, *args, **kwargs):
+        """PTL hook to configure gradients.
            We use gradient clipping implementation from megatron-lm.
         """
         clip_val = self.trainer.gradient_clip_val
@@ -321,11 +312,8 @@ class MegatronGPTModel(NLPModel):
         if clip_val <= 0:
             return
 
-        if isinstance(self.trainer.accelerator_connector.precision_plugin, NLPNativeMixedPrecisionPlugin):
-            parameters = self.model.parameters()
-            clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
-        else:
-            return
+        parameters = self.model.parameters()
+        clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         request = batch
