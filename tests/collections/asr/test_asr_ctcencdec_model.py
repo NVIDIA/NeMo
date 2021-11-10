@@ -240,7 +240,7 @@ class TestEncDecCTCModel:
         # trainer and exp manager should be there
 
     @pytest.mark.unit
-    def test_EncDecCTCDatasetConfig_for_AudioToCharDataset(self):
+    def test_ASRDatasetConfig_for_AudioToCharDataset(self):
         # ignore some additional arguments as dataclass is generic
         IGNORE_ARGS = [
             'is_tarred',
@@ -259,10 +259,7 @@ class TestEncDecCTCModel:
         REMAP_ARGS = {'trim_silence': 'trim'}
 
         result = assert_dataclass_signature_match(
-            audio_to_text.AudioToCharDataset,
-            configs.EncDecCTCDatasetConfig,
-            ignore_args=IGNORE_ARGS,
-            remap_args=REMAP_ARGS,
+            audio_to_text.AudioToCharDataset, configs.ASRDatasetConfig, ignore_args=IGNORE_ARGS, remap_args=REMAP_ARGS,
         )
         signatures_match, cls_subset, dataclass_subset = result
 
@@ -271,7 +268,7 @@ class TestEncDecCTCModel:
         assert dataclass_subset is None
 
     @pytest.mark.unit
-    def test_EncDecCTCDatasetConfig_for_TarredAudioToCharDataset(self):
+    def test_ASRDatasetConfig_for_TarredAudioToCharDataset(self):
         # ignore some additional arguments as dataclass is generic
         IGNORE_ARGS = [
             'is_tarred',
@@ -294,7 +291,7 @@ class TestEncDecCTCModel:
 
         result = assert_dataclass_signature_match(
             audio_to_text.TarredAudioToCharDataset,
-            configs.EncDecCTCDatasetConfig,
+            configs.ASRDatasetConfig,
             ignore_args=IGNORE_ARGS,
             remap_args=REMAP_ARGS,
         )
