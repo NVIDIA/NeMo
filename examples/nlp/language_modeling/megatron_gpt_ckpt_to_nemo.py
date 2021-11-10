@@ -64,7 +64,7 @@ def convert(rank, world_size, args):
     # TODO: reach out to PTL For an API-safe local rank override
     trainer.accelerator.training_type_plugin._local_rank = rank
 
-    if args.model_parallel_size is not None and args.model_parallel_size > 1:
+    if args.tensor_model_parallel_size is not None and args.tensor_model_parallel_size > 1:
         # inject model parallel rank
         checkpoint_path = os.path.join(args.checkpoint_folder, f'mp_rank_{rank:02d}', args.checkpoint_name)
     else:
