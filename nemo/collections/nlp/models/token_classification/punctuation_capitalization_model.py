@@ -323,7 +323,13 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         ds_item = cfg.get('ds_item')
         data_dir = self._cfg.dataset.get('data_dir')
+        # Following parameters can be missing in config if the model is restored from old checkpoint
         use_tarred_dataset = cfg.get('use_tarred_dataset', False)
+        max_seq_length = cfg.get('max_seq_length')
+        use_cache = cfg.get('use_cache')
+        num_workers = cfg.get('num_workers')
+        pin_memory = cfg.get('pin_memory')
+        drop_last = cfg.get('drop_last')
         if ds_item is None and data_dir is None:
             raise ValueError(
                 f"At least one of parameters `model.dataset.data_dir` and `model.<dataset_config>.ds_item` should be "
@@ -370,10 +376,10 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 pad_label=self._cfg.dataset.pad_label,
                 punct_label_ids=self._cfg.punct_label_ids,
                 capit_label_ids=self._cfg.capit_label_ids,
-                max_seq_length=self._cfg.dataset.max_seq_length if cfg.max_seq_length is None else cfg.max_seq_length,
+                max_seq_length=self._cfg.dataset.max_seq_length if max_seq_length is None else max_seq_length,
                 ignore_extra_tokens=self._cfg.dataset.ignore_extra_tokens,
                 ignore_start_end=self._cfg.dataset.ignore_start_end,
-                use_cache=self._cfg.dataset.use_cache if cfg.use_cache is None else cfg.use_cache,
+                use_cache=self._cfg.dataset.use_cache if use_cache is None else use_cache,
                 num_samples=cfg.num_samples,
                 tokens_in_batch=cfg.tokens_in_batch,
                 punct_label_ids_file=self._cfg.class_labels.punct_labels_file,
@@ -391,9 +397,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             collate_fn=dataset.collate_fn,
             batch_size=1,
             shuffle=shuffle,
-            num_workers=self._cfg.dataset.num_workers if cfg.num_workers is None else cfg.num_workers,
-            pin_memory=self._cfg.dataset.pin_memory if cfg.pin_memory is None else cfg.pin_memory,
-            drop_last=self._cfg.dataset.drop_last if cfg.drop_last is None else cfg.drop_last,
+            num_workers=self._cfg.dataset.num_workers if num_workers is None else num_workers,
+            pin_memory=self._cfg.dataset.pin_memory if pin_memory is None else pin_memory,
+            drop_last=self._cfg.dataset.drop_last if drop_last is None else drop_last,
             persistent_workers=cfg.get('persistent_workers', False),
         )
 
