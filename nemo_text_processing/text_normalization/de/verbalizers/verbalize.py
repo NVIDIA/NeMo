@@ -42,34 +42,34 @@ class VerbalizeFst(GraphFst):
         super().__init__(name="verbalize", kind="verbalize", deterministic=deterministic)
         cardinal = CardinalFst()
         cardinal_graph = cardinal.fst
-        ordinal = OrdinalFst()
-        ordinal_graph = ordinal.fst
-        decimal = DecimalFst(cardinal=cardinal, deterministic=deterministic)
-        decimal_graph = decimal.fst
-        fraction = FractionFst(ordinal=ordinal)
-        fraction_graph = fraction.fst
-        date = DateFst(ordinal=ordinal)
-        date_graph = date.fst
-        measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=deterministic)
-        measure_graph = measure.fst
-        electronic = ElectronicFst()
-        electronic_graph = electronic.fst
-        whitelist_graph = WhiteListFst().fst
-        money_graph = MoneyFst(decimal=decimal).fst
-        telephone_graph = TelephoneFst().fst
-        time_graph = TimeFst().fst
+        # ordinal = OrdinalFst()
+        # ordinal_graph = ordinal.fst
+        # decimal = DecimalFst(cardinal=cardinal, deterministic=deterministic)
+        # decimal_graph = decimal.fst
+        # fraction = FractionFst(ordinal=ordinal)
+        # fraction_graph = fraction.fst
+        # date = DateFst(ordinal=ordinal)
+        # date_graph = date.fst
+        # measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=deterministic)
+        # measure_graph = measure.fst
+        # electronic = ElectronicFst()
+        # electronic_graph = electronic.fst
+        # whitelist_graph = WhiteListFst().fst
+        # money_graph = MoneyFst(decimal=decimal).fst
+        # telephone_graph = TelephoneFst().fst
+        # time_graph = TimeFst().fst
 
         graph = (
-            measure_graph
-            | cardinal_graph
-            | decimal_graph
-            | ordinal_graph
-            | date_graph
-            | electronic_graph
-            | money_graph
-            | fraction_graph
-            | whitelist_graph
-            | telephone_graph
-            | time_graph
+            # measure_graph
+            cardinal_graph
+            # | decimal_graph
+            # | ordinal_graph
+            # | date_graph
+            # | electronic_graph
+            # | money_graph
+            # | fraction_graph
+            # | whitelist_graph
+            # | telephone_graph
+            # | time_graph
         )
         self.fst = graph
