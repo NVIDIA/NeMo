@@ -28,6 +28,7 @@ from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataset
 from nemo.collections.asr.data.audio_to_label_dataset import get_tarred_speech_label_dataset
+from nemo.collections.asr.data.audio_to_text_dataset import convert_to_config_list
 from nemo.collections.asr.losses.angularloss import AngularSoftmaxLoss
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
@@ -117,7 +118,12 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
     @staticmethod
     def extract_labels(data_layer_config):
         labels = {}
-        for manifest_filepath in itertools.chain.from_iterable(data_layer_config['manifest_filepath']):
+        manifest_filepath = data_layer_config.get('manifest_filepath', None)
+        if manifest_filepath is None:
+            return None
+        manifest_filepaths = convert_to_config_list(data_layer_config['manifest_filepath'])
+
+        for manifest_filepath in itertools.chain.from_iterable(manifest_filepaths):
             collection = ASRSpeechLabel(
                 manifests_files=manifest_filepath,
                 min_duration=data_layer_config.get("min_duration", None),
