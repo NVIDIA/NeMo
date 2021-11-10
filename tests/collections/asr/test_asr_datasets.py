@@ -341,7 +341,6 @@ class TestASRDatasets:
 
         num_samples = 10
         batch_size = 1
-        device = 'gpu' if torch.cuda.is_available() else 'cpu'
         texts = []
 
         with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
@@ -394,7 +393,6 @@ class TestASRDatasets:
             )
             ref_preprocessor = EncDecCTCModel.from_config_dict(preprocessor_cfg)
 
-            count = 0
             for ref_data, dali_data in zip(ref_dataloader, dali_dataset):
                 ref_audio, ref_audio_len, _, _ = ref_data
                 ref_features, ref_features_len = ref_preprocessor(input_signal=ref_audio, length=ref_audio_len)
