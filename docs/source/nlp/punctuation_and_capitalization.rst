@@ -233,11 +233,6 @@ More details about parameters in the config file can be found below and in the
 +-------------------------------------------+-----------------+-------------------------------------------------------+
 | **train_ds.use_tarred_dataset**           | bool            | Whether to use tarred or usual dataset                |
 +-------------------------------------------+-----------------+-------------------------------------------------------+
-| **train_ds.ds_item**                      | str             | A path to a directory where ``text_file``,            |
-|                                           |                 | ``labels_file``, ``metadata_file`` lay. If ``ds_item``|
-|                                           |                 | parameter is missing, then ``dataset.data_dir`` is    |
-|                                           |                 | used as ``ds_item``.                                  |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
 | **train_ds.text_file**                    | string          | Name of the text training file located at ``ds_item`` |
 |                                           |                 | or, if ``ds_item`` is missing, located in             |
 |                                           |                 | ``data_dir``.                                         |

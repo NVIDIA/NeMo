@@ -340,7 +340,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     f"to tarred dataset metadata file, whereas `None` is given."
                 )
             ds_data_dir = data_dir if ds_item is None else ds_item
-            metadata_file = Path(ds_data_dir) / cfg.metadata_file if ds_data_dir is not None else cfg.metadata_file
+            metadata_file = Path(ds_data_dir) / cfg.metadata_file
             dataset = BertPunctuationCapitalizationTarredDataset(
                 metadata_file=metadata_file,
                 tokenizer=self.tokenizer,
@@ -371,10 +371,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             max_seq_length = cfg.get('max_seq_length')
             use_cache = cfg.get('use_cache')
             ds_data_dir = data_dir if ds_item is None else ds_item
-            if ds_data_dir is None:
-                text_file, labels_file = cfg.text_file, cfg.labels_file
-            else:
-                text_file, labels_file = Path(ds_data_dir) / cfg.text_file, Path(ds_data_dir) / cfg.labels_file
+            text_file, labels_file = Path(ds_data_dir) / cfg.text_file, Path(ds_data_dir) / cfg.labels_file
             dataset = BertPunctuationCapitalizationDataset(
                 tokenizer=self.tokenizer,
                 text_file=text_file,
