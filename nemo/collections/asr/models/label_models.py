@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import copy
+import itertools
 import json
 import os
 import pickle as pkl
 from typing import Dict, List, Optional, Union
-import itertools
 
 import librosa
 import torch
@@ -35,11 +35,11 @@ from nemo.collections.asr.parts.preprocessing.perturb import process_augmentatio
 from nemo.collections.asr.parts.utils.speaker_utils import embedding_normalize
 from nemo.collections.common.losses import CrossEntropyLoss as CELoss
 from nemo.collections.common.metrics import TopKClassificationAccuracy
+from nemo.collections.common.parts.preprocessing.collections import ASRSpeechLabel
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import *
 from nemo.utils import logging
-from nemo.collections.common.parts.preprocessing.collections import ASRSpeechLabel
 
 __all__ = ['EncDecSpeakerLabelModel', 'ExtractSpeakerEmbeddingsModel']
 
@@ -178,7 +178,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         else:
             collate_ds = dataset
 
-        #self.labels = collate_ds.labels
+        # self.labels = collate_ds.labels
 
         if self.task == 'diarization':
             logging.info("Setting up diarization parameters")
