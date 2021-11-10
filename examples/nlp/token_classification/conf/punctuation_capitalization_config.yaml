@@ -58,31 +58,37 @@ model:
     drop_last: false
 
   train_ds:
+    use_tarred_dataset: false
     text_file: text_train.txt
     labels_file: labels_train.txt
+    metadata_file: null
     shuffle: true
     num_samples: -1
-    batch_size: 64
+    tokens_in_batch: 15000
 
   validation_ds:
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
     # evaluation is needed, specify ds_item, otherwise by default data_dir is used
+    use_tarred_dataset: false
     ds_item: null # expected format: [PATH_TO_DEV1,PATH_TO_DEV2] (Note no space between the paths and square brackets)
     text_file: text_dev.txt
     labels_file: labels_dev.txt
+    metadata_file: null
     shuffle: false
     num_samples: -1
-    batch_size: 64
+    tokens_in_batch: 15000
 
   test_ds:
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
     # evaluation is needed, specify ds_item, otherwise by default data_dir is used
+    use_tarred_dataset: false
     ds_item: null # expected format: [PATH_TO_DEV1,PATH_TO_DEV2] (Note no space between the paths and square brackets)
     text_file: text_dev.txt
     labels_file: labels_dev.txt
+    metadata_file: null
     shuffle: false
     num_samples: -1
-    batch_size: 64
+    tokens_in_batch: 15000
 
   tokenizer:
     tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece

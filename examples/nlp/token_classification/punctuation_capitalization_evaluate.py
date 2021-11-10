@@ -19,7 +19,7 @@ from omegaconf import DictConfig
 
 from nemo.collections.nlp.models import PunctuationCapitalizationModel
 from nemo.collections.nlp.models.token_classification.punctuation_capitalization_config import (
-    PunctuationCapitalizationConfig
+    PunctuationCapitalizationConfig,
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging

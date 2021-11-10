@@ -18,10 +18,10 @@ from typing import Any, Dict, Optional, Tuple
 from omegaconf.omegaconf import MISSING
 
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
-    PunctuationCapitalizationDataConfig
+    PunctuationCapitalizationDataConfig,
 )
 from nemo.core.config import TrainerConfig
-from nemo.core.config.modelPT import OptimConfig, SchedConfig, NemoConfig
+from nemo.core.config.modelPT import NemoConfig, OptimConfig, SchedConfig
 from nemo.utils.exp_manager import ExpManagerConfig
 
 
@@ -89,22 +89,13 @@ class CommonDatasetParameters:
 class PunctuationCapitalizationModelConfig:
     dataset: Optional[CommonDatasetParameters] = CommonDatasetParameters()
     train_ds: Optional[PunctuationCapitalizationDataConfig] = PunctuationCapitalizationDataConfig(
-        text_file=MISSING,
-        labels_file=MISSING,
-        use_tarred_dataset=MISSING,
-        metadata_file=MISSING,
+        text_file=MISSING, labels_file=MISSING, use_tarred_dataset=MISSING, metadata_file=MISSING
     )
     validation_ds: Optional[PunctuationCapitalizationDataConfig] = PunctuationCapitalizationDataConfig(
-        text_file=MISSING,
-        labels_file=MISSING,
-        use_tarred_dataset=MISSING,
-        metadata_file=MISSING,
+        text_file=MISSING, labels_file=MISSING, use_tarred_dataset=MISSING, metadata_file=MISSING
     )
     test_ds: Optional[PunctuationCapitalizationDataConfig] = PunctuationCapitalizationDataConfig(
-        text_file=MISSING,
-        labels_file=MISSING,
-        use_tarred_dataset=MISSING,
-        metadata_file=MISSING,
+        text_file=MISSING, labels_file=MISSING, use_tarred_dataset=MISSING, metadata_file=MISSING
     )
     punct_label_ids: Optional[Dict[str, int]] = None
     capit_label_ids: Optional[Dict[str, int]] = None

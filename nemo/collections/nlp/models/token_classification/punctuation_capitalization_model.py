@@ -31,10 +31,12 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_d
     BertPunctuationCapitalizationDataset,
     PunctuationCapitalizationDataConfig,
 )
-from nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset import \
-    BertPunctuationCapitalizationTarredDataset
-from nemo.collections.nlp.data.token_classification.punctuation_capitalization_infer_dataset import \
-    BertPunctuationCapitalizationInferDataset
+from nemo.collections.nlp.data.token_classification.punctuation_capitalization_infer_dataset import (
+    BertPunctuationCapitalizationInferDataset,
+)
+from nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset import (
+    BertPunctuationCapitalizationTarredDataset,
+)
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
@@ -148,7 +150,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         punct_labels = batch['punct_labels'][subtokens_mask]
         capit_preds = torch.argmax(capit_logits, axis=-1)[subtokens_mask]
         capit_labels = batch['capit_labels'][subtokens_mask]
-        self.metrics[mode]['loss'][dataloader_idx](loss=loss, num_measurements=batch['loss_mask'].sum().to(loss.device))
+        self.metrics[mode]['loss'][dataloader_idx](
+            loss=loss, num_measurements=batch['loss_mask'].sum().to(loss.device)
+        )
         self.metrics[mode]['punct_class_report'][dataloader_idx](punct_preds, punct_labels)
         self.metrics[mode]['capit_class_report'][dataloader_idx](capit_preds, capit_labels)
         # torchmetrics are used for metrics computation
@@ -360,10 +364,10 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 pad_label=self._cfg.dataset.pad_label,
                 punct_label_ids=self._cfg.punct_label_ids,
                 capit_label_ids=self._cfg.capit_label_ids,
-                max_seq_length=cfg.max_seq_length,
+                max_seq_length=self._cfg.dataset.max_seq_length if cfg.max_seq_length is None else cfg.max_seq_length,
                 ignore_extra_tokens=self._cfg.dataset.ignore_extra_tokens,
                 ignore_start_end=self._cfg.dataset.ignore_start_end,
-                use_cache=cfg.use_cache,
+                use_cache=self._cfg.dataset.use_cache if cfg.use_cache is None else cfg.use_cache,
                 num_samples=cfg.num_samples,
                 tokens_in_batch=cfg.tokens_in_batch,
                 punct_label_ids_file=self._cfg.class_labels.punct_labels_file,
@@ -381,9 +385,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             collate_fn=dataset.collate_fn,
             batch_size=1,
             shuffle=shuffle,
-            num_workers=cfg.num_workers,
-            pin_memory=cfg.pin_memory,
-            drop_last=cfg.drop_last,
+            num_workers=self._cfg.dataset.num_workers if cfg.num_workers is None else cfg.num_workers,
+            pin_memory=self._cfg.dataset.pin_memory if cfg.pin_memory is None else cfg.pin_memory,
+            drop_last=self._cfg.dataset.drop_last if cfg.drop_last is None else cfg.drop_last,
         )
 
     def _setup_infer_dataloader(

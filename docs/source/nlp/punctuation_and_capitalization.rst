@@ -54,10 +54,10 @@ language model, such as `BERT: Pre-training of Deep Bidirectional Transformers f
 Raw Data Format
 ---------------
 
-The Punctuation and Capitalization model can work with any text dataset, although it is recommended to balance the data, especially 
-for the punctuation task. Before pre-processing the data to the format expected by the model, the data should be split into ``train.txt`` 
-and ``dev.txt`` (and optionally ``test.txt``). Each line in the ``train.txt/dev.txt/test.txt`` should represent one or more full 
-and/or truncated sentences.
+The Punctuation and Capitalization model can work with any text dataset, although it is recommended to balance the
+data, especially for the punctuation task. Before pre-processing the data to the format expected by the model, the
+data should be split into ``train.txt`` and ``dev.txt`` (and optionally ``test.txt``). Each line in the
+``train.txt/dev.txt/test.txt`` should represent one or more full and/or truncated sentences.
 
 Example of the ``train.txt``/``dev.txt`` file:
 
@@ -96,12 +96,14 @@ Each line of the ``text.txt`` file contains text sequences, where words are sepa
         the next flight is ...
         ...
 
-The ``labels.txt`` file contains corresponding labels for each word in ``text.txt``, the labels are separated with spaces. 
-Each label in ``labels.txt`` file consists of 2 symbols:
+The ``labels.txt`` file contains corresponding labels for each word in ``text.txt``, the labels are separated with
+spaces. Each label in ``labels.txt`` file consists of 2 symbols:
 
-- the first symbol of the label indicates what punctuation mark should follow the word (where ``O`` means no punctuation needed)
-- the second symbol determines if a word needs to be capitalized or not (where ``U`` indicates that the word should be upper cased, 
-and ``O`` - no capitalization needed)
+- the first symbol of the label indicates what punctuation mark should follow the word (where ``O`` means no
+punctuation needed)
+
+- the second symbol determines if a word needs to be capitalized or not (where ``U`` indicates that the word should be
+upper cased, and ``O`` - no capitalization needed)
 
 By default, the following punctuation marks are considered: commas, periods, and question marks; the remaining punctuation marks were 
 removed from the data. This can be changed by introducing new labels in the ``labels.txt`` files.
@@ -146,8 +148,9 @@ Required Argument for Dataset Conversion
 - :code:`-s` or :code:`--source_file`: path to the raw file
 - :code:`-o` or :code:`--output_dir` - path to the directory to store the converted files
 
-After the conversion, the :code:`output_dir` should contain :code:`labels_*.txt` and :code:`text_*.txt` files. The default names
-for the training and evaluation in the :code:`conf/punctuation_capitalization_config.yaml` are the following:
+After the conversion, the :code:`output_dir` should contain :code:`labels_*.txt` and :code:`text_*.txt` files. The
+default names for the training and evaluation in the :code:`conf/punctuation_capitalization_config.yaml` are the
+following:
 
 .. code::
 
@@ -158,11 +161,38 @@ for the training and evaluation in the :code:`conf/punctuation_capitalization_co
      |-- text_dev.txt
      |-- text_train.txt
 
+Tarred dataset
+--------------
+
+Tokenization and encoding of data is quite costly for punctuation and capitalization task. If your dataset contains a
+lot of samples (~4M) you may use tarred dataset. A tarred dataset is a collection of tarred files which
+contain batches ready for passing into a model. Tarred dataset is not loaded into memory entirely, but in small pieces,
+which do not overflow memory.
+
+For creating of tarred dataset you will need data in NeMo format:
+
+.. code::
+
+    python examples/nlp/token_classification/data/prepare_data_for_punctuation_capitalization.py \
+        --text <PATH_TO_LOWERCASED_TEXT_WITHOUT_PUNCTUATION> \
+        --labels <PATH_TO_LABELS_IN_NEMO_FORMAT> \
+        --output_dir <PATH_TO_DIRECTORY_WITH_OUTPUT_TARRED_DATASET> \
+        --num_batches_per_tarfile 100
+
+All tar files contain similar amount of batches, so up to :code:`--num_batches_per_tarfile - 1` batches will be
+discarded during tarred dataset creation.
+
+Beside tar files with batches the script will create metadata JSON file, and 2 csv files with punctuation and
+capitalization labels. To use tarred dataset you will need pass path to metadata file in config parameter
+:code:`model.train_ds.metadata_file` and set config parameter :code:`model.train_ds.use_tarred_dataset=true`.
+
 Training Punctuation and Capitalization Model
 ---------------------------------------------
 
-The language model is initialized with the pre-trained model from `HuggingFace Transformers <https://github.com/huggingface/transformers>`__, 
-unless the user provides a pre-trained checkpoint for the language model. Example of model configuration file for training the model can be found at: `NeMo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__.
+The language model is initialized with the pre-trained model from
+`HuggingFace Transformers <https://github.com/huggingface/transformers>`__, unless the user provides a pre-trained
+checkpoint for the language model. Example of model configuration file for training the model can be found at:
+`NeMo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__.
 
 The specification is roughly grouped into the following categories:
 
@@ -170,43 +200,77 @@ The specification is roughly grouped into the following categories:
 - Parameters that describe the datasets: **model.dataset**, **model.train_ds**, **model.validation_ds**
 - Parameters that describe the model: **model**
 
-More details about parameters in the config file can be found below and in the `model's config file <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__:
+More details about parameters in the config file can be found below and in the
+`model's config file <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__:
 
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **Parameter**                             | **Data Type**   |  **Description**                                                                                             |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **pretrained_model**                      | string          | Path to the pre-trained model ``.nemo`` file or pre-trained model name.                                      |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **model.dataset.data_dir**                | string          | Path to the data converted to the specified above format.                                                    |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **model.punct_head.punct_num_fc_layers**  | integer         | Number of fully connected layers.                                                                            |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **model.punct_head.fc_dropout**           | float           | Activation to use between fully connected layers.                                                            |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **model.punct_head.activation**           | string          | Dropout to apply to the input hidden states.                                                                 |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **model.punct_head.use_transrormer_init** | bool            | Whether to initialize the weights of the classifier head with the same approach used in Transformer.         |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **model.capit_head.punct_num_fc_layers**  | integer         | Number of fully connected layers.                                                                            |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **model.capit_head.fc_dropout**           | float           | Dropout to apply to the input hidden states.                                                                 |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **model.capit_head.activation**           | string          | Activation function to use between fully connected layers.                                                   |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **model.capit_head.use_transrormer_init** | bool            | Whether to initialize the weights of the classifier head with the same approach used in Transformer.         |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **training_ds.text_file**                 | string          | Name of the text training file located at ``data_dir``.                                                      |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **training_ds.labels_file**               | string          | Name of the labels training file located at ``data_dir``, such as ``labels_train.txt``.                      |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **training_ds.num_samples**               | integer         | Number of samples to use from the training dataset, ``-1`` - to use all.                                     |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **validation_ds.text_file**               | string          | Name of the text file for evaluation, located at ``data_dir``.                                               |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **validation_ds.labels_file**             | string          | Name of the labels dev file located at ``data_dir``, such as ``labels_dev.txt``.                             |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
-| **validation_ds.num_samples**             | integer         | Number of samples to use from the dev set, ``-1`` - to use all.                                              |
-+-------------------------------------------+-----------------+--------------------------------------------------------------------------------------------------------------+
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **Parameter**                             | **Data Type**   |  **Description**                                      |
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **pretrained_model**                      | string          | Path to the pre-trained model ``.nemo`` file or       |
+|                                           |                 | pre-trained model name.                               |
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **model.dataset.data_dir**                | string          | Path to the data converted to the specified above     |
+|                                           |                 | format.                                               |
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **model.punct_head.punct_num_fc_layers**  | integer         | Number of fully connected layers.                     |
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **model.punct_head.fc_dropout**           | float           | Activation to use between fully connected layers.     |
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **model.punct_head.activation**           | string          | Dropout to apply to the input hidden states.          |
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **model.punct_head.use_transrormer_init** | bool            | Whether to initialize the weights of the classifier   |
+|                                           |                 | head with the same approach used in Transformer.      |
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **model.capit_head.punct_num_fc_layers**  | integer         | Number of fully connected layers.                     |
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **model.capit_head.fc_dropout**           | float           | Dropout to apply to the input hidden states.          |
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **model.capit_head.activation**           | string          | Activation function to use between fully connected    |
+|                                           |                 | layers.                                               |
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **model.capit_head.use_transrormer_init** | bool            | Whether to initialize the weights of the classifier   |
+|                                           |                 | head with the same approach used in Transformer.      |
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **train_ds.use_tarred_dataset**           | bool            | Whether to use tarred or usual dataset                |
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **train_ds.ds_item**                      | str             | A path to a directory where ``text_file``,            |
+|                                           |                 | ``labels_file``, ``metadata_file`` lay. If ``ds_item``|
+|                                           |                 | parameter is missing, then ``dataset.data_dir`` is    |
+|                                           |                 | used as ``ds_item``.                                  |
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **train_ds.text_file**                    | string          | Name of the text training file located at ``ds_item`` |
+|                                           |                 | or, if ``ds_item`` is missing, located in             |
+|                                           |                 | ``data_dir``.                                         |
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **train_ds.labels_file**                  | string          | Name of the labels training file located at           |
+|                                           |                 | ``ds_item``, such as ``labels_train.txt``. If         |
+|                                           |                 | ``ds_item`` parameter is missing, then labels file    |
+|                                           |                 | should be located in ``data_dir``.                    |
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **train_ds.metadata_file**                | string          | Name of metadata file located either in ``ds_item``   |
+|                                           |                 | or, if ``ds_item`` is missing, located in             |
+|                                           |                 | ``data_dir``.                                         |
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **train_ds.num_samples**                  | integer         | Number of samples to use from the training dataset,   |
+|                                           |                 | ``-1`` - to use all.                                  |
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **validation_ds.ds_item**                 | string          | A path or a list of paths to validation dataset       |
+|                                           |                 | directories. If ``ds_item`` is a list, then           |
+|                                           |                 | validation will be performed on several datasets.     |
+|                                           |                 | Each ``ds_item`` directory has to contain files with  |
+|                                           |                 | names ``text_file`` and ``labels_file``. If           |
+|                                           |                 | ``ds_item`` is missing, then ``dataset.data_dir``     |
+|                                           |                 | is used instead.                                      |
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **validation_ds.text_file**               | string          | Name of the text file for evaluation, located at      |
+|                                           |                 | ``data_dir``.                                         |
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **validation_ds.labels_file**             | string          | Name of the labels dev file located at ``data_dir``,  |
+|                                           |                 | such as ``labels_dev.txt``.                           |
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **validation_ds.num_samples**             | integer         | Number of samples to use from the dev set, ``-1`` -   |
+|                                           |                 | to use all.                                           |
++-------------------------------------------+-----------------+-------------------------------------------------------+
 
 For more information, refer to the :ref:`nlp_model` section.
 
@@ -220,8 +284,8 @@ To train the model from scratch, run:
              optim.name=adam \
              optim.lr=0.0001
 
-The above command will start model training on GPUs 0 and 1 with Adam optimizer and learning rate of 0.0001; and the trained model is 
-stored in the ``nemo_experiments/Punctuation_and_Capitalization`` folder.
+The above command will start model training on GPUs 0 and 1 with Adam optimizer and learning rate of 0.0001; and the
+trained model is stored in the ``nemo_experiments/Punctuation_and_Capitalization`` folder.
 
 To train from the pre-trained model, run:
 
@@ -240,10 +304,11 @@ Required Arguments for Training
 
 .. note::
 
-    All parameters defined in the configuration file can be changed with command arguments. For example, the sample config file 
-    mentioned above has :code:`validation_ds.batch_size` set to ``64``. However, if you see that the GPU utilization can be
-    optimized further by using a larger batch size, you may override to the desired value by adding the field :code:`validation_ds.batch_size=128`
-    over the command-line. You can repeat this with any of the parameters defined in the sample configuration file.
+    All parameters defined in the configuration file can be changed with command arguments. For example, the sample
+    config file mentioned above has :code:`validation_ds.tokens_in_batch` set to ``15000``. However, if you see that
+    the GPU utilization can be optimized further by using a larger batch size, you may override to the desired value
+    by adding the field :code:`validation_ds.tokens_in_batch=30000` over the command-line. You can repeat this with
+    any of the parameters defined in the sample configuration file.
 
 Inference
 ---------

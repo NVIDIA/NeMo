@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import itertools
-from typing import Optional, Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -22,7 +22,7 @@ from torch.nn.utils.rnn import pad_sequence
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.nlp.data import get_stats
 from nemo.core import Dataset
-from nemo.core.neural_types import NeuralType, ChannelType, MaskType, Index
+from nemo.core.neural_types import ChannelType, Index, MaskType, NeuralType
 from nemo.core.neural_types.elements import BoolType
 from nemo.utils import logging
 

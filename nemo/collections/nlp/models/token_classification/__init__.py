@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from nemo.collections.nlp.models.token_classification.punctuation_capitalization_config import (
-    PunctuationCapitalizationModelConfig
+    PunctuationCapitalizationModelConfig,
 )
 from nemo.collections.nlp.models.token_classification.punctuation_capitalization_model import (
     PunctuationCapitalizationModel,
