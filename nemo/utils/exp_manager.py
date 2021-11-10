@@ -794,7 +794,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     def _del_model_without_trainer(self, filepath: str) -> None:
         app_state = AppState()
-        if app_state.model_parallel_size is not None:
+        if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
             # filepath needs to be updated to include mp_rank
             dirname = os.path.dirname(filepath)
             basename = os.path.basename(filepath)
