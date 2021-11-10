@@ -386,9 +386,6 @@ class AudioToClassificationLabelDataset(_AudioLabelDataset):
         trim: Boolean flag whether to trim the audio
     """
 
-    # self.labels = labels if labels else self.collection.uniq_labels
-    # self.num_commands = len(self.labels)
-
     def _collate_fn(self, batch):
         return _speech_collate_fn(batch, pad_id=0)
 

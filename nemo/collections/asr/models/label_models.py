@@ -17,6 +17,7 @@ import json
 import os
 import pickle as pkl
 from typing import Dict, List, Optional, Union
+import itertools
 
 import librosa
 import torch
@@ -38,6 +39,7 @@ from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import *
 from nemo.utils import logging
+from nemo.collections.common.parts.preprocessing.collections import ASRSpeechLabel
 
 __all__ = ['EncDecSpeakerLabelModel', 'ExtractSpeakerEmbeddingsModel']
 
@@ -112,6 +114,19 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self._accuracy = TopKClassificationAccuracy(top_k=[1])
         self.labels = None
 
+    @staticmethod
+    def extract_labels(data_layer_config):
+        labels = {}
+        for manifest_filepath in itertools.chain.from_iterable(data_layer_config['manifest_filepath']):
+            collection = ASRSpeechLabel(
+                manifests_files=manifest_filepath,
+                min_duration=data_layer_config.get("min_duration", None),
+                max_duration=data_layer_config.get("max_duration", None),
+                index_by_file_id=True,  # Must set this so the manifest lines can be indexed by file ID
+            )
+            labels.update(collection.uniq_labels)
+        return labels
+
     def __setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:
             augmentor = process_augmentations(config['augmentor'])
@@ -163,7 +178,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         else:
             collate_ds = dataset
 
-        self.labels = collate_ds.labels
+        #self.labels = collate_ds.labels
 
         if self.task == 'diarization':
             logging.info("Setting up diarization parameters")
@@ -185,6 +200,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         )
 
     def setup_training_data(self, train_data_layer_config: Optional[Union[DictConfig, Dict]]):
+        self.labels = self.extract_labels(train_data_layer_config)
+        train_data_layer_config['labels'] = self.labels
         if 'shuffle' not in train_data_layer_config:
             train_data_layer_config['shuffle'] = True
         self.task = 'identification'
