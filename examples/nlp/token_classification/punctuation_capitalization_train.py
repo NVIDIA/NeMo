@@ -16,7 +16,7 @@ import os
 
 import pytorch_lightning as pl
 import torch
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models import PunctuationCapitalizationModel
 from nemo.collections.nlp.models.token_classification.punctuation_capitalization_config import (
@@ -65,7 +65,7 @@ To use one of the pretrained versions of the model and finetune it, run:
 
 
 @hydra_runner(config_path="conf", config_name="punctuation_capitalization_config")
-def main(cfg: PunctuationCapitalizationConfig) -> None:
+def main(cfg: DictConfig) -> None:
     torch.manual_seed(42)
     default_cfg = PunctuationCapitalizationConfig()
     cfg = update_model_config(default_cfg, cfg)

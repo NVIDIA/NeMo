@@ -64,11 +64,10 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             "capit_logits": NeuralType(('B', 'T', 'C'), LogitsType()),
         }
 
-    def __init__(self, cfg: PunctuationCapitalizationModelConfig, trainer: Trainer = None):
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """
         Initializes BERT Punctuation and Capitalization model.
         """
-        cfg = model_utils.convert_model_config_to_dict_config(cfg)
         self.setup_tokenizer(cfg.tokenizer)
         self.world_size = 1
         if trainer is not None:
