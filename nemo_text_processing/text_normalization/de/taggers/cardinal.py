@@ -186,13 +186,13 @@ class CardinalFst(GraphFst):
         )
 
         self.graph = (
-            pynini.difference(pynini.closure(NEMO_DIGIT, 1), "0")
+            (pynini.closure(NEMO_DIGIT, 1) - "0" - "1")
             @ pynini.cdrewrite(pynini.closure(pynutil.insert("0")), "[BOS]", "", NEMO_SIGMA)
             @ NEMO_DIGIT ** 24
             @ graph
             @ pynini.cdrewrite(delete_space, "[BOS]", "", NEMO_SIGMA)
         )
-        self.graph |= graph_zero
+        self.graph |= graph_zero | pynini.cross("1", "eins")
 
         # self.graph = pynini.cdrewrite(pynutil.delete(separator), "", "", NEMO_SIGMA) @ self.graph
         self.graph = self.graph.optimize()
