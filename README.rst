@@ -178,7 +178,7 @@ Docker containers:
 ~~~~~~~~~~~~~~~~~~
 
 If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 21.10-py3 and then installing from GitHub.
-Note NVIDIA's PyTorch 21.10-py3 has not yet been released publicy. Please use a container with the nightly version of PyTorch installed if you are 
+Note NVIDIA's PyTorch 21.10-py3 has not yet been released publicly. Please use a container with the nightly version of PyTorch installed if you are 
 unable to access the NVIDIA's PyTorch 21.10 container.
 
 .. code-block:: bash

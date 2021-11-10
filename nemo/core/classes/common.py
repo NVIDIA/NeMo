@@ -269,6 +269,7 @@ class Typing(ABC):
             # Precompute metadata
             metadata = TypecheckMetadata(original_types=output_types, ignore_collections=ignore_collections)
             out_types_list = list(metadata.base_types.items())
+            mandatory_out_types_list = list(metadata.mandatory_types.items())
 
             # First convert all outputs to list/tuple format to check correct number of outputs
             if type(out_objects) in (list, tuple):
@@ -287,15 +288,15 @@ class Typing(ABC):
                 pass
 
             # In all other cases, python will wrap multiple outputs into an outer tuple.
-            # As such, now the number of elements in this outer tuple should exactly match
-            # the number of output types defined.
-            elif len(out_types_list) != len(out_container):
+            # Allow number of output arguments to be <= total output neural types and >= mandatory outputs.
+
+            elif len(out_container) > len(out_types_list) or len(out_container) < len(mandatory_out_types_list):
                 raise TypeError(
-                    "Number of output arguments provided ({}) is not as expected ({}).\n"
-                    "This can be either because insufficient number of output NeuralTypes were provided,"
+                    "Number of output arguments provided ({}) is not as expected. It should be larger than {} and less than {}.\n"
+                    "This can be either because insufficient/extra number of output NeuralTypes were provided,"
                     "or the provided NeuralTypes {} should enable container support "
                     "(add '[]' to the NeuralType definition)".format(
-                        len(out_container), len(output_types), output_types
+                        len(out_container), len(out_types_list), len(mandatory_out_types_list), output_types
                     )
                 )
 
