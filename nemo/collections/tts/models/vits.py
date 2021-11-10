@@ -53,7 +53,7 @@ class VitsConfig:
 
 
 class Vits(TextToWaveform):
-    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+    def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
 
