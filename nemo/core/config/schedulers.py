@@ -110,7 +110,7 @@ class WarmupAnnealingParams(WarmupSchedulerParams):
     It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
     """
 
-    warmup_ratio: float = 0.0
+    warmup_ratio: Optional[float] = None
 
 
 @dataclass

@@ -188,6 +188,9 @@ class WarmupAnnealHoldPolicy(_LRScheduler):
         assert not (
             warmup_steps is not None and warmup_ratio is not None
         ), "Either use particular number of step or ratio"
+        assert not (
+            constant_steps is not None and constant_ratio is not None
+        ), "Either use constant_steps or constant_ratio"
         assert warmup_ratio is None or max_steps is not None, "If there is a ratio, there should be a total steps"
 
         # It is necessary to assign all attributes *before* __init__,
@@ -705,7 +708,7 @@ def prepare_lr_scheduler(
         # we may need to override ModelPT setup_optimization
         if train_dataloader.batch_size is not None:
             batch_size = train_dataloader.batch_size
-        elif train_dataloader.batch_sampler is not None:
+        elif hasattr(train_dataloader, 'batch_sampler') and train_dataloader.batch_sampler is not None:
             if train_dataloader.batch_sampler.micro_batch_size is not None:
                 batch_size = train_dataloader.batch_sampler.micro_batch_size
             else:
