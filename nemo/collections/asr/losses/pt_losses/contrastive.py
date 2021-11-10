@@ -44,21 +44,23 @@ class ContrastiveLoss(Loss):
 
     def __init__(
         self,
-        in_dim,
-        proj_dim=128,
-        combine_time_steps=1,
-        num_negatives=100,
-        quantized_targets=True,
-        codebook_size=320,
-        prob_ppl_weight=0.1,
-        logit_temp=0.1,
-        reduce="sum",
-        sample_from_non_masked=True,
-        sample_from_codebook=False,
-        group_loss=False,
-        num_groups=2,
-        quantizer_temp=None,
-        mask_threshold=0.8,
+        in_dim: int,
+        proj_dim: int = 128,
+        combine_time_steps: int = 1,
+        num_negatives: int = 100,
+        quantized_targets: bool = True,
+        codebook_size: int = 320,
+        prob_ppl_weight: float = 0.1,
+        logit_temp: float = 0.1,
+        reduce: str = "sum",
+        sample_from_non_masked: bool = True,
+        sample_from_codebook: bool = False,
+        group_loss: bool = False,
+        num_groups: int = 2,
+        quantizer_temp_start: float = 2,
+        quantizer_temp_min: float = 0.5,
+        quantizer_temp_decay: float = 0.999995,
+        mask_threshold: float = 0.8,
     ):
         """
         Loss function representing the contrastive task of identifying the true latent speech representation of
@@ -78,13 +80,14 @@ class ContrastiveLoss(Loss):
             sample_from_codebook: Bool that determines if negatives should be sampled from entire codebook.
             group_loss: Bool that determines if loss should be computed separately for each group in the quantizer codebook.
             num_groups: Number of groups in the quantizer codebook.
-            quantizer_temp: Tuple of 3 floats (start, stop, decay factor), representing the temperature in the quantizer.
+            quantizer_temp_start: Starting temperature in quantizer.
+            quantizer_temp_min: Minimum temperature in quantizer.
+            quantizer_temp_decay: Decay rate of quantizer temperature per global step.
             mask_threshold: Float threshold for determining if a time step of the spectrogram is masked based on percent of masked channels.
         """
 
         super().__init__()
-        if quantizer_temp is None:
-            quantizer_temp = (2, 0.5, 0.999995)
+        quantizer_temp = (quantizer_temp_start, quantizer_temp_min, quantizer_temp_decay)
         self.quantized_targets = quantized_targets
         self.num_negatives = num_negatives
         self.prob_ppl_weight = prob_ppl_weight

@@ -27,10 +27,10 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType, SpectrogramType, VoidType
 from nemo.utils import logging
 
-__all__ = ['ASREncDecPTModel']
+__all__ = ['SpeechEncDecSelfSupervisedModel']
 
 
-class ASREncDecPTModel(ModelPT, ExportableEncDecModel, ASRModuleMixin):
+class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin):
     """Base class for encoder-decoder models used for self-supervised encoder pre-training"""
 
     @classmethod
@@ -51,8 +51,8 @@ class ASREncDecPTModel(ModelPT, ExportableEncDecModel, ASRModuleMixin):
             self.world_size = trainer.num_nodes * trainer.num_gpus
 
         super().__init__(cfg=cfg, trainer=trainer)
-        self.preprocessor = ASREncDecPTModel.from_config_dict(self._cfg.preprocessor)
-        self.encoder = ASREncDecPTModel.from_config_dict(self._cfg.encoder)
+        self.preprocessor = SpeechEncDecSelfSupervisedModel.from_config_dict(self._cfg.preprocessor)
+        self.encoder = SpeechEncDecSelfSupervisedModel.from_config_dict(self._cfg.encoder)
 
         with open_dict(self._cfg):
             if "feat_in" not in self._cfg.decoder or (
@@ -62,10 +62,10 @@ class ASREncDecPTModel(ModelPT, ExportableEncDecModel, ASRModuleMixin):
             if "feat_in" not in self._cfg.decoder or not self._cfg.decoder.feat_in:
                 raise ValueError("param feat_in of the decoder's config is not set!")
 
-        self.decoder_ssl = ASREncDecPTModel.from_config_dict(self._cfg.decoder)
-        self.loss = ASREncDecPTModel.from_config_dict(self._cfg.loss)
+        self.decoder_ssl = SpeechEncDecSelfSupervisedModel.from_config_dict(self._cfg.decoder)
+        self.loss = SpeechEncDecSelfSupervisedModel.from_config_dict(self._cfg.loss)
 
-        self.spec_augmentation = ASREncDecPTModel.from_config_dict(self._cfg.spec_augment)
+        self.spec_augmentation = SpeechEncDecSelfSupervisedModel.from_config_dict(self._cfg.spec_augment)
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:
