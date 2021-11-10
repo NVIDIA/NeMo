@@ -89,45 +89,45 @@ class ClassifyFst(GraphFst):
             self.cardinal = CardinalFst(deterministic=deterministic)
             cardinal_graph = self.cardinal.fst
 
-            self.ordinal = OrdinalFst(cardinal=self.cardinal, deterministic=deterministic)
-            ordinal_graph = self.ordinal.fst
+            # self.ordinal = OrdinalFst(cardinal=self.cardinal, deterministic=deterministic)
+            # ordinal_graph = self.ordinal.fst
 
-            self.decimal = DecimalFst(cardinal=self.cardinal, deterministic=deterministic)
-            decimal_graph = self.decimal.fst
+            # self.decimal = DecimalFst(cardinal=self.cardinal, deterministic=deterministic)
+            # decimal_graph = self.decimal.fst
 
-            self.fraction = FractionFst(cardinal=self.cardinal, deterministic=deterministic)
-            fraction_graph = self.fraction.fst
-            self.measure = MeasureFst(
-                cardinal=self.cardinal, decimal=self.decimal, fraction=self.fraction, deterministic=deterministic
-            )
-            measure_graph = self.measure.fst
-            self.date = DateFst(cardinal=self.cardinal, deterministic=deterministic)
-            date_graph = self.date.fst
+            # self.fraction = FractionFst(cardinal=self.cardinal, deterministic=deterministic)
+            # fraction_graph = self.fraction.fst
+            # self.measure = MeasureFst(
+            #     cardinal=self.cardinal, decimal=self.decimal, fraction=self.fraction, deterministic=deterministic
+            # )
+            # measure_graph = self.measure.fst
+            # self.date = DateFst(cardinal=self.cardinal, deterministic=deterministic)
+            # date_graph = self.date.fst
             word_graph = WordFst(deterministic=deterministic).fst
-            self.time = TimeFst(cardinal=self.cardinal, deterministic=deterministic)
-            time_graph = self.time.fst
-            self.telephone = TelephoneFst(cardinal=self.cardinal, deterministic=deterministic)
-            telephone_graph = self.telephone.fst
-            self.electronic = ElectronicFst(deterministic=deterministic)
-            electronic_graph = self.electronic.fst
-            self.money = MoneyFst(cardinal=self.cardinal, decimal=self.decimal, deterministic=deterministic)
-            money_graph = self.money.fst
-            self.whitelist = WhiteListFst(input_case=input_case, deterministic=deterministic, input_file=whitelist)
-            whitelist_graph = self.whitelist.fst
+            # self.time = TimeFst(cardinal=self.cardinal, deterministic=deterministic)
+            # time_graph = self.time.fst
+            # self.telephone = TelephoneFst(cardinal=self.cardinal, deterministic=deterministic)
+            # telephone_graph = self.telephone.fst
+            # self.electronic = ElectronicFst(deterministic=deterministic)
+            # electronic_graph = self.electronic.fst
+            # self.money = MoneyFst(cardinal=self.cardinal, decimal=self.decimal, deterministic=deterministic)
+            # money_graph = self.money.fst
+            # self.whitelist = WhiteListFst(input_case=input_case, deterministic=deterministic, input_file=whitelist)
+            # whitelist_graph = self.whitelist.fst
             punct_graph = PunctuationFst(deterministic=deterministic).fst
 
             classify = (
-                pynutil.add_weight(whitelist_graph, 1.01)
-                | pynutil.add_weight(time_graph, 1.1)
-                | pynutil.add_weight(measure_graph, 0.9)
-                | pynutil.add_weight(cardinal_graph, 1.1)
-                | pynutil.add_weight(fraction_graph, 1.1)
-                | pynutil.add_weight(date_graph, 1.09)
-                | pynutil.add_weight(ordinal_graph, 1.1)
-                | pynutil.add_weight(decimal_graph, 1.1)
-                | pynutil.add_weight(money_graph, 1.1)
-                | pynutil.add_weight(telephone_graph, 1.1)
-                | pynutil.add_weight(electronic_graph, 1.1)
+                # pynutil.add_weight(whitelist_graph, 1.01)
+                # | pynutil.add_weight(time_graph, 1.1)
+                # | pynutil.add_weight(measure_graph, 0.9)
+                pynutil.add_weight(cardinal_graph, 1.1)
+                # | pynutil.add_weight(fraction_graph, 1.1)
+                # | pynutil.add_weight(date_graph, 1.09)
+                # | pynutil.add_weight(ordinal_graph, 1.1)
+                # | pynutil.add_weight(decimal_graph, 1.1)
+                # | pynutil.add_weight(money_graph, 1.1)
+                # | pynutil.add_weight(telephone_graph, 1.1)
+                # | pynutil.add_weight(electronic_graph, 1.1)
                 | pynutil.add_weight(word_graph, 100)
             )
 
