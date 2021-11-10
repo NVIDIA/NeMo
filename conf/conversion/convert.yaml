@@ -12,13 +12,13 @@ slurm:
   job_name: "bignlp-gpt3:conversion"
 
 run:
-    name: 126m-conversion
+    name: 5b_nemo
     output_path: ${bignlp_path}/conversion_scripts/checkpoints
     nemo_file_name: megatron_gpt.nemo # name of nemo checkpoint; must be .nemo file
 
 model:
-    checkpoint_folder: ${bignlp_path}/train_scripts/logs/126m/checkpoints # path of checkpoint folder
+    checkpoint_folder: ${bignlp_path}/train_scripts/logs/5b/checkpoints # path of checkpoint folder
     checkpoint_name: latest # latest OR name pattern of a checkpoint (e.g. megatron_gpt-*last.ckpt)
-    tensor_model_parallel_size: 1
+    tensor_model_parallel_size: 2
     vocab_file: ${bignlp_path}/data_preparation/bpe/vocab.json
     merge_file: ${bignlp_path}/data_preparation/bpe/merges.txt

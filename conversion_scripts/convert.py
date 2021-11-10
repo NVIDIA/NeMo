@@ -120,5 +120,5 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
         [f"sbatch --parsable {new_script_path}"], shell=True
     )
     dependency = job_id.decode("utf-8")
-    print(f"Submitted Evaluation script with job id: {dependency}")
+    print(f"Submitted Conversion script with job id: {dependency}")
     return dependency
