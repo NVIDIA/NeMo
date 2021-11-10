@@ -69,7 +69,7 @@ def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstL
         + suffix
         + pynutil.insert("\"")
     )
-    res |= decimal + delete_extra_space + pynutil.insert("quantity: \"") + (suffix | "tausend") + pynutil.insert("\"")
+    res |= decimal + delete_extra_space + pynutil.insert("quantity: \"") + suffix + pynutil.insert("\"")
     return res
 
 
@@ -97,12 +97,7 @@ class DecimalFst(GraphFst):
 
         self.graph_fractional = pynutil.insert("fractional_part: \"") + self.graph + pynutil.insert("\"")
         self.graph_integer = pynutil.insert("integer_part: \"") + cardinal_graph + pynutil.insert("\"")
-        final_graph_wo_sign = (
-            pynini.closure(self.graph_integer + pynutil.insert(" "), 0, 1)
-            + point
-            + pynutil.insert(" ")
-            + self.graph_fractional
-        )
+        final_graph_wo_sign = self.graph_integer + point + insert_space + self.graph_fractional
 
         self.final_graph_wo_negative = final_graph_wo_sign | get_quantity(
             final_graph_wo_sign, cardinal.graph_hundred_component_at_least_one_none_zero_digit
@@ -111,4 +106,5 @@ class DecimalFst(GraphFst):
         final_graph = optional_graph_negative + self.final_graph_wo_negative
 
         final_graph = self.add_tokens(final_graph)
+
         self.fst = final_graph.optimize()

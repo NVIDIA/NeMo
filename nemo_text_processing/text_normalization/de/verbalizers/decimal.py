@@ -43,34 +43,26 @@ class DecimalFst(GraphFst):
     def __init__(self, cardinal: GraphFst, deterministic: bool):
         super().__init__(name="decimal", kind="classify", deterministic=deterministic)
 
+        delete_space = pynutil.delete(" ")
         self.optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "minus ") + delete_space, 0, 1)
-        self.integer = pynutil.delete("integer_part:") + cardinal.integer
-        self.optional_integer = pynini.closure(self.integer + delete_space + insert_space, 0, 1)
+        self.integer = pynutil.delete("integer_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
         self.fractional_default = (
-            pynutil.delete("fractional_part:")
-            + delete_space
-            + pynutil.delete("\"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
+            pynutil.delete("fractional_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
         )
 
-        self.fractional = pynutil.insert("punkt ") + self.fractional_default
+        self.fractional = pynutil.insert(" komma ") + self.fractional_default
 
         self.quantity = (
             delete_space
             + insert_space
-            + pynutil.delete("quantity:")
-            + delete_space
-            + pynutil.delete("\"")
+            + pynutil.delete("quantity: \"")
             + pynini.closure(NEMO_NOT_QUOTE, 1)
             + pynutil.delete("\"")
         )
         self.optional_quantity = pynini.closure(self.quantity, 0, 1)
 
         graph = self.optional_sign + (
-            self.integer
-            | (self.integer + self.quantity)
-            | (self.optional_integer + self.fractional + self.optional_quantity)
+            self.integer + self.quantity | self.integer + delete_space + self.fractional + self.optional_quantity
         )
 
         self.numbers = graph
