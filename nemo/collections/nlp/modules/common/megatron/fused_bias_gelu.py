@@ -14,8 +14,7 @@
 # limitations under the License.
 
 import torch
-
-from nemo.collections.nlp.modules.common.megatron.utils import AutocastModuleWrapper
+from apex._autocast_utils import _cast_if_autocast_enabled
 
 ###### BIAS GELU FUSION/ NO AUTOGRAD ################
 # 1/sqrt(2*pi)-> 0.3989423
@@ -58,11 +57,7 @@ class GeLUFunction(torch.autograd.Function):
         return tmp, tmp
 
 
-class FusedBiasGeLU(AutocastModuleWrapper):
-    def __init__(self, fp16=False, bf16=False):
-        super(FusedBiasGeLU, self).__init__(fp16, bf16)
-
-        self.func = GeLUFunction
-
-    def forward(self, input, bias):
-        return self.autocast_forward(input, bias)
+def fused_bias_gelu(input, bias):
+    args = _cast_if_autocast_enabled(input, bias)
+    with torch.cuda.amp.autocast(enabled=False):
+        return GeLUFunction.apply(*args)
