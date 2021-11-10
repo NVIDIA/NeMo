@@ -112,15 +112,15 @@ class ClassifyFst(GraphFst):
             # electronic_graph = self.electronic.fst
             # self.money = MoneyFst(cardinal=self.cardinal, decimal=self.decimal, deterministic=deterministic)
             # money_graph = self.money.fst
-            # self.whitelist = WhiteListFst(input_case=input_case, deterministic=deterministic, input_file=whitelist)
-            # whitelist_graph = self.whitelist.fst
+            self.whitelist = WhiteListFst(input_case=input_case, deterministic=deterministic, input_file=whitelist)
+            whitelist_graph = self.whitelist.fst
             punct_graph = PunctuationFst(deterministic=deterministic).fst
 
             classify = (
-                # pynutil.add_weight(whitelist_graph, 1.01)
+                pynutil.add_weight(whitelist_graph, 1.01)
                 # | pynutil.add_weight(time_graph, 1.1)
                 # | pynutil.add_weight(measure_graph, 0.9)
-                pynutil.add_weight(cardinal_graph, 1.1)
+                | pynutil.add_weight(cardinal_graph, 1.1)
                 | pynutil.add_weight(fraction_graph, 1.1)
                 # | pynutil.add_weight(date_graph, 1.09)
                 | pynutil.add_weight(ordinal_graph, 1.1)
