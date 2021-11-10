@@ -162,6 +162,8 @@ def main(cfg: ParallelTranscriptionConfig):
         torch.distributed.barrier()
 
     samples_num = 0
+    pred_text_list = []
+    text_list = []
     if is_global_rank_zero():
         output_file = os.path.join(cfg.output_path, f"predictions_all.json")
         logging.info(f"Prediction files are being aggregated in {output_file}.")
@@ -172,20 +174,15 @@ def main(cfg: ParallelTranscriptionConfig):
                     lines = inpf.readlines()
                     for line in lines:
                         item = json.loads(line)
-                        wer_cer = word_error_rate(
-                            hypotheses=[item["pred_text"]], references=[item["text"]], use_cer=cfg.use_cer
-                        )
-                        wer_cer = "{:.4f}".format(wer_cer)
-                        if cfg.use_cer:
-                            item["cer"] = wer_cer
-                        else:
-                            item["wer"] = wer_cer
+                        pred_text_list.append(item["pred_text"])
+                        text_list.append(item["text"])
                         outf.write(json.dumps(item) + "\n")
                         samples_num += 1
-
+        wer_cer = word_error_rate(hypotheses=pred_text_list, references=text_list, use_cer=cfg.use_cer)
         logging.info(
             f"Prediction is done for {samples_num} samples in total on all workers and results are aggregated in {output_file}."
         )
+        logging.info("WER/CER for all predictions is {:.4f}.".format(wer_cer))
 
 
 if __name__ == '__main__':
