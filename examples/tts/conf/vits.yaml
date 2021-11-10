@@ -36,6 +36,8 @@ model:
   p_dropout: 0.1
   n_layers_q: 3
   use_spectral_norm: false
+  mel_fmin: 0.0
+  mel_fmax: null
 
   train_ds:
     manifest_filepath: ${train_dataset}
