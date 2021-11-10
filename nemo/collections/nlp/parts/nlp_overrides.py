@@ -27,20 +27,10 @@ from pytorch_lightning.utilities.types import _PATH
 from torch.nn.parallel import DistributedDataParallel
 
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
-from nemo.utils import AppState, app_state, logging
+from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
-
-try:
-    from apex.transformer import parallel_state
-    from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
 
     HAVE_APEX = True
 
