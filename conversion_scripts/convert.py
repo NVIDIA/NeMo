@@ -47,7 +47,7 @@ def create_slurm_file(
         f.writelines("set +x\n")
 
 
-def run_evaluation(cfg, dependency=None):
+def convert_ckpt(cfg, hydra_args="", dependency=None):
     # Read config
     bignlp_path = cfg.get("bignlp_path")
     container = cfg.get("container")
@@ -71,21 +71,6 @@ def run_evaluation(cfg, dependency=None):
         dependency = slurm_cfg.get("dependency")
     job_name = slurm_cfg.get("job_name")
 
-    # Model parameters
-    checkpoint_folder = model_cfg.get("checkpoint_folder")
-    checkpoint_name = model_cfg.get("checkpoint_name")
-    tensor_model_parallel_size = model_cfg.get("tensor_model_parallel_size")
-
-    if tensor_model_parallel_size > 1:
-        checkpoint = os.path.join(checkpoint_folder, "mp_rank_00", checkpoint_name)
-    else:
-        checkpoint = os.path.join(checkpoint_folder, checkpoint_name)
-    checkpoint_list = glob.glob(checkpoint)
-    if len(checkpoint_list) > 1:
-        raise ValueError("Too many checkpoints fit the checkpoint name pattern in convert.yaml.")
-    if len(checkpoint_list) == 0:
-        raise ValueError("No checkpoint found with the checkpoint name pattern in convert.yaml.")
-    checkpoint_name = os.path.basename(checkpoint_list[0])
 
     # Run parameters
     name = run_cfg.get("name")
@@ -93,7 +78,6 @@ def run_evaluation(cfg, dependency=None):
     log_dir = os.path.join(bignlp_path, run_cfg.get("output_path"), name)
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
-    nemo_file_path = os.path.join(log_dir, nemo_file_name)
 
     # Process container-mounts.
     mounts_str = f"{bignlp_path}:{bignlp_path}"
@@ -112,12 +96,9 @@ def run_evaluation(cfg, dependency=None):
     )
 
     new_script_path = os.path.join(bignlp_path, "conversion_scripts/convert_script.sh")
-    code_path = "/opt/bignlp/NeMo/examples/nlp/language_modeling/megatron_gpt_ckpt_to_nemo.py"
-    convert_cmd = f"python -u {code_path} " \
-                  f"--checkpoint_folder {checkpoint_folder} " \
-                  f"--checkpoint_name {checkpoint_name} " \
-                  f"--nemo_file_path {nemo_file_path} " \
-                  f"--tensor_model_parallel_size {tensor_model_parallel_size} "
+
+    code_path = os.path.join(bignlp_path, "conversion_scripts/convert_ckpt.py")
+    convert_cmd = f"python3 -u {code_path} {hydra_args}"
 
     create_slurm_file(
         new_script_path=new_script_path,
