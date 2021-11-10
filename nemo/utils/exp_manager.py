@@ -880,7 +880,7 @@ def configure_checkpointing(
 
     checkpoint_callback = NeMoModelCheckpoint(n_resume=resume, **params)
     checkpoint_callback.last_model_path = trainer.checkpoint_connector.resume_checkpoint_path or ""
-    if params.model_parallel_size is not None:
+    if params.model_parallel_size is not None and params.model_parallel_size > 1:
         checkpoint_callback.last_model_path = NeMoModelCheckpoint._uninject_mp_rank(
             checkpoint_callback.last_model_path
         )
