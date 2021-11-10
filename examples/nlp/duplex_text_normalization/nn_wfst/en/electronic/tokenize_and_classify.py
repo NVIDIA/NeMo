@@ -48,7 +48,6 @@ class ClassifyFst(GraphFst):
             for False multiple options (used for audio-based normalization)
         cache_dir: path to a dir with .far grammar file. Set to None to avoid using cache.
         overwrite_cache: set to True to overwrite .far files
-        whitelist: path to a file with whitelist replacements
     """
 
     def __init__(

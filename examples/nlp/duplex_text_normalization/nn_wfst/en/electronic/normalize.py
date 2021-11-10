@@ -12,14 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 from nemo_text_processing.text_normalization.normalize import Normalizer
 
 
 class ElectronicNormalizer(Normalizer):
+    """
+    Normalizer for ELECTRONIC.
+    
+    Args:
+        input_case: accepting either "lower_cased" or "cased" input.
+        lang: language
+        deterministic: if True will provide a single transduction option,
+            for False multiple options (used for audio-based normalization)
+        cache_dir: path to a dir with .far grammar file. Set to None to avoid using cache.
+        overwrite_cache: set to True to overwrite .far files
+    """
+
     def __init__(
         self,
-        input_case: str,
+        input_case: str = 'cased',
         lang: str = 'en',
         deterministic: bool = True,
         cache_dir: str = None,
@@ -40,11 +51,3 @@ class ElectronicNormalizer(Normalizer):
             input_case=input_case, deterministic=deterministic, cache_dir=cache_dir, overwrite_cache=overwrite_cache
         )
         self.verbalizer = VerbalizeFinalFst(deterministic=deterministic)
-
-
-if __name__ == "__main__":
-    import sys
-
-    input_string = sys.argv[1]
-    normalizer = ElectronicNormalizer(input_case='cased')
-    print(normalizer.normalize(input_string, verbose=False))

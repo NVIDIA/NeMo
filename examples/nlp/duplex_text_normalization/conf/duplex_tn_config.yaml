@@ -20,7 +20,7 @@ tagger_trainer:
 
 tagger_model:
   do_training: true
-  transformer: distilroberta-base # For ru, try cointegrated/rubert-tiny | For de, try bert-base-german-cased | For multilingual, try bert-base-multilingual-cased
+  transformer: albert-base-v2 # For ru, try cointegrated/rubert-tiny | For de, try bert-base-german-cased | For multilingual, try bert-base-multilingual-cased
   tokenizer: ${tagger_model.transformer}
   max_sequence_len: 128
   nemo_path: ${tagger_exp_manager.exp_dir}/tagger_model.nemo # exported .nemo path
@@ -73,7 +73,7 @@ decoder_trainer:
 
 decoder_model:
   do_training: true
-  transformer: t5-base  # For ru, try cointegrated/rut5-base | For de or multilingual, try google/mt5-base
+  transformer: t5-small  # For ru, try cointegrated/rut5-base | For de or multilingual, try google/mt5-base
   max_sequence_len: 80
   tokenizer: ${decoder_model.transformer}
   nemo_path: ${decoder_exp_manager.exp_dir}/decoder_model.nemo # exported .nemo path
