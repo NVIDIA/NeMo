@@ -9,7 +9,7 @@ test_datasets: null
 model:
   sample_rate: 22050
   splice_length: 64
-  lr: 3e-2
+  lr: 2e-4
   labels: ${labels}
   n_speakers: 1
   symbols_embedding_dim: 384
@@ -18,6 +18,24 @@ model:
   pitch_embedding_kernel_size: 3
   mel_loss_coeff: 40
   hop_size: 256
+  log_interval: 200
+  eval_interval: 1000
+  seed: 1234
+  betas: [0.8,0.99]
+  eps: 1e-9
+  lr_decay: 0.999875
+  segment_size: 8192
+  init_lr_ratio: 1
+  warmup_epochs: 0
+  c_mel: 45
+  c_kl: 1.
+  inter_channels: 192
+  hidden_channels: 192
+  filter_channels: 768
+  n_heads: 2
+  p_dropout: 0.1
+  n_layers_q: 3
+  use_spectral_norm: false
 
   train_ds:
     manifest_filepath: ${train_dataset}
@@ -30,6 +48,8 @@ model:
     shuffle: true
     batch_size: 64
     num_workers: 12
+    max_wav_value: 32768.0
+    filter_length: 1024
 
   validation_ds:
     manifest_filepath: ${validation_datasets}
@@ -40,6 +60,8 @@ model:
     shuffle: false
     batch_size: 64
     num_workers: 8
+    max_wav_value: 32768.0
+    filter_length: 1024
 
   preprocessor:
     _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
@@ -92,12 +114,12 @@ model:
     dropemb: 0.0
 
   duration_predictor:
-    _target_: nemo.collections.tts.modules.fastpitch.TemporalPredictor
+    _target_: nemo.collections.tts.modules.vits_modules.StochasticDurationPredictor
     input_size: ${model.symbols_embedding_dim}
     kernel_size: 3
     filter_size: 256
     dropout: 0.1
-    n_layers: 2
+    n_layers: 6
 
   pitch_predictor:
     _target_: nemo.collections.tts.modules.fastpitch.TemporalPredictor
@@ -105,21 +127,21 @@ model:
     kernel_size: 3
     filter_size: 256
     dropout: 0.1
-    n_layers: 2
+    n_layers: 6
 
   generator:
     _target_: nemo.collections.tts.modules.vits_modules.Generator
-    upsample_kernel_sizes: [16,16,4,4]
-    upsample_rates: [8,8,2,2]
-    upsample_initial_channel: 512
+    resblock: 1
     resblock_kernel_sizes: [3,7,11]
     resblock_dilation_sizes: [[1,3,5], [1,3,5], [1,3,5]]
-    resblock: 1
+    upsample_rates: [8,8,2,2]
+    upsample_initial_channel: 512
+    upsample_kernel_sizes: [16,16,4,4]
     initial_input_size: 384
 
 trainer:
   gpus: -1 # number of gpus
-  max_epochs: 1500
+  max_epochs: 20000
   num_nodes: 1
   accelerator: ddp
   accumulate_grad_batches: 1
