@@ -22,7 +22,6 @@ from pytorch_lightning.callbacks import BasePredictionWriter
 from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dali
-from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.utils import logging
 
 
