@@ -182,7 +182,7 @@ def main(cfg: ParallelTranscriptionConfig):
         logging.info(
             f"Prediction is done for {samples_num} samples in total on all workers and results are aggregated in {output_file}."
         )
-        logging.info("WER/CER for all predictions is {:.4f}.".format(wer_cer))
+        logging.info("{} for all predictions is {:.4f}.".format("CER" if cfg.use_cer else "WER", wer_cer))
 
 
 if __name__ == '__main__':
