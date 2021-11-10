@@ -92,8 +92,8 @@ class ClassifyFst(GraphFst):
             # self.ordinal = OrdinalFst(cardinal=self.cardinal, deterministic=deterministic)
             # ordinal_graph = self.ordinal.fst
 
-            # self.decimal = DecimalFst(cardinal=self.cardinal, deterministic=deterministic)
-            # decimal_graph = self.decimal.fst
+            self.decimal = DecimalFst(cardinal=self.cardinal, deterministic=deterministic)
+            decimal_graph = self.decimal.fst
 
             # self.fraction = FractionFst(cardinal=self.cardinal, deterministic=deterministic)
             # fraction_graph = self.fraction.fst
@@ -124,7 +124,7 @@ class ClassifyFst(GraphFst):
                 # | pynutil.add_weight(fraction_graph, 1.1)
                 # | pynutil.add_weight(date_graph, 1.09)
                 # | pynutil.add_weight(ordinal_graph, 1.1)
-                # | pynutil.add_weight(decimal_graph, 1.1)
+                | pynutil.add_weight(decimal_graph, 1.1)
                 # | pynutil.add_weight(money_graph, 1.1)
                 # | pynutil.add_weight(telephone_graph, 1.1)
                 # | pynutil.add_weight(electronic_graph, 1.1)

@@ -16,7 +16,8 @@
 # Adapted from https://github.com/google/TextNormalizationCoveringGrammars
 # Russian minimally supervised number grammar.
 
-from nemo_text_processing.inverse_text_normalization.de.taggers.cardinal import CardinalFst as ITNCardinalFst
+from collections import defaultdict
+
 from nemo_text_processing.text_normalization.de.utils import get_abs_path, load_labels
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_ALPHA,
@@ -27,7 +28,6 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     delete_space,
     insert_space,
 )
-from collections import defaultdict
 
 try:
     import pynini
@@ -37,7 +37,9 @@ try:
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
-AND="und"
+AND = "und"
+
+
 def get_ties_digit(digit_path: str, tie_path: str):
     """
     getting all inverse normalizations for numbers between 21 - 100
@@ -89,63 +91,80 @@ class CardinalFst(GraphFst):
         super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
 
         graph_zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv")).invert()
-        graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).invert()
-        graph_ties = pynini.string_file(get_abs_path("data/numbers/ties.tsv")).invert()
+        graph_digit = (
+            pynini.string_file(get_abs_path("data/numbers/digit.tsv")).invert()
+            | pynini.string_file(get_abs_path("data/numbers/ones.tsv")).invert()
+        )
         graph_teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv")).invert()
 
         separator = "."
 
-
         def tens_no_zero():
-            return ( pynutil.delete("0") + graph_digit | get_ties_digit(get_abs_path("data/numbers/digit.tsv"), get_abs_path("data/numbers/ties.tsv")).invert()| graph_teen)
+            return (
+                pynutil.delete("0") + graph_digit
+                | get_ties_digit(
+                    get_abs_path("data/numbers/digit.tsv"), get_abs_path("data/numbers/ties.tsv")
+                ).invert()
+                | graph_teen
+            )
 
         def hundred_non_zero():
-            return (graph_digit + insert_space + pynutil.insert("hundert") + (pynini.closure( insert_space + pynutil.insert(AND), 0, 1) + insert_space + tens_no_zero() | pynutil.delete("00"))  | pynutil.delete("0") + tens_no_zero())
+            return (
+                graph_digit
+                + insert_space
+                + pynutil.insert("hundert")
+                + (
+                    pynini.closure(insert_space + pynutil.insert(AND), 0, 1) + insert_space + tens_no_zero()
+                    | pynutil.delete("00")
+                )
+                | pynutil.delete("0") + tens_no_zero()
+            )
 
         def thousand():
-            return (hundred_non_zero() + insert_space +  pynutil.insert("tausend") | pynutil.delete("000"))  +  (insert_space + hundred_non_zero() | pynutil.delete("000"))
-
-        graph_million = (
-            pynini.union(
-                hundred_non_zero() + insert_space + pynutil.insert("million") + pynini.closure(pynutil.insert("en"), 0, 1),
-                pynutil.delete("000")
+            return (hundred_non_zero() + insert_space + pynutil.insert("tausend") | pynutil.delete("000")) + (
+                insert_space + hundred_non_zero() | pynutil.delete("000")
             )
+
+        graph_million = pynini.union(
+            hundred_non_zero() + insert_space + pynutil.insert("million") + pynini.closure(pynutil.insert("en"), 0, 1),
+            pynutil.delete("000"),
         )
 
-        graph_billion = (
-            pynini.union(
-                hundred_non_zero() + insert_space + pynutil.insert("milliarde") + pynini.closure(pynutil.insert("n"), 0, 1),
-                pynutil.delete("000")
-            )
+        graph_billion = pynini.union(
+            hundred_non_zero()
+            + insert_space
+            + pynutil.insert("milliarde")
+            + pynini.closure(pynutil.insert("n"), 0, 1),
+            pynutil.delete("000"),
         )
 
-        graph_trillion  = (
-            pynini.union(
-                hundred_non_zero() + insert_space + pynutil.insert("billion") + pynini.closure(pynutil.insert("en"), 0, 1),
-                pynutil.delete("000")
-            )
+        graph_trillion = pynini.union(
+            hundred_non_zero() + insert_space + pynutil.insert("billion") + pynini.closure(pynutil.insert("en"), 0, 1),
+            pynutil.delete("000"),
         )
 
-        
-        graph_quadrillion  = (
-            pynini.union(
-                hundred_non_zero() + insert_space + pynutil.insert("billiarde") + pynini.closure(pynutil.insert("n"), 0, 1),
-                pynutil.delete("000")
-            )
-        )
-        
-        graph_quintillion   = (
-            pynini.union(
-                hundred_non_zero() + insert_space + pynutil.insert("trillion") + pynini.closure(pynutil.insert("en"), 0, 1),
-                pynutil.delete("000")
-            )
+        graph_quadrillion = pynini.union(
+            hundred_non_zero()
+            + insert_space
+            + pynutil.insert("billiarde")
+            + pynini.closure(pynutil.insert("n"), 0, 1),
+            pynutil.delete("000"),
         )
 
-        graph_sextillion    = (
-            pynini.union(
-                hundred_non_zero() + insert_space + pynutil.insert("trilliarde") + pynini.closure(pynutil.insert("n"), 0, 1),
-                pynutil.delete("000")
-            )
+        graph_quintillion = pynini.union(
+            hundred_non_zero()
+            + insert_space
+            + pynutil.insert("trillion")
+            + pynini.closure(pynutil.insert("en"), 0, 1),
+            pynutil.delete("000"),
+        )
+
+        graph_sextillion = pynini.union(
+            hundred_non_zero()
+            + insert_space
+            + pynutil.insert("trilliarde")
+            + pynini.closure(pynutil.insert("n"), 0, 1),
+            pynutil.delete("000"),
         )
         graph = pynini.union(
             graph_sextillion
@@ -163,36 +182,53 @@ class CardinalFst(GraphFst):
             + thousand()
         )
 
-        self.graph = pynini.difference(pynini.closure(NEMO_DIGIT, 1), "0") @ pynini.cdrewrite(pynini.closure(pynutil.insert("0")), "[BOS]", "", NEMO_SIGMA) @ NEMO_DIGIT ** 24 @ graph @ pynini.cdrewrite(delete_space, "[BOS]", "", NEMO_SIGMA)
+        self.graph = (
+            pynini.difference(pynini.closure(NEMO_DIGIT, 1), "0")
+            @ pynini.cdrewrite(pynini.closure(pynutil.insert("0")), "[BOS]", "", NEMO_SIGMA)
+            @ NEMO_DIGIT ** 24
+            @ graph
+            @ pynini.cdrewrite(delete_space, "[BOS]", "", NEMO_SIGMA)
+        )
         self.graph |= graph_zero
 
-        self.graph = pynini.cdrewrite(pynutil.delete(separator), "", "", NEMO_SIGMA) @ self.graph
+        # self.graph = pynini.cdrewrite(pynutil.delete(separator), "", "", NEMO_SIGMA) @ self.graph
+        self.graph = self.graph.optimize()
+
+        self.graph_hundred_component_at_least_one_none_zero_digit = (
+            pynini.cdrewrite(pynini.closure(pynutil.insert("0")), "[BOS]", "", NEMO_SIGMA)
+            @ NEMO_DIGIT ** 3
+            @ hundred_non_zero()
+        )
+        self.graph_hundred_component_at_least_one_none_zero_digit = (
+            self.graph_hundred_component_at_least_one_none_zero_digit.optimize()
+        )
+
         optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
 
         final_graph = optional_minus_graph + pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
 
-    def get_serial_graph(self):
-        """
-        Finite state transducer for classifying serial.
-            The serial is a combination of digits, letters and dashes, e.g.:
-            c325-b -> tokens { cardinal { integer: "c three two five b" } }
-        """
-        alpha = NEMO_ALPHA
+    # def get_serial_graph(self):
+    #     """
+    #     Finite state transducer for classifying serial.
+    #         The serial is a combination of digits, letters and dashes, e.g.:
+    #         c325-b -> tokens { cardinal { integer: "c three two five b" } }
+    #     """
+    #     alpha = NEMO_ALPHA
 
-        if self.deterministic:
-            num_graph = self.single_digits_graph
-        else:
-            num_graph = self.graph | self.single_digits_graph
+    #     if self.deterministic:
+    #         num_graph = self.single_digits_graph
+    #     else:
+    #         num_graph = self.graph | self.single_digits_graph
 
-        delimiter = insert_space | pynini.cross("-", " ") | pynini.cross("/", " ")
-        letter_num = pynini.closure(alpha + delimiter, 1) + num_graph
-        num_letter = pynini.closure(num_graph + delimiter, 1) + alpha
-        num_delimiter_num = pynini.closure(num_graph + delimiter, 1) + num_graph
-        next_alpha_or_num = pynini.closure(delimiter + (alpha | num_graph))
-        serial_graph = (letter_num | num_letter | num_delimiter_num) + next_alpha_or_num
-        if not self.deterministic:
-            serial_graph += pynini.closure(pynini.accep("s"), 0, 1)
+    #     delimiter = insert_space | pynini.cross("-", " ") | pynini.cross("/", " ")
+    #     letter_num = pynini.closure(alpha + delimiter, 1) + num_graph
+    #     num_letter = pynini.closure(num_graph + delimiter, 1) + alpha
+    #     num_delimiter_num = pynini.closure(num_graph + delimiter, 1) + num_graph
+    #     next_alpha_or_num = pynini.closure(delimiter + (alpha | num_graph))
+    #     serial_graph = (letter_num | num_letter | num_delimiter_num) + next_alpha_or_num
+    #     if not self.deterministic:
+    #         serial_graph += pynini.closure(pynini.accep("s"), 0, 1)
 
-        return serial_graph.optimize()
+    #     return serial_graph.optimize()
