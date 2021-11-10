@@ -149,6 +149,7 @@ class _AudioTextDALIDataset(Iterator):
         device: str,
         batch_size: int,
         parser: Union[str, Callable],
+        audio_tar_filepaths: Optional[Union[str, List[str]]] = None,
         sample_rate: int = 16000,
         num_threads: int = 4,
         max_duration: float = 0.0,
