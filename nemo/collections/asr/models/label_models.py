@@ -117,7 +117,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
     @staticmethod
     def extract_labels(data_layer_config):
-        labels = {}
+        labels = set()
         manifest_filepath = data_layer_config.get('manifest_filepath', None)
         if manifest_filepath is None:
             return None
