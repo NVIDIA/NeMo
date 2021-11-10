@@ -468,8 +468,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 ``[number_of_word_in_this_segment, number_of_punctuation_labels]``. Word punctuation probabilities for
                 segments in the batch.
             b_capit_probs: list containing ``batch_size`` numpy arrays. The numpy arrays have shapes
-                ``[number_of_word_in_this_segment, number_of_capitalization_labels]``. Word capitalization probabilities for
-                segments in the batch.
+                ``[number_of_word_in_this_segment, number_of_capitalization_labels]``. Word capitalization
+                probabilities for segments in the batch.
             new_start_word_ids: indices of segment first words in a query after margin removal
         """
         new_start_word_ids = list(start_word_ids)
