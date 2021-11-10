@@ -506,6 +506,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             "input_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
             "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType(), optional=True),
             "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "sample_id": NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
     @property
@@ -595,6 +596,22 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             tensorboard_logs.update({'training_batch_wer': wer})
 
         return {'loss': loss_value, 'log': tensorboard_logs}
+
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        signal, signal_len, transcript, transcript_len, sample_id = batch
+        if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
+            log_probs, encoded_len, predictions = self.forward(
+                processed_signal=signal, processed_signal_length=signal_len
+            )
+        else:
+            log_probs, encoded_len, predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
+
+        transcribed_texts = self._wer.ctc_decoder_predictions_tensor(
+            predictions=predictions, predictions_len=encoded_len, return_hypotheses=False,
+        )
+
+        sample_id = sample_id.cpu().detach().numpy()
+        return list(zip(sample_id, transcribed_texts))
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         signal, signal_len, transcript, transcript_len = batch
