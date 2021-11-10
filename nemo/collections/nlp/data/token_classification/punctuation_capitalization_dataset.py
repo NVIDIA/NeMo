@@ -424,7 +424,7 @@ def tokenize_create_masks_clip_parallel(
     """
     create_progress_process = progress_queue is None
     if njobs is None:
-        njobs = mp.cpu_count()
+        njobs = min(mp.cpu_count(), len(queries))
     if verbose:
         logging.info(f"Running tokenization with {njobs} jobs.")
 
@@ -785,6 +785,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 raise ValueError("Labels file should contain labels for every word")
 
             dataset = list(zip(text_lines, punct_labels_lines, capit_labels_lines))
+            if len(dataset) == 0:
+                raise ValueError(f"Dataset loaded from files {text_file} and {label_file} is empty.")
 
             if num_samples > 0:
                 dataset = dataset[:num_samples]
