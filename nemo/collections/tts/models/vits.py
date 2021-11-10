@@ -119,8 +119,103 @@ class Vits(TextToWaveform):
         pass
 
     def configure_optimizers(self):
-        # TODO: Implement
-        pass
+        self.optim_g = torch.optim.AdamW(
+            self.net_g.parameters(),
+            self._cfg.model.lr,
+            betas=self._cfg.model.betas,
+            eps=self._cfg.model.eps)
+        self.optim_d = torch.optim.AdamW(
+            self.net_d.parameters(),
+            self._cfg.model.lr,
+            betas=self._cfg.model.betas,
+            eps=self._cfg.model.eps)
+
+        scheduler_g = torch.optim.lr_scheduler.ExponentialLR(self.optim_g, gamma=self._cfg.model.lr_decay)
+        scheduler_g_dict = {
+            'scheduler': scheduler_g,
+            'interval': 'step',
+        }
+        scheduler_d = torch.optim.lr_scheduler.ExponentialLR(self.optim_d, gamma=self._cfg.model.lr_decay)
+        scheduler_d_dict = {
+            'scheduler': scheduler_d,
+            'interval': 'step'
+        }
+        return [self.optim_g, self.optim_d], [scheduler_g_dict, scheduler_d_dict]
+
+    def forward(self, batch, batch_idx):
+        self.net_g.eval()
+        with torch.no_grad():
+            (x, x_lengths, spec, spec_lengths, y, y_lengths) = batch
+
+            # remove else
+            x = x[:1]
+            x_lengths = x_lengths[:1]
+
+            y_hat, attn, mask, *_ = self.net_g.module.infer(x, x_lengths, max_len=1000)
+            y_hat_lengths = mask.sum([1, 2]).long() * self._cfg.model.hop_size
+
+        self.net_g.train()
+        return y_hat[0, :, :y_hat_lengths[0]]
+
+    def training_step(self, batch, batch_idx):
+        (x, x_lengths, spec, spec_lengths, y, y_lengths) = batch
+
+        with autocast(enabled=False):
+            y_hat, l_length, attn, ids_slice, x_mask, z_mask, \
+            (z, z_p, m_p, logs_p, m_q, logs_q) = self.net_g(x, x_lengths, spec, spec_lengths)
+            mel = spec_to_mel_torch(
+                spec,
+                self._cfg.model.train_ds.filter_length,
+                self._cfg.model.n_mel_channels,
+                self._cfg.model.sample_rate,
+                self._cfg.model.mel_fmin,
+                self._cfg.model.mel_fmax
+            )
+            y_mel = commons.slice_segments(mel, ids_slice, self._cfg.model.segment_size // self._cfg.model.hop_size)
+            y_hat_mel = mel_spectrogram_torch(
+                y_hat.squeeze(1),
+                self._cfg.model.train_ds.filter_length,
+                self._cfg.model.n_mel_channels,
+                self._cfg.model.sample_rate,
+                self._cfg.model.hop_size,
+                self._cfg.model.preprocessing.n_window_size,
+                self._cfg.model.mel_fmin,
+                self._cfg.model.mel_fmax
+            )
+            y = commons.slice_segments(y, ids_slice * self._cfg.model.hop_size, self._cfg.model.segment_size)  # slice
+            y_d_hat_r, y_d_hat_g, _, _ = self.net_d(y, y_hat.detach())
+            loss_disc, losses_disc_r, losses_disc_g = DiscriminatorLoss(y_d_hat_r, y_d_hat_g)
+            loss_disc_all = loss_disc
+
+        # train discriminator
+        self.optim_d.zero_grad()
+        self.manual_backward(loss_disc_all)
+        commons.clip_grad_value_(self.net_d.parameters(), None)
+        self.optim_d.step()
+
+        with autocast(enabled=True):
+            # Generator
+            y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = self.net_d(y, y_hat)
+        with autocast(enabled=False):
+            loss_dur = torch.sum(l_length.float())
+            loss_mel = F.l1_loss(y_mel, y_hat_mel) * self._cfg.model.c_mel
+            loss_kl = kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * self._cfg.model.c_kl
+
+            loss_fm = FeatureLoss(fmap_r, fmap_g)
+            loss_gen, losses_gen = GeneratorLoss(y_d_hat_g)
+            loss_gen_all = loss_gen + loss_fm + loss_mel + loss_dur + loss_kl
+
+        # train generator
+        self.optim_g.zero_grad()
+        self.manual_backward(loss_gen_all)
+        commons.clip_grad_value_(self.net_g.parameters(), None)
+        self.optim_d.step()
+
+        schedulers = self.lr_schedulers()
+        if schedulers is not None:
+            sch1, sch2 = schedulers
+            sch1.step()
+            sch2.step()
 
     @staticmethod
     def _loader(cfg):
