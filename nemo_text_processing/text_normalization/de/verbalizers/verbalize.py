@@ -56,7 +56,7 @@ class VerbalizeFst(GraphFst):
         electronic_graph = electronic.fst
         whitelist_graph = WhiteListFst().fst
         # money_graph = MoneyFst(decimal=decimal).fst
-        # telephone_graph = TelephoneFst().fst
+        telephone_graph = TelephoneFst().fst
         # time_graph = TimeFst().fst
 
         graph = (
@@ -69,7 +69,7 @@ class VerbalizeFst(GraphFst):
             # | money_graph
             | fraction_graph
             | whitelist_graph
-            # | telephone_graph
+            | telephone_graph
             # | time_graph
         )
         self.fst = graph

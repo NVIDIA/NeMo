@@ -52,7 +52,6 @@ class ElectronicFst(GraphFst):
         accepted_symbols = [x[0] for x in load_labels(get_abs_path("data/electronic/symbols.tsv"))]
         accepted_symbols = pynini.union(*accepted_symbols) - dot
         accepted_characters = pynini.closure(NEMO_ALPHA | NEMO_DIGIT | accepted_symbols)
-        graph_symbols = pynini.string_file(get_abs_path("data/electronic/symbols.tsv"))
 
         # email
         username = pynutil.insert("username: \"") + accepted_characters + pynutil.insert("\"") + pynini.cross('@', ' ')

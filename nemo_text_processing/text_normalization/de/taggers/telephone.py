@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo_text_processing.text_normalization.de.utils import get_abs_path
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_DIGIT,
     NEMO_SIGMA,
@@ -21,7 +22,6 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     delete_space,
     insert_space,
 )
-from nemo_text_processing.text_normalization.en.utils import get_abs_path
 
 try:
     import pynini
@@ -48,38 +48,39 @@ class TelephoneFst(GraphFst):
     def __init__(self, cardinal: GraphFst, deterministic: bool = True):
         super().__init__(name="telephone", kind="classify", deterministic=deterministic)
 
-        digit = (
-            pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv"))).optimize()
-            | pynini.invert(pynini.string_file(get_abs_path("data/numbers/zero.tsv"))).optimize()
-        )
+        graph_zero = pynini.invert(pynini.string_file(get_abs_path("data/numbers/zero.tsv"))).optimize()
+        graph_digit_no_zero = pynini.invert(
+            pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
+        ).optimize() | pynini.cross("1", "eins")
+        graph_digit = graph_digit_no_zero | graph_zero
+        
+        numbers_with_single_digits = pynini.closure(graph_digit + insert_space) + graph_digit
+
+        two_digit_and_zero = (NEMO_DIGIT ** 2 @ cardinal.two_digit_non_zero) | graph_zero
+        # def add_space_after_two_digit():
+        #     return pynini.closure(two_digit_and_zero + insert_space) + (
+        #         two_digit_and_zero
+        #     )
+
+        country_code = pynini.closure(pynini.cross("+", "plus "), 0, 1) + two_digit_and_zero
+        country_code |= pynutil.delete("(") +  graph_zero + insert_space + numbers_with_single_digits + pynutil.delete(")")
+        country_code |= graph_zero + insert_space + numbers_with_single_digits
 
         country_code = (
             pynutil.insert("country_code: \"")
-            + pynini.closure(pynini.cross("+", "plus "), 0, 1)
-            + (NEMO_DIGIT + NEMO_DIGIT) @ cardinal.graph_hundred_component_at_least_one_none_zero_digit
+            + country_code
             + pynutil.insert("\"")
         )
-        optional_country_code = pynini.closure(
-            country_code + pynini.closure(pynutil.delete("-"), 0, 1) + delete_space + insert_space, 0, 1
-        )
 
-        del_separator = pynini.closure(pynini.union("-", " "), 0, 1)
-
-        numbers = pynini.closure(
-            (NEMO_DIGIT | (NEMO_DIGIT + NEMO_DIGIT)) @ cardinal.graph_hundred_component_at_least_one_none_zero_digit
-            + insert_space,
-            1,
-        )
-
-        numbers = (numbers + del_separator) | (
-            pynutil.delete("(") + numbers + (pynutil.delete(") ") | pynutil.delete(")-")) + numbers
-        )
-
+        del_separator = pynini.cross(pynini.union("-"," "), " ")
+        # numbers_with_two_digits = pynini.closure(graph_digit + insert_space) + add_space_after_two_digit() + pynini.closure(insert_space + graph_digit)
+        # numbers = numbers_with_two_digits + pynini.closure(del_separator + numbers_with_two_digits, 0, 1)
+        numbers = numbers_with_single_digits + pynini.closure(del_separator + numbers_with_single_digits, 0, 1)
         number_length = pynini.closure((NEMO_DIGIT | pynini.union("-", " ", ")", "(")), 7)
-        number_part = pynini.compose(number_length, numbers) @ pynini.cdrewrite(delete_extra_space, "", "", NEMO_SIGMA)
+        number_part = pynini.compose(number_length, numbers)
         number = pynutil.insert("number_part: \"") + number_part + pynutil.insert("\"")
 
-        graph = optional_country_code + number
+        graph = country_code + pynini.accep(" ") + number
 
         final_graph = self.add_tokens(graph)
         self.fst = final_graph.optimize()
