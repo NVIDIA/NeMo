@@ -65,6 +65,7 @@ model:
     shuffle: true
     num_samples: -1
     tokens_in_batch: 15000
+    njobs: null  # Use all CPU cores
 
   validation_ds:
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
@@ -77,6 +78,7 @@ model:
     shuffle: false
     num_samples: -1
     tokens_in_batch: 15000
+    njobs: null  # Use all CPU cores
 
   test_ds:
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
@@ -89,6 +91,7 @@ model:
     shuffle: false
     num_samples: -1
     tokens_in_batch: 15000
+    njobs: null  # Use all CPU cores
 
   tokenizer:
     tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece

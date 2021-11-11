@@ -76,7 +76,9 @@ class PunctuationCapitalizationDataConfig:
     add_masks_and_segment_ids_to_batch: bool = True
     verbose: bool = True
     pickle_features: bool = True
-    njobs: Optional[int] = None
+    # If 0, then multiprocessing is not used; if null, then njobs is equal to the number of CPU cores.
+    # There can be weird deadlocking with some tokenizers (e.g. SentencePiece) if `njobs` is greater than zero.
+    njobs: Optional[int] = 0
     shuffle: bool = True
 
     #################################################
@@ -408,7 +410,13 @@ def tokenize_create_masks_clip_parallel(
         capit_label_lines: list of labels for every word in a sequence (str)
         verbose: whether to show examples of tokenized data and various progress information
         njobs: a number of workers used for preparing features. If ``njobs <= 0``, then do not use multiprocessing and
-            run features creation in this process. If not set, number of workers will be equal to the number of CPUs
+            run features creation in a calling process. If not set, number of workers will be equal to the number of
+            CPUs.
+
+            !!WARNING!!
+            There can be deadlocking problems with some tokenizers (e.g. SentencePiece, HuggingFace AlBERT)
+            if ``njobs > 0``.
+
         progress_queue: a multiprocessing queue used for reporting progress. Useful for creating tarred dataset
 
     Returns:
@@ -491,7 +499,7 @@ def get_features(
     punct_label_lines: Optional[Union[List[str], Tuple[str, ...]]] = None,
     capit_label_lines: Optional[Union[List[str], Tuple[str, ...]]] = None,
     verbose: bool = True,
-    njobs: Optional[int] = None,
+    njobs: Optional[int] = 0,
     progress_queue: Optional[mp.Queue] = None,
 ) -> Tuple[List[ArrayLike], List[ArrayLike], List[ArrayLike], List[ArrayLike]]:
     """
@@ -666,7 +674,12 @@ class BertPunctuationCapitalizationDataset(Dataset):
             ``capit_label_ids``
         njobs: number of workers used for tokenization, encoding labels, creating "first token in word" mask, and
             clipping. If ``njobs <= 0`` data preparation is performed without multiprocessing. By default ``njobs`` is
-            equal to the number of CPUs
+            equal to the number of CPUs.
+
+            !!WARNING!!
+            There can be deadlocking problems with some tokenizers (e.g. SentencePiece, HuggingFace AlBERT)
+            if ``njobs > 0``.
+
         tokenization_progress_queue: a queue for reporting tokenization progress. Useful for creation of tarred dataset
         batch_mark_up_progress_queue: a queue for reporting progress in deciding which samples batches will contain
             Useful for creation of tarred dataset
@@ -708,7 +721,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         verbose: bool = True,
         pickle_features: bool = True,
         save_label_ids: bool = True,
-        njobs: Optional[int] = None,
+        njobs: Optional[int] = 0,
         tokenization_progress_queue: Optional[mp.Queue] = None,
         batch_mark_up_progress_queue: Optional[mp.Queue] = None,
         batch_building_progress_queue: Optional[mp.Queue] = None,
