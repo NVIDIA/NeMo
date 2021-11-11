@@ -81,7 +81,7 @@ class CallbackParams:
     save_best_model: bool = False
     always_save_nemo: bool = False
     save_nemo_on_train_end: Optional[bool] = True  # Whether to automatically save .nemo file durin on_train_end hook
-    model_parallel_size: Optional[int] = None
+    tensor_model_parallel_size: Optional[int] = None
 
 
 @dataclass
@@ -117,7 +117,7 @@ class ExpManagerConfig:
     # logs timing of train/val/test steps
     log_step_timing: Optional[bool] = True
     step_timing_kwargs: Optional[StepTimingParams] = StepTimingParams()
-    model_parallel_size: Optional[int] = None
+    tensor_model_parallel_size: Optional[int] = None
 
 
 class TimingCallback(Callback):
@@ -674,7 +674,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         save_best_model=False,
         postfix=".nemo",
         n_resume=False,
-        model_parallel_size=None,
+        tensor_model_parallel_size=None,
         **kwargs,
     ):
         # Parse and store "extended" parameters: save_best model and postfix.
@@ -690,7 +690,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             )
         self.postfix = postfix
         self.previous_best_path = ""
-        self.model_parallel_size = model_parallel_size
+        self.tensor_model_parallel_size = tensor_model_parallel_size
 
         # `prefix` is deprecated
         if 'prefix' in kwargs:
@@ -720,7 +720,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         checkpoints = list(Path(self.dirpath).rglob("*.ckpt"))
         for checkpoint in checkpoints:
-            if self.model_parallel_size is not None and self.model_parallel_size > 1:
+            if self.tensor_model_parallel_size is not None and self.tensor_model_parallel_size > 1:
                 checkpoint = self._uninject_mp_rank(checkpoint)
             checkpoint = str(checkpoint)
             if checkpoint[-10:] == '-last.ckpt':
@@ -740,8 +740,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         ### This section should be ok as rank zero will delete all excess checkpoints, since all other ranks are
         ### instantiated after rank zero. models_to_delete should be 0 for all other ranks.
-        if self.model_parallel_size is not None:
-            models_to_delete = len(best_k_models) - self.model_parallel_size * self.save_top_k
+        if self.tensor_model_parallel_size is not None:
+            models_to_delete = len(best_k_models) - self.tensor_model_parallel_size * self.save_top_k
         else:
             models_to_delete = len(best_k_models) - self.save_top_k
         logging.debug(f'Number of models to delete: {models_to_delete}')
@@ -782,7 +782,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         else:
             # Load the best model and then re-save it
             app_state = AppState()
-            if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+            if app_state.tensor_model_parallel_size is not None and app_state.tensor_model_parallel_size > 1:
                 raise ValueError(f'always_save_nemo is not implemented for model parallel models.')
             # since we are creating tarfile artifacts we need to update .nemo path
             app_state.model_restore_path = os.path.abspath(
@@ -830,14 +830,16 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     def _del_model_without_trainer(self, filepath: str) -> None:
         app_state = AppState()
-        if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+        if app_state.tensor_model_parallel_size is not None and app_state.tensor_model_parallel_size > 1:
             # filepath needs to be updated to include mp_rank
             dirname = os.path.dirname(filepath)
             basename = os.path.basename(filepath)
             filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
 
         # each model parallel rank needs to remove its model
-        if is_global_rank_zero() or (app_state.model_parallel_size is not None and app_state.data_parallel_rank == 0):
+        if is_global_rank_zero() or (
+            app_state.tensor_model_parallel_size is not None and app_state.data_parallel_rank == 0
+        ):
             try:
                 self._fs.rm(filepath)
                 logging.info(f"Removed checkpoint: {filepath}")
