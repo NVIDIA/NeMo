@@ -44,12 +44,6 @@ class Text2SparqlModel(ModelPT):
             "labels": NeuralType(('B', 'T'), ChannelType(), optional=True),
         }
 
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {
-            "loss": NeuralType((), LossType()),
-        }
-
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
 
         # must assign tokenizers before init
@@ -163,6 +157,7 @@ class Text2SparqlModel(ModelPT):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`. Loss calculation from HuggingFace's BartForConditionalGeneration.
         """
+        import ipdb; ipdb.set_trace()
         input_ids, input_mask, decoder_input_ids, labels = batch
         loss, logits = self.forward(
             input_ids=input_ids, attention_mask=input_mask, decoder_input_ids=decoder_input_ids, labels=labels,
