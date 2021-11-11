@@ -59,7 +59,7 @@ class VitsConfig:
     pitch_predictor: Dict[Any, Any] = MISSING
 
 
-class Vits(TextToWaveform):
+class VitsModel(TextToWaveform):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
