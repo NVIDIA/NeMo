@@ -41,12 +41,14 @@ from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
 from nemo.utils import logging
 
 NUMBER_RE = "(0|[1-9][0-9]*)"
-TAR_FRAGMENT_TMPL_IN_PROGRESS = "fragment{}.{}.tar"
-TAR_FRAGMENT_TMPL_FINISHED = "fragment{}.num_batches{}.{}.tar"
-TAR_FRAGMENT_TMPL_TO_REPACK = "fragment{}.num_batches{}.{}.tar.to_repack"
+TAR_FRAGMENT_TMPL_IN_PROGRESS = "fragment{fragment_idx}.{file_idx}.tar"
+TAR_FRAGMENT_TMPL_FINISHED = "fragment{fragment_idx}.num_batches{num_batches}.{file_idx}.tar"
+TAR_FRAGMENT_TMPL_TO_REPACK = "fragment{fragment_idx}.num_batches{num_batches}.{file_idx}.tar.to_repack"
 TAR_FRAGMENT_PATTERN_IN_PROGRESS = re.compile(f"fragment{NUMBER_RE}.{NUMBER_RE}.tar$")
 TAR_FRAGMENT_PATTERN_FINISHED = re.compile(f"fragment{NUMBER_RE}.num_batches({NUMBER_RE}).{NUMBER_RE}.tar$")
-TAR_FRAGMENT_PATTERN_TO_REPACK = re.compile(f"fragment{NUMBER_RE}.num_batches{NUMBER_RE}.{NUMBER_RE}.tar.to_repack$")
+TAR_FRAGMENT_PATTERN_TO_REPACK = re.compile(
+    f"fragment({NUMBER_RE}).num_batches({NUMBER_RE}).({NUMBER_RE}).tar.to_repack$"
+)
 
 DATASET_PARAMETERS_TMPL = "{prefix}.tokens{tokens_in_batch}.max_seq_length{max_seq_length}.{tokenizer}"
 TAR_FINAL_TMPL = ".batches{num_batches}.{ctr}.tar"
@@ -184,7 +186,7 @@ def process_fragment(
     tmp_text.unlink()
     tmp_labels.unlink()
     tar_ctr = 0
-    current_file_name = output_dir / TAR_FRAGMENT_TMPL_IN_PROGRESS.format(fragment_idx, tar_ctr)
+    current_file_name = output_dir / TAR_FRAGMENT_TMPL_IN_PROGRESS.format(fragment_idx=fragment_idx, file_idx=tar_ctr)
     current_num_batches = 0
     sink = wds.TarWriter(str(current_file_name))
     progress_made = 0
@@ -195,18 +197,24 @@ def process_fragment(
         if current_num_batches % num_batches_per_tarfile == 0:
             sink.close()
             current_file_name.rename(
-                output_dir / TAR_FRAGMENT_TMPL_FINISHED.format(fragment_idx, current_num_batches, tar_ctr)
+                output_dir / TAR_FRAGMENT_TMPL_FINISHED.format(
+                    fragment_idx=fragment_idx, num_batches=current_num_batches, file_idx=tar_ctr
+                )
             )
             writing_to_tar_progress_queue.put(progress_made)
             progress_made = 0
             tar_ctr += 1
-            current_file_name = output_dir / TAR_FRAGMENT_TMPL_IN_PROGRESS.format(fragment_idx, tar_ctr)
+            current_file_name = output_dir / TAR_FRAGMENT_TMPL_IN_PROGRESS.format(
+                fragment_idx=fragment_idx, file_idx=tar_ctr
+            )
             current_num_batches = 0
             sink = wds.TarWriter(str(current_file_name))
     sink.close()
     writing_to_tar_progress_queue.put(progress_made)
     if progress_made > 0:
-        new_file_name = output_dir / TAR_FRAGMENT_TMPL_TO_REPACK.format(fragment_idx, current_num_batches, tar_ctr)
+        new_file_name = output_dir / TAR_FRAGMENT_TMPL_TO_REPACK.format(
+            fragment_idx=fragment_idx, num_batches=current_num_batches, file_idx=tar_ctr
+        )
         current_file_name.rename(new_file_name)
     else:
         current_file_name.unlink()
@@ -522,19 +530,20 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
         if TAR_FRAGMENT_PATTERN_TO_REPACK.match(path.name) is not None
     ]
     files_to_repack_with_matches = sorted(files_to_repack_with_matches, key=lambda x: int(x[1].group(3)))
-    files_to_repack = [f for f, m in files_to_repack_with_matches]
-    logging.info(f"Found {len(files_to_repack)} files for repacking.")
-    files_to_repack = deque(files_to_repack)
-    number_of_write_ops = 0
-    initial_number_of_files_to_repack = len(files_to_repack)
+    logging.info(f"Found {len(files_to_repack_with_matches)} files for repacking.")
+    files_to_repack_with_matches = deque(files_to_repack_with_matches)
+    total_batches_in_repacked_files = 0
+    initial_number_of_files_to_repack = len(files_to_repack_with_matches)
     pop_file_ds = None
     new_file_sink = None
     new_file_num_batches = 0
-    while files_to_repack:
+    while files_to_repack_with_matches:
         assert pop_file_ds is None or new_file_sink is None
         if new_file_sink is None:
-            append_file = files_to_repack.popleft()
-            new_file = append_file.parent / append_file.stem
+            append_file, match = files_to_repack_with_matches.popleft()
+            new_file = append_file.parent / TAR_FRAGMENT_TMPL_FINISHED.format(
+                fragment_idx=match.group(1), num_batches=num_batches_per_tarfile, file_idx=match.group(3)
+            )
             new_file_sink = wds.TarWriter(str(new_file))
             append_ds_to_rewrite = (
                 wds.WebDataset(urls=[str(append_file)], nodesplitter=None)
@@ -544,10 +553,12 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
             for key, batch in iter(append_ds_to_rewrite):
                 new_file_sink.write({"__key__": key, "batch.pyd": batch})
                 new_file_num_batches += 1
-                number_of_write_ops += 1
-                assert number_of_write_ops < initial_number_of_files_to_repack * num_batches_per_tarfile
-        if files_to_repack and pop_file_ds is None:
-            pop_file = files_to_repack.pop()
+                total_batches_in_repacked_files += 1
+            assert total_batches_in_repacked_files < initial_number_of_files_to_repack * num_batches_per_tarfile
+            assert new_file_num_batches == int(match.group(2))
+            append_file.unlink()
+        if files_to_repack_with_matches and pop_file_ds is None:
+            pop_file, _ = files_to_repack_with_matches.pop()
             pop_file_ds = (
                 wds.WebDataset(urls=[str(pop_file)], nodesplitter=None)
                 .decode(wds.handle_extension('.pyd', decode_pyd))
@@ -563,8 +574,8 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
                     pop_file.unlink()
                     break
                 new_file_sink.write({"__key__": key, "batch.pyd": batch})
-                number_of_write_ops += 1
-                assert number_of_write_ops < initial_number_of_files_to_repack * num_batches_per_tarfile
+                total_batches_in_repacked_files += 1
+                assert total_batches_in_repacked_files < initial_number_of_files_to_repack * num_batches_per_tarfile
                 new_file_num_batches += 1
             if new_file_num_batches >= num_batches_per_tarfile:
                 assert new_file_num_batches == num_batches_per_tarfile
@@ -576,7 +587,7 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
         new_file.unlink()
     if pop_file_ds is not None:
         pop_file.unlink()
-    logging.info(f"Repacked {number_of_write_ops} batches from short tar files")
+    logging.info(f"Repacked {total_batches_in_repacked_files} batches from short tar files")
 
 
 def create_metadata_file(
