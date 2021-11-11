@@ -5,6 +5,7 @@ from typing import Any, Dict
 import numpy as np
 import torch
 from hydra.utils import instantiate
+import omegaconf
 from omegaconf import MISSING, DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
@@ -14,9 +15,9 @@ from torch import nn
 from torch.nn import functional as F
 
 import commons
-import modules
 import attentions
 import monotonic_align
+from torch.cuda.amp import autocast
 
 from torch.nn import Conv1d, ConvTranspose1d, AvgPool1d, Conv2d
 from torch.nn.utils import weight_norm, remove_weight_norm, spectral_norm
@@ -86,7 +87,7 @@ class Vits(TextToWaveform):
         self.pitch_predictor = instantiate(cfg.pitch_predictor)
 
         self.generator = instantiate(cfg.generator)
-        self.multiperioddisc = MultiPeriodDiscriminator()
+        self.multiperioddisc = modules.MultiPeriodDiscriminator()
         self.feat_matching_loss = FeatureLoss()
         self.disc_loss = DiscriminatorLoss()
         self.gen_loss = GeneratorLoss()
@@ -163,7 +164,7 @@ class Vits(TextToWaveform):
         with autocast(enabled=False):
             y_hat, l_length, attn, ids_slice, x_mask, z_mask, \
             (z, z_p, m_p, logs_p, m_q, logs_q) = self.net_g(x, x_lengths, spec, spec_lengths)
-            mel = spec_to_mel_torch(
+            mel = modules.spec_to_mel_torch(
                 spec,
                 self._cfg.model.train_ds.filter_length,
                 self._cfg.model.n_mel_channels,
@@ -172,7 +173,7 @@ class Vits(TextToWaveform):
                 self._cfg.model.mel_fmax
             )
             y_mel = commons.slice_segments(mel, ids_slice, self._cfg.model.segment_size // self._cfg.model.hop_size)
-            y_hat_mel = mel_spectrogram_torch(
+            y_hat_mel = modules.mel_spectrogram_torch(
                 y_hat.squeeze(1),
                 self._cfg.model.train_ds.filter_length,
                 self._cfg.model.n_mel_channels,
@@ -199,7 +200,7 @@ class Vits(TextToWaveform):
         with autocast(enabled=False):
             loss_dur = torch.sum(l_length.float())
             loss_mel = F.l1_loss(y_mel, y_hat_mel) * self._cfg.model.c_mel
-            loss_kl = kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * self._cfg.model.c_kl
+            loss_kl = KlLoss(z_p, logs_q, m_p, logs_p, z_mask) * self._cfg.model.c_kl
 
             loss_fm = FeatureLoss(fmap_r, fmap_g)
             loss_gen, losses_gen = GeneratorLoss(y_d_hat_g)
