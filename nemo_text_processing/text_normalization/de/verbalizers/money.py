@@ -48,102 +48,44 @@ class MoneyFst(GraphFst):
     def __init__(self, decimal: GraphFst, deterministic: bool = True):
         super().__init__(name="money", kind="verbalize", deterministic=deterministic)
 
-        unit = (
-            pynutil.delete("currency:")
-            + delete_space
-            + pynutil.delete("\"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
-        )
-        graph = decimal.numbers + delete_space + pynutil.insert(" ") + unit
+        keep_space = pynini.accep(" ")
 
-        one = pynini.union("ein", "einem", "eines", "einer", "einen")
+        maj = pynutil.delete("currency_maj: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        min = pynutil.delete("currency_min: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
 
-        # For non-deterministic case, the currency symbol was not changed in the tagger, so here we need to
-        # create a transducer to replace the currency symbol with the correct spoken equivalent
-
-        # the graph finds instances where the fractional part is '.01' - this is need to add singular case for
-        # the minor currency
-        fractional_non_one = (
-            pynutil.delete("fractional_part: \"")
-            + pynini.difference(pynini.closure(NEMO_NOT_QUOTE), one)
-            + pynutil.delete("\"")
-        )
-        preserve_order = pynutil.delete("preserve_order: true")
-
-        unit_major_sing = pynini.string_file(get_abs_path("data/money/currency.tsv"))
-        unit_major_plural = (
-            (pynutil.delete("currency: \"") | pynutil.delete("currency_maj: \""))
-            + pynini.compose(unit_major_sing, SINGULAR_TO_PLURAL)  ### TODO change
-            + pynutil.delete("\"")
-        )
-        unit_major_sing = (
-            (pynutil.delete("currency: \"") | pynutil.delete("currency_maj: \""))
-            + unit_major_sing
-            + pynutil.delete("\"")
-        )
-        unit_minor_sing = pynini.string_file(get_abs_path("data/money/currency_minor_singular.tsv"))
-        unit_minor_sing = pynutil.delete("currency_min: \"") + unit_minor_sing + pynutil.delete("\"")
-        unit_minor_plural = pynini.string_file(get_abs_path("data/money/currency_minor_plural.tsv"))
-        unit_minor_plural = pynutil.delete("currency_min: \"") + unit_minor_plural + pynutil.delete("\"")
-
-        # for the integer part of the money graph find cases, when the integer part is one
-        # this is need to add a singular currency value, e.g. `$1` -> `one dollar` not `one dollars`
-        integer_one = pynini.compose(decimal.integer, one)
-
-        # graph for integer values that are not `1`, we need to use plural currency form for such cases
-        integer_not_one = pynini.compose(decimal.integer, pynini.difference(NEMO_SIGMA, one))
-        graph_integer = integer_one + delete_space + insert_space + unit_major_sing
-        graph_integer |= integer_not_one + delete_space + insert_space + unit_major_plural
-
-        # find when the fractional part is equal to `.01` -> to use singular form of the minor currency
-        fractional_part_sing = (
-            delete_space
-            + pynutil.delete("fractional_part: \"")
-            + one
-            + pynutil.delete("\"")
-            + delete_space
-            + insert_space
-            + unit_minor_sing
-            + delete_space
-            + pynini.closure(preserve_order)
+        preserve_order = pynini.closure(
+            pynutil.delete(" preserve_order: true")
+            | (pynutil.delete(" field_order: \"") + NEMO_NOT_QUOTE + pynutil.delete("\"")),
+            1,
         )
 
-        # verbalize money values with .01 in the fractional part and use singular form of the minor currency
-        # e.g. '$12.01' -> 'twelve dollars (and) one cent'
-        graph_decimal_with_minor = (
-            graph_integer
-            + delete_space
-            + insert_space
-            + pynini.closure(pynutil.insert("und ", weight=-0.0001), 0, 1)
-            + fractional_part_sing
+        fractional_part = (
+            pynutil.delete("fractional_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
         )
 
-        fractional_part_plural = (
-            delete_space
-            + fractional_non_one
-            + delete_space
-            + insert_space
-            + unit_minor_plural
-            + delete_space
-            + pynini.closure(preserve_order)
+        integer_part = pynutil.delete("integer_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        optional_add_and = pynini.closure(pynutil.insert(" und "), 0, 1)
+
+        #  *** currency_maj
+        graph_integer = integer_part + keep_space + maj
+
+        #  *** currency_maj + (***) | ((und) *** current_min)
+        graph_integer_with_minor = (
+            integer_part
+            + keep_space
+            + maj
+            + keep_space
+            + (fractional_part | (optional_add_and + fractional_part + keep_space + min))
+            + preserve_order
         )
 
-        # verbalize money values with the fractional part not equal to '.01' and
-        # use plural form of the minor currency
-        # e.g. '$12.56' -> 'twelve dollars (and) fifty six cents'
-        graph_decimal_with_minor |= (
-            graph_integer
-            + delete_space
-            + insert_space
-            + pynini.closure(pynutil.insert("und ", weight=-0.0001), 0, 1)
-            + fractional_part_plural
-        )
+        # *** komma *** currency_maj
+        graph_decimal = integer_part + keep_space + pynutil.insert("komma ") + fractional_part + keep_space + maj
 
-        # handle cases when there is no integer part
-        graph_decimal_with_minor |= fractional_part_sing | fractional_part_plural
+        # *** current_min
+        graph_minor = fractional_part + keep_space + min + preserve_order
 
-        graph |= graph_integer | graph_decimal_with_minor
+        graph = graph_integer | graph_integer_with_minor | graph_decimal | graph_minor
 
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
