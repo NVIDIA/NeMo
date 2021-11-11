@@ -97,6 +97,7 @@ class Vits(TextToWaveform):
         self.feat_matching_loss = FeatureLoss()
         self.disc_loss = DiscriminatorLoss()
         self.gen_loss = GeneratorLoss()
+        self.kl_loss = KlLoss()
 
         self.max_token_duration = cfg.max_token_duration
 
@@ -189,7 +190,7 @@ class Vits(TextToWaveform):
             )
             y = commons.slice_segments(y, ids_slice * self._cfg.model.hop_size, self._cfg.model.segment_size)  # slice
             y_d_hat_r, y_d_hat_g, _, _ = self.net_d(y, y_hat.detach())
-            loss_disc, losses_disc_r, losses_disc_g = DiscriminatorLoss(y_d_hat_r, y_d_hat_g)
+            loss_disc, losses_disc_r, losses_disc_g = self.disc_loss(y_d_hat_r, y_d_hat_g)
             loss_disc_all = loss_disc
 
         # train discriminator
@@ -204,10 +205,10 @@ class Vits(TextToWaveform):
         with autocast(enabled=False):
             loss_dur = torch.sum(l_length.float())
             loss_mel = F.l1_loss(y_mel, y_hat_mel) * self._cfg.model.c_mel
-            loss_kl = KlLoss(z_p, logs_q, m_p, logs_p, z_mask) * self._cfg.model.c_kl
+            loss_kl = self.kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * self._cfg.model.c_kl
 
-            loss_fm = FeatureLoss(fmap_r, fmap_g)
-            loss_gen, losses_gen = GeneratorLoss(y_d_hat_g)
+            loss_fm = self.feat_matching_loss(fmap_r, fmap_g)
+            loss_gen, losses_gen = self.gen_loss(y_d_hat_g)
             loss_gen_all = loss_gen + loss_fm + loss_mel + loss_dur + loss_kl
 
         # train generator
