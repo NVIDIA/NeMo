@@ -34,7 +34,7 @@ class MTSchedConfig(SchedConfig):
 
 # TODO: Refactor this dataclass to to support more optimizers (it pins the optimizer to Adam-like optimizers).
 @dataclass
-class MTOptimConfig(OptimConfig):
+class PunctuationCapitalizationOptimConfig(OptimConfig):
     name: str = 'adam'
     lr: float = 1e-3
     betas: Tuple[float, float] = (0.9, 0.98)
@@ -122,7 +122,7 @@ class PunctuationCapitalizationModelConfig:
 
     language_model: LanguageModelConfig = LanguageModelConfig()
 
-    optim: Optional[OptimConfig] = MTOptimConfig()
+    optim: Optional[OptimConfig] = PunctuationCapitalizationOptimConfig()
 
 
 @dataclass

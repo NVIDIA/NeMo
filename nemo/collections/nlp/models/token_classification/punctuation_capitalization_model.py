@@ -229,7 +229,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         """
         return self.multi_eval_epoch_end('test', dataloader_idx)
 
-    def update_data_dir(self, data_dir: str) -> None:
+    def update_data_dir(self, data_dir: str):
         """
         Update data directory
 
@@ -241,6 +241,40 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             self._cfg.dataset.data_dir = data_dir
         else:
             raise ValueError(f'{data_dir} not found')
+
+    def update_config(
+        self,
+        dataset: Optional[DictConfig] = None,
+        train_ds: Optional[DictConfig] = None,
+        test_ds: Optional[DictConfig] = None,
+        validation_ds: Optional[DictConfig] = None,
+        optim: Optional[DictConfig] = None,
+    ):
+        """
+        Replace some sections of config. Useful after restoring from checkpoint for finetuning and testing.
+
+        Args:
+            dataset: contains common dataset parameters. See possible options in
+                ``nemo.collections.nlp.models.token_classification.punctuation_capitalization_config.CommonDatasetParameters``
+            train_ds: configuration of training dataset. See possible options in
+                ``nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.PunctuationCapitalizationDataConfig``
+            validation_ds: configuration of validation dataset. See possible options in
+                ``nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.PunctuationCapitalizationDataConfig``
+            test_ds: configuration of test dataset. See possible options in
+                ``nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.PunctuationCapitalizationDataConfig``
+            optim: optimization configuration. See possible options in
+                ``nemo.collections.nlp.models.token_classification.punctuation_capitalization_config.PunctuationCapitalizationOptimConfig``
+        """
+        if dataset is not None:
+            self._cfg.dataset = dataset
+        if train_ds is not None:
+            self._cfg.train_ds = train_ds
+        if validation_ds is not None:
+            self._cfg.validation_ds = validation_ds
+        if test_ds is not None:
+            self._cfg.test_ds = test_ds
+        if optim is not None:
+            self._cfg.optim = optim
 
     def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
         """Setup training data"""
@@ -333,13 +367,13 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 f"present in model config. Parameters `data_dir` or `ds_item` are paths to directory where "
                 f"`metadata_file`, `text_file`, `labels_file` files are stored."
             )
+        ds_data_dir = data_dir if ds_item is None else ds_item
         if use_tarred_dataset:
             if cfg.metadata_file is None:
                 raise ValueError(
                     f"If parameter `use_tarred_dataset` is `True`, then a field `metadata_file` has to be a path "
                     f"to tarred dataset metadata file, whereas `None` is given."
                 )
-            ds_data_dir = data_dir if ds_item is None else ds_item
             metadata_file = Path(ds_data_dir) / cfg.metadata_file
             dataset = BertPunctuationCapitalizationTarredDataset(
                 metadata_file=metadata_file,
@@ -370,7 +404,6 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 tokens_in_batch = DEFAULT_NUM_TOKENS_IN_BATCH
             max_seq_length = cfg.get('max_seq_length')
             use_cache = cfg.get('use_cache')
-            ds_data_dir = data_dir if ds_item is None else ds_item
             text_file, labels_file = Path(ds_data_dir) / cfg.text_file, Path(ds_data_dir) / cfg.labels_file
             dataset = BertPunctuationCapitalizationDataset(
                 tokenizer=self.tokenizer,

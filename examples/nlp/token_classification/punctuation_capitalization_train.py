@@ -84,8 +84,17 @@ def main(cfg: DictConfig) -> None:
             raise ValueError(
                 f'Provide path to the pre-trained .nemo file or choose from {PunctuationCapitalizationModel.list_available_models()}'
             )
+        model.update_config(
+            dataset=cfg.model.dataset,
+            train_ds=cfg.model.train_ds,
+            validation_ds=cfg.model.validation_ds,
+            test_ds=cfg.model.test_ds,
+            optim=cfg.model.optim,
+        )
+        model.set_trainer(trainer)
         model.setup_training_data()
         model.setup_validation_data()
+        model.setup_optimization()
 
     trainer.fit(model)
 
