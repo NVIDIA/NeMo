@@ -175,7 +175,10 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         return self.eval_step(batch, 'test', dataloader_idx)
 
     def training_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
-        if self._cfg.shuffle_train_dataset:
+        shuffle_train_dataset = self._cfg.dataset.get('shuffle_train_dataset')
+        if shuffle_train_dataset is None:  # Encountered legacy config
+            shuffle_train_dataset = not self.cfg.train_ds.get('use_tarred_dataset', False)
+        if shuffle_train_dataset:
             if isinstance(self.train_dataloader().dataset, BertPunctuationCapitalizationDataset):
                 self.train_dataloader().dataset.shuffle()
             else:

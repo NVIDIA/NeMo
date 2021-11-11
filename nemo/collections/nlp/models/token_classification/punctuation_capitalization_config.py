@@ -75,6 +75,7 @@ class ClassLabels:
 @dataclass
 class CommonDatasetParameters:
     data_dir: Optional[str] = None
+    shuffle_train_dataset: bool = True
     max_seq_length: Optional[int] = 128
     pad_label: str = MISSING
     ignore_extra_tokens: bool = False
@@ -117,8 +118,6 @@ class PunctuationCapitalizationModelConfig:
     capit_head: CapitHeadConfig = CapitHeadConfig()
 
     tokenizer: Any = MISSING
-
-    shuffle_train_dataset: bool = False
 
     language_model: LanguageModelConfig = LanguageModelConfig()
 
