@@ -12,6 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.asr.losses.angularloss import AngularSoftmaxLoss
-from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.losses.pt_losses.contrastive import ContrastiveLoss

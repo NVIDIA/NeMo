@@ -31,9 +31,6 @@ model:
             "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
 
   model_defaults:
-    se: true
-    se_context_size: -1
-    # encoder / decoder / joint values
     enc_hidden: ${model.encoder.d_model}
     pred_hidden: 640
     joint_hidden: 640
@@ -102,8 +99,10 @@ model:
 
     # Multi-headed Attention Module's params
     self_attention_model: rel_pos # rel_pos or abs_pos
-    n_heads: 8
-    xscaling: true # scales up the inputs by sqrt(d_model)
+    n_heads: 8 # may need to be lower for smaller d_models
+    # [left, right] specifies the number of steps to be seen from left and right of each step in self-attention
+    att_context_size: [-1, -1] # -1 means unlimited context
+    xscaling: true # scales up the input embeddings by sqrt(d_model)
     untie_biases: true # unties the biases of the TransformerXL layers
     pos_emb_max_len: 5000
 

@@ -315,14 +315,24 @@ pipeline {
 
         stage('Speaker Diarization Inference') {
           steps {
-            sh 'python examples/speaker_tasks/diarization/speaker_diarize.py \
-            diarizer.oracle_num_speakers=2 \
-            diarizer.paths2audio_files=/home/TestData/an4_diarizer/audio_files.scp \
-            diarizer.path2groundtruth_rttm_files=/home/TestData/an4_diarizer/rttm_files.scp \
+            sh 'python examples/speaker_tasks/diarization/offline_diarization.py \
+	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
             diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
             diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
             diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
             sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
+          }
+        }
+
+        stage('Speaker Diarization with ASR Inference') {
+          steps {
+            sh 'python examples/speaker_tasks/diarization/offline_diarization_with_asr.py \
+	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
+            diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
+            diarizer.asr.model_path=QuartzNet15x5Base-En \
+            diarizer.asr.parameters.asr_based_vad=True \
+            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_asr_results'
+            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_asr_results'
           }
         }
 
@@ -338,6 +348,19 @@ pipeline {
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_wpe_results'
             sh 'rm -rf examples/asr/speech_to_text_wpe_results'
+          }
+        }
+
+        stage('L2: Speech Pre-training - CitriNet') {
+          steps {
+            sh 'python examples/asr/speech_pre_training.py \
+            --config-path="conf/citrinet_ssl/" --config-name="citrinet_ssl_ci" \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_pre_training_results'
+            sh 'rm -rf examples/asr/speech_pre_training_results'
           }
         }
 
