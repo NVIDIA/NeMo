@@ -61,14 +61,14 @@ model:
     use_tarred_dataset: false
     text_file: text_train.txt
     labels_file: labels_train.txt
-    metadata_file: null
+    tar_metadata_file: null
     shuffle: true
     num_samples: -1
     tokens_in_batch: 15000
     # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
     # number of jobs is equal to the number of CPU cores.
     # WARNING: can cause deadlocks with tokenizers, which use multiprocessing (e.g. SentencePiece)
-    njobs: 0
+    n_jobs: 0
 
   validation_ds:
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
@@ -77,14 +77,14 @@ model:
     ds_item: null # expected format: [PATH_TO_DEV1,PATH_TO_DEV2] (Note no space between the paths and square brackets)
     text_file: text_dev.txt
     labels_file: labels_dev.txt
-    metadata_file: null
+    tar_metadata_file: null
     shuffle: false
     num_samples: -1
     tokens_in_batch: 15000
     # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
     # number of jobs is equal to the number of CPU cores.
     # WARNING: can cause deadlocks with tokenizers, which use multiprocessing (e.g. SentencePiece)
-    njobs: 0
+    n_jobs: 0
 
   test_ds:
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
@@ -93,14 +93,14 @@ model:
     ds_item: null # expected format: [PATH_TO_DEV1,PATH_TO_DEV2] (Note no space between the paths and square brackets)
     text_file: text_dev.txt
     labels_file: labels_dev.txt
-    metadata_file: null
+    tar_metadata_file: null
     shuffle: false
     num_samples: -1
     tokens_in_batch: 15000
     # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
     # number of jobs is equal to the number of CPU cores.
     # WARNING: can cause deadlocks with tokenizers, which use multiprocessing (e.g. SentencePiece)
-    njobs: 0
+    n_jobs: 0
 
   tokenizer:
     tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece

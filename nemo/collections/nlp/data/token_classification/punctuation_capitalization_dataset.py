@@ -57,13 +57,13 @@ DEFAULT_CAPIT_LABEL_IDS_NAME = 'capit_label_ids.csv'
 
 @dataclass
 class PunctuationCapitalizationDataConfig:
-    # Path to a directory where `metadata_file` or `text_file` and `labels_file` lay
+    # Path to a directory where `tar_metadata_file` or `text_file` and `labels_file` lay
     ds_item: Optional[Any] = None  # Any = str or List[str]
     text_file: Optional[Any] = None  # Any -- Union[str, List[str]]  A name of dataset source file
     labels_file: Optional[Any] = None  # Any = str or List[str]  A name of dataset target file
-    # Whether to use tarred dataset. If True you should provide metadata_file, otherwise text_file and labels_file
+    # Whether to use tarred dataset. If True you should provide tar_metadata_file, otherwise text_file and labels_file
     use_tarred_dataset: bool = False
-    metadata_file: Optional[Any] = None  # Any = str or List[str]  A name of metadata file for tarred dataset
+    tar_metadata_file: Optional[Any] = None  # Any = str or List[str]  A name of metadata file for tarred dataset
 
     #################################################
     # USUAL DATASET PARAMETERS
@@ -76,9 +76,9 @@ class PunctuationCapitalizationDataConfig:
     add_masks_and_segment_ids_to_batch: bool = True
     verbose: bool = True
     pickle_features: bool = True
-    # If 0, then multiprocessing is not used; if null, then njobs is equal to the number of CPU cores.
-    # There can be weird deadlocking with some tokenizers (e.g. SentencePiece) if `njobs` is greater than zero.
-    njobs: Optional[int] = 0
+    # If 0, then multiprocessing is not used; if null, then n_jobs is equal to the number of CPU cores.
+    # There can be weird deadlocking with some tokenizers (e.g. SentencePiece) if `n_jobs` is greater than zero.
+    n_jobs: Optional[int] = 0
     shuffle: bool = True
 
     #################################################
@@ -386,7 +386,7 @@ def tokenize_create_masks_clip_parallel(
     pad_label: str,
     with_label: bool,
     verbose: bool,
-    njobs: Optional[int],
+    n_jobs: Optional[int],
     progress_queue: Optional[mp.Queue],
 ) -> Tuple[List[ArrayLike], List[ArrayLike], List[int], List[ArrayLike], List[ArrayLike]]:
     """
@@ -409,13 +409,13 @@ def tokenize_create_masks_clip_parallel(
         punct_label_lines: list of labels for every word in a sequence (str)
         capit_label_lines: list of labels for every word in a sequence (str)
         verbose: whether to show examples of tokenized data and various progress information
-        njobs: a number of workers used for preparing features. If ``njobs <= 0``, then do not use multiprocessing and
-            run features creation in a calling process. If not set, number of workers will be equal to the number of
-            CPUs.
+        n_jobs: a number of workers used for preparing features. If ``n_jobs <= 0``, then do not use multiprocessing
+            and run features creation in a calling process. If not set, number of workers will be equal to the number
+            of CPUs.
 
             !!WARNING!!
             There can be deadlocking problems with some tokenizers (e.g. SentencePiece, HuggingFace AlBERT)
-            if ``njobs > 0``.
+            if ``n_jobs > 0``.
 
         progress_queue: a multiprocessing queue used for reporting progress. Useful for creating tarred dataset
 
@@ -431,13 +431,13 @@ def tokenize_create_masks_clip_parallel(
             one word have identical labels. If ``with_label`` is ``False``, then ``capit_labels`` is an empty list
     """
     create_progress_process = progress_queue is None
-    if njobs is None:
-        njobs = min(mp.cpu_count(), len(queries))
+    if n_jobs is None:
+        n_jobs = min(mp.cpu_count(), len(queries))
     if verbose:
-        logging.info(f"Running tokenization with {njobs} jobs.")
+        logging.info(f"Running tokenization with {n_jobs} jobs.")
 
     # Number of queries in split
-    split_size = min(len(queries) // max(njobs, 1), MAX_NUM_QUERIES_IN_SPLIT)
+    split_size = min(len(queries) // max(n_jobs, 1), MAX_NUM_QUERIES_IN_SPLIT)
     n_split = len(queries) // split_size
     split_queries = [queries[split_size * i : split_size * (i + 1)] for i in range(n_split - 1)] + [
         queries[split_size * (n_split - 1) :]
@@ -452,8 +452,8 @@ def tokenize_create_masks_clip_parallel(
     if create_progress_process:
         progress = Progress(len(queries), "Tokenization", "query")
         progress_queue = progress.get_queues()[0]
-    if njobs > 0:
-        with mp.Pool(njobs) as pool:
+    if n_jobs > 0:
+        with mp.Pool(n_jobs) as pool:
             result = pool.starmap(
                 TokenizeCreateMasksClipWorker(
                     max_seq_length,
@@ -499,7 +499,7 @@ def get_features(
     punct_label_lines: Optional[Union[List[str], Tuple[str, ...]]] = None,
     capit_label_lines: Optional[Union[List[str], Tuple[str, ...]]] = None,
     verbose: bool = True,
-    njobs: Optional[int] = 0,
+    n_jobs: Optional[int] = 0,
     progress_queue: Optional[mp.Queue] = None,
 ) -> Tuple[List[ArrayLike], List[ArrayLike], List[ArrayLike], List[ArrayLike]]:
     """
@@ -520,8 +520,9 @@ def get_features(
         punct_label_lines: a list of a tuple of labels for every word in a sequence (str)
         capit_label_lines: a list or a tuple of labels for every word in a sequence (str)
         verbose: whether to show examples of tokenized data and various progress information
-        njobs: a number of workers used for preparing features. If ``njobs <= 0``, then do not use multiprocessing and
-            run features creation in this process. If not set, number of workers will be equal to the number of CPUs
+        n_jobs: a number of workers used for preparing features. If ``n_jobs <= 0``, then do not use multiprocessing
+            and run features creation in this process. If not set, number of workers will be equal to the number of
+            CPUs
         progress_queue: a multiprocessing queue used for reporting progress. Useful for creating tarred dataset
 
     Returns:
@@ -564,7 +565,7 @@ def get_features(
         pad_label,
         with_label,
         verbose,
-        njobs,
+        n_jobs,
         progress_queue,
     )
     if verbose:
@@ -672,13 +673,13 @@ class BertPunctuationCapitalizationDataset(Dataset):
             and capitalization are pickled
         save_label_ids: whether to save punctuation and capitalization label ids into files ``punct_label_ids`` and
             ``capit_label_ids``
-        njobs: number of workers used for tokenization, encoding labels, creating "first token in word" mask, and
-            clipping. If ``njobs <= 0`` data preparation is performed without multiprocessing. By default ``njobs`` is
-            equal to the number of CPUs.
+        n_jobs: number of workers used for tokenization, encoding labels, creating "first token in word" mask, and
+            clipping. If ``n_jobs <= 0`` data preparation is performed without multiprocessing. By default ``n_jobs``
+            is equal to the number of CPUs.
 
             !!WARNING!!
             There can be deadlocking problems with some tokenizers (e.g. SentencePiece, HuggingFace AlBERT)
-            if ``njobs > 0``.
+            if ``n_jobs > 0``.
 
         tokenization_progress_queue: a queue for reporting tokenization progress. Useful for creation of tarred dataset
         batch_mark_up_progress_queue: a queue for reporting progress in deciding which samples batches will contain
@@ -721,7 +722,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         verbose: bool = True,
         pickle_features: bool = True,
         save_label_ids: bool = True,
-        njobs: Optional[int] = 0,
+        n_jobs: Optional[int] = 0,
         tokenization_progress_queue: Optional[mp.Queue] = None,
         batch_mark_up_progress_queue: Optional[mp.Queue] = None,
         batch_building_progress_queue: Optional[mp.Queue] = None,
@@ -849,7 +850,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 capit_label_ids=capit_label_ids,
                 verbose=self.verbose,
                 progress_queue=tokenization_progress_queue,
-                njobs=njobs,
+                n_jobs=n_jobs,
             )
             if pickle_features:
                 pickle.dump(tuple(list(features) + [punct_label_ids, capit_label_ids]), open(features_pkl, "wb"))

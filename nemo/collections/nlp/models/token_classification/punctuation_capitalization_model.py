@@ -368,18 +368,18 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             raise ValueError(
                 f"At least one of parameters `model.dataset.data_dir` and `model.<dataset_config>.ds_item` should be "
                 f"present in model config. Parameters `data_dir` or `ds_item` are paths to directory where "
-                f"`metadata_file`, `text_file`, `labels_file` files are stored."
+                f"`tar_metadata_file`, `text_file`, `labels_file` files are stored."
             )
         ds_data_dir = data_dir if ds_item is None else ds_item
         if use_tarred_dataset:
-            if cfg.metadata_file is None:
+            if cfg.tar_metadata_file is None:
                 raise ValueError(
-                    f"If parameter `use_tarred_dataset` is `True`, then a field `metadata_file` has to be a path "
+                    f"If parameter `use_tarred_dataset` is `True`, then a field `tar_metadata_file` has to be a path "
                     f"to tarred dataset metadata file, whereas `None` is given."
                 )
-            metadata_file = Path(ds_data_dir) / cfg.metadata_file
+            tar_metadata_file = Path(ds_data_dir) / cfg.tar_metadata_file
             dataset = BertPunctuationCapitalizationTarredDataset(
-                metadata_file=metadata_file,
+                metadata_file=tar_metadata_file,
                 tokenizer=self.tokenizer,
                 pad_label=self._cfg.dataset.pad_label,
                 ignore_extra_tokens=self._cfg.dataset.ignore_extra_tokens,
@@ -423,7 +423,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 tokens_in_batch=tokens_in_batch,
                 punct_label_ids_file=self._cfg.class_labels.punct_labels_file,
                 capit_label_ids_file=self._cfg.class_labels.capit_labels_file,
-                njobs=cfg.get('njobs', 0),
+                n_jobs=cfg.get('n_jobs', 0),
                 verbose=False,
             )
         if cfg.shuffle and cfg.use_tarred_dataset:

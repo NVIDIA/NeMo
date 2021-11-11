@@ -93,21 +93,21 @@ class PunctuationCapitalizationModelConfig:
         text_file=MISSING,
         labels_file=MISSING,
         use_tarred_dataset=MISSING,
-        metadata_file=MISSING,
+        tar_metadata_file=MISSING,
         tokens_in_batch=MISSING,
     )
     validation_ds: Optional[PunctuationCapitalizationDataConfig] = PunctuationCapitalizationDataConfig(
         text_file=MISSING,
         labels_file=MISSING,
         use_tarred_dataset=MISSING,
-        metadata_file=MISSING,
+        tar_metadata_file=MISSING,
         tokens_in_batch=MISSING,
     )
     test_ds: Optional[PunctuationCapitalizationDataConfig] = PunctuationCapitalizationDataConfig(
         text_file=MISSING,
         labels_file=MISSING,
         use_tarred_dataset=MISSING,
-        metadata_file=MISSING,
+        tar_metadata_file=MISSING,
         tokens_in_batch=MISSING,
     )
     punct_label_ids: Optional[Dict[str, int]] = None

@@ -184,7 +184,7 @@ discarded during tarred dataset creation.
 
 Beside tar files with batches the script will create metadata JSON file, and 2 csv files with punctuation and
 capitalization labels. To use tarred dataset you will need pass path to metadata file in config parameter
-:code:`model.train_ds.metadata_file` and set config parameter :code:`model.train_ds.use_tarred_dataset=true`.
+:code:`model.train_ds.tar_metadata_file` and set config parameter :code:`model.train_ds.use_tarred_dataset=true`.
 
 Training Punctuation and Capitalization Model
 ---------------------------------------------
@@ -242,7 +242,7 @@ More details about parameters in the config file can be found below and in the
 |                                           |                 | ``ds_item`` parameter is missing, then labels file    |
 |                                           |                 | should be located in ``data_dir``.                    |
 +-------------------------------------------+-----------------+-------------------------------------------------------+
-| **train_ds.metadata_file**                | string          | Name of metadata file located either in ``ds_item``   |
+| **train_ds.tar_metadata_file**                | string          | Name of metadata file located either in ``ds_item``   |
 |                                           |                 | or, if ``ds_item`` is missing, located in             |
 |                                           |                 | ``data_dir``.                                         |
 +-------------------------------------------+-----------------+-------------------------------------------------------+

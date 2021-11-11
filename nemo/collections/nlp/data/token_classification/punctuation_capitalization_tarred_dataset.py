@@ -171,7 +171,7 @@ def process_fragment(
         pad_label=pad_label,
         punct_label_ids=punct_label_ids,
         capit_label_ids=capit_label_ids,
-        njobs=0,
+        n_jobs=0,
         use_cache=False,
         add_masks_and_segment_ids_to_batch=False,
         verbose=False,

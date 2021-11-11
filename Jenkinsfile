@@ -1094,7 +1094,50 @@ pipeline {
         }
       }
     }
-
+    stage('Punctuation & Capitalization tarred dataset') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      stages {
+        stage {
+          sh 'data_dir=/home/TestData/nlp/token_classification_punctuation/ && \
+          usual_data=${data_dir}/wmt_wiki_10000 && \
+          tarred_data=${data_dir}/train_tarred && \
+          tokens_in_batch=2000 && \
+          max_seq_length=512 && \
+          lm_model=distilbert-base-uncased && \
+          python examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py \
+              --text ${usual_data}/input.txt \
+              --labels ${usual_data}/labels.txt \
+              --output_dir ${tarred_data} \
+              --tokens_in_batch ${tokens_in_batch} \
+              --max_seq_length 512 \
+              --lines_per_dataset_fragment 2000 \
+              --num_batches_per_tarfile 5 \
+              --tar_file_prefix punctuation_capitalization \
+              --tokenizer_name ${lm_model} \
+              --use_fast_tokenizer \
+              --pad_label O \
+              --n_jobs 3 && \
+          ls ${train_tarred}/*.tar | wc -l && \
+          metadata_file=${train_tarred}/metadata.punctuation_capitalization.tokens${tokens_in_batch}.max_seq_length{max_seq_length}.{lm_model}.json && \
+          python examples/nlp/token_classification/punctuation_capitalization_train.py \
+              model.dataset.data_dir=${tarred_data} \
+              model.language_model.pretrained_model_name=${lm_model} \
+              model.dataset.use_cache=false \
+              model.train_ds.use_tarred_dataset=true \
+              model.train_ds.tar_metadata_file=${metadata_file} \
+              trainer.gpus=[0,1] \
+              trainer.accelerator=ddp \
+              trainer.max_epochs=1 \
+              +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output'
+        }
+      }
+    }
     stage('L2: Parallel Pretraining BERT pretraining from Text/Preprocessed') {
       when {
         anyOf {
