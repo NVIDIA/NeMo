@@ -120,6 +120,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         labels = set()
         manifest_filepath = data_layer_config.get('manifest_filepath', None)
         if manifest_filepath is None:
+            logging.warning("No manifest_filepath was provided, no labels got extracted!")
             return None
         manifest_filepaths = convert_to_config_list(data_layer_config['manifest_filepath'])
 
@@ -131,7 +132,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
                 index_by_file_id=True,  # Must set this so the manifest lines can be indexed by file ID
             )
             labels.update(collection.uniq_labels)
-        return list(labels)
+        labels = list(labels)
+        logging.warning(f"Total number of {len(labels)} found in all the manifest files.")
+        return labels
 
     def __setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:
