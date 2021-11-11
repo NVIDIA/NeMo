@@ -66,7 +66,7 @@ class WhiteListFst(GraphFst):
                 graph = whitelist_provided
 
         if not deterministic:
-            units_graph = _get_whitelist_graph(input_case, file=get_abs_path("data/measurements.tsv"))
+            units_graph = _get_whitelist_graph(input_case, file=get_abs_path("data/measure/measurements.tsv"))
             graph |= units_graph
 
         self.final_graph = convert_space(graph).optimize()

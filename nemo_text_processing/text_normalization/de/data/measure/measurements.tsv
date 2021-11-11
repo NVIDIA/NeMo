@@ -23,6 +23,14 @@ m³	kubik meter
 km³	kubik kilometer
 mm³	kubik millimeter
 cm³	kubik zentimeter
+m2	quadrat meter
+km2	quadrat kilometer
+mm2	quadrat millimeter
+cm2	quadrat zentimeter
+m3	kubik meter
+km3	kubik kilometer
+mm3	kubik millimeter
+cm3	kubik zentimeter
 ft	fuß
 g	gramm
 µg	mikrogramm
@@ -48,11 +56,11 @@ ghz	gigahertz
 khz	kilohertz
 mhz	megahertz
 v	volt
-mc	mega coulomb
-mA	milli ampere
+mc	megacoulomb
+mA	milliampere
 A	ampere
-tw	tera watt
-mv	milli volt
+tw	terawatt
+mv	millivolt
 mw	megawatt
 gw	gigawatt
 ω	ohm
@@ -63,13 +71,12 @@ pb	petabit
 mb	megabyte
 kb	kilobyte
 tb	terabyte
-kv	kilo volt
-mv	mega volt
+kv	kilovolt
+mv	megavolt
 kn	kilonewton
 ml	milliliter
 l	liter
-ma	mega ampere
+ma	megaampere
 bar	bar
 kcal	kilokalorie
 cal	kalorie
-kcal	kilo kalorie
