@@ -110,8 +110,8 @@ class ClassifyFst(GraphFst):
             telephone_graph = self.telephone.fst
             self.electronic = ElectronicFst(deterministic=deterministic)
             electronic_graph = self.electronic.fst
-            # self.money = MoneyFst(cardinal=self.cardinal, decimal=self.decimal, deterministic=deterministic)
-            # money_graph = self.money.fst
+            self.money = MoneyFst(cardinal=self.cardinal, decimal=self.decimal, deterministic=deterministic)
+            money_graph = self.money.fst
             self.whitelist = WhiteListFst(input_case=input_case, deterministic=deterministic, input_file=whitelist)
             whitelist_graph = self.whitelist.fst
             punct_graph = PunctuationFst(deterministic=deterministic).fst
@@ -125,7 +125,7 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(date_graph, 1.1)
                 | pynutil.add_weight(ordinal_graph, 1.1)
                 | pynutil.add_weight(decimal_graph, 1.1)
-                # | pynutil.add_weight(money_graph, 1.1)
+                | pynutil.add_weight(money_graph, 1.1)
                 | pynutil.add_weight(telephone_graph, 1.1)
                 | pynutil.add_weight(electronic_graph, 1.1)
                 | pynutil.add_weight(word_graph, 100)

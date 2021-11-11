@@ -57,7 +57,7 @@ class VerbalizeFst(GraphFst):
         electronic = ElectronicFst()
         electronic_graph = electronic.fst
         whitelist_graph = WhiteListFst().fst
-        # money_graph = MoneyFst(decimal=decimal).fst
+        money_graph = MoneyFst(decimal=decimal).fst
         telephone_graph = TelephoneFst().fst
         time_graph = TimeFst(cardinal_tagger).fst
 
@@ -68,7 +68,7 @@ class VerbalizeFst(GraphFst):
             | ordinal_graph
             | date_graph
             | electronic_graph
-            # | money_graph
+            | money_graph
             | fraction_graph
             | whitelist_graph
             | telephone_graph

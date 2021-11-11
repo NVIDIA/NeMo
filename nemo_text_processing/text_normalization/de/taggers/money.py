@@ -50,68 +50,86 @@ class MoneyFst(GraphFst):
         cardinal_graph = cardinal.graph
         graph_decimal_final = decimal.final_graph_wo_negative
 
-        unit_singular = pynini.string_file(get_abs_path("data/money/currency.tsv"))
-        unit_plural = convert_space(unit_singular)  # @ SINGULAR_TO_PLURAL)
-        unit_singular = convert_space(unit_singular)
+        maj_singular_labels = load_labels(get_abs_path("data/money/currency.tsv"))
+        maj_singular = pynini.string_map(maj_singular_labels)
+        maj_plural = convert_space(maj_singular)
+        maj_singular = convert_space(maj_singular)
 
-        graph_unit_singular = pynutil.insert("currency: \"") + unit_singular + pynutil.insert("\"")
-        graph_unit_plural = pynutil.insert("currency: \"") + unit_plural + pynutil.insert("\"")
+        graph_maj_singular = pynutil.insert("currency_maj: \"") + maj_singular + pynutil.insert("\"")
+        graph_maj_plural = pynutil.insert("currency_maj: \"") + maj_plural + pynutil.insert("\"")
 
-        singular_graph = (
-            graph_unit_singular
-            + pynutil.insert(" integer_part: \"")
-            + pynini.cross("1", pynini.union("eins", "ein", "einem", "eines", "einer", "einen"))
-            + pynutil.insert("\"")
+        optional_delete_fractional_zeros = pynini.closure(
+            pynutil.delete(",") + pynini.closure(pynutil.delete("0"), 1), 0, 1
         )
+        graph_integer_one = pynutil.insert("integer_part: \"") + pynini.cross("1", "ein") + pynutil.insert("\"")
 
-        graph_decimal = graph_unit_plural + insert_space + graph_decimal_final
+        # only for decimals where third decimal after comma is non-zero
+        decimal_delete_last_zeros = (
+            pynini.closure(NEMO_DIGIT, 1)
+            + pynini.accep(",")
+            + pynini.closure(NEMO_DIGIT, 2)
+            + (NEMO_DIGIT - "0")
+            + pynini.closure(pynutil.delete("0"))
+        )
+        graph_decimal = graph_maj_plural + insert_space + decimal_delete_last_zeros @ graph_decimal_final
 
         graph_integer = (
-            graph_unit_plural
-            + pynutil.insert(" integer_part: \"")
-            + ((NEMO_SIGMA - "1") @ cardinal_graph)
-            + pynutil.insert("\"")
+            pynutil.insert("integer_part: \"") + ((NEMO_SIGMA - "1") @ cardinal_graph) + pynutil.insert("\"")
         )
-        if not deterministic:
-            graph_decimal |= singular_graph + insert_space + graph_decimal_final
 
-        graph_integer |= singular_graph
+        graph_integer_only = graph_maj_singular + insert_space + graph_integer_one
+        graph_integer_only |= graph_maj_plural + insert_space + graph_integer
 
-        zero_graph = pynini.cross("0", "") | pynini.accep("0")
-        # add minor currency part only when there are two digits after the point
-        # .01 -> {zero one cent, one cent}, .05 -> {oh five, five cents}
+        graph = (graph_integer_only + optional_delete_fractional_zeros) | graph_decimal
+
+        # allow two digit decimal to be verbalized as cardinal instead digit by digit
+        # ,01 ,1 ,10
         two_digits_fractional_part = (
-            NEMO_SIGMA
-            + pynini.closure(NEMO_DIGIT)
-            + (
-                (pynini.accep(",") + (NEMO_DIGIT ** (2) | zero_graph + (NEMO_DIGIT - "0")))
-                | pynutil.delete(",") + pynini.cross(pynini.closure("0", 1), "")
-            )
+            (pynutil.delete("0") + (NEMO_DIGIT - "0"))
+            | ((NEMO_DIGIT - "0") + pynutil.insert("0"))
+            | ((NEMO_DIGIT - "0") + NEMO_DIGIT)
         )
-        currencies = load_labels(get_abs_path("data/money/currency.tsv"))
-        decimal_graph_with_minor = None
-        for curr_symbol, curr_name in currencies:
-            curr_symbol_graph = pynutil.delete(curr_symbol)
-            graph_end_maj = pynutil.insert(" currency_maj: \"" + curr_symbol + "\"")
-            graph_end_min = pynutil.insert(" currency_min: \"" + curr_symbol + "\"")
-            preserve_order = pynutil.insert(" preserve_order: true")
-            integer_part = decimal.graph_integer + graph_end_maj
 
-            minor_curr = (
-                (NEMO_DIGIT + NEMO_DIGIT) | (pynutil.delete("0") + NEMO_DIGIT)
-            ) @ cardinal.graph_hundred_component_at_least_one_none_zero_digit
-            minor_curr = pynutil.insert("fractional_part: \"") + minor_curr + pynutil.insert("\"")
+        min_singular = pynini.string_file(get_abs_path("data/money/currency_minor_singular.tsv"))
+        min_plural = pynini.string_file(get_abs_path("data/money/currency_minor_plural.tsv"))
+        graph_min_singular = pynutil.insert(" currency_min: \"") + min_singular + pynutil.insert("\"")
+        graph_min_plural = pynutil.insert(" currency_min: \"") + min_plural + pynutil.insert("\"")
+
+        # format ** euro ** cent
+        decimal_graph_with_minor = None
+        for curr_symbol, _ in maj_singular_labels:
+            preserve_order = pynutil.insert(" preserve_order: true")
+            integer_plus_maj = graph_integer + insert_space + pynutil.insert(curr_symbol) @ graph_maj_plural
+            integer_plus_maj |= graph_integer_one + insert_space + pynutil.insert(curr_symbol) @ graph_maj_singular
+            # non zero integer part
+            integer_plus_maj = (pynini.closure(NEMO_DIGIT) - "0") @ integer_plus_maj
+
+            graph_fractional_one = two_digits_fractional_part @ pynini.cross("1", "ein")
+            graph_fractional_one = pynutil.insert("fractional_part: \"") + graph_fractional_one + pynutil.insert("\"")
+            graph_fractional = (
+                two_digits_fractional_part @ (pynini.closure(NEMO_DIGIT, 1, 2) - "1") @ cardinal.two_digit_non_zero
+            )
+            graph_fractional = pynutil.insert("fractional_part: \"") + graph_fractional + pynutil.insert("\"")
+
+            fractional_plus_min = graph_fractional + insert_space + pynutil.insert(curr_symbol) @ graph_min_plural
+            fractional_plus_min |= (
+                graph_fractional_one + insert_space + pynutil.insert(curr_symbol) @ graph_min_singular
+            )
 
             decimal_graph_with_minor_curr = (
-                curr_symbol_graph
-                + pynini.closure(integer_part, 0, 1)
-                + pynini.cross(",", " ")
-                + minor_curr
-                + graph_end_min
-                + preserve_order
+                pynini.closure(integer_plus_maj + pynini.cross(",", " "), 0, 1) + fractional_plus_min
+            )
+            decimal_graph_with_minor_curr |= (
+                pynini.closure(integer_plus_maj + pynini.cross(",", " "), 0, 1)
+                + pynutil.insert("fractional_part: \"")
+                + two_digits_fractional_part @ cardinal.two_digit_non_zero
+                + pynutil.insert("\"")
             )
 
-            decimal_graph_with_minor_curr = pynini.compose(two_digits_fractional_part, decimal_graph_with_minor_curr)
+            decimal_graph_with_minor_curr |= pynutil.delete("0,") + fractional_plus_min
+            decimal_graph_with_minor_curr = (
+                pynutil.delete(curr_symbol) + decimal_graph_with_minor_curr + preserve_order
+            )
 
             decimal_graph_with_minor = (
                 decimal_graph_with_minor_curr
@@ -119,8 +137,7 @@ class MoneyFst(GraphFst):
                 else pynini.union(decimal_graph_with_minor, decimal_graph_with_minor_curr)
             )
 
-        graph_decimal |= pynutil.add_weight(decimal_graph_with_minor, -0.01)
-        final_graph = graph_integer | graph_decimal
+        final_graph = graph | decimal_graph_with_minor
 
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

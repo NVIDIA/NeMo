@@ -85,24 +85,21 @@ class DecimalFst(GraphFst):
     def __init__(self, cardinal: GraphFst, deterministic: bool):
         super().__init__(name="decimal", kind="classify", deterministic=deterministic)
 
-        cardinal_graph = cardinal.graph
-
-        graph_decimal = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
-        graph_decimal |= pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
-        inverted = pynini.invert(graph_decimal)
-        self.graph = inverted + pynini.closure(insert_space + inverted).optimize()
+        graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).invert()
+        graph_digit |= pynini.string_file(get_abs_path("data/numbers/zero.tsv")).invert()
+        graph_digit |= pynini.cross("1", "eins")
+        self.graph = graph_digit + pynini.closure(insert_space + graph_digit).optimize()
 
         point = pynutil.delete(",")
         optional_graph_negative = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
 
         self.graph_fractional = pynutil.insert("fractional_part: \"") + self.graph + pynutil.insert("\"")
-        self.graph_integer = pynutil.insert("integer_part: \"") + cardinal_graph + pynutil.insert("\"")
+        self.graph_integer = pynutil.insert("integer_part: \"") + cardinal.graph + pynutil.insert("\"")
         final_graph_wo_sign = self.graph_integer + point + insert_space + self.graph_fractional
 
         self.final_graph_wo_negative = final_graph_wo_sign | get_quantity(
             final_graph_wo_sign, cardinal.graph_hundred_component_at_least_one_none_zero_digit
         )
-
         final_graph = optional_graph_negative + self.final_graph_wo_negative
 
         final_graph = self.add_tokens(final_graph)
