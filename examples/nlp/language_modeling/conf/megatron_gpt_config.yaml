@@ -43,6 +43,7 @@ model:
   # model parallelism 
   micro_batch_size: 4
   tensor_model_parallel_size: 1
+  pipeline_model_parallel_size: 1
 
   # model architecture
   encoder_seq_length: 512

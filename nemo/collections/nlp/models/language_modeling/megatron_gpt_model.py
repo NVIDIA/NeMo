@@ -78,6 +78,7 @@ class MegatronGPTModel(NLPModel):
             global_rank=trainer.global_rank,
             local_rank=trainer.local_rank,
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
+            pipeline_model_parallel_size=cfg.get('pipeline_model_parallel_size', 1),
             seed=self.cfg.get('seed', 1234),
         )
 
