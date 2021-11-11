@@ -222,6 +222,20 @@ class Vits(TextToWaveform):
             sch1.step()
             sch2.step()
 
+        metrics = {
+            "loss_gen": loss_gen,
+            "loss_fm": loss_fm,
+            "loss_mel * c_mel": loss_mel,
+            "loss_dur": loss_dur,
+            "loss_kl * c_kl": loss_kl,
+            "loss_gen_all": loss_gen_all,
+            "losses_disc_r": losses_disc_r,
+            "losses_disc_g": losses_disc_g,
+            "loss_disc_all": loss_disc_all,
+        }
+        self.log_dict(metrics, on_step=True, sync_dist=True)
+        self.log("scaled loss_mel", loss_mel, prog_bar=True, logger=False, sync_dist=True)
+
     def validation_step(self, batch, batch_idx):
         (x, x_lengths, spec, spec_lengths, y, y_lengths) = batch
 
