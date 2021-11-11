@@ -555,7 +555,10 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
                 new_file_num_batches += 1
                 total_batches_in_repacked_files += 1
             assert total_batches_in_repacked_files < initial_number_of_files_to_repack * num_batches_per_tarfile
-            assert new_file_num_batches == int(match.group(2))
+            assert new_file_num_batches == int(match.group(2)), (
+                f"Number of batches {new_file_num_batches} in {append_file} is different from number of batches in "
+                f"tar file name {match.group(2)}."
+            )
             append_file.unlink()
         if files_to_repack_with_matches and pop_file_ds is None:
             pop_file, _ = files_to_repack_with_matches.pop()
