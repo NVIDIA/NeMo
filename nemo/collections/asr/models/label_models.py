@@ -131,7 +131,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
                 index_by_file_id=True,  # Must set this so the manifest lines can be indexed by file ID
             )
             labels.update(collection.uniq_labels)
-        return labels
+        return list(labels)
 
     def __setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:
