@@ -1063,6 +1063,7 @@ pipeline {
           steps {
             sh 'python examples/nlp/token_classification/token_classification_evaluate.py \
             model.dataset.data_dir=/home/TestData/nlp/ner/ \
+            model.dataset.use_cache=false \
             pretrained_model=/home/TestData/nlp/pretrained_models/NER_Model_with_BERT_base_uncased.nemo'
           }
         }
@@ -1070,6 +1071,7 @@ pipeline {
           steps {
             sh 'python examples/nlp/token_classification/punctuation_capitalization_evaluate.py \
             model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            model.dataset.use_cache=false \
             pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_Capitalization_with_DistilBERT_base_uncased.nemo'
           }
         }
