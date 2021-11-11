@@ -1143,7 +1143,6 @@ class ModelPT(LightningModule, Model):
         """
         self._cfg = cfg
         self._set_hparams({'cfg': self._cfg})
-        
 
     @staticmethod
     def _is_model_being_restored() -> bool:
