@@ -387,7 +387,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 tokens_in_batch=tokens_in_batch,
                 punct_label_ids_file=self._cfg.class_labels.punct_labels_file,
                 capit_label_ids_file=self._cfg.class_labels.capit_labels_file,
-                njobs=cfg.get('njobs'),
+                njobs=cfg.get('njobs', 0),
                 verbose=False,
             )
         if cfg.shuffle and cfg.use_tarred_dataset:
