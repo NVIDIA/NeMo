@@ -45,9 +45,9 @@ TAR_FRAGMENT_TMPL_IN_PROGRESS = "fragment{fragment_idx}.{file_idx}.tar"
 TAR_FRAGMENT_TMPL_FINISHED = "fragment{fragment_idx}.num_batches{num_batches}.{file_idx}.tar"
 TAR_FRAGMENT_TMPL_TO_REPACK = "fragment{fragment_idx}.num_batches{num_batches}.{file_idx}.tar.to_repack"
 TAR_FRAGMENT_PATTERN_IN_PROGRESS = re.compile(f"fragment{NUMBER_RE}.{NUMBER_RE}.tar$")
-TAR_FRAGMENT_PATTERN_FINISHED = re.compile(f"fragment{NUMBER_RE}.num_batches({NUMBER_RE}).{NUMBER_RE}.tar$")
+TAR_FRAGMENT_PATTERN_FINISHED = re.compile(f"fragment{NUMBER_RE}.num_batches{NUMBER_RE}.{NUMBER_RE}.tar$")
 TAR_FRAGMENT_PATTERN_TO_REPACK = re.compile(
-    f"fragment({NUMBER_RE}).num_batches({NUMBER_RE}).({NUMBER_RE}).tar.to_repack$"
+    f"fragment{NUMBER_RE}.num_batches{NUMBER_RE}.{NUMBER_RE}.tar.to_repack$"
 )
 
 DATASET_PARAMETERS_TMPL = "{prefix}.tokens{tokens_in_batch}.max_seq_length{max_seq_length}.{tokenizer}"
@@ -606,7 +606,7 @@ def create_metadata_file(
     """
     metadata = {"num_batches": 0, "tar_files": []}
     for i, fn in enumerate([fn for fn in output_dir.iterdir() if TAR_FRAGMENT_PATTERN_FINISHED.match(fn.name)]):
-        nb = int(TAR_FRAGMENT_PATTERN_FINISHED.match(fn.name).group(1))
+        nb = int(TAR_FRAGMENT_PATTERN_FINISHED.match(fn.name).group(2))
         assert nb == num_batches_per_tarfile
         new_name = output_dir / output_file_tmpl.format(ctr=i, num_batches=nb)
         fn.rename(new_name)
