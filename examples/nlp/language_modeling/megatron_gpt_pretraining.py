@@ -52,12 +52,14 @@ def main(cfg) -> None:
     # update resume from checkpoint found by exp_manager
     resume_from_checkpoint = trainer.resume_from_checkpoint
     if resume_from_checkpoint is not None:
-        mp_rank = compute_model_parallel_rank(trainer.local_rank, cfg.model.tensor_model_parallel_size)
-        resume_from_checkpoint = Path(resume_from_checkpoint)
-        resume_from_checkpoint = resume_from_checkpoint.parent.parent.joinpath(f'mp_rank_{mp_rank:02d}').joinpath(
-            resume_from_checkpoint.name
-        )
-        resume_from_checkpoint = str(resume_from_checkpoint)
+        # inject mp_rank into resume_from_checkpoint
+        if cfg.model.tensor_model_parallel_size is not None and cfg.model.tensor_model_parallel_size > 1:
+            mp_rank = compute_model_parallel_rank(trainer.local_rank, cfg.model.tensor_model_parallel_size)
+            resume_from_checkpoint = Path(resume_from_checkpoint)
+            resume_from_checkpoint = resume_from_checkpoint.parent.parent.joinpath(f'mp_rank_{mp_rank:02d}').joinpath(
+                resume_from_checkpoint.name
+            )
+            resume_from_checkpoint = str(resume_from_checkpoint)
         logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
 
     trainer.checkpoint_connector = CheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
