@@ -41,13 +41,13 @@ class TalkNetDursModel(ModelPT):
         cfg = self._cfg
         self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**cfg.train_ds.dataset.vocab)
         self.embed = nn.Embedding(len(self.vocab.labels), cfg.d_char)
-        self.model = instantiate(cfg.model)
-        d_out = cfg.model.jasper[-1].filters
+        self.encoder = instantiate(cfg.encoder)
+        d_out = cfg.encoder.jasper[-1].filters
         self.proj = nn.Conv1d(d_out, 1, kernel_size=1)
 
     def forward(self, text, text_len):
         x, x_len = self.embed(text).transpose(1, 2), text_len
-        y, _ = self.model(x, x_len)
+        y, _ = self.encoder(x, x_len)
         durs = self.proj(y).squeeze(1)
         return durs
 
@@ -134,20 +134,23 @@ class TalkNetPitchModel(ModelPT):
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg=cfg, trainer=trainer)
+
+        print(cfg)
+
         typecheck.set_typecheck_enabled(enabled=False)
 
         cfg = self._cfg
         self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**cfg.train_ds.dataset.vocab)
         self.embed = GaussianEmbedding(self.vocab, cfg.d_char)
-        self.model = instantiate(cfg.model)
-        d_out = cfg.model.jasper[-1].filters
+        self.encoder = instantiate(cfg.encoder)
+        d_out = cfg.encoder.jasper[-1].filters
         self.sil_proj = nn.Conv1d(d_out, 1, kernel_size=1)
         self.body_proj = nn.Conv1d(d_out, 1, kernel_size=1)
         self.f0_mean, self.f0_std = cfg.f0_mean, cfg.f0_std
 
     def forward(self, text, text_len, durs):
         x, x_len = self.embed(text, durs).transpose(1, 2), durs.sum(-1)
-        y, _ = self.model(x, x_len)
+        y, _ = self.encoder(x, x_len)
         f0_sil = self.sil_proj(y).squeeze(1)
         f0_body = self.body_proj(y).squeeze(1)
         return f0_sil, f0_body
@@ -253,8 +256,8 @@ class TalkNetSpectModel(SpectrogramGenerator, Exportable):
         self.embed = GaussianEmbedding(self.vocab, cfg.d_char)
         self.norm_f0 = MaskedInstanceNorm1d(1)
         self.res_f0 = StyleResidual(cfg.d_char, 1, kernel_size=3)
-        self.model = instantiate(cfg.model)
-        d_out = cfg.model.jasper[-1].filters
+        self.encoder = instantiate(cfg.encoder)
+        d_out = cfg.encoder.jasper[-1].filters
         self.proj = nn.Conv1d(d_out, cfg.n_mels, kernel_size=1)
 
     def forward(self, text, text_len, durs, f0):
@@ -263,7 +266,7 @@ class TalkNetSpectModel(SpectrogramGenerator, Exportable):
         f0 = self.norm_f0(f0.unsqueeze(1), f0_mask)
         f0[~f0_mask.unsqueeze(1)] = 0.0
         x = self.res_f0(x, f0)
-        y, _ = self.model(x, x_len)
+        y, _ = self.encoder(x, x_len)
         mel = self.proj(y)
         return mel
 
@@ -358,7 +361,7 @@ class TalkNetSpectModel(SpectrogramGenerator, Exportable):
         f0 = self.norm_f0(f0.unsqueeze(1), f0_mask)
         f0[~f0_mask.unsqueeze(1)] = 0.0
         x = self.res_f0(x, f0)
-        y, _ = self.model(x, x_len)
+        y, _ = self.encoder(x, x_len)
         mel = self.proj(y)
 
         return mel
