@@ -15,6 +15,7 @@
 from nemo_text_processing.text_normalization.de.utils import get_abs_path
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_ALPHA,
+    NEMO_DIGIT,
     NEMO_NON_BREAKING_SPACE,
     NEMO_NOT_QUOTE,
     NEMO_SIGMA,
@@ -53,33 +54,39 @@ class MeasureFst(GraphFst):
     def __init__(self, cardinal: GraphFst, decimal: GraphFst, fraction: GraphFst, deterministic: bool = True):
         super().__init__(name="measure", kind="classify", deterministic=deterministic)
         cardinal_graph = cardinal.graph
-        graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
-        graph_unit_plural = convert_space(graph_unit @ SINGULAR_TO_PLURAL)
-        graph_unit = convert_space(graph_unit)
+        unit_singular = pynini.string_file(get_abs_path("data/measure/measurements.tsv"))
+        suppletive = pynini.string_file(get_abs_path("data/measure/suppletive.tsv"))
+
+        graph_unit_singular = convert_space(unit_singular)
+        graph_unit_plural = graph_unit_singular @ pynini.cdrewrite(convert_space(suppletive), "", "[EOS]", NEMO_SIGMA)
         optional_graph_negative = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
 
-        graph_unit2 = pynini.cross("/", "pro") + delete_space + pynutil.insert(NEMO_NON_BREAKING_SPACE) + graph_unit
+        graph_unit_denominator = (
+            pynini.cross("/", "pro") + pynutil.insert(NEMO_NON_BREAKING_SPACE) + graph_unit_singular
+        )
 
-        optional_graph_unit2 = pynini.closure(
-            delete_space + pynutil.insert(NEMO_NON_BREAKING_SPACE) + graph_unit2, 0, 1,
+        optional_unit_denominator = pynini.closure(
+            pynutil.insert(NEMO_NON_BREAKING_SPACE) + graph_unit_denominator, 0, 1,
         )
 
         unit_plural = (
             pynutil.insert("units: \"")
-            + (graph_unit_plural + optional_graph_unit2 | graph_unit2)
+            + (graph_unit_plural + (optional_unit_denominator) | graph_unit_denominator)
             + pynutil.insert("\"")
         )
 
         unit_singular = (
-            pynutil.insert("units: \"") + (graph_unit + optional_graph_unit2 | graph_unit2) + pynutil.insert("\"")
+            pynutil.insert("units: \"")
+            + ((graph_unit_singular + optional_unit_denominator) | graph_unit_denominator)
+            + pynutil.insert("\"")
         )
 
         subgraph_decimal = (
             pynutil.insert("decimal { ")
             + optional_graph_negative
             + decimal.final_graph_wo_negative
-            + delete_space
             + pynutil.insert(" } ")
+            + pynini.closure(pynutil.delete(" "), 0, 1)
             + unit_plural
         )
 
@@ -87,10 +94,9 @@ class MeasureFst(GraphFst):
             pynutil.insert("cardinal { ")
             + optional_graph_negative
             + pynutil.insert("integer: \"")
-            + ((NEMO_SIGMA - "1") @ cardinal_graph)
-            + delete_space
-            + pynutil.insert("\"")
-            + pynutil.insert(" } ")
+            + ((pynini.closure(NEMO_DIGIT) - "1") @ cardinal_graph)
+            + pynutil.insert("\" } ")
+            + pynini.closure(pynutil.delete(" "), 0, 1)
             + unit_plural
         )
 
@@ -98,17 +104,16 @@ class MeasureFst(GraphFst):
             pynutil.insert("cardinal { ")
             + optional_graph_negative
             + pynutil.insert("integer: \"")
-            + pynini.cross("1", "one")
-            + delete_space
-            + pynutil.insert("\"")
-            + pynutil.insert(" } ")
+            + pynini.cross("1", "ein")
+            + pynutil.insert("\" } ")
+            + pynini.closure(pynutil.delete(" "), 0, 1)
             + unit_singular
         )
 
         cardinal_dash_alpha = (
             pynutil.insert("cardinal { integer: \"")
             + cardinal_graph
-            + pynini.cross('-', '')
+            + pynutil.delete('-')
             + pynutil.insert("\" } units: \"")
             + pynini.closure(NEMO_ALPHA, 1)
             + pynutil.insert("\"")
@@ -117,7 +122,7 @@ class MeasureFst(GraphFst):
         alpha_dash_cardinal = (
             pynutil.insert("units: \"")
             + pynini.closure(NEMO_ALPHA, 1)
-            + pynini.cross('-', '')
+            + pynutil.delete('-')
             + pynutil.insert("\"")
             + pynutil.insert(" cardinal { integer: \"")
             + cardinal_graph
@@ -127,7 +132,7 @@ class MeasureFst(GraphFst):
         decimal_dash_alpha = (
             pynutil.insert("decimal { ")
             + decimal.final_graph_wo_negative
-            + pynini.cross('-', '')
+            + pynutil.delete('-')
             + pynutil.insert(" } units: \"")
             + pynini.closure(NEMO_ALPHA, 1)
             + pynutil.insert("\"")
@@ -137,14 +142,22 @@ class MeasureFst(GraphFst):
             pynutil.insert("decimal { ")
             + decimal.final_graph_wo_negative
             + pynutil.insert(" } units: \"")
-            + pynini.cross(pynini.union('x', "X"), 'x')
+            + pynini.union('x', 'X')
+            + pynutil.insert("\"")
+        )
+
+        cardinal_times = (
+            pynutil.insert("cardinal { integer: \"")
+            + cardinal_graph
+            + pynutil.insert("\" } units: \"")
+            + pynini.union('x', 'X')
             + pynutil.insert("\"")
         )
 
         alpha_dash_decimal = (
             pynutil.insert("units: \"")
             + pynini.closure(NEMO_ALPHA, 1)
-            + pynini.cross('-', '')
+            + pynutil.delete('-')
             + pynutil.insert("\"")
             + pynutil.insert(" decimal { ")
             + decimal.final_graph_wo_negative
@@ -152,7 +165,12 @@ class MeasureFst(GraphFst):
         )
 
         subgraph_fraction = (
-            pynutil.insert("fraction { ") + fraction.graph + delete_space + pynutil.insert(" } ") + unit_plural
+            pynutil.insert("fraction { ")
+            + fraction.graph
+            + delete_space
+            + pynutil.insert(" } ")
+            + pynini.closure(pynutil.delete(" "), 0, 1)
+            + unit_plural
         )
 
         final_graph = (
@@ -164,6 +182,8 @@ class MeasureFst(GraphFst):
             | decimal_times
             | alpha_dash_decimal
             | subgraph_fraction
+            | cardinal_times
         )
         final_graph = self.add_tokens(final_graph)
+
         self.fst = final_graph.optimize()
