@@ -1087,7 +1087,8 @@ pipeline {
             trainer.max_epochs=1 \
             +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output && \
             python punctuation_capitalization_evaluate.py \
-            pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo && \
+            pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo \
+            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ && \
             rm -rf /home/TestData/nlp/token_classification_punctuation/output/*'
           }
         }
