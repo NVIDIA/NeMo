@@ -1107,6 +1107,7 @@ pipeline {
           sh 'data_dir=/home/TestData/nlp/token_classification_punctuation/ && \
           usual_data=${data_dir}/wmt_wiki_10000 && \
           tarred_data=${data_dir}/train_tarred && \
+          output=${data_dir}/output && \
           tokens_in_batch=2000 && \
           max_seq_length=512 && \
           lm_model=distilbert-base-uncased && \
@@ -1123,10 +1124,14 @@ pipeline {
               --use_fast_tokenizer \
               --pad_label O \
               --n_jobs 3 && \
-          ls ${train_tarred}/*.tar | wc -l && \
-          metadata_file=${train_tarred}/metadata.punctuation_capitalization.tokens${tokens_in_batch}.max_seq_length{max_seq_length}.{lm_model}.json && \
+          echo "Number of tarred files in dataset:" && \
+          ls ${tarred_data}/*.tar | wc -l && \
+          echo "Label id files in dataset:" && \
+          ls ${tarred_data}/*.csv && \
+          metadata_file=${tarred_data}/metadata.punctuation_capitalization.tokens${tokens_in_batch}.max_seq_length${max_seq_length}.${lm_model}.json && \
           python examples/nlp/token_classification/punctuation_capitalization_train.py \
-              model.dataset.data_dir=${tarred_data} \
+              model.dataset.data_dir=${data_dir} \
+              +model.train_ds.ds_item=${tarred_data} \
               model.language_model.pretrained_model_name=${lm_model} \
               model.dataset.use_cache=false \
               model.train_ds.use_tarred_dataset=true \
@@ -1134,7 +1139,8 @@ pipeline {
               trainer.gpus=[0,1] \
               trainer.accelerator=ddp \
               trainer.max_epochs=1 \
-              +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output'
+              +exp_manager.explicit_log_dir=${output} && \
+          rm -rf ${output}/* ${tarred_data}'
         }
       }
     }
