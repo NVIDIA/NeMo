@@ -135,7 +135,7 @@ pipeline {
           steps {
             sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/es -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/Spanish/9-13'
           }
-        } 
+        }
         stage('Create En non-deterministic TN & Run all En TN/ITN tests') {
           steps {
             sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/9-13'
@@ -1789,9 +1789,9 @@ pipeline {
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
             prior_folder=/home/TestData/an4_dataset/beta_priors \
-            trainer.gpus="[0]" \
+            trainer.devices="[0]" \
             +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 trainer.max_epochs=1 \
-            trainer.accelerator=null \
+            trainer.strategy=null \
             model.train_ds.dataloader_params.batch_size=4 \
             model.train_ds.dataloader_params.num_workers=1 \
             model.validation_ds.dataloader_params.batch_size=4 \
