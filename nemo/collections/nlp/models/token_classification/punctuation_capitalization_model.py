@@ -424,7 +424,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 punct_label_ids_file=self._cfg.class_labels.punct_labels_file,
                 capit_label_ids_file=self._cfg.class_labels.capit_labels_file,
                 n_jobs=cfg.get('n_jobs', 0),
-                verbose=False,
+                verbose=cfg.get('verbose', False),
+                pickle_features=cfg.get('pickle_features', True),
+                get_label_frequencies=cfg.get('get_label_frequencies'),
             )
         if cfg.shuffle and cfg.use_tarred_dataset:
             logging.warning(f"Shuffling in dataloader is not supported for tarred dataset.")

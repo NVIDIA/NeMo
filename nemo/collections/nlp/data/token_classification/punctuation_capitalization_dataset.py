@@ -57,38 +57,40 @@ DEFAULT_CAPIT_LABEL_IDS_NAME = 'capit_label_ids.csv'
 
 @dataclass
 class PunctuationCapitalizationDataConfig:
+    #################################################
+    # COMMON DATASET PARAMETERS
+    #################################################
     # Path to a directory where `tar_metadata_file` or `text_file` and `labels_file` lay
     ds_item: Optional[Any] = None  # Any = str or List[str]
-    text_file: Optional[Any] = None  # Any -- Union[str, List[str]]  A name of dataset source file
-    labels_file: Optional[Any] = None  # Any = str or List[str]  A name of dataset target file
     # Whether to use tarred dataset. If True you should provide tar_metadata_file, otherwise text_file and labels_file
     use_tarred_dataset: bool = False
-    tar_metadata_file: Optional[Any] = None  # Any = str or List[str]  A name of metadata file for tarred dataset
 
     #################################################
     # USUAL DATASET PARAMETERS
     #################################################
+    text_file: Optional[Any] = None  # Any -- Union[str, List[str]]  A name of dataset source file
+    labels_file: Optional[Any] = None  # Any = str or List[str]  A name of dataset target file
     tokens_in_batch: int = 512
     max_seq_length: Optional[int] = None
     num_samples: int = -1
     use_cache: Optional[bool] = None
     get_label_frequences: bool = False
-    add_masks_and_segment_ids_to_batch: bool = True
     verbose: bool = True
     pickle_features: bool = True
     # If 0, then multiprocessing is not used; if null, then n_jobs is equal to the number of CPU cores.
     # There can be weird deadlocking with some tokenizers (e.g. SentencePiece) if `n_jobs` is greater than zero.
     n_jobs: Optional[int] = 0
-    shuffle: bool = True
 
     #################################################
     # TARRED DATASET PARAMETERS
     #################################################
+    tar_metadata_file: Optional[Any] = None  # Any = str or List[str]  A name of metadata file for tarred dataset
     tar_shuffle_n: int = 100
 
     #################################################
     # DATALOADER PARAMETERS
     #################################################
+    shuffle: bool = True
     drop_last: bool = False
     pin_memory: bool = False
     num_workers: int = 8
