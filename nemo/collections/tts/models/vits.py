@@ -8,7 +8,7 @@ from hydra.utils import instantiate
 import omegaconf
 from omegaconf import MISSING, DictConfig, OmegaConf
 from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
+from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger, WandbLogger
 import math
 import torch
 from torch import nn
@@ -42,6 +42,12 @@ from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.losses.vits_losses import DiscriminatorLoss, FeatureLoss, GeneratorLoss, KlLoss
 import nemo.collections.tts.modules.vits_modules as modules
 
+
+HAVE_WANDB = True
+try:
+    import wandb
+except ModuleNotFoundError:
+    HAVE_WANDB = False
 
 @dataclass
 class VitsConfig:
@@ -79,7 +85,7 @@ class Vits(TextToWaveform):
         # Ensure passed cfg is compliant with schema
         OmegaConf.merge(cfg, schema)
 
-        self.preprocessor = instantiate(cfg.preprocessor)
+        self.audio_to_melspec_precessor = instantiate(cfg.preprocessor)
         self.melspec_fn = instantiate(cfg.preprocessor, highfreq=None, use_grads=True)
 
         self.encoder = instantiate(cfg.input_fft)
@@ -144,7 +150,6 @@ class Vits(TextToWaveform):
         return [self.optim_g, self.optim_d], [scheduler_g_dict, scheduler_d_dict]
 
     def forward(self, batch, batch_idx):
-        self.net_g.eval()
         with torch.no_grad():
             (x, x_lengths, spec, spec_lengths, y, y_lengths) = batch
 
@@ -155,7 +160,6 @@ class Vits(TextToWaveform):
             y_hat, attn, mask, *_ = self.net_g.module.infer(x, x_lengths, max_len=1000)
             y_hat_lengths = mask.sum([1, 2]).long() * self._cfg.model.hop_size
 
-        self.net_g.train()
         return y_hat[0, :, :y_hat_lengths[0]]
 
     def training_step(self, batch, batch_idx):
@@ -217,6 +221,52 @@ class Vits(TextToWaveform):
             sch1, sch2 = schedulers
             sch1.step()
             sch2.step()
+
+    def validation_step(self, batch, batch_idx):
+        (x, x_lengths, spec, spec_lengths, y, y_lengths) = batch
+
+        y_hat, attn, mask, *_ = self.net_g.module.infer(x, x_lengths, max_len=1000)
+        y_hat_lengths = mask.sum([1, 2]).long() * self.hps.data.hop_length
+
+        # Note to modify the functions / use the ones in NeMo, we need the lengths
+        mel, mel_lengths = self.audio_to_melspec_precessor(x, x_lengths)
+        y_hat_mel, y_hat_mel_lengths = self.audio_to_melspec_precessor(y, y_lengths)
+
+        loss_mel = F.l1_loss(mel, y_hat_mel)
+
+        self.log_dict({"val_loss": loss_mel}, on_epoch=True, sync_dist=True)
+
+        # plot audio once per epoch
+        if batch_idx == 0 and isinstance(self.logger, WandbLogger) and HAVE_WANDB:
+            clips = []
+            specs = []
+
+            for i in range(min(5, y.shape[0])):
+                clips += [
+                    wandb.Audio(
+                        y[i, : y_lengths[i]].data.cpu().numpy(),
+                        caption=f"real audio {i}",
+                        sample_rate=self.hps.data.sampling_rate,
+                    ),
+                    wandb.Audio(
+                        y_hat[i, : y_hat_lengths[i]].data.cpu().numpy().astype('float32'),
+                        caption=f"generated audio {i}",
+                        sample_rate=self.hps.data.sampling_rate,
+                    ),
+                ]
+
+                specs += [
+                    wandb.Image(
+                        plot_spectrogram_to_numpy(y_hat_mel[i, :, : y_hat_mel_lengths[i]].data.cpu().numpy()),
+                        caption=f"output mel {i}",
+                    ),
+                    wandb.Image(
+                        plot_spectrogram_to_numpy(mel[i, :, : mel_lengths[i]].cpu().numpy()),
+                        caption=f"gt mel {i}",
+                    ),
+                ]
+
+            self.logger.experiment.log({"audio": clips, "specs": specs})
 
     @staticmethod
     def _loader(cfg):
