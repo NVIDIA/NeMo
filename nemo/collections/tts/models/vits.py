@@ -9,19 +9,14 @@ import omegaconf
 from omegaconf import MISSING, DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger, WandbLogger
-import math
 import torch
 from torch import nn
 from torch.nn import functional as F
 
-import commons
-import attentions
-import monotonic_align
 from torch.cuda.amp import autocast
 
 from torch.nn import Conv1d, ConvTranspose1d, AvgPool1d, Conv2d
 from torch.nn.utils import weight_norm, remove_weight_norm, spectral_norm
-from commons import init_weights, get_padding
 
 from nemo.collections.asr.data.audio_to_text import FastPitchDataset
 from nemo.collections.common.parts.preprocessing import parsers
@@ -41,6 +36,7 @@ from nemo.utils import logging
 from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.losses.vits_losses import DiscriminatorLoss, FeatureLoss, GeneratorLoss, KlLoss
 import nemo.collections.tts.modules.vits_modules as modules
+from nemo.collections.tts.modules.vits_modules import init_weights, get_padding, SynthesizerTrn, MultiPeriodDiscriminator
 
 
 HAVE_WANDB = True
@@ -122,6 +118,14 @@ class VitsModel(TextToWaveform):
         self.sample_rate = cfg.sample_rate
         self.hop_size = cfg.hop_size
 
+        self.net_g = SynthesizerTrn(
+            # len(symbols),
+            self.hps.data.filter_length // 2 + 1,
+            self.hps.train.segment_size // self.hps.data.hop_length,
+            **self.hps.model)
+        self.net_d = MultiPeriodDiscriminator(self.hps.model.use_spectral_norm)
+        self.automatic_optimization = False
+
     def parse(self, str_input: str) -> torch.tensor:
         # TODO: Implement
         pass
@@ -177,7 +181,7 @@ class VitsModel(TextToWaveform):
                 self._cfg.model.mel_fmin,
                 self._cfg.model.mel_fmax
             )
-            y_mel = commons.slice_segments(mel, ids_slice, self._cfg.model.segment_size // self._cfg.model.hop_size)
+            y_mel = modules.slice_segments(mel, ids_slice, self._cfg.model.segment_size // self._cfg.model.hop_size)
             y_hat_mel = modules.mel_spectrogram_torch(
                 y_hat.squeeze(1),
                 self._cfg.model.train_ds.filter_length,
@@ -188,7 +192,7 @@ class VitsModel(TextToWaveform):
                 self._cfg.model.mel_fmin,
                 self._cfg.model.mel_fmax
             )
-            y = commons.slice_segments(y, ids_slice * self._cfg.model.hop_size, self._cfg.model.segment_size)  # slice
+            y = modules.slice_segments(y, ids_slice * self._cfg.model.hop_size, self._cfg.model.segment_size)  # slice
             y_d_hat_r, y_d_hat_g, _, _ = self.net_d(y, y_hat.detach())
             loss_disc, losses_disc_r, losses_disc_g = self.disc_loss(y_d_hat_r, y_d_hat_g)
             loss_disc_all = loss_disc
@@ -196,7 +200,7 @@ class VitsModel(TextToWaveform):
         # train discriminator
         self.optim_d.zero_grad()
         self.manual_backward(loss_disc_all)
-        commons.clip_grad_value_(self.net_d.parameters(), None)
+        modules.clip_grad_value_(self.net_d.parameters(), None)
         self.optim_d.step()
 
         with autocast(enabled=True):
@@ -214,7 +218,7 @@ class VitsModel(TextToWaveform):
         # train generator
         self.optim_g.zero_grad()
         self.manual_backward(loss_gen_all)
-        commons.clip_grad_value_(self.net_g.parameters(), None)
+        modules.clip_grad_value_(self.net_g.parameters(), None)
         self.optim_d.step()
 
         schedulers = self.lr_schedulers()
