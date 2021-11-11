@@ -1104,14 +1104,15 @@ pipeline {
       failFast true
       stages {
         stage('create and use tarred dataset') {
-          sh 'data_dir=/home/TestData/nlp/token_classification_punctuation/ && \
-          usual_data=${data_dir}/wmt_wiki_10000 && \
-          tarred_data=${data_dir}/train_tarred && \
-          output=${data_dir}/output && \
-          tokens_in_batch=2000 && \
-          max_seq_length=512 && \
-          lm_model=distilbert-base-uncased && \
-          python examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py \
+          steps {
+            sh 'data_dir=/home/TestData/nlp/token_classification_punctuation/ && \
+            usual_data=${data_dir}/wmt_wiki_10000 && \
+            tarred_data=${data_dir}/train_tarred && \
+            output=${data_dir}/output && \
+            tokens_in_batch=2000 && \
+            max_seq_length=512 && \
+            lm_model=distilbert-base-uncased && \
+            python examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py \
               --text ${usual_data}/input.txt \
               --labels ${usual_data}/labels.txt \
               --output_dir ${tarred_data} \
@@ -1124,12 +1125,12 @@ pipeline {
               --use_fast_tokenizer \
               --pad_label O \
               --n_jobs 3 && \
-          echo "Number of tarred files in dataset:" && \
-          ls ${tarred_data}/*.tar | wc -l && \
-          echo "Label id files in dataset:" && \
-          ls ${tarred_data}/*.csv && \
-          metadata_file=${tarred_data}/metadata.punctuation_capitalization.tokens${tokens_in_batch}.max_seq_length${max_seq_length}.${lm_model}.json && \
-          python examples/nlp/token_classification/punctuation_capitalization_train.py \
+            echo "Number of tarred files in dataset:" && \
+            ls ${tarred_data}/*.tar | wc -l && \
+            echo "Label id files in dataset:" && \
+            ls ${tarred_data}/*.csv && \
+            metadata_file=${tarred_data}/metadata.punctuation_capitalization.tokens${tokens_in_batch}.max_seq_length${max_seq_length}.${lm_model}.json && \
+            python examples/nlp/token_classification/punctuation_capitalization_train.py \
               model.dataset.data_dir=${data_dir} \
               +model.train_ds.ds_item=${tarred_data} \
               model.language_model.pretrained_model_name=${lm_model} \
@@ -1140,7 +1141,8 @@ pipeline {
               trainer.accelerator=ddp \
               trainer.max_epochs=1 \
               +exp_manager.explicit_log_dir=${output} && \
-          rm -rf ${output}/* ${tarred_data}'
+            rm -rf ${output}/* ${tarred_data}'
+          }
         }
       }
     }
