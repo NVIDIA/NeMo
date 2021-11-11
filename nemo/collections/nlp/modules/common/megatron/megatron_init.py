@@ -25,12 +25,12 @@ from apex.transformer.parallel_state import (
     set_tensor_model_parallel_world_size,
 )
 
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_tensor_model_parallel_rank
 from nemo.utils import AppState
 
 
 def initialize_model_parallel_for_nemo(
-    world_size, global_rank, local_rank, tensor_model_parallel_size=1, seed=1234,
+    world_size, global_rank, local_rank, tensor_model_parallel_size=1, pipeline_model_parallel_size=1, seed=1234,
 ):
 
     # updating NeMo globals
@@ -38,12 +38,14 @@ def initialize_model_parallel_for_nemo(
     app_state.global_rank = global_rank
     app_state.world_size = world_size
     app_state.local_rank = local_rank
-    app_state.model_parallel_size = tensor_model_parallel_size
-    app_state.model_parallel_rank = compute_model_parallel_rank(local_rank, tensor_model_parallel_size)
+    app_state.tensor_model_parallel_size = tensor_model_parallel_size
+    app_state.tensor_model_parallel_rank = compute_tensor_model_parallel_rank(local_rank, tensor_model_parallel_size)
+    app_state.pipeline_model_parallel_size = pipeline_model_parallel_size
+    app_state.pipeline_model_parallel_rank = None
 
-    # update apex.mpu globals
-    set_tensor_model_parallel_world_size(tensor_model_parallel_size)
-    set_tensor_model_parallel_rank(app_state.model_parallel_rank)
+    # update apex.transformer globals
+    set_tensor_model_parallel_world_size(app_state.tensor_model_parallel_size)
+    set_tensor_model_parallel_rank(app_state.tensor_model_parallel_rank)
 
     # pipeline model parallelism not implemented in NeMo yet
     set_pipeline_model_parallel_rank(0)

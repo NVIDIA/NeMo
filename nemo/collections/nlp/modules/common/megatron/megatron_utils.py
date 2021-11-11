@@ -205,8 +205,8 @@ def get_megatron_lm_model(
     # return model, checkpoint_file
 
 
-def compute_model_parallel_rank(local_rank, model_parallel_size):
-    return local_rank % model_parallel_size
+def compute_tensor_model_parallel_rank(local_rank, tensor_model_parallel_size):
+    return local_rank % tensor_model_parallel_size
 
 
 def get_megatron_lm_models_list() -> List[str]:
