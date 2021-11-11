@@ -111,15 +111,10 @@ class CardinalFst(GraphFst):
             )
 
         def hundred_non_zero():
-            return (
-                (graph_digit_no_one + insert_space | pynini.cross("1", pynini.closure("ein ", 0, 1)))
-                + pynutil.insert("hundert")
-                + (
-                    pynini.closure(insert_space + pynutil.insert(AND), 0, 1) + insert_space + tens_no_zero()
-                    | pynutil.delete("00")
-                )
-                | pynutil.delete("0") + tens_no_zero()
-            )
+            return (graph_digit_no_one + insert_space | pynini.cross("1", "ein ")) + pynutil.insert("hundert") + (
+                pynini.closure(insert_space + pynutil.insert(AND), 0, 1) + insert_space + tens_no_zero()
+                | pynutil.delete("00")
+            ) | pynutil.delete("0") + tens_no_zero()
 
         def thousand():
             return (hundred_non_zero() + insert_space + pynutil.insert("tausend") | pynutil.delete("000")) + (
