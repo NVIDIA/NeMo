@@ -1103,7 +1103,7 @@ pipeline {
       }
       failFast true
       stages {
-        stage {
+        stage('create and use tarred dataset') {
           sh 'data_dir=/home/TestData/nlp/token_classification_punctuation/ && \
           usual_data=${data_dir}/wmt_wiki_10000 && \
           tarred_data=${data_dir}/train_tarred && \
