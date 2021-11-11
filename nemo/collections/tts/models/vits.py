@@ -37,6 +37,16 @@ from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.losses.vits_losses import DiscriminatorLoss, FeatureLoss, GeneratorLoss, KlLoss
 import nemo.collections.tts.modules.vits_modules as modules
 from nemo.collections.tts.modules.vits_modules import init_weights, get_padding, SynthesizerTrn, MultiPeriodDiscriminator
+<<<<<<< HEAD
+=======
+
+
+HAVE_WANDB = True
+try:
+    import wandb
+except ModuleNotFoundError:
+    HAVE_WANDB = False
+>>>>>>> 8ddb3dfb5... Fix all imports
 
 @dataclass
 class VitsConfig:
