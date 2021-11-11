@@ -1142,7 +1142,6 @@ class ModelPT(LightningModule, Model):
             Please create a new model using an updated config to properly update the model.
         """
         self._cfg = cfg
-        self._set_hparams(self._cfg)
         self._hparams_initial = copy.deepcopy(self._hparams)
 
     @staticmethod
