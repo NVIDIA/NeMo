@@ -25,7 +25,7 @@ from nemo.collections.asr.data.audio_to_text import FastPitchDataset
 from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy, regulate_len
 from nemo.collections.tts.models.base import TextToWaveform
-from nemo.collections.tts.monotonic_align import maximum_path
+from nemo.collections.tts.modules.monotonic_align import maximum_path
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     MelSpectrogramType,
