@@ -61,7 +61,10 @@ model:
     metadata_file: ???
     persistent_workers: true
     pin_memory: true
-    njobs: null  # Use all CPU cores
+    # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
+    # number of jobs is equal to the number of CPU cores.
+    # WARNING: can cause deadlocks with tokenizers, which use multiprocessing (e.g. SentencePiece)
+    njobs: 0
 
   validation_ds:
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
@@ -76,7 +79,10 @@ model:
     tokens_in_batch: 15000
     persistent_workers: true
     pin_memory: true
-    njobs: null  # Use all CPU cores
+    # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
+    # number of jobs is equal to the number of CPU cores.
+    # WARNING: can cause deadlocks with tokenizers, which use multiprocessing (e.g. SentencePiece)
+    njobs: 0
 
   test_ds:
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
@@ -89,7 +95,10 @@ model:
     shuffle: false
     num_samples: -1
     tokens_in_batch: 15000
-    njobs: null  # Use all CPU cores
+    # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
+    # number of jobs is equal to the number of CPU cores.
+    # WARNING: can cause deadlocks with tokenizers, which use multiprocessing (e.g. SentencePiece)
+    njobs: 0
 
   tokenizer:
     tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece
