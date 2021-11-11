@@ -19,7 +19,7 @@ import pickle
 import re
 from collections import deque
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple, Type, Union
 
 import torch
 import webdataset as wds
@@ -523,7 +523,7 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
     ]
     files_to_repack_with_matches = sorted(files_to_repack_with_matches, key=lambda x: int(x[1].group(3)))
     files_to_repack = [f for f, m in files_to_repack_with_matches]
-    logging.info(f"Found files for repacking: {files_to_repack}")
+    logging.info(f"Found {len(files_to_repack)} files for repacking.")
     files_to_repack = deque(files_to_repack)
     number_of_write_ops = 0
     initial_number_of_files_to_repack = len(files_to_repack)
@@ -535,7 +535,6 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
         if new_file_sink is None:
             append_file = files_to_repack.popleft()
             new_file = append_file.parent / append_file.stem
-            logging.info(f"Opening new file sink {new_file}")
             new_file_sink = wds.TarWriter(str(new_file))
             append_ds_to_rewrite = (
                 wds.WebDataset(urls=[str(append_file)], nodesplitter=None)
@@ -547,10 +546,8 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
                 new_file_num_batches += 1
                 number_of_write_ops += 1
                 assert number_of_write_ops < initial_number_of_files_to_repack * num_batches_per_tarfile
-            logging.info(f"{new_file_num_batches} batches were rewritten to new file {new_file}")
         if files_to_repack and pop_file_ds is None:
             pop_file = files_to_repack.pop()
-            logging.info(f"Popped file {pop_file}")
             pop_file_ds = (
                 wds.WebDataset(urls=[str(pop_file)], nodesplitter=None)
                 .decode(wds.handle_extension('.pyd', decode_pyd))
@@ -562,7 +559,6 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
                 try:
                     key, batch = next(pop_file_ds)
                 except StopIteration:
-                    logging.info(f"Finished extracting from {pop_file}")
                     pop_file_ds = None
                     pop_file.unlink()
                     break
@@ -571,18 +567,16 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
                 assert number_of_write_ops < initial_number_of_files_to_repack * num_batches_per_tarfile
                 new_file_num_batches += 1
             if new_file_num_batches >= num_batches_per_tarfile:
-                logging.info(f"Finished filling file {new_file}")
                 assert new_file_num_batches == num_batches_per_tarfile
                 new_file_sink.close()
                 new_file_sink = None
                 new_file_num_batches = 0
     if new_file_sink is not None:
         new_file_sink.close()
-        logging.info(f"Removing file {new_file}")
         new_file.unlink()
     if pop_file_ds is not None:
         pop_file.unlink()
-    logging.info(f"Wrote totally {number_of_write_ops} batches")
+    logging.info(f"Repacked {number_of_write_ops} batches from short tar files")
 
 
 def create_metadata_file(
@@ -874,14 +868,33 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
                 )
 
     @staticmethod
-    def load_label_ids(file_path: Path):
+    def load_label_ids(file_path: Path) -> Dict[str, int]:
         ids = {}
         with file_path.open() as f:
             for i, line in enumerate(f):
                 ids[line.strip()] = i
         return ids
 
-    def _build_sample(self, batch: Tuple[str, Dict[str, ArrayLike]]):
+    def _build_sample(self, batch: Tuple[str, Dict[str, ArrayLike]]) -> Dict[str, ArrayLike]:
+        """
+        Takes batch loaded from tarred dataset and transforms it for passing to the model. Adds ``'segment_ids'``,
+        ``'input_mask'``, ``'loss_mask'`` items to the batch.
+
+        Args:
+            batch: a tuple of 2 elements: batch name and a dictionary with ``'input_ids'``, ``'subtokens_mask'``,
+                ``'punct_labels'``, ``'capit_labels'``. Batch name is not needed for training and inference and
+                discarded.
+
+        Returns:
+            a batch in the form of a dictionary with items:
+              - ``'input_ids'``: a ``np.int32`` numpy array;
+              - ``'subtokens_mask'``: a boolean numpy array;
+              - ``'punct_labels'``: a ``np.int32`` numpy array;
+              - ``'capit_labels'``: a ``np.int32`` numpy array;
+              - ``'segment_ids'``: a ``np.int8`` numpy array;
+              - ``'input_mask'``: a boolean numpy array;
+              - ``'loss_mask'``: a boolean numpy array.
+        """
         _, batch = batch
         batch_segment_ids, batch_input_mask, batch_loss_mask = create_masks_and_segment_ids(
             batch['input_ids'],
@@ -897,16 +910,45 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         batch['loss_mask'] = batch_loss_mask
         return batch
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Dict[str, ArrayLike]]:
+        """
+        Returns an iterator of batches. Batches are dictionaries with following items:
+          - ``'input_ids'``: ``np.int32`` array,
+          - ``'subtokens_mask'``: ``bool`` array,
+          - ``'punct_labels'``: ``np.int32`` array,
+          - ``'capit_labels'``: ``np.int32`` array.
+          - ``'segment_ids'``: ``np.int8`` array,
+          - ``'input_mask'``: ``bool`` array,
+          - ``'loss_mask'``: ``bool`` array.
+
+        The values of one batch dictionary are numpy arrays of identical shapes.
+        """
         return self._dataset.__iter__()
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self.length
 
     @staticmethod
-    def collate_fn(batch: List[Dict[str, ArrayLike]]):
-        """Batches are ready in dataset, so ``collate_fn`` is used to take zeroth element of ``batch``."""
-        batch = {k: torch.as_tensor(v) for k, v in batch[0].items()}
+    def collate_fn(batches: List[Dict[str, ArrayLike]]) -> Dict[str, torch.Tensor]:
+        """
+        Return zeroth batch of ``batches`` passed for collating and casts ``'segment_ids'``, ``'punct_labels'``,
+        ``'capit_labels'`` to types supported by ``PunctuationCapitalizationModel``.
+
+        Note: batch size in data loader and sampler has to be 1.
+        Args:
+            batches: a list of batches passed for collating. Normally ``batches`` contains exactly 1 element
+
+        Returns:
+            a batch dictionary with following items:
+              - ``'input_ids'``: ``torch.int32`` tensor,
+              - ``'subtokens_mask'``: ``torch.bool`` tensor,
+              - ``'punct_labels'``: ``torch.int64`` tensor,
+              - ``'capit_labels'``: ``torch.int64`` tensor.
+              - ``'segment_ids'``: ``torch.int32`` tensor,
+              - ``'input_mask'``: ``torch.bool`` tensor,
+              - ``'loss_mask'``: ``torch.bool`` tensor.
+        """
+        batch = {k: torch.as_tensor(v) for k, v in batches[0].items()}
         batch['segment_ids'] = batch['segment_ids'].int()
         batch['punct_labels'] = batch['punct_labels'].long()
         batch['capit_labels'] = batch['capit_labels'].long()

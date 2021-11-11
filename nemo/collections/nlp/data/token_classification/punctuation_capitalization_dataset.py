@@ -883,7 +883,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
             self.punct_label_frequencies = self._calculate_label_frequencies(self.punct_labels, data_dir, 'punct')
             self.capit_label_frequencies = self._calculate_label_frequencies(self.capit_labels, data_dir, 'capit')
 
-    def pad(self, vectors: List[ArrayLike], length: int, value: Union[int, float, bool]) -> ArrayLike:
+    @staticmethod
+    def pad(vectors: List[ArrayLike], length: int, value: Union[int, float, bool]) -> ArrayLike:
         """
         Pad vectors to length ``length`` and then stack.
         Args:
@@ -1007,22 +1008,17 @@ class BertPunctuationCapitalizationDataset(Dataset):
             capit_labels: a list of 1D int32 arrays which contain encoded capitalization labels
 
         Returns:
-            a list of batches. Each batch is a dictionary with keys:
-              - ``'input_ids'``,
-              - ``'subtokens_mask'``,
-              - ``'punct_labels'``,
-              - ``'capit_labels'``.
+            a list of batches. Each batch is a dictionary with items:
+              - ``'input_ids'``: a ``np.int32`` numpy array;
+              - ``'subtokens_mask'``: a boolean numpy array;
+              - ``'punct_labels'``: a ``np.int32`` numpy array;
+              - ``'capit_labels'``: a ``np.int32`` numpy array.
             If ``self.add_masks_and_segment_ids_to_batch`` is ``True``, then a batch also contain items
-              - ``'segment_ids'``,
-              - ``'input_mask'``,
-              - ``'loss_mask'``.
+              - ``'segment_ids'``: a ``np.int8`` numpy array;
+              - ``'input_mask'``: a boolean numpy array;
+              - ``'loss_mask'``: a boolean numpy array.
 
-            The values of a batch dictionary are numpy arrays of identical shape. Array dtypes of batch dictionaries are
-            following:
-               - ``'input_ids'``: ``np.int32``;
-               - ``'subtokens_mask'``, ``'input_mask'``, and ``'loss_mask'``: ``bool``;
-               - ``'punct_labels'`` and ``'capit_labels'``: ``np.int32``;
-               - ``'segment_ids'``: ``np.int8``.
+            The values of a batch dictionary are numpy arrays of identical shape.
         """
         zipped = list(zip(input_ids, subtokens_mask, punct_labels, capit_labels))
         random.shuffle(zipped)
@@ -1083,12 +1079,12 @@ class BertPunctuationCapitalizationDataset(Dataset):
             self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels
         )
 
-    def _calculate_label_frequencies(self, all_labels: List[int], data_dir: str, name: str) -> Dict[str, float]:
+    def _calculate_label_frequencies(self, all_labels: List[ArrayLike], data_dir: Path, name: str) -> Dict[str, float]:
         """ Calculates labels frequencies """
         merged_labels = itertools.chain.from_iterable(all_labels)
         if self.verbose:
             logging.info('Three most popular labels')
-        _, label_frequencies, _ = get_label_stats(merged_labels, data_dir + '/label_count_' + name + '.tsv')
+        _, label_frequencies, _ = get_label_stats(merged_labels, str(data_dir / f'label_count_{name}.tsv'))
         return label_frequencies
 
     def _save_label_ids(self, label_ids: Dict[str, int], filename: Path):
@@ -1103,9 +1099,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
     def __len__(self) -> int:
         return len(self.batches)
 
-    def collate_fn(self, batches: List[Dict[str, ArrayLike]]) -> Dict[str, ArrayLike]:
+    def collate_fn(self, batches: List[Dict[str, ArrayLike]]) -> Dict[str, torch.Tensor]:
         """
-        Return zeroth batch of batches passed for collating and cast ``'segment_ids'``, ``'punct_labels'``,
+        Return zeroth batch of ``batches`` passed for collating and casts ``'segment_ids'``, ``'punct_labels'``,
         ``'capit_labels'`` to types supported by ``PunctuationCapitalizationModel``.
 
         Note: batch size in data loader and sampler has to be 1.
@@ -1146,6 +1142,6 @@ class BertPunctuationCapitalizationDataset(Dataset):
               - ``'input_mask'``: ``bool`` array,
               - ``'loss_mask'``: ``bool`` array.
 
-            The values of one batch dictionary are numpy arrays of identical shapes.
+            The values of a batch dictionary are numpy arrays of identical shapes.
         """
         return self.batches[idx]
