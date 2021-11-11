@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo_text_processing.text_normalization.de.taggers.cardinal import CardinalFst as CardinalTaggerFst
 from nemo_text_processing.text_normalization.de.verbalizers.cardinal import CardinalFst
 from nemo_text_processing.text_normalization.de.verbalizers.date import DateFst
 from nemo_text_processing.text_normalization.de.verbalizers.decimal import DecimalFst
@@ -40,6 +41,7 @@ class VerbalizeFst(GraphFst):
 
     def __init__(self, deterministic: bool = True):
         super().__init__(name="verbalize", kind="verbalize", deterministic=deterministic)
+        cardinal_tagger = CardinalTaggerFst()
         cardinal = CardinalFst()
         cardinal_graph = cardinal.fst
         ordinal = OrdinalFst()
@@ -57,7 +59,7 @@ class VerbalizeFst(GraphFst):
         whitelist_graph = WhiteListFst().fst
         # money_graph = MoneyFst(decimal=decimal).fst
         telephone_graph = TelephoneFst().fst
-        # time_graph = TimeFst().fst
+        time_graph = TimeFst(cardinal_tagger).fst
 
         graph = (
             # measure_graph
@@ -70,6 +72,6 @@ class VerbalizeFst(GraphFst):
             | fraction_graph
             | whitelist_graph
             | telephone_graph
-            # | time_graph
+            | time_graph
         )
         self.fst = graph

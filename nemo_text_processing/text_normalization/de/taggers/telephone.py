@@ -53,7 +53,7 @@ class TelephoneFst(GraphFst):
             pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
         ).optimize() | pynini.cross("1", "eins")
         graph_digit = graph_digit_no_zero | graph_zero
-        
+
         numbers_with_single_digits = pynini.closure(graph_digit + insert_space) + graph_digit
 
         two_digit_and_zero = (NEMO_DIGIT ** 2 @ cardinal.two_digit_non_zero) | graph_zero
@@ -63,16 +63,14 @@ class TelephoneFst(GraphFst):
         #     )
 
         country_code = pynini.closure(pynini.cross("+", "plus "), 0, 1) + two_digit_and_zero
-        country_code |= pynutil.delete("(") +  graph_zero + insert_space + numbers_with_single_digits + pynutil.delete(")")
+        country_code |= (
+            pynutil.delete("(") + graph_zero + insert_space + numbers_with_single_digits + pynutil.delete(")")
+        )
         country_code |= graph_zero + insert_space + numbers_with_single_digits
 
-        country_code = (
-            pynutil.insert("country_code: \"")
-            + country_code
-            + pynutil.insert("\"")
-        )
+        country_code = pynutil.insert("country_code: \"") + country_code + pynutil.insert("\"")
 
-        del_separator = pynini.cross(pynini.union("-"," "), " ")
+        del_separator = pynini.cross(pynini.union("-", " "), " ")
         # numbers_with_two_digits = pynini.closure(graph_digit + insert_space) + add_space_after_two_digit() + pynini.closure(insert_space + graph_digit)
         # numbers = numbers_with_two_digits + pynini.closure(del_separator + numbers_with_two_digits, 0, 1)
         numbers = numbers_with_single_digits + pynini.closure(del_separator + numbers_with_single_digits, 0, 1)
