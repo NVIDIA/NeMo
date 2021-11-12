@@ -18,7 +18,8 @@ from typing import Any, Dict, Optional, Tuple
 from omegaconf.omegaconf import MISSING
 
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
-    PunctuationCapitalizationDataConfig,
+    PunctuationCapitalizationEvalDataConfig,
+    PunctuationCapitalizationTrainDataConfig,
 )
 from nemo.core.config import TrainerConfig
 from nemo.core.config.modelPT import NemoConfig, OptimConfig, SchedConfig
@@ -26,7 +27,7 @@ from nemo.utils.exp_manager import ExpManagerConfig
 
 
 @dataclass
-class MTSchedConfig(SchedConfig):
+class PunctuationCapitalizationSchedConfig(SchedConfig):
     name: str = 'InverseSquareRootAnnealing'
     warmup_ratio: Optional[float] = None
     last_epoch: int = -1
@@ -39,7 +40,7 @@ class PunctuationCapitalizationOptimConfig(OptimConfig):
     lr: float = 1e-3
     betas: Tuple[float, float] = (0.9, 0.98)
     weight_decay: float = 0.0
-    sched: Optional[MTSchedConfig] = MTSchedConfig()
+    sched: Optional[PunctuationCapitalizationSchedConfig] = PunctuationCapitalizationSchedConfig()
 
 
 @dataclass
@@ -84,26 +85,27 @@ class CommonDatasetParameters:
     num_workers: Optional[int] = 2
     pin_memory: bool = False
     drop_last: bool = False
+    persistent_workers: bool = False
 
 
 @dataclass
 class PunctuationCapitalizationModelConfig:
     dataset: Optional[CommonDatasetParameters] = CommonDatasetParameters()
-    train_ds: Optional[PunctuationCapitalizationDataConfig] = PunctuationCapitalizationDataConfig(
+    train_ds: Optional[PunctuationCapitalizationTrainDataConfig] = PunctuationCapitalizationTrainDataConfig(
         text_file=MISSING,
         labels_file=MISSING,
         use_tarred_dataset=MISSING,
         tar_metadata_file=MISSING,
         tokens_in_batch=MISSING,
     )
-    validation_ds: Optional[PunctuationCapitalizationDataConfig] = PunctuationCapitalizationDataConfig(
+    validation_ds: Optional[PunctuationCapitalizationEvalDataConfig] = PunctuationCapitalizationEvalDataConfig(
         text_file=MISSING,
         labels_file=MISSING,
         use_tarred_dataset=MISSING,
         tar_metadata_file=MISSING,
         tokens_in_batch=MISSING,
     )
-    test_ds: Optional[PunctuationCapitalizationDataConfig] = PunctuationCapitalizationDataConfig(
+    test_ds: Optional[PunctuationCapitalizationEvalDataConfig] = PunctuationCapitalizationEvalDataConfig(
         text_file=MISSING,
         labels_file=MISSING,
         use_tarred_dataset=MISSING,

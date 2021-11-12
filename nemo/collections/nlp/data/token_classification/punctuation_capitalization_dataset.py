@@ -17,7 +17,8 @@ __all__ = [
     'DEFAULT_CAPIT_LABEL_IDS_NAME',
     'DEFAULT_PUNCT_LABEL_IDS_NAME',
     'Progress',
-    'PunctuationCapitalizationDataConfig',
+    'PunctuationCapitalizationEvalDataConfig',
+    'PunctuationCapitalizationTrainDataConfig',
     'create_label_ids',
     'create_masks_and_segment_ids',
 ]
@@ -56,20 +57,18 @@ DEFAULT_CAPIT_LABEL_IDS_NAME = 'capit_label_ids.csv'
 
 
 @dataclass
-class PunctuationCapitalizationDataConfig:
+class PunctuationCapitalizationDataConfigBase:
     #################################################
     # COMMON DATASET PARAMETERS
     #################################################
-    # Path to a directory where `tar_metadata_file` or `text_file` and `labels_file` lay
-    ds_item: Optional[Any] = None  # Any = str or List[str]
     # Whether to use tarred dataset. If True you should provide tar_metadata_file, otherwise text_file and labels_file
     use_tarred_dataset: bool = False
 
     #################################################
     # USUAL DATASET PARAMETERS
     #################################################
-    text_file: Optional[Any] = None  # Any -- Union[str, List[str]]  A name of dataset source file
-    labels_file: Optional[Any] = None  # Any = str or List[str]  A name of dataset target file
+    text_file: Optional[str] = None  # Any -- Union[str, List[str]]  A name of dataset source file
+    labels_file: Optional[str] = None  # Any = str or List[str]  A name of dataset target file
     tokens_in_batch: int = 512
     max_seq_length: Optional[int] = None
     num_samples: int = -1
@@ -84,17 +83,35 @@ class PunctuationCapitalizationDataConfig:
     #################################################
     # TARRED DATASET PARAMETERS
     #################################################
-    tar_metadata_file: Optional[Any] = None  # Any = str or List[str]  A name of metadata file for tarred dataset
+    tar_metadata_file: Optional[str] = None  # Any = str or List[str]  A name of metadata file for tarred dataset
     tar_shuffle_n: int = 100
 
     #################################################
     # DATALOADER PARAMETERS
     #################################################
+    # Shuffle batches every epoch. This parameter does not repack batches. For batch repacking
+    # see parameter `repack_batches_with_shuffle`.
     shuffle: bool = True
-    drop_last: bool = False
-    pin_memory: bool = False
-    num_workers: int = 8
-    persistent_workers: bool = True
+    drop_last: Optional[bool] = None
+    pin_memory: Optional[bool] = None
+    num_workers: Optional[int] = None
+    persistent_workers: Optional[bool] = None
+
+
+@dataclass
+class PunctuationCapitalizationTrainDataConfig(PunctuationCapitalizationDataConfigBase):
+    # Path to a directory where `tar_metadata_file` or `text_file` and `labels_file` lay
+    ds_item: Optional[str] = None
+    # Every epoch dataset samples are shuffled, then sorted by length, and packed into batches. This way batches are
+    # renewed and padding usage is kept low.
+    repack_batches_with_shuffle: bool = True
+
+
+@dataclass
+class PunctuationCapitalizationEvalDataConfig(PunctuationCapitalizationDataConfigBase):
+    # Path to a directory where `tar_metadata_file` or `text_file` and `labels_file` lay
+    # Any = str or List[str]. If a List[str], then multiple dataset testing or evaluation is used
+    ds_item: Optional[Any] = None
 
 
 def check_number_of_labels(words, query, qi, split_i, punctuation_labels, capitalization_labels):
@@ -1076,7 +1093,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         random.shuffle(batches)
         return batches
 
-    def shuffle(self):
+    def repack_batches_with_shuffle(self):
         logging.info("Shuffling training dataset")
         self.batches = self.pack_into_batches(
             self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels

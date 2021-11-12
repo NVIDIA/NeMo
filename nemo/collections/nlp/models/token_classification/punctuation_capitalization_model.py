@@ -175,12 +175,12 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         return self.eval_step(batch, 'test', dataloader_idx)
 
     def training_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
-        shuffle_train_dataset = self._cfg.dataset.get('shuffle_train_dataset')
-        if shuffle_train_dataset is None:  # Encountered legacy config
-            shuffle_train_dataset = not self.cfg.train_ds.get('use_tarred_dataset', False)
-        if shuffle_train_dataset:
+        shuffle = self._cfg.train_ds.get('repack_batches_with_shuffle')
+        if shuffle is None:  # Encountered legacy config
+            shuffle = not self.cfg.train_ds.get('use_tarred_dataset', False)
+        if shuffle:
             if isinstance(self.train_dataloader().dataset, BertPunctuationCapitalizationDataset):
-                self.train_dataloader().dataset.shuffle()
+                self.train_dataloader().dataset.repack_batches_with_shuffle()
             else:
                 logging.warning(
                     f"Shuffling every epoch is not supported for datasets of type "
@@ -364,6 +364,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         num_workers = cfg.get('num_workers')
         pin_memory = cfg.get('pin_memory')
         drop_last = cfg.get('drop_last')
+        p_workers = cfg.get('persistent_worker')
         if ds_item is None and data_dir is None:
             raise ValueError(
                 f"At least one of parameters `model.dataset.data_dir` and `model.<dataset_config>.ds_item` should be "
@@ -441,7 +442,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             num_workers=self._cfg.dataset.num_workers if num_workers is None else num_workers,
             pin_memory=self._cfg.dataset.pin_memory if pin_memory is None else pin_memory,
             drop_last=self._cfg.dataset.drop_last if drop_last is None else drop_last,
-            persistent_workers=cfg.get('persistent_workers', False),
+            persistent_workers=self._cfg.dataset.persistent_workers if p_workers is None else p_workers,
         )
 
     def _setup_infer_dataloader(
