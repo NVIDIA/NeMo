@@ -698,7 +698,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         checkpoints = list(Path(self.dirpath).rglob("*.ckpt"))
         for checkpoint in checkpoints:
-            checkpoint = self._uninject_mp_rank(checkpoint)
+            if self.model_parallel_size is not None and self.model_parallel_size > 1:
+                checkpoint = self._uninject_mp_rank(checkpoint)
             checkpoint = str(checkpoint)
             if checkpoint[-10:] == '-last.ckpt':
                 continue
@@ -794,7 +795,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     def _del_model_without_trainer(self, filepath: str) -> None:
         app_state = AppState()
-        if app_state.model_parallel_size is not None:
+        if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
             # filepath needs to be updated to include mp_rank
             dirname = os.path.dirname(filepath)
             basename = os.path.basename(filepath)
@@ -870,7 +871,7 @@ def configure_checkpointing(
 
     checkpoint_callback = NeMoModelCheckpoint(n_resume=resume, **params)
     checkpoint_callback.last_model_path = trainer.checkpoint_connector.resume_checkpoint_path or ""
-    if params.model_parallel_size is not None:
+    if params.model_parallel_size is not None and params.model_parallel_size > 1:
         checkpoint_callback.last_model_path = NeMoModelCheckpoint._uninject_mp_rank(
             checkpoint_callback.last_model_path
         )
