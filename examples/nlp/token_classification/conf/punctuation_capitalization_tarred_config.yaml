@@ -38,60 +38,74 @@ exp_manager:
   create_checkpoint_callback: true  # Whether you want exp_manager to create a model checkpoint callback
   checkpoint_callback_params:
     save_best_model: true
-  create_wandb_logger: false
-  wandb_logger_kwargs:
-    name: evelina_punc_cap_train_on_small_wiki_gpu1_lr1e-4_steps300000
-    project: autoregressive_punctuation_capitalization
-    entity: anton_peganov
 
 model:
-  punct_label_ids: null # will be filled during training
-  capit_label_ids: null # will be filled during training
+  punct_label_ids: null # If you leave empty, then the parameter will be filled during training
+  capit_label_ids: null # If you leave empty, then the parameter will be filled during training
+
+  # Names of label id files in .nemo checkpoint, which is created during training. Do not pass label vocabularies
+  # through `class_labels.punct_labels_file` and `class_labels.capit_labels_file`, the vocabularies will not be used.
+  # Usually label ids are created during training. Alternatively you can set label ids using `punct_label_ids` and
+  # `capit_label_ids` parameters.
   class_labels:
-    punct_labels_file: /media/apeganov/DATA/wiki_unsplit_48_65_filtered_characters/train_tarred/punct_label_ids.csv
-    capit_labels_file: /media/apeganov/DATA/wiki_unsplit_48_65_filtered_characters/train_tarred/capit_label_ids.csv
+    punct_labels_file: punct_label_ids.csv
+    capit_labels_file: capit_label_ids.csv
   dataset:
     pad_label: O
 
   train_ds:
     use_tarred_dataset: true
-    text_file: null
-    labels_file: null
+    # A path to directory where `tar_metadata_file` is stored. If `ds_item` is missing, then `model.dataset.data_dir`
+    # will be used instead. You cannot pass list of paths in `model.train_ds.ds_item`.
     ds_item: ???
-    tar_metadata_file: ???
+
+    # Do not remove this parameter when using tarred dataset
+    text_file: null
+    # Do not remove this parameter when using tarred dataset
+    labels_file: null
     persistent_workers: true
     pin_memory: true
     # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
     # number of jobs is equal to the number of CPU cores.
     # WARNING: can cause deadlocks with tokenizers, which use multiprocessing (e.g. SentencePiece)
     n_jobs: 0
+
+    # Path to tarred dataset metadata file. Required if tarred dataset is used. Metadata file is a JSON file which
+    # contains total number of batches in the dataset, a list of paths to tar files and paths to label vocabularies.
+    # Metadata file is create by script
+    # `examples/nlp/token_classification/create_punctuation_capitalization_tarred_dataset.py`
+    tar_metadata_file: ???
+    # Controls batch shuffling in tarred dataset. `tar_shuffle_n` is a size of shuffled batch buffer. Mind that this
+    # shuffling only permutes batches and doesn't exchange samples between batches. Proper shuffling is turned on in
+    # usual dataset via parameter `repack_batches_with_shuffle_every_epoch`.
+    tar_shuffle_n: null
 
   validation_ds:
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
     # evaluation is needed, specify ds_item, otherwise by default data_dir is used
     use_tarred_dataset: false
     ds_item: ???
+
     text_file: ???
     labels_file: ???
-    tar_metadata_file: null
     shuffle: false
     num_samples: -1
     tokens_in_batch: 15000
-    persistent_workers: true
-    pin_memory: true
     # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
     # number of jobs is equal to the number of CPU cores.
     # WARNING: can cause deadlocks with tokenizers, which use multiprocessing (e.g. SentencePiece)
     n_jobs: 0
+
+    tar_metadata_file: null
 
   test_ds:
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
     # evaluation is needed, specify ds_item, otherwise by default data_dir is used
     use_tarred_dataset: false
     ds_item: ???
+
     text_file: ???
     labels_file: ???
-    tar_metadata_file: null
     shuffle: false
     num_samples: -1
     tokens_in_batch: 15000
@@ -99,6 +113,8 @@ model:
     # number of jobs is equal to the number of CPU cores.
     # WARNING: can cause deadlocks with tokenizers, which use multiprocessing (e.g. SentencePiece)
     n_jobs: 0
+
+    tar_metadata_file: null
 
   tokenizer:
     tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece

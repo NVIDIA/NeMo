@@ -17,6 +17,7 @@ import multiprocessing as mp
 import os
 import pickle
 import re
+import shutil
 from collections import deque
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple, Type, Union
@@ -52,6 +53,11 @@ DATASET_PARAMETERS_TMPL = "{prefix}.tokens{tokens_in_batch}.max_seq_length{max_s
 TAR_FINAL_TMPL = ".batches{num_batches}.{ctr}.tar"
 
 PROGRESS_REPORT_PERIOD = 10 ** 4
+
+METADATA_PUNCT_LABEL_VOCAB_KEY = 'punct_label_vocab_file'
+METADATA_CAPIT_LABEL_VOCAB_KEY = 'capit_label_vocab_file'
+DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME = 'punct_label_vocab.csv'
+DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME = 'capit_label_vocab.csv'
 
 
 def count_lines_and_get_fragment_starting_positions(
@@ -171,6 +177,8 @@ def process_fragment(
         pad_label=pad_label,
         punct_label_ids=punct_label_ids,
         capit_label_ids=capit_label_ids,
+        punct_label_ids_file=DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME,
+        capit_label_ids_file=DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME,
         n_jobs=0,
         use_cache=False,
         add_masks_and_segment_ids_to_batch=False,
@@ -424,9 +432,9 @@ def build_label_ids_from_list_of_labels(pad_label: str, other_labels: List[str])
     return ids
 
 
-def load_label_ids(ids_file: Path) -> Dict[str, int]:
+def load_label_ids(label_vocab_file: Path) -> Dict[str, int]:
     ids = {}
-    with ids_file.open() as f:
+    with label_vocab_file.open() as f:
         for i, line in enumerate(f):
             ids[line.strip()] = i
     return ids
@@ -440,13 +448,13 @@ def get_label_dictionaries(
     pad_label: str,
     punct_label_ids: Optional[Dict[str, int]],
     capit_label_ids: Optional[Dict[str, int]],
-    punct_label_ids_file: Optional[Path],
-    capit_label_ids_file: Optional[Path],
+    punct_label_vocab_file: Optional[Path],
+    capit_label_vocab_file: Optional[Path],
     n_jobs: int,
 ) -> Tuple[Dict[str, int], Dict[str, int]]:
     """
     Return label ids if the label ids are present in passed in variables ``punct_label_ids``, ``capit_label_ids``,
-    ``punct_label_ids_file``, ``capit_label_ids_file``. Otherwise, label ids are created using ``label_file``.
+    ``punct_label_vocab_file``, ``capit_label_vocab_file``. Otherwise, label ids are created using ``label_file``.
 
     Args:
         label_file: a path to file with labels. Labels have to be given in the format described in
@@ -457,32 +465,32 @@ def get_label_dictionaries(
             label ids collection
         lines_per_dataset_fragment: number of lines in a dataset fragment
         pad_label: a label used for padding showing there is no punctuation and capitalization. Label ``pad_label``
-            has to have id ``0`` in parameters ``punct_label_ids``, ``capit_label_ids``, ``punct_label_ids_file``,
-            ``capit_label_ids_file`` if these parameters are provided.
+            has to have id ``0`` in parameters ``punct_label_ids``, ``capit_label_ids``, ``punct_label_vocab_file``,
+            ``capit_label_vocab_file`` if these parameters are provided.
         punct_label_ids: a dictionary with punctuation label ids. Pad label has to have id ``0``. No more than 1 of
-            parameters ``punct_label_ids`` and ``punct_label_ids_file`` can be provided.
+            parameters ``punct_label_ids`` and ``punct_label_vocab_file`` can be provided.
         capit_label_ids: a dictionary with capitalization label ids. Pad label has to have id ``0``. No more than 1 of
-            parameters ``capit_label_ids`` and ``capit_label_ids_file`` can be provided.
-        punct_label_ids_file: a text file with punctuation labels. Every line in the file contains 1 label. Pad label
-            has to be in the first line. No more than 1 of parameters ``punct_label_ids`` and ``punct_label_ids_file``
-            can be provided.
-        capit_label_ids_file: a text file with capitalization labels. Every line in the file contains 1 label. Pad label
-            has to be in the first line. No more than 1 of parameters ``capit_label_ids`` and ``capit_label_ids_file``
-            can be provided.
+            parameters ``capit_label_ids`` and ``capit_label_vocab_file`` can be provided.
+        punct_label_vocab_file: a text file with punctuation labels. Every line in the file contains 1 label. Pad label
+            has to be in the first line. No more than 1 of parameters ``punct_label_ids`` and
+            ``punct_label_vocab_file`` can be provided.
+        capit_label_vocab_file: a text file with capitalization labels. Every line in the file contains 1 label. Pad
+            label has to be in the first line. No more than 1 of parameters ``capit_label_ids`` and
+            ``capit_label_vocab_file`` can be provided.
         n_jobs: a number of fragments processed in parallel
 
     Returns:
         punct_label_ids: a dictionary with punctuation label ids
         capit_label_ids: a dictionary with capitalization label ids
     """
-    if punct_label_ids is not None and punct_label_ids_file is not None:
-        raise ValueError("You can provide at most one of parameters `punct_label_ids` and `punct_label_ids_file`.")
-    if capit_label_ids is not None and capit_label_ids_file is not None:
-        raise ValueError("You can provide at most one of parameters `capit_label_ids` and `capit_label_ids_file`.")
-    if punct_label_ids is None and punct_label_ids_file is not None:
-        punct_label_ids = load_label_ids(punct_label_ids_file)
-    if capit_label_ids is None and capit_label_ids_file is not None:
-        capit_label_ids = load_label_ids(capit_label_ids_file)
+    if punct_label_ids is not None and punct_label_vocab_file is not None:
+        raise ValueError("You can provide at most one of parameters `punct_label_ids` and `punct_label_vocab_file`.")
+    if capit_label_ids is not None and capit_label_vocab_file is not None:
+        raise ValueError("You can provide at most one of parameters `capit_label_ids` and `capit_label_vocab_file`.")
+    if punct_label_ids is None and punct_label_vocab_file is not None:
+        punct_label_ids = load_label_ids(punct_label_vocab_file)
+    if capit_label_ids is None and capit_label_vocab_file is not None:
+        capit_label_ids = load_label_ids(capit_label_vocab_file)
     check_label_ids(pad_label, punct_label_ids, capit_label_ids)
     if punct_label_ids is None or capit_label_ids is None:
         _punct_label_ids, _capit_label_ids = create_label_dictionaries(
@@ -611,6 +619,8 @@ def create_metadata_file(
         fn.rename(new_name)
         metadata['tar_files'].append(new_name.name)
         metadata["num_batches"] += nb
+    metadata[METADATA_PUNCT_LABEL_VOCAB_KEY] = DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME
+    metadata['capit_label_vocab'] = DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME
     with metadata_file_name.open('w') as f:
         json.dump(metadata, f, indent=2)
 
@@ -633,8 +643,8 @@ def create_tarred_dataset(
     pad_label: str = 'O',
     punct_label_ids: Optional[Dict[str, int]] = None,
     capit_label_ids: Optional[Dict[str, int]] = None,
-    punct_label_ids_file: Optional[Union[os.PathLike, str]] = None,
-    capit_label_ids_file: Optional[Union[os.PathLike, str]] = None,
+    punct_label_vocab_file: Optional[Union[os.PathLike, str]] = None,
+    capit_label_vocab_file: Optional[Union[os.PathLike, str]] = None,
     tar_file_prefix: Optional[str] = 'punctuation_capitalization',
     n_jobs: Optional[int] = mp.cpu_count(),
 ):
@@ -696,14 +706,14 @@ def create_tarred_dataset(
             which do not need punctuation and capitalization.
         punct_label_ids: a dictionary which keys are punctuation labels and values are label ids. The pad label has
             to have id ``0``. You can provide at most one of parameters ``punct_label_ids`` and
-            ``punct_label_ids_file``. If none of parameters ``punct_label_ids`` and ``punct_label_ids_file`` are
+            ``punct_label_vocab_file``. If none of parameters ``punct_label_ids`` and ``punct_label_vocab_file`` are
             provided, then punctuation label ids will be inferred from ``labels`` file.
         capit_label_ids: same as ``punct_label_ids`` for capitalization labels.
-        punct_label_ids_file: a path to file with punctuation labels. These labels include pad label. Pad label has to
+        punct_label_vocab_file: a path to file with punctuation labels. These labels include pad label. Pad label has to
             be the first label in the file. Each label is written on separate line. Alternatively you can use
-            ``punct_labels_ids`` parameter. If none of parameters ``punct_labels_ids`` and ``punct_label_ids_file`` are
-            provided, then punctuation label ids will be inferred from ``labels`` file.
-        capit_label_ids_file: same as ``punct_label_ids_file`` for capitalization labels.
+            ``punct_labels_ids`` parameter. If none of parameters ``punct_labels_ids`` and ``punct_label_vocab_file``
+            are provided, then punctuation label ids will be inferred from ``labels`` file.
+        capit_label_vocab_file: same as ``punct_label_vocab_file`` for capitalization labels.
         tar_file_prefix: a string from which tar file names start
         n_jobs: a number of workers for creating tarred dataset
     """
@@ -734,8 +744,8 @@ def create_tarred_dataset(
         pad_label,
         punct_label_ids,
         capit_label_ids,
-        punct_label_ids_file,
-        capit_label_ids_file,
+        punct_label_vocab_file,
+        capit_label_vocab_file,
         n_jobs,
     )
 
@@ -773,7 +783,7 @@ def create_tarred_dataset(
 
 
 class BertPunctuationCapitalizationTarredDataset(IterableDataset):
-    """
+    f"""
     Punctuation capitalization dataset for training which allows not to load all data in memory. Tarred dataset is
     created from text and label files using
     examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py script or
@@ -781,19 +791,28 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
     function.
 
     Args:
-        metadata_file: a path to tarred dataset metadata file. Metadata file is a JSON file which contains
-            ``'num_batches'`` and ``'tar_files'`` items. The first item is total number of batches in a dataset and
-            the second is a list of paths to tar files relative to directory containing ``metadata_file``.
+        metadata_file: a path to tarred dataset metadata file. Metadata file and files referenced in metadata file are
+            created by ``examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py``.
+            Metadata file is a JSON file which contains ``'num_batches'``, ``'tar_files'``,
+            ``'{METADATA_PUNCT_LABEL_VOCAB_KEY}'``, ``'{METADATA_CAPIT_LABEL_VOCAB_KEY}'`` items. The first item is
+            total number of batches in a dataset, the second is a list of paths to tar files relative to directory
+            containing ``metadata_file``. Items ``'{METADATA_PUNCT_LABEL_VOCAB_KEY}'`` and
+            ``'{METADATA_CAPIT_LABEL_VOCAB_KEY}'`` are paths to .csv files which contain unique punctuation an
+            capitalization labels. These paths are relative to directory containing ``metadata_file``.
+            Each line in ``'{METADATA_PUNCT_LABEL_VOCAB_KEY}'`` and ``'{METADATA_CAPIT_LABEL_VOCAB_KEY}'`` contain 1
+            label. The first lines in ``'{METADATA_PUNCT_LABEL_VOCAB_KEY}'`` and ``'{METADATA_CAPIT_LABEL_VOCAB_KEY}'``
+            files are neutral labels which also serve as padding. Neutral labels similar for punctuation and
+            capitalization and have to be equal to ``pad_label``.
         tokenizer: a tokenizer instance used for tokenization of dataset source. A tokenizer instance is used for
             getting ids of [CLS], [PAD], and [SEP] tokens which are used for masks creation.
         pad_label: a label that is used for padding and for absence of both punctuation and capitalization. Used for
-            checking parameters ``punct_label_ids_file`` and ``capit_label_ids_file`` parameters.
-        punct_label_ids_file: name of a file with punctuation label ids. A file with this name has to be present in
-            the same directory with ``metadata_file``. Each line in the file contains a punctuation label. The first
-            line has to contain ``pad_label``.
-        capit_label_ids_file: name of a file with capitalization label ids. A file with this name has to be present in
-            the same directory with ``metadata_file``. Each lien in the file contains a capitalization label. The first
-            line has to contain ``pad_label``.
+            checking items ``'punct_label_vocab'`` and ``'capit_label_vocab'`` of dictionary in ``metadata_file``.
+        punct_label_ids_file: a name of punctuation label ids file which then will be used in .nemo checkpoints.
+            The file with name ``punct_label_ids_file`` is just a copy of a file referenced in item
+            ``'{METADATA_PUNCT_LABEL_VOCAB_KEY}'`` in ``metadata_file``.
+        capit_label_ids_file: a name of capitalization label ids file which then will be used in .nemo checkpoints.
+            The file with name ``capit_label_ids_file`` is just a copy of a file referenced in item
+            ``'{METADATA_CAPIT_LABEL_VOCAB_KEY}'`` in ``metadata_file``.
         ignore_extra_tokens: whether to use only first token in a word for loss computation and training. If set to
             ``True``, then loss will be computed only for the first token of a word.
         ignore_start_end: whether to compute loss for [CLS] and [SEP] tokens. If set to ``True``, then loss will not
@@ -846,12 +865,15 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
                 self.tar_files.append(str(file_path))
             else:
                 self.tar_files.append(str(metadata_file.parent / file_path))
-        self.punct_label_ids_file = metadata_file.parent / punct_label_ids_file
-        self.punct_label_ids = self.load_label_ids(self.punct_label_ids_file)
-        self.capit_label_ids_file = metadata_file.parent / capit_label_ids_file
-        self.capit_label_ids = self.load_label_ids(self.capit_label_ids_file)
+        for_nemo = "label_id_files_for_nemo_checkpoint"
+        self.punct_label_ids_file = metadata_file.parent / for_nemo / punct_label_ids_file
+        self.punct_label_ids = self.load_label_ids(self.metadata[METADATA_PUNCT_LABEL_VOCAB_KEY])
+        self.capit_label_ids_file = metadata_file.parent / for_nemo / capit_label_ids_file
+        self.capit_label_ids = self.load_label_ids(self.metadata[METADATA_CAPIT_LABEL_VOCAB_KEY])
         self.pad_label = pad_label
         self.check_pad_label()
+        shutil.copy(str(self.metadata[METADATA_PUNCT_LABEL_VOCAB_KEY]), str(self.punct_label_ids_file))
+        shutil.copy(str(self.metadata[METADATA_CAPIT_LABEL_VOCAB_KEY]), str(self.capit_label_ids_file))
         begin_idx = (len(self.tar_files) // world_size) * global_rank
         end_idx = begin_idx + (len(self.tar_files) // world_size)
         logging.info(
@@ -871,8 +893,8 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
     def check_pad_label(self):
         """Checks the condition that pad label has 0 id in both ``self.punct_label_ids`` and ``self.capit_label_ids``"""
         for label_ids, label_file, task in [
-            (self.punct_label_ids, self.punct_label_ids_file, "punctuation"),
-            (self.capit_label_ids, self.capit_label_ids_file, "capitalization"),
+            (self.punct_label_ids, self.metadata[METADATA_PUNCT_LABEL_VOCAB_KEY], "punctuation"),
+            (self.capit_label_ids, self.metadata[METADATA_CAPIT_LABEL_VOCAB_KEY], "capitalization"),
         ]:
             if label_ids[self.pad_label] != 0:
                 raise ValueError(
