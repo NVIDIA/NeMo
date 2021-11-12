@@ -93,6 +93,7 @@ class TimeFst(GraphFst):
             + (pynini.cross("00", " seconds: \"0\"") | (insert_space + final_graph_second))
             + final_suffix
             + final_time_zone_optional
+            + pynutil.insert(" preserve_order: true")
         )
 
         # 2 Uhr est

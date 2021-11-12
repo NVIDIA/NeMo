@@ -31,9 +31,13 @@ except (ModuleNotFoundError, ImportError):
 class MeasureFst(GraphFst):
     """
     Finite state transducer for verbalizing measure, e.g.
-        measure { cardinal { integer: "два килограма" } } -> "два килограма"
+        measure { cardinal { integer: "zwei" units: "unzen" } } -> "zwei unzen"
+        measure { cardinal { integer_part: "zwei" quantity: "millionen" units: "unzen" } } -> "zwei millionen unzen"
     
     Args:
+        decimal: decimal GraphFst
+        cardinal: cardinal GraphFst
+        fraction: fraction GraphFst
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """

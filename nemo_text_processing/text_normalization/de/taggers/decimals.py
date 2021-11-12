@@ -65,8 +65,8 @@ def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstL
 class DecimalFst(GraphFst):
     """
     Finite state transducer for classifying decimal, e.g. 
-        -11,4006 billion -> decimal { negative: "true" integer_part: "elf"  fractional_part: "vier null null sechs" quantity: "billion" }
-        1 billion -> decimal { integer_part: "eins" quantity: "billion" }
+        -11,4006 billion -> decimal { negative: "true" integer_part: "elf"  fractional_part: "vier null null sechs" quantity: "billion" preserve_order: true }
+        1 billion -> decimal { integer_part: "eins" quantity: "billion" preserve_order: true }
     Args:
         cardinal: CardinalFst
         deterministic: if True will provide a single transduction option,

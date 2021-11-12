@@ -36,7 +36,7 @@ class MoneyFst(GraphFst):
     Finite state transducer for classifying money, e.g.
         "€1" -> money { currency_maj: "euro" integer_part: "ein"}
         "€1,000" -> money { currency_maj: "euro" integer_part: "ein" }
-        "€1,001" -> money { currency_maj: "euro" integer_part: "ein" fractional_part: "null null eins"}
+        "€1,001" -> money { currency_maj: "euro" integer_part: "eins" fractional_part: "null null eins"}
         "£1,4" -> money { integer_part: "ein" currency_maj: "pfund" fractional_part: "vierzig" preserve_order: true}
                -> money { integer_part: "ein" currency_maj: "pfund" fractional_part: "vierzig" currency_min: "pence" preserve_order: true}
         "£0,01" -> money { fractional_part: "ein" currency_min: "penny" preserve_order: true}

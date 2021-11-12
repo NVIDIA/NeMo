@@ -28,8 +28,8 @@ except (ModuleNotFoundError, ImportError):
 class ElectronicFst(GraphFst):
     """
     Finite state transducer for classifying electronic: email addresses
-        e.g. "abc@hotmail.com" -> electronic { username: "abc" domain: "hotmail.com"}
-        e.g. "www.abc.com/123" -> electronic { protocol: "www." domain: "abc.com/123"}
+        e.g. "abc@hotmail.com" -> electronic { username: "abc" domain: "hotmail.com" preserve_order: true }
+        e.g. "www.abc.com/123" -> electronic { protocol: "www." domain: "abc.com/123" preserve_order: true }
 
     Args:
         deterministic: if True will provide a single transduction option,
