@@ -84,7 +84,7 @@ class PunctuationCapitalizationDataConfigBase:
     # TARRED DATASET PARAMETERS
     #################################################
     tar_metadata_file: Optional[str] = None  # Any = str or List[str]  A name of metadata file for tarred dataset
-    tar_shuffle_n: int = 100
+    tar_shuffle_n: Optional[int] = 1
 
     #################################################
     # DATALOADER PARAMETERS
