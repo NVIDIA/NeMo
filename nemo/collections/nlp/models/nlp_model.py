@@ -250,7 +250,7 @@ class NLPModel(ModelPT, Exportable):
             checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].update(config_kwargs)
 
             model = cls._load_model_state(
-                checkpoint, strict=strict, cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs
+                checkpoint, strict=strict, **kwargs
             )
             checkpoint = model
 
