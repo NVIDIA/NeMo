@@ -89,7 +89,7 @@ def main(cfg: DictConfig) -> None:
         )
 
     data_dir = cfg.model.dataset.get('data_dir', None)
-    model._cfg.use_cache = False
+    model._cfg.dataset.use_cache = False
     if data_dir is None:
         logging.error(
             'No dataset directory provided. Skipping evaluation. '
