@@ -32,10 +32,9 @@ except (ModuleNotFoundError, ImportError):
 class DecimalFst(GraphFst):
     """
     Finite state transducer for classifying decimal, e.g. 
-        -12.5006 billion -> decimal { negative: "true" integer_part: "12"  fractional_part: "five o o six" quantity: "billion" }
-        1 billion -> decimal { integer_part: "one" quantity: "billion" }
+        decimal { negative: "true" integer_part: "elf"  fractional_part: "vier null sechs" quantity: "billionen" } -> minus elf komma vier null sechs billionen  
+        decimal { integer_part: "eins" quantity: "billion" } -> eins billion
 
-    cardinal: CardinalFst
     """
 
     def __init__(self, deterministic: bool):

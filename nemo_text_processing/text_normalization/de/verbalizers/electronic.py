@@ -33,8 +33,10 @@ except (ModuleNotFoundError, ImportError):
 class ElectronicFst(GraphFst):
     """
     Finite state transducer for verbalizing electronic
-        e.g. electronic { username: "эй би собака эн ди точка ру" } -> "эй би собака эн ди точка ру"
-
+        e.g. electronic { username: "abc" domain: "hotmail.com" } -> "a b c at hotmail punkt com"
+                                                           -> "a b c at h o t m a i l punkt c o m"
+                                                           -> "a b c at hotmail punkt c o m"
+                                                           -> "a b c at h o t m a i l punkt com"
     Args:
         deterministic: if True will provide a single transduction option,
         for False multiple transduction are generated (used for audio-based normalization)

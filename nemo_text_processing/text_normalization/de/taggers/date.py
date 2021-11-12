@@ -70,7 +70,9 @@ def get_year_graph(leading_zero: 'pynini.FstLike', cardinal: GraphFst) -> 'pynin
 class DateFst(GraphFst):
     """
     Finite state transducer for classifying date, e.g. 
-        "01.04.2010" -> tokens { date { day: "erster" month: "april" year: "zwei tausend zehn" } }
+        "01.04.2010" -> date { day: "erster" month: "april" year: "zwei tausend zehn" preserve_order: true }
+        "1994" -> date { year: "neunzehn vier und neuzig" }
+        "1900" -> date { year: "neunzehn hundert" }
 
     Args:
         cardinal: cardinal GraphFst

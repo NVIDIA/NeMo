@@ -35,9 +35,9 @@ except (ModuleNotFoundError, ImportError):
 class MeasureFst(GraphFst):
     """
     Finite state transducer for classifying measure,  e.g.
-        "2,4 oz" -> measure { cardinal { integer_part: "zwei" fractional_part: "vier" units: "unzen"} }
-        "1 oz" -> measure { cardinal { integer: "zwei" units: "unze"} }
-        "1 million oz" -> measure { cardinal { integer: "eins" quantity: "million" units: "unze"} }
+        "2,4 oz" -> measure { cardinal { integer_part: "zwei" fractional_part: "vier" units: "unzen" preserve_order: true } }
+        "1 oz" -> measure { cardinal { integer: "zwei" units: "unze" preserve_order: true } }
+        "1 million oz" -> measure { cardinal { integer: "eins" quantity: "million" units: "unze" preserve_order: true } }
         This class also converts words containing numbers and letters
         e.g. "a-8" —> "a acht"
         e.g. "1,2-a" —> "ein komma zwei a"

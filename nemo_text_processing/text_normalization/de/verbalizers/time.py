@@ -13,7 +13,12 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.de.utils import get_abs_path
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, NEMO_SIGMA, GraphFst
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_NOT_QUOTE,
+    NEMO_SIGMA,
+    GraphFst,
+    delete_preserve_order,
+)
 
 try:
     import pynini
@@ -26,10 +31,17 @@ except (ModuleNotFoundError, ImportError):
 
 class TimeFst(GraphFst):
     """
-    Finite state transducer for verbalizing electronic
-        e.g. time { hours: "два часа пятнадцать минут" } -> "два часа пятнадцать минут"
+    Finite state transducer for verbalizing electronic, e.g.
+        time { hours: "2" minutes: "15"} -> "zwei uhr fünfzehn"
+        time { minutes: "15" hours: "2" } -> "viertel nach zwei"
+        time { minutes: "15" hours: "2" } -> "fünfzehn nach zwei"
+        time { hours: "14" minutes: "15"} -> "vierzehn uhr fünfzehn"
+        time { minutes: "15" hours: "14" } -> "viertel nach zwei"
+        time { minutes: "15" hours: "14" } -> "fünfzehn nach drei"
+        time { minutes: "45" hours: "14" } -> "viertel vor drei"
 
     Args:
+        cardinal: cardinal tagger GraphFst
         deterministic: if True will provide a single transduction option,
         for False multiple transduction are generated (used for audio-based normalization)
     """
@@ -60,6 +72,7 @@ class TimeFst(GraphFst):
             + second @ number_verbalization
             + pynutil.insert(" sekunden")
             + optional_zone
+            + delete_preserve_order
         )
         graph_hms @= pynini.cdrewrite(
             pynini.cross("eins minuten", "eine minute") | pynini.cross("eins sekunden", "eine sekunde"),

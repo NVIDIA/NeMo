@@ -32,7 +32,8 @@ except (ModuleNotFoundError, ImportError):
 class DateFst(GraphFst):
     """
     Finite state transducer for verbalizing date, e.g.
-        tokens { date { day: "первое мая" } } -> "первое мая"
+        date { day: "vier" month: "april" year: "zwei tausend zwei" } -> "vierter april zwei tausend zwei"
+        date { day: "vier" month: "mai" year: "zwei tausend zwei" } -> "vierter mai zwei tausend zwei"
 
     Args:
         ordinal: ordinal verbalizer GraphFst

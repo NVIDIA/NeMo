@@ -27,7 +27,8 @@ except (ModuleNotFoundError, ImportError):
 class TelephoneFst(GraphFst):
     """
     Finite state transducer for verbalizing telephone, e.g.
-        telephone { number_part: "восемь девятьсот тринадцать девятьсот восемьдесят три пятьдесят шесть ноль один" } -> "восемь девятьсот тринадцать девятьсот восемьдесят три пятьдесят шесть ноль один"
+        telephone { country_code: "plus neun und vierzig" number_part: "null eins eins eins null null null" } 
+            -> "plus neun und vierzig null eins eins eins null null null"
 
     Args:
         deterministic: if True will provide a single transduction option,

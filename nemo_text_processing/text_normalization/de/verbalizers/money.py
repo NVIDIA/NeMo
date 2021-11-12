@@ -27,14 +27,19 @@ except (ModuleNotFoundError, ImportError):
 class MoneyFst(GraphFst):
     """
     Finite state transducer for verbalizing money, e.g.
-        money {  "пять рублей" } -> пять рублей
+        money { currency_maj: "euro" integer_part: "ein"} -> "ein euro"
+        money { currency_maj: "euro" integer_part: "eins" fractional_part: "null null eins"} -> "eins komma null null eins euro"
+        money { integer_part: "ein" currency_maj: "pfund" fractional_part: "vierzig" preserve_order: true} -> "ein pfund vierzig"
+        money { integer_part: "ein" currency_maj: "pfund" fractional_part: "vierzig" currency_min: "pence" preserve_order: true} -> "ein pfund vierzig pence"
+        money { fractional_part: "ein" currency_min: "penny" preserve_order: true} -> "ein penny"
+        money { currency_maj: "pfund" integer_part: "null" fractional_part: "null eins" quantity: "million"} -> "null komma null eins million pfund"
 
     Args:
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, decimal: GraphFst, deterministic: bool = True):
+    def __init__(self, deterministic: bool = True):
         super().__init__(name="money", kind="verbalize", deterministic=deterministic)
 
         keep_space = pynini.accep(" ")
