@@ -233,6 +233,11 @@ More details about parameters in the config file can be found below and in the
 +-------------------------------------------+-----------------+-------------------------------------------------------+
 | **train_ds.use_tarred_dataset**           | bool            | Whether to use tarred or usual dataset                |
 +-------------------------------------------+-----------------+-------------------------------------------------------+
+| **train_ds.ds_item**                      | string          | A path to directory where ``text_file``,              |
+|                                           |                 | ``labels_file``, ``metadata_file`` stored. If         |
+|                                           |                 | ``ds_item`` is not provided, then                     |
+|                                           |                 | ``dataset.data_dir`` is used instead.                 |
++-------------------------------------------+-----------------+-------------------------------------------------------+
 | **train_ds.text_file**                    | string          | Name of the text training file located at ``ds_item`` |
 |                                           |                 | or, if ``ds_item`` is missing, located in             |
 |                                           |                 | ``data_dir``.                                         |
@@ -242,20 +247,39 @@ More details about parameters in the config file can be found below and in the
 |                                           |                 | ``ds_item`` parameter is missing, then labels file    |
 |                                           |                 | should be located in ``data_dir``.                    |
 +-------------------------------------------+-----------------+-------------------------------------------------------+
-| **train_ds.tar_metadata_file**                | string          | Name of metadata file located either in ``ds_item``   |
+| **train_ds.tar_metadata_file**            | string          | Name of metadata file located either in ``ds_item``   |
 |                                           |                 | or, if ``ds_item`` is missing, located in             |
 |                                           |                 | ``data_dir``.                                         |
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **train_ds.tokens_in_batch**              | int             | Number of tokens in a batch. When batch is build      |
+|                                           |                 | samples in a dataset are sorted by number of tokens   |
+|                                           |                 | and samples whose lengths are not much different      |
+|                                           |                 | are packed into batches. This way the number of       |
+|                                           |                 | padding tokens is reduced. Batch size varies: if      |
+|                                           |                 | samples are short, then a batch contains more         |
+|                                           |                 | elements.                                             |
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **train_ds                                | bool            | Whether to perform full shuffle of training           |
+| .repack_batches_with_shuffle_every_epoch**|                 | dataset every epoch. Since dataset yields ready       |
+|                                           |                 | batches, ``torch.DataLoader`` shuffling only permutes |
+|                                           |                 | but not makes new batches. If this parameter is       |
+|                                           |                 | ``True``, then every epoch samples are shuffled       |
+|                                           |                 | and then repacked.                                    |
 +-------------------------------------------+-----------------+-------------------------------------------------------+
 | **train_ds.num_samples**                  | integer         | Number of samples to use from the training dataset,   |
 |                                           |                 | ``-1`` - to use all.                                  |
 +-------------------------------------------+-----------------+-------------------------------------------------------+
-| **validation_ds.ds_item**                 | string          | A path or a list of paths to validation dataset       |
-|                                           |                 | directories. If ``ds_item`` is a list, then           |
-|                                           |                 | validation will be performed on several datasets.     |
-|                                           |                 | Each ``ds_item`` directory has to contain files with  |
-|                                           |                 | names ``text_file`` and ``labels_file``. If           |
-|                                           |                 | ``ds_item`` is missing, then ``dataset.data_dir``     |
-|                                           |                 | is used instead.                                      |
+| **validation_ds.ds_item**                 | string or       | A path or a list of paths to validation dataset       |
+|                                           | a list of       | directories. If ``ds_item`` is a list, then           |
+|                                           | strings.        | validation will be performed on several datasets.     |
+|                                           | To override     | Each ``ds_item`` directory has to contain files with  |
+|                                           | config value    | names ``text_file`` and ``labels_file``. If           |
+|                                           | with a list     | ``ds_item`` is missing, then ``dataset.data_dir``     |
+|                                           | use syntax      | is used instead.                                      |
+|                                           | [VAL1,VAL2].    |                                                       |
+|                                           | Do NOT use      |                                                       |
+|                                           | spaces in such  |                                                       |
+|                                           | overriding.     |                                                       |
 +-------------------------------------------+-----------------+-------------------------------------------------------+
 | **validation_ds.text_file**               | string          | Name of the text file for evaluation, located at      |
 |                                           |                 | ``data_dir``.                                         |
@@ -265,6 +289,14 @@ More details about parameters in the config file can be found below and in the
 +-------------------------------------------+-----------------+-------------------------------------------------------+
 | **validation_ds.num_samples**             | integer         | Number of samples to use from the dev set, ``-1`` -   |
 |                                           |                 | to use all.                                           |
++-------------------------------------------+-----------------+-------------------------------------------------------+
+| **validation_ds.tokens_in_batch**         | int             | Number of tokens in a batch. When batch is build      |
+|                                           |                 | samples in a dataset are sorted by number of tokens   |
+|                                           |                 | and samples whose lengths are not much different      |
+|                                           |                 | are packed into batches. This way the number of       |
+|                                           |                 | padding tokens is reduced. Batch size varies: if      |
+|                                           |                 | samples are short, then a batch contains more         |
+|                                           |                 | elements.                                             |
 +-------------------------------------------+-----------------+-------------------------------------------------------+
 
 For more information, refer to the :ref:`nlp_model` section.

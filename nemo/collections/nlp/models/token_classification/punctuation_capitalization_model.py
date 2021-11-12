@@ -175,7 +175,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         return self.eval_step(batch, 'test', dataloader_idx)
 
     def training_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
-        shuffle = self._cfg.train_ds.get('repack_batches_with_shuffle')
+        shuffle = self._cfg.train_ds.get('repack_batches_with_shuffle_every_epoch')
         if shuffle is None:  # Encountered legacy config
             shuffle = not self.cfg.train_ds.get('use_tarred_dataset', False)
         if shuffle:
@@ -442,7 +442,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             num_workers=self._cfg.dataset.num_workers if num_workers is None else num_workers,
             pin_memory=self._cfg.dataset.pin_memory if pin_memory is None else pin_memory,
             drop_last=self._cfg.dataset.drop_last if drop_last is None else drop_last,
-            persistent_workers=self._cfg.dataset.persistent_workers if p_workers is None else p_workers,
+            persistent_workers=self._cfg.dataset.get('persistent_workers', False) if p_workers is None else p_workers,
         )
 
     def _setup_infer_dataloader(

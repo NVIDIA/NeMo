@@ -104,7 +104,7 @@ class PunctuationCapitalizationTrainDataConfig(PunctuationCapitalizationDataConf
     ds_item: Optional[str] = None
     # Every epoch dataset samples are shuffled, then sorted by length, and packed into batches. This way batches are
     # renewed and padding usage is kept low.
-    repack_batches_with_shuffle: bool = True
+    repack_batches_with_shuffle_every_epoch: bool = True
 
 
 @dataclass
