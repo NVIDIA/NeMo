@@ -167,7 +167,7 @@ Tarred dataset
 Tokenization and encoding of data is quite costly for punctuation and capitalization task. If your dataset contains a
 lot of samples (~4M) you may use tarred dataset. A tarred dataset is a collection of tarred files which
 contain batches ready for passing into a model. Tarred dataset is not loaded into memory entirely, but in small pieces,
-which do not overflow memory.
+which do not overflow memory. Tarred dataset relies on `webdataset <https://github.com/webdataset/webdataset>`_.
 
 For creating of tarred dataset you will need data in NeMo format:
 
