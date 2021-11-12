@@ -45,7 +45,7 @@ class VerbalizeFst(GraphFst):
         cardinal_graph = cardinal.fst
         ordinal = OrdinalFst()
         ordinal_graph = ordinal.fst
-        decimal = DecimalFst(cardinal=cardinal, deterministic=deterministic)
+        decimal = DecimalFst(deterministic=deterministic)
         decimal_graph = decimal.fst
         fraction = FractionFst(ordinal=ordinal)
         fraction_graph = fraction.fst
