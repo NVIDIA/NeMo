@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -76,8 +76,8 @@ model:
     # `examples/nlp/token_classification/create_punctuation_capitalization_tarred_dataset.py`
     tar_metadata_file: ???
     # Controls batch shuffling in tarred dataset. `tar_shuffle_n` is a size of shuffled batch buffer. Mind that this
-    # shuffling only permutes batches and doesn't exchange samples between batches. Proper shuffling is turned on in
-    # usual dataset via parameter `repack_batches_with_shuffle_every_epoch`.
+    # shuffling only permutes batches and doesn't exchange samples between batches. Proper shuffling is used in
+    # usual dataset.
     tar_shuffle_n: 1
 
   validation_ds:

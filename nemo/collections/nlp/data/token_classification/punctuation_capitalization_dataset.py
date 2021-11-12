@@ -75,7 +75,6 @@ class PunctuationCapitalizationDataConfigBase:
     use_cache: Optional[bool] = None
     get_label_frequences: bool = False
     verbose: bool = True
-    pickle_features: bool = True
     # If 0, then multiprocessing is not used; if null, then n_jobs is equal to the number of CPU cores.
     # There can be weird deadlocking with some tokenizers (e.g. SentencePiece) if `n_jobs` is greater than zero.
     n_jobs: Optional[int] = 0
@@ -89,8 +88,8 @@ class PunctuationCapitalizationDataConfigBase:
     #################################################
     # DATALOADER PARAMETERS
     #################################################
-    # Shuffle batches every epoch. This parameter does not repack batches. For batch repacking
-    # see parameter `repack_batches_with_shuffle`.
+    # Shuffle batches every epoch. For not tarred training datasets parameter also activates batch
+    # repacking every epoch. For tarred dataset it would be only batches permutation.
     shuffle: bool = True
     drop_last: Optional[bool] = None
     pin_memory: Optional[bool] = None
@@ -102,9 +101,6 @@ class PunctuationCapitalizationDataConfigBase:
 class PunctuationCapitalizationTrainDataConfig(PunctuationCapitalizationDataConfigBase):
     # Path to a directory where `tar_metadata_file` or `text_file` and `labels_file` lay
     ds_item: Optional[str] = None
-    # Every epoch dataset samples are shuffled, then sorted by length, and packed into batches. This way batches are
-    # renewed and padding usage is kept low.
-    repack_batches_with_shuffle_every_epoch: bool = True
 
 
 @dataclass
@@ -688,8 +684,6 @@ class BertPunctuationCapitalizationDataset(Dataset):
         add_masks_and_segment_ids_to_batch: whether to add ``loss_mask``, ``input_mask``, ``segment_ids`` to batch.
             Useful for creation of tarred dataset and can NOT be used during model training and inference
         verbose: whether to show data examples, label stats and other useful information
-        pickle_features: whether to create cache. If ``True`` input ids, first word token masks, encoded punctuation
-            and capitalization are pickled
         save_label_ids: whether to save punctuation and capitalization label ids into files ``punct_label_ids`` and
             ``capit_label_ids``
         n_jobs: number of workers used for tokenization, encoding labels, creating "first token in word" mask, and
@@ -739,7 +733,6 @@ class BertPunctuationCapitalizationDataset(Dataset):
         capit_label_ids_file: str = DEFAULT_CAPIT_LABEL_IDS_NAME,
         add_masks_and_segment_ids_to_batch: bool = True,
         verbose: bool = True,
-        pickle_features: bool = True,
         save_label_ids: bool = True,
         n_jobs: Optional[int] = 0,
         tokenization_progress_queue: Optional[mp.Queue] = None,
@@ -871,7 +864,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 progress_queue=tokenization_progress_queue,
                 n_jobs=n_jobs,
             )
-            if pickle_features:
+            if use_cache:
                 pickle.dump(tuple(list(features) + [punct_label_ids, capit_label_ids]), open(features_pkl, "wb"))
                 if self.verbose:
                     logging.info(f'Features saved to {features_pkl}')

@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -114,8 +114,8 @@ def get_args():
         default="bert-base-uncased",
         help="Name of the tokenizer used for tokenization of source sequences. Possible options are 'sentencepiece', "
         "'word', 'char', HuggingFace tokenizers. For more options see function "
-        "`nemo.collections.nlp.modules.common.get_tokenizer`. The tokenizer has have properties `cls_id`, `pad_id`, "
-        "`sep_id`, `unk_id`.",
+        "`nemo.collections.nlp.modules.common.get_tokenizer`. The tokenizer has to have properties `cls_id`, "
+        "`pad_id`, `sep_id`, `unk_id`.",
     )
     parser.add_argument(
         "--tokenizer_model", "-m", type=Path, help="Path to tokenizer model required for 'sentencepiece' tokenizer."
@@ -145,13 +145,6 @@ def get_args():
     )
     parser.add_argument(
         "--use_fast_tokenizer", "-f", action="store_true", help="Whether to use fast HuggingFace tokenizer."
-    )
-    parser.add_argument(
-        "--tokenizer_bpe_dropout",
-        "-d",
-        type=float,
-        help="BPE dropout for YouTokenToMe tokenizer. Currently YouTokenToMe tokenizer is not supported because "
-        "it lacks `cls_id` and `sep_id` properties.",
     )
     parser.add_argument(
         "--pad_label",
@@ -283,7 +276,6 @@ def main():
         merges_file=args.merges_file,
         special_tokens=special_tokens,
         use_fast_tokenizer=args.use_fast_tokenizer,
-        tokenizer_bpe_dropout=args.tokenizer_bpe_dropout,
         pad_label=args.pad_label,
         punct_label_ids=punct_label_ids,
         capit_label_ids=capit_label_ids,

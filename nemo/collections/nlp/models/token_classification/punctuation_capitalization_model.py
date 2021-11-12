@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -175,7 +175,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         return self.eval_step(batch, 'test', dataloader_idx)
 
     def training_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
-        shuffle = self._cfg.train_ds.get('repack_batches_with_shuffle_every_epoch')
+        shuffle = self._cfg.train_ds.get('shuffle')
         if shuffle is None:  # Encountered legacy config
             shuffle = not self.cfg.train_ds.get('use_tarred_dataset', False)
         if shuffle:
@@ -395,17 +395,11 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             if cfg.text_file is None or cfg.labels_file is None:
                 raise ValueError(
                     f"If parameter `use_tarred_dataset` is `False`, then fields `text_file` and `labels_file` in "
-                    f"dataset config have to not `None`. Whereas `text_file={cfg.text_file}` and "
+                    f"dataset config must not be `None`. Whereas `text_file={cfg.text_file}` and "
                     f"`label_file={cfg.labels_file}`."
                 )
             # Following parameters can be missing in config if the model is restored from old checkpoint
             tokens_in_batch = cfg.get('tokens_in_batch')
-            if tokens_in_batch is None:
-                logging.warning(
-                    f"`tokens_in_batch` parameter is missing in dataset config. The default value "
-                    f"{DEFAULT_NUM_TOKENS_IN_BATCH} is used."
-                )
-                tokens_in_batch = DEFAULT_NUM_TOKENS_IN_BATCH
             max_seq_length = cfg.get('max_seq_length')
             use_cache = cfg.get('use_cache')
             text_file, labels_file = Path(ds_data_dir) / cfg.text_file, Path(ds_data_dir) / cfg.labels_file
@@ -426,7 +420,6 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 capit_label_ids_file=self._cfg.class_labels.capit_labels_file,
                 n_jobs=cfg.get('n_jobs', 0),
                 verbose=cfg.get('verbose', False),
-                pickle_features=cfg.get('pickle_features', True),
                 get_label_frequencies=cfg.get('get_label_frequencies'),
             )
         if cfg.shuffle and cfg.use_tarred_dataset:

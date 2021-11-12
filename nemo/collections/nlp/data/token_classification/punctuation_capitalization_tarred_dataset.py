@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -138,7 +138,6 @@ def process_fragment(
     merges_file: Optional[Path],
     special_tokens: Dict[str, str],
     use_fast_tokenizer: Optional[bool],
-    tokenizer_bpe_dropout: Optional[bool],
     pad_label: str,
     punct_label_ids: Dict[str, int],
     capit_label_ids: Dict[str, int],
@@ -155,7 +154,6 @@ def process_fragment(
         merges_file=str(merges_file),
         special_tokens=special_tokens,
         use_fast=use_fast_tokenizer,
-        bpe_dropout=tokenizer_bpe_dropout,
     )
     tmp_text = output_dir / f'tmp_text_{fragment_idx}.txt'
     tmp_labels = output_dir / f'tmp_labels_{fragment_idx}.txt'
@@ -183,7 +181,6 @@ def process_fragment(
         use_cache=False,
         add_masks_and_segment_ids_to_batch=False,
         verbose=False,
-        pickle_features=False,
         save_label_ids=fragment_idx == 0,
         tokenization_progress_queue=tokenization_progress_queue,
         batch_mark_up_progress_queue=batch_mark_up_progress_queue,
@@ -639,7 +636,6 @@ def create_tarred_dataset(
     merges_file: Optional[Union[os.PathLike, str]] = None,
     special_tokens: Optional[Dict[str, str]] = None,
     use_fast_tokenizer: Optional[bool] = False,
-    tokenizer_bpe_dropout: Optional[float] = 0.0,
     pad_label: str = 'O',
     punct_label_ids: Optional[Dict[str, int]] = None,
     capit_label_ids: Optional[Dict[str, int]] = None,
@@ -769,7 +765,6 @@ def create_tarred_dataset(
                 None if merges_file is None else Path(merges_file).expanduser(),
                 special_tokens,
                 use_fast_tokenizer,
-                tokenizer_bpe_dropout,
                 pad_label,
                 punct_label_ids,
                 capit_label_ids,

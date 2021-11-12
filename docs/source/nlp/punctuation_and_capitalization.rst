@@ -260,13 +260,6 @@ More details about parameters in the config file can be found below and in the
 |                                           |                 | samples are short, then a batch contains more         |
 |                                           |                 | elements.                                             |
 +-------------------------------------------+-----------------+-------------------------------------------------------+
-| **train_ds                                | bool            | Whether to perform full shuffle of training           |
-| .repack_batches_with_shuffle_every_epoch**|                 | dataset every epoch. Since dataset yields ready       |
-|                                           |                 | batches, ``torch.DataLoader`` shuffling only permutes |
-|                                           |                 | but not makes new batches. If this parameter is       |
-|                                           |                 | ``True``, then every epoch samples are shuffled       |
-|                                           |                 | and then repacked.                                    |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
 | **train_ds.num_samples**                  | integer         | Number of samples to use from the training dataset,   |
 |                                           |                 | ``-1`` - to use all.                                  |
 +-------------------------------------------+-----------------+-------------------------------------------------------+

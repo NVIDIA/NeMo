@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -76,7 +76,6 @@ class ClassLabels:
 @dataclass
 class CommonDatasetParameters:
     data_dir: Optional[str] = None
-    shuffle_train_dataset: bool = True
     max_seq_length: Optional[int] = 128
     pad_label: str = MISSING
     ignore_extra_tokens: bool = False
@@ -129,7 +128,7 @@ class PunctuationCapitalizationModelConfig:
 @dataclass
 class PunctuationCapitalizationConfig(NemoConfig):
     pretrained_model: Optional[str] = None
-    name: Optional[str] = 'MTEncDec'
+    name: Optional[str] = 'Punctuation_and_Capitalization'
     do_training: bool = True
     do_testing: bool = False
     model: PunctuationCapitalizationModelConfig = PunctuationCapitalizationModelConfig()
