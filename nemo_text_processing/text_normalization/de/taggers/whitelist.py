@@ -1,5 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +13,7 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.de.utils import get_abs_path, load_labels
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_CHAR, GraphFst, convert_space
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, convert_space
 
 try:
     import pynini
@@ -28,11 +27,7 @@ except (ModuleNotFoundError, ImportError):
 class WhiteListFst(GraphFst):
     """
     Finite state transducer for classifying whitelist, e.g.
-        misses -> tokens { name: "mrs" }
-        for non-deterministic case: "Dr. Abc" ->
-            tokens { name: "drive" } tokens { name: "Abc" }
-            tokens { name: "doctor" } tokens { name: "Abc" }
-            tokens { name: "Dr." } tokens { name: "Abc" }
+        "Mr." -> tokens { name: "mister" }
     This class has highest priority among all classifier grammars. Whitelisted tokens are defined and loaded from "data/whitelist.tsv".
 
     Args:

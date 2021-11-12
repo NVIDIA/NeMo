@@ -1,5 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +17,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_NOT_QUOTE,
     NEMO_SIGMA,
     GraphFst,
-    delete_space,
+    delete_preserve_order,
     insert_space,
 )
 
@@ -72,5 +71,6 @@ class ElectronicFst(GraphFst):
         graph = (pynini.closure(protocol + pynini.accep(" "), 0, 1) + domain) | (
             user_name + pynini.accep(" ") + pynutil.insert("at ") + domain
         )
+        graph += delete_preserve_order
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

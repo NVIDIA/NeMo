@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,8 +15,6 @@
 # Adapted from https://github.com/google/TextNormalizationCoveringGrammars
 # Russian minimally supervised number grammar.
 
-
-from nemo_text_processing.text_normalization.de.utils import get_abs_path
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, GraphFst
 
 try:
@@ -32,11 +29,11 @@ except (ModuleNotFoundError, ImportError):
 class OrdinalFst(GraphFst):
     """
     Finite state transducer for classifying cardinals, e.g. 
-        "2" -> ordinal { integer: "второе" } }
+        "2." -> ordinal { integer: "zwei" } }
+        "2tes" -> ordinal { integer: "zwei" } }
 
     Args:
-        number_names: number_names for cardinal and ordinal numbers
-        alternative_formats: alternative format for cardinal and ordinal numbers
+        cardinal: cardinal GraphFst
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """

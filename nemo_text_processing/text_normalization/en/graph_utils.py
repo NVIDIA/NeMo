@@ -49,6 +49,10 @@ try:
     delete_space = pynutil.delete(pynini.closure(NEMO_WHITE_SPACE))
     insert_space = pynutil.insert(" ")
     delete_extra_space = pynini.cross(pynini.closure(NEMO_WHITE_SPACE, 1), " ")
+    delete_preserve_order = pynini.closure(
+        pynutil.delete(" preserve_order: true")
+        | (pynutil.delete(" field_order: \"") + NEMO_NOT_QUOTE + pynutil.delete("\""))
+    )
 
     suppletive = pynini.string_file(get_abs_path("data/suppletive.tsv"))
     # _v = pynini.union("a", "e", "i", "o", "u")
@@ -93,6 +97,7 @@ except (ModuleNotFoundError, ImportError):
     delete_space = None
     insert_space = None
     delete_extra_space = None
+    delete_preserve_order = None
 
     suppletive = None
     # _v = pynini.union("a", "e", "i", "o", "u")

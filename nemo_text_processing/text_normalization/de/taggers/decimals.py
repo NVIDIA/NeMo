@@ -12,23 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import defaultdict
-
 from nemo_text_processing.text_normalization.de.utils import get_abs_path, load_labels
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_DIGIT,
-    NEMO_SPACE,
-    GraphFst,
-    delete_extra_space,
-    delete_space,
-    insert_space,
-)
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, insert_space
 
 try:
     import pynini
     from pynini.lib import pynutil
-
-    delete_space = pynutil.delete(" ")
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -38,8 +27,8 @@ except (ModuleNotFoundError, ImportError):
 def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstLike') -> 'pynini.FstLike':
     """
     Returns FST that transforms either a cardinal or decimal followed by a quantity into a numeral,
-    e.g. 1 million -> integer_part: "one" quantity: "million"
-    e.g. 1.5 million -> integer_part: "one" fractional_part: "five" quantity: "million"
+    e.g. 1 million -> integer_part: "eine" quantity: "million"
+    e.g. 1.4 million -> integer_part: "eins" fractional_part: "vier" quantity: "million"
 
     Args: 
         decimal: decimal FST
@@ -64,22 +53,24 @@ def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstL
         pynutil.insert("integer_part: \"")
         + numbers
         + pynutil.insert("\"")
-        + delete_extra_space
+        + pynini.accep(" ")
         + pynutil.insert("quantity: \"")
         + suffix
         + pynutil.insert("\"")
     )
-    res |= decimal + delete_extra_space + pynutil.insert("quantity: \"") + suffix + pynutil.insert("\"")
+    res |= decimal + pynini.accep(" ") + pynutil.insert("quantity: \"") + suffix + pynutil.insert("\"")
     return res
 
 
 class DecimalFst(GraphFst):
     """
     Finite state transducer for classifying decimal, e.g. 
-        -12.5006 billion -> decimal { negative: "true" integer_part: "12"  fractional_part: "five o o six" quantity: "billion" }
-        1 billion -> decimal { integer_part: "one" quantity: "billion" }
-
-    cardinal: CardinalFst
+        -11,4006 billion -> decimal { negative: "true" integer_part: "elf"  fractional_part: "vier null null sechs" quantity: "billion" }
+        1 billion -> decimal { integer_part: "eins" quantity: "billion" }
+    Args:
+        cardinal: CardinalFst
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
     def __init__(self, cardinal: GraphFst, deterministic: bool):
@@ -101,6 +92,7 @@ class DecimalFst(GraphFst):
             final_graph_wo_sign, cardinal.graph_hundred_component_at_least_one_none_zero_digit
         )
         final_graph = optional_graph_negative + self.final_graph_wo_negative
+        final_graph += pynutil.insert(" preserve_order: true")
 
         final_graph = self.add_tokens(final_graph)
 

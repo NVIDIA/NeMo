@@ -1,5 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,8 +16,7 @@ from nemo_text_processing.text_normalization.de.utils import get_abs_path
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_NOT_QUOTE,
     GraphFst,
-    delete_extra_space,
-    delete_space,
+    delete_preserve_order,
     insert_space,
 )
 
@@ -43,6 +41,11 @@ class DecimalFst(GraphFst):
     def __init__(self, cardinal: GraphFst, deterministic: bool):
         super().__init__(name="decimal", kind="classify", deterministic=deterministic)
 
+        optional_preserve_order = pynini.closure(
+            pynutil.delete(" preserve_order: true")
+            | (pynutil.delete(" field_order: \"") + NEMO_NOT_QUOTE + pynutil.delete("\""))
+        )
+
         delete_space = pynutil.delete(" ")
         self.optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "minus ") + delete_space, 0, 1)
         self.integer = pynutil.delete("integer_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
@@ -66,5 +69,6 @@ class DecimalFst(GraphFst):
         )
 
         self.numbers = graph
+        graph += delete_preserve_order
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
