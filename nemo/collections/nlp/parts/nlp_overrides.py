@@ -18,26 +18,25 @@ import tempfile
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Union
 
-import pytorch_lightning as pl
 import torch
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
-from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
-from pytorch_lightning.plugins.precision.precision_plugin import PrecisionPlugin
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
-from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
-from pytorch_lightning.trainer.trainer import Trainer
-from pytorch_lightning.utilities import rank_zero_warn
-from pytorch_lightning.utilities.cloud_io import atomic_save
-from pytorch_lightning.utilities.enums import GradClipAlgorithmType
 from pytorch_lightning.utilities.types import _PATH
-from torch.nn.modules.module import Module
 from torch.nn.parallel import DistributedDataParallel
-from torch.optim.optimizer import Optimizer
 
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
-from nemo.utils import AppState, app_state, logging
+from nemo.utils import AppState, logging
+
+try:
+    from apex.transformer import parallel_state
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_APEX = False
 
 try:
     from apex.transformer import parallel_state
@@ -197,7 +196,8 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 )
                 self._save_state_dict_to_disk(model.state_dict(), mp_model_weights)
 
-            torch.distributed.barrier()
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
 
             # create nemo file from folder with all mp_ranks checkpoints
             if app_state.model_parallel_rank == 0 and app_state.data_parallel_rank == 0:
@@ -329,88 +329,3 @@ class GradScaler(torch.cuda.amp.GradScaler):
 
         # To prepare for next iteration, clear the data collected from optimizers this iteration.
         self._per_optimizer_states = defaultdict(torch.cuda.amp.grad_scaler._refresh_per_optimizer_state)
-
-
-class NLPNativeMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
-    def __init__(self, init_scale: float = 2 ** 32, growth_interval: int = 1000) -> None:
-        super().__init__(precision=16)
-
-        self.scaler = GradScaler(init_scale=init_scale, growth_interval=growth_interval)
-
-    def clip_gradients(
-        self,
-        optimizer: Optimizer,
-        clip_val: Union[int, float],
-        gradient_clip_algorithm: GradClipAlgorithmType,
-        model: Optional[Module],
-    ) -> None:
-        """Override PTL gradient clipping.
-           Do nothing because we've already clipped gradients in `on_before_optimizer_step` hook.
-        """
-        pass
-
-
-class NLPNativeBfloat16PrecisionPlugin(NativeMixedPrecisionPlugin):
-    def __init__(self) -> None:
-        super().__init__(precision='bf16')
-        if not HAVE_APEX:
-            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
-
-    def clip_gradients(
-        self,
-        optimizer: Optimizer,
-        clip_val: Union[int, float],
-        gradient_clip_algorithm: GradClipAlgorithmType,
-        model: Optional[Module],
-    ) -> None:
-        """Override PTL gradient clipping.
-           Model parallel models require gradient clipping from megatron-lm.
-        """
-
-        if clip_val is None:
-            return
-
-        clip_val = float(clip_val)
-        if clip_val <= 0:
-            return
-
-        app_state = AppState()
-        if app_state.model_parallel_size is not None:
-            parameters = model.parameters()
-            clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
-        else:
-            return super().clip_gradients(
-                optimizer, clip_val, gradient_clip_algorithm=gradient_clip_algorithm, model=model
-            )
-
-
-class NLPPrecisionPlugin(PrecisionPlugin):
-    def __init__(self) -> None:
-        super().__init__()
-
-    def clip_gradients(
-        self,
-        optimizer: Optimizer,
-        clip_val: Union[int, float],
-        gradient_clip_algorithm: GradClipAlgorithmType,
-        model: Optional[Module],
-    ) -> None:
-        """Override PTL gradient clipping.
-           Model parallel models require gradient clipping from megatron-lm.
-        """
-
-        if clip_val is None:
-            return
-
-        clip_val = float(clip_val)
-        if clip_val <= 0:
-            return
-
-        app_state = AppState()
-        if app_state.model_parallel_size is not None:
-            parameters = model.parameters()
-            clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
-        else:
-            return super().clip_gradients(
-                optimizer, clip_val, gradient_clip_algorithm=gradient_clip_algorithm, model=model
-            )

@@ -75,8 +75,7 @@ class GPTModel(MegatronModule):
         fp16_lm_cross_entropy=False,
         use_cpu_initialization=False,
         hidden_dropout=0.1,
-        fused_fp16=False,
-        fused_bf16=False,
+        precision=16,
         fp32_residual_connection=False,
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=1,
@@ -91,8 +90,6 @@ class GPTModel(MegatronModule):
         self.pre_process = pre_process
         self.post_process = post_process
         self.fp16_lm_cross_entropy = fp16_lm_cross_entropy
-
-        assert not (fused_fp16 and fused_bf16), "both fused_fp16 and fused_bf16 flags cannot be True at the same time."
 
         if kv_channels is None:
             assert (
@@ -119,8 +116,7 @@ class GPTModel(MegatronModule):
             post_process=self.post_process,
             init_method_std=init_method_std,
             use_cpu_initialization=use_cpu_initialization,
-            fused_fp16=fused_fp16,
-            fused_bf16=fused_bf16,
+            precision=precision,
             fp32_residual_connection=fp32_residual_connection,
             activations_checkpoint_method=activations_checkpoint_method,
             activations_checkpoint_num_layers=activations_checkpoint_num_layers,
