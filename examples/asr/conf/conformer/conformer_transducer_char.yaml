@@ -31,8 +31,6 @@ model:
             "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
 
   model_defaults:
-    se: true
-    se_context_size: -1
     # encoder / decoder / joint values
     enc_hidden: ${model.encoder.d_model}
     pred_hidden: 640
