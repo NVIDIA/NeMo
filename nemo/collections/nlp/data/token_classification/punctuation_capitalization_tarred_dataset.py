@@ -874,6 +874,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         self.capit_label_ids = self.load_label_ids(capit_label_vocab_file)
         self.pad_label = pad_label
         self.check_pad_label()
+        self.punct_label_ids_file.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(str(punct_label_vocab_file), str(self.punct_label_ids_file))
         shutil.copy(str(capit_label_vocab_file), str(self.capit_label_ids_file))
         begin_idx = (len(self.tar_files) // world_size) * global_rank
