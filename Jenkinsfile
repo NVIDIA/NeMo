@@ -79,6 +79,9 @@ pipeline {
       }
     }
 
+
+
+
     stage('L0: Unit Tests GPU') {
       steps {
         sh 'NEMO_NUMBA_MINVER=0.55 pytest -m "not pleasefixme and not torch_tts" --with_downloads'
@@ -126,7 +129,7 @@ pipeline {
           steps {
             sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/es -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/Spanish/9-13'
           }
-        } 
+        }
         stage('Create En non-deterministic TN & Run all En TN/ITN tests') {
           steps {
             sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/9-13'
@@ -348,6 +351,19 @@ pipeline {
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/asr/speech_to_text_wpe_results'
             sh 'rm -rf examples/asr/speech_to_text_wpe_results'
+          }
+        }
+
+        stage('L2: Speech Pre-training - CitriNet') {
+          steps {
+            sh 'python examples/asr/speech_pre_training.py \
+            --config-path="conf/citrinet_ssl/" --config-name="citrinet_ssl_ci" \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_pre_training_results'
+            sh 'rm -rf examples/asr/speech_pre_training_results'
           }
         }
 
@@ -1050,16 +1066,14 @@ pipeline {
           steps {
             sh 'python examples/nlp/token_classification/token_classification_evaluate.py \
             model.dataset.data_dir=/home/TestData/nlp/ner/ \
-            pretrained_model=/home/TestData/nlp/pretrained_models/NER_Model_with_BERT_base_uncased.nemo && \
-            rm -rf nemo_experiments'
+            pretrained_model=/home/TestData/nlp/pretrained_models/NER_Model_with_BERT_base_uncased.nemo'
           }
         }
         stage('Evaluation script for Punctuation') {
           steps {
             sh 'python examples/nlp/token_classification/punctuation_capitalization_evaluate.py \
             model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-            pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_Capitalization_with_DistilBERT_base_uncased.nemo && \
-            rm -rf nemo_experiments'
+            pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_Capitalization_with_DistilBERT_base_uncased.nemo'
           }
         }
         stage('L2: Punctuation & Capitalization, 2GPUs with DistilBERT') {
@@ -1655,6 +1669,98 @@ pipeline {
     //   }
     // }
 
+    stage('L2: Megatron GPT Pretraining and Resume Training') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
+        trainer.gpus=2 \
+        trainer.log_every_n_steps=1 \
+        trainer.val_check_interval=10 \
+        trainer.limit_val_batches=2 \
+        trainer.accumulate_grad_batches=2 \
+        trainer.max_steps=10 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+        model.tensor_model_parallel_size=2 \
+        model.optim.name=fused_adam \
+        model.optim.lr=2e-4 \
+        model.optim.sched.warmup_steps=2 \
+        model.optim.sched.constant_steps=2 \
+        model.optim.sched.min_lr=8e-5 \
+        model.max_position_embeddings=128 \
+        model.encoder_seq_length=128 \
+        model.data.seq_length=128 \
+        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
+        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
+        model.num_layers=8 \
+        model.hidden_size=256 \
+        model.num_attention_heads=8 \
+        model.activations_checkpoint_method='block' \
+        model.activations_checkpoint_num_layers=1 \
+        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document]"
+        sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
+        trainer.gpus=2 \
+        trainer.log_every_n_steps=1 \
+        trainer.val_check_interval=10 \
+        trainer.limit_val_batches=2 \
+        trainer.accumulate_grad_batches=2 \
+        trainer.max_steps=20 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+        exp_manager.resume_if_exists=True \
+        model.tensor_model_parallel_size=2 \
+        model.optim.name=fused_adam \
+        model.optim.lr=2e-4 \
+        model.optim.sched.warmup_steps=2 \
+        model.optim.sched.constant_steps=2 \
+        model.optim.sched.min_lr=8e-5 \
+        model.max_position_embeddings=128 \
+        model.encoder_seq_length=128 \
+        model.data.seq_length=128 \
+        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
+        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
+        model.num_layers=8 \
+        model.hidden_size=256 \
+        model.num_attention_heads=8 \
+        model.activations_checkpoint_method='block' \
+        model.activations_checkpoint_num_layers=1 \
+        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document]"
+        sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
+      }
+    }
+      stage('L2: Megatron GPT Eval') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps{
+        sh "python examples/nlp/language_modeling/megatron_gpt_eval.py \
+            --model_file \
+            /home/TestData/nlp/megatron_gpt/125M/megatron_gpt.nemo \
+            --prompt \
+            'How to fix GPU memory? A:' \
+            --tensor_model_parallel_size \
+            1 \
+            --tokens_to_generate \
+            32 \
+            --stop_after_sentence \
+            False \
+            --precision \
+            16"
+      }
+    }
+
     stage('L2: TTS Fast dev runs 1') {
       when {
         anyOf {
@@ -1703,9 +1809,9 @@ pipeline {
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
             prior_folder=/home/TestData/an4_dataset/beta_priors \
-            trainer.gpus="[0]" \
+            trainer.devices="[0]" \
             +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 trainer.max_epochs=1 \
-            trainer.accelerator=null \
+            trainer.strategy=null \
             model.train_ds.dataloader_params.batch_size=4 \
             model.train_ds.dataloader_params.num_workers=1 \
             model.validation_ds.dataloader_params.batch_size=4 \
