@@ -42,8 +42,8 @@ exp_manager:
 model:
   # model parallelism 
   micro_batch_size: 4
-  tensor_model_parallel_size: 1
-  pipeline_model_parallel_size: 1
+  tensor_model_parallel_size: 1 # intra-layer model parallelism
+  pipeline_model_parallel_size: 1 # inter-layer model parallelism
 
   # model architecture
   encoder_seq_length: 512
