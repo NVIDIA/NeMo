@@ -12,17 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.de.utils import get_abs_path
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_ALPHA,
-    NEMO_NOT_QUOTE,
-    NEMO_SIGMA,
-    NEMO_WHITE_SPACE,
-    SINGULAR_TO_PLURAL,
-    GraphFst,
-    delete_space,
-    insert_space,
-)
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst
 
 try:
     import pynini

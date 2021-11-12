@@ -38,13 +38,8 @@ class DecimalFst(GraphFst):
     cardinal: CardinalFst
     """
 
-    def __init__(self, cardinal: GraphFst, deterministic: bool):
+    def __init__(self, deterministic: bool):
         super().__init__(name="decimal", kind="classify", deterministic=deterministic)
-
-        optional_preserve_order = pynini.closure(
-            pynutil.delete(" preserve_order: true")
-            | (pynutil.delete(" field_order: \"") + NEMO_NOT_QUOTE + pynutil.delete("\""))
-        )
 
         delete_space = pynutil.delete(" ")
         self.optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "minus ") + delete_space, 0, 1)

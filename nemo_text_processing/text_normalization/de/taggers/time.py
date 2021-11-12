@@ -99,7 +99,4 @@ class TimeFst(GraphFst):
         graph_h = final_graph_hour_only + final_suffix + final_time_zone_optional
         final_graph = (graph_hm | graph_h | graph_hms).optimize()
         final_graph = self.add_tokens(final_graph)
-        import ipdb
-
-        ipdb.set_trace()
         self.fst = final_graph.optimize()

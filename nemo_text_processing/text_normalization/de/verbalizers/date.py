@@ -35,6 +35,7 @@ class DateFst(GraphFst):
         tokens { date { day: "первое мая" } } -> "первое мая"
 
     Args:
+        ordinal: ordinal verbalizer GraphFst
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
