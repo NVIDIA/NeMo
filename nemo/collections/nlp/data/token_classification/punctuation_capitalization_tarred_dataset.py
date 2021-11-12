@@ -867,13 +867,15 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
                 self.tar_files.append(str(metadata_file.parent / file_path))
         for_nemo = "label_id_files_for_nemo_checkpoint"
         self.punct_label_ids_file = metadata_file.parent / for_nemo / punct_label_ids_file
-        self.punct_label_ids = self.load_label_ids(self.metadata[METADATA_PUNCT_LABEL_VOCAB_KEY])
+        punct_label_vocab_file = metadata_file.parent / self.metadata[METADATA_PUNCT_LABEL_VOCAB_KEY]
+        capit_label_vocab_file = metadata_file.parent / self.metadata[METADATA_CAPIT_LABEL_VOCAB_KEY]
+        self.punct_label_ids = self.load_label_ids(punct_label_vocab_file)
         self.capit_label_ids_file = metadata_file.parent / for_nemo / capit_label_ids_file
-        self.capit_label_ids = self.load_label_ids(self.metadata[METADATA_CAPIT_LABEL_VOCAB_KEY])
+        self.capit_label_ids = self.load_label_ids(capit_label_vocab_file)
         self.pad_label = pad_label
         self.check_pad_label()
-        shutil.copy(str(self.metadata[METADATA_PUNCT_LABEL_VOCAB_KEY]), str(self.punct_label_ids_file))
-        shutil.copy(str(self.metadata[METADATA_CAPIT_LABEL_VOCAB_KEY]), str(self.capit_label_ids_file))
+        shutil.copy(str(punct_label_vocab_file), str(self.punct_label_ids_file))
+        shutil.copy(str(capit_label_vocab_file), str(self.capit_label_ids_file))
         begin_idx = (len(self.tar_files) // world_size) * global_rank
         end_idx = begin_idx + (len(self.tar_files) // world_size)
         logging.info(
