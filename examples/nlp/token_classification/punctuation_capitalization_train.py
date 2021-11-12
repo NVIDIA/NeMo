@@ -78,6 +78,7 @@ def main(cfg: DictConfig) -> None:
             )
 
         data_dir = cfg.model.dataset.get('data_dir', None)
+        model._cfg.use_cache = cfg.model.dataset.get('use_cache', False)
         if data_dir:
             if not os.path.exists(data_dir):
                 raise ValueError(f'{data_dir} is not found at')
