@@ -497,6 +497,8 @@ def COSclustering(
     max_num_speaker=8,
     min_samples_for_NMESC=6,
     enhanced_count_thres=80,
+    max_rp_threshold=0.25,
+    sparse_search_volume=30,
     fixed_thres=None,
     cuda=False,
 ):
@@ -527,6 +529,16 @@ def COSclustering(
             Thus, getEnhancedSpeakerCount() employs anchor embeddings (dummy representations)
             to mitigate the effect of cluster sparsity.
             enhanced_count_thres = 80 is recommended.
+        
+        max_rp_threshold: (float)
+                Limits the range of parameter search.
+                Clustering performance can vary depending on this range.
+                Default is 0.25.
+        
+        sparse_search_volume: (int)
+                The number of p_values we search during NME analysis.
+                Default is 30. The lower the value, the faster NME-analysis becomes.
+                Lower than 20 might cause a poor parameter estimation.
 
     Returns:
         Y: (List[int])
@@ -546,10 +558,10 @@ def COSclustering(
     nmesc = NMESC(
         mat,
         max_num_speaker=max_num_speaker,
-        max_rp_threshold=0.25,
+        max_rp_threshold=max_rp_threshold,
         sparse_search=True,
-        sparse_search_volume=30,
-        fixed_thres=None,
+        sparse_search_volume=sparse_search_volume,
+        fixed_thres=fixed_thres,
         NME_mat_size=300,
         cuda=cuda,
     )
