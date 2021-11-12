@@ -262,7 +262,7 @@ class MegatronGPTModel(NLPModel):
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
-            resume_checkpoint_path = self.trainer.checkpoint_connector.resume_checkpoint_path
+            resume_checkpoint_path = self.trainer.checkpoint_connector.resume_from_checkpoint_fit_path
             if resume_checkpoint_path:
                 consumed_samples = int(
                     float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
