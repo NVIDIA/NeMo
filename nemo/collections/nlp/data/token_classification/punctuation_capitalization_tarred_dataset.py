@@ -620,7 +620,7 @@ def create_metadata_file(
         metadata['tar_files'].append(new_name.name)
         metadata["num_batches"] += nb
     metadata[METADATA_PUNCT_LABEL_VOCAB_KEY] = DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME
-    metadata['capit_label_vocab'] = DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME
+    metadata[METADATA_CAPIT_LABEL_VOCAB_KEY] = DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME
     with metadata_file_name.open('w') as f:
         json.dump(metadata, f, indent=2)
 
