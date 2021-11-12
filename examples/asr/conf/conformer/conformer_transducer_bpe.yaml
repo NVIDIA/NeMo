@@ -28,8 +28,6 @@ model:
   log_prediction: true # enables logging sample predictions in the output during training
 
   model_defaults:
-    se: true
-    se_context_size: -1
     # encoder / decoder / joint values
     enc_hidden: ${model.encoder.d_model}
     pred_hidden: 640
