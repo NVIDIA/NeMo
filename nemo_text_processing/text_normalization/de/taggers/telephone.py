@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,14 +13,7 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.de.utils import get_abs_path
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_DIGIT,
-    NEMO_SIGMA,
-    GraphFst,
-    delete_extra_space,
-    delete_space,
-    insert_space,
-)
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, GraphFst, insert_space
 
 try:
     import pynini
@@ -37,10 +29,12 @@ class TelephoneFst(GraphFst):
     Finite state transducer for classifying telephone, which includes country code, number part and extension 
 
     E.g 
-    "8-913-983-56-01" -> telephone { number_part: "восемь девятьсот тринадцать девятьсот восемьдесят три пятьдесят шесть ноль один" }
+    "+49 1234-1233" -> telephone { country_code: "plus neun und vierzig" number_part: "eins zwei drei vier eins zwei drei drei" }
+    "(012) 1234-1233" -> telephone { country_code: "null eins zwei" number_part: "eins zwei drei vier eins zwei drei drei" }
+    (0**)
 
     Args:
-        number_names: number_names for cardinal and ordinal numbers
+        cardinal: cardinal GraphFst
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
@@ -79,6 +73,7 @@ class TelephoneFst(GraphFst):
         number = pynutil.insert("number_part: \"") + number_part + pynutil.insert("\"")
 
         graph = country_code + pynini.accep(" ") + number
+        graph += pynutil.insert(" preserve_order: true")
 
         final_graph = self.add_tokens(graph)
         self.fst = final_graph.optimize()

@@ -14,19 +14,17 @@
 
 from nemo_text_processing.text_normalization.de.utils import get_abs_path, load_labels
 from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_ALPHA,
     NEMO_DIGIT,
-    NEMO_NOT_QUOTE,
     NEMO_SIGMA,
-    SINGULAR_TO_PLURAL,
     GraphFst,
     convert_space,
-    delete_space,
     insert_space,
 )
 
 try:
     import pynini
-    from pynini.lib import pynutil, rewrite
+    from pynini.lib import pynutil
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -36,7 +34,13 @@ except (ModuleNotFoundError, ImportError):
 class MoneyFst(GraphFst):
     """
     Finite state transducer for classifying money, e.g.
-        "5руб." -> money { "пять рублей" }
+        "€1" -> money { currency_maj: "euro" integer_part: "ein"}
+        "€1,000" -> money { currency_maj: "euro" integer_part: "ein" }
+        "€1,001" -> money { currency_maj: "euro" integer_part: "ein" fractional_part: "null null eins"}
+        "£1,4" -> money { integer_part: "ein" currency_maj: "pfund" fractional_part: "vierzig" preserve_order: true}
+               -> money { integer_part: "ein" currency_maj: "pfund" fractional_part: "vierzig" currency_min: "pence" preserve_order: true}
+        "£0,01" -> money { fractional_part: "ein" currency_min: "penny" preserve_order: true}
+        "£0,01 million" -> money { currency_maj: "pfund" integer_part: "null" fractional_part: "null eins" quantity: "million"}
 
     Args:
         cardinal: CardinalFst
@@ -63,7 +67,7 @@ class MoneyFst(GraphFst):
         )
         graph_integer_one = pynutil.insert("integer_part: \"") + pynini.cross("1", "ein") + pynutil.insert("\"")
 
-        # only for decimals where third decimal after comma is non-zero
+        # only for decimals where third decimal after comma is non-zero or with quantity
         decimal_delete_last_zeros = (
             pynini.closure(NEMO_DIGIT, 1)
             + pynini.accep(",")
@@ -71,7 +75,10 @@ class MoneyFst(GraphFst):
             + (NEMO_DIGIT - "0")
             + pynini.closure(pynutil.delete("0"))
         )
-        graph_decimal = graph_maj_plural + insert_space + decimal_delete_last_zeros @ graph_decimal_final
+        decimal_with_quantity = NEMO_SIGMA + NEMO_ALPHA
+        graph_decimal = (
+            graph_maj_plural + insert_space + (decimal_delete_last_zeros | decimal_with_quantity) @ graph_decimal_final
+        )
 
         graph_integer = (
             pynutil.insert("integer_part: \"") + ((NEMO_SIGMA - "1") @ cardinal_graph) + pynutil.insert("\"")

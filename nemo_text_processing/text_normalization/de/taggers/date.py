@@ -16,11 +16,8 @@ from nemo_text_processing.text_normalization.de.utils import get_abs_path, load_
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_CHAR,
     NEMO_DIGIT,
-    NEMO_NOT_QUOTE,
     TO_LOWER,
     GraphFst,
-    delete_extra_space,
-    delete_space,
     insert_space,
 )
 
@@ -40,10 +37,16 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = True
 
 
-def get_year_graph(leading_zero, cardinal: GraphFst, deterministic: bool = True):
+def get_year_graph(leading_zero: 'pynini.FstLike', cardinal: GraphFst) -> 'pynini.FstLike':
     """
+    Returns year verbalizations as fst
+
      < 2000 neunzehn (hundert) (vier und zwanzig), >= 2000 regular cardinal
     **00 ** hundert
+
+    Args:
+        leading_zero: removed leading zero
+        cardinal: cardinal GraphFst
     """
 
     year_gt_2000 = (pynini.union("21", "20") + NEMO_DIGIT ** 2) @ cardinal.graph
@@ -67,10 +70,10 @@ def get_year_graph(leading_zero, cardinal: GraphFst, deterministic: bool = True)
 class DateFst(GraphFst):
     """
     Finite state transducer for classifying date, e.g. 
-        "01.05" -> tokens { date { day: "первое мая" } }
+        "01.04.2010" -> tokens { date { day: "erster" month: "april" year: "zwei tausend zehn" } }
 
     Args:
-        number_names: number_names for cardinal and ordinal numbers
+        cardinal: cardinal GraphFst
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
@@ -109,7 +112,7 @@ class DateFst(GraphFst):
             pynutil.insert("month: \"") + (digit_month | number_to_month) + pynutil.insert("\"")
         ).optimize()
 
-        year = get_year_graph(leading_zero=leading_zero, cardinal=cardinal, deterministic=deterministic)
+        year = get_year_graph(leading_zero=leading_zero, cardinal=cardinal)
 
         year_only = pynutil.insert("year: \"") + year + pynutil.insert("\"")
 

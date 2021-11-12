@@ -1,5 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,14 +13,10 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_CHAR,
-    NEMO_NON_BREAKING_SPACE,
     NEMO_NOT_QUOTE,
-    NEMO_SPACE,
     GraphFst,
     delete_extra_space,
-    delete_space,
-    insert_space,
+    delete_preserve_order,
 )
 
 try:
@@ -60,12 +55,8 @@ class MeasureFst(GraphFst):
 
         graph = (graph_cardinal | graph_decimal | graph_fraction) + pynini.accep(" ") + unit
 
-        # SH adds "preserve_order: true" by default
-        optional_preserve_order = pynini.closure(
-            pynutil.delete(" preserve_order: true")
-            | (pynutil.delete(" field_order: \"") + NEMO_NOT_QUOTE + pynutil.delete("\""))
-        )
-        graph |= unit + delete_extra_space + (graph_cardinal | graph_decimal) + optional_preserve_order
+        graph |= unit + delete_extra_space + (graph_cardinal | graph_decimal)
+        graph += delete_preserve_order
 
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

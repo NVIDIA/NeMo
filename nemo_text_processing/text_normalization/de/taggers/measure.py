@@ -17,14 +17,10 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_ALPHA,
     NEMO_DIGIT,
     NEMO_NON_BREAKING_SPACE,
-    NEMO_NOT_QUOTE,
     NEMO_SIGMA,
-    NEMO_SPACE,
-    SINGULAR_TO_PLURAL,
     GraphFst,
     convert_space,
     delete_space,
-    insert_space,
 )
 
 try:
@@ -39,10 +35,12 @@ except (ModuleNotFoundError, ImportError):
 class MeasureFst(GraphFst):
     """
     Finite state transducer for classifying measure,  e.g.
-        "2 кг" -> measure { cardinal { integer: "два килограма" } }
+        "2,4 oz" -> measure { cardinal { integer_part: "zwei" fractional_part: "vier" units: "unzen"} }
+        "1 oz" -> measure { cardinal { integer: "zwei" units: "unze"} }
+        "1 million oz" -> measure { cardinal { integer: "eins" quantity: "million" units: "unze"} }
         This class also converts words containing numbers and letters
-        e.g. "тест-8" —> "тест восемь"
-        e.g. "тест-1,02" —> "тест одна целая две сотых"
+        e.g. "a-8" —> "a acht"
+        e.g. "1,2-a" —> "ein komma zwei a"
 
     Args:
         cardinal: CardinalFst
@@ -126,7 +124,7 @@ class MeasureFst(GraphFst):
             + pynutil.insert("\"")
             + pynutil.insert(" cardinal { integer: \"")
             + cardinal_graph
-            + pynutil.insert("\" } preserve_order: true")
+            + pynutil.insert("\" }")
         )
 
         decimal_dash_alpha = (
@@ -161,7 +159,7 @@ class MeasureFst(GraphFst):
             + pynutil.insert("\"")
             + pynutil.insert(" decimal { ")
             + decimal.final_graph_wo_negative
-            + pynutil.insert(" } preserve_order: true")
+            + pynutil.insert(" }")
         )
 
         subgraph_fraction = (
@@ -184,6 +182,7 @@ class MeasureFst(GraphFst):
             | subgraph_fraction
             | cardinal_times
         )
+        final_graph += pynutil.insert(" preserve_order: true")
         final_graph = self.add_tokens(final_graph)
 
         self.fst = final_graph.optimize()

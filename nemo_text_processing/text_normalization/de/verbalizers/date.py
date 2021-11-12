@@ -1,5 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,12 +14,10 @@
 
 from nemo_text_processing.text_normalization.de.utils import get_abs_path, load_labels
 from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_CHAR,
     NEMO_NOT_QUOTE,
     NEMO_SIGMA,
     GraphFst,
-    delete_extra_space,
-    delete_space,
+    delete_preserve_order,
 )
 
 try:
@@ -60,12 +57,7 @@ class DateFst(GraphFst):
         # day month year
         graph_dmy = day + pynini.accep(" ") + final_month + pynini.closure(pynini.accep(" ") + year, 0, 1)
 
-        optional_preserve_order = pynini.closure(
-            pynutil.delete(" preserve_order: true")
-            | (pynutil.delete(" field_order: \"") + NEMO_NOT_QUOTE + pynutil.delete("\""))
-        )
-
-        final_graph = graph_dmy + optional_preserve_order
+        final_graph = graph_dmy + delete_preserve_order
         final_graph |= year
 
         delete_tokens = self.delete_tokens(final_graph)

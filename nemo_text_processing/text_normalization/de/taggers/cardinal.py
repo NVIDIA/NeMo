@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
-# Copyright 2017 Google Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,10 +19,8 @@ from collections import defaultdict
 
 from nemo_text_processing.text_normalization.de.utils import get_abs_path, load_labels
 from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_ALPHA,
     NEMO_DIGIT,
     NEMO_SIGMA,
-    NEMO_SPACE,
     GraphFst,
     delete_space,
     insert_space,
@@ -40,12 +37,15 @@ except (ModuleNotFoundError, ImportError):
 AND = "und"
 
 
-def get_ties_digit(digit_path: str, tie_path: str):
+def get_ties_digit(digit_path: str, tie_path: str) -> 'pynini.FstLike':
     """
     getting all inverse normalizations for numbers between 21 - 100
+
     Args:
         digit_path: file to digit tsv
         tie_path: file to tie tsv, e.g. 20, 30, etc.
+    Returns:
+        res: fst that converts numbers to their verbalization
     """
 
     digits = defaultdict(list)
@@ -68,24 +68,18 @@ def get_ties_digit(digit_path: str, tie_path: str):
                 word = di + f" {AND} " + ti
                 d.append((word, s))
 
-    return pynini.string_map(d)
+    res = pynini.string_map(d)
+    return res
 
 
 class CardinalFst(GraphFst):
     """
     Finite state transducer for classifying cardinals, e.g. 
-        "1 001" ->  cardinal { integer: "тысяча один" }
+        "101" ->  cardinal { integer: "ein hundert und zehn" }
 
     Args:
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
-
-
-    need self.graph_hundred_component_at_least_one_none_zero_digit
-    self.graph
-    self.cardinal_numbers_with_optional_negative
-    self.single_digits_graph
-
     """
 
     def __init__(self, deterministic: bool = False):
@@ -211,27 +205,3 @@ class CardinalFst(GraphFst):
         final_graph = optional_minus_graph + pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
-
-    # def get_serial_graph(self):
-    #     """
-    #     Finite state transducer for classifying serial.
-    #         The serial is a combination of digits, letters and dashes, e.g.:
-    #         c325-b -> tokens { cardinal { integer: "c three two five b" } }
-    #     """
-    #     alpha = NEMO_ALPHA
-
-    #     if self.deterministic:
-    #         num_graph = self.single_digits_graph
-    #     else:
-    #         num_graph = self.graph | self.single_digits_graph
-
-    #     delimiter = insert_space | pynini.cross("-", " ") | pynini.cross("/", " ")
-    #     letter_num = pynini.closure(alpha + delimiter, 1) + num_graph
-    #     num_letter = pynini.closure(num_graph + delimiter, 1) + alpha
-    #     num_delimiter_num = pynini.closure(num_graph + delimiter, 1) + num_graph
-    #     next_alpha_or_num = pynini.closure(delimiter + (alpha | num_graph))
-    #     serial_graph = (letter_num | num_letter | num_delimiter_num) + next_alpha_or_num
-    #     if not self.deterministic:
-    #         serial_graph += pynini.closure(pynini.accep("s"), 0, 1)
-
-    #     return serial_graph.optimize()

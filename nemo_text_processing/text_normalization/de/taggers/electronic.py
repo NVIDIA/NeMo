@@ -14,15 +14,7 @@
 
 
 from nemo_text_processing.text_normalization.de.utils import get_abs_path, load_labels
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_ALPHA,
-    NEMO_DIGIT,
-    NEMO_NOT_QUOTE,
-    NEMO_SIGMA,
-    GraphFst,
-    delete_space,
-    insert_space,
-)
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_ALPHA, NEMO_DIGIT, GraphFst, insert_space
 
 try:
     import pynini
@@ -36,7 +28,8 @@ except (ModuleNotFoundError, ImportError):
 class ElectronicFst(GraphFst):
     """
     Finite state transducer for classifying electronic: email addresses
-        e.g. "ab@nd.ru" -> electronic { username: "эй би собака эн ди точка ру" }
+        e.g. "abc@hotmail.com" -> electronic { username: "abc" domain: "hotmail.com"}
+        e.g. "www.abc.com/123" -> electronic { protocol: "www." domain: "abc.com/123"}
 
     Args:
         deterministic: if True will provide a single transduction option,
@@ -72,5 +65,6 @@ class ElectronicFst(GraphFst):
         protocol = protocol_start | protocol_end | (protocol_start + protocol_end)
         protocol = pynutil.insert("protocol: \"") + protocol + pynutil.insert("\"")
         graph |= protocol + insert_space + (domain_graph | domain_common_graph)
+        graph += pynutil.insert(" preserve_order: true")
         final_graph = self.add_tokens(graph)
         self.fst = final_graph.optimize()

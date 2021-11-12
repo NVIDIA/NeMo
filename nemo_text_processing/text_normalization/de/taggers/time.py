@@ -14,13 +14,7 @@
 
 
 from nemo_text_processing.text_normalization.de.utils import get_abs_path
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_DIGIT,
-    GraphFst,
-    convert_space,
-    delete_space,
-    insert_space,
-)
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, GraphFst, convert_space, insert_space
 
 try:
     import pynini
@@ -34,10 +28,12 @@ except (ModuleNotFoundError, ImportError):
 class TimeFst(GraphFst):
     """
     Finite state transducer for classifying time, e.g.
-        "02:15" -> time { hours: "два часа пятнадцать минут" }
+        "02:15 Uhr est" -> time { hours: "2" minutes: "15" zone: "e s t"}
+        "2 Uhr" -> time { hours: "2" }
+        "09:00 Uhr" -> time { hours: "2" }
+        "02:15:10 Uhr" -> time { hours: "2" minutes: "15" seconds: "10"}
     
     Args:
-        number_names: number_names for cardinal and ordinal numbers
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
@@ -103,4 +99,7 @@ class TimeFst(GraphFst):
         graph_h = final_graph_hour_only + final_suffix + final_time_zone_optional
         final_graph = (graph_hm | graph_h | graph_hms).optimize()
         final_graph = self.add_tokens(final_graph)
+        import ipdb
+
+        ipdb.set_trace()
         self.fst = final_graph.optimize()
