@@ -55,21 +55,15 @@ def get_number_names():
     assert rewrite.top_rewrite("230", fg) == "(+ 200 30 +)"
 
     # Compiles lexicon transducers (L).
-    cardinal_name_nominative = pynini.string_file(
-        get_abs_path("data/numbers/1_cardinals_nominative_именительный.tsv")
-    ).optimize()
-    cardinal_name_genitive = pynini.string_file(
-        get_abs_path("data/numbers/2_cardinals_genitive_родительный.tsv")
-    ).optimize()
-    cardinal_name_dative = pynini.string_file(get_abs_path("data/numbers/3_cardinals_dative_датильный.tsv")).optimize()
-    cardinal_name_accusative = pynini.string_file(
-        get_abs_path("data/numbers/4_cardinals_accusative_винительный.tsv")
-    ).optimize()
+    cardinal_name_nominative = pynini.string_file(get_abs_path("data/numbers/1_cardinals_nominative.tsv")).optimize()
+    cardinal_name_genitive = pynini.string_file(get_abs_path("data/numbers/2_cardinals_genitive.tsv")).optimize()
+    cardinal_name_dative = pynini.string_file(get_abs_path("data/numbers/3_cardinals_dative.tsv")).optimize()
+    cardinal_name_accusative = pynini.string_file(get_abs_path("data/numbers/4_cardinals_accusative.tsv")).optimize()
     cardinal_name_instrumental = pynini.string_file(
-        get_abs_path("data/numbers/5_cardinals_instrumental_творительный.tsv")
+        get_abs_path("data/numbers/5_cardinals_instrumental.tsv")
     ).optimize()
     cardinal_name_prepositional = pynini.string_file(
-        get_abs_path("data/numbers/6_cardinals_prepositional_предложный.tsv")
+        get_abs_path("data/numbers/6_cardinals_prepositional.tsv")
     ).optimize()
 
     cardinal_name_nominative = (

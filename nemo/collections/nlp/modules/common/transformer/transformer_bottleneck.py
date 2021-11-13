@@ -17,6 +17,7 @@ from typing import Dict, Optional
 
 from nemo.collections.nlp.modules.common.transformer.bridge_encoders import BridgeEncoder
 from nemo.collections.nlp.modules.common.transformer.perceiver_encoders import PerceiverEncoder
+from nemo.collections.nlp.modules.common.transformer.reduction_encoders import PoolingEncoder
 from nemo.collections.nlp.modules.common.transformer.transformer import (
     NeMoTransformerConfig,
     TransformerDecoderNM,
@@ -57,7 +58,7 @@ class NeMoTransformerBottleneckDecoderConfig(NeMoTransformerBottleneckConfig):
 
 class TransformerBottleneckEncoderNM(TransformerEncoderNM):
 
-    _SUPPORTED_ARCH = ["seq2seq", "bridge", "perceiver"]
+    _SUPPORTED_ARCH = ["seq2seq", "bridge", "perceiver", "max_pool", "avg_pool"]
 
     def __init__(
         self,
@@ -166,12 +167,44 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
                 hidden_blocks=kwargs["hidden_blocks"],
                 hidden_init_method=kwargs["hidden_init_method"],
             )
-        else:
-            raise ValueError(
-                "Unknown arch = {arch}, supported arch = {supported_arch}".format(
-                    arch=arch, supported_arch=self.supported_arch,
-                )
+        elif arch == "max_pool":
+            encoder = PoolingEncoder(
+                num_layers=kwargs["num_layers"],
+                hidden_size=kwargs["hidden_size"],
+                inner_size=kwargs["inner_size"],
+                num_attention_heads=kwargs["num_attention_heads"],
+                attn_score_dropout=kwargs["attn_score_dropout"],
+                attn_layer_dropout=kwargs["attn_layer_dropout"],
+                ffn_dropout=kwargs["ffn_dropout"],
+                hidden_act=kwargs["hidden_act"],
+                mask_future=kwargs["mask_future"],
+                pre_ln=kwargs["pre_ln"],
+                pre_ln_final_layer_norm=kwargs["pre_ln_final_layer_norm"],
+                hidden_steps=kwargs["hidden_steps"],
+                hidden_blocks=kwargs["hidden_blocks"],
+                hidden_init_method=kwargs["hidden_init_method"],
+                pooling_type="max",
             )
+        elif arch == "avg_pool":
+            encoder = PoolingEncoder(
+                num_layers=kwargs["num_layers"],
+                hidden_size=kwargs["hidden_size"],
+                inner_size=kwargs["inner_size"],
+                num_attention_heads=kwargs["num_attention_heads"],
+                attn_score_dropout=kwargs["attn_score_dropout"],
+                attn_layer_dropout=kwargs["attn_layer_dropout"],
+                ffn_dropout=kwargs["ffn_dropout"],
+                hidden_act=kwargs["hidden_act"],
+                mask_future=kwargs["mask_future"],
+                pre_ln=kwargs["pre_ln"],
+                pre_ln_final_layer_norm=kwargs["pre_ln_final_layer_norm"],
+                hidden_steps=kwargs["hidden_steps"],
+                hidden_blocks=kwargs["hidden_blocks"],
+                hidden_init_method=kwargs["hidden_init_method"],
+                pooling_type="avg",
+            )
+        else:
+            raise ValueError(f"Unknown arch = {self.arch}, supported arch = {self.supported_arch}")
 
         return encoder
 
@@ -266,11 +299,14 @@ class TransformerBottleneckDecoderNM(TransformerDecoderNM):
         # replace decoder
         self._decoder = self._build_decoder(
             arch=arch,
-            hidden_steps=hidden_steps,
             hidden_size=hidden_size,
             num_layers=num_layers,
             inner_size=inner_size,
             num_attention_heads=num_attention_heads,
+            max_sequence_length=max_sequence_length,
+            num_token_types=num_token_types,
+            embedding_dropout=embedding_dropout,
+            learn_positional_encodings=learn_positional_encodings,
             ffn_dropout=ffn_dropout,
             attn_score_dropout=attn_score_dropout,
             attn_layer_dropout=attn_layer_dropout,
@@ -287,17 +323,13 @@ class TransformerBottleneckDecoderNM(TransformerDecoderNM):
         if (not arch) or (arch == "seq2seq"):
             decoder = self.decoder
         else:
-            raise ValueError(
-                "Unknown arch = {arch}, supported arch = {supported arch}".format(
-                    arch=arch, supported_arch=self.supported_arch,
-                )
-            )
+            raise ValueError(f"Unknown arch = {self.arch}, supported arch = {self.supported_arch}")
 
         return decoder
 
     @property
     def supported_arch(self):
-        return _SUPPORTED_ARCH
+        return self._SUPPORTED_ARCH
 
     @property
     def arch(self):

@@ -21,7 +21,7 @@ python speaker_reco.py --config_path='conf' --config_name='SpeakerNet_verificati
 
 For training ecapa_tdnn (channel-attention) model:
 ```bash
-python speaker_reco.py --config_path='conf' --config_name='SpeakerNet_ECAPA.yaml' 
+python speaker_reco.py --config_path='conf' --config_name='ecapa_tdnn.yaml' 
 ```
 For step by step tutorial see [notebook](https://github.com/NVIDIA/NeMo/blob/main/tutorials/speaker_tasks/Speaker_Recognition_Verification.ipynb).
 
@@ -48,12 +48,12 @@ python <NeMo_root>/scripts/speaker_tasks/scp_to_manifest.py --scp voxceleb1_test
 ### Embedding Extraction 
 Now using the manifest file created, we can extract embeddings to `data` folder using:
 ```bash
-python extract_speaker_embeddings.py --manifest=voxceleb1_test_manifest.json --model_path='speakerverification_speakernet' --embedding_dir='./'
+python extract_speaker_embeddings.py --manifest=voxceleb1_test_manifest.json --model_path='ecapa_tdnn' --embedding_dir='./'
 ```
 If you have a single file, you may also be using the following one liner to get embeddings for the audio file:
 
 ```python
-speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name="speakerverification_speakernet")
+speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name="ecapa_tdnn")
 embs = speaker_model.get_embedding('audio_path')
 ```
 

@@ -38,7 +38,7 @@ class TestWhitelist:
         assert pred == expected
 
     normalizer_en = (
-        Normalizer(input_case='lower_cased', cache_dir=CACHE_DIR, overwrite_cache=False) if PYNINI_AVAILABLE else None
+        Normalizer(input_case='cased', cache_dir=CACHE_DIR, overwrite_cache=False) if PYNINI_AVAILABLE else None
     )
     normalizer_with_audio_en = (
         NormalizerWithAudio(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False)
@@ -59,7 +59,7 @@ class TestWhitelist:
         assert expected in pred_non_deterministic
 
     normalizer_uppercased = Normalizer(input_case='cased', lang='en') if PYNINI_AVAILABLE else None
-    cases_uppercased = {"Dr. Evil": "doctor Evil", "No. 4": "number four", "dr. Evil": "dr. Evil", "no. 4": "no. four"}
+    cases_uppercased = {"Dr. Evil": "doctor Evil", "dr. Evil": "dr. Evil", "no. 4": "no. four"}
 
     @parameterized.expand(cases_uppercased.items())
     @pytest.mark.skipif(

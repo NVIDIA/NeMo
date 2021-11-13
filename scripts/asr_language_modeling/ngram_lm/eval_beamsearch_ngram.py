@@ -26,7 +26,7 @@
 #                                         --beam_alpha <list of the beam alphas> \
 #                                         --beam_beta <list of the beam betas> \
 #                                         --preds_output_folder <optional folder to store the predictions> \
-#                                         --decoding_mode beam_search_ngram
+#                                         --decoding_mode beamsearch_ngram
 #                                         ...
 #
 # You may find more info on how to use this script at:
@@ -150,7 +150,9 @@ def beam_search_eval(
             )
         )
     logging.info(
-        'Best WER/CER in candidates = {:.2%}/{:.2%}'.format(wer_dist_best / words_count, cer_dist_best / chars_count)
+        'Oracle WER/CER in candidates with perfect LM= {:.2%}/{:.2%}'.format(
+            wer_dist_best / words_count, cer_dist_best / chars_count
+        )
     )
     logging.info(f"=================================================================================")
 
@@ -160,7 +162,10 @@ def main():
         description='Evaluate an ASR model with beam search decoding and n-gram KenLM language model.'
     )
     parser.add_argument(
-        "--nemo_model_file", required=True, type=str, help="The path of the '.nemo' file of the ASR model"
+        "--nemo_model_file",
+        required=True,
+        type=str,
+        help="The path of the '.nemo' file of the ASR model or name of a pretrained model",
     )
     parser.add_argument(
         "--kenlm_model_file", required=False, default=None, type=str, help="The path of the KenLM binary model file"
@@ -190,21 +195,21 @@ def main():
     )
     parser.add_argument(
         "--beam_width",
-        required=True,
+        required=False,
         type=int,
         nargs="+",
         help="The width or list of the widths for the beam search decoding",
     )
     parser.add_argument(
         "--beam_alpha",
-        required=True,
+        required=False,
         type=float,
         nargs="+",
         help="The alpha parameter or list of the alphas for the beam search decoding",
     )
     parser.add_argument(
         "--beam_beta",
-        required=True,
+        required=False,
         type=float,
         nargs="+",
         help="The beta parameter or list of the betas for the beam search decoding",
@@ -214,7 +219,15 @@ def main():
     )
     args = parser.parse_args()
 
-    asr_model = nemo_asr.models.ASRModel.restore_from(args.nemo_model_file, map_location=torch.device(args.device))
+    if args.nemo_model_file.endswith('.nemo'):
+        asr_model = nemo_asr.models.ASRModel.restore_from(args.nemo_model_file, map_location=torch.device(args.device))
+    else:
+        logging.warning(
+            "nemo_model_file does not end with .nemo, therefore trying to load a pretrained model with this name."
+        )
+        asr_model = nemo_asr.models.ASRModel.from_pretrained(
+            args.nemo_model_file, map_location=torch.device(args.device)
+        )
 
     target_transcripts = []
     with open(args.input_manifest, 'r') as manifest_file:
@@ -303,7 +316,8 @@ def main():
 
     # 'greedy' decoding_mode would skip the beam search decoding
     if args.decoding_mode in ["beamsearch_ngram", "beamsearch"]:
-
+        if args.beam_width is None or args.beam_alpha is None or args.beam_beta is None:
+            raise ValueError("beam_width, beam_alpha and beam_beta are needed to perform beam search decoding.")
         params = {'beam_width': args.beam_width, 'beam_alpha': args.beam_alpha, 'beam_beta': args.beam_beta}
         hp_grid = ParameterGrid(params)
         hp_grid = list(hp_grid)

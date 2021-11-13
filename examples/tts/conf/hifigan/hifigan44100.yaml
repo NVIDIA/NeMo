@@ -1,0 +1,67 @@
+name: "HifiGan"
+train_dataset: ???
+validation_datasets: ???
+
+defaults:
+  - model/generator: v4
+  - model/train_ds: train_ds
+  - model/validation_ds: val_ds
+
+model:
+  preprocessor:
+    _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
+    dither: 0.0
+    frame_splicing: 1
+    nfilt: 80
+    highfreq: null
+    log: true
+    log_zero_guard_type: clamp
+    log_zero_guard_value: 1e-05
+    lowfreq: 0
+    mag_power: 1.0
+    n_fft: 2048
+    n_window_size: 2048
+    n_window_stride: 512
+    normalize: null
+    pad_to: 0
+    pad_value: -11.52
+    preemph: null
+    sample_rate: 44100
+    window: hann
+    use_grads: false
+    exact_pad: true
+
+  optim:
+    _target_: torch.optim.AdamW
+    lr: 0.0002
+    betas: [0.8, 0.99]
+
+  sched:
+    name: CosineAnnealing
+    min_lr: 1e-5
+    warmup_ratio: 0.02
+
+  max_steps: 25000000
+  l1_loss_factor: 45
+  denoise_strength: 0.0025
+
+trainer:
+  gpus: -1 # number of gpus
+  max_steps: ${model.max_steps}
+  num_nodes: 1
+  accelerator: ddp
+  accumulate_grad_batches: 1
+  checkpoint_callback: False  # Provided by exp_manager
+  logger: False  # Provided by exp_manager
+  flush_logs_every_n_steps: 200
+  log_every_n_steps: 100
+  check_val_every_n_epoch: 10
+
+exp_manager:
+  exp_dir: null
+  name: ${name}
+  create_tensorboard_logger: True
+  create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: "val_loss"
+    mode: "min"

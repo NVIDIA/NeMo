@@ -13,22 +13,154 @@
 # limitations under the License.
 import string
 from copy import deepcopy
+from typing import List
 
-from nltk import word_tokenize
+import regex as re
 from tqdm import tqdm
 
 from nemo.collections.nlp.data.text_normalization import constants
+from nemo.utils import logging
 
-__all__ = ['read_data_file', 'normalize_str']
+__all__ = [
+    'read_data_file',
+    'normalize_str',
+    'flatten',
+    'convert_fraction',
+    'convert_superscript',
+    'add_space_around_dash',
+]
 
 
-def read_data_file(fp: str, max_insts: int = -1):
+def flatten(l):
+    """ flatten a list of lists """
+    return [item for sublist in l for item in sublist]
+
+
+def add_space_around_dash(input: str):
+    """ adds space around dash between numbers and non-numbers"""
+    input = re.sub(r"([^\s0-9])-([0-9])", r"\1 - \2", input)
+    input = re.sub(r"([0-9])-([^\s0-9])", r"\1 - \2", input)
+    input = re.sub(r"([^\s0-9])-([0-9])", r"\1 - \2", input)
+    input = re.sub(r"([0-9])-([^\s0-9])", r"\1 - \2", input)
+    return input
+
+
+def convert_superscript(written: str):
+    """convert superscript to regular character"""
+    written = re.sub("²", "2", written)
+    written = re.sub("³", "3", written)
+    return written
+
+
+def convert_fraction(written: str):
+    """
+    converts fraction to standard form, e.g "½" -> "1/2", "1 ½" -> "1 1/2"
+    
+    Args:
+        written: written form
+    Returns:
+        written: modified form
+    """
+    written = re.sub(" ½", " 1/2", written)
+    written = re.sub(" ⅓", " 1/3", written)
+    written = re.sub(" ⅔", " 2/3", written)
+    written = re.sub(" ¼", " 1/4", written)
+    written = re.sub(" ¾", " 3/4", written)
+    written = re.sub(" ⅕", " 1/5", written)
+    written = re.sub(" ⅖", " 2/5", written)
+    written = re.sub(" ⅗", " 3/5", written)
+    written = re.sub(" ⅘", " 4/5", written)
+    written = re.sub(" ⅙", " 1/6", written)
+    written = re.sub(" ⅚", " 5/6", written)
+    written = re.sub(" ⅛", " 1/8", written)
+    written = re.sub(" ⅜", " 3/8", written)
+    written = re.sub(" ⅝", " 5/8", written)
+    written = re.sub(" ⅞", " 7/8", written)
+    written = re.sub("^½", "1/2", written)
+    written = re.sub("^⅓", "1/3", written)
+    written = re.sub("^⅔", "2/3", written)
+    written = re.sub("^¼", "1/4", written)
+    written = re.sub("^¾", "3/4", written)
+    written = re.sub("^⅕", "1/5", written)
+    written = re.sub("^⅖", "2/5", written)
+    written = re.sub("^⅗", "3/5", written)
+    written = re.sub("^⅘", "4/5", written)
+    written = re.sub("^⅙", "1/6", written)
+    written = re.sub("^⅚", "5/6", written)
+    written = re.sub("^⅛", "1/8", written)
+    written = re.sub("^⅜", "3/8", written)
+    written = re.sub("^⅝", "5/8", written)
+    written = re.sub("^⅞", "7/8", written)
+    written = re.sub("-½", "-1/2", written)
+    written = re.sub("-⅓", "-1/3", written)
+    written = re.sub("-⅔", "-2/3", written)
+    written = re.sub("-¼", "-1/4", written)
+    written = re.sub("-¾", "-3/4", written)
+    written = re.sub("-⅕", "-1/5", written)
+    written = re.sub("-⅖", "-2/5", written)
+    written = re.sub("-⅗", "-3/5", written)
+    written = re.sub("-⅘", "-4/5", written)
+    written = re.sub("-⅙", "-1/6", written)
+    written = re.sub("-⅚", "-5/6", written)
+    written = re.sub("-⅛", "-1/8", written)
+    written = re.sub("-⅜", "-3/8", written)
+    written = re.sub("-⅝", "-5/8", written)
+    written = re.sub("-⅞", "-7/8", written)
+    written = re.sub("([0-9])\s?½", "\\1 1/2", written)
+    written = re.sub("([0-9])\s?⅓", "\\1 1/3", written)
+    written = re.sub("([0-9])\s?⅔", "\\1 2/3", written)
+    written = re.sub("([0-9])\s?¼", "\\1 1/4", written)
+    written = re.sub("([0-9])\s?¾", "\\1 3/4", written)
+    written = re.sub("([0-9])\s?⅕", "\\1 1/5", written)
+    written = re.sub("([0-9])\s?⅖", "\\1 2/5", written)
+    written = re.sub("([0-9])\s?⅗", "\\1 3/5", written)
+    written = re.sub("([0-9])\s?⅘", "\\1 4/5", written)
+    written = re.sub("([0-9])\s?⅙", "\\1 1/6", written)
+    written = re.sub("([0-9])\s?⅚", "\\1 5/6", written)
+    written = re.sub("([0-9])\s?⅛", "\\1 1/8", written)
+    written = re.sub("([0-9])\s?⅜", "\\1 3/8", written)
+    written = re.sub("([0-9])\s?⅝", "\\1 5/8", written)
+    written = re.sub("([0-9])\s?⅞", "\\1 7/8", written)
+    return written
+
+
+def input_preprocessing(sent: str, lang: str):
+    """ Function for preprocessing the input texts. The function first does
+    some basic tokenization. For English, it then also processes Greek letters
+    such as Δ or λ (if any).
+
+    Args:
+        sent: input text.
+        lang: language
+
+    Returns: preprocessed input text.
+    """
+    # Basic Preprocessing and Tokenization
+    if lang == constants.ENGLISH:
+        sent = sent.replace('+', ' plus ')
+        sent = sent.replace('=', ' equals ')
+        sent = sent.replace('@', ' at ')
+        sent = sent.replace('*', ' times ')
+        # Greek letters processing
+        for jx, tok in enumerate(sent):
+            if tok in constants.EN_GREEK_TO_SPOKEN:
+                sent = sent[:jx] + constants.EN_GREEK_TO_SPOKEN[tok] + sent[jx + 1 :]
+
+    sent = convert_superscript(sent)
+    sent = convert_fraction(sent)
+    sent = add_space_around_dash(sent)
+
+    return sent
+
+
+def read_data_file(fp: str, lang: str, max_insts: int = -1):
     """ Reading the raw data from a file of NeMo format
     For more info about the data format, refer to the
     `text_normalization doc <https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/text_normalization.rst>`.
 
     Args:
         fp: file paths
+        lang: language
         max_insts: Maximum number of instances (-1 means no limit)
     Returns:
         insts: List of sentences parsed as list of words
@@ -37,7 +169,7 @@ def read_data_file(fp: str, max_insts: int = -1):
     # Read input file
     with open(fp, 'r', encoding='utf-8') as f:
         for line in tqdm(f):
-            es = [e.strip() for e in line.strip().split('\t')]
+            es = [e.strip() for e in input_preprocessing(line.strip(), lang=lang).split('\t')]
             if es[0] == '<eos>':
                 inst = (deepcopy(classes), deepcopy(w_words), deepcopy(s_words))
                 insts.append(inst)
@@ -53,12 +185,9 @@ def read_data_file(fp: str, max_insts: int = -1):
     return insts
 
 
-def normalize_str(input_str, lang):
+def normalize_str(input_str):
     """ Normalize an input string """
-    input_str_tokens = basic_tokenize(input_str.strip().lower(), lang)
-    input_str = ' '.join(input_str_tokens)
-    input_str = input_str.replace('  ', ' ')
-    return input_str
+    return input_str.strip().lower().replace("  ", " ")
 
 
 def remove_puncts(input_str):
@@ -66,15 +195,48 @@ def remove_puncts(input_str):
     return input_str.translate(str.maketrans('', '', string.punctuation))
 
 
-def basic_tokenize(input_str, lang):
+def post_process_punct(input: str, nn_output: str):
     """
-    The function is used to do some basic tokenization
+    Post-processing of the normalized output to match input in terms of spaces around punctuation marks.
+    After NN normalization, Moses detokenization puts a space after
+    punctuation marks, and attaches an opening quote "'" to the word to the right.
+    E.g., input to the TN NN model is "12 test' example",
+    after normalization and detokenization -> "twelve test 'example" (the quote is considered to be an opening quote,
+    but it doesn't match the input and can cause issues during TTS voice generation.)
+    The current function will match the punctuation and spaces of the normalized text with the input sequence.
+    "12 test' example" -> "twelve test 'example" -> "twelve test' example" (the quote was shifted to match the input).
 
     Args:
-        input_str: The input string
-        lang: Language of the input string
-    Return: a list of tokens of the input string
+        input: input text (original input to the NN, before normalization or tokenization)
+        nn_output: output text (output of the TN NN model)
     """
-    if lang == constants.ENGLISH:
-        return word_tokenize(input_str)
-    return input_str.strip().split(' ')
+    input = [x for x in input]
+    nn_output = [x for x in nn_output]
+    punct_marks = string.punctuation
+
+    try:
+        for punct in punct_marks:
+            if input.count(punct) != nn_output.count(punct):
+                continue
+            idx_in, idx_out = 0, 0
+            while punct in input[idx_in:]:
+                idx_in = input.index(punct, idx_in)
+                idx_out = nn_output.index(punct, idx_out)
+                if idx_in > 0 and idx_out > 0:
+                    if nn_output[idx_out - 1] == " " and input[idx_in - 1] != " ":
+                        nn_output[idx_out - 1] = ""
+
+                    elif nn_output[idx_out - 1] != " " and input[idx_in - 1] == " ":
+                        nn_output[idx_out - 1] += " "
+
+                if idx_in < len(input) - 1 and idx_out < len(nn_output) - 1:
+                    if nn_output[idx_out + 1] == " " and input[idx_in + 1] != " ":
+                        nn_output[idx_out + 1] = ""
+                    elif nn_output[idx_out + 1] != " " and input[idx_in + 1] == " ":
+                        nn_output[idx_out] = nn_output[idx_out] + " "
+                idx_out += 1
+                idx_in += 1
+    except:
+        logging.warning(f"Skipping post-processing of {''.join(nn_output)}")
+    nn_output = "".join(nn_output)
+    return re.sub(r' +', ' ', nn_output)

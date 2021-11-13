@@ -51,13 +51,14 @@ INST_FORWARD = 'FORWARD'
 INST_DIRECTIONS = [INST_BACKWARD, INST_FORWARD]
 DIRECTIONS_TO_ID = {INST_BACKWARD: ITN_TASK, INST_FORWARD: TN_TASK}
 DIRECTIONS_ID_TO_NAME = {ITN_TASK: INST_BACKWARD, TN_TASK: INST_FORWARD}
+DIRECTIONS_TO_MODE = {ITN_MODE: INST_BACKWARD, TN_MODE: INST_FORWARD}
 
 # TAGS
 SAME_TAG = 'SAME'  # Tag indicates that a token can be kept the same without any further transformation
 TASK_TAG = 'TASK'  # Tag indicates that a token belongs to a task prefix (the prefix indicates whether the current task is TN or ITN)
 PUNCT_TAG = 'PUNCT'  # Tag indicates that a token is a punctuation
 TRANSFORM_TAG = 'TRANSFORM'  # Tag indicates that a token needs to be transformed by the decoder
-ALL_TAGS = [TASK_TAG, SAME_TAG, PUNCT_TAG, TRANSFORM_TAG]
+ALL_TAGS = [TASK_TAG, SAME_TAG, TRANSFORM_TAG]
 
 # ALL_TAG_LABELS
 ALL_TAG_LABELS = []
@@ -73,7 +74,11 @@ SIL_WORD = 'sil'
 SELF_WORD = '<self>'
 SPECIAL_WORDS = [SIL_WORD, SELF_WORD]
 
-# Mappings for Greek Letters (English)
+# IDs for special tokens for encoding inputs of the decoder models
+EXTRA_ID_0 = '<extra_id_0>'
+EXTRA_ID_1 = '<extra_id_1>'
+
+
 EN_GREEK_TO_SPOKEN = {
     'Τ': 'tau',
     'Ο': 'omicron',
@@ -86,7 +91,6 @@ EN_GREEK_TO_SPOKEN = {
     'Σ': 'sigma',
     'Υ': 'upsilon',
     'Μ': 'mu',
-    'Ε': 'epsilon',
     'Χ': 'chi',
     'Π': 'pi',
     'Ν': 'nu',
@@ -96,7 +100,6 @@ EN_GREEK_TO_SPOKEN = {
     'Ρ': 'rho',
     'τ': 'tau',
     'υ': 'upsilon',
-    'μ': 'mu',
     'φ': 'phi',
     'α': 'alpha',
     'λ': 'lambda',
@@ -115,8 +118,3 @@ EN_GREEK_TO_SPOKEN = {
     'ω': 'omega',
     'χ': 'chi',
 }
-EN_SPOKEN_TO_GREEK = {v: k for k, v in EN_GREEK_TO_SPOKEN.items()}
-
-# IDs for special tokens for encoding inputs of the decoder models
-EXTRA_ID_0 = '<extra_id_0>'
-EXTRA_ID_1 = '<extra_id_1>'

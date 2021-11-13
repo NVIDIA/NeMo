@@ -23,7 +23,7 @@ from nemo_text_processing.text_normalization.token_parser import TokenParser
 class InverseNormalizer(Normalizer):
     """
     Inverse normalizer that converts text from spoken to written form. Useful for ASR postprocessing. 
-    Input is expected to have no punctuation and be lower cased.
+    Input is expected to have no punctuation outside of approstrophe (') and dash (-) and be lower cased.
 
     Args:
         lang: language specifying the ITN
@@ -37,14 +37,27 @@ class InverseNormalizer(Normalizer):
             from nemo_text_processing.inverse_text_normalization.en.verbalizers.verbalize_final import (
                 VerbalizeFinalFst,
             )
+
+        elif lang == 'es':
+            from nemo_text_processing.inverse_text_normalization.es.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.inverse_text_normalization.es.verbalizers.verbalize_final import (
+                VerbalizeFinalFst,
+            )
+
         elif lang == 'ru':
             from nemo_text_processing.inverse_text_normalization.ru.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.inverse_text_normalization.ru.verbalizers.verbalize_final import (
                 VerbalizeFinalFst,
             )
+
         elif lang == 'de':
             from nemo_text_processing.inverse_text_normalization.de.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.inverse_text_normalization.de.verbalizers.verbalize_final import (
+                VerbalizeFinalFst,
+            )
+        elif lang == 'fr':
+            from nemo_text_processing.inverse_text_normalization.fr.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.inverse_text_normalization.fr.verbalizers.verbalize_final import (
                 VerbalizeFinalFst,
             )
 
@@ -81,7 +94,7 @@ class InverseNormalizer(Normalizer):
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("input_string", help="input string", type=str)
-    parser.add_argument("--language", help="language", choices=['en', 'de', 'ru'], default="en", type=str)
+    parser.add_argument("--language", help="language", choices=['en', 'de', 'es', 'ru', 'fr'], default="en", type=str)
     parser.add_argument("--verbose", help="print info for debugging", action='store_true')
     parser.add_argument("--overwrite_cache", help="set to True to re-create .far grammar files", action="store_true")
     parser.add_argument(

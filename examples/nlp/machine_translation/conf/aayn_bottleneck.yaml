@@ -15,6 +15,8 @@
 #               number of steps using attention bridge (https://arxiv.org/pdf/1703.03130.pdf)
 #   3) perceiver - a bottleneck by projecting inputs to a fixed
 #               number of steps using perceiver architecture (https://arxiv.org/pdf/2103.03206.pdf)
+#   4) max_pool / avg_pool - a reduction by halving the number of steps at the end of every hidden block.
+#                            reduction is using max pooling or average pooling.
 name: AttentionIsAllYouNeedBottleneck
 do_training: True # set to False if only preprocessing data
 do_testing: False # set to True to run evaluation on test data after training
@@ -134,7 +136,7 @@ model:
     mask_future: false
     pre_ln: false
     pre_ln_final_layer_norm: true
-    arch: seq2seq # seq2seq, bridge, perceiver (see description above)
+    arch: seq2seq # avg_pool, max_pool, seq2seq, bridge, perceiver (see description above)
     hidden_steps: 32 # fixed number of hidden steps
     hidden_blocks: 1 # number of repeat blocks (see classes for description)
     hidden_init_method: default # see classes for available values
@@ -170,7 +172,6 @@ trainer:
   gpus: 4
   num_nodes: 1
   max_epochs: 200
-  amp_level: O2 # O1/O2 for mixed precision
   precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
   accelerator: ddp
   checkpoint_callback: False

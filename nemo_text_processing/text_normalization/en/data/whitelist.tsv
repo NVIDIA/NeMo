@@ -686,6 +686,8 @@ ALWS	a l w s
 AMAA	a m a a
 A'ma	a m a
 A&M	a and m
+a.m.	a m
+a.m	a m
 A. M.	a m
 A.M.	a m
 AMAP	a m a p
@@ -8756,6 +8758,7 @@ L.L.C.	l l c
 LLC-	l l c
 LLC	l l c
 LLD	l l d
+LL.D	l l d
 lle	l l e
 LLE	l l e
 LLHS	l l h s
@@ -10017,7 +10020,6 @@ NNSS	n n s s
 NNSU	n n s u
 NNSW	n n s w
 NNW-	n n w
-No.	number
 N.O.R.	n o r
 NPA-	n p a
 NPA	n p a
@@ -10090,6 +10092,7 @@ NRN	n r n
 nr	n r
 N. R.	n r
 N.R.	n r
+N.R.A.	n r a
 NSA-	n s a
 NSA	n s a
 NSAP	n s a p
@@ -10722,7 +10725,8 @@ PMOI	p m o i
 PMO	p m o
 PMPC	p m p c
 PMPF	p m p f
-pm	p m
+p.m.	p m
+p.m	p m
 P. M.	p m
 P.M.	p m
 PM-	p m
@@ -11824,6 +11828,7 @@ SFX's	s f x's
 SGAE	s g a e
 SGAP	s g a p
 SGA	s g a
+SG&A	s g and a
 SGA's	s g a's
 sgb	s g b
 SGB	s g b
@@ -13844,6 +13849,7 @@ USSF's	u s s f's
 USSF	u s s f
 USSR's	u s s r's
 USSR	u s s r
+U.S.S.R	u s s r
 U.S.'s	u s's
 US's	u s's
 U.S.S.	u s s

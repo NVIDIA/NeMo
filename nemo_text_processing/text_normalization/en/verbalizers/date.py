@@ -93,7 +93,9 @@ class DateFst(GraphFst):
             + delete_space
         )
 
-        final_graph = (graph_mdy | year | graph_dmy) + delete_space + optional_preserve_order
+        final_graph = (
+            (graph_mdy | year | pynutil.add_weight(graph_dmy, 0.001)) + delete_space + optional_preserve_order
+        )
 
         delete_tokens = self.delete_tokens(final_graph)
         self.fst = delete_tokens.optimize()

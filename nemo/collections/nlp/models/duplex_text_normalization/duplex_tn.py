@@ -21,15 +21,13 @@ import torch.nn as nn
 from tqdm import tqdm
 
 from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset, constants
-from nemo.collections.nlp.data.text_normalization.utils import basic_tokenize
+from nemo.collections.nlp.data.text_normalization.utils import input_preprocessing, post_process_punct
 from nemo.collections.nlp.models.duplex_text_normalization.utils import get_formatted_string
 from nemo.utils import logging
-from nemo.utils.decorators.experimental import experimental
 
-__all__ = ['DuplexTextNormalizationModel']
+__all__ = ['DuplexTextNormalizationModel', 'post_process_punct']
 
 
-@experimental
 class DuplexTextNormalizationModel(nn.Module):
     """
     DuplexTextNormalizationModel is a wrapper class that can be used to
@@ -92,7 +90,11 @@ class DuplexTextNormalizationModel(nn.Module):
             ) = zip(*batch_insts)
             # Inference and Running Time Measurement
             batch_start_time = perf_counter()
-            batch_tag_preds, batch_output_spans, batch_final_preds = self._infer(batch_inputs, batch_dirs)
+
+            batch_tag_preds, batch_output_spans, batch_final_preds = self._infer(
+                batch_inputs, batch_dirs, processed=True
+            )
+
             batch_run_time = (perf_counter() - batch_start_time) * 1000  # milliseconds
             all_run_times.append(batch_run_time)
             # Update all_dirs, all_inputs, all_tag_preds, all_final_preds and all_targets
@@ -147,20 +149,20 @@ class DuplexTextNormalizationModel(nn.Module):
                     cur_output_spans.append(output_spans)
             nb_instances = len(cur_final_preds)
             cur_targets_sent = [" ".join(x) for x in cur_targets]
+
             sent_accuracy = TextNormalizationTestDataset.compute_sent_accuracy(
-                cur_final_preds, cur_targets_sent, cur_dirs, self.lang
+                cur_final_preds, cur_targets_sent, cur_dirs
             )
+
             class_accuracy = TextNormalizationTestDataset.compute_class_accuracy(
-                self.input_preprocessing(list(cur_inputs)),
+                [x.split() for x in cur_inputs],
                 cur_targets,
                 cur_tag_preds,
                 cur_dirs,
                 cur_output_spans,
                 cur_classes,
                 cur_nb_spans,
-                cur_span_starts,
                 cur_span_ends,
-                self.lang,
             )
             if verbose:
                 logging.info(f'\n============ Direction {direction} ============')
@@ -183,14 +185,15 @@ class DuplexTextNormalizationModel(nn.Module):
             for _input, tag_pred, final_pred, target, classes in zip(
                 cur_inputs, cur_tag_preds, cur_final_preds, cur_targets_sent, cur_classes
             ):
-                if not TextNormalizationTestDataset.is_same(final_pred, target, direction, self.lang):
+                if not TextNormalizationTestDataset.is_same(final_pred, target, direction):
                     if direction == constants.INST_BACKWARD:
                         error_f.write('Backward Problem (ITN)\n')
                         itn_error_ctx += 1
                     elif direction == constants.INST_FORWARD:
                         error_f.write('Forward Problem (TN)\n')
                         tn_error_ctx += 1
-                    formatted_input_str = get_formatted_string(basic_tokenize(_input, lang=self.lang))
+
+                    formatted_input_str = get_formatted_string(self.decoder.processor.tokenize(_input).split())
                     formatted_tag_pred_str = get_formatted_string(tag_pred)
                     class_str = " ".join(classes)
                     error_f.write(f'Original Input : {_input}\n')
@@ -211,11 +214,11 @@ class DuplexTextNormalizationModel(nn.Module):
 
         # Close log file
         error_f.close()
-
+        logging.info(f'Errors are saved at {errors_log_fp}.')
         return results
 
     # Functions for inference
-    def _infer(self, sents: List[str], inst_directions: List[str]):
+    def _infer(self, sents: List[str], inst_directions: List[str], processed=False):
         """
         Main function for Inference
 
@@ -225,68 +228,56 @@ class DuplexTextNormalizationModel(nn.Module):
         Args:
             sents: A list of input texts.
             inst_directions: A list of str where each str indicates the direction of the corresponding instance \
-            (i.e., constants.INST_BACKWARD for ITN or constants.INST_FORWARD for TN).
+                (i.e., constants.INST_BACKWARD for ITN or constants.INST_FORWARD for TN).
+            processed: Set to True when used with TextNormalizationTestDataset, the data is already tokenized with moses,
+                repetitive moses tokenization could lead to the number of tokens and class span mismatch
 
         Returns:
             tag_preds: A list of lists where the inner list contains the tag predictions from the tagger for each word in the input text.
             output_spans: A list of lists where each list contains the decoded semiotic spans from the decoder for an input text.
             final_outputs: A list of str where each str is the final output text for an input text.
         """
-        # Preprocessing
-        sents = self.input_preprocessing(list(sents))
+        original_sents = [s for s in sents]
+        # Separate into words
+        if not processed:
+            sents = [input_preprocessing(x, lang=self.lang) for x in sents]
+            sents = [self.decoder.processor.tokenize(x).split() for x in sents]
+        else:
+            sents = [x.split() for x in sents]
 
         # Tagging
-        # span_ends included
+        # span_ends included, returns index wrt to words in input without auxiliary words
         tag_preds, nb_spans, span_starts, span_ends = self.tagger._infer(sents, inst_directions)
         output_spans = self.decoder._infer(sents, nb_spans, span_starts, span_ends, inst_directions)
 
         # Prepare final outputs
         final_outputs = []
         for ix, (sent, tags) in enumerate(zip(sents, tag_preds)):
-            cur_words, jx, span_idx = [], 0, 0
-            cur_spans = output_spans[ix]
-            while jx < len(sent):
-                tag, word = tags[jx], sent[jx]
-                if constants.SAME_TAG in tag:
-                    cur_words.append(word)
-                    jx += 1
-                elif constants.PUNCT_TAG in tag:
-                    jx += 1
-                else:
-                    jx += 1
-                    cur_words.append(cur_spans[span_idx])
-                    span_idx += 1
-                    while jx < len(sent) and tags[jx] == constants.I_PREFIX + constants.TRANSFORM_TAG:
+            try:
+                cur_words, jx, span_idx = [], 0, 0
+                cur_spans = output_spans[ix]
+                while jx < len(sent):
+                    tag, word = tags[jx], sent[jx]
+                    if constants.SAME_TAG in tag:
+                        cur_words.append(word)
                         jx += 1
-            cur_output_str = ' '.join(cur_words)
-            cur_output_str = ' '.join(basic_tokenize(cur_output_str, self.lang))
-            final_outputs.append(cur_output_str)
+                    else:
+                        jx += 1
+                        cur_words.append(cur_spans[span_idx])
+                        span_idx += 1
+                        while jx < len(sent) and tags[jx] == constants.I_PREFIX + constants.TRANSFORM_TAG:
+                            jx += 1
+
+                if processed:
+                    # for Class-based evaluation, don't apply Moses detokenization
+                    cur_output_str = " ".join(cur_words)
+                else:
+                    # detokenize the output with Moses and fix punctuation marks to match the input
+                    # for interactive inference or inference from a file
+                    cur_output_str = self.decoder.processor.detokenize(cur_words)
+                    cur_output_str = post_process_punct(input=original_sents[ix], nn_output=cur_output_str)
+                final_outputs.append(cur_output_str)
+            except IndexError:
+                logging.warning(f"Input sent is too long and will be skipped - {original_sents[ix]}")
+                final_outputs.append(original_sents[ix])
         return tag_preds, output_spans, final_outputs
-
-    def input_preprocessing(self, sents):
-        """ Function for preprocessing the input texts. The function first does
-        some basic tokenization. For English, it then also processes Greek letters
-        such as Δ or λ (if any).
-
-        Args:
-            sents: A list of input texts.
-
-        Returns: A list of preprocessed input texts.
-        """
-        # Basic Preprocessing and Tokenization
-        if self.lang == constants.ENGLISH:
-            for ix, sent in enumerate(sents):
-                sents[ix] = sents[ix].replace('+', ' plus ')
-                sents[ix] = sents[ix].replace('=', ' equals ')
-                sents[ix] = sents[ix].replace('@', ' at ')
-                sents[ix] = sents[ix].replace('*', ' times ')
-        sents = [basic_tokenize(sent, self.lang) for sent in sents]
-
-        # Greek letters processing
-        if self.lang == constants.ENGLISH:
-            for ix, sent in enumerate(sents):
-                for jx, tok in enumerate(sent):
-                    if tok in constants.EN_GREEK_TO_SPOKEN:
-                        sents[ix][jx] = constants.EN_GREEK_TO_SPOKEN[tok]
-
-        return sents

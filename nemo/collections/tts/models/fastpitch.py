@@ -81,8 +81,14 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         self.log_train_images = False
         self.mel_loss = MelLoss()
         loss_scale = 0.1 if self.learn_alignment else 1.0
-        self.pitch_loss = PitchLoss(loss_scale=loss_scale)
-        self.duration_loss = DurationLoss(loss_scale=loss_scale)
+        dur_loss_scale = loss_scale
+        pitch_loss_scale = loss_scale
+        if "dur_loss_scale" in cfg:
+            dur_loss_scale = cfg.dur_loss_scale
+        if "pitch_loss_scale" in cfg:
+            pitch_loss_scale = cfg.pitch_loss_scale
+        self.pitch_loss = PitchLoss(loss_scale=pitch_loss_scale)
+        self.duration_loss = DurationLoss(loss_scale=dur_loss_scale)
         input_fft_kwargs = {}
         if self.learn_alignment:
             self.aligner = instantiate(self._cfg.alignment_module)
@@ -372,7 +378,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         list_of_models = []
         model = PretrainedModelInfo(
             pretrained_model_name="tts_en_fastpitch",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_fastpitch/versions/1.0.0/files/tts_en_fastpitch.nemo",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_fastpitch/versions/1.4.0/files/tts_en_fastpitch_align.nemo",
             description="This model is trained on LJSpeech sampled at 22050Hz with and can be used to generate female English voices with an American accent.",
             class_=cls,
         )

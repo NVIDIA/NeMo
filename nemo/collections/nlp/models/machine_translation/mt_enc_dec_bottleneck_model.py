@@ -33,7 +33,7 @@ from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MT
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.collections.nlp.modules.common.transformer import AttentionBridge, TopKSequenceGenerator
 from nemo.core.classes.common import typecheck
-from nemo.utils import logging, model_utils
+from nemo.utils import logging, model_utils, timers
 
 __all__ = ['MTBottleneckModel']
 
@@ -75,6 +75,10 @@ class MTBottleneckModel(MTEncDecModel):
         self.latent_size: int = cfg.get("latent_size", -1)
         self.non_recon_warmup_batches: int = cfg.get("non_recon_warmup_batches", 200000)
         self.recon_per_token: bool = cfg.get("recon_per_token", True)
+        self.log_timing: bool = cfg.get("log_timing", True)
+
+        # if True, translation uses the mean of latent for VAE and MIM
+        self.deterministic_translate = True
 
         # latent_size -1 will take value of encoder.hidden_size
         if self.latent_size < 0:
@@ -89,7 +93,7 @@ class MTBottleneckModel(MTEncDecModel):
             raise ValueError(f"Unknown model_type = {self.model_type}")
 
         # project bridge dimension back to decoder hidden dimensions
-        self.latent2hidden = build_linear_or_identity(self.latent_size, self.encoder.hidden_size)
+        self.latent2hidden = build_linear_or_identity(self.latent_size, self.decoder.hidden_size)
 
         # project dimension of encoder hidden to latent dimension
         self.hidden2latent_mean = build_linear_or_identity(self.encoder.hidden_size, self.latent_size)
@@ -98,6 +102,13 @@ class MTBottleneckModel(MTEncDecModel):
         if self.model_type != "nll":
             # for probabilistic latent variable models we also need variance
             self.hidden2latent_logv = build_linear_or_identity(self.encoder.hidden_size, self.latent_size)
+
+    def _validate_encoder_decoder_hidden_size(self):
+        """
+        Validate encoder and decoder hidden sizes, and enforce same size.
+        We support here encoder/decoder with different hidden_size, so do nothing.
+        """
+        pass
 
     def eval_epoch_end(self, outputs, mode):
         # call parent for logging
@@ -240,6 +251,7 @@ class MTBottleneckModel(MTEncDecModel):
             loss = -(log_p_x_given_z + warmup_coef * loss_terms)
 
             info_dict["log_q_z_given_x"] = log_q_z_given_x.detach().cpu()
+            info_dict["log_var_q_z_given_x"] = z_logv.detach().mean().cpu()
             info_dict["log_p_z"] = log_p_z.detach().cpu()
             info_dict["kl_div_q_p"] = (log_q_z_given_x - log_p_z).detach().cpu()
 
@@ -252,20 +264,29 @@ class MTBottleneckModel(MTEncDecModel):
             return loss
 
     @typecheck()
-    def forward(self, src, src_mask, tgt, tgt_mask):
+    def forward(self, src, src_mask, tgt, tgt_mask, timer=None):
         """
         return_info - if True, returns loss, info_dict with additional information
                       regarding the loss that can be logged
         """
-        # test src/tgt for id range (i.e., hellp in catching wrong tokenizer)
-        self.test_encoder_ids(src, raise_error=True)
-        self.test_decoder_ids(tgt, raise_error=True)
+        if self.validate_input_ids:
+            # test src/tgt for id range (i.e., hellp in catching wrong tokenizer)
+            self.test_encoder_ids(src, raise_error=True)
+            self.test_decoder_ids(tgt, raise_error=True)
 
+        if timer is not None:
+            timer.start("encoder")
         enc_hiddens, enc_mask = self.encoder(input_ids=src, encoder_mask=src_mask, return_mask=True,)
 
         # build posterior distribution q(x|z)
         z, z_mean, z_logv = self.encode_latent(hidden=enc_hiddens)
         z_mask = enc_mask
+
+        if timer is not None:
+            timer.stop("encoder")
+
+        if timer is not None:
+            timer.start("decoder")
 
         # decoding cross attention context
         context_hiddens = self.latent2hidden(z)
@@ -277,11 +298,14 @@ class MTBottleneckModel(MTEncDecModel):
         # build decoding distribution
         tgt_log_probs = self.log_softmax(hidden_states=tgt_hiddens)
 
+        if timer is not None:
+            timer.stop("decoder")
+
         return z, z_mean, z_logv, z_mask, tgt_log_probs
 
     @torch.no_grad()
     def batch_translate(
-        self, src: torch.LongTensor, src_mask: torch.LongTensor,
+        self, src: torch.LongTensor, src_mask: torch.LongTensor, return_beam_scores: bool = False, cache={}
     ):
         """
         Translates a minibatch of inputs from source language to target language.
@@ -293,34 +317,59 @@ class MTBottleneckModel(MTEncDecModel):
             inputs: a list of string containing detokenized inputs
         """
         mode = self.training
+        timer = cache.get("timer", None)
         try:
             self.eval()
 
-            enc_hiddens, enc_mask = self.encoder(input_ids=src, encoder_mask=src_mask, return_mask=True)
-
             # build posterior distribution q(x|z)
-            z, _, _ = self.encode_latent(hidden=enc_hiddens)
+            if ("z" not in cache) or ("z_mean" not in cache) or ("z_mask" not in cache):
+                if timer is not None:
+                    timer.start("encoder")
+                enc_hiddens, enc_mask = self.encoder(input_ids=src, encoder_mask=src_mask, return_mask=True)
+                z, z_mean, _ = self.encode_latent(hidden=enc_hiddens)
+                if timer is not None:
+                    timer.stop("encoder")
+            else:
+                enc_mask = cache["z_mask"]
+                z = cache["z"]
+                z_mean = cache["z_mean"]
 
+            if getattr(self, "deterministic_translate", True):
+                z = z_mean
+
+            if timer is not None:
+                timer.start("sampler")
             # decoding cross attention context
             context_hiddens = self.latent2hidden(z)
 
-            beam_results = self.beam_search(encoder_hidden_states=context_hiddens, encoder_input_mask=enc_mask)
+            best_translations = self.beam_search(
+                encoder_hidden_states=context_hiddens,
+                encoder_input_mask=enc_mask,
+                return_beam_scores=return_beam_scores,
+            )
+            if timer is not None:
+                timer.stop("sampler")
 
-            beam_results = self.filter_predicted_ids(beam_results)
+            if return_beam_scores:
+                all_translations, scores, best_translations = best_translations
+                scores = scores.view(-1)
+                all_translations = self.ids_to_postprocessed_text(
+                    all_translations, self.decoder_tokenizer, self.target_processor, filter_beam_ids=True
+                )
 
-            translations = [self.decoder_tokenizer.ids_to_text(tr) for tr in beam_results.cpu().numpy()]
-            inputs = [self.encoder_tokenizer.ids_to_text(inp) for inp in src.cpu().numpy()]
-            if self.target_processor is not None:
-                translations = [
-                    self.target_processor.detokenize(translation.split(' ')) for translation in translations
-                ]
+            best_translations = self.ids_to_postprocessed_text(
+                best_translations, self.decoder_tokenizer, self.target_processor, filter_beam_ids=True
+            )
+            inputs = self.ids_to_postprocessed_text(
+                src, self.encoder_tokenizer, self.source_processor, filter_beam_ids=False
+            )
 
-            if self.source_processor is not None:
-                inputs = [self.source_processor.detokenize(item.split(' ')) for item in inputs]
         finally:
             self.train(mode=mode)
+        if return_beam_scores:
+            return inputs, all_translations, scores.data.cpu().numpy().tolist(), best_translations
 
-        return inputs, translations
+        return inputs, best_translations
 
     def training_step(self, batch, batch_idx):
         """
@@ -356,6 +405,11 @@ class MTBottleneckModel(MTEncDecModel):
         return {'loss': train_loss, 'log': tensorboard_logs}
 
     def eval_step(self, batch, batch_idx, mode, dataloader_idx=0):
+        if self.log_timing:
+            timer = timers.NamedTimer()
+        else:
+            timer = None
+
         for i in range(len(batch)):
             if batch[i].ndim == 3:
                 # Dataset returns already batched data and the first dimension of size 1 added by DataLoader
@@ -367,7 +421,7 @@ class MTBottleneckModel(MTEncDecModel):
             self.target_processor = self.target_processor_list[dataloader_idx]
 
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
-        z, z_mean, z_logv, z_mask, tgt_log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
+        z, z_mean, z_logv, z_mask, tgt_log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask, timer=timer)
         eval_loss, info_dict = self.loss(
             z=z,
             z_mean=z_mean,
@@ -380,8 +434,10 @@ class MTBottleneckModel(MTEncDecModel):
             train=False,
             return_info=True,
         )
-        # this will run encoder twice -- TODO: potentially fix
-        _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
+        # pass cache to sampler in order to reuse encoder's output
+        cache = dict(z=z, z_mean=z_mean, z_mask=z_mask, timer=timer,)
+
+        _, translations = self.batch_translate(src=src_ids, src_mask=src_mask, cache=cache)
 
         num_measurements = labels.shape[0] * labels.shape[1]
         if dataloader_idx == 0:
@@ -396,9 +452,17 @@ class MTBottleneckModel(MTEncDecModel):
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
         ground_truths = [self.target_processor.detokenize(tgt.split(' ')) for tgt in ground_truths]
         num_non_pad_tokens = np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
+
+        # collect logs
+        log_dict = {k: v.detach().cpu().numpy() if torch.is_tensor(v) else v for k, v in info_dict.items()}
+        # add timing if required
+        if timer is not None:
+            for k, v in timer.export().items():
+                log_dict[f"{k}_timing"] = v
+
         return {
             'translations': translations,
             'ground_truths': ground_truths,
             'num_non_pad_tokens': num_non_pad_tokens,
-            'log': {k: v.detach().cpu().numpy() if torch.is_tensor(v) else v for k, v in info_dict.items()},
+            'log': log_dict,
         }

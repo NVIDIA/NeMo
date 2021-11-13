@@ -14,13 +14,7 @@
 
 from typing import Tuple
 
-__all__ = ['is_url', 'has_numbers']
-
-
-def is_url(input_str: str):
-    """ Check if a string is a URL """
-    url_segments = ['www', 'http', '.org', '.com', '.tv']
-    return any(segment in input_str for segment in url_segments)
+__all__ = ['has_numbers']
 
 
 def has_numbers(input_str: str):

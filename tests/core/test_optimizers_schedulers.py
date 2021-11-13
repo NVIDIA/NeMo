@@ -39,14 +39,13 @@ class TempModel(torch.nn.Module):
 
 class OptCounter(torch.optim.SGD):
     def __init__(self, *args, **kwargs):
-        self.count = 0
         super().__init__(*args, **kwargs)
+        for group in self.param_groups:
+            group.setdefault('count', 0)
 
     def step(self, closure=None):
-        try:
-            self.count += 1
-        except AttributeError:
-            self.count = 1
+        for group in self.param_groups:
+            group['count'] += 1
         super().step(closure)
 
 
@@ -88,7 +87,8 @@ class ExampleModel(pl.LightningModule):
 class Callback(pl.callbacks.Callback):
     @pl.utilities.distributed.rank_zero_only
     def on_train_end(self, trainer, module):
-        if trainer.global_step != module.my_opt.count or trainer.global_step != module.max_steps:
+        count = module.my_opt.param_groups[0]['count']
+        if trainer.global_step != count or trainer.global_step != module.max_steps:
             logging.debug(f"max_epochs: {trainer.max_epochs}")
             logging.debug(f"accumulate_grad_batches: {trainer.accumulate_grad_batches}")
             logging.debug(f"limit_train_batches: {trainer.limit_train_batches}")
@@ -98,12 +98,8 @@ class Callback(pl.callbacks.Callback):
             logging.debug(f"drop_last: {module.drop_last}")
             logging.debug(f"{len(trainer.train_dataloader)}")
             logging.debug(f"{trainer.num_training_batches }")
-        assert (
-            trainer.global_step == module.my_opt.count
-        ), f"{trainer.global_step} != {module.my_opt.count} != {module.max_steps}"
-        assert (
-            trainer.global_step == module.max_steps
-        ), f"{trainer.global_step} != {module.my_opt.count} != {module.max_steps}"
+        assert trainer.global_step == count, f"{trainer.global_step} != {count} != {module.max_steps}"
+        assert trainer.global_step == module.max_steps, f"{trainer.global_step} != {count} != {module.max_steps}"
 
 
 class TestOptimizersSchedulers:
@@ -111,11 +107,15 @@ class TestOptimizersSchedulers:
     MIN_LR = 1e-3
     MAX_STEPS = 10
 
+    # fused_adam is looking for CUDA and this test is being run on CPU only tests
     @pytest.mark.unit
     def test_get_optimizer(self):
         model = TempModel()
 
         for opt_name in AVAILABLE_OPTIMIZERS.keys():
+            if opt_name == 'fused_adam':
+                if not torch.cuda.is_available():
+                    continue
             opt_cls = optim.get_optimizer(opt_name)
             opt = opt_cls(model.parameters(), lr=self.INITIAL_LR)
 
