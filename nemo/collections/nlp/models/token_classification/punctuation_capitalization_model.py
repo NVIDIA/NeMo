@@ -400,6 +400,12 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 )
             # Following parameters can be missing in config if the model is restored from old checkpoint
             tokens_in_batch = cfg.get('tokens_in_batch')
+            if tokens_in_batch is None:
+                logging.warning(
+                    f"`tokens_in_batch` parameter is missing in dataset config. The default value "
+                    f"{DEFAULT_NUM_TOKENS_IN_BATCH} is used."
+                )
+                tokens_in_batch = DEFAULT_NUM_TOKENS_IN_BATCH  # 5000
             max_seq_length = cfg.get('max_seq_length')
             use_cache = cfg.get('use_cache')
             text_file, labels_file = Path(ds_data_dir) / cfg.text_file, Path(ds_data_dir) / cfg.labels_file

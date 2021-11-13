@@ -287,7 +287,7 @@ class TokenizeCreateMasksClipWorker:
         """
         Args:
             max_seq_length: max number of tokens in input sequence including [CLS] and [SEP] tokens. If number of
-                tokens in a sequence exceeds ``max_seq_length``, then excess tokens in the beginning of the sequence
+                tokens in a sequence exceeds ``max_seq_length``, then excess tokens in the end of the sequence
                 are removed
             tokenizer: a tokenizer instance which has properties ``cls_id``, ``pad_id``, ``sep_id``, ``unk_id``
             punct_label_ids: dict to map punctuation labels to label ids.
@@ -311,9 +311,9 @@ class TokenizeCreateMasksClipWorker:
         self.verbose = verbose
         self.progress_queue = progress_queue
 
-    def maybe_clip(self, values: List[int], prepend_value: int) -> List[int]:
+    def maybe_clip(self, values: List[int], append_value: int) -> List[int]:
         if len(values) > self.max_seq_length:
-            return [prepend_value] + values[-self.max_seq_length + 1 :]
+            return values[: self.max_seq_length - 1] + [append_value]
         return values
 
     def __call__(
@@ -372,7 +372,7 @@ class TokenizeCreateMasksClipWorker:
             subtokens_mask.append(0)
             sent_lengths.append(len(input_ids))
 
-            all_input_ids.append(np.array(self.maybe_clip(input_ids, self.tokenizer.cls_id), dtype=np.int32))
+            all_input_ids.append(np.array(self.maybe_clip(input_ids, self.tokenizer.sep_id), dtype=np.int32))
             all_subtokens_mask.append(np.array(self.maybe_clip(subtokens_mask, 0), dtype=bool))
 
             if self.with_label:
@@ -410,7 +410,7 @@ def tokenize_create_masks_clip_parallel(
     Args:
         queries: text sequences
         max_seq_length: max number of tokens in input sequence including [CLS] and [SEP] tokens. If number of tokens
-            in a sequence exceeds ``max_seq_length``, then excess tokens in the beginning of the sequence are removed
+            in a sequence exceeds ``max_seq_length``, then excess tokens in the end of the sequence are removed
         tokenizer: a tokenizer instance which has properties ``cls_id``, ``pad_id``, ``sep_id``, ``unk_id``
         punct_label_ids: dict to map punctuation labels to label ids.
             Starts with pad_label->0 and then increases in alphabetical order.
@@ -523,7 +523,7 @@ def get_features(
     Args:
         queries: text sequences
         max_seq_length: max number of tokens in input sequence including [CLS] and [SEP] tokens. If number of tokens
-            in a sequence exceeds ``max_seq_length``, then excess tokens in the beginning of the sequence are removed
+            in a sequence exceeds ``max_seq_length``, then excess tokens in the end of the sequence are removed
         tokenizer: a tokenizer instance which has properties ``cls_id``, ``pad_id``, ``sep_id``, ``unk_id``
         punct_label_ids: dict to map punctuation labels to label ids.
             Starts with pad_label->0 and then increases in alphabetical order.
@@ -668,7 +668,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         text_file: file to sequences, each line should a text without punctuation and capitalization
         label_file: file to labels, each line corresponds to word labels for a sentence in the text_file
         max_seq_length: max number of tokens in a source sequence. ``max_seq_length`` includes for [CLS] and [SEP]
-            tokens. Sequences which are too long will be clipped by removal of tokens from the BEGINNING of the sequence
+            tokens. Sequences which are too long will be clipped by removal of tokens from the end of the sequence
         tokenizer: a tokenizer instance which has properties ``unk_id``, ``sep_id``, ``bos_id``, ``eos_id``
         num_samples: number of samples you want to use for the dataset. If ``-1``, use all dataset. Useful for testing.
         pad_label: pad value use for labels. It's the neutral label both for punctuation and capitalization.

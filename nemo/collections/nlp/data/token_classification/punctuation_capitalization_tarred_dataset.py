@@ -674,7 +674,7 @@ def create_tarred_dataset(
         max_seq_length: Maximum number of subtokens in an input sequence. A source sequence which contain too many
             subtokens are clipped to ``max_seq_length - 2`` subtokens and then [CLS] token is prepended to the clipped
             sequence and [SEP] token is appended to the clipped sequence. The clipping is performed via removal of
-            subtokens in the beginning of a source sequence.
+            subtokens in the end of a source sequence.
         tokens_in_batch: maximum number of tokens in a batch including [CLS], [SEP], [UNK], and [PAD] tokens. Before
             packing into batches source sequences are sorted by number of tokens in order to reduce number of pad
             tokens. So the number of sequences in a batch may be different.
