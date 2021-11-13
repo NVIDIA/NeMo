@@ -76,13 +76,12 @@ class ASRBPEMixin(ABC):
 
             if 'special_tokens' in self.tokenizer_cfg:
                 special_tokens = self.tokenizer_cfg['special_tokens']
-            else:
-                special_tokens = None
+
+                if special_tokens is not None:
+                    raise ValueError("`special_tokens` are no longer supported for SentencePiece based tokenizers.")
 
             # Update special tokens
-            self.tokenizer = tokenizers.SentencePieceTokenizer(
-                model_path=model_path, special_tokens=special_tokens, legacy=True
-            )
+            self.tokenizer = tokenizers.SentencePieceTokenizer(model_path=model_path)
 
             if 'vocab_path' in self.tokenizer_cfg:
                 vocab_path = self.tokenizer_cfg.get('vocab_path')
@@ -102,11 +101,11 @@ class ASRBPEMixin(ABC):
                 # fallback case for older checkpoints that did not preserve the tokenizer.vocab
                 self.spe_vocab_path = None
 
-            vocabulary = {'<unk>': 0}
-            with open(vocab_path) as f:
-                for i, piece in enumerate(f):
-                    piece = piece.replace('\n', '')
-                    vocabulary[piece] = i + 1
+            vocabulary = {}
+            for i in range(self.tokenizer.vocab_size):
+                piece = self.tokenizer.ids_to_tokens([i])
+                piece = piece[0]
+                vocabulary[piece] = i + 1
 
             # wrapper method to get vocabulary conveniently
             def get_vocab():

@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
+from nemo_text_processing.text_normalization.en.verbalizers.abbreviation import AbbreviationFst
 from nemo_text_processing.text_normalization.en.verbalizers.cardinal import CardinalFst
 from nemo_text_processing.text_normalization.en.verbalizers.date import DateFst
 from nemo_text_processing.text_normalization.en.verbalizers.decimal import DecimalFst
@@ -75,5 +76,8 @@ class VerbalizeFst(GraphFst):
         if not deterministic:
             roman_graph = RomanFst(deterministic=deterministic).fst
             graph |= roman_graph
+
+            abbreviation_graph = AbbreviationFst(deterministic=deterministic).fst
+            graph |= abbreviation_graph
 
         self.fst = graph

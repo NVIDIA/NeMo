@@ -41,6 +41,5 @@ class PunctuationFst(GraphFst):
         s = "!#$%&\'()*+,-./:;<=>?@^_`{|}~\""
         punct = pynini.union(*s)
 
-        graph = pynutil.insert("name: \"") + punct + pynutil.insert("\"")
-
-        self.fst = graph.optimize()
+        self.graph = punct
+        self.fst = (pynutil.insert("name: \"") + self.graph + pynutil.insert("\"")).optimize()

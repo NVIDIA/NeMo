@@ -1,6 +1,5 @@
 braceexpand
 editdistance
-frozendict
 inflect
 kaldi-io
 librosa
@@ -9,7 +8,6 @@ packaging
 ruamel.yaml
 soundfile
 sox
-unidecode
 kaldi-python-io
 kaldiio
 scipy

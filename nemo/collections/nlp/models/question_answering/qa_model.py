@@ -239,8 +239,8 @@ class QAModel(NLPModel):
             logits = torch.cat(all_logits)
             unique_ids = tensor2list(torch.cat(all_unique_ids))
             s, e = logits.split(dim=-1, split_size=1)
-            start_logits = tensor2list(s.squeeze())
-            end_logits = tensor2list(e.squeeze())
+            start_logits = tensor2list(s.squeeze(-1))
+            end_logits = tensor2list(e.squeeze(-1))
             (all_predictions, all_nbest, scores_diff) = infer_datalayer.dataset.get_predictions(
                 unique_ids=unique_ids,
                 start_logits=start_logits,

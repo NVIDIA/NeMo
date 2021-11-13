@@ -53,6 +53,13 @@ hl	hecto liter
 μg	microgram
 pg	petagram
 gb	gigabyte
+MB	megabyte
+GB	gigabyte
+TB	terabyte
+PB	petabyte
+EB	exabyte
+ZB	zettabyte
+YB	yottabyte
 kb	kilobit
 ev	electron volt
 mb	megabyte

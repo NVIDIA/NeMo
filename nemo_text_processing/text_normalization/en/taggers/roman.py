@@ -29,8 +29,8 @@ except (ModuleNotFoundError, ImportError):
 
 class RomanFst(GraphFst):
     """
-    Finite state transducer for classifying electronic: as URLs, email addresses, etc.
-        e.g. cdf1@abc.edu -> tokens { electronic { username: "cdf1" domain: "abc.edu" } }
+    Finite state transducer for classifying roman numbers:
+        e.g. "IV" -> tokens { roman { integer: "four" } }
 
     Args:
         deterministic: if True will provide a single transduction option,
@@ -56,6 +56,7 @@ class RomanFst(GraphFst):
             | (hundreds + pynini.closure(insert_space + ties, 0, 1) + pynini.closure(insert_space + digit_teen, 0, 1))
         ).optimize()
 
+        graph = graph + pynini.closure(pynutil.delete("."), 0, 1)
         graph = pynutil.insert("integer: \"") + graph + pynutil.insert("\"")
         graph = self.add_tokens(graph)
         self.fst = graph.optimize()

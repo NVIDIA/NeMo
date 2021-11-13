@@ -44,7 +44,7 @@ class CardinalFst(GraphFst):
         else:
             integer = (
                 pynini.closure(NEMO_NOT_QUOTE)
-                + pynini.closure(pynini.cross("hundred ", "") | pynini.cross("hundred ", "hundred and "), 0, 1)
+                + pynini.closure(pynini.cross("hundred ", "hundred and "), 0, 1)
                 + pynini.closure(NEMO_NOT_QUOTE)
             )
 

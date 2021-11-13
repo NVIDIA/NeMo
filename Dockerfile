@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:21.06-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:21.10-py3
 
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
@@ -37,15 +37,16 @@ RUN pip uninstall -y sacrebleu torchtext
 
 # build torchaudio (change latest release version to match pytorch)
 WORKDIR /tmp/torchaudio_build
-RUN git clone --depth 1 --branch release/0.7 https://github.com/pytorch/audio.git && \
+RUN git clone --depth 1 --branch release/0.10 https://github.com/pytorch/audio.git && \
     cd audio && \
+    git submodule update --init --recursive && \
     BUILD_SOX=1 python setup.py install && \
     cd .. && rm -r audio
 
 # TODO: remove when 21.04 container is released
 # build torchtext
 WORKDIR /tmp/torchtext_build
-RUN git clone --branch v0.8.1 https://github.com/pytorch/text.git && \
+RUN git clone --branch v0.11.0 https://github.com/pytorch/text.git && \
     cd text && \
     git submodule update --init --recursive && \
     python setup.py clean install && \
@@ -74,7 +75,7 @@ COPY . .
 
 # start building the final container
 FROM nemo-deps as nemo
-ARG NEMO_VERSION=1.0.2
+ARG NEMO_VERSION=1.5.0
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes
@@ -87,9 +88,9 @@ RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[all]" 
     python -c "import nemo.collections.tts as nemo_tts" && \
     python -c "import nemo_text_processing.text_normalization as text_normalization"
 
-# TODO: Remove once 21.04 container is base container
-# install latest numba version
-RUN conda update -c numba numba -y
+# TODO: Try to remove once 21.07 container is the base container
+# install pinned numba version
+RUN conda install -c numba numba=0.54.1
 
 # copy scripts/examples/tests into container for end user
 WORKDIR /workspace/nemo

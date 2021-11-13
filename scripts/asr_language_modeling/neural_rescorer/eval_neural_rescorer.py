@@ -40,6 +40,7 @@ https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_langua
 """
 
 import contextlib
+import inspect
 import json
 from argparse import ArgumentParser
 
@@ -49,8 +50,10 @@ import numpy as np
 import pandas as pd
 import torch
 import tqdm
+from transformers import AutoModelForCausalLM
 
 from nemo.collections.nlp.models.language_modeling import TransformerLMModel
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.utils import logging
 
 
@@ -77,16 +80,29 @@ class BeamScoresDataset(torch.utils.data.Dataset):
         self.beam_size = beam_size
         self.max_seq_length = max_seq_length
 
+        if self.tokenizer.pad_id is not None:
+            self.pad_id = self.tokenizer.pad_id
+        elif self.tokenizer.eos_id is not None:
+            self.pad_id = self.tokenizer.eos_id
+        else:
+            logging.warning(f"Using 0 as pad_id as the tokenizer has no pad_id or eos_id.")
+            self.pad_id = 0
+
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
         text = str(self.data[0][idx])
-        tokens = [self.tokenizer.bos_id] + self.tokenizer.text_to_ids(text) + [self.tokenizer.eos_id]
-        input_ids = [self.tokenizer.pad_id] * self.max_seq_length
+        tokens = self.tokenizer.text_to_ids(text)
+        if self.tokenizer.bos_id is not None:
+            tokens = [self.tokenizer.bos_id] + tokens
+        if self.tokenizer.eos_id is not None:
+            tokens = tokens + [self.tokenizer.eos_id]
+        input_ids = [self.pad_id] * self.max_seq_length
         input_ids[: len(tokens)] = tokens
         input_ids = np.array(input_ids)
-        input_mask = (input_ids != self.tokenizer.pad_id).astype(np.float32)
+        input_mask = np.zeros(self.max_seq_length)
+        input_mask[: len(tokens)] = 1
         acoustic_score = self.data[1][idx]
         dist = editdistance.eval(text.split(), self.ground_truths[idx // self.beam_size].split())
         ref_len = len(self.ground_truths[idx // self.beam_size].split())
@@ -110,7 +126,7 @@ def linear_search_wer(
         param_name: the name of the parameter to be used in the figure
 
     Output:
-        (best coefficient found, best WER achived)
+        (best coefficient found, best WER achieved)
     """
     scale = scores1.mean().abs().item() / scores2.mean().abs().item()
     left = coef_range[0] * scale
@@ -156,7 +172,12 @@ def compute_wer(dists, scores, total_len):
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--lm_model_file", type=str, required=True, help="path to LM model .nemo file")
+    parser.add_argument(
+        "--lm_model_file",
+        type=str,
+        required=True,
+        help="path to LM model .nemo file or the name of a HuggingFace pretrained models like 'transfo-xl-wt103' or 'gpt2'",
+    )
     parser.add_argument("--beams_file", type=str, required=True, help="path to beams .tsv file")
     parser.add_argument(
         "--eval_manifest", type=str, required=True, help="path to the evaluation `.json` manifest file"
@@ -165,6 +186,7 @@ def main():
     parser.add_argument("--batch_size", type=int, default=256, help="inference batch size")
     parser.add_argument("--alpha", type=float, default=None, help="parameter alpha of the fusion")
     parser.add_argument("--beta", type=float, default=None, help="parameter beta of the fusion")
+    parser.add_argument("--max_seq_length", default=512, help="Maximum sequence length (in tokens) for the input")
     parser.add_argument(
         "--scores_output_file", default=None, type=str, help="The optional path to store the rescored beams"
     )
@@ -182,15 +204,24 @@ def main():
         device = "cpu"
 
     if args.lm_model_file.endswith(".nemo"):
-        logging.info("Attempting to initialize from .nemo file")
+        nemo_model = True
+        logging.info("Attempting to initialize from .nemo file...")
         model = TransformerLMModel.restore_from(
             restore_path=args.lm_model_file, map_location=torch.device(device)
         ).eval()
+        model_tokenizer = model.tokenizer
     else:
-        raise NotImplementedError(f"Only supports .nemo files, but got: {args.model}")
+        nemo_model = False
+        logging.info("Attempting to initialize from a pretrained model from HuggingFace...")
+        model = (
+            AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path=args.lm_model_file, is_decoder=True)
+            .to(device)
+            .eval()
+        )
+        model_tokenizer = get_tokenizer(tokenizer_name=args.lm_model_file)
 
-    max_seq_length = model.encoder._embedding.position_embedding.pos_enc.shape[0]
-    dataset = BeamScoresDataset(args.beams_file, model.tokenizer, args.eval_manifest, args.beam_size, max_seq_length)
+    max_seq_length = args.max_seq_length
+    dataset = BeamScoresDataset(args.beams_file, model_tokenizer, args.eval_manifest, args.beam_size, max_seq_length)
     data_loader = torch.utils.data.DataLoader(dataset=dataset, batch_size=args.batch_size)
 
     if args.use_amp:
@@ -203,6 +234,10 @@ def main():
         def autocast():
             yield
 
+    if "attention_mask" in inspect.getfullargspec(model.forward).args:
+        support_att_mask = True
+    else:
+        support_att_mask = False
     logging.info(f"Rescoring with beam_size: {args.beam_size}")
     logging.info("Calculating the scores...")
     with autocast():
@@ -220,9 +255,16 @@ def main():
                         acoustic_score.to(device),
                         len_in_chars.to(device),
                     )
+                # some models like Transformer-XL don't need attention_mask as input
+                if support_att_mask:
+                    log_probs = model(input_ids=input_ids, attention_mask=input_mask)
+                else:
+                    log_probs = model(input_ids=input_ids)
 
-                log_probs = model.forward(input_ids[:, :-1], input_mask[:, :-1])
-                target_log_probs = log_probs.gather(2, input_ids[:, 1:].unsqueeze(2)).squeeze(2)
+                if not nemo_model:
+                    log_probs = torch.nn.functional.log_softmax(log_probs.logits, dim=-1)
+
+                target_log_probs = log_probs[:, :-1].gather(2, input_ids[:, 1:].unsqueeze(2)).squeeze(2)
                 neural_lm_score = torch.sum(target_log_probs * input_mask[:, 1:], dim=-1)
 
                 am_scores.append(acoustic_score)

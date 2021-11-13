@@ -13,7 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space, insert_space
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_NOT_QUOTE,
+    NEMO_SIGMA,
+    GraphFst,
+    delete_space,
+    insert_space,
+)
 
 try:
     import pynini
@@ -67,8 +73,37 @@ class TimeFst(GraphFst):
             + pynutil.delete("\"")
         )
         optional_zone = pynini.closure(delete_space + insert_space + zone, 0, 1)
+        second = (
+            pynutil.delete("seconds:")
+            + delete_space
+            + pynutil.delete("\"")
+            + pynini.closure(NEMO_NOT_QUOTE, 1)
+            + pynutil.delete("\"")
+        )
+        graph_hms = (
+            hour
+            + pynutil.insert(" hours ")
+            + delete_space
+            + minute
+            + pynutil.insert(" minutes and ")
+            + delete_space
+            + second
+            + pynutil.insert(" seconds")
+            + optional_suffix
+            + optional_zone
+        )
+        graph_hms @= pynini.cdrewrite(
+            pynutil.delete("o ")
+            | pynini.cross("one minutes", "one minute")
+            | pynini.cross("one seconds", "one second")
+            | pynini.cross("one hours", "one hour"),
+            pynini.union(" ", "[BOS]"),
+            "",
+            NEMO_SIGMA,
+        )
         graph = hour + delete_space + insert_space + minute + optional_suffix + optional_zone
         graph |= hour + insert_space + pynutil.insert("o'clock") + optional_zone
         graph |= hour + delete_space + insert_space + suffix + optional_zone
+        graph |= graph_hms
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

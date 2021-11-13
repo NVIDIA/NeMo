@@ -24,6 +24,7 @@ from nemo.collections.asr.parts.submodules.jasper import (
     JasperBlock,
     MaskedConv1d,
     ParallelBlock,
+    SqueezeExcite,
     init_weights,
     jasper_activations,
 )
@@ -62,8 +63,12 @@ class ConvASREncoder(NeuralModule, Exportable):
         m_count = 0
         for m in self.modules():
             if isinstance(m, MaskedConv1d):
-                m.use_mask = False
-                m_count += 1
+                if self._rnnt_export:
+                    pass
+                else:
+                    m.use_mask = False
+                    m_count += 1
+
         Exportable._prepare_for_export(self, **kwargs)
         logging.warning(f"Turned off {m_count} masked convolutions")
 
@@ -73,18 +78,29 @@ class ConvASREncoder(NeuralModule, Exportable):
         Returns:
             A tuple of input examples.
         """
-        input_example = torch.randn(16, self._feat_in, 256).to(next(self.parameters()).device)
-        return tuple([input_example])
+        input_example = torch.randn(1, self._feat_in, 8192).to(next(self.parameters()).device)
+        lens = torch.randint(0, input_example.shape[-1], size=(input_example.shape[0],))
+
+        if self._rnnt_export:
+            return tuple([input_example, lens])
+        else:
+            return tuple([input_example])
 
     @property
     def disabled_deployment_input_names(self):
         """Implement this method to return a set of input names disabled for export"""
-        return set(["length"])
+        if self._rnnt_export:
+            return set([])
+        else:
+            return set(["length"])
 
     @property
     def disabled_deployment_output_names(self):
         """Implement this method to return a set of output names disabled for export"""
-        return set(["encoded_lengths"])
+        if self._rnnt_export:
+            return set([])
+        else:
+            return set(["encoded_lengths"])
 
     def save_to(self, save_path: str):
         pass
@@ -197,6 +213,9 @@ class ConvASREncoder(NeuralModule, Exportable):
 
         self.encoder = torch.nn.Sequential(*encoder_layers)
         self.apply(lambda x: init_weights(x, mode=init_mode))
+
+        # Flag needed for RNNT export support
+        self._rnnt_export = False
 
     @typecheck()
     def forward(self, audio_signal, length=None):
@@ -449,6 +468,91 @@ class ConvASRDecoder(NeuralModule, Exportable):
         return self._num_classes
 
 
+class ConvASRDecoderReconstruction(NeuralModule, Exportable):
+    """ASR Decoder for reconstructing masked regions of spectrogram
+    """
+
+    @property
+    def input_types(self):
+        return OrderedDict({"encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())})
+
+    @property
+    def output_types(self):
+        return OrderedDict({"spec_recon": NeuralType(('B', 'T', 'D'), SpectrogramType())})
+
+    def __init__(
+        self,
+        feat_in,
+        feat_out,
+        feat_hidden,
+        stride_layers,
+        kernel_size=11,
+        init_mode="xavier_uniform",
+        activation="relu",
+    ):
+        super().__init__()
+
+        if stride_layers > 0 and (kernel_size < 3 or kernel_size % 2 == 0):
+            raise ValueError(
+                "Kernel size in this decoder needs to be >= 3 and odd when using at least 1 stride layer."
+            )
+
+        activation = jasper_activations[activation]()
+
+        self.feat_in = feat_in
+        self.feat_out = feat_out
+        self.feat_hidden = feat_hidden
+
+        self.decoder_layers = [nn.Conv1d(self.feat_in, self.feat_hidden, kernel_size=1, bias=True)]
+        for i in range(stride_layers):
+            self.decoder_layers.append(activation)
+            self.decoder_layers.append(
+                nn.ConvTranspose1d(
+                    self.feat_hidden,
+                    self.feat_hidden,
+                    kernel_size,
+                    stride=2,
+                    padding=(kernel_size - 3) // 2 + 1,
+                    output_padding=1,
+                    bias=True,
+                )
+            )
+            self.decoder_layers.append(nn.Conv1d(self.feat_hidden, self.feat_hidden, kernel_size=1, bias=True))
+            self.decoder_layers.append(nn.BatchNorm1d(self.feat_hidden, eps=1e-3, momentum=0.1))
+
+        self.decoder_layers.append(activation)
+        self.decoder_layers.append(nn.Conv1d(self.feat_hidden, self.feat_out, kernel_size=1, bias=True))
+
+        self.decoder_layers = nn.Sequential(*self.decoder_layers)
+
+        self.apply(lambda x: init_weights(x, mode=init_mode))
+
+    @typecheck()
+    def forward(self, encoder_output):
+        return self.decoder_layers(encoder_output).transpose(-2, -1)
+
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        bs = 8
+        seq = 64
+        input_example = torch.randn(bs, self._feat_in, seq).to(next(self.parameters()).device)
+        return tuple([input_example])
+
+    def _prepare_for_export(self, **kwargs):
+        m_count = 0
+        for m in self.modules():
+            if type(m).__name__ == "MaskedConv1d":
+                m.use_mask = False
+                m_count += 1
+        if m_count > 0:
+            logging.warning(f"Turned off {m_count} masked convolutions")
+        Exportable._prepare_for_export(self, **kwargs)
+
+
 class ConvASRDecoderClassification(NeuralModule, Exportable):
     """Simple ASR Decoder for use with classification models such as JasperNet and QuartzNet
 
@@ -522,13 +626,13 @@ class ECAPAEncoder(NeuralModule, Exportable):
 
     input:
         feat_in: input feature shape (mel spec feature shape)
-        filters: list of filter shapes for SE_TDNN modules 
+        filters: list of filter shapes for SE_TDNN modules
         kernel_sizes: list of kernel shapes for SE_TDNN modules
         dilations: list of dilations for group conv se layer
         scale: scale value to group wider conv channels (deafult:8)
-    
+
     output:
-        outputs : encoded output 
+        outputs : encoded output
         output_length: masked output lengths
     """
 

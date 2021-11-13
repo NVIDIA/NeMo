@@ -10,7 +10,6 @@ trainer:
   max_steps: null # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
   precision: 16 # 16 to use AMP
-  amp_level: O1 # O1 or O2 if using AMP
   accelerator: ddp
   gradient_clip_val: 0.0
   val_check_interval: 1.0 # check once per epoch .25 for 4 times per epoch

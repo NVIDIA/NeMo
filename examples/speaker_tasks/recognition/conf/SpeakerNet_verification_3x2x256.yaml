@@ -1,0 +1,144 @@
+name: &name "SpeakerNet"
+sample_rate: &sample_rate 16000
+repeat: &rep 2
+dropout: &drop 0.5
+separable: &separable True
+n_filters: &n_filters 512
+
+model:
+  train_ds:
+    manifest_filepath: ???
+    sample_rate: 16000
+    labels: null
+    batch_size: 64
+    shuffle: True
+    time_length: 8
+    is_tarred: False
+    tarred_audio_filepaths: null
+    tarred_shard_strategy: "scatter"
+
+  validation_ds:
+    manifest_filepath: ???
+    sample_rate: 16000
+    labels: null
+    batch_size: 128
+    shuffle: False
+    time_length: 8
+
+  preprocessor:
+    _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
+    normalize: "per_feature"
+    window_size: 0.02
+    sample_rate: *sample_rate
+    window_stride: 0.01
+    window: "hann"
+    features: &n_mels 64
+    n_fft: 512
+    frame_splicing: 1
+    dither: 0.00001
+
+  encoder:
+    _target_: nemo.collections.asr.modules.ConvASREncoder
+    feat_in: *n_mels
+    activation: relu
+    conv_mask: true
+
+    jasper:
+      -   filters: *n_filters
+          repeat: 1
+          kernel: [3]
+          stride: [1]
+          dilation: [1]
+          dropout: *drop
+          residual: true
+          separable: *separable
+
+      -   filters: *n_filters
+          repeat: *rep
+          kernel: [7]
+          stride: [1]
+          dilation: [1]
+          dropout: *drop
+          residual: true
+          separable: *separable
+
+      -   filters: *n_filters
+          repeat: *rep
+          kernel: [11]
+          stride: [1]
+          dilation: [1]
+          dropout: *drop
+          residual: true
+          separable: *separable
+
+      -   filters: *n_filters
+          repeat: *rep
+          kernel: [15]
+          stride: [1]
+          dilation: [1]
+          dropout: *drop
+          residual: true
+          separable: *separable
+
+      -   filters: &enc_feat_out 1500
+          repeat: 1
+          kernel: [1]
+          stride: [1]
+          dilation: [1]
+          dropout: 0.0
+          residual: false
+          separable: *separable
+
+  decoder:
+    _target_: nemo.collections.asr.modules.SpeakerDecoder
+    feat_in: *enc_feat_out
+    num_classes: 7205
+    pool_mode: 'xvector'
+    emb_sizes: 256
+    angular: True
+
+  loss:
+    scale: 30
+    margin: 0.2
+
+  optim:
+    name: sgd
+    lr: .006
+    # optimizer arguments
+    args:
+      name: auto
+      weight_decay: 0.001
+      momentum: 0.9
+
+    # scheduler setup
+    sched:
+      name: CosineAnnealing
+      iters_per_batch: 1 # computed at runtime
+      max_steps: null # computed at runtime or explicitly set here
+
+      # scheduler config override
+      args:
+        name: auto
+        warmup_steps: null
+        warmup_ratio: 0.1
+        min_lr: 0.0
+        last_epoch: -1
+
+trainer:
+  gpus: 1 # number of gpus
+  max_epochs: 200
+  max_steps: null # computed at runtime if not set
+  num_nodes: 1
+  accelerator: ddp
+  accumulate_grad_batches: 1
+  deterministic: True
+  checkpoint_callback: False
+  logger: False
+  log_every_n_steps: 1  # Interval of logging.
+  val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+
+exp_manager:
+  exp_dir: null
+  name: *name
+  create_tensorboard_logger: True
+  create_checkpoint_callback: True

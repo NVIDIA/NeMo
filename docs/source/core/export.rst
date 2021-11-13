@@ -4,7 +4,7 @@ Exporting NeMo Models
 Exporting Models
 ----------------
 
-Most of the NeMo models can be exported to ONNX or TorchScript to be deployed for inference in optimized execution environments, such as Jarvis or Triton Inference Server.  
+Most of the NeMo models can be exported to ONNX or TorchScript to be deployed for inference in optimized execution environments, such as Riva or Triton Inference Server.  
 Export interface is provided by the ``Exportable`` mix-in class. If a model extends ``Exportable``, it can be exported by:
 
 .. code-block:: Python
@@ -24,6 +24,7 @@ How to Use Model Export
 -----------------------
 The following arguments are for ``Exportable.export()``. In most cases, you should only supply the name of the output file and use all defaults:
 .. code-block:: Python
+
     def export(
         self,
         output: str,
@@ -99,6 +100,7 @@ Those are needed for inferring in/out names and dynamic axes. If your model deri
 Your model should also have an export-friendly ``forward()`` method - that can mean different things for ONNX ant TorchScript. For ONNX, you can't have forced named parameters without default, like ``forward(self, *, text)``. For TorchScript, you should avoid ``None`` and use ``Optional`` instead. The criterias are highly volatile and may change with every PyTorch version, so it's a trial-and-error process. There is also the general issue that in many cases, ``forward()`` for inference can be simplified and even use less inputs/outputs. To address this, ``Exportable`` looks for ``forward_for_export()`` method in your model and uses that instead of ``forward()`` to export:
 
 .. code-block:: Python
+
     # Uses forced named args, many default parameters. 
     def forward(
         self,

@@ -24,7 +24,12 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
 from nemo.collections.nlp.models import PunctuationCapitalizationModel, TransformerLMModel
 from nemo.core.classes import ModelPT
+from nemo.core.connectors import save_restore_connector
 from nemo.utils.app_state import AppState
+
+
+def classpath(cls):
+    return f'{cls.__module__}.{cls.__name__}'
 
 
 def getattr2(object, attr):
@@ -66,7 +71,7 @@ class MockModel(ModelPT):
 
 
 def _mock_model_config():
-    conf = {'temp_file': None}
+    conf = {'temp_file': None, 'target': classpath(MockModel)}
     conf = OmegaConf.create({'model': conf})
     OmegaConf.set_struct(conf, True)
     return conf
@@ -441,3 +446,53 @@ class TestSaveRestore:
             model.save_to(os.path.join(tmpdir, 'save_0.nemo'))
             model.save_to(os.path.join(tmpdir, 'save_1.nemo'))
             model.save_to(os.path.join(tmpdir, 'save_2.nemo'))
+
+    @pytest.mark.unit
+    def test_multiple_model_save_restore_connector(self):
+        class MySaveRestoreConnector(save_restore_connector.SaveRestoreConnector):
+            def save_to(self, model, save_path: str):
+                save_path = save_path.replace(".nemo", "_XYZ.nemo")
+                super(MySaveRestoreConnector, self).save_to(model, save_path)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Update config
+            cfg = _mock_model_config()
+            # Create model
+            model = MockModel(cfg=cfg.model, trainer=None)
+            model_with_custom_connector = MockModel(cfg=cfg.model, trainer=None)
+            model_with_custom_connector._save_restore_connector = MySaveRestoreConnector()
+            model_with_custom_connector.save_to(os.path.join(tmpdir, 'save_custom.nemo'))
+
+            assert os.path.exists(os.path.join(tmpdir, 'save_custom_XYZ.nemo'))
+            assert isinstance(model._save_restore_connector, save_restore_connector.SaveRestoreConnector)
+            assert isinstance(model_with_custom_connector._save_restore_connector, MySaveRestoreConnector)
+
+            assert type(MockModel._save_restore_connector) == save_restore_connector.SaveRestoreConnector
+
+    @pytest.mark.unit
+    def test_restore_from_save_restore_connector(self):
+        class MySaveRestoreConnector(save_restore_connector.SaveRestoreConnector):
+            def save_to(self, model, save_path: str):
+                save_path = save_path.replace(".nemo", "_XYZ.nemo")
+                super().save_to(model, save_path)
+
+        class MockModelV2(MockModel):
+            pass
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Update config
+            cfg = _mock_model_config()
+
+            # Create model
+            save_path = os.path.join(tmpdir, 'save_custom.nemo')
+            model_with_custom_connector = MockModel(cfg=cfg.model, trainer=None)
+            model_with_custom_connector._save_restore_connector = MySaveRestoreConnector()
+            model_with_custom_connector.save_to(save_path)
+
+            assert os.path.exists(os.path.join(tmpdir, 'save_custom_XYZ.nemo'))
+
+            restored_model = MockModelV2.restore_from(
+                save_path.replace(".nemo", "_XYZ.nemo"), save_restore_connector=MySaveRestoreConnector()
+            )
+            assert type(restored_model) == MockModelV2
+            assert type(restored_model._save_restore_connector) == MySaveRestoreConnector

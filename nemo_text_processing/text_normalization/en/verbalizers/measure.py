@@ -42,7 +42,12 @@ class MeasureFst(GraphFst):
     def __init__(self, decimal: GraphFst, cardinal: GraphFst, fraction: GraphFst, deterministic: bool = True):
         super().__init__(name="measure", kind="verbalize", deterministic=deterministic)
         optional_sign = cardinal.optional_sign
-        unit = pynutil.delete("units: \"") + pynini.closure(NEMO_CHAR - " ", 1) + pynutil.delete("\"") + delete_space
+        unit = (
+            pynutil.delete("units: \"")
+            + pynini.difference(pynini.closure(NEMO_CHAR - " ", 1), "address")
+            + pynutil.delete("\"")
+            + delete_space
+        )
 
         graph_decimal = (
             pynutil.delete("decimal {")
@@ -72,5 +77,14 @@ class MeasureFst(GraphFst):
         # SH adds "preserve_order: true" by default
         preserve_order = pynutil.delete("preserve_order:") + delete_space + pynutil.delete("true") + delete_space
         graph |= unit + insert_space + (graph_cardinal | graph_decimal) + delete_space + pynini.closure(preserve_order)
+        address = (
+            pynutil.delete("units: \"address\" ")
+            + delete_space
+            + graph_cardinal
+            + delete_space
+            + pynini.closure(preserve_order)
+        )
+        graph |= address
+
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

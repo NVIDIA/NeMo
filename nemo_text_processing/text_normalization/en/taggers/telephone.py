@@ -13,7 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, delete_space, insert_space
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_ALPHA,
+    NEMO_DIGIT,
+    GraphFst,
+    delete_space,
+    insert_space,
+)
 from nemo_text_processing.text_normalization.en.utils import get_abs_path
 
 try:
@@ -33,7 +39,7 @@ class TelephoneFst(GraphFst):
     extension optional: 1-9999
     E.g 
     +1 123-123-5678-1 -> telephone { country_code: "one" number_part: "one two three, one two three, five six seven eight" extension: "one" }
-
+    1-800-GO-U-HAUL -> telephone { country_code: "one" number_part: "one, eight hundred GO U HAUL" }
     Args:
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
@@ -49,7 +55,7 @@ class TelephoneFst(GraphFst):
 
         country_code = (
             pynutil.insert("country_code: \"")
-            + pynutil.delete("+")
+            + pynini.closure(pynutil.delete("+"), 0, 1)
             + pynini.closure(digit + insert_space, 0, 2)
             + digit
             + pynutil.insert("\"")
@@ -57,34 +63,30 @@ class TelephoneFst(GraphFst):
         optional_country_code = pynini.closure(
             country_code + pynini.closure(pynutil.delete("-"), 0, 1) + delete_space + insert_space, 0, 1
         )
-        number_part = (
-            (
-                (pynini.closure(digit + insert_space, 2, 2) + digit + pynutil.delete("-"))
-                | (
-                    pynutil.delete("(")
-                    + pynini.closure(digit + insert_space, 2, 2)
-                    + digit
-                    + pynutil.delete(")")
-                    + pynini.closure(pynutil.delete("-"), 0, 1)
-                    + delete_space
-                )
-            )
-            + add_separator
-            + pynini.closure(digit + insert_space, 2, 2)
-            + digit
-            + pynutil.delete("-")
-            + add_separator
-            + pynini.closure(digit + insert_space, 3, 3)
-            + digit
+
+        area_part_common = pynutil.add_weight(pynini.cross("800", "eight hundred"), -1.1)
+        area_part_default = pynini.closure(digit + insert_space, 2, 2) + digit
+        area_part = area_part_default | area_part_common
+
+        area_part = (
+            (area_part + pynutil.delete("-"))
+            | (pynutil.delete("(") + area_part + (pynutil.delete(") ") | pynutil.delete(")-")))
+        ) + add_separator
+
+        del_separator = pynini.closure(pynini.union("-", " "), 0, 1)
+        number_length = ((NEMO_DIGIT + del_separator) | (NEMO_ALPHA + del_separator)) ** 7
+        number_words = pynini.closure(
+            (NEMO_DIGIT @ digit) + (insert_space | pynini.cross("-", ', '))
+            | NEMO_ALPHA
+            | (NEMO_ALPHA + pynini.cross("-", ' '))
         )
+        number_words = pynini.compose(number_length, number_words)
+        number_part = area_part + number_words
         number_part = pynutil.insert("number_part: \"") + number_part + pynutil.insert("\"")
         extension = (
-            pynutil.insert("extension : \"")
-            + pynini.closure(digit + insert_space, 0, 3)
-            + digit
-            + pynutil.insert("\"")
+            pynutil.insert("extension: \"") + pynini.closure(digit + insert_space, 0, 3) + digit + pynutil.insert("\"")
         )
-        optional_extension = pynini.closure(insert_space + pynutil.delete("-") + extension, 0, 1)
+        optional_extension = pynini.closure(insert_space + extension, 0, 1)
 
         graph = optional_country_code + number_part + optional_extension
         final_graph = self.add_tokens(graph)

@@ -57,7 +57,7 @@ class OrdinalFst(GraphFst):
             "[EOS]",
             NEMO_SIGMA,
         ).optimize()
-        graph = graph @ suffix
+        self.graph = pynini.compose(graph, suffix)
         self.suffix = suffix
-        delete_tokens = self.delete_tokens(graph)
+        delete_tokens = self.delete_tokens(self.graph)
         self.fst = delete_tokens.optimize()

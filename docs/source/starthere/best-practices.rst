@@ -133,7 +133,7 @@ For example, processing a single sample involves:
 - Impulse perturbation
 - Time stretch augmentation (batch level, neural module)
 
-A simple tutorial guides users on how to use these utilities provided in `GitHub: NeMo <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_.
+A simple tutorial guides users on how to use these utilities provided in `GitHub: NeMo <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Online_Noise_Augmentation.ipynb>`_.
 
 Speech Data Explorer
 --------------------

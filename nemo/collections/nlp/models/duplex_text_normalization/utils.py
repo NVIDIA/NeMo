@@ -12,13 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = ['is_url', 'has_numbers']
+from typing import Tuple
 
-
-def is_url(input_str: str):
-    """ Check if a string is a URL """
-    url_segments = ['www', 'http', '.org', '.com', '.tv']
-    return any(segment in input_str for segment in url_segments)
+__all__ = ['has_numbers']
 
 
 def has_numbers(input_str: str):
@@ -26,7 +22,7 @@ def has_numbers(input_str: str):
     return any(char.isdigit() for char in input_str)
 
 
-def get_formatted_string(strs, str_max_len=10, space_len=2):
+def get_formatted_string(strs: Tuple[str], str_max_len: int = 10, space_len: int = 2):
     """ Get a nicely formatted string from a list of strings"""
     padded_strs = []
     for cur_str in strs:

@@ -20,7 +20,6 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-
 EXCLUSIONS = ["scripts/get_commonvoice_data.py"]
 
 

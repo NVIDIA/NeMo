@@ -30,7 +30,7 @@ The full documentation tree is as follows:
 Resource and Documentation Guide
 --------------------------------
 
-Hands-on speaker diarization tutorial notebooks can be found under ``<NeMo_git_root>/tutorials/speaker_recognition/``.
+Hands-on speaker diarization tutorial notebooks can be found under ``<NeMo_git_root>/tutorials/speaker_tasks/``.
 
 There are tutorials for peformming inference using :ref:`MarbleNet_model` and :ref:`SpeakerNet_model`, 
 and how one can get ASR transcriptions combined with Speaker labels along with voice activity time stamps with NeMo asr collections.

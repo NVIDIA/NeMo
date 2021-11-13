@@ -69,7 +69,7 @@ def main():
     parser.add_argument("--time_length", type=float, default=0.63)
     parser.add_argument("--shift_length", type=float, default=0.01)
     parser.add_argument("--normalize_audio", type=bool, default=False)
-    parser.add_argument("--num_workers", type=float, default=20)
+    parser.add_argument("--num_workers", type=int, default=20)
     parser.add_argument("--split_duration", type=float, default=400)
     parser.add_argument(
         "--dont_auto_split",
@@ -134,7 +134,7 @@ def main():
     all_len = 0
 
     data = []
-    for line in open(args.dataset, 'r'):
+    for line in open(manifest_vad_input, 'r'):
         file = json.loads(line)['audio_filepath'].split("/")[-1]
         data.append(file.split(".wav")[0])
     logging.info(f"Inference on {len(data)} audio files/json lines!")

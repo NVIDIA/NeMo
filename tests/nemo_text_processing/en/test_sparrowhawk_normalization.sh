@@ -20,6 +20,11 @@ runtest () {
   done < "$input"
 }
 
+testTNBoundary() {
+  input=$PROJECT_DIR/en/data_text_normalization/test_cases_boundary.txt
+  runtest $input
+}
+
 testTNCardinal() {
   input=$PROJECT_DIR/en/data_text_normalization/test_cases_cardinal.txt
   runtest $input
@@ -35,7 +40,27 @@ testTNDecimal() {
   runtest $input
 }
 
+testTNElectronic() {
+  input=$PROJECT_DIR/en/data_text_normalization/test_cases_electronic.txt
+  runtest $input
+}
+
+testTNFraction() {
+  input=$PROJECT_DIR/en/data_text_normalization/test_cases_fraction.txt
+  runtest $input
+}
+
+testTNMoney() {
+  input=$PROJECT_DIR/en/data_text_normalization/test_cases_money.txt
+  runtest $input
+}
+
 testTNOrdinal() {
+  input=$PROJECT_DIR/en/data_text_normalization/test_cases_ordinal.txt
+  runtest $input
+}
+
+testTNTelephone() {
   input=$PROJECT_DIR/en/data_text_normalization/test_cases_ordinal.txt
   runtest $input
 }
@@ -50,13 +75,13 @@ testTNMeasure() {
   runtest $input
 }
 
-testTNMoney() {
-  input=$PROJECT_DIR/en/data_text_normalization/test_cases_money.txt
+testTNWhitelist() {
+  input=$PROJECT_DIR/en/data_text_normalization/test_cases_whitelist.txt
   runtest $input
 }
 
-testTNWhitelist() {
-  input=$PROJECT_DIR/en/data_text_normalization/test_cases_whitelist.txt
+testTNAddress() {
+  input=$PROJECT_DIR/en/data_text_normalization/test_cases_address.txt
   runtest $input
 }
 

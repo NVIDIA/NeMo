@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#!/bin/bash
+# !/bin/bash
 
 MODE=${1:-"export"}
+LANGUAGE=${2:-"en"}
 SCRIPT_DIR=$(cd $(dirname $0); pwd)
-: ${CLASSIFY_DIR:="$SCRIPT_DIR/../classify"}
-: ${VERBALIZE_DIR:="$SCRIPT_DIR/../verbalize"}
-: ${CMD:=${2:-"/bin/bash"}}
+: ${CLASSIFY_DIR:="$SCRIPT_DIR/../$LANGUAGE/classify"}
+: ${VERBALIZE_DIR:="$SCRIPT_DIR/../$LANGUAGE/verbalize"}
+: ${CMD:=${3:-"/bin/bash"}}
 
 MOUNTS=""
 MOUNTS+=" -v $CLASSIFY_DIR:/workspace/sparrowhawk/documentation/grammars/en_toy/classify"
@@ -27,10 +28,10 @@ MOUNTS+=" -v $VERBALIZE_DIR:/workspace/sparrowhawk/documentation/grammars/en_toy
 WORK_DIR="/workspace/sparrowhawk/documentation/grammars"
 if [[ $MODE == "test_tn_grammars" ]]; then
   CMD="bash test_sparrowhawk_normalization.sh"
-  WORK_DIR="/workspace/tests"
+  WORK_DIR="/workspace/tests/${LANGUAGE}"
 elif [[ $MODE == "test_itn_grammars" ]]; then
   CMD="bash test_sparrowhawk_inverse_text_normalization.sh"
-  WORK_DIR="/workspace/tests"
+  WORK_DIR="/workspace/tests/${LANGUAGE}"
 fi
 
 echo $MOUNTS
@@ -39,6 +40,6 @@ docker run -it --rm \
   --ulimit memlock=-1 \
   --ulimit stack=67108864 \
   $MOUNTS \
-  -v $SCRIPT_DIR/../../../tests/nemo_text_processing/:/workspace/tests \
+  -v $SCRIPT_DIR/../../../tests/nemo_text_processing/:/workspace/tests/ \
   -w $WORK_DIR \
   sparrowhawk:latest $CMD
