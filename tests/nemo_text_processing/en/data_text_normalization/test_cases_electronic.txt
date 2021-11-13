@@ -16,3 +16,4 @@ abs@nvidia.com~a b s at nvidia dot com
 email is a-1.b3_c&-d@gma4i-l.com test~email is a dash one dot b three underscore c ampersand dash d at g m a four i dash l dot com test
 nvidia.com~nvidia dot com
 test.com~t e s t dot com
+http://www.ourdailynews.com.sm~h t t p colon slash slash w w w dot o u r d a i l y n e w s dot com dot s m

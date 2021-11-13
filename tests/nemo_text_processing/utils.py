@@ -22,6 +22,17 @@ except (ImportError, ModuleNotFoundError):
     PYNINI_AVAILABLE = False
 
 
+CACHE_DIR = None
+
+
+def set_cache_dir(path: str = None):
+    """
+    Sets cache directory for TN/ITN unittests. Default is None, e.g. no cache during tests.
+    """
+    global CACHE_DIR
+    CACHE_DIR = path
+
+
 def parse_test_case_file(file_name: str):
     """
     Prepares tests pairs for ITN and TN tests

@@ -13,7 +13,7 @@
 # limitations under the License.
 import torch
 
-from nemo.collections.tts.helpers.helpers import OperationMode, remove
+from nemo.collections.tts.helpers.helpers import OperationMode, remove, split_view
 from nemo.collections.tts.modules.submodules import Invertible1x1Conv, WaveNet
 from nemo.core.classes import Exportable, NeuralModule, typecheck
 from nemo.core.neural_types.elements import (
@@ -176,11 +176,12 @@ class WaveGlowModule(NeuralModule, Exportable):
         if spec.size(2) > audio.size(1):
             spec = spec[:, :, : audio.size(1)]
 
-        spec = spec.unfold(2, self.n_group, self.n_group).permute(0, 2, 1, 3)
+        # logging.debug(f"spec: {spec.shape}. n_group: {self.n_group}")
+        spec = split_view(spec, self.n_group, 2).permute(0, 2, 1, 3)
         spec = spec.contiguous().view(spec.size(0), spec.size(1), -1)
         spec = spec.permute(0, 2, 1)
 
-        audio = audio.unfold(1, self.n_group, self.n_group).permute(0, 2, 1)
+        audio = split_view(audio, self.n_group, 1).permute(0, 2, 1)
         output_audio = []
         log_s_list = []
         log_det_W_list = []
@@ -217,7 +218,7 @@ class WaveGlowModule(NeuralModule, Exportable):
         if self.time_cutoff != 0:
             spec = spec[:, :, : self.time_cutoff]
 
-        spec = spec.unfold(2, self.n_group, self.n_group).permute(0, 2, 1, 3)
+        spec = split_view(spec, self.n_group, 2).permute(0, 2, 1, 3)
         spec = spec.contiguous().view(spec.size(0), spec.size(1), -1)
         spec = spec.permute(0, 2, 1)
 

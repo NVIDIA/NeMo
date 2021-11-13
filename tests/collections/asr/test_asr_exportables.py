@@ -436,7 +436,7 @@ def citrinet_rnnt_model():
 
     joint = {
         '_target_': 'nemo.collections.asr.modules.RNNTJoint',
-        'experimental_fuse_loss_wer': False,
+        'fuse_loss_wer': False,
         'jointnet': {'joint_hidden': 320, 'activation': 'relu', 'dropout': 0.0},
     }
 

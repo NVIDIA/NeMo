@@ -84,10 +84,7 @@ class TelephoneFst(GraphFst):
         number_part = area_part + number_words
         number_part = pynutil.insert("number_part: \"") + number_part + pynutil.insert("\"")
         extension = (
-            pynutil.insert("extension : \"")
-            + pynini.closure(digit + insert_space, 0, 3)
-            + digit
-            + pynutil.insert("\"")
+            pynutil.insert("extension: \"") + pynini.closure(digit + insert_space, 0, 3) + digit + pynutil.insert("\"")
         )
         optional_extension = pynini.closure(insert_space + extension, 0, 1)
 

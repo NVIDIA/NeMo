@@ -1,0 +1,7 @@
+matplotlib
+pypinyin
+attrdict
+pystoi
+pesq
+pandas
+inflect

@@ -43,6 +43,7 @@ class SentencePieceTokenizer(TokenizerSpec):
             raise ValueError(f"model_path: {model_path} is invalid")
         self.tokenizer = sentencepiece.SentencePieceProcessor()
         self.tokenizer.Load(model_path)
+
         self.original_vocab_size = self.tokenizer.get_piece_size()
         self.vocab_size = self.tokenizer.get_piece_size()
         self.legacy = legacy

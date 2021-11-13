@@ -41,14 +41,18 @@ class VerbalizeFinalFst(GraphFst):
         verbalize = VerbalizeFst(deterministic=deterministic).fst
         word = WordFst(deterministic=deterministic).fst
         types = verbalize | word
-        graph = (
-            pynutil.delete("tokens")
-            + delete_space
-            + pynutil.delete("{")
-            + delete_space
-            + types
-            + delete_space
-            + pynutil.delete("}")
-        )
+
+        if deterministic:
+            graph = (
+                pynutil.delete("tokens")
+                + delete_space
+                + pynutil.delete("{")
+                + delete_space
+                + types
+                + delete_space
+                + pynutil.delete("}")
+            )
+        else:
+            graph = delete_space + types + delete_space
         graph = delete_space + pynini.closure(graph + delete_extra_space) + graph + delete_space
         self.fst = graph

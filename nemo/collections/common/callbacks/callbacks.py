@@ -29,7 +29,7 @@ class LogEpochTimeCallback(Callback):
         self.epoch_start = time.time()
 
     @rank_zero_only
-    def on_train_epoch_end(self, trainer, pl_module, outputs):
+    def on_train_epoch_end(self, trainer, pl_module):
         curr_time = time.time()
         duration = curr_time - self.epoch_start
         trainer.logger.log_metrics({"epoch_time": duration}, step=trainer.global_step)

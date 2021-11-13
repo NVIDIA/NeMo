@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 from nemo_text_processing.inverse_text_normalization.de.graph_utils import GraphFst, delete_extra_space, delete_space
 from nemo_text_processing.inverse_text_normalization.de.taggers.cardinal import CardinalFst
 from nemo_text_processing.inverse_text_normalization.de.taggers.date import DateFst
@@ -26,6 +28,9 @@ from nemo_text_processing.inverse_text_normalization.de.taggers.time import Time
 from nemo_text_processing.inverse_text_normalization.de.taggers.whitelist import WhiteListFst
 from nemo_text_processing.inverse_text_normalization.en.taggers.punctuation import PunctuationFst
 from nemo_text_processing.inverse_text_normalization.en.taggers.word import WordFst
+from nemo_text_processing.text_normalization.en.graph_utils import generator_main
+
+from nemo.utils import logging
 
 try:
     import pynini
@@ -41,55 +46,73 @@ class ClassifyFst(GraphFst):
     Final class that composes all other classification grammars. This class can process an entire sentence, that is lower cased.
     For deployment, this grammar will be compiled and exported to OpenFst Finate State Archiv (FAR) File. 
     More details to deployment at NeMo/tools/text_processing_deployment.
+
+    Args:
+        cache_dir: path to a dir with .far grammar file. Set to None to avoid using cache.
+        overwrite_cache: set to True to overwrite .far files
     """
 
-    def __init__(self):
+    def __init__(self, cache_dir: str = None, overwrite_cache: bool = False):
         super().__init__(name="tokenize_and_classify", kind="classify")
 
-        cardinal = CardinalFst()
-        cardinal_graph = cardinal.fst
+        far_file = None
+        if cache_dir is not None and cache_dir != 'None':
+            os.makedirs(cache_dir, exist_ok=True)
+            far_file = os.path.join(cache_dir, "_de_itn.far")
+        if not overwrite_cache and far_file and os.path.exists(far_file):
+            self.fst = pynini.Far(far_file, mode="r")["tokenize_and_classify"]
+            logging.info(f"ClassifyFst.fst was restored from {far_file}.")
+        else:
+            logging.info(f"Creating ClassifyFst grammars.")
 
-        ordinal = OrdinalFst(cardinal)
-        ordinal_graph = ordinal.fst
+            cardinal = CardinalFst()
+            cardinal_graph = cardinal.fst
 
-        decimal = DecimalFst(cardinal)
-        decimal_graph = decimal.fst
+            ordinal = OrdinalFst(cardinal)
+            ordinal_graph = ordinal.fst
 
-        fraction = FractionFst(cardinal)
-        fraction_graph = fraction.fst
+            decimal = DecimalFst(cardinal)
+            decimal_graph = decimal.fst
 
-        measure_graph = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction).fst
-        date_graph = DateFst(ordinal=ordinal, cardinal=cardinal).fst
-        word_graph = WordFst().fst
-        time_graph = TimeFst().fst
-        money_graph = MoneyFst(cardinal=cardinal, decimal=decimal).fst
-        whitelist_graph = WhiteListFst().fst
-        punct_graph = PunctuationFst().fst
-        electronic_graph = ElectronicFst().fst
-        telephone_graph = TelephoneFst().fst
+            fraction = FractionFst(cardinal)
+            fraction_graph = fraction.fst
 
-        classify = (
-            pynutil.add_weight(whitelist_graph, 1.01)
-            | pynutil.add_weight(time_graph, 1.1)
-            | pynutil.add_weight(date_graph, 1.09)
-            | pynutil.add_weight(decimal_graph, 1.1)
-            | pynutil.add_weight(measure_graph, 1.1)
-            | pynutil.add_weight(cardinal_graph, 1.1)
-            | pynutil.add_weight(ordinal_graph, 1.1)
-            | pynutil.add_weight(fraction_graph, 1.1)
-            | pynutil.add_weight(money_graph, 1.1)
-            | pynutil.add_weight(telephone_graph, 1.1)
-            | pynutil.add_weight(electronic_graph, 1.1)
-            | pynutil.add_weight(word_graph, 100)
-        )
+            measure_graph = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction).fst
+            date_graph = DateFst(ordinal=ordinal, cardinal=cardinal).fst
+            word_graph = WordFst().fst
+            time_graph = TimeFst().fst
+            money_graph = MoneyFst(cardinal=cardinal, decimal=decimal).fst
+            whitelist_graph = WhiteListFst().fst
+            punct_graph = PunctuationFst().fst
+            electronic_graph = ElectronicFst().fst
+            telephone_graph = TelephoneFst().fst
 
-        punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=1.1) + pynutil.insert(" }")
-        token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")
-        token_plus_punct = (
-            pynini.closure(punct + pynutil.insert(" ")) + token + pynini.closure(pynutil.insert(" ") + punct)
-        )
+            classify = (
+                pynutil.add_weight(whitelist_graph, 1.01)
+                | pynutil.add_weight(time_graph, 1.1)
+                | pynutil.add_weight(date_graph, 1.09)
+                | pynutil.add_weight(decimal_graph, 1.1)
+                | pynutil.add_weight(measure_graph, 1.1)
+                | pynutil.add_weight(cardinal_graph, 1.1)
+                | pynutil.add_weight(ordinal_graph, 1.1)
+                | pynutil.add_weight(fraction_graph, 1.1)
+                | pynutil.add_weight(money_graph, 1.1)
+                | pynutil.add_weight(telephone_graph, 1.1)
+                | pynutil.add_weight(electronic_graph, 1.1)
+                | pynutil.add_weight(word_graph, 100)
+            )
 
-        graph = token_plus_punct + pynini.closure(delete_extra_space + token_plus_punct)
-        graph = delete_space + graph + delete_space
+            punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=1.1) + pynutil.insert(" }")
+            token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")
+            token_plus_punct = (
+                pynini.closure(punct + pynutil.insert(" ")) + token + pynini.closure(pynutil.insert(" ") + punct)
+            )
 
-        self.fst = graph.optimize()
+            graph = token_plus_punct + pynini.closure(delete_extra_space + token_plus_punct)
+            graph = delete_space + graph + delete_space
+
+            self.fst = graph.optimize()
+
+            if far_file:
+                generator_main(far_file, {"tokenize_and_classify": self.fst})
+                logging.info(f"ClassifyFst grammars are saved to {far_file}.")

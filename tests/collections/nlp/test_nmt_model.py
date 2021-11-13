@@ -75,7 +75,7 @@ class TestMTEncDecModel:
         with tempfile.TemporaryDirectory() as tmpdir1:
             model.save_to("nmt_model.nemo")
             with tempfile.TemporaryDirectory() as tmpdir:
-                model._unpack_nemo_file(path2file="nmt_model.nemo", out_folder=tmpdir)
+                model._save_restore_connector._unpack_nemo_file(path2file="nmt_model.nemo", out_folder=tmpdir)
                 conf = OmegaConf.load(os.path.join(tmpdir, "model_config.yaml"))
                 # Make sure names now differ in saved config
                 assert conf.encoder_tokenizer.tokenizer_model != conf.decoder_tokenizer.tokenizer_model

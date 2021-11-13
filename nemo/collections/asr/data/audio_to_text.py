@@ -25,7 +25,6 @@ import webdataset as wd
 from scipy.stats import betabinom
 from torch.nn import functional as F
 
-from nemo.collections.asr.data import vocabs
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.common.parts.preprocessing import collections, parsers
 from nemo.core.classes import Dataset, IterableDataset
@@ -51,7 +50,14 @@ def _speech_collate_fn(batch, pad_id):
                encoded tokens, and encoded tokens length.  This collate func
                assumes the signals are 1d torch tensors (i.e. mono audio).
     """
-    _, audio_lengths, _, tokens_lengths = zip(*batch)
+    packed_batch = list(zip(*batch))
+    if len(packed_batch) == 5:
+        _, audio_lengths, _, tokens_lengths, sample_ids = packed_batch
+    elif len(packed_batch) == 4:
+        sample_ids = None
+        _, audio_lengths, _, tokens_lengths = packed_batch
+    else:
+        raise ValueError("Expects 4 or 5 tensors in the batch!")
     max_audio_len = 0
     has_audio = audio_lengths[0] is not None
     if has_audio:
@@ -59,7 +65,11 @@ def _speech_collate_fn(batch, pad_id):
     max_tokens_len = max(tokens_lengths).item()
 
     audio_signal, tokens = [], []
-    for sig, sig_len, tokens_i, tokens_i_len in batch:
+    for b in batch:
+        if len(b) == 5:
+            sig, sig_len, tokens_i, tokens_i_len, _ = b
+        else:
+            sig, sig_len, tokens_i, tokens_i_len = b
         if has_audio:
             sig_len = sig_len.item()
             if sig_len < max_audio_len:
@@ -79,8 +89,70 @@ def _speech_collate_fn(batch, pad_id):
         audio_signal, audio_lengths = None, None
     tokens = torch.stack(tokens)
     tokens_lengths = torch.stack(tokens_lengths)
+    if sample_ids is None:
+        return audio_signal, audio_lengths, tokens, tokens_lengths
+    else:
+        sample_ids = torch.tensor(sample_ids, dtype=torch.int32)
+        return audio_signal, audio_lengths, tokens, tokens_lengths, sample_ids
 
-    return audio_signal, audio_lengths, tokens, tokens_lengths
+
+class ASRManifestProcessor:
+    """
+    Class that processes a manifest json file containing paths to audio files, transcripts, and durations (in seconds).
+    Each new line is a different sample. Example below:
+    {"audio_filepath": "/path/to/audio.wav", "text_filepath": "/path/to/audio.txt", "duration": 23.147}
+    ...
+    {"audio_filepath": "/path/to/audio.wav", "text": "the transcription", "offset": 301.75, "duration": 0.82, "utt":
+    "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+    Args:
+        manifest_filepath: Path to manifest json as described above. Can be comma-separated paths.
+        parser: Str for a language specific preprocessor or a callable.
+        max_duration: If audio exceeds this length, do not include in dataset.
+        min_duration: If audio is less than this length, do not include in dataset.
+        max_utts: Limit number of utterances.
+        bos_id: Id of beginning of sequence symbol to append if not None.
+        eos_id: Id of end of sequence symbol to append if not None.
+        pad_id: Id of pad symbol. Defaults to 0.
+    """
+
+    def __init__(
+        self,
+        manifest_filepath: str,
+        parser: Union[str, Callable],
+        max_duration: Optional[float] = None,
+        min_duration: Optional[float] = None,
+        max_utts: int = 0,
+        bos_id: Optional[int] = None,
+        eos_id: Optional[int] = None,
+        pad_id: int = 0,
+    ):
+        self.parser = parser
+
+        self.collection = collections.ASRAudioText(
+            manifests_files=manifest_filepath,
+            parser=parser,
+            min_duration=min_duration,
+            max_duration=max_duration,
+            max_number=max_utts,
+        )
+
+        self.eos_id = eos_id
+        self.bos_id = bos_id
+        self.pad_id = pad_id
+
+    def process_text(self, index) -> (List[int], int):
+        sample = self.collection[index]
+
+        t, tl = sample.text_tokens, len(sample.text_tokens)
+
+        if self.bos_id is not None:
+            t = [self.bos_id] + t
+            tl += 1
+        if self.eos_id is not None:
+            t = t + [self.eos_id]
+            tl += 1
+
+        return t, tl
 
 
 class _AudioTextDataset(Dataset):
@@ -106,6 +178,7 @@ class _AudioTextDataset(Dataset):
         normalize: whether to normalize transcript text (default): True
         bos_id: Id of beginning of sequence symbol to append if not None
         eos_id: Id of end of sequence symbol to append if not None
+        return_sample_id (bool): whether to return the sample_id as a part of each sample
     """
 
     @property
@@ -117,6 +190,7 @@ class _AudioTextDataset(Dataset):
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
+            'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
     def __init__(
@@ -133,25 +207,27 @@ class _AudioTextDataset(Dataset):
         bos_id: Optional[int] = None,
         eos_id: Optional[int] = None,
         pad_id: int = 0,
+        return_sample_id: bool = False,
     ):
-        self.parser = parser
-
-        self.collection = collections.ASRAudioText(
-            manifests_files=manifest_filepath.split(','),
+        self.manifest_processor = ASRManifestProcessor(
+            manifest_filepath=manifest_filepath,
             parser=parser,
-            min_duration=min_duration,
             max_duration=max_duration,
-            max_number=max_utts,
+            min_duration=min_duration,
+            max_utts=max_utts,
+            bos_id=bos_id,
+            eos_id=eos_id,
+            pad_id=pad_id,
         )
-
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
         self.trim = trim
-        self.eos_id = eos_id
-        self.bos_id = bos_id
-        self.pad_id = pad_id
+        self.return_sample_id = return_sample_id
+
+    def get_manifest_sample(self, sample_id):
+        return self.manifest_processor.collection[sample_id]
 
     def __getitem__(self, index):
-        sample = self.collection[index]
+        sample = self.manifest_processor.collection[index]
         offset = sample.offset
 
         if offset is None:
@@ -162,23 +238,20 @@ class _AudioTextDataset(Dataset):
         )
         f, fl = features, torch.tensor(features.shape[0]).long()
 
-        t, tl = sample.text_tokens, len(sample.text_tokens)
-        if self.bos_id is not None:
-            t = [self.bos_id] + t
-            tl += 1
-        if self.eos_id is not None:
-            t = t + [self.eos_id]
-            tl += 1
+        t, tl = self.manifest_processor.process_text(index)
 
-        output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+        if self.return_sample_id:
+            output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long(), index
+        else:
+            output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
 
         return output
 
     def __len__(self):
-        return len(self.collection)
+        return len(self.manifest_processor.collection)
 
     def _collate_fn(self, batch):
-        return _speech_collate_fn(batch, pad_id=self.pad_id)
+        return _speech_collate_fn(batch, pad_id=self.manifest_processor.pad_id)
 
 
 class AudioToCharDataset(_AudioTextDataset):
@@ -209,6 +282,7 @@ class AudioToCharDataset(_AudioTextDataset):
         normalize: whether to normalize transcript text (default): True
         bos_id: Id of beginning of sequence symbol to append if not None
         eos_id: Id of end of sequence symbol to append if not None
+        return_sample_id (bool): whether to return the sample_id as a part of each sample
     """
 
     @property
@@ -220,6 +294,7 @@ class AudioToCharDataset(_AudioTextDataset):
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
+            'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
     def __init__(
@@ -240,6 +315,7 @@ class AudioToCharDataset(_AudioTextDataset):
         eos_id: Optional[int] = None,
         pad_id: int = 0,
         parser: Union[str, Callable] = 'en',
+        return_sample_id: bool = False,
     ):
         self.labels = labels
 
@@ -260,6 +336,7 @@ class AudioToCharDataset(_AudioTextDataset):
             bos_id=bos_id,
             eos_id=eos_id,
             pad_id=pad_id,
+            return_sample_id=return_sample_id,
         )
 
 
@@ -346,6 +423,8 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
         Returns:
             (vocabs.Base) Vocabulary
         """
+        from nemo.collections.common.data import vocabs
+
         if notation == 'chars':
             vocab = vocabs.Chars(punct=punct, spaces=spaces, add_blank_at=add_blank_at)
         elif notation == 'phonemes':
@@ -375,7 +454,7 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
 
         tags = []
         self.id2enc_text = {}
-        for i, e in enumerate(self.collection):
+        for i, e in enumerate(self.manifest_processor.collection):
             tag = os.path.splitext(os.path.basename(e.audio_file))[0]
             tags.append(tag)
             # cache vocab encoding
@@ -533,7 +612,7 @@ class AudioToCharWithPriorDataset(AudioToCharDataset):
 
         self.n_window_stride = n_window_stride
         self.id2enc_text = {}
-        for i, e in enumerate(self.collection):
+        for i, e in enumerate(self.manifest_processor.collection):
             # cache vocab encoding
             self.id2enc_text[i] = self.vocab.encode(e.text_raw)
 
@@ -603,6 +682,7 @@ class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
             'text_len': NeuralType(('B',), LengthsType()),
             'attn_prior': NeuralType(('B', 'T', 'D'), ProbsType()),
             'pitch': NeuralType(('B', 'T'), RegressionValuesType()),
+            'speakers': NeuralType(('B',), Index(), optional=True),
         }
 
     def __init__(self, sup_data_path, pitch_fmin, pitch_fmax, n_window_size, pitch_avg, pitch_std, **kwargs):
@@ -615,7 +695,7 @@ class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
 
     def __getitem__(self, item):
         audio, audio_len, text, text_len, attn_prior = super().__getitem__(item)
-        tag = Path(self.collection[item].audio_file).stem
+        tag = Path(self.manifest_processor.collection[item].audio_file).stem
         pitch_path = (
             Path(self.attn_prior_folder)
             / f"{tag}_pitch_pyin_fmin{self.pitch_fmin}_fmax{self.pitch_fmax}_fl{self.n_window_size}.npy"
@@ -637,19 +717,30 @@ class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
         pitch[pitch == -self.pitch_avg] = 0.0  # Zero out values that were perviously zero
         pitch /= self.pitch_std
 
-        return audio, audio_len, text, text_len, attn_prior, torch.tensor(pitch)
+        speaker = None
+        if self.manifest_processor.collection[item].speaker is not None:
+            speaker = torch.zeros_like(text_len).fill_(self.manifest_processor.collection[item].speaker)
+
+        return audio, audio_len, text, text_len, attn_prior, torch.tensor(pitch), speaker
 
     def _collate_fn(self, batch):
         batch = list(zip(*batch))
         audio, audio_len, text, text_len, attn_prior = super()._collate_fn(list(zip(*batch[:5])))
         pitch_list = batch[5]
+        speaker_list = batch[6]
 
         pitch = torch.zeros(len(pitch_list), max([pitch.shape[0] for pitch in pitch_list]))
 
         for i, pitch_i in enumerate(pitch_list):
             pitch[i, : pitch_i.shape[0]] = pitch_i
 
-        return audio, audio_len, text, text_len, attn_prior, pitch
+        speakers = []
+        for i, speaker_i in enumerate(speaker_list):
+            speakers.append(speaker_i)
+
+        speakers = torch.stack(speakers).to(text_len.dtype) if speakers[0] is not None else None
+
+        return audio, audio_len, text, text_len, attn_prior, pitch, speakers
 
 
 class FastPitchDataset(_AudioTextDataset):
@@ -674,18 +765,19 @@ class FastPitchDataset(_AudioTextDataset):
     def __getitem__(self, item):
         audio, audio_len, text, text_len = super().__getitem__(item)  # noqa
 
-        audio_path = self.collection[item].audio_file
+        audio_path = self.manifest_processor.collection[item].audio_file
         durs_path = audio_path.replace('/wavs/', '/fastpitch/durations/').replace('.wav', '.pt')
         pitch_path = audio_path.replace('/wavs/', '/fastpitch/pitch_char/').replace('.wav', '.pt')
         speaker = None
-        if self.collection[item].speaker is not None:
-            speaker = torch.zeros_like(text_len).fill_(self.collection[item].speaker)
+        if self.manifest_processor.collection[item].speaker is not None:
+            speaker = torch.zeros_like(text_len).fill_(self.manifest_processor.collection[item].speaker)
 
         return (audio, audio_len, text, text_len, torch.load(durs_path), torch.load(pitch_path), speaker, audio_path)
 
     def _collate_fn(self, batch):
+        pad_id = self.manifest_processor.pad_id
         asr_batch = list(zip(*batch))[:4]
-        asr_batch = _speech_collate_fn(list(zip(*asr_batch)), pad_id=self.pad_id)
+        asr_batch = _speech_collate_fn(list(zip(*asr_batch)), pad_id=pad_id)
         audio, audio_len, text, text_len = asr_batch
 
         max_tokens_len = text.size(1)
@@ -694,8 +786,8 @@ class FastPitchDataset(_AudioTextDataset):
             pad = (0, max_tokens_len - tokens_i_len.item())
             assert len(durs_i) == len(pitch_i), f"{len(durs_i)}, {len(pitch_i)}: {path_i}"
             assert len(durs_i) == tokens_i_len, f"{len(durs_i)}, {tokens_i_len}:  {path_i}"
-            durs.append(F.pad(durs_i, pad, value=self.pad_id))
-            pitch.append(F.pad(pitch_i, pad, value=self.pad_id))
+            durs.append(F.pad(durs_i, pad, value=pad_id))
+            pitch.append(F.pad(pitch_i, pad, value=pad_id))
             speakers.append(speaker_i)
 
         return (
@@ -742,6 +834,7 @@ class AudioToBPEDataset(_AudioTextDataset):
         trim: Whether to trim silence segments
         use_start_end_token: Boolean which dictates whether to add [BOS] and [EOS]
             tokens to beginning and ending of speech respectively.
+        return_sample_id (bool): whether to return the sample_id as a part of each sample
     """
 
     @property
@@ -753,6 +846,7 @@ class AudioToBPEDataset(_AudioTextDataset):
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
+            'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
     def __init__(
@@ -767,6 +861,7 @@ class AudioToBPEDataset(_AudioTextDataset):
         max_utts: int = 0,
         trim: bool = False,
         use_start_end_token: bool = True,
+        return_sample_id: bool = False,
     ):
         if use_start_end_token and hasattr(tokenizer, 'bos_token'):
             bos_id = tokenizer.bos_id
@@ -804,6 +899,7 @@ class AudioToBPEDataset(_AudioTextDataset):
             eos_id=eos_id,
             pad_id=pad_id,
             trim=trim,
+            return_sample_id=return_sample_id,
         )
 
 
@@ -892,6 +988,7 @@ class _TarredAudioToTextDataset(IterableDataset):
                 sampled at least once during 1 epoch.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
+        return_sample_id (bool): whether to return the sample_id as a part of each sample
     """
 
     def __init__(
@@ -913,9 +1010,10 @@ class _TarredAudioToTextDataset(IterableDataset):
         shard_strategy: str = "scatter",
         global_rank: int = 0,
         world_size: int = 0,
+        return_sample_id: bool = False,
     ):
         self.collection = collections.ASRAudioText(
-            manifests_files=manifest_filepath.split(','),
+            manifests_files=manifest_filepath,
             parser=parser,
             min_duration=min_duration,
             max_duration=max_duration,
@@ -928,6 +1026,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         self.eos_id = eos_id
         self.bos_id = bos_id
         self.pad_id = pad_id
+        self.return_sample_id = return_sample_id
 
         valid_shard_strategies = ['scatter', 'replicate']
         if shard_strategy not in valid_shard_strategies:
@@ -983,7 +1082,7 @@ class _TarredAudioToTextDataset(IterableDataset):
             logging.info("WebDataset will not shuffle files within the tar files.")
 
         self._dataset = (
-            self._dataset.rename(audio='wav', key='__key__')
+            self._dataset.rename(audio='wav;ogg', key='__key__')
             .to_tuple('audio', 'key')
             .pipe(self._filter)
             .map(f=self._build_sample)
@@ -1054,7 +1153,13 @@ class _TarredAudioToTextDataset(IterableDataset):
             t = t + [self.eos_id]
             tl += 1
 
-        return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+        if self.return_sample_id:
+            return f, fl, torch.tensor(t).long(), torch.tensor(tl).long(), manifest_idx
+        else:
+            return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+
+    def get_manifest_sample(self, sample_id):
+        return self.collection[sample_id]
 
     def __iter__(self):
         return self._dataset.__iter__()
@@ -1144,6 +1249,7 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
                 sampled at least once during 1 epoch.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
+        return_sample_id (bool): whether to return the sample_id as a part of each sample
     """
 
     def __init__(
@@ -1169,6 +1275,7 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
         shard_strategy: str = "scatter",
         global_rank: int = 0,
         world_size: int = 0,
+        return_sample_id: bool = False,
     ):
         self.labels = labels
 
@@ -1194,6 +1301,7 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
             shard_strategy=shard_strategy,
             global_rank=global_rank,
             world_size=world_size,
+            return_sample_id=return_sample_id,
         )
 
 
@@ -1249,6 +1357,8 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
         trim (bool): Whether to use trim silence from beginning and end
             of audio signal using librosa.effects.trim().
             Defaults to False.
+        use_start_end_token: Boolean which dictates whether to add [BOS] and [EOS]
+            tokens to beginning and ending of speech respectively.
         pad_id (id): Token used to pad when collating samples in batches.
             If this is None, pads using 0s.
             Defaults to None.
@@ -1266,6 +1376,7 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
                 sampled at least once during 1 epoch.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
+        return_sample_id (bool): whether to return the sample_id as a part of each sample
     """
 
     def __init__(
@@ -1285,6 +1396,7 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
         shard_strategy: str = "scatter",
         global_rank: int = 0,
         world_size: int = 0,
+        return_sample_id: bool = False,
     ):
         if use_start_end_token and hasattr(tokenizer, 'bos_token'):
             bos_id = tokenizer.bos_id
@@ -1327,4 +1439,5 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
             shard_strategy=shard_strategy,
             global_rank=global_rank,
             world_size=world_size,
+            return_sample_id=return_sample_id,
         )

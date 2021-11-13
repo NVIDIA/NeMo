@@ -11,7 +11,7 @@ model architecture specification.
 The sections on this page cover each of these in more detail.
 
 Example configuration files for all of the Speaker related scripts can be found in the
-config directory of the examples ``{NEMO_ROOT/examples/speaker_recognition/conf}``.
+config directory of the examples ``{NEMO_ROOT/examples/speaker_tasks/recognition/conf}``.
 
 
 Dataset Configuration

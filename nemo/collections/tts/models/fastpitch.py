@@ -81,8 +81,14 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         self.log_train_images = False
         self.mel_loss = MelLoss()
         loss_scale = 0.1 if self.learn_alignment else 1.0
-        self.pitch_loss = PitchLoss(loss_scale=loss_scale)
-        self.duration_loss = DurationLoss(loss_scale=loss_scale)
+        dur_loss_scale = loss_scale
+        pitch_loss_scale = loss_scale
+        if "dur_loss_scale" in cfg:
+            dur_loss_scale = cfg.dur_loss_scale
+        if "pitch_loss_scale" in cfg:
+            pitch_loss_scale = cfg.pitch_loss_scale
+        self.pitch_loss = PitchLoss(loss_scale=pitch_loss_scale)
+        self.duration_loss = DurationLoss(loss_scale=dur_loss_scale)
         input_fft_kwargs = {}
         if self.learn_alignment:
             self.aligner = instantiate(self._cfg.alignment_module)
@@ -200,9 +206,9 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         return spect
 
     def training_step(self, batch, batch_idx):
-        attn_prior, durs, speakers = None, None, None
+        attn_prior, durs = None, None
         if self.learn_alignment:
-            audio, audio_lens, text, text_lens, attn_prior, pitch = batch
+            audio, audio_lens, text, text_lens, attn_prior, pitch, speakers = batch
         else:
             audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
         mels, spec_len = self.preprocessor(input_signal=audio, length=audio_lens)
@@ -251,7 +257,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
                 self.global_step,
                 dataformats="HWC",
             )
-            spec_predict = mels_pred[0].data.cpu().numpy().T
+            spec_predict = mels_pred[0].data.cpu().numpy()
             self.tb_logger.add_image(
                 "train_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
             )
@@ -270,7 +276,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def validation_step(self, batch, batch_idx):
         attn_prior, durs, speakers = None, None, None
         if self.learn_alignment:
-            audio, audio_lens, text, text_lens, attn_prior, pitch = batch
+            audio, audio_lens, text, text_lens, attn_prior, pitch, speakers = batch
         else:
             audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
         mels, mel_lens = self.preprocessor(input_signal=audio, length=audio_lens)
@@ -324,7 +330,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         )
         spec_predict = spec_predict[0].data.cpu().numpy()
         self.tb_logger.add_image(
-            "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict.T), self.global_step, dataformats="HWC",
+            "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
         )
         self.log_train_images = True
 
@@ -372,7 +378,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         list_of_models = []
         model = PretrainedModelInfo(
             pretrained_model_name="tts_en_fastpitch",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_fastpitch/versions/1.0.0/files/tts_en_fastpitch.nemo",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_fastpitch/versions/1.4.0/files/tts_en_fastpitch_align.nemo",
             description="This model is trained on LJSpeech sampled at 22050Hz with and can be used to generate female English voices with an American accent.",
             class_=cls,
         )
@@ -401,7 +407,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             attn_hard_dur,
             pitch,
         ) = self.fastpitch(text=text)
-        return spect, num_frames, durs_predicted, log_durs_predicted, pitch_predicted
+        return spect.to(torch.float), num_frames, durs_predicted, log_durs_predicted, pitch_predicted
 
     @property
     def disabled_deployment_input_names(self):

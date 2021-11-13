@@ -22,12 +22,15 @@ SPLIT_NAMES = [TRAIN, DEV, TEST]
 # Languages
 ENGLISH = 'en'
 RUSSIAN = 'ru'
-GERMANY = 'de'
-SUPPORTED_LANGS = [ENGLISH, RUSSIAN, GERMANY]
+GERMAN = 'de'
+MULTILINGUAL = 'multilingual'
+SUPPORTED_LANGS = [ENGLISH, RUSSIAN, GERMAN, MULTILINGUAL]
 
 # Task Prefixes
-ITN_PREFIX = str(0)
-TN_PREFIX = str(1)
+ITN_TASK = 0
+TN_TASK = 1
+ITN_PREFIX = str(ITN_TASK)
+TN_PREFIX = str(TN_TASK)
 
 # Tagger Labels Prefixes
 B_PREFIX = 'B-'  # Denote beginning
@@ -39,32 +42,43 @@ TN_MODE = 'tn'
 ITN_MODE = 'itn'
 JOINT_MODE = 'joint'
 MODES = [TN_MODE, ITN_MODE, JOINT_MODE]
+TASK_ID_TO_MODE = {ITN_TASK: ITN_MODE, TN_TASK: TN_MODE}
+MODE_TO_TASK_ID = {v: k for k, v in TASK_ID_TO_MODE.items()}
 
 # Instance Directions
 INST_BACKWARD = 'BACKWARD'
 INST_FORWARD = 'FORWARD'
 INST_DIRECTIONS = [INST_BACKWARD, INST_FORWARD]
+DIRECTIONS_TO_ID = {INST_BACKWARD: ITN_TASK, INST_FORWARD: TN_TASK}
+DIRECTIONS_ID_TO_NAME = {ITN_TASK: INST_BACKWARD, TN_TASK: INST_FORWARD}
+DIRECTIONS_TO_MODE = {ITN_MODE: INST_BACKWARD, TN_MODE: INST_FORWARD}
 
 # TAGS
 SAME_TAG = 'SAME'  # Tag indicates that a token can be kept the same without any further transformation
 TASK_TAG = 'TASK'  # Tag indicates that a token belongs to a task prefix (the prefix indicates whether the current task is TN or ITN)
 PUNCT_TAG = 'PUNCT'  # Tag indicates that a token is a punctuation
 TRANSFORM_TAG = 'TRANSFORM'  # Tag indicates that a token needs to be transformed by the decoder
-ALL_TAGS = [TASK_TAG, SAME_TAG, PUNCT_TAG, TRANSFORM_TAG]
+ALL_TAGS = [TASK_TAG, SAME_TAG, TRANSFORM_TAG]
 
 # ALL_TAG_LABELS
 ALL_TAG_LABELS = []
 for prefix in TAGGER_LABELS_PREFIXES:
     for tag in ALL_TAGS:
         ALL_TAG_LABELS.append(prefix + tag)
+
 ALL_TAG_LABELS.sort()
+LABEL_IDS = {l: idx for idx, l in enumerate(ALL_TAG_LABELS)}
 
 # Special Words
 SIL_WORD = 'sil'
 SELF_WORD = '<self>'
 SPECIAL_WORDS = [SIL_WORD, SELF_WORD]
 
-# Mappings for Greek Letters (English)
+# IDs for special tokens for encoding inputs of the decoder models
+EXTRA_ID_0 = '<extra_id_0>'
+EXTRA_ID_1 = '<extra_id_1>'
+
+
 EN_GREEK_TO_SPOKEN = {
     'Τ': 'tau',
     'Ο': 'omicron',
@@ -77,7 +91,6 @@ EN_GREEK_TO_SPOKEN = {
     'Σ': 'sigma',
     'Υ': 'upsilon',
     'Μ': 'mu',
-    'Ε': 'epsilon',
     'Χ': 'chi',
     'Π': 'pi',
     'Ν': 'nu',
@@ -87,7 +100,6 @@ EN_GREEK_TO_SPOKEN = {
     'Ρ': 'rho',
     'τ': 'tau',
     'υ': 'upsilon',
-    'μ': 'mu',
     'φ': 'phi',
     'α': 'alpha',
     'λ': 'lambda',
@@ -106,8 +118,3 @@ EN_GREEK_TO_SPOKEN = {
     'ω': 'omega',
     'χ': 'chi',
 }
-EN_SPOKEN_TO_GREEK = {v: k for k, v in EN_GREEK_TO_SPOKEN.items()}
-
-# IDs for special tokens for encoding inputs of the decoder models
-EXTRA_ID_0 = '<extra_id_0>'
-EXTRA_ID_1 = '<extra_id_1>'

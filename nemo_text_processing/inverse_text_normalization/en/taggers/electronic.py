@@ -40,12 +40,15 @@ class ElectronicFst(GraphFst):
             | pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
             | pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
         )
+
+        symbols = pynini.string_file(get_abs_path("data/electronic/symbols.tsv")).invert()
+
+        accepted_username = alpha_num | symbols
+        process_dot = pynini.cross("dot", ".")
         username = (
             pynutil.insert("username: \"")
-            + pynini.closure(
-                alpha_num + delete_extra_space + pynini.closure(pynini.cross("dot", '.') + delete_extra_space, 0, 1)
-            )
             + alpha_num
+            + pynini.closure(delete_extra_space + accepted_username)
             + pynutil.insert("\"")
         )
         single_alphanum = pynini.closure(alpha_num + delete_extra_space) + alpha_num
@@ -55,12 +58,37 @@ class ElectronicFst(GraphFst):
             pynutil.insert("domain: \"")
             + server
             + delete_extra_space
-            + pynini.cross("dot", ".")
+            + process_dot
             + delete_extra_space
             + domain
             + pynutil.insert("\"")
         )
         graph = username + delete_extra_space + pynutil.delete("at") + insert_space + delete_extra_space + domain_graph
+
+        ############# url ###
+        protocol_end = pynini.cross(pynini.union("w w w", "www"), "www")
+        protocol_start = (pynini.cross("h t t p", "http") | pynini.cross("h t t p s", "https")) + pynini.cross(
+            " colon slash slash ", "://"
+        )
+        # .com,
+        ending = (
+            delete_extra_space
+            + symbols
+            + delete_extra_space
+            + (domain | pynini.closure(accepted_username + delete_extra_space,) + accepted_username)
+        )
+
+        protocol = (
+            pynini.closure(protocol_start, 0, 1)
+            + protocol_end
+            + delete_extra_space
+            + process_dot
+            + pynini.closure(delete_extra_space + accepted_username, 1)
+            + pynini.closure(ending, 1)
+        )
+        protocol = pynutil.insert("protocol: \"") + protocol + pynutil.insert("\"")
+        graph |= protocol
+        ########
 
         final_graph = self.add_tokens(graph)
         self.fst = final_graph.optimize()

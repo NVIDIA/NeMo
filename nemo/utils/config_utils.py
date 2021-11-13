@@ -17,13 +17,19 @@ import inspect
 from dataclasses import is_dataclass
 from typing import Dict, List, Optional
 
-from omegaconf import DictConfig, OmegaConf, open_dict
-
-from nemo.core.config.modelPT import NemoConfig
 from nemo.utils import logging
 
+# TODO @blisc: Perhaps refactor instead of import guarding
+_HAS_HYDRA = True
+try:
+    from omegaconf import DictConfig, OmegaConf, open_dict
+except ModuleNotFoundError:
+    _HAS_HYDRA = False
 
-def update_model_config(model_cls: NemoConfig, update_cfg: DictConfig, drop_missing_subconfigs: bool = True):
+
+def update_model_config(
+    model_cls: 'nemo.core.config.modelPT.NemoConfig', update_cfg: 'DictConfig', drop_missing_subconfigs: bool = True
+):
     """
     Helper class that updates the default values of a ModelPT config class with the values
     in a DictConfig that mirrors the structure of the config class.
@@ -52,6 +58,9 @@ def update_model_config(model_cls: NemoConfig, update_cfg: DictConfig, drop_miss
         A DictConfig with updated values that can be used to instantiate the NeMo Model along with supporting
         infrastructure.
     """
+    if not _HAS_HYDRA:
+        logging.error("This function requires Hydra/Omegaconf and it was not installed.")
+        exit(1)
     if not (is_dataclass(model_cls) or isinstance(model_cls, DictConfig)):
         raise ValueError("`model_cfg` must be a dataclass or a structured OmegaConf object")
 
@@ -92,7 +101,7 @@ def update_model_config(model_cls: NemoConfig, update_cfg: DictConfig, drop_miss
 
 
 def _update_subconfig(
-    model_cfg: DictConfig, update_cfg: DictConfig, subconfig_key: str, drop_missing_subconfigs: bool
+    model_cfg: 'DictConfig', update_cfg: 'DictConfig', subconfig_key: str, drop_missing_subconfigs: bool
 ):
     """
     Updates the NemoConfig DictConfig such that:
@@ -112,6 +121,9 @@ def _update_subconfig(
     Returns:
         The updated DictConfig for the NemoConfig
     """
+    if not _HAS_HYDRA:
+        logging.error("This function requires Hydra/Omegaconf and it was not installed.")
+        exit(1)
     with open_dict(model_cfg.model):
         # If update config has the key, but model cfg doesnt have the key
         # Add the update cfg subconfig to the model cfg
@@ -127,7 +139,7 @@ def _update_subconfig(
     return model_cfg
 
 
-def _add_subconfig_keys(model_cfg: DictConfig, update_cfg: DictConfig, subconfig_key: str):
+def _add_subconfig_keys(model_cfg: 'DictConfig', update_cfg: 'DictConfig', subconfig_key: str):
     """
     For certain sub-configs, the default values specified by the NemoConfig class is insufficient.
     In order to support every potential value in the merge between the `update_cfg`, it would require
@@ -155,6 +167,9 @@ def _add_subconfig_keys(model_cfg: DictConfig, update_cfg: DictConfig, subconfig
     Returns:
         A ModelPT DictConfig with additional keys added to the sub-config.
     """
+    if not _HAS_HYDRA:
+        logging.error("This function requires Hydra/Omegaconf and it was not installed.")
+        exit(1)
     with open_dict(model_cfg.model):
         # Create copy of original model sub config
         if subconfig_key in update_cfg.model:

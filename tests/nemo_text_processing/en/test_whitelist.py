@@ -19,11 +19,13 @@ from nemo_text_processing.text_normalization.normalize import Normalizer
 from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
 from parameterized import parameterized
 
-from ..utils import PYNINI_AVAILABLE, parse_test_case_file
+from ..utils import CACHE_DIR, PYNINI_AVAILABLE, parse_test_case_file
 
 
 class TestWhitelist:
-    inverse_normalizer_en = InverseNormalizer(lang='en') if PYNINI_AVAILABLE else None
+    inverse_normalizer_en = (
+        InverseNormalizer(lang='en', cache_dir=CACHE_DIR, overwrite_cache=False) if PYNINI_AVAILABLE else None
+    )
 
     @parameterized.expand(parse_test_case_file('en/data_inverse_text_normalization/test_cases_whitelist.txt'))
     @pytest.mark.skipif(
@@ -35,8 +37,14 @@ class TestWhitelist:
         pred = self.inverse_normalizer_en.inverse_normalize(test_input, verbose=False)
         assert pred == expected
 
-    normalizer_en = Normalizer(input_case='lower_cased') if PYNINI_AVAILABLE else None
-    normalizer_with_audio_en = NormalizerWithAudio(input_case='cased', lang='en') if PYNINI_AVAILABLE else None
+    normalizer_en = (
+        Normalizer(input_case='cased', cache_dir=CACHE_DIR, overwrite_cache=False) if PYNINI_AVAILABLE else None
+    )
+    normalizer_with_audio_en = (
+        NormalizerWithAudio(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False)
+        if PYNINI_AVAILABLE
+        else None
+    )
 
     @parameterized.expand(parse_test_case_file('en/data_text_normalization/test_cases_whitelist.txt'))
     @pytest.mark.skipif(
@@ -51,7 +59,7 @@ class TestWhitelist:
         assert expected in pred_non_deterministic
 
     normalizer_uppercased = Normalizer(input_case='cased', lang='en') if PYNINI_AVAILABLE else None
-    cases_uppercased = {"Dr. Evil": "doctor Evil", "No. 4": "number four", "dr. Evil": "dr. Evil", "no. 4": "no. four"}
+    cases_uppercased = {"Dr. Evil": "doctor Evil", "dr. Evil": "dr. Evil", "no. 4": "no. four"}
 
     @parameterized.expand(cases_uppercased.items())
     @pytest.mark.skipif(

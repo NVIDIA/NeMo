@@ -16,12 +16,14 @@
 import os
 import string
 from pathlib import Path
+from typing import Dict
 
 from nemo_text_processing.text_normalization.en.utils import get_abs_path
 
 try:
     import pynini
     from pynini import Far
+    from pynini.export import export
     from pynini.examples import plurals
     from pynini.lib import byte, pynutil, utf8
 
@@ -107,6 +109,21 @@ except (ModuleNotFoundError, ImportError):
     TO_UPPER = None
 
     PYNINI_AVAILABLE = False
+
+
+def generator_main(file_name: str, graphs: Dict[str, pynini.FstLike]):
+    """
+    Exports graph as OpenFst finite state archive (FAR) file with given file name and rule name.
+
+    Args:
+        file_name: exported file name
+        graphs: Mapping of a rule name and Pynini WFST graph to be exported
+    """
+    exporter = export.Exporter(file_name)
+    for rule, graph in graphs.items():
+        exporter[rule] = graph.optimize()
+    exporter.close()
+    print(f'Created {file_name}')
 
 
 def get_plurals(fst):

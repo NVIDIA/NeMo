@@ -1,0 +1,106 @@
+name: "ECAPA_TDNN"
+
+model:
+
+  sample_rate: 16000
+
+  train_ds:
+    manifest_filepath: ???
+    sample_rate: ${model.sample_rate}
+    labels: null
+    batch_size: 64
+    shuffle: True
+    time_length: 3
+    augmentor:
+      noise:
+        manifest_path: null
+        prob: 0.5
+        min_snr_db: 0
+        max_snr_db: 15
+
+      speed:
+        prob: 0.5
+        sr: ${model.sample_rate}
+        resample_type: 'kaiser_fast'
+        min_speed_rate: 0.95
+        max_speed_rate: 1.05
+
+  validation_ds:
+    manifest_filepath: ???
+    sample_rate: ${model.sample_rate}
+    labels: null
+    batch_size: 128
+    shuffle: False
+    time_length: 3
+
+  preprocessor:
+    _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
+    normalize: "per_feature"
+    window_size: 0.025
+    sample_rate: ${model.sample_rate}
+    window_stride: 0.01
+    window: "hann"
+    features: 80
+    n_fft: 512
+    frame_splicing: 1
+    dither: 0.00001
+    stft_conv: false
+
+  spec_augment:
+    _target_: nemo.collections.asr.modules.SpectrogramAugmentation
+    freq_masks: 3
+    freq_width: 4
+    time_masks: 5
+    time_width: 0.03
+
+
+  encoder:
+    _target_: nemo.collections.asr.modules.ECAPAEncoder
+    feat_in: ${model.preprocessor.features}
+    filters: [1024,1024,1024,1024,3072]
+    kernel_sizes: [5,3,3,3,1]
+    dilations: [1,1,1,1,1]
+    scale: 8
+
+
+  decoder:
+    _target_: nemo.collections.asr.modules.SpeakerDecoder
+    feat_in: 3072
+    num_classes: 7205
+    pool_mode: 'attention' #xvector,tap or attention
+    emb_sizes: 192
+    angular: True 
+
+  loss:
+    scale: 30
+    margin: 0.2
+
+  optim:
+    name: sgd
+    lr: 0.08
+    weight_decay: 0.0002
+
+    # scheduler setup
+    sched:
+      name: CosineAnnealing
+      warmup_ratio: 0.1
+      min_lr: 0.0001
+
+trainer:
+  gpus: 1 # number of gpus (trained on four nodes - each node has 8 gpus)
+  max_epochs: 250
+  max_steps: null # computed at runtime if not set
+  num_nodes: 1
+  accelerator: ddp
+  accumulate_grad_batches: 1
+  deterministic: False
+  checkpoint_callback: False
+  logger: False
+  log_every_n_steps: 1  # Interval of logging.
+  val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+
+exp_manager:
+  exp_dir: null
+  name: ${name}
+  create_tensorboard_logger: True
+  create_checkpoint_callback: True

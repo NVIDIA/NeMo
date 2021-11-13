@@ -34,7 +34,6 @@ Part of this code is adopted from https://github.com/espnet/espnet
 
 import math
 
-import numpy as np
 import torch
 import torch.nn as nn
 
@@ -100,12 +99,7 @@ class MultiHeadAttention(nn.Module):
         n_batch = value.size(0)
         if mask is not None:
             mask = mask.unsqueeze(1)  # (batch, 1, time1, time2)
-            if scores.dtype == torch.float16:
-                dtype = np.float16
-            else:
-                dtype = np.float32
-            min_value = np.finfo(dtype).min
-            scores = scores.masked_fill(mask, min_value)
+            scores = scores.masked_fill(mask, -10000.0)
             self.attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)  # (batch, head, time1, time2)
         else:
             self.attn = torch.softmax(scores, dim=-1)  # (batch, head, time1, time2)
@@ -266,7 +260,7 @@ class PositionalEncoding(torch.nn.Module):
             x+pos_emb (torch.Tensor): Its shape is (batch, time, feature_size)
             pos_emb (torch.Tensor): Its shape is (1, time, feature_size)
         """
-        self.extend_pe(x)
+        self.extend_pe(length=x.size(1))
         if self.pe.dtype != x.dtype or self.pe.device != x.device:
             self.pe = self.pe.to(device=x.device, dtype=x.dtype)
 

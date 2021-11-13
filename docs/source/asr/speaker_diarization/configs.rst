@@ -9,12 +9,12 @@ The sections on this page cover each of these in more detail.
 
 
 Example configuration files for speaker diarization can be found in the
-``<NeMo_git_root>/examples/speaker_recognition/conf/speaker_diarization.yaml>``
+``<NeMo_git_root>/examples/speaker_tasks/diarization/conf/speaker_diarization.yaml>``
 
 .. note::
   For model details and deep understanding about configs, finetuning, tuning threshold, and evaluation, 
-  please refer to ``<NeMo_git_root>/tutorials/speaker_recognition/Speaker_Diarization_Inference.ipynb``;
-  for other applications such as possible integration with ASR, have a look at ``<NeMo_git_root>/tutorials/speaker_recognition/ASR_with_SpeakerDiarization.ipynb``.
+  please refer to ``<NeMo_git_root>/tutorials/speaker_tasks/Speaker_Diarization_Inference.ipynb``;
+  for other applications such as possible integration with ASR, have a look at ``<NeMo_git_root>/tutorials/speaker_tasks/ASR_with_SpeakerDiarization.ipynb``.
 
 
 Dataset Configuration
@@ -50,11 +50,19 @@ Diarizer Architecture Configurations
       model_path: null #.nemo local model path or pretrained model name or none
       window_length_in_sec: 0.15
       shift_length_in_sec: 0.01
-      threshold: 0.5 # tune threshold on dev set. Check <NeMo_git_root>/scripts/voice_activity_detection/vad_tune_threshold.py
       vad_decision_smoothing: True
       smoothing_params:
         method: "median" 
         overlap: 0.875
+      threshold: null # if not null, use this value and ignore the following onset and offset. Warning! it will be removed in release 1.5!
+      postprocessing_params: # Tune parameter on dev set. Check <NeMo_git_root>/scripts/voice_activity_detection/vad_tune_threshold.py
+        onset: 0.4
+        offset: 0.7
+        pad_onset: 0.05
+        pad_offset: -0.1
+        min_duration_on: 0.2 
+        min_duration_off: 0.2    
+        filter_speech_first: True 
 
     speaker_embeddings:
       oracle_vad_manifest: null # leave it null if to perform diarization with above VAD model else path to manifest file genrerated as shown in Datasets section
