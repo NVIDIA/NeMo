@@ -87,7 +87,7 @@ def export_grammars(output_dir, grammars):
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--output_dir", help="output directory for grammars", required=True, type=str)
-    parser.add_argument("--language", help="language", choices=["en", "de", "es", "ru"], type=str, default='en')
+    parser.add_argument("--language", help="language", choices=["en", "de", "es", "ru", 'fr'], type=str, default='en')
     parser.add_argument(
         "--grammars", help="grammars to be exported", choices=["tn_grammars", "itn_grammars"], type=str, required=True
     )
@@ -143,6 +143,16 @@ if __name__ == '__main__':
             ClassifyFst as ITNClassifyFst,
         )
         from nemo_text_processing.inverse_text_normalization.es.verbalizers.verbalize import (
+            VerbalizeFst as ITNVerbalizeFst,
+        )
+
+        if args.grammars == 'tn_grammars':
+            raise ValueError(f'"{args.language}" only supports Inverse Text Normalization task.')
+    elif args.language == 'fr':
+        from nemo_text_processing.inverse_text_normalization.fr.taggers.tokenize_and_classify import (
+            ClassifyFst as ITNClassifyFst,
+        )
+        from nemo_text_processing.inverse_text_normalization.fr.verbalizers.verbalize import (
             VerbalizeFst as ITNVerbalizeFst,
         )
 

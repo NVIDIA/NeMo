@@ -36,6 +36,7 @@ parser = argparse.ArgumentParser(description='LibriSpeech Data download')
 parser.add_argument("--data_root", required=True, default=None, type=str)
 parser.add_argument("--data_sets", default="dev_clean", type=str)
 parser.add_argument("--num_workers", default=4, type=int)
+parser.add_argument('--log', dest='log', action='store_true', default=False)
 args = parser.parse_args()
 
 URLS = {
@@ -148,6 +149,9 @@ def main():
     data_root = args.data_root
     data_sets = args.data_sets
     num_workers = args.num_workers
+
+    if args.log:
+        logging.basicConfig(level=logging.INFO)
 
     if data_sets == "ALL":
         data_sets = "dev_clean,dev_other,train_clean_100,train_clean_360,train_other_500,test_clean,test_other"

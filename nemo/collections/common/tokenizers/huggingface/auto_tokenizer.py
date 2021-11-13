@@ -33,6 +33,7 @@ class AutoTokenizer(TokenizerSpec):
         self,
         pretrained_model_name: str,
         vocab_file: Optional[str] = None,
+        merges_file: Optional[str] = None,
         mask_token: Optional[str] = None,
         bos_token: Optional[str] = None,
         eos_token: Optional[str] = None,
@@ -60,19 +61,26 @@ class AutoTokenizer(TokenizerSpec):
             use_fast: whether to use fast HuggingFace tokenizer
         """
         try:
-            if vocab_file is not None:
-                message = 'Using "slow" HuggingFace tokenizer'
-                if use_fast:
-                    message += f'{vocab_file} is ignored in "fast" tokenizers, using a "slow" version'
+            # this logic deals with different huggingface tokenizers having different positional args
+            if vocab_file is None:
                 self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                    pretrained_model_name_or_path=pretrained_model_name, vocab_file=vocab_file, use_fast=False
+                    pretrained_model_name_or_path=pretrained_model_name, use_fast=use_fast,
+                )
+            elif merges_file is None:
+                self.tokenizer = AUTOTOKENIZER.from_pretrained(
+                    pretrained_model_name_or_path=pretrained_model_name, vocab_file=vocab_file, use_fast=use_fast,
                 )
             else:
                 self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                    pretrained_model_name_or_path=pretrained_model_name, use_fast=use_fast
+                    pretrained_model_name_or_path=pretrained_model_name,
+                    vocab_file=vocab_file,
+                    merges_file=merges_file,
+                    use_fast=use_fast,
                 )
         except Exception as e:
-            raise ValueError(f'{pretrained_model_name} is not supported by HuggingFace. {e}')
+            raise ValueError(
+                f'Unable to instantiate HuggingFace AUTOTOKENIZER for {pretrained_model_name}. Exception: {e}'
+            )
 
         special_tokens_dict = {}
 

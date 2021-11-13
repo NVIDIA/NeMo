@@ -29,6 +29,7 @@ try:
     from nemo.collections.tts.models.two_stages import GriffinLimModel, MelPsuedoInverseModel, TwoStagesModel
     from nemo.collections.tts.models.uniglow import UniGlowModel
     from nemo.collections.tts.models.waveglow import WaveGlowModel
+    from nemo.collections.tts.models.mixer_tts import MixerTTSModel
 except ModuleNotFoundError:
     pass
 
@@ -53,4 +54,5 @@ __all__ = [
     "FastPitchHifiGanE2EModel",
     "FastSpeech2HifiGanE2EModel",
     "AlignerModel",
+    "MixerTTSModel",
 ]

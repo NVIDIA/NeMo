@@ -110,7 +110,6 @@ class DALIOutputs(object):
         return len(self._outs)
 
 
-@experimental
 class _AudioTextDALIDataset(Iterator):
     """
     NVIDIA DALI pipeline that loads tensors via one or more manifest files where each line containing a sample descriptor in JSON,
@@ -141,6 +140,7 @@ class _AudioTextDALIDataset(Iterator):
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 1.
         preprocessor_cfg (DictConfig): Preprocessor configuration. Supports AudioToMelSpectrogramPreprocessor and AudioToMFCCPreprocessor.
+        return_sample_id (bool): whether to return the sample_id as a part of each sample (not supported yet).
     """
 
     def __init__(
@@ -163,8 +163,15 @@ class _AudioTextDALIDataset(Iterator):
         global_rank: int = 0,
         world_size: int = 1,
         preprocessor_cfg: DictConfig = None,
+        return_sample_id: bool = False,
     ):
         self.drop_last = drop_last  # used by lr_scheduler
+        if return_sample_id:
+            raise ValueError(
+                "Currently DALI data layers don't support returning the sample_id and return_sample_id can not be enabled."
+            )
+        self.return_sample_id = return_sample_id
+
         if not HAVE_DALI:
             raise ModuleNotFoundError(
                 f"{self} requires NVIDIA DALI to be installed. "
@@ -259,7 +266,7 @@ class _AudioTextDALIDataset(Iterator):
                 window_tensor = window_fn(self.window_size, periodic=False) if window_fn else None
             self.window = window_tensor.numpy().tolist() if window_tensor is not None else None
 
-            self.n_fft = params['n_fft'] if 'n_fft' in params else None  # None means default
+            self.n_fft = params['n_fft'] if 'n_fft' in params else 2 ** math.ceil(math.log2(self.window_size))
             self.n_mels = params['n_mels'] if 'n_mels' in params else 64
             self.n_mfcc = params['n_mfcc'] if 'n_mfcc' in params else 64
 
@@ -354,11 +361,15 @@ class _AudioTextDALIDataset(Iterator):
 
                 # Preemphasis filter
                 if self.preemph > 0.0:
-                    audio = dali.fn.preemphasis_filter(audio, preemph_coeff=self.preemph)
+                    audio = dali.fn.preemphasis_filter(audio, preemph_coeff=self.preemph, border='zero')
 
                 # Power spectrogram
                 spec = dali.fn.spectrogram(
-                    audio, nfft=self.n_fft, window_length=self.window_size, window_step=self.window_stride
+                    audio,
+                    nfft=self.n_fft,
+                    window_length=self.window_size,
+                    window_step=self.window_stride,
+                    window_fn=self.window,
                 )
 
                 if feature_type == 'mel_spectrogram' or feature_type == 'mfcc':
@@ -516,6 +527,7 @@ class AudioToCharDALIDataset(_AudioTextDALIDataset):
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 1.
         preprocessor_cfg (DictConfig): Preprocessor configuration. Supports AudioToMelSpectrogramPreprocessor and AudioToMFCCPreprocessor.
+        return_sample_id (bool): whether to return the sample_id as a part of each sample (not supported yet).
     """
 
     def __init__(
@@ -542,6 +554,7 @@ class AudioToCharDALIDataset(_AudioTextDALIDataset):
         global_rank: int = 0,
         world_size: int = 1,
         preprocessor_cfg: DictConfig = None,
+        return_sample_id: bool = False,
     ):
         self.labels = labels
 
@@ -568,6 +581,7 @@ class AudioToCharDALIDataset(_AudioTextDALIDataset):
             global_rank=global_rank,
             world_size=world_size,
             preprocessor_cfg=preprocessor_cfg,
+            return_sample_id=return_sample_id,
         )
 
 
@@ -604,6 +618,7 @@ class AudioToBPEDALIDataset(_AudioTextDALIDataset):
         preprocessor_cfg (DictConfig): Preprocessor configuration. Supports AudioToMelSpectrogramPreprocessor and AudioToMFCCPreprocessor.
         use_start_end_token (bool): Boolean which dictates whether to add [BOS] and [EOS] tokens to beginning and
             ending of speech respectively.
+        return_sample_id (bool): whether to return the sample_id as a part of each sample (not supported yet).
     """
 
     def __init__(
@@ -624,7 +639,9 @@ class AudioToBPEDALIDataset(_AudioTextDALIDataset):
         world_size: int = 1,
         preprocessor_cfg: DictConfig = None,
         use_start_end_token: bool = True,
+        return_sample_id: bool = False,
     ):
+
         if use_start_end_token and hasattr(tokenizer, 'bos_token'):
             bos_id = tokenizer.bos_id
         else:
@@ -667,4 +684,5 @@ class AudioToBPEDALIDataset(_AudioTextDALIDataset):
             global_rank=global_rank,
             world_size=world_size,
             preprocessor_cfg=preprocessor_cfg,
+            return_sample_id=return_sample_id,
         )

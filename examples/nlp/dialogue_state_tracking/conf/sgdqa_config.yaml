@@ -22,7 +22,6 @@ trainer:
   max_steps: null # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
   gradient_clip_val: 1.0
-  amp_level: O1 # O1/O2 for mixed precision
   precision: 16 # Should be set to 16 for O1 and O2 to enable the AMP.
   accelerator: ddp
   log_every_n_steps: 5  # Interval of logging.

@@ -27,6 +27,7 @@ from nemo.collections.nlp.data.zero_shot_intent_recognition.zero_shot_intent_dat
     calc_class_weights_from_dataloader,
 )
 from nemo.collections.nlp.models import TextClassificationModel
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
 __all__ = ['ZeroShotIntentModel']
@@ -150,7 +151,7 @@ class ZeroShotIntentModel(TextClassificationModel):
         candidate_labels: Union[str, List[str]],
         hypothesis_template='This example is {}.',
         batch_size=1,
-        multi_class=False,
+        multi_label=True,
         entailment_idx=1,
         contradiction_idx=0,
     ) -> List[Dict]:
@@ -161,7 +162,7 @@ class ZeroShotIntentModel(TextClassificationModel):
         Example usage:
             queries = ["I'd like a veggie burger, fries, and a coke", "Turn off the lights in the living room",]
             candidate_labels = ["Food order", "Change lighting"]
-            model.predict(queries, candidate_labels, multi_class=True)
+            model.predict(queries, candidate_labels)
 
         Example output:
             [{'sentence': "I'd like a veggie burger, fries, and a coke",
@@ -178,7 +179,7 @@ class ZeroShotIntentModel(TextClassificationModel):
             hypothesis_template: the template used to turn each label into an NLI-style hypothesis. Must include a {}
             or similar syntax for the candidate label to be inserted.
             batch_size: the batch size to use for inference.
-            multi_class: whether or not multiple candidate labels can be true. If False, the scores are normalized
+            multi_label: whether or not multiple candidate labels can be true. If False, the scores are normalized
             such that all class probabilities sum to 1. If True, the labels are
             considered independent and probabilities are normalized for each candidate by doing a softmax of
             the entailment score vs. the contradiction score.
@@ -202,7 +203,7 @@ class ZeroShotIntentModel(TextClassificationModel):
         candidate_labels = [candidate_labels] if isinstance(candidate_labels, str) else candidate_labels
 
         if len(candidate_labels) == 1:
-            multi_class = True
+            multi_label = True
 
         mode = self.training
         try:
@@ -222,7 +223,7 @@ class ZeroShotIntentModel(TextClassificationModel):
 
             all_batch_logits = []
             for batch in infer_datalayer:
-                input_ids, input_type_ids, input_mask, subtokens_mask = batch
+                input_ids, input_type_ids, input_mask, _ = batch
 
                 logits = self.forward(
                     input_ids=input_ids.to(device),
@@ -234,7 +235,7 @@ class ZeroShotIntentModel(TextClassificationModel):
             all_logits = np.concatenate(all_batch_logits)
             outputs = all_logits.reshape((len(queries), len(candidate_labels), -1))
 
-            if not multi_class:
+            if not multi_label:
                 # softmax the "entailment" logits over all candidate labels
                 entail_logits = outputs[..., entailment_idx]
                 scores = np.exp(entail_logits) / np.exp(entail_logits).sum(-1, keepdims=True)
@@ -261,6 +262,26 @@ class ZeroShotIntentModel(TextClassificationModel):
         return result
 
     @classmethod
-    def list_available_models(cls) -> Optional[Dict[str, str]]:
-        """Not yet implemented"""
-        pass
+    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained models which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        result = []
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="zeroshotintent_en_bert_base_uncased",
+                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/zeroshotintent_en_bert_base_uncased/versions/1.4.1/files/zeroshotintent_en_bert_base_uncased.nemo",
+                description="ZeroShotIntentModel trained by fine tuning BERT-base-uncased on the MNLI (Multi-Genre Natural Language Inference) dataset, which achieves an accuracy of 84.9% and 84.8% on the matched and mismatched dev sets, respectively.",
+            )
+        )
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="zeroshotintent_en_megatron_uncased",
+                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/zeroshotintent_en_megatron_uncased/versions/1.4.1/files/zeroshotintent_en_megatron_uncased.nemo",
+                description="ZeroShotIntentModel trained by fine tuning Megatron-BERT-345m=M-uncased on the MNLI (Multi-Genre Natural Language Inference) dataset, which achieves an accuracy of 90.0% and 89.9% on the matched and mismatched dev sets, respectively",
+            )
+        )
+        return result

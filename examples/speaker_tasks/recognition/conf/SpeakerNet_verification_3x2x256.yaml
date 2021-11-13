@@ -131,7 +131,6 @@ trainer:
   num_nodes: 1
   accelerator: ddp
   accumulate_grad_batches: 1
-  amp_level: O0
   deterministic: True
   checkpoint_callback: False
   logger: False

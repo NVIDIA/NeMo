@@ -20,6 +20,7 @@ import torch
 from torchmetrics import Metric
 
 from nemo.collections.asr.metrics.rnnt_wer import AbstractRNNTDecoding
+from nemo.collections.asr.metrics.wer import move_dimension_to_the_front
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -84,6 +85,28 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
                         If a float is provided, it can be greater than 1!
                         By default, a float of 2.0 is used so that a target sequence can be at most twice
                         as long as the acoustic model output length T.
+
+                                maes_num_steps: Number of adaptive steps to take. From the paper, 2 steps is generally sufficient,
+                    and can be reduced to 1 to improve decoding speed while sacrificing some accuracy. int > 0.
+
+                maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to keep this as 1
+                    in order to reduce expensive beam search cost later. int >= 0.
+
+                maes_expansion_beta: Maximum number of prefix expansions allowed, in addition to the beam size.
+                    Effectively, the number of hypothesis = beam_size + maes_expansion_beta. Must be an int >= 0,
+                    and affects the speed of inference since large values will perform large beam search in the next step.
+
+                maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
+                    The default (2.3) is selected from the paper. It performs a comparison (max_log_prob - gamma <= log_prob[v])
+                    where v is all vocabulary indices in the Vocab set and max_log_prob is the "most" likely token to be
+                    predicted. Gamma therefore provides a margin of additional tokens which can be potential candidates for
+                    expansion apart from the "most likely" candidate.
+                    Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
+                    but hurting accuracy). Higher values will increase the number of expansions (by reducing pruning-by-value,
+                    thereby reducing speed but potentially improving accuracy). This is a hyper parameter to be experimentally
+                    tuned on a validation set.
+
+                softmax_temperature: Scales the logits of the joint prior to computing log_softmax.
 
         decoder: The Decoder/Prediction network module.
         joint: The Joint network module.
@@ -156,8 +179,8 @@ class RNNTBPEWER(Metric):
         log_prediction: Whether to log a single decoded sample per call.
 
     Returns:
-        res: a torch.Tensor object with two elements: [wer_numerator, wer_denominator]. To correctly compute average
-        text word error rate, compute wer=wer_numerator/wer_denominator
+        res: a tuple of 3 zero dimensional float32 ``torch.Tensor` objects: a WER score, a sum of Levenstein's
+            distances for all prediction - reference pairs, total number of words in all references.
     """
 
     def __init__(
@@ -192,10 +215,11 @@ class RNNTBPEWER(Metric):
         with torch.no_grad():
             # prediction_cpu_tensor = tensors[0].long().cpu()
             targets_cpu_tensor = targets.long().cpu()
+            targets_cpu_tensor = move_dimension_to_the_front(targets_cpu_tensor, self.batch_dim_index)
             tgt_lenths_cpu_tensor = target_lengths.long().cpu()
 
             # iterate over batch
-            for ind in range(targets_cpu_tensor.shape[self.batch_dim_index]):
+            for ind in range(targets_cpu_tensor.shape[0]):
                 tgt_len = tgt_lenths_cpu_tensor[ind].item()
                 target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
                 reference = self.decoding.decode_tokens_to_str(target)

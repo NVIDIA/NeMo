@@ -13,9 +13,8 @@
 # limitations under the License.
 
 from time import perf_counter
-from typing import List, Optional
+from typing import Dict, List, Optional
 
-import nltk
 import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
@@ -27,21 +26,36 @@ from nemo.collections.nlp.data.text_normalization import TextNormalizationTagger
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.duplex_text_normalization.utils import has_numbers
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.core.classes.common import PretrainedModelInfo
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.neural_types import ChannelType, LogitsType, MaskType, NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators.experimental import experimental
-
-nltk.download('punkt')
-
 
 __all__ = ['DuplexTaggerModel']
 
 
-@experimental
 class DuplexTaggerModel(NLPModel):
     """
     Transformer-based (duplex) tagger model for TN/ITN.
     """
+
+    @property
+    def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "attention_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
+        }
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {"logits": NeuralType(('B', 'T', 'D'), LogitsType())}
+
+    @property
+    def input_module(self):
+        return self
+
+    @property
+    def output_module(self):
+        return self
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self._tokenizer = AutoTokenizer.from_pretrained(cfg.tokenizer, add_prefix_space=True)
@@ -51,6 +65,7 @@ class DuplexTaggerModel(NLPModel):
 
         self.model = AutoModelForTokenClassification.from_pretrained(cfg.transformer, num_labels=self.num_labels)
         self.transformer_name = cfg.transformer
+        self.max_sequence_len = cfg.get('max_sequence_len', self._tokenizer.model_max_length)
 
         # Loss Functions
         self.loss_fct = nn.CrossEntropyLoss(ignore_index=constants.LABEL_PAD_TOKEN_ID)
@@ -63,6 +78,11 @@ class DuplexTaggerModel(NLPModel):
         # Language
         self.lang = cfg.get('lang', None)
 
+    @typecheck()
+    def forward(self, input_ids, attention_mask):
+        logits = self.model(input_ids=input_ids, attention_mask=attention_mask).logits
+        return logits
+
     # Training
     def training_step(self, batch, batch_idx):
         """
@@ -71,7 +91,7 @@ class DuplexTaggerModel(NLPModel):
         """
         num_labels = self.num_labels
         # Apply Transformer
-        tag_logits = self.model(batch['input_ids'], batch['attention_mask']).logits
+        tag_logits = self.forward(input_ids=batch['input_ids'], attention_mask=batch['attention_mask'])
 
         # Loss
         train_loss = self.loss_fct(tag_logits.view(-1, num_labels), batch['labels'].view(-1))
@@ -88,7 +108,7 @@ class DuplexTaggerModel(NLPModel):
         passed in as `batch`.
         """
         # Apply Transformer
-        tag_logits = self.model(batch['input_ids'], batch['attention_mask']).logits
+        tag_logits = self.forward(input_ids=batch['input_ids'], attention_mask=batch['attention_mask'])
         tag_preds = torch.argmax(tag_logits, dim=2)
 
         # Update classification_report
@@ -130,7 +150,7 @@ class DuplexTaggerModel(NLPModel):
 
     # Functions for inference
     @torch.no_grad()
-    def _infer(self, sents: List[List[str]], inst_directions: List[str], do_basic_tokenization=True):
+    def _infer(self, sents: List[List[str]], inst_directions: List[str]):
         """ Main function for Inference
 
         Args:
@@ -143,10 +163,8 @@ class DuplexTaggerModel(NLPModel):
             nb_spans: A list of ints where each int indicates the number of semiotic spans in input words.
             span_starts: A list of lists where each list contains the starting locations of semiotic spans in input words.
             span_ends: A list of lists where each list contains the ending locations of semiotic spans in input words.
-            do_basic_tokenization: whether to do a pre-processing to separate punctuation marks, recommended to set to True
         """
         self.eval()
-
         # Append prefix
         texts = []
         for ix, sent in enumerate(sents):
@@ -154,19 +172,11 @@ class DuplexTaggerModel(NLPModel):
                 prefix = constants.ITN_PREFIX
             elif inst_directions[ix] == constants.INST_FORWARD:
                 prefix = constants.TN_PREFIX
-            if do_basic_tokenization:
-                texts.append([prefix] + sent)
-            else:
-                texts.append(prefix + " " + sent)
+            texts.append([prefix] + sent)
 
         # Apply the model
-        if do_basic_tokenization:
-            is_split_into_words = True
-        else:
-            is_split_into_words = False
-
         encodings = self._tokenizer(
-            texts, is_split_into_words=is_split_into_words, padding=True, truncation=True, return_tensors='pt'
+            texts, is_split_into_words=True, padding=True, truncation=True, return_tensors='pt'
         )
 
         inputs = encodings
@@ -174,14 +184,12 @@ class DuplexTaggerModel(NLPModel):
 
         # check that the length of the 'input_ids' equals as least the length of the original input
         # if an input symbol is missing in the tokenizer's vocabulary (such as emoji or a Chinese character), it could be skipped
-        if do_basic_tokenization:
-            len_texts = [len(x) for x in texts]
-        else:
-            len_texts = [len(x.split()) for x in texts]
+        len_texts = [len(x) for x in texts]
         len_ids = [
             len(self._tokenizer.convert_ids_to_tokens(x, skip_special_tokens=True)) for x in encodings['input_ids']
         ]
         idx_valid = [i for i, (t, enc) in enumerate(zip(len_texts, len_ids)) if enc >= t]
+
         if len(idx_valid) != len(texts):
             logging.warning(
                 'Some of the examples have symbols that were skipped during the tokenization. Such examples will be skipped.'
@@ -212,10 +220,11 @@ class DuplexTaggerModel(NLPModel):
         # Extract all_tag_preds for words
         all_tag_preds = []
         batch_size, max_len = encodings['input_ids'].size()
+        pred_idx = 0
         for ix in range(batch_size):
             if ix in idx_valid:
                 # remove first special token and task prefix token
-                raw_tag_preds = [constants.ALL_TAG_LABELS[p] for p in pred_indexes[ix][2:]]
+                raw_tag_preds = [constants.ALL_TAG_LABELS[p] for p in pred_indexes[pred_idx][2:]]
                 tag_preds, previous_word_idx = [], None
                 word_ids = encodings.word_ids(batch_index=ix)[2:]
                 for jx, word_idx in enumerate(word_ids):
@@ -224,6 +233,7 @@ class DuplexTaggerModel(NLPModel):
                     if word_idx != previous_word_idx:
                         tag_preds.append(raw_tag_preds[jx])  # without special token at index 0
                     previous_word_idx = word_idx
+                pred_idx += 1
             else:
                 # for excluded examples, use SAME tags for all words
                 tag_preds = [constants.SAME_TAG] * (len(texts[ix]) - 1)
@@ -339,10 +349,9 @@ class DuplexTaggerModel(NLPModel):
             tokenizer=self._tokenizer,
             tokenizer_name=self.transformer_name,
             mode=self.mode,
-            do_basic_tokenize=cfg.do_basic_tokenize,
             tagger_data_augmentation=tagger_data_augmentation,
             lang=self.lang,
-            max_seq_length=self._cfg.get('max_sequence_len', self._tokenizer.model_max_length),
+            max_seq_length=self.max_sequence_len,
             use_cache=cfg.get('use_cache', False),
             max_insts=cfg.get('max_insts', -1),
         )
@@ -354,6 +363,17 @@ class DuplexTaggerModel(NLPModel):
         logging.info(f'Took {running_time} seconds')
         return dl
 
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        sample = next(self.parameters())
+        input_ids = torch.randint(low=0, high=2048, size=(2, 16), device=sample.device)
+        attention_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
+        return tuple([input_ids, attention_mask])
+
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
         """
@@ -362,4 +382,11 @@ class DuplexTaggerModel(NLPModel):
             List of available pre-trained models.
         """
         result = []
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="neural_text_normalization_t5",
+                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/neural_text_normalization_t5/versions/1.5.0/files/neural_text_normalization_t5_tagger.nemo",
+                description="Text Normalization model's tagger model.",
+            )
+        )
         return result

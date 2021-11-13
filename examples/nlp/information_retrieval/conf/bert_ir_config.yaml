@@ -7,7 +7,6 @@ trainer:
   max_steps: null # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
   precision: 16 # 16 to use AMP
-  amp_level: O1 # O1 or O2 if using AMP
   accelerator: ddp
   log_every_n_steps: 1  # Interval of logging.
   val_check_interval: 0.05  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
