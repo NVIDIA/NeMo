@@ -650,14 +650,15 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         Returns:
             A pytorch DataLoader for the given audio file(s).
         """
+        batch_size = min(config['batch_size'], len(config['paths2audio_files']))
         dl_config = {
             'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
             'sample_rate': self.preprocessor._sample_rate,
             'labels': self.decoder.vocabulary,
-            'batch_size': min(config['batch_size'], len(config['paths2audio_files'])),
+            'batch_size': batch_size,
             'trim_silence': False,
             'shuffle': False,
-            'num_workers': os.cpu_count() - 1,
+            'num_workers': min(batch_size, os.cpu_count() - 1),
             'pin_memory': True,
         }
 

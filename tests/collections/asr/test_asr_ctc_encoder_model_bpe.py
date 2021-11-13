@@ -144,6 +144,7 @@ class TestEncDecCTCModel:
             assert new_model.vocab_path.endswith('_vocab.txt')
             assert new_model.spe_vocab_path.endswith('_tokenizer.vocab')
 
+            assert new_model.tokenizer.tokenizer.vocab_size == 128
             assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
 
     @pytest.mark.unit

@@ -44,14 +44,6 @@ class Text2SparqlModel(ModelPT):
             "labels": NeuralType(('B', 'T'), ChannelType(), optional=True),
         }
 
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {
-            "loss": NeuralType((), LossType()),
-            "decoder_hidden_states": NeuralType(("B", "T", "D"), ChannelType(), optional=True),
-            "encoder_hidden_states": NeuralType(("B", "T", "D"), ChannelType(), optional=True),
-        }
-
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
 
         # must assign tokenizers before init
