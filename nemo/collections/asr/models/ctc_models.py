@@ -506,6 +506,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             "input_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
             "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType(), optional=True),
             "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "sample_id": NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
     @property
@@ -596,6 +597,22 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        signal, signal_len, transcript, transcript_len, sample_id = batch
+        if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
+            log_probs, encoded_len, predictions = self.forward(
+                processed_signal=signal, processed_signal_length=signal_len
+            )
+        else:
+            log_probs, encoded_len, predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
+
+        transcribed_texts = self._wer.ctc_decoder_predictions_tensor(
+            predictions=predictions, predictions_len=encoded_len, return_hypotheses=False,
+        )
+
+        sample_id = sample_id.cpu().detach().numpy()
+        return list(zip(sample_id, transcribed_texts))
+
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         signal, signal_len, transcript, transcript_len = batch
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
@@ -650,14 +667,15 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         Returns:
             A pytorch DataLoader for the given audio file(s).
         """
+        batch_size = min(config['batch_size'], len(config['paths2audio_files']))
         dl_config = {
             'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
             'sample_rate': self.preprocessor._sample_rate,
             'labels': self.decoder.vocabulary,
-            'batch_size': min(config['batch_size'], len(config['paths2audio_files'])),
+            'batch_size': batch_size,
             'trim_silence': False,
             'shuffle': False,
-            'num_workers': os.cpu_count() - 1,
+            'num_workers': min(batch_size, os.cpu_count() - 1),
             'pin_memory': True,
         }
 

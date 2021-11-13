@@ -107,6 +107,13 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         )
         results.append(model)
 
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_de_contextnet_1024",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_de_contextnet_1024",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_de_contextnet_1024/versions/1.4.0/files/stt_de_contextnet_1024.nemo",
+        )
+        results.append(model)
+
         return results
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -349,12 +356,13 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         Returns:
             A pytorch DataLoader for the given audio file(s).
         """
+        batch_size = min(config['batch_size'], len(config['paths2audio_files']))
         dl_config = {
             'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
             'sample_rate': self.preprocessor._sample_rate,
-            'batch_size': min(config['batch_size'], len(config['paths2audio_files'])),
+            'batch_size': batch_size,
             'shuffle': False,
-            'num_workers': os.cpu_count() - 1,
+            'num_workers': min(batch_size, os.cpu_count() - 1),
             'pin_memory': True,
             'use_start_end_token': self.cfg.validation_ds.get('use_start_end_token', False),
         }
