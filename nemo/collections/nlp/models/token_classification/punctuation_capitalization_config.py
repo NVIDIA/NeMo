@@ -75,16 +75,9 @@ class ClassLabels:
 
 @dataclass
 class CommonDatasetParameters:
-    data_dir: Optional[str] = None
-    max_seq_length: Optional[int] = 128
     pad_label: str = MISSING
     ignore_extra_tokens: bool = False
     ignore_start_end: bool = True
-    use_cache: bool = True
-    num_workers: Optional[int] = 2
-    pin_memory: bool = False
-    drop_last: bool = False
-    persistent_workers: bool = False
 
 
 @dataclass
